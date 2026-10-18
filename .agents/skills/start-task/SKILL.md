@@ -13,15 +13,27 @@ metadata:
 
 This repository is public and its roadmap board is not. The same contract therefore runs in two
 places, and several steps below mean different things in each. Resolve which one applies before
-step 2 rather than assuming, and state it in the brief.
+the branch is renamed rather than assuming, and state it in the brief.
 
 1. Run `scripts/inspect-workspace.sh` and read `Base branch`. `origin/main` means `origin` is
-   MailFathom itself, which is the **owner's checkout**. Anything else — `upstream/main`, or
-   `unresolved` — means `origin` is a fork, which is the **fork role**.
-2. Probe the board, in either role, because access to it is a separate fact from which repository
-   this is: the owner grants read or write on project `1` to a contributor whenever they decide to,
-   and a clone of MailFathom made without write access reads as the owner's checkout until something
-   asks:
+   MailFathom itself. Anything else — `upstream/main`, or `unresolved` — means `origin` is a fork,
+   which is the **fork role**.
+2. When `origin` is MailFathom, ask the repository what this credential may do there, because a
+   clone is not a grant — anybody can clone a public repository, and an organization member holds no
+   role on it until a team gives one:
+
+   ```bash
+   gh api repos/fathomise/MailFathom --jq '.permissions'
+   ```
+
+   `push: true` is the **owner's checkout**. `push: false` is neither role: every label, the
+   milestone, the claim, and the push would each be refused, so return `blocked` before the workflow
+   below renames anything, and name the repair — fork the repository, repoint `origin` at the fork,
+   and add MailFathom back as a second remote, which makes this the fork role. An answer with no
+   `permissions` key is an unauthenticated `gh` rather than a refusal, since a public repository
+   answers a read for anybody; that is a credential to repair, and it says nothing about access.
+3. Probe the board, in either role, because access to it is a separate fact from which repository
+   this is: the owner grants read or write on project `1` to a contributor whenever they decide to:
 
    ```bash
    gh api graphql -f query='{ organization(login: "fathomise") { projectV2(number: 1) { viewerCanUpdate } } }'
@@ -114,7 +126,7 @@ them if that access were ever removed.
    free. A blocker that has since closed stops nothing and is why the query filters on `open` rather
    than on the list being empty.
 9. Place the issue. The label and the milestone need write access to the repository, so they belong
-   to the owner's checkout; the board fields need write access to the board, which step 2
+   to the owner's checkout; the board fields need write access to the board, which the board probe
    established. It carries exactly one `type:*` label, a `backend` or `frontend` label where the work
    lands in one of the two stacks and neither where it lands in neither, an `Area` and a `Queue`
    value on the board, a milestone when the milestone rule assigns one, and the `Size` placeholder
@@ -177,7 +189,7 @@ them if that access were ever removed.
 Return:
 
 ```text
-Role: <owner's checkout or fork, what resolved it, and what the board probe returned>
+Role: <owner's checkout or fork, what resolved it — the base branch and, for origin/main, the push probe — and what the board probe returned>
 Workspace: <safe or blocked, branch, base branch>
 Scope: <what governs the task, or that nothing does>
 Protected paths: <none reached, or which and what that means for this role>
