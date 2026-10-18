@@ -13,7 +13,7 @@ metadata:
 
 This repository is public and its roadmap board is not. The same contract therefore runs in two
 places, and several steps below mean different things in each. Resolve which one applies before
-step 2 rather than assuming, and state it in the brief.
+the branch is renamed rather than assuming, and state it in the brief.
 
 1. Run `scripts/inspect-workspace.sh` and read `Base branch`. `origin/main` means `origin` is
    MailFathom itself. Anything else — `upstream/main`, or `unresolved` — means `origin` is a fork,
@@ -126,7 +126,7 @@ them if that access were ever removed.
    free. A blocker that has since closed stops nothing and is why the query filters on `open` rather
    than on the list being empty.
 9. Place the issue. The label and the milestone need write access to the repository, so they belong
-   to the owner's checkout; the board fields need write access to the board, which step 2
+   to the owner's checkout; the board fields need write access to the board, which the board probe
    established. It carries exactly one `type:*` label, a `backend` or `frontend` label where the work
    lands in one of the two stacks and neither where it lands in neither, an `Area` and a `Queue`
    value on the board, a milestone when the milestone rule assigns one, and the `Size` placeholder

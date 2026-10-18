@@ -1,6 +1,6 @@
 # Agent workflow
 
-<!-- describes: scripts/**, .agents/skills/**, .github/workflows/**, .github/fathom-review/**, .github/pull-request/**, .github/coherence/**, .github/duplicate-definitions/**, **/.editorconfig, .gitignore, .worktreeinclude -->
+<!-- describes: scripts/**, .agents/skills/**, .github/workflows/**, .github/fathom-review/**, .github/pull-request/**, .github/coherence/**, .github/duplicate-definitions/**, .github/protected-paths/**, **/.editorconfig, .gitignore, .worktreeinclude -->
 
 Codex and Claude Code share one repository-owned workflow. Deterministic Git and
 .NET operations live in scripts, while repository-specific judgment lives in
@@ -2620,6 +2620,21 @@ role, a member of the organization in neither team included — a pass that foun
 nothing submits `event: COMMENT` under the heading
 `NO FINDINGS`, saying that a project maintainer still has to review and approve
 it, and the maintainer's approval is what merges it.
+
+**An author holding `write` alone is not approved for a change to a protected
+path.** `Protected paths` judges a pull request with the pull request's own copy
+of the workflow, so a contributor could weaken it in the same change; the
+reviewer runs from `main` and cannot be rewritten that way. `collect` therefore
+reads every changed file — renames on both sides, vendored and generated files
+included, beyond the hundred the readers are given — through
+`.github/protected-paths/select-protected-paths.sh` from the base commit, and
+records the protected paths it found and whether the listing was complete. A
+pass that found nothing on such a change submits `NO FINDINGS` saying a
+maintainer has to approve the current head, and so does one whose listing the
+changed-files endpoint cut short, because a protected path past that point
+cannot be shown absent. A maintainer's and the owner's own changes are approved
+as before.
+
 `REQUEST_CHANGES` is never used in any branch: a reviewer that reports no
 status check must not be able to block a merge either, which is
 why `NEEDS CHANGES` is a heading in a body and never a review state.

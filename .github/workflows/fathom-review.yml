@@ -65,7 +65,10 @@ name: Fathom review
 # The approval is what lets a change merge. The `main` ruleset requires one approving review and
 # does not ask for it from a code owner, so this one satisfies it — which is why it is given only to
 # a pull request whose head branch lives in this repository and whose author holds `write`,
-# `maintain`, or `admin` on it, which the `contributors` and `maintainers` teams are given. Any other pull request never gets one: a pass that finds nothing there submits
+# `maintain`, or `admin` on it, which the `contributors` and `maintainers` teams are given — and, for
+# an author holding `write` alone, only while the change leaves every protected path alone, since
+# `Protected paths` runs from the pull request's own copy and so cannot hold such a change by itself.
+# Any other pull request never gets one: a pass that finds nothing there submits
 # `event: COMMENT` under `NO FINDINGS` instead, and a project maintainer's approval is what merges
 # it. `dismiss_stale_reviews_on_push` discards an
 # approval on the next push, so it never outlives the commit it was given for, and that same push
@@ -1010,6 +1013,9 @@ jobs:
           # list the readers are given. It sits beside the review directory rather than inside it so
           # that the artifact carries one list of changed files and no reader can pick up the other.
           OBLIGATIONS_FILES: ${{ runner.temp }}/files.obligations.json
+          # Every changed file, which the protected-path reading needs and the readers are not given.
+          ALL_FILES: ${{ runner.temp }}/files.all.json
+          SELECT_PROTECTED_PATHS: ${{ github.workspace }}/.github/protected-paths/select-protected-paths.sh
           GITHUB_API_SCRIPT: ${{ github.workspace }}/.github/pull-request/call-github-api.sh
           # How long each of the two loops below that call once per record may spend in total. They
           # are declared here rather than written into the body for the reason the settle windows
@@ -1092,10 +1098,29 @@ jobs:
           # A page that fails restarts the whole call rather than resuming, which is why the helper
           # buffers the answer instead of streaming it: a retry that appended to what the first
           # attempt already printed would produce exactly the duplicated stream described above.
+          # Every changed file is kept outside the review directory first, because the protected-path
+          # reading below needs all of them and the readers are given at most `file_limit`.
+          all_files="$ALL_FILES"
           "$GITHUB_API_SCRIPT" "repos/${REPOSITORY}/pulls/${PULL_REQUEST_NUMBER}/files?per_page=100" --paginate \
             --jq '.[] | {filename, previous_filename, status, additions, deletions, patch}' \
-            | jq -s --argjson limit "$file_limit" '.[0:$limit]' \
-            > "$REVIEW_DIRECTORY/files.json"
+            | jq -s '.' > "$all_files"
+          jq --argjson limit "$file_limit" '.[0:$limit]' "$all_files" > "$REVIEW_DIRECTORY/files.json"
+
+          # Which changed paths only a maintainer may change, read with the selection `Protected
+          # paths` refuses them by, from the base commit this job checked out — so the change under
+          # review cannot shorten the list. A rename counts on both sides. The listing is complete
+          # only when it holds as many files as the pull request reports: the endpoint stops at 3000,
+          # and a protected path past that point cannot be shown to be absent. The submission step
+          # withholds the approval on either answer for an author who is no maintainer.
+          protected_changes="$(
+            jq -r '.[] | .filename, (.previous_filename // empty)' "$all_files" | bash "$SELECT_PROTECTED_PATHS"
+          )"
+          jq --arg protected_changes "$protected_changes" \
+             --argjson listed "$(jq 'length' "$all_files")" '
+            .protected_changes = ($protected_changes | split("\n") | map(select(. != "")))
+            | .protected_changes_complete = ($listed >= (.changed_files // 0))' \
+            "$REVIEW_DIRECTORY/pull-request.json" > "$REVIEW_DIRECTORY/pull-request.json.next"
+          mv "$REVIEW_DIRECTORY/pull-request.json.next" "$REVIEW_DIRECTORY/pull-request.json"
 
           # The one class of changed file a review has nothing to say about. `design/runtime/` holds
           # the generated runtime the design's artboards boot on — one minified bundle a design tool
@@ -2438,9 +2463,13 @@ jobs:
           # The approval satisfies the one approving review the ruleset requires, so it is given only
           # where the head branch lives in this repository and the author holds `write`, `maintain`,
           # or `admin` on it — the `contributors` team, the `maintainers` team, or the organization's
-          # owner. Anything else — a fork, or an author with no such role, a member of the
-          # organization in neither team included — gets the same verdict as a comment, and a
-          # maintainer's approval merges it. Both facts are read from
+          # owner. An author holding `write` alone is approved only when `collect` read the complete
+          # list of changed files and it names no protected path: `Protected paths` judges with the
+          # pull request's own copy of itself, so this approval is what would otherwise let a
+          # contributor merge a change to the rules that judge them. Anything else — a fork, an author
+          # with no such role, a member of the organization in neither team included, or a
+          # contributor's protected change — gets the same verdict as a comment, and a maintainer's
+          # approval merges it. These facts are read from
           # what `collect` asked the API, never from the event or the model, and an absent one — a
           # deleted fork reports `null` — withholds the approval. `REQUEST_CHANGES` is never used in
           # any branch: a reviewer that reports no status check must not be able to block a merge.
@@ -2460,12 +2489,21 @@ jobs:
           if [[ "$(jq '(.findings // []) | length' "$findings_file")" == '0' ]]; then
             head_repository="$(jq -r '.head_repository // ""' "$REVIEW_DIRECTORY/pull-request.json" 2>/dev/null || true)"
             author_role="$(jq -r '.author_role // ""' "$REVIEW_DIRECTORY/pull-request.json" 2>/dev/null || true)"
+            # `true` only when the complete listing named no protected path; an absent field, a
+            # truncated listing, and any protected path all read as `false`.
+            leaves_protected_paths_alone="$(jq -r '((.protected_changes_complete // false) and ((.protected_changes // ["unknown"]) | length == 0))' "$REVIEW_DIRECTORY/pull-request.json" 2>/dev/null || echo false)"
             if [[ "$head_repository" == "$REPOSITORY" ]] \
-              && [[ "$author_role" == 'write' || "$author_role" == 'maintain' || "$author_role" == 'admin' ]]; then
+              && [[ "$author_role" == 'maintain' || "$author_role" == 'admin' \
+                    || ( "$author_role" == 'write' && "$leaves_protected_paths_alone" == 'true' ) ]]; then
               event='APPROVE'
               heading='# APPROVED'
               notice=''
               verdict='approved'
+            elif [[ "$head_repository" == "$REPOSITORY" && "$author_role" == 'write' ]]; then
+              event='COMMENT'
+              heading='# NO FINDINGS'
+              notice='This pull request changes a protected path and its author is not a maintainer of this repository, so this reviewer does not approve it. A maintainer has to approve its current head before it can merge.'
+              verdict='no_findings'
             else
               event='COMMENT'
               heading='# NO FINDINGS'
@@ -2512,7 +2550,7 @@ jobs:
             if [[ "$event" == 'APPROVE' ]]; then
               echo 'Approved: the review found nothing above the bar.'
             else
-              echo 'Found nothing above the bar; the head lives in a fork or the author holds no write access here, so a maintainer approves it.'
+              echo 'Found nothing above the bar; the head lives in a fork, the author holds no write access here, or a contributor changed a protected path, so a maintainer approves it.'
             fi
             exit 0
           fi

@@ -3050,7 +3050,7 @@ case "$endpoint" in
                  repo: (if env.FAKE_DELETED_HEAD_REPOSITORY == "true" then null
                         else {full_name: "fathomise/MailFathom"} end)},
           base: {sha: "89abcdef0123456789abcdef0123456789abcdef", ref: "main"},
-          changed_files: 1,
+          changed_files: ((env.FAKE_PULL_REQUEST_CHANGED_FILES // "1") | tonumber),
           additions: 1,
           deletions: 0}'
     )"
@@ -3168,6 +3168,8 @@ run_fathom_review_collect() {
     # rather than into it. The workflow declares the path from `runner.temp`; here it is the same
     # directory the review one sits in.
     export OBLIGATIONS_FILES="$test_directory/fathom-review-collect-files.obligations.json"
+    export ALL_FILES="$test_directory/fathom-review-collect-files.all.json"
+    export SELECT_PROTECTED_PATHS="$source_repository_root/.github/protected-paths/select-protected-paths.sh"
     export_api_retry_environment
     export REVIEWER_LOGIN='fathom-reviewer[bot]'
     export EXPLICIT="$explicit"
@@ -3208,6 +3210,25 @@ fathom_review_collects_where_the_head_lives_and_who_opened_it() {
   FAKE_DELETED_HEAD_REPOSITORY='true' run_fathom_review_collect "$output_file"
 
   assert_json 'null' '.head_repository' "$collect_review_directory/pull-request.json"
+}
+
+# The protected paths are read from every changed file rather than from the ones the readers are
+# given, so a vendored skill dropped from the review still counts as the change to `.agents/` it is.
+# A listing shorter than the pull request's own count cannot show a protected path to be absent.
+fathom_review_collects_the_protected_paths_a_change_reaches() {
+  local output_file="$test_directory/fathom-review-collect-protected-output"
+
+  run_fathom_review_collect "$output_file"
+  assert_json '[]' '.protected_changes' "$collect_review_directory/pull-request.json"
+  assert_json 'true' '.protected_changes_complete' "$collect_review_directory/pull-request.json"
+
+  run_fathom_review_collect "$output_file" 120 120 1 false 0 0 2
+  assert_json '[".agents/skills/brandkit/vendored0.md",".agents/skills/brandkit/vendored1.md",".agents/skills/start-task/SKILL.md"]' \
+    '.protected_changes' "$collect_review_directory/pull-request.json"
+  assert_json 'true' '.protected_changes_complete' "$collect_review_directory/pull-request.json"
+
+  FAKE_PULL_REQUEST_CHANGED_FILES='3001' run_fathom_review_collect "$output_file"
+  assert_json 'false' '.protected_changes_complete' "$collect_review_directory/pull-request.json"
 }
 
 # The contract the security pass rests on. Without the labels beside the body, the one thing that
@@ -3678,10 +3699,18 @@ write_fathom_review_collection() {
   local head_repository="${2-fathomise/MailFathom}"
   local author_role="${3-write}"
 
+  # The protected paths the change reaches and whether that listing was complete, as `collect`
+  # read them. None, read in full, is the ordinary case.
+  local protected_changes="${PROTECTED_CHANGES-[]}"
+  local protected_changes_complete="${PROTECTED_CHANGES_COMPLETE-true}"
+
   mkdir -p "$review_directory"
   jq -n --arg head_repository "$head_repository" --arg author_role "$author_role" \
+    --argjson protected_changes "$protected_changes" --argjson complete "$protected_changes_complete" \
     '{head_repository: (if $head_repository == "" then null else $head_repository end),
-      author_role: (if $author_role == "" then null else $author_role end)}' \
+      author_role: (if $author_role == "" then null else $author_role end),
+      protected_changes: $protected_changes,
+      protected_changes_complete: $complete}' \
     > "$review_directory/pull-request.json"
   printf '[{"filename":"backend/src/Sample.cs","lines":[12,13,14]}]\n' > "$review_directory/lines.json"
   : > "$review_directory/truncation.txt"
@@ -3903,6 +3932,41 @@ fathom_review_approves_only_a_pull_request_from_this_repository_by_an_author_wit
     assert_excludes '# APPROVED' "$payload_file"
     assert_contains 'verdict=no_findings' "$submit_step_output_file"
   done
+}
+
+# `Protected paths` judges with the pull request's own copy of itself, so the approval is what holds a
+# contributor's change to a protected path for a maintainer. A maintainer's own change is approved as
+# before, and a listing that could not be read in full is treated as one that reached a protected path.
+fathom_review_withholds_approval_from_a_contributor_changing_a_protected_path() {
+  local output_file="$test_directory/fathom-review-submit-protected-output"
+  local payload_file="$test_directory/fathom-review-submit-protected-payload"
+  local clean='{"summary":"Read every changed file and found nothing above the bar.","findings":[]}'
+  local author_role
+
+  for author_role in maintain admin; do
+    PROTECTED_CHANGES='[".github/workflows/protected-paths.yml"]' run_fathom_review_submit \
+      "$clean" "$output_file" "$payload_file" 'success' '' '<!-- fathom-review: automatic -->' \
+      'fathomise/MailFathom' "$author_role"
+
+    ((submit_status == 0))
+    assert_json '"APPROVE"' '.event' "$payload_file"
+  done
+
+  PROTECTED_CHANGES='[".github/workflows/protected-paths.yml"]' run_fathom_review_submit \
+    "$clean" "$output_file" "$payload_file" 'success' '' '<!-- fathom-review: automatic -->' \
+    'fathomise/MailFathom' 'write'
+
+  ((submit_status == 0))
+  assert_json '"COMMENT"' '.event' "$payload_file"
+  assert_contains 'changes a protected path and its author is not a maintainer' "$payload_file"
+  assert_contains 'verdict=no_findings' "$submit_step_output_file"
+
+  PROTECTED_CHANGES_COMPLETE='false' run_fathom_review_submit \
+    "$clean" "$output_file" "$payload_file" 'success' '' '<!-- fathom-review: automatic -->' \
+    'fathomise/MailFathom' 'write'
+
+  ((submit_status == 0))
+  assert_json '"COMMENT"' '.event' "$payload_file"
 }
 
 # The marker is what the ceiling counts with, and it is written by the only step that publishes. A
@@ -11559,6 +11623,7 @@ run_test fathom_review_reads_the_newest_comment_whatever_the_order
 run_test fathom_review_collects_the_labels_of_an_issue_the_change_closes
 run_test fathom_review_collects_only_what_members_and_the_reviewer_wrote
 run_test fathom_review_collects_where_the_head_lives_and_who_opened_it
+run_test fathom_review_collects_the_protected_paths_a_change_reaches
 run_test fathom_review_reports_unknown_labels_for_an_issue_it_could_not_fetch
 run_test fathom_review_never_reads_the_design_runtime
 run_test fathom_review_never_reads_a_generated_migration
@@ -11588,6 +11653,7 @@ run_test fathom_review_holds_a_settling_pass_whatever_the_severity
 run_test fathom_review_moves_a_finding_with_no_line_into_the_body
 run_test fathom_review_approves_when_it_finds_nothing
 run_test fathom_review_approves_only_a_pull_request_from_this_repository_by_an_author_with_write_access
+run_test fathom_review_withholds_approval_from_a_contributor_changing_a_protected_path
 run_test fathom_review_reports_the_files_a_review_never_named
 run_test fathom_review_reports_no_gap_when_the_review_named_every_file
 run_test fathom_review_counts_a_named_path_the_change_does_not_contain
