@@ -6739,6 +6739,101 @@ coherence_workflow_still_fails_on_any_other_related_change() {
   [[ "$coherence_workflow_status" -eq 1 ]]
 }
 
+# `Duplicate definitions` asks a model only about what its prefilter lists, so the prefilter is what decides
+# whether a duplicate is ever looked at. One side of a change, in a repository of its own: every kind
+# of definition it reads, a line that defines nothing, and generated code it leaves out.
+duplicate_definitions_lists_what_each_kind_of_file_newly_defines() {
+  local fixture_root="$test_directory/duplicate-definitions-definitions"
+  local base
+
+  rm -rf "$fixture_root"
+  mkdir -p "$fixture_root/scripts" "$fixture_root/backend/src/Migrations" "$fixture_root/frontend/src" \
+    "$fixture_root/.github/workflows" "$fixture_root/src-tauri"
+  git -C "$fixture_root" init --quiet
+  git -C "$fixture_root" config user.email agent-workflow@example.invalid
+  git -C "$fixture_root" config user.name 'Agent Workflow Tests'
+  printf 'existing() {\n  :\n}\n' > "$fixture_root/scripts/existing.sh"
+  git -C "$fixture_root" add .
+  git -C "$fixture_root" commit --quiet -m base
+  base="$(git -C "$fixture_root" rev-parse HEAD)"
+
+  printf 'existing() {\n  echo changed\n}\n\nfunction read_version() {\n  :\n}\n' > "$fixture_root/scripts/existing.sh"
+  printf 'declared_version() {\n  :\n}\n' > "$fixture_root/scripts/new-tool.sh"
+  printf '%s\n' 'public sealed record MailboxName(string Value)' '{' \
+    '    public static MailboxName Parse(string text) => new(text);' '}' \
+    > "$fixture_root/backend/src/MailboxName.cs"
+  printf 'public partial class AddMailbox : Migration;\n' > "$fixture_root/backend/src/Migrations/AddMailbox.cs"
+  printf '%s\n' 'export function formatDate(value: Date) {}' 'export const DEFAULT_LIMIT = 10;' \
+    'const toLabel = (value: string) => value;' 'export interface Folder {}' \
+    > "$fixture_root/frontend/src/format.ts"
+  printf '      introduced_by() {\n' > "$fixture_root/.github/workflows/check.yml"
+  printf 'pub fn open_window() {}\n' > "$fixture_root/src-tauri/main.rs"
+  git -C "$fixture_root" add .
+  git -C "$fixture_root" commit --quiet -m change
+
+  (cd "$fixture_root" && bash "$source_repository_root/.github/duplicate-definitions/list-new-definitions.sh" \
+    "$base" HEAD "$test_directory/duplicate-definitions-definitions.tsv")
+
+  assert_file_content "$(printf '%s\n' \
+    $'.github/workflows/check.yml\tintroduced_by' \
+    $'backend/src/MailboxName.cs\tMailboxName' \
+    $'backend/src/MailboxName.cs\tParse' \
+    $'frontend/src/format.ts\tDEFAULT_LIMIT' \
+    $'frontend/src/format.ts\tFolder' \
+    $'frontend/src/format.ts\tformatDate' \
+    $'frontend/src/format.ts\ttoLabel' \
+    $'scripts/existing.sh\tread_version' \
+    $'scripts/new-tool.sh\tdeclared_version' \
+    $'scripts/new-tool.sh\tnew-tool.sh' \
+    $'src-tauri/main.rs\topen_window')" \
+    "$test_directory/duplicate-definitions-definitions.tsv"
+}
+
+run_duplicate_definitions_report() {
+  local name="$1" verdict="$2"
+
+  printf 'scripts/a.sh\tparse_items\nscripts/a.sh\tread_version\n' > "$test_directory/duplicate-definitions-$name-landed.tsv"
+  printf 'scripts/b.sh\tdeclared_version\nscripts/b.sh\tlisted_items\n' > "$test_directory/duplicate-definitions-$name-changed.tsv"
+  printf '%s' "$verdict" > "$test_directory/duplicate-definitions-$name-verdict.json"
+  : > "$test_directory/duplicate-definitions-$name-summary.md"
+
+  bash "$source_repository_root/.github/duplicate-definitions/report-verdict.sh" \
+    "$test_directory/duplicate-definitions-$name-landed.tsv" "$test_directory/duplicate-definitions-$name-changed.tsv" \
+    "$test_directory/duplicate-definitions-$name-verdict.json" "$test_directory/duplicate-definitions-$name-summary.md" \
+    > "$test_directory/duplicate-definitions-$name-annotations"
+}
+
+# A pair is shown only when both of its sides were listed, because anything else is a definition the
+# model made up — and what it wrote about them is one line, escaped for the table and the command. A
+# duplicate and an overlap are told apart in both, since only the first is a drop-in for the other.
+duplicate_definitions_reports_only_a_pair_the_prefilter_listed() {
+  run_duplicate_definitions_report listed '{"verdict":"found","pairs":[
+    {"kind":"duplicate","landed_path":"scripts/a.sh","landed_name":"read_version","changed_path":"scripts/b.sh","changed_name":"declared_version","what_both_do":"print the 100% version\nof a | b"},
+    {"kind":"overlap","landed_path":"scripts/a.sh","landed_name":"parse_items","changed_path":"scripts/b.sh","changed_name":"listed_items","what_both_do":"parse a bulleted list; only one refuses an item named twice"},
+    {"kind":"duplicate","landed_path":"scripts/a.sh","landed_name":"invented","changed_path":"scripts/b.sh","changed_name":"declared_version","what_both_do":"anything"}]}'
+
+  assert_file_content "$(printf '%s\n' \
+    '::warning title=Duplicate definition::declared_version in scripts/b.sh, which this pull request adds, does what read_version in scripts/a.sh already does: print the 100%25 version of a | b' \
+    '::warning title=Overlapping definition::listed_items in scripts/b.sh, which this pull request adds, overlaps parse_items in scripts/a.sh: parse a bulleted list; only one refuses an item named twice')" \
+    "$test_directory/duplicate-definitions-listed-annotations"
+  assert_contains '| duplicate | `scripts/b.sh` `declared_version` | `scripts/a.sh` `read_version` | print the 100% version of a \| b |' \
+    "$test_directory/duplicate-definitions-listed-summary.md"
+  assert_contains '| overlap | `scripts/b.sh` `listed_items` | `scripts/a.sh` `parse_items` |' \
+    "$test_directory/duplicate-definitions-listed-summary.md"
+  assert_contains '1 pair(s) the model named were not among the listed definitions and were dropped.' \
+    "$test_directory/duplicate-definitions-listed-summary.md"
+}
+
+# The check fails open: a model step that answered nothing is no verdict and no warning, and the
+# script still succeeds.
+duplicate_definitions_reports_no_verdict_when_the_model_answered_nothing() {
+  run_duplicate_definitions_report empty ''
+
+  assert_file_content '' "$test_directory/duplicate-definitions-empty-annotations"
+  assert_file_content 'No verdict: the model step failed or returned nothing readable, so nothing is reported.' \
+    "$test_directory/duplicate-definitions-empty-summary.md"
+}
+
 # The same relation asked before publishing, against pull requests still open rather than changes
 # that landed. The open ones come from `gh pr list`, so what is pinned is what the script does with
 # that answer: which pull request a pair is attributed to, and that the branch's own pull request is
@@ -11391,6 +11486,9 @@ run_test coherence_relates_the_same_prose_file_and_an_instructions_scope
 run_test coherence_workflow_leaves_agents_files_and_the_operations_pages_out
 run_test coherence_workflow_leaves_hub_documents_out_of_the_changed_side
 run_test coherence_workflow_still_fails_on_any_other_related_change
+run_test duplicate_definitions_lists_what_each_kind_of_file_newly_defines
+run_test duplicate_definitions_reports_only_a_pair_the_prefilter_listed
+run_test duplicate_definitions_reports_no_verdict_when_the_model_answered_nothing
 run_test related_pull_requests_names_the_open_pull_request_a_pair_comes_from
 run_test related_pull_requests_writes_another_pull_request_s_paths_as_inert_code
 run_test related_pull_requests_says_when_it_read_only_the_first_hundred_pull_requests
