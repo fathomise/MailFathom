@@ -6,9 +6,9 @@ name: Duplicate definitions
 
 # Names a pull request in the merge queue that adds a definition doing the same job as one that
 # landed on `main` while it was being written — a helper, a test double, a type, or a script two pull
-# requests written in parallel each added. `Coherence` relates prose to what it describes and leaves
-# code against code to the build and the tests, which prove the combined tree behaves but never that
-# it does one thing once.
+# requests written in parallel each added. `Coherence` relates prose to what it describes and code
+# to code only where one names the other's file, and leaves the rest to the build and the tests,
+# which prove the combined tree behaves but never that it does one thing once.
 #
 # It asks a model, so it runs where the answer is final and nowhere else: on the merge group, where
 # what landed is `main` plus the entries ahead in the queue. A pull request's own run could not see

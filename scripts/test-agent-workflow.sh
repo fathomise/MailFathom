@@ -6622,12 +6622,13 @@ run_coherence() {
   local fixture_root="$test_directory/coherence-$name"
 
   create_coherence_fixture "$fixture_root"
+  git -C "$fixture_root" init --quiet
   printf '%s\n' $landed > "$test_directory/coherence-$name-landed"
   printf '%s\n' $changed > "$test_directory/coherence-$name-changed"
 
   bash "$source_repository_root/.github/coherence/relate-changes.sh" \
     "$fixture_root" "$test_directory/coherence-$name-landed" "$test_directory/coherence-$name-changed" \
-    "$test_directory/coherence-$name.json"
+    /dev/null /dev/null "$test_directory/coherence-$name.json"
 }
 
 coherence_relates_a_landed_page_to_the_path_it_describes() {
@@ -6666,11 +6667,75 @@ coherence_relates_the_same_prose_file_and_an_instructions_scope() {
     '.' "$test_directory/coherence-prose.json"
 }
 
-# The workflow, unlike the relation above, leaves every `AGENTS.md` and the two operations pages out
-# of both sides. Its step runs verbatim against a pull request's merge commit: the landed side is
-# `main`'s commit since the merge base, the changed side the pull request's.
+# Code naming a file is read from what each side added, so this fixture is a history: a base, a
+# landed commit, and a pull request beside it. Each side has one file that names the other side's,
+# and every way a mention is not a dependency is on the pull request's side as well — a test, a
+# page, a file name two files share, and a name found inside a longer one.
+run_coherence_names() {
+  local fixture_root="$test_directory/coherence-names"
+  local base landed path
+
+  rm -rf "$fixture_root"
+  mkdir -p "$fixture_root/scripts/lib" "$fixture_root/tests" "$fixture_root/frontend/b" "$fixture_root/docs"
+  git -C "$fixture_root" init --initial-branch=main --quiet
+  git -C "$fixture_root" config user.email agent-workflow@example.invalid
+  git -C "$fixture_root" config user.name 'Agent Workflow Tests'
+  for path in scripts/relate.sh scripts/report.sh scripts/tool.sh scripts/lib/helper.sh scripts/run.sh \
+    scripts/other.sh tests/report.test.ts frontend/a.ts frontend/b/a.ts frontend/c.ts docs/page.md; do
+    printf 'base\n' > "$fixture_root/$path"
+  done
+  git -C "$fixture_root" add .
+  git -C "$fixture_root" commit --quiet -m base
+  base="$(git -C "$fixture_root" rev-parse HEAD)"
+
+  printf 'landed\n' >> "$fixture_root/scripts/relate.sh"
+  printf '# Reads what helper.sh prints.\n' >> "$fixture_root/scripts/tool.sh"
+  printf 'landed\n' | tee -a "$fixture_root/frontend/a.ts" >> "$fixture_root/scripts/run.sh"
+  git -C "$fixture_root" commit --quiet -am landed
+  landed="$(git -C "$fixture_root" rev-parse HEAD)"
+
+  git -C "$fixture_root" switch --quiet --detach "$base"
+  printf 'bash scripts/relate.sh\n' >> "$fixture_root/scripts/report.sh"
+  printf 'changed\n' >> "$fixture_root/scripts/lib/helper.sh"
+  printf "import 'scripts/relate.sh';\n" >> "$fixture_root/tests/report.test.ts"
+  printf 'See scripts/relate.sh.\n' >> "$fixture_root/docs/page.md"
+  printf "import { a } from './a.ts';\n" >> "$fixture_root/frontend/c.ts"
+  printf 'Runs prerun.sh and run.sh-old.\n' >> "$fixture_root/scripts/other.sh"
+  git -C "$fixture_root" commit --quiet -am 'pull request'
+
+  git -C "$fixture_root" diff --name-only "$base" "$landed" > "$test_directory/coherence-names-landed"
+  git -C "$fixture_root" diff --name-only "$base" HEAD > "$test_directory/coherence-names-changed"
+  git -C "$fixture_root" diff --unified=0 "$base" "$landed" > "$test_directory/coherence-names-landed.diff"
+  git -C "$fixture_root" diff --unified=0 "$base" HEAD > "$test_directory/coherence-names-changed.diff"
+
+  bash "$source_repository_root/.github/coherence/relate-changes.sh" "$fixture_root" \
+    "$test_directory/coherence-names-landed" "$test_directory/coherence-names-changed" \
+    "$test_directory/coherence-names-landed.diff" "$test_directory/coherence-names-changed.diff" \
+    "$test_directory/coherence-names.json"
+}
+
+coherence_relates_code_that_names_a_file_the_other_side_changed() {
+  run_coherence_names
+
+  assert_json '{"landed":"scripts/relate.sh","changed":"scripts/report.sh","reason":"changed names landed"}' \
+    '.[] | select(.changed == "scripts/report.sh")' "$test_directory/coherence-names.json"
+  assert_json '{"landed":"scripts/tool.sh","changed":"scripts/lib/helper.sh","reason":"landed names changed"}' \
+    '.[] | select(.landed == "scripts/tool.sh")' "$test_directory/coherence-names.json"
+}
+
+coherence_does_not_relate_a_mention_that_is_no_dependency() {
+  run_coherence_names
+
+  assert_json '[]' '[.[] | select(.changed != "scripts/report.sh" and .landed != "scripts/tool.sh")]' \
+    "$test_directory/coherence-names.json"
+}
+
+# The workflow, unlike the relation above, leaves every `AGENTS.md`, the two operations pages, and the
+# licence register out of both sides. Its step runs verbatim against a pull request's merge commit:
+# the landed side is `main`'s commit since the merge base, the changed side the pull request's, which
+# appends the line given to every file it changes.
 run_coherence_workflow() {
-  local name="$1" landed="$2" changed="$3"
+  local name="$1" landed="$2" changed="$3" appended="${4:-changed}"
   local fixture_root="$test_directory/coherence-workflow-$name"
   local step_script="$test_directory/coherence-workflow-step.sh"
   local path
@@ -6686,6 +6751,7 @@ run_coherence_workflow() {
   printf '%s\n' '<!-- describes: backend/** -->' '' '# Local development' '' 'One.' '' 'Two.' '' 'Three.' \
     > "$fixture_root/docs/operations/local-development.md"
   printf '%s\n' '# Instructions' '' 'Rules.' | tee "$fixture_root/AGENTS.md" > "$fixture_root/backend/AGENTS.md"
+  printf '%s\n' '# Third-party licences' '' '| Component | Licence |' > "$fixture_root/THIRD_PARTY_LICENSES.md"
 
   git -C "$fixture_root" init --initial-branch=main --quiet
   git -C "$fixture_root" config user.email agent-workflow@example.invalid
@@ -6693,8 +6759,9 @@ run_coherence_workflow() {
   git -C "$fixture_root" add .
   git -C "$fixture_root" commit --quiet -m 'base'
   git -C "$fixture_root" switch --quiet -c pull-request
-  for path in $changed; do printf 'changed\n' >> "$fixture_root/$path"; done
-  git -C "$fixture_root" commit --quiet -am 'pull request'
+  for path in $changed; do mkdir -p "$(dirname "$fixture_root/$path")"; printf '%s\n' "$appended" >> "$fixture_root/$path"; done
+  git -C "$fixture_root" add .
+  git -C "$fixture_root" commit --quiet -m 'pull request'
   git -C "$fixture_root" switch --quiet main
   # The landed side prepends a line and the pull request appends one, so a prose file both sides
   # change merges cleanly.
@@ -6713,10 +6780,10 @@ run_coherence_workflow() {
   set -e
 }
 
-coherence_workflow_leaves_agents_files_and_the_operations_pages_out() {
+coherence_workflow_leaves_agents_files_the_operations_pages_and_the_register_out() {
   run_coherence_workflow hubs \
-    'AGENTS.md backend/AGENTS.md docs/operations/agent-workflow.md docs/operations/local-development.md' \
-    'docs/operations/agent-workflow.md docs/operations/local-development.md backend/src/Application/Emails/MailboxWidget.cs'
+    'AGENTS.md backend/AGENTS.md docs/operations/agent-workflow.md docs/operations/local-development.md THIRD_PARTY_LICENSES.md' \
+    'docs/operations/agent-workflow.md docs/operations/local-development.md THIRD_PARTY_LICENSES.md backend/src/Application/Emails/MailboxWidget.cs'
 
   assert_contains 'Nothing related to this pull request landed' "$test_directory/coherence-workflow-hubs-output"
   [[ "$coherence_workflow_status" -eq 0 ]]
@@ -6737,6 +6804,20 @@ coherence_workflow_still_fails_on_any_other_related_change() {
     "$test_directory/coherence-workflow-related-output"
   assert_excludes 'AGENTS.md' "$test_directory/coherence-workflow-related-summary"
   [[ "$coherence_workflow_status" -eq 1 ]]
+}
+
+# Code naming a file the other side changed is reported until what it reports shows whether it
+# should fail, so the pair is a warning in the annotations and a row in the summary, and the check
+# passes.
+coherence_workflow_warns_on_code_that_names_a_landed_file_and_passes() {
+  run_coherence_workflow named 'backend/src/Application/Emails/MailboxWidget.cs' 'scripts/report.sh' \
+    'cat backend/src/Application/Emails/MailboxWidget.cs'
+
+  assert_contains '::warning title=File named across pull requests::scripts/report.sh, which this pull request changes, names backend/src/Application/Emails/MailboxWidget.cs, changed by https://github.com/fathomise/MailFathom/pull/1 (on main). Read the two together.' \
+    "$test_directory/coherence-workflow-named-output"
+  assert_contains "| \`scripts/report.sh\` | \`backend/src/Application/Emails/MailboxWidget.cs\` | https://github.com/fathomise/MailFathom/pull/1 (on main) | the code here names the other pull request's file |" \
+    "$test_directory/coherence-workflow-named-summary"
+  [[ "$coherence_workflow_status" -eq 0 ]]
 }
 
 # `Duplicate definitions` asks a model only about what its prefilter lists, so the prefilter is what decides
@@ -6859,7 +6940,7 @@ FAKE_GH
 chmod +x "$related_pull_requests_bin_directory/gh"
 
 run_related_pull_requests() {
-  local name="$1" open_pull_requests="$2" extra_path="${3:-}"
+  local name="$1" open_pull_requests="$2" extra_path="${3:-}" extra_content="${4:-# Notes}"
   local fixture_root="$test_directory/related-pull-requests-$name"
 
   create_coherence_fixture "$fixture_root"
@@ -6883,7 +6964,7 @@ run_related_pull_requests() {
   printf 'internal sealed class MailboxGadget;\n' \
     > "$fixture_root/backend/src/Application/Emails/MailboxGadget.cs"
   if [[ -n "$extra_path" ]]; then
-    printf '# Notes\n' > "$fixture_root/$extra_path"
+    printf '%s\n' "$extra_content" > "$fixture_root/$extra_path"
   fi
   printf '%s' "$open_pull_requests" > "$test_directory/related-pull-requests-$name.json"
 
@@ -6915,6 +6996,18 @@ related_pull_requests_names_the_open_pull_request_a_pair_comes_from() {
   assert_contains '| https://github.com/fathomise/MailFathom/pull/10 |' "$output_file"
   assert_excludes '/pull/8 ' "$output_file"
   assert_excludes '/pull/9 ' "$output_file"
+}
+
+# The open pull requests' own lines are not read, so the naming relation comes from this change's
+# side alone — here from a file not yet tracked, which is the change's whole content.
+related_pull_requests_names_an_open_pull_request_whose_file_the_change_names() {
+  run_related_pull_requests named '[
+    {"number": 7, "headRefName": "agent/relate", "headRepositoryOwner": {"login": "fathomise"},
+     "files": [{"path": "scripts/relate.sh"}]}
+  ]' 'scripts/report.sh' 'bash scripts/relate.sh'
+
+  assert_contains '`scripts/relate.sh` → `scripts/report.sh` (the code here names its path)' \
+    "$test_directory/related-pull-requests-named-output"
 }
 
 # Everything a row prints comes from somebody else's pull request and is pasted into this one's body,
@@ -11553,13 +11646,17 @@ run_test coherence_relates_an_added_page_to_a_landed_path_it_describes
 run_test coherence_passes_an_unrelated_change
 run_test coherence_passes_shared_code_without_a_prose_link
 run_test coherence_relates_the_same_prose_file_and_an_instructions_scope
-run_test coherence_workflow_leaves_agents_files_and_the_operations_pages_out
+run_test coherence_relates_code_that_names_a_file_the_other_side_changed
+run_test coherence_does_not_relate_a_mention_that_is_no_dependency
+run_test coherence_workflow_leaves_agents_files_the_operations_pages_and_the_register_out
 run_test coherence_workflow_leaves_hub_documents_out_of_the_changed_side
 run_test coherence_workflow_still_fails_on_any_other_related_change
+run_test coherence_workflow_warns_on_code_that_names_a_landed_file_and_passes
 run_test duplicate_definitions_lists_what_each_kind_of_file_newly_defines
 run_test duplicate_definitions_reports_only_a_pair_the_prefilter_listed
 run_test duplicate_definitions_reports_no_verdict_when_the_model_answered_nothing
 run_test related_pull_requests_names_the_open_pull_request_a_pair_comes_from
+run_test related_pull_requests_names_an_open_pull_request_whose_file_the_change_names
 run_test related_pull_requests_writes_another_pull_request_s_paths_as_inert_code
 run_test related_pull_requests_says_when_it_read_only_the_first_hundred_pull_requests
 run_test related_pull_requests_says_when_it_read_only_the_first_hundred_files_of_one
