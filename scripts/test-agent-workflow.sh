@@ -1592,8 +1592,9 @@ verify_fast_runs_in_a_fork_with_no_upstream_remote() {
   assert_contains 'format backend/MailFathom.slnx --no-restore --include backend/src/ForkSample.cs' "$invocation_log"
 }
 
-# The `Protected paths` workflow never checks the branch out, so its guard cannot be a script in
-# `scripts/` that the job calls: it is one shell block inside the YAML. Extracting that block
+# The `Protected paths` workflow checks out nothing but `.github/protected-paths/` from the base
+# commit, so its guard is one shell block inside the YAML calling the selection script there, and the
+# step is given this checkout's copy of that script. Extracting that block
 # verbatim from the committed file is what lets these contracts run the same code the runner runs
 # rather than a copy that drifts from it. The block is the guard step's `run: |`, indented ten spaces,
 # and it is the last thing in the file — the merge-group step above it carries a `run: |` of its own,
@@ -1642,8 +1643,31 @@ run_protected_paths_step() {
     export FAKE_REVIEWS="${REVIEWS-[]}"
     export FAKE_CHANGED_PATHS="$changed_paths"
     export GITHUB_STEP_SUMMARY="$summary_file"
+    export SELECT_PROTECTED_PATHS="${SELECTION_SCRIPT:-$source_repository_root/.github/protected-paths/select-protected-paths.sh}"
     bash "$step_script"
   ) > "$output_file" 2>&1
+}
+
+# The list is read from a script, so a script that cannot run must refuse rather than read as a change
+# that touches nothing protected — the one way this guard could fail open.
+protected_paths_refuses_when_the_selection_cannot_run() {
+  local output_file="$test_directory/protected-paths-no-selection-output"
+  local summary_file="$test_directory/protected-paths-no-selection-summary"
+  local failing_selection="$test_directory/failing-selection.sh"
+
+  if SELECTION_SCRIPT="$test_directory/no-such-selection.sh" run_protected_paths_step \
+    'contributor' 'backend/src/Sample.cs' "$output_file" "$summary_file"; then
+    return 1
+  fi
+  assert_excludes 'changes nothing under' "$output_file"
+
+  # One that names the set and then fails to select, so the selection itself is what must refuse.
+  printf '%s\n' '[[ "${1:-}" == --describe ]] && { echo ".github/"; exit 0; }' 'exit 3' > "$failing_selection"
+  if SELECTION_SCRIPT="$failing_selection" run_protected_paths_step \
+    'contributor' 'backend/src/Sample.cs' "$output_file" "$summary_file"; then
+    return 1
+  fi
+  assert_excludes 'changes nothing under' "$output_file"
 }
 
 protected_paths_allows_a_change_that_touches_nothing_protected() {
@@ -11593,6 +11617,7 @@ run_test verify_full_stops_when_a_fork_branch_is_behind_upstream_main
 run_test verify_full_refuses_a_checkout_with_no_upstream_remote
 run_test verify_fast_runs_in_a_fork_with_no_upstream_remote
 run_test protected_paths_allows_a_change_that_touches_nothing_protected
+run_test protected_paths_refuses_when_the_selection_cannot_run
 run_test protected_paths_refuses_a_contributor_changing_repository_root_configuration
 run_test protected_paths_refuses_a_contributor_changing_a_protected_directory
 run_test protected_paths_matches_the_configuration_files_at_every_depth
