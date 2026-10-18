@@ -675,11 +675,16 @@ two places. Root `AGENTS.md` § *The two roles this contract is written for*
 states which rules belong to only one; this is how the skills tell them apart.
 
 `start-task` resolves the role from the workspace rather than from a question.
-`Base branch: origin/main` means `origin` is MailFathom, which is the owner's
-checkout; anything else means `origin` is a fork. That settles which repository
-this is, and it deliberately does not settle what the session may do with the
-board, because the owner grants read or write on project `1` to a contributor
-whenever they decide to. So the skill asks separately, in either role, with
+`Base branch: origin/main` means `origin` is MailFathom; anything else means
+`origin` is a fork. A clone of MailFathom is not a grant, so in that case the
+skill also asks the repository, with `gh api repos/fathomise/MailFathom --jq
+'.permissions'`: `push: true` is the owner's checkout, and `push: false` — an
+organization member no team gives a role, or anybody outside the organization —
+is `blocked` before anything is renamed or labelled, with the repair named: fork,
+repoint `origin`, and add MailFathom back as a second remote. Neither answer
+settles what the session may do with the board, because the owner grants read or
+write on project `1` to a contributor whenever they decide to. So the skill asks
+that separately, in either role, with
 `{ organization(login: "fathomise") { projectV2(number: 1) { viewerCanUpdate } } }`:
 `true` is write, `false` is read, and neither of them is a `null` project beside
 a `NOT_FOUND` error, which is how GitHub reports a project the viewer cannot see
