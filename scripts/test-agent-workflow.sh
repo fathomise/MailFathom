@@ -6696,9 +6696,9 @@ run_coherence_workflow() {
   for path in $changed; do printf 'changed\n' >> "$fixture_root/$path"; done
   git -C "$fixture_root" commit --quiet -am 'pull request'
   git -C "$fixture_root" switch --quiet main
-  # The landed side edits each file's second line and the pull request appends, so a prose file both
-  # sides change merges cleanly.
-  for path in $landed; do sed -i '2s/.*/landed/' "$fixture_root/$path"; done
+  # The landed side prepends a line and the pull request appends one, so a prose file both sides
+  # change merges cleanly.
+  for path in $landed; do sed -i '1i landed' "$fixture_root/$path"; done
   git -C "$fixture_root" commit --quiet -am 'Landed change (#1)'
   git -C "$fixture_root" merge --quiet --no-edit pull-request > /dev/null
 
@@ -6719,6 +6719,14 @@ coherence_workflow_leaves_agents_files_and_the_operations_pages_out() {
     'docs/operations/agent-workflow.md docs/operations/local-development.md backend/src/Application/Emails/MailboxWidget.cs'
 
   assert_contains 'Nothing related to this pull request landed' "$test_directory/coherence-workflow-hubs-output"
+  [[ "$coherence_workflow_status" -eq 0 ]]
+}
+
+coherence_workflow_leaves_hub_documents_out_of_the_changed_side() {
+  run_coherence_workflow hub-changes 'backend/src/Application/Emails/MailboxWidget.cs' \
+    'backend/AGENTS.md docs/operations/agent-workflow.md docs/operations/local-development.md'
+
+  assert_contains 'Nothing related to this pull request landed' "$test_directory/coherence-workflow-hub-changes-output"
   [[ "$coherence_workflow_status" -eq 0 ]]
 }
 
@@ -11381,6 +11389,7 @@ run_test coherence_passes_an_unrelated_change
 run_test coherence_passes_shared_code_without_a_prose_link
 run_test coherence_relates_the_same_prose_file_and_an_instructions_scope
 run_test coherence_workflow_leaves_agents_files_and_the_operations_pages_out
+run_test coherence_workflow_leaves_hub_documents_out_of_the_changed_side
 run_test coherence_workflow_still_fails_on_any_other_related_change
 run_test related_pull_requests_names_the_open_pull_request_a_pair_comes_from
 run_test related_pull_requests_writes_another_pull_request_s_paths_as_inert_code
