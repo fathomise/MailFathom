@@ -6683,7 +6683,9 @@ run_coherence_workflow() {
   cp "$source_repository_root/.github/fathom-review/index-obligations.sh" "$fixture_root/.github/fathom-review/"
   printf '%s\n' '<!-- describes: backend/** -->' '' '# Agent workflow' '' 'One.' '' 'Two.' '' 'Three.' \
     > "$fixture_root/docs/operations/agent-workflow.md"
-  printf '%s\n' '# Instructions' '' 'Rules.' > "$fixture_root/AGENTS.md"
+  printf '%s\n' '<!-- describes: backend/** -->' '' '# Local development' '' 'One.' '' 'Two.' '' 'Three.' \
+    > "$fixture_root/docs/operations/local-development.md"
+  printf '%s\n' '# Instructions' '' 'Rules.' | tee "$fixture_root/AGENTS.md" > "$fixture_root/backend/AGENTS.md"
 
   git -C "$fixture_root" init --initial-branch=main --quiet
   git -C "$fixture_root" config user.email agent-workflow@example.invalid
@@ -6712,8 +6714,9 @@ run_coherence_workflow() {
 }
 
 coherence_workflow_leaves_agents_files_and_the_operations_pages_out() {
-  run_coherence_workflow hubs 'AGENTS.md docs/operations/agent-workflow.md' \
-    'docs/operations/agent-workflow.md backend/src/Application/Emails/MailboxWidget.cs'
+  run_coherence_workflow hubs \
+    'AGENTS.md backend/AGENTS.md docs/operations/agent-workflow.md docs/operations/local-development.md' \
+    'docs/operations/agent-workflow.md docs/operations/local-development.md backend/src/Application/Emails/MailboxWidget.cs'
 
   assert_contains 'Nothing related to this pull request landed' "$test_directory/coherence-workflow-hubs-output"
   [[ "$coherence_workflow_status" -eq 0 ]]
