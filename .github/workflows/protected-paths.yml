@@ -151,10 +151,15 @@ on:
 # No `paths` filter, for the reason `ci.yml` records: GitHub instantiates no run for a workflow a path
 # filter excluded, and a required check that was never created never arrives. This job takes seconds
 # on a pull request that touches nothing protected, so it always runs and decides inside instead.
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+#
+# No `concurrency` block either. Every review event starts a run — a `Fathom review` submission, a
+# dismissal, and each reply in a review thread, which GitHub records as a review of its own — so a
+# burst of them arrives seconds apart. A group cancels every run but the last, even with
+# `cancel-in-progress: false`, since GitHub keeps one pending run per group and ends whichever was
+# waiting. For those seconds the newest check on the head reads `cancelled`: the pull request shows
+# as blocked, and a merge group created in that window reads the cancelled verdict and fails. Every
+# run reads the pull request's current state and takes seconds, so letting each finish costs
+# nothing a cancellation would save.
 
 permissions:
   contents: read

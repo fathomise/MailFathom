@@ -2043,6 +2043,19 @@ protected_paths_lets_a_maintainer_past_the_reportable_limit() {
   assert_file_content '' "$summary_file"
 }
 
+# A burst of review events starts a run each, and a concurrency group would cancel all but the last
+# whatever `cancel-in-progress` says, leaving the head's newest check `cancelled` for the merge queue
+# to read. The commentary is stripped first, because the workflow's header names the key while
+# arguing against it.
+protected_paths_never_cancels_its_own_runs() {
+  local workflow="$source_repository_root/.github/workflows/protected-paths.yml"
+
+  if grep -v '^[[:space:]]*#' "$workflow" | grep -qE '^[[:space:]]*concurrency:'; then
+    printf 'protected-paths.yml declares a concurrency group, so a burst of review events cancels its own runs\n' >&2
+    return 1
+  fi
+}
+
 # The `Typo check` workflow decides in shell which files it hands the checker, and that decision is
 # the whole of what this repository wrote: the checking itself belongs to a pinned action. Extracting
 # the block verbatim is again what makes the contract run the runner's own code. The block ends at
@@ -11633,6 +11646,7 @@ run_test protected_paths_refuses_an_author_merely_resembling_dependabot
 run_test protected_paths_holds_the_reportable_limit_on_a_review_event
 run_test protected_paths_refuses_a_pull_request_larger_than_the_reportable_limit
 run_test protected_paths_lets_a_maintainer_past_the_reportable_limit
+run_test protected_paths_never_cancels_its_own_runs
 run_test typo_check_passes_the_files_the_pull_request_changed
 run_test typo_check_leaves_an_image_out_of_the_file_list
 run_test typo_check_checks_nothing_when_a_pull_request_only_changes_images
