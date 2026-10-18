@@ -86,9 +86,10 @@ Before publishing, ask which open pull requests the change has to agree with:
 bash scripts/report-related-pull-requests.sh
 ```
 
-That prints every open pull request to `main` touching a path
-[`Coherence`](agent-workflow.md#coherence) would relate to the change, with each
-pair it makes, as a section ready to paste into the pull request body. It reads
+That prints every open pull request to `main` touching a path related to the
+change by [`Coherence`](agent-workflow.md#coherence)'s relation — every
+`AGENTS.md` and the two operations pages the workflow leaves out included — with
+each pair it makes, as a section ready to paste into the pull request body. It reads
 the open pull requests with `gh`, so it needs read access to GitHub and nothing
 more; it reads at most 100 of them, its own `--limit`, and `gh` returns at most
 100 files of each, and it says so on stderr when a reply reaches either ceiling. Like the obligations report it never gates.
