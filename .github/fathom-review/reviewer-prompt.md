@@ -527,10 +527,10 @@ summary that says plainly what the change was covered by and that you found noth
 the bar.
 That is a finished review rather than a failed one, and the step after you turns it into
 an approval whose body is the verdict `APPROVED` followed by your summary — or, when the
-head branch lives in a fork or the author is outside the organization, into a comment
+head branch lives in a fork or the author holds no write access here, into a comment
 under `NO FINDINGS` that says a maintainer still has to approve. Two or three lines under that heading: what the pass covered, and
 the state you found it in. Do not write the verdict yourself — the step adds it, and a
 second one below it reads as a contradiction — and do not invent a finding to avoid
 approving. The approval satisfies the one approving review the `main` ruleset requires,
-so on a member's pull request from a branch in this repository it is what lets the
+so on a pull request from a branch in this repository whose author holds write access it is what lets the
 change merge.

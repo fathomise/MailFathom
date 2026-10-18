@@ -1614,8 +1614,8 @@ which is why it is stated rather than engineered away.
 the comment path naming one event type.
 
 The workflow reports no status check. Its approval does satisfy the one
-approving review the `main` ruleset requires, on a member's pull request from a
-branch in this repository, which is why what it may approve and whose words it
+approving review the `main` ruleset requires, on a pull request from a branch in
+this repository whose author holds write access to it, which is why what it may approve and whose words it
 reads are both bounded; [What the submission step guarantees](#what-the-submission-step-guarantees) and
 [What the run is allowed to touch](#what-the-run-is-allowed-to-touch) carry how.
 
@@ -1705,9 +1705,9 @@ full, and the files it marks stop being read from the next pull request on.
 Nothing compares a vendored file against its upstream, so the drop rests on who
 can change one rather than on what it contains. That is a decision rather than an
 oversight. Both `.agents/` and `.gitattributes` are protected paths, so a pull
-request from anyone but the owner that edits a vendored skill, adds a file beside
-one, or marks a new directory vendored fails `Protected paths` until the owner
-approves its head, whatever `Fathom review` says. What the drop gives up is a second opinion on the owner's own refresh. The
+request from anyone but a maintainer that edits a vendored skill, adds a file beside
+one, or marks a new directory vendored fails `Protected paths` until a maintainer
+approves its head, whatever `Fathom review` says. What the drop gives up is a second opinion on a maintainer's own refresh. The
 note it leaves in the review names every file it dropped rather than only counting
 them, so an edit to vendored text that was not meant as a refresh is still visible
 in the review body.
@@ -2290,7 +2290,7 @@ nobody re-read, which carries the previous review's verdict and is counted.
 **An approval carries no findings.** The verdict follows the list rather than the
 severities in it: an empty answer is published as `event: APPROVE` under an
 `APPROVED` heading with the summary and nothing else — or, on a pull request from a
-fork or from an author outside the organization, as `event: COMMENT` under
+fork or from an author with no write access here, as `event: COMMENT` under
 `NO FINDINGS` — and an answer holding anything
 at all is published as `event: COMMENT` under `NEEDS CHANGES` with its findings as
 inline threads. So `APPROVED` means the reviewer found nothing, and reading the
@@ -2407,7 +2407,7 @@ moved pin with no row in `THIRD_PARTY_LICENSES.md`. Each is a rule in
 It runs from the workspace, which holds the base commit, so a pull request cannot
 supply the index that judges it — the same reason the prompt is read from there —
 and it lives under `.github/` rather than in `scripts/` so that `Protected paths`
-refuses a change to it from anyone but the owner. Calling no API is what lets
+refuses a change to it from anyone but a maintainer. Calling no API is what lets
 `scripts/test-agent-workflow.sh` run the real script against a fixture tree with
 no `gh` stub at all.
 
@@ -2574,7 +2574,7 @@ that were actually posted.
 
 Every body opens with the verdict as a heading of its own — `APPROVED` when the
 findings array is empty, `NO FINDINGS` when it is empty on a pull request from a
-fork or from an author outside the organization,
+fork or from an author with no write access here,
 `NEEDS CHANGES` when it is not — and the summary sits
 under it. That is the one thing a reader wants before deciding whether to read
 the rest, and inferring it from whether threads appeared fails exactly where it
@@ -2599,15 +2599,20 @@ a notice and publishes no verdict.
 `main` ruleset sets `dismiss_stale_reviews_on_push`, so the next push dismisses
 it and an approval can never describe code that has since changed.
 
-**The approval is what lets a change merge, so only a member's own pull request
-gets one.** The ruleset requires one approving review and does not ask for it
-from a code owner, so the reviewer's approval satisfies it. The submission step
-therefore approves only a pull request whose head branch lives in this
-repository and whose author GitHub associates with the organization as `OWNER`
-or `MEMBER`, both read from what `collect` asked the API rather than from the
-event or the model. On any other pull request — from a fork, from one since
-deleted, which the API reports as no repository, or from an outside
-collaborator's branch here — a pass that found nothing submits `event: COMMENT` under the heading
+**The approval is what lets a change merge, so only a pull request from somebody
+holding write access gets one.** The ruleset requires one approving review and
+does not ask for it from a code owner, so the reviewer's approval satisfies it.
+The submission step therefore approves only a pull request whose head branch
+lives in this repository and whose author holds `write`, `maintain`, or `admin`
+on it — the `contributors` team, the `maintainers` team, or the organization's
+owner — both read from what `collect` asked the API rather than from the event or
+the model. The role is the collaborators endpoint's `role_name`, because its
+legacy `permission` folds `maintain` into `write` and `triage` into `read`, and
+it is read rather than team membership because the workflow token cannot read an
+organization's teams. On any other pull request — from a fork, from one since
+deleted, which the API reports as no repository, or from an author with no such
+role, a member of the organization in neither team included — a pass that found
+nothing submits `event: COMMENT` under the heading
 `NO FINDINGS`, saying that a project maintainer still has to review and approve
 it, and the maintainer's approval is what merges it.
 `REQUEST_CHANGES` is never used in any branch: a reviewer that reports no

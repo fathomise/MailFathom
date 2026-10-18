@@ -140,9 +140,9 @@ git -C "$repository_root" commit --quiet -m 'fixture C# file'
 # The protected-paths contracts stand in for the two GitHub REST calls the workflow makes — the
 # permission the author holds on the repository, then the files the pull request changes — so their
 # fake `gh` lives in a directory of its own rather than beside the fake `dotnet`. Only those contracts
-# put it on `PATH`, and nothing else in this suite can then reach a `gh` it did not ask for. An empty
-# permission stands for a read that failed. A reviewer's permission comes from `FAKE_REVIEWER_PERMISSIONS`,
-# `login=permission` pairs, and the reviews are a JSON fixture run through the step's own `--jq`,
+# put it on `PATH`, and nothing else in this suite can then reach a `gh` it did not ask for. It answers
+# the permission call with the role the step's `--jq` selects, and an empty role stands for a read that
+# failed. A reviewer's role comes from `FAKE_REVIEWER_PERMISSIONS`, `login=role` pairs, and the reviews are a JSON fixture run through the step's own `--jq`,
 # because that filter is where the newest-verdict rule lives; `FAKE_REVIEWS` set to `fail` is a read
 # that failed. The pull request itself answers with its file count, which is what a review event,
 # carrying no count of its own, makes the step read.
@@ -162,7 +162,19 @@ if [[ "$*" == *'/permission'* ]]; then
     done
   fi
   [[ -n "$permission" ]] || exit 1
-  printf '%s\n' "$permission"
+  # The endpoint answers with both fields, and its legacy `permission` folds `maintain` into `write`,
+  # so the step's own filter is run over both and a step reading the wrong one fails the contracts.
+  legacy_permission="$permission"
+  [[ "$permission" == 'maintain' ]] && legacy_permission='write'
+  [[ "$permission" == 'triage' ]] && legacy_permission='read'
+  filter=''
+  while (( $# > 0 )); do
+    if [[ "$1" == '--jq' ]]; then
+      filter="$2"
+    fi
+    shift
+  done
+  jq -r "$filter" <<< "{\"permission\":\"$legacy_permission\",\"role_name\":\"$permission\"}"
   exit 0
 fi
 if [[ "$*" == *'/reviews'* ]]; then
@@ -1737,35 +1749,40 @@ protected_paths_ignores_paths_that_only_resemble_a_protected_one() {
   assert_excludes '::error' "$output_file"
 }
 
-protected_paths_reports_the_paths_it_found_when_the_owner_is_the_author() {
-  local output_file="$test_directory/protected-paths-owner-output"
-  local summary_file="$test_directory/protected-paths-owner-summary"
+# A maintainer holds `maintain`, which the `maintainers` team is given, or `admin`, which the
+# organization's owner holds, so both roles are exercised. The pass still has to name what it let
+# through.
+protected_paths_reports_the_paths_it_found_when_a_maintainer_is_the_author() {
+  local output_file
+  local summary_file
+  local role
 
-  # The owner is whoever administers the repository, so the fixture's author shares no login with the
-  # account the repository belongs to — which is every owner's case once that account is an
-  # organization. The pass still has to name what it let through.
-  if ! AUTHOR_PERMISSION='admin' run_protected_paths_step \
-    'a-maintainer' \
-    $'.config/BannedSymbols.txt\n.gitattributes\n.gitattributes\nglobal.json' \
-    "$output_file" \
-    "$summary_file"; then
-    printf 'Protected paths refused a pull request authored by the repository owner\n' >&2
-    return 1
-  fi
+  for role in admin maintain; do
+    output_file="$test_directory/protected-paths-maintainer-$role-output"
+    summary_file="$test_directory/protected-paths-maintainer-$role-summary"
+    if ! AUTHOR_PERMISSION="$role" run_protected_paths_step \
+      'a-maintainer' \
+      $'.config/BannedSymbols.txt\n.gitattributes\n.gitattributes\nglobal.json' \
+      "$output_file" \
+      "$summary_file"; then
+      printf 'Protected paths refused a pull request authored by a maintainer holding %s\n' "$role" >&2
+      return 1
+    fi
 
-  assert_contains 'changes 3 protected path(s)' "$output_file"
-  assert_contains 'The repository owner authored this pull request' "$output_file"
-  assert_excludes '::error' "$output_file"
+    assert_contains 'changes 3 protected path(s)' "$output_file"
+    assert_contains 'A maintainer of the repository authored this pull request' "$output_file"
+    assert_excludes '::error' "$output_file"
 
-  assert_contains '### Protected paths this pull request changes' "$summary_file"
-  assert_contains '- `.config/BannedSymbols.txt`' "$summary_file"
-  assert_contains '- `.gitattributes`' "$summary_file"
-  assert_contains '- `global.json`' "$summary_file"
+    assert_contains '### Protected paths this pull request changes' "$summary_file"
+    assert_contains '- `.config/BannedSymbols.txt`' "$summary_file"
+    assert_contains '- `.gitattributes`' "$summary_file"
+    assert_contains '- `global.json`' "$summary_file"
+  done
 }
 
-# `write` is what a collaborator the owner added deliberately holds, and it is not the owner's: the
-# check recognises the one role that could have changed the ruleset it reports to.
-protected_paths_refuses_a_collaborator_who_does_not_administer_the_repository() {
+# `write` is what the `contributors` team holds, and it is not a maintainer's: a contributor's change
+# to a protected path waits for a maintainer's approval like anybody else's.
+protected_paths_refuses_a_contributor_who_does_not_maintain_the_repository() {
   local output_file="$test_directory/protected-paths-collaborator-output"
   local summary_file="$test_directory/protected-paths-collaborator-summary"
 
@@ -1774,7 +1791,7 @@ protected_paths_refuses_a_collaborator_who_does_not_administer_the_repository() 
     '.github/workflows/ci.yml' \
     "$output_file" \
     "$summary_file"; then
-    printf 'Protected paths allowed a collaborator without the admin role to change a protected path\n' >&2
+    printf 'Protected paths allowed a contributor without the maintain role to change a protected path\n' >&2
     return 1
   fi
 
@@ -1796,38 +1813,43 @@ protected_paths_refuses_an_author_whose_permission_could_not_be_read() {
     return 1
   fi
 
-  assert_contains '::warning::The permission a-maintainer holds' "$output_file"
+  assert_contains '::warning::The role a-maintainer holds' "$output_file"
   assert_contains '::error file=.github/workflows/ci.yml::' "$output_file"
 }
 
-# The owner accepts a contributor's change by approving its head, and the run that sees it is the
+# A maintainer accepts a contributor's change by approving its head, and the run that sees it is the
 # review event's, which carries no file count. A comment after the approval leaves it standing, as it
-# does on GitHub, and the pass still names what it let through.
-protected_paths_allows_a_change_the_owner_approved_on_its_head() {
-  local output_file="$test_directory/protected-paths-approved-output"
-  local summary_file="$test_directory/protected-paths-approved-summary"
+# does on GitHub, and the pass still names what it let through. Both maintainer roles are exercised.
+protected_paths_allows_a_change_a_maintainer_approved_on_its_head() {
+  local output_file
+  local summary_file
+  local role
 
-  if ! EVENT_FILE_COUNT='' REVIEWER_PERMISSIONS='a-maintainer=admin' REVIEWS='[
-    {"user":{"login":"a-maintainer"},"state":"APPROVED","commit_id":"head-commit"},
-    {"user":{"login":"a-maintainer"},"state":"COMMENTED","commit_id":"head-commit"}]' \
-    run_protected_paths_step \
-    'outside-contributor' \
-    '.config/typos.toml' \
-    "$output_file" \
-    "$summary_file"; then
-    printf 'Protected paths refused a change the repository owner approved on its head\n' >&2
-    return 1
-  fi
+  for role in admin maintain; do
+    output_file="$test_directory/protected-paths-approved-$role-output"
+    summary_file="$test_directory/protected-paths-approved-$role-summary"
+    if ! EVENT_FILE_COUNT='' REVIEWER_PERMISSIONS="a-maintainer=$role" REVIEWS='[
+      {"user":{"login":"a-maintainer"},"state":"APPROVED","commit_id":"head-commit"},
+      {"user":{"login":"a-maintainer"},"state":"COMMENTED","commit_id":"head-commit"}]' \
+      run_protected_paths_step \
+      'outside-contributor' \
+      '.config/typos.toml' \
+      "$output_file" \
+      "$summary_file"; then
+      printf 'Protected paths refused a change a maintainer holding %s approved on its head\n' "$role" >&2
+      return 1
+    fi
 
-  assert_contains 'The repository owner a-maintainer approved this pull request' "$output_file"
-  assert_excludes '::error' "$output_file"
-  assert_contains '- `.config/typos.toml`' "$summary_file"
+    assert_contains 'The maintainer a-maintainer approved this pull request' "$output_file"
+    assert_excludes '::error' "$output_file"
+    assert_contains '- `.config/typos.toml`' "$summary_file"
+  done
 }
 
 # Each of these approves nothing: an approval of a head the contributor has since pushed past, one
-# its reviewer dismissed or followed with a request for changes, one from an account that does not
-# administer the repository, and reviews that could not be read.
-protected_paths_refuses_an_approval_that_does_not_name_the_owner_and_the_head() {
+# its reviewer dismissed or followed with a request for changes, one from a contributor who does not
+# maintain the repository, and reviews that could not be read.
+protected_paths_refuses_an_approval_that_does_not_name_a_maintainer_and_the_head() {
   local output_file
   local summary_file="$test_directory/protected-paths-unapproved-summary"
   local failures=''
@@ -1838,7 +1860,7 @@ protected_paths_refuses_an_approval_that_does_not_name_the_owner_and_the_head() 
       {"user":{"login":"a-maintainer"},"state":"DISMISSED","commit_id":"head-commit"}]'
     [changes-requested]='[{"user":{"login":"a-maintainer"},"state":"APPROVED","commit_id":"head-commit"},
       {"user":{"login":"a-maintainer"},"state":"CHANGES_REQUESTED","commit_id":"head-commit"}]'
-    [not-an-administrator]='[{"user":{"login":"a-collaborator"},"state":"APPROVED","commit_id":"head-commit"}]'
+    [not-a-maintainer]='[{"user":{"login":"a-collaborator"},"state":"APPROVED","commit_id":"head-commit"}]'
     [unreadable]='fail'
   )
 
@@ -1885,7 +1907,7 @@ protected_paths_allows_dependabot_to_update_the_workflows() {
   assert_contains 'Dependabot authored this pull request' "$output_file"
   assert_excludes '::error' "$output_file"
 
-  # The pass still names what it let through, exactly as the owner's does.
+  # The pass still names what it let through, exactly as a maintainer's does.
   assert_contains '- `.github/workflows/ci.yml`' "$summary_file"
 }
 
@@ -1974,13 +1996,13 @@ protected_paths_refuses_a_pull_request_larger_than_the_reportable_limit() {
   assert_contains 'cannot be verified' "$output_file"
 }
 
-# The ceiling refuses an answer that could not be computed, and the owner is the one author for whom
-# that answer decides nothing: every protected path is theirs to change, so the enumeration could only
-# have named which ones. Refusing them there would block a tree-wide rename on a list nobody acts on.
-# The pass still says the list is missing, which is the part the owner does read.
-protected_paths_lets_the_owner_past_the_reportable_limit() {
-  local output_file="$test_directory/protected-paths-oversized-owner-output"
-  local summary_file="$test_directory/protected-paths-oversized-owner-summary"
+# The ceiling refuses an answer that could not be computed, and a maintainer is the one author for
+# whom that answer decides nothing: every protected path is theirs to change, so the enumeration could
+# only have named which ones. Refusing them there would block a tree-wide rename on a list nobody acts
+# on. The pass still says the list is missing, which is the part a maintainer does read.
+protected_paths_lets_a_maintainer_past_the_reportable_limit() {
+  local output_file="$test_directory/protected-paths-oversized-maintainer-output"
+  local summary_file="$test_directory/protected-paths-oversized-maintainer-summary"
 
   if ! AUTHOR_PERMISSION='admin' run_protected_paths_step \
     'a-maintainer' \
@@ -1988,7 +2010,7 @@ protected_paths_lets_the_owner_past_the_reportable_limit() {
     "$output_file" \
     "$summary_file" \
     3001; then
-    printf 'Protected paths refused the owner a pull request too large for the changed-files endpoint\n' >&2
+    printf 'Protected paths refused a maintainer a pull request too large for the changed-files endpoint\n' >&2
     return 1
   fi
 
@@ -3023,7 +3045,6 @@ case "$endpoint" in
           body: "Closes #11\nCloses #12\nPart of #13",
           draft: false,
           user: {login: "Krzysztof318"},
-          author_association: "MEMBER",
           labels: ($labels | map({name: .})),
           head: {sha: "0123456789abcdef0123456789abcdef01234567",
                  repo: (if env.FAKE_DELETED_HEAD_REPOSITORY == "true" then null
@@ -3033,6 +3054,16 @@ case "$endpoint" in
           additions: 1,
           deletions: 0}'
     )"
+    ;;
+  */collaborators/*/permission)
+    # The role the author holds here, `write` unless a contract names another; `none` stands for an
+    # author the API has no collaborator record for, answered as the client error it is.
+    if [[ "${FAKE_AUTHOR_ROLE:-write}" == 'none' ]]; then
+      printf 'gh: Not Found (HTTP 404)\n' >&2
+      exit 1
+    fi
+    response="$(jq -nc --arg role "${FAKE_AUTHOR_ROLE:-write}" \
+      '{permission: (if $role == "maintain" then "write" else $role end), role_name: $role}')"
     ;;
   */issues/*)
     # The issues the run cannot reach — deleted, or in a repository this token does not see, named
@@ -3168,7 +3199,11 @@ fathom_review_collects_where_the_head_lives_and_who_opened_it() {
   run_fathom_review_collect "$output_file"
 
   assert_json '"fathomise/MailFathom"' '.head_repository' "$collect_review_directory/pull-request.json"
-  assert_json '"MEMBER"' '.author_association' "$collect_review_directory/pull-request.json"
+  assert_json '"write"' '.author_role' "$collect_review_directory/pull-request.json"
+  FAKE_AUTHOR_ROLE='maintain' run_fathom_review_collect "$output_file"
+  assert_json '"maintain"' '.author_role' "$collect_review_directory/pull-request.json"
+  FAKE_AUTHOR_ROLE='none' run_fathom_review_collect "$output_file"
+  assert_json 'null' '.author_role' "$collect_review_directory/pull-request.json"
 
   FAKE_DELETED_HEAD_REPOSITORY='true' run_fathom_review_collect "$output_file"
 
@@ -3641,12 +3676,12 @@ chmod +x "$submit_bin_directory/gh"
 write_fathom_review_collection() {
   local review_directory="$1"
   local head_repository="${2-fathomise/MailFathom}"
-  local author_association="${3-MEMBER}"
+  local author_role="${3-write}"
 
   mkdir -p "$review_directory"
-  jq -n --arg head_repository "$head_repository" --arg author_association "$author_association" \
+  jq -n --arg head_repository "$head_repository" --arg author_role "$author_role" \
     '{head_repository: (if $head_repository == "" then null else $head_repository end),
-      author_association: (if $author_association == "" then null else $author_association end)}' \
+      author_role: (if $author_role == "" then null else $author_role end)}' \
     > "$review_directory/pull-request.json"
   printf '[{"filename":"backend/src/Sample.cs","lines":[12,13,14]}]\n' > "$review_directory/lines.json"
   : > "$review_directory/truncation.txt"
@@ -3667,8 +3702,9 @@ run_fathom_review_submit() {
   # Where the head branch lives, as `collect` read it from the API. This repository is the ordinary
   # case; a fork's name, or an empty value for a fork that was deleted, is what withholds approval.
   local head_repository="${7-fathomise/MailFathom}"
-  # Who opened it, as GitHub associates them with the organization. A member is the ordinary case.
-  local author_association="${8-MEMBER}"
+  # The role the author holds on the repository, as `collect` read it. `write`, which the
+  # `contributors` team holds, is the ordinary case.
+  local author_role="${8-write}"
   local step_script="$test_directory/fathom-review-submit.sh"
   local review_directory="$test_directory/fathom-review-submit-review"
   local coverage_file="$test_directory/fathom-review-submit-coverage"
@@ -3676,7 +3712,7 @@ run_fathom_review_submit() {
   submit_step_output_file="$test_directory/fathom-review-submit-step-output"
 
   extract_fathom_review_step 'submit' "$step_script"
-  write_fathom_review_collection "$review_directory" "$head_repository" "$author_association"
+  write_fathom_review_collection "$review_directory" "$head_repository" "$author_role"
   rm -f "$payload_file"
   : > "$submit_step_output_file"
 
@@ -3814,11 +3850,11 @@ fathom_review_approves_when_it_finds_nothing() {
   assert_contains 'nothing above the bar' "$payload_file"
   assert_contains 'verdict=approved' "$submit_step_output_file"
 
-  # An owner of the organization is a member under another name.
+  # The organization's owner holds `admin`, which earns the approval exactly as `write` does.
   run_fathom_review_submit \
     '{"summary":"Read every changed file and found nothing above the bar.","findings":[]}' \
     "$output_file" "$payload_file" 'success' '' '<!-- fathom-review: automatic -->' \
-    'fathomise/MailFathom' 'OWNER'
+    'fathomise/MailFathom' 'admin'
 
   ((submit_status == 0))
   assert_json '"APPROVE"' '.event' "$payload_file"
@@ -3830,21 +3866,35 @@ fathom_review_approves_when_it_finds_nothing() {
 
 # The approval satisfies the review the `main` ruleset requires, so a pull request whose head lives
 # in a fork — or in a fork since deleted, which the API reports as no repository at all — or whose
-# author is outside the organization gets the same verdict as a comment and never as an approval.
-fathom_review_approves_only_a_members_pull_request_from_this_repository() {
+# author holds no write access here gets the same verdict as a comment and never as an approval. A
+# role read as `permission` would answer `write` for `maintain`; the cases name the roles themselves.
+fathom_review_approves_only_a_pull_request_from_this_repository_by_an_author_with_write_access() {
   local output_file="$test_directory/fathom-review-submit-fork-output"
   local payload_file="$test_directory/fathom-review-submit-fork-payload"
   local case_spec
   local head_repository
-  local author_association
+  local author_role
 
-  for case_spec in 'contributor/MailFathom|MEMBER' '|MEMBER' 'fathomise/MailFathom|COLLABORATOR' 'fathomise/MailFathom|'; do
+  for case_spec in 'fathomise/MailFathom|write' 'fathomise/MailFathom|maintain' 'fathomise/MailFathom|admin'; do
     head_repository="${case_spec%%|*}"
-    author_association="${case_spec#*|}"
+    author_role="${case_spec#*|}"
     run_fathom_review_submit \
       '{"summary":"Read every changed file and found nothing above the bar.","findings":[]}' \
       "$output_file" "$payload_file" 'success' '' '<!-- fathom-review: automatic -->' \
-      "$head_repository" "$author_association"
+      "$head_repository" "$author_role"
+
+    ((submit_status == 0))
+    assert_json '"APPROVE"' '.event' "$payload_file"
+    assert_contains 'verdict=approved' "$submit_step_output_file"
+  done
+
+  for case_spec in 'contributor/MailFathom|write' '|write' 'fathomise/MailFathom|triage' 'fathomise/MailFathom|read' 'fathomise/MailFathom|'; do
+    head_repository="${case_spec%%|*}"
+    author_role="${case_spec#*|}"
+    run_fathom_review_submit \
+      '{"summary":"Read every changed file and found nothing above the bar.","findings":[]}' \
+      "$output_file" "$payload_file" 'success' '' '<!-- fathom-review: automatic -->' \
+      "$head_repository" "$author_role"
 
     ((submit_status == 0))
     assert_json '"COMMENT"' '.event' "$payload_file"
@@ -11458,17 +11508,17 @@ run_test protected_paths_refuses_a_contributor_changing_repository_root_configur
 run_test protected_paths_refuses_a_contributor_changing_a_protected_directory
 run_test protected_paths_matches_the_configuration_files_at_every_depth
 run_test protected_paths_ignores_paths_that_only_resemble_a_protected_one
-run_test protected_paths_reports_the_paths_it_found_when_the_owner_is_the_author
-run_test protected_paths_refuses_a_collaborator_who_does_not_administer_the_repository
+run_test protected_paths_reports_the_paths_it_found_when_a_maintainer_is_the_author
+run_test protected_paths_refuses_a_contributor_who_does_not_maintain_the_repository
 run_test protected_paths_refuses_an_author_whose_permission_could_not_be_read
-run_test protected_paths_allows_a_change_the_owner_approved_on_its_head
-run_test protected_paths_refuses_an_approval_that_does_not_name_the_owner_and_the_head
+run_test protected_paths_allows_a_change_a_maintainer_approved_on_its_head
+run_test protected_paths_refuses_an_approval_that_does_not_name_a_maintainer_and_the_head
 run_test protected_paths_allows_dependabot_to_update_the_workflows
 run_test protected_paths_refuses_dependabot_outside_the_workflows
 run_test protected_paths_refuses_an_author_merely_resembling_dependabot
 run_test protected_paths_holds_the_reportable_limit_on_a_review_event
 run_test protected_paths_refuses_a_pull_request_larger_than_the_reportable_limit
-run_test protected_paths_lets_the_owner_past_the_reportable_limit
+run_test protected_paths_lets_a_maintainer_past_the_reportable_limit
 run_test typo_check_passes_the_files_the_pull_request_changed
 run_test typo_check_leaves_an_image_out_of_the_file_list
 run_test typo_check_checks_nothing_when_a_pull_request_only_changes_images
@@ -11537,7 +11587,7 @@ run_test fathom_review_holds_a_pass_that_still_found_something_owed
 run_test fathom_review_holds_a_settling_pass_whatever_the_severity
 run_test fathom_review_moves_a_finding_with_no_line_into_the_body
 run_test fathom_review_approves_when_it_finds_nothing
-run_test fathom_review_approves_only_a_members_pull_request_from_this_repository
+run_test fathom_review_approves_only_a_pull_request_from_this_repository_by_an_author_with_write_access
 run_test fathom_review_reports_the_files_a_review_never_named
 run_test fathom_review_reports_no_gap_when_the_review_named_every_file
 run_test fathom_review_counts_a_named_path_the_change_does_not_contain

@@ -90,7 +90,7 @@ them if that access were ever removed.
    it. `.github/`, `.config/`, `.agents/`, `.claude/`, and `docs/decisions/`, an `.editorconfig`,
    `.gitattributes`, `.worktreeinclude`, `AGENTS.md`, `CLAUDE.md`, or `Directory.Build.props` at any
    depth, and the repository-root `CHANGELOG.md`, `CLA.md`, `LICENSE`, `NOTICE`, `NuGet.config`,
-   `Version.props`, and `global.json` are refused from any author but the owner. In the fork role, a task that needs one
+   `Version.props`, and `global.json` are refused from any author but a maintainer. In the fork role, a task that needs one
    of them is a task to raise in an issue instead of to implement; say so now rather than after a
    session spent on a diff that cannot merge.
 8. Identify the GitHub issue that governs the task, reading

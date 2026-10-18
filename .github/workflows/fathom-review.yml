@@ -6,8 +6,9 @@ name: Fathom review
 
 # A second reviewer, next to the Codex review that already comments here, in the same P1/P2/P3
 # vocabulary so one pass over the threads answers both. It reports no status check, but its approval
-# satisfies the one approving review the `main` ruleset requires on a member's pull request from
-# this repository — so what it may approve, and whose words it reads, is bounded below.
+# satisfies the one approving review the `main` ruleset requires on a pull request from this
+# repository whose author holds write access to it — so what it may approve, and whose words it
+# reads, is bounded below.
 #
 # Every trigger here runs the workflow file from the default branch, never from the branch under
 # review. `pull_request_target` and `issue_comment` both do that by definition, and so does
@@ -63,8 +64,8 @@ name: Fathom review
 #
 # The approval is what lets a change merge. The `main` ruleset requires one approving review and
 # does not ask for it from a code owner, so this one satisfies it — which is why it is given only to
-# a pull request whose head branch lives in this repository and whose author is a member of the
-# organization. Any other pull request never gets one: a pass that finds nothing there submits
+# a pull request whose head branch lives in this repository and whose author holds `write`,
+# `maintain`, or `admin` on it, which the `contributors` and `maintainers` teams are given. Any other pull request never gets one: a pass that finds nothing there submits
 # `event: COMMENT` under `NO FINDINGS` instead, and a project maintainer's approval is what merges
 # it. `dismiss_stale_reviews_on_push` discards an
 # approval on the next push, so it never outlives the commit it was given for, and that same push
@@ -1060,8 +1061,23 @@ jobs:
           # reads the same label to decide which model performs that pass — one label, read twice,
           # written once.
           "$GITHUB_API_SCRIPT" "repos/${REPOSITORY}/pulls/${PULL_REQUEST_NUMBER}" \
-            --jq '{number, title, body, draft, author: .user.login, labels: [.labels[].name], head_sha: .head.sha, head_repository: .head.repo.full_name, author_association, base_sha: .base.sha, base_ref: .base.ref, changed_files, additions, deletions}' \
+            --jq '{number, title, body, draft, author: .user.login, labels: [.labels[].name], head_sha: .head.sha, head_repository: .head.repo.full_name, base_sha: .base.sha, base_ref: .base.ref, changed_files, additions, deletions}' \
             > "$REVIEW_DIRECTORY/pull-request.json"
+
+          # The role the author holds on this repository, which is what the submission step gives an
+          # approval for: `write` from the `contributors` team, `maintain` from the `maintainers`
+          # team, `admin` for the organization's owner. `role_name` rather than `permission`, which
+          # folds `maintain` into `write` and `triage` into `read`. An author the API reports no role
+          # for — a client error is an answer here, and the helper does not repeat it — is recorded
+          # as `null`, which withholds the approval rather than granting it.
+          author="$(jq -r '.author' "$REVIEW_DIRECTORY/pull-request.json")"
+          author_role="$(
+            "$GITHUB_API_SCRIPT" "repos/${REPOSITORY}/collaborators/${author}/permission" --jq '.role_name'
+          )" || author_role=''
+          jq --arg author_role "$author_role" \
+            '.author_role = (if $author_role == "" then null else $author_role end)' \
+            "$REVIEW_DIRECTORY/pull-request.json" > "$REVIEW_DIRECTORY/pull-request.json.next"
+          mv "$REVIEW_DIRECTORY/pull-request.json.next" "$REVIEW_DIRECTORY/pull-request.json"
 
           head_sha="$(jq -r '.head_sha' "$REVIEW_DIRECTORY/pull-request.json")"
           echo "head_sha=${head_sha}" >> "$GITHUB_OUTPUT"
@@ -1465,7 +1481,7 @@ jobs:
       # settle loop today.
       #
       # The script lives under `.github/` rather than in `scripts/` because `Protected paths`
-      # refuses a change from anyone but the owner there, and this decides what a reviewer is told
+      # refuses a change from anyone but a maintainer there, and this decides what a reviewer is told
       # to look for. It is read from the workspace, which holds the base commit, so a pull request
       # cannot supply the index that judges it — the same reason the prompt is read from there.
       - name: Index the obligations the change triggers
@@ -2420,9 +2436,11 @@ jobs:
           # so an approval can never describe code that has since changed.
           #
           # The approval satisfies the one approving review the ruleset requires, so it is given only
-          # where the head branch lives in this repository and the author is a member of the
-          # organization. Anything else — a fork, or an outside collaborator's branch here — gets the
-          # same verdict as a comment, and a maintainer's approval merges it. Both facts are read from
+          # where the head branch lives in this repository and the author holds `write`, `maintain`,
+          # or `admin` on it — the `contributors` team, the `maintainers` team, or the organization's
+          # owner. Anything else — a fork, or an author with no such role, a member of the
+          # organization in neither team included — gets the same verdict as a comment, and a
+          # maintainer's approval merges it. Both facts are read from
           # what `collect` asked the API, never from the event or the model, and an absent one — a
           # deleted fork reports `null` — withholds the approval. `REQUEST_CHANGES` is never used in
           # any branch: a reviewer that reports no status check must not be able to block a merge.
@@ -2441,9 +2459,9 @@ jobs:
 
           if [[ "$(jq '(.findings // []) | length' "$findings_file")" == '0' ]]; then
             head_repository="$(jq -r '.head_repository // ""' "$REVIEW_DIRECTORY/pull-request.json" 2>/dev/null || true)"
-            author_association="$(jq -r '.author_association // ""' "$REVIEW_DIRECTORY/pull-request.json" 2>/dev/null || true)"
+            author_role="$(jq -r '.author_role // ""' "$REVIEW_DIRECTORY/pull-request.json" 2>/dev/null || true)"
             if [[ "$head_repository" == "$REPOSITORY" ]] \
-              && [[ "$author_association" == 'OWNER' || "$author_association" == 'MEMBER' ]]; then
+              && [[ "$author_role" == 'write' || "$author_role" == 'maintain' || "$author_role" == 'admin' ]]; then
               event='APPROVE'
               heading='# APPROVED'
               notice=''
@@ -2451,7 +2469,7 @@ jobs:
             else
               event='COMMENT'
               heading='# NO FINDINGS'
-              notice='This pull request comes from a fork or from an author outside the organization, so this reviewer does not approve it. A project maintainer still has to review and approve it before it can merge.'
+              notice='This pull request comes from a fork or from an author who holds no write access to this repository, so this reviewer does not approve it. A project maintainer still has to review and approve it before it can merge.'
               verdict='no_findings'
             fi
 
@@ -2494,7 +2512,7 @@ jobs:
             if [[ "$event" == 'APPROVE' ]]; then
               echo 'Approved: the review found nothing above the bar.'
             else
-              echo 'Found nothing above the bar; the head lives in a fork or the author is not a member, so a maintainer approves it.'
+              echo 'Found nothing above the bar; the head lives in a fork or the author holds no write access here, so a maintainer approves it.'
             fi
             exit 0
           fi
