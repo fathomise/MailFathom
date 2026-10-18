@@ -525,6 +525,13 @@ sweep over the tree and then over four paths of its own, because a sweep asserti
 a clean tree passes just as well when it reads nothing and when its own pattern
 stopped matching.
 
+A ninth parses every file under `.github/workflows/` as YAML. Every other
+assertion here reads a workflow as text, and passes on one that does not parse.
+GitHub never runs such a workflow: it records a failed push-event run with no job
+on every branch carrying the file, `main` included, and that run attaches no check
+to a pull request, so no review and no gate sees it. A plain scalar holding `: `
+reached `main` that way.
+
 The suite runs in two places and the second one is not a convenience. The
 `Workflow contracts` job of `repository-contracts.yml` runs it on every pull
 request, including a draft, on every push to `main` after a merge, and on the

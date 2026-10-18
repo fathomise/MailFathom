@@ -10505,6 +10505,28 @@ no_tracked_text_file_carries_a_nul_byte() {
   (( failures == 0 ))
 }
 
+# A workflow GitHub cannot parse never runs, and what it leaves instead is a failed push-event run
+# with no job on every branch that carries the file — `main` included — which attaches no check to a
+# pull request and so reaches no review and no gate. Every assertion above reads a workflow as text
+# and passes on one that does not parse, which is how a plain scalar holding `: ` reached `main`.
+every_workflow_parses_as_yaml() {
+  python3 - "$source_repository_root"/.github/workflows/*.yml <<'PYTHON'
+import sys
+import yaml
+
+failures = 0
+for path in sys.argv[1:]:
+    try:
+        with open(path, encoding="utf-8") as workflow:
+            yaml.safe_load(workflow)
+    except yaml.YAMLError as error:
+        print(f"{path} does not parse as YAML, so GitHub never runs it: {error}", file=sys.stderr)
+        failures += 1
+
+sys.exit(1 if failures else 0)
+PYTHON
+}
+
 # The paths a module resolver would confuse, out of whatever list is fed in. The final extension is
 # dropped first, because an import naming none is what a resolver adds one back to: `./theme/Theme`
 # is asked of `Theme.ts` before `Theme.tsx`, so `theme.ts` sitting beside `Theme.tsx` answers the
@@ -11585,6 +11607,7 @@ run_test the_design_capture_refuses_a_design_with_no_runtime
 run_test the_comparison_reports_where_a_pair_differs_before_any_image_is_opened
 run_test every_skill_declares_its_license
 run_test no_tracked_text_file_carries_a_nul_byte
+run_test every_workflow_parses_as_yaml
 run_test no_two_tracked_paths_differ_only_by_case
 run_test the_client_corpus_states_what_the_contract_records
 run_test the_corpus_comparison_names_the_route_the_field_and_both_spellings

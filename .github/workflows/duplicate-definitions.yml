@@ -33,7 +33,7 @@ permissions:
   contents: read
 
 jobs:
-  duplication:
+  duplicate-definitions:
     name: Duplicate definitions
     runs-on: ubuntu-latest
     # Five minutes for the whole job, the bound a merge-queue check is held to here; an ordinary run
@@ -197,7 +197,8 @@ jobs:
       - name: Report that the sides could not be resolved
         if: always() && steps.candidates.outcome == 'failure'
         shell: bash
-        run: echo 'No verdict: the two sides could not be resolved, so no model was asked; the failed step says why.' >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          echo 'No verdict: the two sides could not be resolved, so no model was asked; the failed step says why.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Report the verdict
         if: always() && steps.candidates.outputs.judge == 'true'
