@@ -6960,6 +6960,53 @@ related_pull_requests_says_so_when_nothing_open_is_related() {
     "$test_directory/related-pull-requests-unrelated-output"
 }
 
+# A reader's `Read` cuts a line past 2,000 characters, and `files.json` carries each patch as one
+# line, so the patch files are what lets a reader see a long diff whole. The fixture is two hunks
+# well past that length, and the assertion is byte for byte: a later hunk lost is the defect.
+patch_files_carry_a_long_multi_hunk_patch_whole() {
+  local files_json="$test_directory/patch-files-long.json"
+  local output_directory="$test_directory/patch-files-long"
+  local expected_patch="$test_directory/patch-files-long-expected.diff"
+
+  jq -n '
+    def hunk($start): "@@ -\($start),40 +\($start),40 @@\n"
+      + ([range(40) | "+line \(.) of a hunk written long enough to matter"] | join("\n"));
+    [{filename: ".github/workflows/long.yml", status: "modified", patch: (hunk(1) + "\n" + hunk(200))},
+     {filename: "docs/image.png", status: "added", patch: null}]
+  ' > "$files_json"
+  jq -r '.[0].patch' "$files_json" > "$expected_patch"
+
+  bash "$source_repository_root/.github/fathom-review/write-patch-files.sh" "$files_json" "$output_directory"
+
+  (( $(jq -r '.[0].patch | length' "$files_json") > 2000 ))
+  [[ "$(grep -c '^@@' "$output_directory/.github/workflows/long.yml.diff")" == 2 ]]
+  cmp -s "$expected_patch" "$output_directory/.github/workflows/long.yml.diff"
+  [[ ! -e "$output_directory/docs/image.png.diff" ]]
+}
+
+# The changed file's path decides where its patch is written, so a path that would leave the output
+# directory is refused before anything is written rather than after.
+patch_files_refuse_a_path_that_leaves_the_output_directory() {
+  local files_json="$test_directory/patch-files-traversal.json"
+  local output_directory="$test_directory/patch-files-traversal/patches"
+  local path
+
+  for path in '../escaped.cs' 'docs/../../escaped.cs' '/etc/escaped.cs'; do
+    jq -n --arg path "$path" \
+      '[{filename: "docs/fine.md", patch: "@@ -1 +1 @@\n+fine"}, {filename: $path, patch: "@@ -1 +1 @@\n+x"}]' \
+      > "$files_json"
+
+    if bash "$source_repository_root/.github/fathom-review/write-patch-files.sh" "$files_json" "$output_directory" \
+         2> "$test_directory/patch-files-traversal-error"; then
+      printf 'Expected the patch of %s to be refused.\n' "$path" >&2
+      return 1
+    fi
+
+    assert_contains 'Refusing to write the patch' "$test_directory/patch-files-traversal-error"
+    [[ ! -e "$output_directory" && ! -e "$test_directory/patch-files-traversal/escaped.cs.diff" ]]
+  done
+}
+
 # The split is what makes coverage a property of the run rather than of the model. Every contract
 # below is about one of the two things that must hold whatever the shape of the change: no file is
 # lost, and no reader is given so much more than another that the run waits on it.
@@ -9896,6 +9943,7 @@ workflow_scripts_use_flat_manual_layout() {
   # part of the contract. The tests above run it through `bash` and would pass without it.
   [[ -x "$source_repository_root/.github/fathom-review/index-obligations.sh" ]]
   [[ -x "$source_repository_root/.github/fathom-review/group-changed-files.sh" ]]
+  [[ -x "$source_repository_root/.github/fathom-review/write-patch-files.sh" ]]
   [[ -x "$source_repository_root/.github/pull-request/collect-closing-issues.sh" ]]
   [[ -x "$source_repository_root/.github/pull-request/write-board-status.sh" ]]
   [[ -x "$source_repository_root/.github/pull-request/select-labels.sh" ]]
@@ -11516,6 +11564,8 @@ run_test related_pull_requests_writes_another_pull_request_s_paths_as_inert_code
 run_test related_pull_requests_says_when_it_read_only_the_first_hundred_pull_requests
 run_test related_pull_requests_says_when_it_read_only_the_first_hundred_files_of_one
 run_test related_pull_requests_says_so_when_nothing_open_is_related
+run_test patch_files_carry_a_long_multi_hunk_patch_whole
+run_test patch_files_refuse_a_path_that_leaves_the_output_directory
 run_test group_split_gives_every_changed_file_exactly_one_reader
 run_test group_split_never_exceeds_the_reader_ceiling
 run_test group_split_balances_what_each_reader_is_given

@@ -1158,6 +1158,12 @@ jobs:
               "$migrations" >> "$REVIEW_DIRECTORY/truncation.txt"
           fi
 
+          # Each patch again as a file of its own under `patches/`, because the one-line JSON string
+          # above is cut short by the readers' `Read` tool past 2,000 characters. The script holds
+          # the reasoning, and is read from the workspace for the reason the obligations index is.
+          "${GITHUB_WORKSPACE}/.github/fathom-review/write-patch-files.sh" \
+            "$REVIEW_DIRECTORY/files.json" "$REVIEW_DIRECTORY/patches"
+
           # The lines a review comment may anchor to, taken from the same patches the review is
           # judged against, so the reviewer chooses an anchor that exists instead of guessing one
           # from a diff that may have moved on. Every added or context line on the right side of a
