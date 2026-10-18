@@ -20,7 +20,8 @@ name: Protected paths
 #                      configuration, or security-sensitive behavior move, so rewriting one moves
 #                      what the next change is judged against rather than what the repository does.
 #                      `docs/AGENTS.md` and `docs/decisions/README.md` both require the owner's
-#                      approval for an ADR; this line is what asks for it before a reviewer does
+#                      approval for an ADR; this line is what holds a change to one for a
+#                      maintainer before a reviewer has to notice it
 #
 # Six files decide the same thing from wherever they sit, so they are matched by name anywhere in
 # the tree rather than at the repository root. A nested copy of each overrides the one above it for
@@ -76,28 +77,28 @@ name: Protected paths
 #   `global.json`             the SDK pin every build, every gate, and every CI run resolves against
 #
 # A pull request that edits any of them is editing the gate it has to pass, the terms the project is
-# published under, or the record a release stands on, so the repository owner is the only human author
-# for whom that is ordinary work. The owner is whoever administers the repository, read from the
-# permission the author holds on it rather than from the name of the account it belongs to; the step
-# below carries why. `CODEOWNERS` says this to the reviewer; this job says it to the
-# author, within seconds of the push and without a reviewer having to notice. One automated author is
-# recognised beside the owner, for `.github/workflows/` alone; the step below carries the exception
-# and the argument for why it removes a signal rather than an approval.
+# published under, or the record a release stands on, so the maintainers are the only human authors
+# for whom that is ordinary work. A maintainer is an account holding the `maintain` or `admin` role on
+# the repository, which is what the organization's `maintainers` team is given; the step below
+# carries why the role is read rather than the team. `CODEOWNERS` says this to the reviewer; this job
+# says it to the author, within seconds of the push and without a reviewer having to notice. One
+# automated author is recognised beside the maintainers, for `.github/workflows/` alone; the step
+# below carries the exception and the argument for why it removes a signal rather than an approval.
 #
-# The refusal is a first answer rather than a last one. Once the owner has read such a change and
+# The refusal is a first answer rather than a last one. Once a maintainer has read such a change and
 # wants it, their approving review of the pull request's current head clears the check, which is why
 # the job also runs when a review is submitted or dismissed. The approval names a commit, so the next
-# push leaves it naming an older one and the check refuses again until the owner approves what
+# push leaves it naming an older one and the check refuses again until a maintainer approves what
 # arrived. That is the review the `main` ruleset already asks for, so accepting a change costs the
-# owner no second step, and it keeps the merge inside the queue rather than bypassing the ruleset.
+# maintainer no second step, and it keeps the merge inside the queue rather than bypassing the ruleset.
 #
 # Whichever way it decides, the job names the protected files the pull request touched, in the step
 # log and in the job summary. The refusal needs that list to be actionable, and the pass needs it
-# just as much: the owner is allowed to change these paths, not expected to have meant to, and an
+# just as much: a maintainer is allowed to change these paths, not expected to have meant to, and an
 # `.editorconfig` that arrived with a rebase is only visible if something says so.
 #
 # One case produces no list at all, because the changed-files endpoint stops at 3000 entries. It is
-# refused for every author the list decides a verdict for, and allowed for the owner, for whom it
+# refused for every author the list decides a verdict for, and allowed for a maintainer, for whom it
 # decides none — the step says which of the two happened rather than passing or failing in silence.
 #
 # It is not a security boundary on its own. A `pull_request` run uses the workflow file as the pull
@@ -127,7 +128,7 @@ on:
       - converted_to_draft
     branches:
       - main
-  # The owner's approval of the current head is the one thing besides a push that changes the verdict.
+  # A maintainer's approval of the current head is the one thing besides a push that changes the verdict.
   # GitHub offers no branch filter for this event, and a run for a pull request against another base
   # reports a check nothing requires.
   pull_request_review:
@@ -248,41 +249,42 @@ jobs:
           protected_paths="${protected_prefixes[*]} ${protected_names[*]} ${protected_files[*]}"
           reportable_file_limit=3000
 
-          # The owner is whoever administers the repository, and that is read rather than inferred
-          # from the account the repository belongs to. `github.repository_owner` names a person only
-          # while a personal account holds the repository; under an organization it names the
-          # organization, which never authors a pull request, so a comparison against it would refuse
-          # the owner everything. `admin` is also the role the `main` ruleset names as its bypass
-          # actor, which keeps this check and the ruleset agreeing on who that is.
+          # A maintainer is an account holding the `maintain` or `admin` role on the repository: the
+          # `maintainers` team holds the first through the organization role *All-repository
+          # maintain*, and the organization's owner the second. The role is read from the repository
+          # rather than the team's membership from the organization, because this token cannot read
+          # an organization's teams and a run for a fork's pull request is handed no other token, so
+          # a membership check would fail exactly where it matters. `role_name` rather than
+          # `permission`, which folds `maintain` into `write` and would make every contributor one.
           #
-          # A read that failed is not an answer, and an author nobody could vouch for is not the
-          # owner; the warning is what keeps that from reading as a verdict about the author. The
-          # answer is resolved once, here, because both the ceiling below and the verdict at the end
-          # of this step read it.
-          authored_by_owner='no'
-          if author_permission="$(
-            gh api "repos/${REPOSITORY}/collaborators/${PULL_REQUEST_AUTHOR}/permission" --jq '.permission'
+          # A read that failed is not an answer, and an author nobody could vouch for is not a
+          # maintainer; the warning is what keeps that from reading as a verdict about the author.
+          # The answer is resolved once, here, because both the ceiling below and the verdict at the
+          # end of this step read it.
+          authored_by_maintainer='no'
+          if author_role="$(
+            gh api "repos/${REPOSITORY}/collaborators/${PULL_REQUEST_AUTHOR}/permission" --jq '.role_name'
           )"; then
-            if [[ "$author_permission" == 'admin' ]]; then
-              authored_by_owner='yes'
+            if [[ "$author_role" == 'admin' || "$author_role" == 'maintain' ]]; then
+              authored_by_maintainer='yes'
             fi
           else
-            echo "::warning::The permission ${PULL_REQUEST_AUTHOR} holds on ${REPOSITORY} could not be read, so this pull request is judged as one the repository owner did not author."
+            echo "::warning::The role ${PULL_REQUEST_AUTHOR} holds on ${REPOSITORY} could not be read, so this pull request is judged as one no maintainer authored."
           fi
 
           # The changed-files endpoint stops at 3000 entries, so a larger pull request cannot be shown
           # to leave the protected paths alone. An answer that could not be computed is not an answer
           # that clears this check — for every author whose verdict that answer decides.
           #
-          # The owner's it does not. Every protected path is theirs to change, so the enumeration
+          # A maintainer's it does not. Every protected path is theirs to change, so the enumeration
           # below can only ever tell them *which* ones they touched, and refusing them here withholds
           # that list and blocks the merge without there being a verdict the list could have altered.
           # What is lost is the list, so this says so rather than passing in silence. A tree-wide
           # rename is the change that reaches it: it moves more files than the endpoint reports while
           # touching a protected path only to correct a path written inside one.
           if (( CHANGED_FILE_COUNT > reportable_file_limit )); then
-            if [[ "$authored_by_owner" == 'yes' ]]; then
-              echo "This pull request changes ${CHANGED_FILE_COUNT} files, more than the ${reportable_file_limit} the changed-files endpoint reports, so the protected paths it touches cannot be listed. The repository owner authored it and every one of those paths is theirs to change, so there is no verdict that list would have decided."
+            if [[ "$authored_by_maintainer" == 'yes' ]]; then
+              echo "This pull request changes ${CHANGED_FILE_COUNT} files, more than the ${reportable_file_limit} the changed-files endpoint reports, so the protected paths it touches cannot be listed. A maintainer of the repository authored it and every one of those paths is theirs to change, so there is no verdict that list would have decided."
               exit 0
             fi
 
@@ -350,18 +352,18 @@ jobs:
           echo "This pull request changes ${#protected_changes[@]} protected path(s):"
           printf '  %s\n' "${protected_changes[@]}"
 
-          if [[ "$authored_by_owner" == 'yes' ]]; then
-            echo "The repository owner authored this pull request, so those changes are allowed."
+          if [[ "$authored_by_maintainer" == 'yes' ]]; then
+            echo "A maintainer of the repository authored this pull request, so those changes are allowed."
             exit 0
           fi
 
-          # The owner accepts somebody else's change by approving it. A reviewer's verdict is their
+          # A maintainer accepts somebody else's change by approving it. A reviewer's verdict is their
           # newest review that approved, requested changes, or was dismissed — a comment leaves an
           # earlier verdict standing, exactly as GitHub reads it — and it counts here only when it is
-          # an approval of the head this run is judging, from an account administering the
-          # repository. Reviews arrive oldest first, so the last line per reviewer is that verdict.
-          # A read that failed approves nothing, and the warning says so.
-          approving_owner=''
+          # an approval of the head this run is judging, from a maintainer of the repository. Reviews
+          # arrive oldest first, so the last line per reviewer is that verdict. A read that failed
+          # approves nothing, and the warning says so.
+          approving_maintainer=''
           if reviews="$(
             gh api "repos/${REPOSITORY}/pulls/${PULL_REQUEST_NUMBER}/reviews?per_page=100" --paginate \
               --jq '.[] | select(.state == "APPROVED" or .state == "CHANGES_REQUESTED" or .state == "DISMISSED")
@@ -374,19 +376,19 @@ jobs:
 
             for reviewer in "${!verdict_by_reviewer[@]}"; do
               [[ "${verdict_by_reviewer[$reviewer]}" == "APPROVED ${HEAD_SHA}" ]] || continue
-              if reviewer_permission="$(
-                gh api "repos/${REPOSITORY}/collaborators/${reviewer}/permission" --jq '.permission'
-              )" && [[ "$reviewer_permission" == 'admin' ]]; then
-                approving_owner="$reviewer"
+              if reviewer_role="$(
+                gh api "repos/${REPOSITORY}/collaborators/${reviewer}/permission" --jq '.role_name'
+              )" && [[ "$reviewer_role" == 'admin' || "$reviewer_role" == 'maintain' ]]; then
+                approving_maintainer="$reviewer"
                 break
               fi
             done
           else
-            echo "::warning::The reviews on this pull request could not be read, so no approval from the repository owner was found."
+            echo "::warning::The reviews on this pull request could not be read, so no approval from a maintainer was found."
           fi
 
-          if [[ -n "$approving_owner" ]]; then
-            echo "The repository owner ${approving_owner} approved this pull request's head ${HEAD_SHA:0:12}, so those changes are allowed."
+          if [[ -n "$approving_maintainer" ]]; then
+            echo "The maintainer ${approving_maintainer} approved this pull request's head ${HEAD_SHA:0:12}, so those changes are allowed."
             exit 0
           fi
 
@@ -422,7 +424,7 @@ jobs:
               exit 0
             fi
 
-            echo "::error::This pull request is authored by ${PULL_REQUEST_AUTHOR} and changes ${#outside_the_workflows[@]} protected path(s) outside .github/workflows/: ${outside_the_workflows[*]}. The dependency updater is recognised for the workflows alone; anything else it proposes is the repository owner's to make, or to approve on this head."
+            echo "::error::This pull request is authored by ${PULL_REQUEST_AUTHOR} and changes ${#outside_the_workflows[@]} protected path(s) outside .github/workflows/: ${outside_the_workflows[*]}. The dependency updater is recognised for the workflows alone; anything else it proposes is a maintainer's to make, or to approve on this head."
             exit 1
           fi
 
@@ -430,8 +432,8 @@ jobs:
           # changed view, so the refusal is readable where the change is read rather than only in the
           # step log.
           for protected_change in "${protected_changes[@]}"; do
-            echo "::error file=${protected_change}::${protected_change} decides how other changes are judged, what the project is published under, or what a release claims it shipped, and only the repository owner may change it in a pull request or approve the change."
+            echo "::error file=${protected_change}::${protected_change} decides how other changes are judged, what the project is published under, or what a release claims it shipped, and only a maintainer of the repository may change it in a pull request or approve the change."
           done
 
-          echo "::error::This pull request is authored by ${PULL_REQUEST_AUTHOR} and changes ${#protected_changes[@]} protected path(s): ${protected_changes[*]}. Open that change separately, ask the repository owner to make it, or ask them to approve this head, which clears this check."
+          echo "::error::This pull request is authored by ${PULL_REQUEST_AUTHOR} and changes ${#protected_changes[@]} protected path(s): ${protected_changes[*]}. Open that change separately, ask a maintainer to make it, or ask one to approve this head, which clears this check."
           exit 1
