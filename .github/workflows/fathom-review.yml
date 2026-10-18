@@ -1118,7 +1118,7 @@ jobs:
           jq --arg protected_changes "$protected_changes" \
              --argjson listed "$(jq 'length' "$all_files")" '
             .protected_changes = ($protected_changes | split("\n") | map(select(. != "")))
-            | .protected_changes_complete = ($listed >= (.changed_files // 0))' \
+            | .protected_changes_complete = (.changed_files != null and $listed >= .changed_files)' \
             "$REVIEW_DIRECTORY/pull-request.json" > "$REVIEW_DIRECTORY/pull-request.json.next"
           mv "$REVIEW_DIRECTORY/pull-request.json.next" "$REVIEW_DIRECTORY/pull-request.json"
 
@@ -2502,7 +2502,11 @@ jobs:
             elif [[ "$head_repository" == "$REPOSITORY" && "$author_role" == 'write' ]]; then
               event='COMMENT'
               heading='# NO FINDINGS'
-              notice='This pull request changes a protected path and its author is not a maintainer of this repository, so this reviewer does not approve it. A maintainer has to approve its current head before it can merge.'
+              if [[ "$(jq -r '(.protected_changes // []) | length' "$REVIEW_DIRECTORY/pull-request.json" 2>/dev/null || echo 0)" != '0' ]]; then
+                notice='This pull request changes a protected path and its author is not a maintainer of this repository, so this reviewer does not approve it. A maintainer has to approve its current head before it can merge.'
+              else
+                notice='The list of files this pull request changes could not be read in full, so it cannot be shown to leave every protected path alone, and its author is not a maintainer of this repository. This reviewer does not approve it; a maintainer has to approve its current head before it can merge.'
+              fi
               verdict='no_findings'
             else
               event='COMMENT'

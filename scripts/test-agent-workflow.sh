@@ -2973,6 +2973,7 @@ case "$endpoint" in
                            status: "modified", additions: 1, deletions: 0,
                            patch: "@@ -1,2 +1,3 @@\n unchanged\n+added\n unchanged"}]
          | if length == 1 then [.[0] + {filename: "backend/src/Sample.cs"}] else . end
+         | if (env.FAKE_RENAMED_FROM // "") != "" then .[0].previous_filename = env.FAKE_RENAMED_FROM else . end
          | . + [range($runtime)
                 | {filename: "design/runtime/bundle\(.).js", previous_filename: null,
                    status: "modified", additions: 6000, deletions: 5000,
@@ -3227,8 +3228,30 @@ fathom_review_collects_the_protected_paths_a_change_reaches() {
     '.protected_changes' "$collect_review_directory/pull-request.json"
   assert_json 'true' '.protected_changes_complete' "$collect_review_directory/pull-request.json"
 
+  # A file moved out of a protected directory changed that directory.
+  FAKE_RENAMED_FROM='.github/workflows/retired.yml' run_fathom_review_collect "$output_file"
+  assert_json '[".github/workflows/retired.yml"]' '.protected_changes' "$collect_review_directory/pull-request.json"
+
   FAKE_PULL_REQUEST_CHANGED_FILES='3001' run_fathom_review_collect "$output_file"
   assert_json 'false' '.protected_changes_complete' "$collect_review_directory/pull-request.json"
+}
+
+# A prefix covers its directory and nothing beside it, a name matches at any depth and only whole, a
+# root file matches only at the root, and a path reported twice — a rename inside a protected
+# directory — is printed once.
+protected_paths_select_only_what_a_maintainer_must_change() {
+  local select_script="$source_repository_root/.github/protected-paths/select-protected-paths.sh"
+  local selected
+
+  selected="$(printf '%s\n' \
+    '.github/workflows/ci.yml' '.github/workflows/ci.yml' 'docs/decisions-notes.md' 'docs/decisions/0001.md' \
+    'backend/AGENTS.md' 'docs/.editorconfig' 'docs/my.editorconfig' 'CHANGELOG.md' 'docs/CHANGELOG.md' \
+    'backend/src/Sample.cs' \
+    | bash "$select_script")"
+
+  [[ "$selected" == $'.github/workflows/ci.yml\nCHANGELOG.md\nbackend/AGENTS.md\ndocs/.editorconfig\ndocs/decisions/0001.md' ]]
+  [[ -z "$(printf 'backend/src/Sample.cs\n' | bash "$select_script")" ]]
+  bash "$select_script" --describe | grep -qF 'docs/decisions/'
 }
 
 # The contract the security pass rests on. Without the labels beside the body, the one thing that
@@ -3967,6 +3990,8 @@ fathom_review_withholds_approval_from_a_contributor_changing_a_protected_path() 
 
   ((submit_status == 0))
   assert_json '"COMMENT"' '.event' "$payload_file"
+  assert_contains 'could not be read in full' "$payload_file"
+  assert_excludes 'changes a protected path' "$payload_file"
 }
 
 # The marker is what the ceiling counts with, and it is written by the only step that publishes. A
@@ -11624,6 +11649,7 @@ run_test fathom_review_collects_the_labels_of_an_issue_the_change_closes
 run_test fathom_review_collects_only_what_members_and_the_reviewer_wrote
 run_test fathom_review_collects_where_the_head_lives_and_who_opened_it
 run_test fathom_review_collects_the_protected_paths_a_change_reaches
+run_test protected_paths_select_only_what_a_maintainer_must_change
 run_test fathom_review_reports_unknown_labels_for_an_issue_it_could_not_fetch
 run_test fathom_review_never_reads_the_design_runtime
 run_test fathom_review_never_reads_a_generated_migration
