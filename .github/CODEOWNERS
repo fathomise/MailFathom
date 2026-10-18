@@ -6,15 +6,15 @@
 # it, so a path that must still require the repository owner names
 # @Krzysztof318 alongside its other owners.
 #
-# The repository is on a personal account, so ownership is a user and not a
-# team. This file only says who the owners are. Whether their review is
+# The repository belongs to an organization, and ownership is still a person
+# rather than a team. This file only says who the owners are. Whether their review is
 # required is a `main` branch ruleset setting in repository settings; see
 # docs/operations/local-development.md.
 
 *       @Krzysztof318
 
-# The `Protected paths` workflow refuses a change from anyone but the repository owner, until the
-# owner approves the pull request's current head, to the five protected directories, to the
+# The `Protected paths` workflow refuses a change from anyone but a maintainer, until a maintainer
+# approves the pull request's current head, to the five protected directories, to the
 # configuration and build-contract files matched at any depth, and to the repository-root version,
 # package-source, SDK, license, and changelog files; `protected-paths.yml` lists them with the
 # reason each one joined. They get no entry of their own here, because the rule above already makes
