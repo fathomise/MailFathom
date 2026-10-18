@@ -6666,6 +6666,68 @@ coherence_relates_the_same_prose_file_and_an_instructions_scope() {
     '.' "$test_directory/coherence-prose.json"
 }
 
+# The workflow, unlike the relation above, leaves every `AGENTS.md` and the two operations pages out
+# of both sides. Its step runs verbatim against a pull request's merge commit: the landed side is
+# `main`'s commit since the merge base, the changed side the pull request's.
+run_coherence_workflow() {
+  local name="$1" landed="$2" changed="$3"
+  local fixture_root="$test_directory/coherence-workflow-$name"
+  local step_script="$test_directory/coherence-workflow-step.sh"
+  local path
+
+  extract_workflow_step "$source_repository_root/.github/workflows/coherence.yml" 'relate' "$step_script"
+
+  create_coherence_fixture "$fixture_root"
+  mkdir -p "$fixture_root/.github/coherence" "$fixture_root/.github/fathom-review" "$fixture_root/docs/operations"
+  cp "$source_repository_root/.github/coherence/relate-changes.sh" "$fixture_root/.github/coherence/"
+  cp "$source_repository_root/.github/fathom-review/index-obligations.sh" "$fixture_root/.github/fathom-review/"
+  printf '%s\n' '<!-- describes: backend/** -->' '' '# Agent workflow' '' 'One.' '' 'Two.' '' 'Three.' \
+    > "$fixture_root/docs/operations/agent-workflow.md"
+  printf '%s\n' '# Instructions' '' 'Rules.' > "$fixture_root/AGENTS.md"
+
+  git -C "$fixture_root" init --initial-branch=main --quiet
+  git -C "$fixture_root" config user.email agent-workflow@example.invalid
+  git -C "$fixture_root" config user.name 'Agent Workflow Tests'
+  git -C "$fixture_root" add .
+  git -C "$fixture_root" commit --quiet -m 'base'
+  git -C "$fixture_root" switch --quiet -c pull-request
+  for path in $changed; do printf 'changed\n' >> "$fixture_root/$path"; done
+  git -C "$fixture_root" commit --quiet -am 'pull request'
+  git -C "$fixture_root" switch --quiet main
+  # The landed side edits each file's second line and the pull request appends, so a prose file both
+  # sides change merges cleanly.
+  for path in $landed; do sed -i '2s/.*/landed/' "$fixture_root/$path"; done
+  git -C "$fixture_root" commit --quiet -am 'Landed change (#1)'
+  git -C "$fixture_root" merge --quiet --no-edit pull-request > /dev/null
+
+  set +e
+  (
+    cd "$fixture_root"
+    export EVENT_NAME='pull_request' BASE_BRANCH='main' REPOSITORY_URL='https://github.com/fathomise/MailFathom'
+    export GITHUB_WORKSPACE="$fixture_root" GITHUB_STEP_SUMMARY="$test_directory/coherence-workflow-$name-summary"
+    bash "$step_script"
+  ) > "$test_directory/coherence-workflow-$name-output" 2>&1
+  coherence_workflow_status=$?
+  set -e
+}
+
+coherence_workflow_leaves_agents_files_and_the_operations_pages_out() {
+  run_coherence_workflow hubs 'AGENTS.md docs/operations/agent-workflow.md' \
+    'docs/operations/agent-workflow.md backend/src/Application/Emails/MailboxWidget.cs'
+
+  assert_contains 'Nothing related to this pull request landed' "$test_directory/coherence-workflow-hubs-output"
+  [[ "$coherence_workflow_status" -eq 0 ]]
+}
+
+coherence_workflow_still_fails_on_any_other_related_change() {
+  run_coherence_workflow related 'AGENTS.md docs/features/widgets.md' 'backend/src/Application/Emails/MailboxWidget.cs'
+
+  assert_contains 'docs/features/widgets.md, changed by https://github.com/fathomise/MailFathom/pull/1 (on main), has a describes: marker covering backend/src/Application/Emails/MailboxWidget.cs' \
+    "$test_directory/coherence-workflow-related-output"
+  assert_excludes 'AGENTS.md' "$test_directory/coherence-workflow-related-summary"
+  [[ "$coherence_workflow_status" -eq 1 ]]
+}
+
 # The same relation asked before publishing, against pull requests still open rather than changes
 # that landed. The open ones come from `gh pr list`, so what is pinned is what the script does with
 # that answer: which pull request a pair is attributed to, and that the branch's own pull request is
@@ -11315,6 +11377,8 @@ run_test coherence_relates_an_added_page_to_a_landed_path_it_describes
 run_test coherence_passes_an_unrelated_change
 run_test coherence_passes_shared_code_without_a_prose_link
 run_test coherence_relates_the_same_prose_file_and_an_instructions_scope
+run_test coherence_workflow_leaves_agents_files_and_the_operations_pages_out
+run_test coherence_workflow_still_fails_on_any_other_related_change
 run_test related_pull_requests_names_the_open_pull_request_a_pair_comes_from
 run_test related_pull_requests_writes_another_pull_request_s_paths_as_inert_code
 run_test related_pull_requests_says_when_it_read_only_the_first_hundred_pull_requests

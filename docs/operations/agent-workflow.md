@@ -1225,7 +1225,8 @@ is reviewed again.
 Git merges two changes without a conflict whenever they touch different lines, and the build and
 the tests prove the combined tree compiles and behaves; neither notices a page one pull request adds
 that describes a file another one changed, or a rule written into an `AGENTS.md` that a file changed
-beside it does not follow. That is the half this check covers.
+beside it does not follow. That is the half this check covers, apart from the files it leaves out
+below.
 
 It compares two path lists. What *landed* is every path changed between the pull request's merge
 base and what it would merge onto: current `main` on a pull request, and on `merge_group` the
@@ -1250,6 +1251,16 @@ request adds describing a path that landed. They are resolved through
 so the two never disagree about which page describes which path. Granularity is the whole file: a
 pull request that changes one row of `THIRD_PARTY_LICENSES.md` is related to every other pull
 request that changed any row of it.
+
+The workflow leaves three kinds of file out of both lists before it relates them: every `AGENTS.md`,
+at any depth, and this page and [`local-development.md`](local-development.md). Each relates to
+nearly every change — an `AGENTS.md` through the directory it governs, the two pages through
+`describes:` markers that cover most of `scripts/`, `.github/`, and the toolchain, and all of them
+because most pull requests edit them — so a pair through one of them stopped almost any two pull
+requests open together, and the merge queue removed one of them for a reading that rarely changed
+anything. The exclusion is the workflow's alone: `relate-changes.sh` still relates these files, and
+the report below still lists them before a change is published, which is where reading them
+against an open pull request costs nothing.
 
 It is not the base-freshness check [The base is asked twice locally and never in the
 pipeline](#the-base-is-asked-twice-locally-and-never-in-the-pipeline) rules out. A branch that
