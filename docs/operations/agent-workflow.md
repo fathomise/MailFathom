@@ -1225,7 +1225,8 @@ is reviewed again.
 Git merges two changes without a conflict whenever they touch different lines, and the build and
 the tests prove the combined tree compiles and behaves; neither notices a page one pull request adds
 that describes a file another one changed, or a rule written into an `AGENTS.md` that a file changed
-beside it does not follow. That is the half this check covers.
+beside it does not follow. That is the half this check covers, apart from the files it leaves out
+below.
 
 It compares two path lists. What *landed* is every path changed between the pull request's merge
 base and what it would merge onto: current `main` on a pull request, and on `merge_group` the
@@ -1251,6 +1252,16 @@ so the two never disagree about which page describes which path. Granularity is 
 pull request that changes one row of `THIRD_PARTY_LICENSES.md` is related to every other pull
 request that changed any row of it.
 
+The workflow leaves three kinds of file out of both lists before it relates them: every `AGENTS.md`,
+at any depth, and this page and [`local-development.md`](local-development.md). Each relates to
+nearly every change — an `AGENTS.md` through the directory it governs, the two pages through
+`describes:` markers that cover most of `scripts/`, `.github/`, and the toolchain, and all of them
+because most pull requests edit them — so a pair through one of them stopped almost any two pull
+requests open together, and the merge queue removed one of them for a reading that rarely changed
+anything. The exclusion is the workflow's alone: `relate-changes.sh` still relates these files, and
+the report below still lists them before a change is published, which is where reading them
+against an open pull request costs nothing.
+
 It is not the base-freshness check [The base is asked twice locally and never in the
 pipeline](#the-base-is-asked-twice-locally-and-never-in-the-pipeline) rules out. A branch that
 merely fell behind passes it; what fails it is a named pair of files somebody has to read together.
@@ -1260,12 +1271,13 @@ the merge group alike.
 **When it fails**, it annotates every pair with one sentence written from the pull request's side:
 which file this pull request changes, which file another pull request changed, which pull request
 that was and whether it is already on `main` or still ahead in the queue, and the relation with its
-direction — which of the two is the page whose `describes:` marker covers the other, which is the
-`AGENTS.md` that governs the other, or that both changed the same prose file. A pair reads, for
-example, *`docs/operations/agent-workflow.md`, which this pull request changes, has a describes:
-marker covering `.github/workflows/publish-documentation.yml`, changed by
-`https://github.com/fathomise/MailFathom/pull/2472` (on main).* The job summary lists the same
-pairs as a table. For each pair:
+direction — which of the two is the page whose `describes:` marker covers the other, or that both
+changed the same prose file. The relation an `AGENTS.md` makes by governing a path never appears
+here, because the workflow leaves every `AGENTS.md` out; only the report before publication names
+one. A pair reads, for example, *`docs/features/automatic-embedding.md`, changed by
+`https://github.com/fathomise/MailFathom/pull/2472` (on main), has a describes: marker covering
+`backend/src/Infrastructure/Embeddings/BoundedEmailEmbeddingBacklog.cs`, which this pull request
+changes.* The job summary lists the same pairs as a table. For each pair:
 
 1. Read the landed side as it now stands and the pull request's side together, and decide whether
    they still agree: whether the page still describes the file, whether the changed file follows
@@ -1308,7 +1320,8 @@ It is advisory and needs only read access, so it runs in the fork role too. It r
 open pull requests, its own `--limit`, and `gh` returns at most 100 files of each; the report says so
 on stderr whenever a reply reaches either ceiling, since a pull request or a path past it is missing from the result. The markers come
 from the working tree, not from each open pull request's tree, so a page an open pull request adds
-that describes a path changed here is only paired once it lands, and `Coherence` pairs it then.
+that describes a path changed here is only paired once it lands, and `Coherence` pairs it then —
+except for the files `Coherence` leaves out above, which only this report ever pairs.
 
 ## Review on the pull request
 

@@ -19,7 +19,7 @@
 #
 # The `describes:` markers are read from this working tree, not from each open pull request's tree,
 # so a page an open pull request adds that describes a path changed here is not paired until it
-# lands — and `Coherence` pairs it then. It reports and never gates, and needs read access alone, so
+# lands — and `Coherence` pairs it then, unless it is one of the files that workflow leaves out. It reports and never gates, and needs read access alone, so
 # it runs in the fork role as it does in the owner's checkout.
 #
 # Usage: report-related-pull-requests.sh
@@ -117,7 +117,7 @@ if [[ ! -s "$work_directory/rows" ]]; then
 fi
 
 printf '## Related open pull requests\n\n'
-printf 'Each row is an open pull request changing paths `Coherence` relates to paths this one changes, with every pair it makes: its path, then the path here. Whichever merges second has to agree with the first.\n\n'
+printf 'Each row is an open pull request changing paths related to paths this one changes, every `AGENTS.md` and the two operations pages `Coherence` leaves out included, with every pair it makes: its path, then the path here. Whichever merges second has to agree with the first.\n\n'
 printf '| Pull request | Its related paths | Pairs |\n'
 printf '|---|---|---|\n'
 cat "$work_directory/rows"

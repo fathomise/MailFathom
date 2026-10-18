@@ -86,9 +86,10 @@ Before publishing, ask which open pull requests the change has to agree with:
 bash scripts/report-related-pull-requests.sh
 ```
 
-That prints every open pull request to `main` touching a path
-[`Coherence`](agent-workflow.md#coherence) would relate to the change, with each
-pair it makes, as a section ready to paste into the pull request body. It reads
+That prints every open pull request to `main` touching a path related to the
+change by [`Coherence`](agent-workflow.md#coherence)'s relation — every
+`AGENTS.md` and the two operations pages the workflow leaves out included — with
+each pair it makes, as a section ready to paste into the pull request body. It reads
 the open pull requests with `gh`, so it needs read access to GitHub and nothing
 more; it reads at most 100 of them, its own `--limit`, and `gh` returns at most
 100 files of each, and it says so on stderr when a reply reaches either ceiling. Like the obligations report it never gates.
@@ -1977,7 +1978,7 @@ request](agent-workflow.md#rules-on-the-pull-request) carries the reasoning, inc
 labelling takes `pull_request` rather than the trigger `Fathom review` holds, why the board half
 takes `workflow_run` rather than `check_suite`, and what either costs on a fork.
 
-The sixth workflow, `Coherence`, carries one job of the same name and answers whether a change related to this one landed underneath it since its merge base. It runs on a pull request and on `merge_group`, checks out the combined tree with the whole history and no blobs, lists the paths that landed and the paths the pull request changes, and hands both to `.github/coherence/relate-changes.sh`; it fails on every pair that script relates and names the pull request that introduced the landed side. It takes seconds, has no draft exemption, and is a required check. [`Coherence`](agent-workflow.md#coherence) carries the relation and what to do when it fails.
+The sixth workflow, `Coherence`, carries one job of the same name and answers whether a change related to this one landed underneath it since its merge base. It runs on a pull request and on `merge_group`, checks out the combined tree with the whole history and no blobs, lists the paths that landed and the paths the pull request changes, leaves every `AGENTS.md`, `agent-workflow.md`, and this page out of both, and hands both to `.github/coherence/relate-changes.sh`; it fails on every pair that script relates and names the pull request that introduced the landed side. It takes seconds, has no draft exemption, and is a required check. [`Coherence`](agent-workflow.md#coherence) carries the relation and what to do when it fails.
 
 ### `CI` in the merge queue
 

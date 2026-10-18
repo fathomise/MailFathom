@@ -9,11 +9,11 @@ name: Coherence
 #
 # Git merges two changes without a conflict whenever they touch different lines, and a test proves
 # the combined tree builds and behaves. Neither sees a page one pull request adds that describes a file
-# another one changed, or a rule written into an `AGENTS.md` that a file changed beside it does not
-# follow. This check covers that half: it compares what landed since the pull request's merge base
-# with what the pull request changes, and fails on every pair `.github/coherence/relate-changes.sh`
-# relates. An unrelated merge costs the pull request nothing, which is what a branch-must-be-current
-# rule cannot offer.
+# another one changed. This check covers that half: it compares what landed since the pull request's
+# merge base with what the pull request changes, and fails on every pair
+# `.github/coherence/relate-changes.sh` relates. An unrelated merge costs the pull request nothing,
+# which is what a branch-must-be-current rule cannot offer. Every `AGENTS.md` and the two operations
+# pages are left out of both sides; the step below says why.
 #
 # It runs on `merge_group` as well, where what landed is everything between the merge base and what
 # the queue entry merges onto — `main` plus the pull requests ahead of it — so the pair a queue would combine
@@ -63,6 +63,7 @@ jobs:
           persist-credentials: false
 
       - name: Relate what landed to what this pull request changes
+        id: relate
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -95,9 +96,18 @@ jobs:
 
           merge_base="$(git merge-base "$merge_onto" "$pull_request_head")"
 
+          # Every `AGENTS.md` and the two operations pages relate to nearly every change — through the
+          # directory an `AGENTS.md` governs, the `describes:` markers those pages carry, and how
+          # often both sides edit them — so a pair through one of them stopped almost any two pull
+          # requests open together. They stay out of both sides here, and only here:
+          # `scripts/report-related-pull-requests.sh` still relates them before publication.
+          hub_documents='(^|/)AGENTS\.md$|^docs/operations/(agent-workflow|local-development)\.md$'
+
           # `--no-renames` keeps both ends of a move, and keeps git from fetching blobs to detect one.
-          git diff --name-only --no-renames "$merge_base" "$merge_onto" > "$work_directory/landed"
-          git diff --name-only --no-renames "$merge_base" "$pull_request_head" > "$work_directory/changed"
+          git diff --name-only --no-renames "$merge_base" "$merge_onto" \
+            | { grep -vE "$hub_documents" || true; } > "$work_directory/landed"
+          git diff --name-only --no-renames "$merge_base" "$pull_request_head" \
+            | { grep -vE "$hub_documents" || true; } > "$work_directory/changed"
 
           bash .github/coherence/relate-changes.sh \
             "$GITHUB_WORKSPACE" "$work_directory/landed" "$work_directory/changed" "$work_directory/pairs.json"
