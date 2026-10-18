@@ -54,6 +54,16 @@ trap 'rm -rf "$work_directory"' EXIT
   git ls-files --others --exclude-standard
 } | sort -u > "$work_directory/changed"
 
+# The lines this change adds, an untracked file whole, are what its code names another file by. The
+# open pull requests' own lines are not read, since `gh pr list` returns paths alone, so only this
+# change's side of that relation is reported here.
+{
+  git diff --no-ext-diff --no-renames --no-color --unified=0 "$merge_base"
+  git ls-files --others --exclude-standard -z | while IFS= read -r -d '' untracked; do
+    git diff --no-ext-diff --no-color --unified=0 --no-index /dev/null "$untracked" || true
+  done
+} > "$work_directory/changed.diff"
+
 current_branch="$(git branch --show-current)"
 
 # The pull request this branch publishes is identified by the owner of the repository it is pushed
@@ -82,7 +92,8 @@ open_count="$(jq 'length' "$work_directory/others.json")"
 jq -r '.[].files[]?.path' "$work_directory/others.json" | sort -u > "$work_directory/landed"
 
 bash .github/coherence/relate-changes.sh \
-  "$repository_root" "$work_directory/landed" "$work_directory/changed" "$work_directory/pairs.json"
+  "$repository_root" "$work_directory/landed" "$work_directory/changed" \
+  /dev/null "$work_directory/changed.diff" "$work_directory/pairs.json"
 
 # One row per open pull request, its pairs folded beneath it: a shared page relates to every path
 # either side changed, so pairs multiply quickly, and a reader first wants to know which pull request
@@ -100,7 +111,8 @@ jq -r --arg repository_url "https://github.com/$CANONICAL_REPOSITORY" --slurpfil
      "landed describes changed": "its page describes the path here",
      "changed describes landed": "the page here describes its path",
      "landed governs changed": "its AGENTS.md governs the path here",
-     "changed governs landed": "the AGENTS.md here governs its path"}[.] // .;
+     "changed governs landed": "the AGENTS.md here governs its path",
+     "changed names landed": "the code here names its path"}[.] // .;
   def code: gsub("[[:cntrl:]`]"; "") | gsub("\\|"; "\\|") | gsub("#(?<digit>[0-9])"; "#\u2060\(.digit)") | "`\(.)`";
   . as $pairs
   | $others[0] | sort_by(.number)
@@ -117,7 +129,7 @@ if [[ ! -s "$work_directory/rows" ]]; then
 fi
 
 printf '## Related open pull requests\n\n'
-printf 'Each row is an open pull request changing paths related to paths this one changes, every `AGENTS.md` and the two operations pages `Coherence` leaves out included, with every pair it makes: its path, then the path here. Whichever merges second has to agree with the first.\n\n'
+printf 'Each row is an open pull request changing paths related to paths this one changes, the files `Coherence` leaves out included, with every pair it makes: its path, then the path here. Whichever merges second has to agree with the first.\n\n'
 printf '| Pull request | Its related paths | Pairs |\n'
 printf '|---|---|---|\n'
 cat "$work_directory/rows"

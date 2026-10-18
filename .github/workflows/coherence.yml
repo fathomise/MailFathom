@@ -11,9 +11,11 @@ name: Coherence
 # the combined tree builds and behaves. Neither sees a page one pull request adds that describes a file
 # another one changed. This check covers that half: it compares what landed since the pull request's
 # merge base with what the pull request changes, and fails on every pair
-# `.github/coherence/relate-changes.sh` relates. An unrelated merge costs the pull request nothing,
-# which is what a branch-must-be-current rule cannot offer. Every `AGENTS.md` and the two operations
-# pages are left out of both sides; the step below says why.
+# `.github/coherence/relate-changes.sh` relates through prose. An unrelated merge costs the pull
+# request nothing, which is what a branch-must-be-current rule cannot offer. Every `AGENTS.md`, the
+# two operations pages, and the licence register are left out of both sides; the step below says
+# why. A pair in which one side's code names the other side's file is a warning and fails nothing,
+# until what it reports shows whether it should.
 #
 # It runs on `merge_group` as well, where what landed is everything between the merge base and what
 # the queue entry merges onto — `main` plus the pull requests ahead of it — so the pair a queue would combine
@@ -51,10 +53,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      # The whole history, because the merge base can be any distance back, but without blobs: every
-      # question below is about which paths a commit touched, which trees answer. The checkout is the
-      # combined tree — the pull request's merge commit, or the merge group's head — and that is the
-      # tree the `describes:` markers and the `AGENTS.md` files are read from.
+      # The whole history, because the merge base can be any distance back, but without blobs: most
+      # questions below are about which paths a commit touched, which trees answer, and the added
+      # lines the naming relation reads are fetched on demand. The checkout is the combined tree — the
+      # pull request's merge commit, or the merge group's head — and that is the tree the `describes:`
+      # markers and the `AGENTS.md` files are read from.
       - name: Check out the combined tree
         uses: actions/checkout@v7
         with:
@@ -99,9 +102,11 @@ jobs:
           # Every `AGENTS.md` and the two operations pages relate to nearly every change — through the
           # directory an `AGENTS.md` governs, the `describes:` markers those pages carry, and how
           # often both sides edit them — so a pair through one of them stopped almost any two pull
-          # requests open together. They stay out of both sides here, and only here:
+          # requests open together. The licence register is edited by every dependency change, one
+          # independent row each, so two of them never disagree and a conflict on one row is git's to
+          # report. They stay out of both sides here, and only here:
           # `scripts/report-related-pull-requests.sh` still relates them before publication.
-          hub_documents='(^|/)AGENTS\.md$|^docs/operations/(agent-workflow|local-development)\.md$'
+          hub_documents='(^|/)AGENTS\.md$|^docs/operations/(agent-workflow|local-development)\.md$|^THIRD_PARTY_LICENSES\.md$'
 
           # `--no-renames` keeps both ends of a move, and keeps git from fetching blobs to detect one.
           git diff --name-only --no-renames "$merge_base" "$merge_onto" \
@@ -109,10 +114,17 @@ jobs:
           git diff --name-only --no-renames "$merge_base" "$pull_request_head" \
             | { grep -vE "$hub_documents" || true; } > "$work_directory/changed"
 
+          # The added lines are what a code file names another by. These are the only reads of
+          # content, and git fetches the blobs they need in one batch.
+          git diff --no-ext-diff --no-renames --no-color --unified=0 "$merge_base" "$merge_onto" > "$work_directory/landed.diff"
+          git diff --no-ext-diff --no-renames --no-color --unified=0 "$merge_base" "$pull_request_head" > "$work_directory/changed.diff"
+
           bash .github/coherence/relate-changes.sh \
-            "$GITHUB_WORKSPACE" "$work_directory/landed" "$work_directory/changed" "$work_directory/pairs.json"
+            "$GITHUB_WORKSPACE" "$work_directory/landed" "$work_directory/changed" \
+            "$work_directory/landed.diff" "$work_directory/changed.diff" "$work_directory/pairs.json"
 
           pair_count="$(jq 'length' "$work_directory/pairs.json")"
+          failing_count="$(jq '[.[] | select(.reason | test(" names ") | not)] | length' "$work_directory/pairs.json")"
           landed_count="$(grep -c . "$work_directory/landed" || true)"
 
           if (( pair_count == 0 )); then
@@ -152,7 +164,7 @@ jobs:
           {
             echo '### Other pull requests changed files related to this one'
             echo
-            echo "Each row pairs a file this pull request changes with a file another pull request changed after this branch's merge base \`${merge_base:0:12}\`. Read the two together, reconcile whichever one no longer agrees, and rebase onto \`main\` once the other pull request is on it."
+            echo "Each row pairs a file this pull request changes with a file another pull request changed after this branch's merge base \`${merge_base:0:12}\`. Read the two together, reconcile whichever one no longer agrees, and rebase onto \`main\` once the other pull request is on it. A row in which one file names the other is a warning and does not fail the check."
             echo
             echo '| Changed by this pull request | Changed by another pull request | Which pull request | How they relate |'
             echo '|---|---|---|---|'
@@ -162,6 +174,8 @@ jobs:
             source_of_landed="$(introduced_by "$landed")"
             source_of_landed="${source_of_landed%; }"
 
+            severity='error'
+            title='Related change in another pull request'
             case "$reason" in
               'same prose file')
                 relation='both changed this prose file'
@@ -183,15 +197,29 @@ jobs:
                 relation="the \`AGENTS.md\` here governs the other pull request's file"
                 message="${changed}, which this pull request changes, governs ${landed}, changed by ${source_of_landed}."
                 ;;
+              'landed names changed')
+                severity='warning'
+                title='File named across pull requests'
+                relation="the other pull request's code names the file here"
+                message="${landed}, changed by ${source_of_landed}, names ${changed}, which this pull request changes."
+                ;;
+              'changed names landed')
+                severity='warning'
+                title='File named across pull requests'
+                relation="the code here names the other pull request's file"
+                message="${changed}, which this pull request changes, names ${landed}, changed by ${source_of_landed}."
+                ;;
               *)
                 echo "::error::relate-changes.sh returned the unknown relation '${reason}'."
                 exit 1
                 ;;
             esac
 
-            echo "::error title=Related change in another pull request::${message} Read the two together."
+            echo "::${severity} title=${title}::${message} Read the two together."
             echo "| \`${changed}\` | \`${landed}\` | ${source_of_landed} | ${relation} |" >> "$GITHUB_STEP_SUMMARY"
           done < <(jq -r '.[] | [.landed, .changed, .reason] | @tsv' "$work_directory/pairs.json")
 
-          echo "${pair_count} file(s) changed by other pull requests relate to files this pull request changes; the job summary lists them."
-          exit 1
+          echo "${pair_count} file(s) changed by other pull requests relate to files this pull request changes, ${failing_count} of them through prose; the job summary lists them."
+          if (( failing_count > 0 )); then
+            exit 1
+          fi

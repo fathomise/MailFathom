@@ -1248,29 +1248,52 @@ changed one when
   anything under `design/`;
 - either is a page whose `describes:` marker covers the other;
 - either is an `AGENTS.md` whose directory contains the other, so the root one relates to every
-  path.
+  path;
+- the lines one side added to a code file name the other side's code file, by its path or by a file
+  name no other file in the tree carries — a script calling another, or a comment saying which file
+  holds the rule it follows.
 
 A code file both sides changed is not a pair on its own. Whether two code changes still agree is
 what the build and the tests on the combined tree answer, and a check failing on every shared file
-would be the branch-must-be-current rule again under another name.
+would be the branch-must-be-current rule again under another name. The naming relation is narrower
+for the same reason. A test is never the file that names, because it runs on the combined tree and
+already checks what it depends on. Prose is on neither end, because the markers already say what a
+page is about; generated files and lock files are on neither end either. A TypeScript import or a
+C# type is not read as a name.
+
+Replayed over 296 merged pull requests, against everything that landed after each one's work
+began, the relation as written named a pair in 7 of them, and 6 of its 8 pairs were worth reading
+together. Most were comments saying which other file holds the rule or the reason they follow,
+written while a parallel change rewrote that file — a component pointing at a rule in
+`EvidenceList.tsx` that a parallel change had just extended, a reminder citing the time-zone
+reasoning `instants.ts` gave while it was being rewritten — and no other relation pairs two code
+files. The one script among them called `relate-changes.sh` beside a change to what it returns. The
+two that were noise named a file whose change was a pin bump or an unrelated line. Every pair whose
+naming file was a test was noise. Imports and type names each named a pair in 5–11% of pull
+requests, mostly through modules nearly every file imports, and the compiler already reads both
+sides of them. A pair of this kind is a warning rather than a failure until what it reports shows
+whether it should fail.
 
 The markers and the `AGENTS.md` files are read from the combined tree, which is what makes both
 orders fail: a page that landed describing a path this pull request changes, and a page this pull
 request adds describing a path that landed. They are resolved through
 `.github/fathom-review/index-obligations.sh`, the implementation `Fathom review` reads them with,
 so the two never disagree about which page describes which path. Granularity is the whole file: a
-pull request that changes one row of `THIRD_PARTY_LICENSES.md` is related to every other pull
-request that changed any row of it.
+pull request that changes one paragraph of a page is related to every other pull request that
+changed any part of it. A code file's added lines are read from `git diff --unified=0`, which is the
+only content the check reads; git fetches the blobs it needs in one batch.
 
-The workflow leaves three kinds of file out of both lists before it relates them: every `AGENTS.md`,
-at any depth, and this page and [`local-development.md`](local-development.md). Each relates to
-nearly every change — an `AGENTS.md` through the directory it governs, the two pages through
-`describes:` markers that cover most of `scripts/`, `.github/`, and the toolchain, and all of them
-because most pull requests edit them — so a pair through one of them stopped almost any two pull
-requests open together, and the merge queue removed one of them for a reading that rarely changed
-anything. The exclusion is the workflow's alone: `relate-changes.sh` still relates these files, and
-the report below still lists them before a change is published, which is where reading them
-against an open pull request costs nothing.
+The workflow leaves four kinds of file out of both lists before it relates them: every `AGENTS.md`,
+at any depth, this page and [`local-development.md`](local-development.md), and
+`THIRD_PARTY_LICENSES.md`. The first three relate to nearly every change — an `AGENTS.md` through
+the directory it governs, the two pages through `describes:` markers that cover most of `scripts/`,
+`.github/`, and the toolchain, and all of them because most pull requests edit them — so a pair
+through one of them stopped almost any two pull requests open together, and the merge queue removed
+one of them for a reading that rarely changed anything. The register is edited by every dependency
+change, one independent row each, so two of them never disagree, and a conflict on the same row is
+textual and git's to report. The exclusion is the workflow's alone: `relate-changes.sh` still
+relates these files, and the report below still lists them before a change is published, which is
+where reading them against an open pull request costs nothing.
 
 It is not the base-freshness check [The base is asked twice locally and never in the
 pipeline](#the-base-is-asked-twice-locally-and-never-in-the-pipeline) rules out. A branch that
@@ -1287,7 +1310,10 @@ here, because the workflow leaves every `AGENTS.md` out; only the report before 
 one. A pair reads, for example, *`docs/features/automatic-embedding.md`, changed by
 `https://github.com/fathomise/MailFathom/pull/2472` (on main), has a describes: marker covering
 `backend/src/Infrastructure/Embeddings/BoundedEmailEmbeddingBacklog.cs`, which this pull request
-changes.* The job summary lists the same pairs as a table. For each pair:
+changes.* The job summary lists the same pairs as a table. A pair in which one side's code names
+the other's file is annotated the same way as a warning, under the title *File named across pull
+requests*, and is a row of the same table; on its own it leaves the check green, and it is read the
+same way. For each pair:
 
 1. Read the landed side as it now stands and the pull request's side together, and decide whether
    they still agree: whether the page still describes the file, whether the changed file follows
@@ -1314,8 +1340,11 @@ requests are open, since the index behind the relation costs the same for two pa
 thousand. Each pair is attributed to the open pull requests that touch its landed side, and each of
 those gets one row: its link, its related paths, and every pair folded beneath them — its path,
 then the path here, and the relation with its direction stated from this change's side, such as
-*its page describes the path here*. The branch's own pull request, identified by the owner of the
-repository it is pushed to and its branch name, is left out.
+*its page describes the path here*. The naming relation is read from this change's added lines
+alone, an untracked file counting whole, because `gh pr list` returns an open pull request's paths
+and not its lines: the report names a pull request whose file the code here names, as *the code
+here names its path*, and not the other way round. The branch's own pull request, identified by the
+owner of the repository it is pushed to and its branch name, is left out.
 
 `$finish-change` runs it before committing, so an edit it prompts goes through the gates with the
 rest of the change, and copies the section it prints into the body, so a reviewer knows which
@@ -1338,8 +1367,8 @@ except for the files `Coherence` leaves out above, which only this report ever p
 `Duplicate definitions` names a pull request in the merge queue that adds a definition doing the
 same job as one that landed on `main` while it was being written, or a second version of it: a
 helper, a test double, a type, or a script that two pull requests written in parallel each added.
-`Coherence` leaves code against code to the build and the tests, which prove the combined tree
-behaves and never that it does one thing once.
+`Coherence` relates code to code only where one names the other's file, and leaves the rest to the
+build and the tests, which prove the combined tree behaves and never that it does one thing once.
 
 It runs on `merge_group` only, because that is where what landed is final — `main` plus the entries
 ahead in the queue — and a sibling pull request still open beside this one is invisible to the
