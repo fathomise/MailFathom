@@ -106,16 +106,19 @@ name: Protected paths
 # holds: weakening the check means editing `.github/`, and a pull request doing that from a fork or
 # from an author holding no write access here cannot merge without an approval from an account that
 # does, because `Fathom review` approves neither; and deleting or renaming this job leaves the
-# required check permanently unreported, which the ruleset refuses to merge past. The first way out
-# stays open in one case: a pull request opened from a branch here by an author holding `write`,
-# `maintain`, or `admin`, which the reviewer's approval merges. The approval reads who opened the
-# pull request and never who pushed to it, so anybody with write access to the repository can push
-# onto such a branch and rely on the reviewer's verdict alone. Write access is therefore the
-# boundary, and the organization's owner decides who holds it through the `contributors` and
-# `maintainers` teams.
+# required check permanently unreported, which the ruleset refuses to merge past. A pull request
+# opened from a branch here by an author holding `write` is held the same way: `Fathom review`
+# withholds its approval whenever the change reaches a protected path and the author is no
+# maintainer, so a weakened copy of this file still leaves the merge waiting on a maintainer's
+# approval. The approval reads who opened the pull request and never who pushed to it, so anybody
+# with write access can push onto a maintainer's branch and rely on the reviewer's verdict alone.
+# Write access is therefore the boundary, and the organization's owner decides who holds it through
+# the `contributors` and `maintainers` teams.
 #
-# The set is a list rather than a pattern because each entry was added for a reason that had to be
-# stated. A directory joins it when a change to it decides what the repository enforces on every
+# The set itself is `.github/protected-paths/select-protected-paths.sh`, which both this job and
+# `Fathom review` read from the base commit, so a pull request cannot shorten the list it is judged
+# against. It is a list rather than a pattern because each entry was added for a reason that had to
+# be stated. A directory joins it when a change to it decides what the repository enforces on every
 # other change; a dotted directory is not protected merely for being dotted, and `docs/decisions/`
 # is the entry showing that a directory is not excluded merely for holding prose. A file joins it
 # only when it is written by one deliberate flow and every other edit to it is out of band.
@@ -204,6 +207,16 @@ jobs:
 
           echo "${CHECK_NAME} passed on pull request #${pull_request_number}'s head ${head_sha:0:12}."
 
+      # The list of protected paths, and nothing else, from the base commit — code that already
+      # merged — so the change under judgement cannot be the one that decides what is protected.
+      - name: Check out the protected paths the base commit names
+        if: github.event_name != 'merge_group'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout: .github/protected-paths
+          persist-credentials: false
+
       - name: Verify who changed the repository configuration
         if: github.event_name != 'merge_group'
         shell: bash
@@ -216,6 +229,7 @@ jobs:
           # A review event carries a shorter pull request that has no file count, so the step reads
           # one when this arrives empty.
           CHANGED_FILE_COUNT: ${{ github.event.pull_request.changed_files }}
+          SELECT_PROTECTED_PATHS: ${{ github.workspace }}/.github/protected-paths/select-protected-paths.sh
         run: |
           set -euo pipefail
 
@@ -229,25 +243,7 @@ jobs:
             exit 1
           fi
 
-          protected_prefixes=('.github/' '.agents/' '.claude/' '.config/' 'docs/decisions/')
-          protected_names=(
-            '.editorconfig'
-            '.gitattributes'
-            '.worktreeinclude'
-            'AGENTS.md'
-            'CLAUDE.md'
-            'Directory.Build.props'
-          )
-          protected_files=(
-            'CHANGELOG.md'
-            'CLA.md'
-            'LICENSE'
-            'NOTICE'
-            'NuGet.config'
-            'Version.props'
-            'global.json'
-          )
-          protected_paths="${protected_prefixes[*]} ${protected_names[*]} ${protected_files[*]}"
+          protected_paths="$(bash "$SELECT_PROTECTED_PATHS" --describe)"
           reportable_file_limit=3000
 
           # A maintainer is an account holding the `maintain` or `admin` role on the repository: the
@@ -300,41 +296,15 @@ jobs:
               --paginate --jq '.[] | .filename, (.previous_filename // empty)'
           )"
 
-          # Literal matching rather than a regular expression, so the leading dot of each entry is a
-          # dot and a sibling whose name merely ends that way is not protected by accident. A
-          # prefix ends in `/` and covers that directory and everything beneath it, so a sibling
-          # whose name merely begins the same way — `docs/decisions-notes.md` — is not caught. A
-          # protected name matches at the repository root or after a `/`, so `docs/.editorconfig` is
-          # caught and `docs/my.editorconfig` is not. A protected file is matched whole, so a
-          # differently placed file of the same name is not caught and a longer name beginning the
-          # same way is not either.
-          protected_changes=()
-          while IFS= read -r changed_path; do
-            for protected_prefix in "${protected_prefixes[@]}"; do
-              if [[ "$changed_path" == "${protected_prefix}"* ]]; then
-                protected_changes+=("$changed_path")
-                continue 2
-              fi
-            done
-            for protected_name in "${protected_names[@]}"; do
-              if [[ "$changed_path" == "$protected_name" || "$changed_path" == *"/${protected_name}" ]]; then
-                protected_changes+=("$changed_path")
-                continue 2
-              fi
-            done
-            for protected_file in "${protected_files[@]}"; do
-              if [[ "$changed_path" == "$protected_file" ]]; then
-                protected_changes+=("$changed_path")
-                continue 2
-              fi
-            done
-          done <<< "$changed_paths"
-
           # A rename reports two paths, and a pull request that both edits and moves a file within a
-          # protected directory reports the same path twice, so the list is deduplicated before it is
-          # counted or printed.
-          if (( ${#protected_changes[@]} > 0 )); then
-            mapfile -t protected_changes < <(printf '%s\n' "${protected_changes[@]}" | sort --unique)
+          # protected directory reports the same path twice, which is why the selection deduplicates.
+          # A command substitution rather than a process substitution, because `set -e` sees the
+          # first fail and not the second, and a selection that could not run must not read as a
+          # change that touches nothing protected.
+          protected_selection="$(bash "$SELECT_PROTECTED_PATHS" <<< "$changed_paths")"
+          protected_changes=()
+          if [[ -n "$protected_selection" ]]; then
+            mapfile -t protected_changes <<< "$protected_selection"
           fi
 
           if (( ${#protected_changes[@]} == 0 )); then

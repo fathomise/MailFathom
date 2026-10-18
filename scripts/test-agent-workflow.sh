@@ -1592,8 +1592,9 @@ verify_fast_runs_in_a_fork_with_no_upstream_remote() {
   assert_contains 'format backend/MailFathom.slnx --no-restore --include backend/src/ForkSample.cs' "$invocation_log"
 }
 
-# The `Protected paths` workflow never checks the branch out, so its guard cannot be a script in
-# `scripts/` that the job calls: it is one shell block inside the YAML. Extracting that block
+# The `Protected paths` workflow checks out nothing but `.github/protected-paths/` from the base
+# commit, so its guard is one shell block inside the YAML calling the selection script there, and the
+# step is given this checkout's copy of that script. Extracting that block
 # verbatim from the committed file is what lets these contracts run the same code the runner runs
 # rather than a copy that drifts from it. The block is the guard step's `run: |`, indented ten spaces,
 # and it is the last thing in the file — the merge-group step above it carries a `run: |` of its own,
@@ -1642,6 +1643,7 @@ run_protected_paths_step() {
     export FAKE_REVIEWS="${REVIEWS-[]}"
     export FAKE_CHANGED_PATHS="$changed_paths"
     export GITHUB_STEP_SUMMARY="$summary_file"
+    export SELECT_PROTECTED_PATHS="$source_repository_root/.github/protected-paths/select-protected-paths.sh"
     bash "$step_script"
   ) > "$output_file" 2>&1
 }
