@@ -1618,6 +1618,18 @@ happens to be last — the closing references carry a ceiling of their own, and 
 the script that applies it that reports what it cut, which is also what lets the
 contract suite exercise both without a `gh` stub for the whole collection.
 
+The readers and the judge read each diff from `patches/<path>.diff`, not from
+the `patch` field of `files.json`, which keeps the metadata. That field is one
+JSON string, so a patch of any length sits on one line, and the session's `Read`
+tool cuts a line past 2,000 characters: a reader working from it saw the first
+hunks of a large file and judged the change from them without saying so.
+`.github/fathom-review/write-patch-files.sh` writes each patch out one diff line
+per line, at the changed file's own path with `.diff` appended, and refuses the
+whole collection on a path that is absolute or has a `..` segment, since that
+path decides where it writes. A file GitHub returns no diff for — binary, or too
+large to show — gets no patch file, and a reader that could not read a diff whole
+leaves the file out of its coverage and says so in its notes.
+
 A second step then writes `obligations.json` beside them, and unlike everything
 above it calls no API: it reads the base checkout and the collected `files.json`,
 and what it produces is what the change obliges the rest of the repository to do.

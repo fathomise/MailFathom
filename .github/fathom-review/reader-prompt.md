@@ -33,8 +33,13 @@ to report on, and not to mention as missing. What you leave out, nobody else pic
 The working directory is the repository at the **base** commit, which is the code the
 change has not touched. The change itself is under `{{REVIEW_DIRECTORY}}`:
 
-- `files.json` — every changed file in the pull request with its unified diff in `patch`.
-  Yours are the entries whose `filename` the list above names.
+- `files.json` — every changed file in the pull request: its `filename`, `status`, line
+  counts, and `previous_filename` when it was renamed. Yours are the entries whose
+  `filename` the list above names. Its `patch` field holds the same diff as one JSON line,
+  which `Read` cuts short past 2,000 characters, so never read the diff from there.
+- `patches/<path>.diff` — the unified diff of each changed file, one diff line per line, so
+  a long patch is read whole by paging through it. Missing means GitHub returned no diff
+  for that file: binary, or too large to show.
 - `head/<path>` — the whole file as the branch leaves it, for the changed files that are
   text and small enough to fetch. Missing never means unchanged: it means too large or
   binary, or a path the run could not fetch, or one that `truncation.txt` says a ceiling
@@ -90,7 +95,8 @@ has stated a different rule is a wrong candidate, and so is one these files alre
 
 Read every file in your list, in this order, and finish one before starting the next:
 
-1. Its entry in `files.json`, for the `patch` — what moved.
+1. `patches/<path>.diff`, for the diff — what moved. Read it to its last line; a long one
+   takes more than one `Read`.
 2. `head/<path>`, for the file the change leaves behind — what the code now does. A hunk
    shows what moved, not what the code does with it, and a candidate the surrounding file
    already answers is noise.
@@ -129,12 +135,13 @@ Return this object and nothing else — it is validated against a schema, and th
 it as one of several. There is no file to write and no tool that could write one, so a
 candidate that is not in the object reaches nobody.
 
-- `covered` — every path from your list whose `patch` and resulting file you actually read,
+- `covered` — every path from your list whose diff and resulting file you actually read,
   spelled exactly as `files.json` spells it. A file you read and found nothing in belongs
   here as much as one that produced six candidates: this list is what the run publishes as
   the review's coverage, and a path you name without opening it puts a claim in front of the
-  author that nothing else will catch. A file you could not read — no `head/` content and a
-  `patch` too truncated to judge — is left out and said in `notes`.
+  author that nothing else will catch. A file whose diff you could not read whole — no
+  `patches/` file, or one `Read` refused — is left out and said in `notes`, naming what
+  you did read instead, rather than reported as covered.
 - `candidates` — what you noticed, each with the path, the line it sits on, what looks
   wrong, and the rule it would rest on. Not findings: the judge confirms each one against
   the file before it can become one, so a candidate is a place to look and a sentence saying

@@ -32,7 +32,11 @@ change has not touched. The change itself is under `{{REVIEW_DIRECTORY}}`:
 - `pull-request.json` — number, title, body, author, the head and base commits, and the
   `labels` the pull request carries. One of those changes how you review: see **When the
   pull request carries the `security` label**.
-- `files.json` — every changed file with its unified diff in `patch`.
+- `files.json` — every changed file: its `filename`, `status`, line counts, and
+  `previous_filename` when it was renamed. Its `patch` field holds the diff as one JSON line,
+  which `Read` cuts short past 2,000 characters, so never read the diff from there.
+- `patches/<path>.diff` — the unified diff of each changed file, one diff line per line.
+  Missing means GitHub returned no diff for that file: binary, or too large to show.
 - `head/<path>` — the whole file as the branch leaves it, for the changed files that are
   text and small enough to fetch. Missing never means unchanged. It means too large or
   binary, or a path the run could not fetch, unless `truncation.txt` says the head content
@@ -264,7 +268,7 @@ a sixth of the change cannot know what the other five answer, and reconciling th
 whole of what this pass adds.
 
 Read the change yourself where the reports leave a question the files can settle. You have
-the same `Read`, `Grep`, and `Glob` over the base checkout, and `files.json` and `head/` in
+the same `Read`, `Grep`, and `Glob` over the base checkout, and `patches/` and `head/` in
 front of you; what you must not do is re-read the whole change file by file, because that
 spends the run's remaining time repeating a pass that already happened.
 
