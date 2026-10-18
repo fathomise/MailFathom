@@ -1643,9 +1643,31 @@ run_protected_paths_step() {
     export FAKE_REVIEWS="${REVIEWS-[]}"
     export FAKE_CHANGED_PATHS="$changed_paths"
     export GITHUB_STEP_SUMMARY="$summary_file"
-    export SELECT_PROTECTED_PATHS="$source_repository_root/.github/protected-paths/select-protected-paths.sh"
+    export SELECT_PROTECTED_PATHS="${SELECTION_SCRIPT:-$source_repository_root/.github/protected-paths/select-protected-paths.sh}"
     bash "$step_script"
   ) > "$output_file" 2>&1
+}
+
+# The list is read from a script, so a script that cannot run must refuse rather than read as a change
+# that touches nothing protected — the one way this guard could fail open.
+protected_paths_refuses_when_the_selection_cannot_run() {
+  local output_file="$test_directory/protected-paths-no-selection-output"
+  local summary_file="$test_directory/protected-paths-no-selection-summary"
+  local failing_selection="$test_directory/failing-selection.sh"
+
+  if SELECTION_SCRIPT="$test_directory/no-such-selection.sh" run_protected_paths_step \
+    'contributor' 'backend/src/Sample.cs' "$output_file" "$summary_file"; then
+    return 1
+  fi
+  assert_excludes 'changes nothing under' "$output_file"
+
+  # One that names the set and then fails to select, so the selection itself is what must refuse.
+  printf '%s\n' '[[ "${1:-}" == --describe ]] && { echo ".github/"; exit 0; }' 'exit 3' > "$failing_selection"
+  if SELECTION_SCRIPT="$failing_selection" run_protected_paths_step \
+    'contributor' 'backend/src/Sample.cs' "$output_file" "$summary_file"; then
+    return 1
+  fi
+  assert_excludes 'changes nothing under' "$output_file"
 }
 
 protected_paths_allows_a_change_that_touches_nothing_protected() {
@@ -11595,6 +11617,7 @@ run_test verify_full_stops_when_a_fork_branch_is_behind_upstream_main
 run_test verify_full_refuses_a_checkout_with_no_upstream_remote
 run_test verify_fast_runs_in_a_fork_with_no_upstream_remote
 run_test protected_paths_allows_a_change_that_touches_nothing_protected
+run_test protected_paths_refuses_when_the_selection_cannot_run
 run_test protected_paths_refuses_a_contributor_changing_repository_root_configuration
 run_test protected_paths_refuses_a_contributor_changing_a_protected_directory
 run_test protected_paths_matches_the_configuration_files_at_every_depth
