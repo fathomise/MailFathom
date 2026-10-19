@@ -39,12 +39,12 @@ Project repository: https://github.com/fathomise/MailFathom
     <div style="{{ mainGridStyle }}">
       <div style="{{ resultColStyle }}">
 
-        <div style="{{ noteStyle }}"><span style="{{ noteIconStyle }}">hourglass_top</span>{{ schemaBannerText }}</div>
+        <div style="{{ bannerStyle }}"><span style="{{ noteIconStyle }}">hourglass_top</span>{{ schemaBannerText }}</div>
 
         <div style="{{ crossHeadingStyle }}">Shared - Discover and the Agent draw these identically</div>
 
         <div style="{{ cardStyle }}">
-          <div style="{{ headStyle }}"><div style="{{ labelStyle }}">Answer</div><div style="{{ metaStyle }}">{{ answerMeta }}</div></div>
+          <div style="{{ headStyle }}"><span aria-hidden="true" style="{{ accentTileStyle }}"><span style="{{ glyphStyle }}">auto_awesome</span></span><div style="{{ labelStyle }}">Answer</div><div style="{{ metaStyle }}">{{ answerMeta }}</div></div>
           <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
             <sc-for list="{{ skelRows }}" as="s" hint-placeholder-count="3"><div style="{{ s.style }}"></div></sc-for>
           </sc-if>
@@ -71,7 +71,7 @@ Project repository: https://github.com/fathomise/MailFathom
         </div>
 
         <div style="{{ cardStyle }}">
-          <div style="{{ headStyle }}"><div style="{{ labelStyle }}">Evidence</div><div style="{{ metaStyle }}">{{ evidenceMeta }}</div></div>
+          <div style="{{ headStyle }}"><span aria-hidden="true" style="{{ tileStyle }}"><span style="{{ glyphStyle }}">fact_check</span></span><div style="{{ labelStyle }}">Evidence</div><div style="{{ metaStyle }}">{{ evidenceMeta }}</div></div>
           <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
             <sc-for list="{{ skelRows }}" as="s" hint-placeholder-count="3"><div style="{{ s.style }}"></div></sc-for>
           </sc-if>
@@ -79,14 +79,14 @@ Project repository: https://github.com/fathomise/MailFathom
             <sc-for list="{{ evidenceItems }}" as="e" hint-placeholder-count="3">
               <div role="button" tabIndex="0" aria-label="{{ e.ariaLabel }}" style="display:flex;flex-direction:column;gap:5px;border-bottom:1px solid var(--line2);padding:10px 0;cursor:pointer" style-hover="background:var(--hover)" style-focus="outline:2px solid var(--accent);outline-offset:2px">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:14px;font-weight:600">{{ e.source }}</div><span title="{{ e.badgeTitle }}" style="{{ e.badgeStyle }}"><span style="{{ e.badgeIconStyle }}">{{ e.badgeIcon }}</span>{{ e.badgeLabel }}</span><div style="{{ e.verdictChipStyle }}"><span style="{{ e.verdictIconStyle }}">{{ e.verdictIcon }}</span>{{ e.verdictLabel }}</div></div>
-                <div style="font-size:13px;color:var(--text2);text-wrap:pretty">{{ e.snippet }}</div>
-                <div style="display:flex;gap:10px;font-size:12px;color:var(--faint)"><span>relevance {{ e.relevance }}</span><span>{{ e.freshness }}</span></div>
+                <div style="font-size:13.5px;line-height:1.5;color:var(--text2);border-left:2px solid var(--accent-line);padding:1px 0 1px 11px;text-wrap:pretty">{{ e.snippet }}</div>
+                <div style="display:flex;gap:10px;font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint)"><span>relevance {{ e.relevance }}</span><span>{{ e.freshness }}</span></div>
               </div>
             </sc-for>
             <div role="button" tabIndex="0" aria-label="{{ evidencePrivate.ariaLabel }}" style="display:flex;flex-direction:column;gap:5px;padding:10px 0;cursor:pointer" style-hover="background:var(--hover)" style-focus="outline:2px solid var(--accent);outline-offset:2px">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:14px;font-weight:600">{{ evidencePrivate.source }}</div><span title="{{ evidencePrivate.badgeTitle }}" style="{{ evidencePrivate.badgeStyle }}"><span style="{{ evidencePrivate.badgeIconStyle }}">{{ evidencePrivate.badgeIcon }}</span>{{ evidencePrivate.badgeLabel }}</span><div style="font-size:11px;background:var(--rail);color:var(--muted);border-radius:12px;padding:3px 9px;display:flex;align-items:center;gap:4px"><span style="{{ noteIconStyle }}">lock</span>private source</div></div>
               <div style="font-size:13px;color:var(--faint);font-style:italic">Content not available for review - the conclusion drawn from this source is kept in the result.</div>
-              <div style="display:flex;gap:10px;font-size:12px;color:var(--faint)"><span>relevance {{ evidencePrivate.relevance }}</span><span>{{ evidencePrivate.freshness }}</span></div>
+              <div style="display:flex;gap:10px;font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint)"><span>relevance {{ evidencePrivate.relevance }}</span><span>{{ evidencePrivate.freshness }}</span></div>
             </div>
             <sc-if value="{{ isPartial }}" hint-placeholder-val="{{ false }}"><div style="{{ noteStyle }}"><span style="{{ noteIconStyle }}">hourglass_top</span>{{ evidencePartialNote }}</div></sc-if>
           </sc-if>
@@ -96,17 +96,18 @@ Project repository: https://github.com/fathomise/MailFathom
         </div>
 
         <div style="{{ cardStyle }}">
-          <div style="{{ headStyle }}"><div style="{{ labelStyle }}">Timeline</div><div style="{{ metaStyle }}">{{ timelineMeta }}</div></div>
+          <div style="{{ headStyle }}"><span aria-hidden="true" style="{{ tileStyle }}"><span style="{{ glyphStyle }}">timeline</span></span><div style="{{ labelStyle }}">Timeline</div><div style="{{ metaStyle }}">{{ timelineMeta }}</div></div>
           <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
             <sc-for list="{{ skelRows }}" as="s" hint-placeholder-count="3"><div style="{{ s.style }}"></div></sc-for>
           </sc-if>
           <sc-if value="{{ bodyReady }}" hint-placeholder-val="{{ true }}">
             <div style="{{ timelineRowStyle }}">
               <sc-for list="{{ timelineItems }}" as="t" hint-placeholder-count="4">
-                <div role="button" tabIndex="0" aria-label="{{ t.ariaLabel }}" style="{{ tlItemStyle }}" style-hover="border-top-color:var(--accent);cursor:pointer" style-focus="outline:2px solid var(--accent);outline-offset:2px">
-                  <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--muted)">{{ t.date }}</div>
-                  <div style="font-size:14px;font-weight:600">{{ t.title }}</div>
-                  <div style="font-size:12px;color:var(--muted)">{{ t.detail }}</div>
+                <div role="button" tabIndex="0" aria-label="{{ t.ariaLabel }}" style="{{ t.style }}" style-hover="color:var(--accent-d);cursor:pointer" style-focus="outline:2px solid var(--accent);outline-offset:2px">
+                  <span aria-hidden="true" style="{{ t.lineStyle }}"></span><span aria-hidden="true" style="{{ t.dotStyle }}"></span>
+                  <div style="{{ tlDateStyle }}">{{ t.date }}</div>
+                  <div style="{{ tlTitleStyle }};color:inherit">{{ t.title }}</div>
+                  <div style="{{ tlDetailStyle }}">{{ t.detail }}</div>
                 </div>
               </sc-for>
             </div>
@@ -118,17 +119,17 @@ Project repository: https://github.com/fathomise/MailFathom
         </div>
 
         <div style="{{ cardStyle }}">
-          <div style="{{ headStyle }}"><div style="{{ labelStyle }}">Fact table</div><div style="{{ metaStyle }}">{{ tableMeta }}</div></div>
+          <div style="{{ headStyle }}"><span aria-hidden="true" style="{{ tileStyle }}"><span style="{{ glyphStyle }}">table_chart</span></span><div style="{{ labelStyle }}">Fact table</div><div style="{{ metaStyle }}">{{ tableMeta }}</div></div>
           <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
             <sc-for list="{{ skelRows }}" as="s" hint-placeholder-count="3"><div style="{{ s.style }}"></div></sc-for>
           </sc-if>
           <sc-if value="{{ bodyReady }}" hint-placeholder-val="{{ true }}">
             <div style="overflow-x:auto">
               <div style="{{ tableGridStyle }}">
-                <div style="font-size:12px;color:var(--muted);border-bottom:1px solid var(--line);padding:0 10px 8px 0">Version</div>
-                <div style="font-size:12px;color:var(--muted);border-bottom:1px solid var(--line);padding:0 10px 8px 0">Price</div>
-                <div style="font-size:12px;color:var(--muted);border-bottom:1px solid var(--line);padding:0 10px 8px 0">SLA</div>
-                <div style="font-size:12px;color:var(--muted);border-bottom:1px solid var(--line);padding:0 0 8px 0">Indexation</div>
+                <div style="{{ tableHeadStyle }}">Version</div>
+                <div style="{{ tableHeadStyle }}">Price</div>
+                <div style="{{ tableHeadStyle }}">SLA</div>
+                <div style="{{ tableHeadStyle }};padding-right:0">Indexation</div>
                 <sc-for list="{{ tableRows }}" as="r" hint-placeholder-count="4">
                   <div style="{{ r.version.cellStyle }}"><span>{{ r.version.value }}</span><sc-if value="{{ r.version.hasCite }}" hint-placeholder-val="{{ false }}"><span role="button" tabIndex="0" aria-label="{{ r.version.ariaLabel }}" style="{{ citeChipStyle }}" style-hover="background:var(--accent-2);color:var(--onaccent)" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ r.version.cite }}</span></sc-if></div>
                   <div style="{{ r.price.cellStyle }}"><span>{{ r.price.value }}</span><sc-if value="{{ r.price.hasCite }}" hint-placeholder-val="{{ false }}"><span role="button" tabIndex="0" aria-label="{{ r.price.ariaLabel }}" style="{{ citeChipStyle }}" style-hover="background:var(--accent-2);color:var(--onaccent)" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ r.price.cite }}</span></sc-if><sc-if value="{{ r.price.hasVerdict }}" hint-placeholder-val="{{ false }}"><span style="{{ r.price.verdictChipStyle }}"><span style="{{ r.price.verdictIconStyle }}">{{ r.price.verdictIcon }}</span>{{ r.price.verdictLabel }}</span></sc-if></div>
@@ -145,7 +146,7 @@ Project repository: https://github.com/fathomise/MailFathom
         </div>
 
         <div style="{{ cardStyle }}">
-          <div style="{{ headStyle }}"><div style="{{ labelStyle }}">People</div><div style="{{ metaStyle }}">{{ peopleMeta }}</div></div>
+          <div style="{{ headStyle }}"><span aria-hidden="true" style="{{ tileStyle }}"><span style="{{ glyphStyle }}">group</span></span><div style="{{ labelStyle }}">People</div><div style="{{ metaStyle }}">{{ peopleMeta }}</div></div>
           <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
             <sc-for list="{{ skelRows }}" as="s" hint-placeholder-count="3"><div style="{{ s.style }}"></div></sc-for>
           </sc-if>
@@ -165,7 +166,7 @@ Project repository: https://github.com/fathomise/MailFathom
         </div>
 
         <div style="{{ cardStyle }}">
-          <div style="{{ headStyle }}"><div style="{{ labelStyle }}">Thread state</div><div style="{{ metaStyle }}">{{ threadMeta }}</div></div>
+          <div style="{{ headStyle }}"><span aria-hidden="true" style="{{ tileStyle }}"><span style="{{ glyphStyle }}">forum</span></span><div style="{{ labelStyle }}">Thread state</div><div style="{{ metaStyle }}">{{ threadMeta }}</div></div>
           <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
             <sc-for list="{{ skelRows }}" as="s" hint-placeholder-count="3"><div style="{{ s.style }}"></div></sc-for>
           </sc-if>
@@ -178,15 +179,15 @@ Project repository: https://github.com/fathomise/MailFathom
             </div>
             <div style="{{ threadColsStyle }}">
               <div style="display:flex;flex-direction:column;gap:6px">
-                <div style="font-size:11px;color:var(--muted);font-weight:600">Agreed</div>
+                <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--muted);letter-spacing:0.01em;padding-bottom:7px;border-bottom:1px solid var(--line2)">Agreed</div>
                 <sc-for list="{{ threadAgreed }}" as="a" hint-placeholder-count="2"><div style="font-size:13px;color:var(--text2)">{{ a.text }}</div></sc-for>
               </div>
               <div style="display:flex;flex-direction:column;gap:6px">
-                <div style="font-size:11px;color:var(--muted);font-weight:600">Open questions</div>
+                <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--muted);letter-spacing:0.01em;padding-bottom:7px;border-bottom:1px solid var(--line2)">Open questions</div>
                 <sc-for list="{{ threadOpenQuestions }}" as="q" hint-placeholder-count="1"><div style="font-size:13px;color:var(--text2)">{{ q.text }}</div></sc-for>
               </div>
               <div style="display:flex;flex-direction:column;gap:6px">
-                <div style="font-size:11px;color:var(--muted);font-weight:600">Commitments</div>
+                <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--muted);letter-spacing:0.01em;padding-bottom:7px;border-bottom:1px solid var(--line2)">Commitments</div>
                 <sc-for list="{{ threadCommitments }}" as="c" hint-placeholder-count="2"><div style="font-size:13px;color:var(--text2)"><strong>{{ c.who }}</strong> - {{ c.what }} <span style="color:var(--faint)">· {{ c.when }}</span></div></sc-for>
               </div>
             </div>
@@ -198,14 +199,14 @@ Project repository: https://github.com/fathomise/MailFathom
         </div>
 
         <div style="{{ cardStyle }}">
-          <div style="{{ headStyle }}"><div style="{{ labelStyle }}">Attachments</div><div style="{{ metaStyle }}">{{ galleryMeta }}</div></div>
+          <div style="{{ headStyle }}"><span aria-hidden="true" style="{{ tileStyle }}"><span style="{{ glyphStyle }}">attach_file</span></span><div style="{{ labelStyle }}">Attachments</div><div style="{{ metaStyle }}">{{ galleryMeta }}</div></div>
           <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
             <sc-for list="{{ skelRows }}" as="s" hint-placeholder-count="3"><div style="{{ s.style }}"></div></sc-for>
           </sc-if>
           <sc-if value="{{ bodyReady }}" hint-placeholder-val="{{ true }}">
             <div style="{{ galleryGridStyle }}">
               <sc-for list="{{ galleryItems }}" as="g" hint-placeholder-count="3">
-                <div role="button" tabIndex="0" aria-label="{{ g.ariaLabel }}" style="display:flex;flex-direction:column;gap:7px;background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:13px 14px;cursor:pointer" style-hover="border-color:var(--accent)" style-focus="outline:2px solid var(--accent);outline-offset:2px">
+                <div role="button" tabIndex="0" aria-label="{{ g.ariaLabel }}" style="display:flex;flex-direction:column;gap:7px;background:var(--sub);border:1px solid var(--line2);border-radius:10px;padding:13px 14px;cursor:pointer" style-hover="border-color:var(--accent)" style-focus="outline:2px solid var(--accent);outline-offset:2px">
                   <div style="display:flex;align-items:center;justify-content:space-between;gap:6px"><div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted)">{{ g.type }}</div><div style="{{ g.availStyle }}">{{ g.avail }}</div></div>
                   <div style="font-size:14px;font-weight:600;line-height:1.3">{{ g.name }}</div>
                   <div style="font-size:12px;color:var(--muted)">{{ g.meta }}</div>
@@ -220,13 +221,13 @@ Project repository: https://github.com/fathomise/MailFathom
         </div>
 
         <div style="{{ cardStyle }}">
-          <div style="{{ headStyle }}"><div style="{{ labelStyle }}">Draft</div><div style="{{ metaStyle }}">{{ draftMeta }}</div></div>
+          <div style="{{ headStyle }}"><span aria-hidden="true" style="{{ tileStyle }}"><span style="{{ glyphStyle }}">edit_note</span></span><div style="{{ labelStyle }}">Draft</div><div style="{{ metaStyle }}">{{ draftMeta }}</div></div>
           <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
             <sc-for list="{{ skelRows }}" as="s" hint-placeholder-count="3"><div style="{{ s.style }}"></div></sc-for>
           </sc-if>
           <sc-if value="{{ bodyReady }}" hint-placeholder-val="{{ true }}">
-            <div style="font-size:11px;background:var(--rail);color:var(--muted);border-radius:12px;padding:3px 9px;align-self:flex-start">{{ draftStatusLabel }}</div>
-            <div style="display:flex;flex-direction:column;gap:8px;background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:13px 15px">
+            <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;background:var(--sub);color:var(--muted);border-radius:999px;padding:3px 10px;align-self:flex-start">{{ draftStatusLabel }}</div>
+            <div style="display:flex;flex-direction:column;gap:8px;background:var(--sub);border:1px solid var(--line2);border-radius:10px;padding:14px 16px">
               <div style="display:flex;gap:8px;font-size:13px"><span style="color:var(--muted);flex:0 0 56px">To:</span><span>{{ draftTo }}</span></div>
               <div style="display:flex;gap:8px;font-size:13px"><span style="color:var(--muted);flex:0 0 56px">Subject:</span><span style="font-weight:600">{{ draftSubject }}</span></div>
               <div style="font-size:14px;line-height:1.55;color:var(--text2);text-wrap:pretty;padding-top:2px">{{ draftBody }}</div>
@@ -241,20 +242,16 @@ Project repository: https://github.com/fathomise/MailFathom
           <sc-if value="{{ isOffline }}" hint-placeholder-val="{{ false }}"><div style="{{ emptyBodyStyle }}"><span style="{{ emptyIconStyle }}">{{ offlineIcon }}</span><div style="{{ emptyTextStyle }}">{{ offlineText }}</div><div style="{{ retryBtnStyle }}">{{ offlineActionLabel }}</div></div></sc-if>
         </div>
 
-        <div style="{{ cardStyle }}">
-          <div style="{{ headStyle }}"><div style="{{ labelStyle }}">Suggested action</div><div style="{{ metaStyle }}">{{ actionMeta }}</div></div>
+        <div style="{{ actionCardStyle }}">
+          <div style="{{ headStyle }}"><span aria-hidden="true" style="{{ accentTileStyle }}"><span style="{{ glyphStyle }}">bolt</span></span><div style="{{ labelStyle }}">Suggested action</div><div style="{{ metaStyle }}">{{ actionMeta }}</div><div style="{{ actionConfirmStyle }}">{{ actionConfirmLabel }}</div></div>
           <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
             <sc-for list="{{ skelRows }}" as="s" hint-placeholder-count="3"><div style="{{ s.style }}"></div></sc-for>
           </sc-if>
           <sc-if value="{{ bodyReady }}" hint-placeholder-val="{{ true }}">
             <div style="{{ actionRowStyle }}">
-              <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:3px 7px;font-weight:600">AI</span>
-              <div style="display:flex;flex-direction:column;gap:5px;min-width:0">
-                <div style="font-size:14px;font-weight:600">{{ actionTitle }}</div>
-                <div style="font-size:13px;color:var(--text2)">{{ actionReason }}</div>
-                <div style="font-size:13px;color:var(--muted)">Effect: {{ actionEffect }}</div>
-              </div>
-              <div style="{{ actionConfirmStyle }}">{{ actionConfirmLabel }}</div>
+              <div style="{{ actionTitleStyle }}">{{ actionTitle }}</div>
+              <div style="font-size:13.5px;line-height:1.5;color:var(--text2);text-wrap:pretty">{{ actionReason }}</div>
+              <div style="font-size:13px;line-height:1.45;color:var(--muted);text-wrap:pretty">Effect: {{ actionEffect }}</div>
             </div>
             <sc-if value="{{ isPartial }}" hint-placeholder-val="{{ false }}"><div style="{{ noteStyle }}"><span style="{{ noteIconStyle }}">hourglass_top</span>{{ actionPartialNote }}</div></sc-if>
           </sc-if>
@@ -266,7 +263,7 @@ Project repository: https://github.com/fathomise/MailFathom
         <div style="{{ crossHeadingStyle }}">Cross-cutting states</div>
         <div style="{{ crossRowStyle }}">
           <div style="{{ cardStyle }};flex:1">
-            <div style="{{ headStyle }}"><div style="{{ labelStyle }}">Unknown block</div><div style="{{ metaStyle }}">type: {{ unknownBlockName }}</div></div>
+            <div style="{{ headStyle }}"><span aria-hidden="true" style="{{ tileStyle }}"><span style="{{ glyphStyle }}">extension_off</span></span><div style="{{ labelStyle }}">Unknown block</div><div style="{{ metaStyle }}">type: {{ unknownBlockName }}</div></div>
             <div style="display:flex;gap:11px;align-items:flex-start">
               <span style="{{ emptyIconStyle }};flex:0 0 auto">extension_off</span>
               <div style="display:flex;flex-direction:column;gap:5px">
@@ -324,9 +321,10 @@ Project repository: https://github.com/fathomise/MailFathom
         <sc-for list="{{ propCards }}" as="pc" hint-placeholder-count="4">
           <div style="{{ pc.cardStyle }}">
             <div style="{{ headStyle }}">
+              <span aria-hidden="true" style="{{ pc.tileStyle }}"><span style="{{ glyphStyle }}">{{ pc.icon }}</span></span>
               <div style="{{ labelStyle }}">{{ pc.label }}</div>
-              <div style="{{ pc.phaseChipStyle }}"><span style="{{ pc.phaseIconStyle }}">{{ pc.phaseIcon }}</span>{{ pc.phaseLabel }}</div>
               <div style="{{ metaStyle }}">{{ pc.meta }}</div>
+              <div style="{{ pc.phaseChipStyle }}"><span style="{{ pc.phaseIconStyle }}">{{ pc.phaseIcon }}</span>{{ pc.phaseLabel }}</div>
             </div>
 
             <sc-if value="{{ pc.isDeclined }}" hint-placeholder-val="{{ false }}">
@@ -343,13 +341,15 @@ Project repository: https://github.com/fathomise/MailFathom
               </sc-if>
               <sc-if value="{{ bodyReady }}" hint-placeholder-val="{{ true }}">
                 <div style="{{ pc.titleStyle }}">{{ pc.title }}</div>
-                <div style="display:flex;flex-direction:column;gap:5px">
+                <div style="{{ pc.fieldsStyle }}">
                   <sc-for list="{{ pc.fields }}" as="f" hint-placeholder-count="3">
-                    <div style="display:flex;gap:10px;align-items:baseline"><div style="{{ pc.kStyle }}">{{ f.k }}</div><div style="{{ pc.vStyle }}">{{ f.v }}</div></div>
+                    <div style="{{ pc.rowStyle }}"><div style="{{ pc.kStyle }}">{{ f.k }}</div><div style="{{ pc.vStyle }}">{{ f.v }}</div></div>
                   </sc-for>
                 </div>
                 <sc-if value="{{ pc.hasBody }}" hint-placeholder-val="{{ false }}">
-                  <sc-for list="{{ pc.paras }}" as="p" hint-placeholder-count="3"><div style="{{ pc.paraStyle }}">{{ p.t }}</div></sc-for>
+                  <div style="{{ pc.letterStyle }}">
+                    <sc-for list="{{ pc.paras }}" as="p" hint-placeholder-count="3"><div style="{{ pc.paraStyle }}">{{ p.t }}</div></sc-for>
+                  </div>
                 </sc-if>
                 <sc-if value="{{ pc.hasConflict }}" hint-placeholder-val="{{ false }}">
                   <div style="{{ pc.conflictStyle }}"><span style="{{ pc.conflictIconStyle }}">warning</span>{{ pc.conflict }}</div>
@@ -377,21 +377,25 @@ Project repository: https://github.com/fathomise/MailFathom
                 <div style="{{ emptyBodyStyle }}"><span style="{{ emptyIconStyle }}">{{ offlineIcon }}</span><div style="{{ emptyTextStyle }}">{{ offlineText }}</div><div style="{{ retryBtnStyle }}">{{ offlineActionLabel }}</div></div>
               </sc-if>
 
-              <sc-if value="{{ pc.hasResult }}" hint-placeholder-val="{{ false }}">
-                <div style="{{ pc.resultStyle }}"><span style="{{ pc.resultIconStyle }}">{{ pc.resultIcon }}</span>{{ pc.result }}</div>
-              </sc-if>
-              <sc-if value="{{ pc.hasControls }}" hint-placeholder-val="{{ false }}">
-                <div style="{{ pc.controlsStyle }}">
-                  <sc-for list="{{ pc.controls }}" as="cn" hint-placeholder-count="2">
-                    <div role="button" tabIndex="0" aria-label="{{ cn.aria }}" style="{{ cn.style }}" style-hover="cursor:pointer;opacity:0.9" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ cn.label }}</div>
-                  </sc-for>
-                </div>
-              </sc-if>
-              <sc-if value="{{ pc.hasNav }}" hint-placeholder-val="{{ false }}">
-                <div style="{{ pc.navStyle }}">
-                  <sc-for list="{{ pc.nav }}" as="nv" hint-placeholder-count="1">
-                    <div role="button" tabIndex="0" aria-label="{{ nv.aria }}" style="{{ nv.style }}" style-hover="cursor:pointer;border-color:var(--accent);color:var(--accent-d)" style-focus="outline:2px solid var(--accent);outline-offset:2px"><span style="{{ nv.iconStyle }}">{{ nv.icon }}</span>{{ nv.label }}</div>
-                  </sc-for>
+              <sc-if value="{{ pc.hasFoot }}" hint-placeholder-val="{{ false }}">
+                <div style="{{ pc.footStyle }}">
+                  <sc-if value="{{ pc.hasResult }}" hint-placeholder-val="{{ false }}">
+                    <div style="{{ pc.resultStyle }}"><span style="{{ pc.resultIconStyle }}">{{ pc.resultIcon }}</span>{{ pc.result }}</div>
+                  </sc-if>
+                  <sc-if value="{{ pc.hasControls }}" hint-placeholder-val="{{ false }}">
+                    <div style="{{ pc.controlsStyle }}">
+                      <sc-for list="{{ pc.controls }}" as="cn" hint-placeholder-count="2">
+                        <div role="button" tabIndex="0" aria-label="{{ cn.aria }}" style="{{ cn.style }}" style-hover="cursor:pointer;opacity:0.9" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ cn.label }}</div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ pc.hasNav }}" hint-placeholder-val="{{ false }}">
+                    <div style="{{ pc.navStyle }}">
+                      <sc-for list="{{ pc.nav }}" as="nv" hint-placeholder-count="1">
+                        <div role="button" tabIndex="0" aria-label="{{ nv.aria }}" style="{{ nv.style }}" style-hover="cursor:pointer;border-color:var(--accent);color:var(--accent-d)" style-focus="outline:2px solid var(--accent);outline-offset:2px"><span style="{{ nv.iconStyle }}">{{ nv.icon }}</span>{{ nv.label }}</div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
                 </div>
               </sc-if>
             </sc-if>

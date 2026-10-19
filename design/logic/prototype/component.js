@@ -78,6 +78,60 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   /* Shared shimmer for every loading skeleton. */
   const SHIM = "border-radius:6px;background:linear-gradient(90deg,var(--line) 0%,var(--line2) 42%,var(--line) 78%);background-size:260% 100%;animation:mfshim 1.05s linear infinite;";
 
+  /* The AI block chrome, one family wherever a block stands — the Agent's (`bkView`) and Discover's result.
+     A card at radius 12, a header of icon tile + title + meta with the phase chip on the right, and a footer
+     tray, flush with the card's edges, that holds the controls and the way out. `tone` is `settled`,
+     `pending` (the accent edge, tile and tray) or `declined` (a dashed outline and nothing else).
+     logic/ai-blocks.js keeps an identical copy for the catalogue artboard — change both together. */
+  const BLK_ICON = { answer: "auto_awesome", timeline: "timeline", evidence: "fact_check", threadstate: "forum", facttable: "table_chart", attachments: "attach_file", people: "group", draft: "edit_note", event: "event", task: "task_alt", action: "bolt", trace: "route" };
+  const BLK_PAD = (isMobile) => isMobile ? { y: 14, x: 14 } : { y: 16, x: 18 };
+  const BLK = {
+    card: (isMobile, tone) => {
+      const p = BLK_PAD(isMobile);
+      return "display:flex;flex-direction:column;gap:12px;min-width:0;border-radius:12px;padding:" + p.y + "px " + p.x + "px;" +
+        (tone === "declined" ? "background:transparent;border:1px dashed var(--border2);"
+          : "background:var(--panel);border:1px solid " + (tone === "pending" ? "var(--accent-line)" : "var(--line)") + ";box-shadow:0 1px 2px var(--sh-1),inset 0 1px 0 var(--inset);");
+    },
+    head: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:26px",
+    tile: (tone) => "flex:0 0 26px;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;" +
+      (tone === "pending" || tone === "accent" ? "background:var(--accent-soft);color:var(--accent-d);box-shadow:inset 0 0 0 1px var(--accent-line)"
+        : tone === "declined" ? "background:transparent;color:var(--faint);box-shadow:inset 0 0 0 1px var(--line)"
+        : "background:var(--sub);color:var(--text2);box-shadow:inset 0 0 0 1px var(--line2)"),
+    glyph: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1",
+    title: "font-size:13px;font-weight:600;color:var(--text);letter-spacing:-0.005em;white-space:nowrap",
+    meta: "font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);min-width:0",
+    hint: "margin-left:auto;font-size:12px;color:var(--muted)",
+    chip: (kind) => "margin-left:auto;display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 10px 3px 7px;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;white-space:nowrap;" +
+      (kind === "pending" ? "color:var(--accent-d);background:var(--accent-soft);"
+        : kind === "done" ? "color:var(--ok-text);background:var(--ok-soft);"
+        : kind === "failed" ? "color:var(--warn-text);background:var(--warn-soft);"
+        : "color:var(--muted);background:var(--sub);"),
+    foot: (isMobile, tone) => {
+      const p = BLK_PAD(isMobile);
+      return "margin:2px -" + p.x + "px -" + p.y + "px -" + p.x + "px;padding:12px " + p.x + "px;border-radius:0 0 11px 11px;" +
+        (isMobile ? "display:flex;flex-direction:column;gap:8px;" : "display:flex;align-items:center;gap:8px;flex-wrap:wrap;") +
+        (tone === "pending" ? "background:var(--accent-soft);border-top:1px solid var(--accent-line);" : "background:transparent;border-top:1px solid var(--line2);");
+    },
+    btn: (isMobile, primary) => "display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:9px;font-size:14px;white-space:nowrap;box-sizing:border-box;" +
+      (isMobile ? "width:100%;min-height:44px;padding:0 16px;" : "min-height:36px;padding:0 15px;") +
+      (primary ? "font-weight:600;color:var(--onaccent);background:var(--accent);border:1px solid var(--accent);box-shadow:inset 0 1px 0 rgba(255,255,255,0.16),0 1px 2px var(--sh-1);"
+        : "font-weight:500;color:var(--text);background:var(--panel);border:1px solid var(--border2);box-shadow:0 1px 1px var(--sh-1);"),
+    link: (isMobile) => "display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--border2);border-radius:999px;background:transparent;color:var(--text2);font-size:13px;white-space:nowrap;box-sizing:border-box;" +
+      (isMobile ? "width:100%;min-height:44px;padding:0 14px;" : "min-height:32px;padding:0 13px 0 11px;"),
+    label: "font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--muted);letter-spacing:0.01em",
+    /* A timeline is a rail of dots: across on the desktop, down the left edge on the phone. */
+    tlItem: (isMobile, last) => isMobile
+      ? "position:relative;display:flex;flex-direction:column;gap:2px;padding:0 0 " + (last ? 2 : 14) + "px 22px"
+      : "position:relative;flex:1;min-width:120px;display:flex;flex-direction:column;gap:3px;padding:20px 16px 2px 0",
+    tlLine: (isMobile, last) => last ? "display:none"
+      : isMobile ? "position:absolute;left:4px;top:13px;bottom:-4px;width:1px;background:var(--border2)"
+      : "position:absolute;left:0;right:0;top:4px;height:1px;background:var(--border2)",
+    tlDot: (isMobile) => "position:absolute;left:0;top:" + (isMobile ? 4 : 0) + "px;width:9px;height:9px;box-sizing:border-box;border-radius:50%;background:var(--panel);border:2px solid var(--accent)",
+    tlDate: "font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--muted)",
+    tlTitle: "font-size:13.5px;font-weight:600;line-height:1.35;color:var(--text);text-wrap:pretty",
+    tlDetail: "font-size:12px;color:var(--faint);text-wrap:pretty",
+  };
+
   function srcTypeInfo(type) {
     const M = {
       mail: { icon: "mail", label: "message" },
@@ -88,7 +142,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     };
     return M[type] || M.mail;
   }
-  const SRC_BADGE_STYLE = "display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);background:var(--rail);border-radius:8px;padding:2px 8px;white-space:nowrap;margin-left:auto;cursor:default";
+  const SRC_BADGE_STYLE = "display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;color:var(--muted);background:var(--sub);border-radius:999px;padding:2px 8px;white-space:nowrap;margin-left:auto;cursor:default";
   const SRC_BADGE_ICON_STYLE = "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1";
   function srcBadge(item) {
     const types = item.srcTypes && item.srcTypes.length > 1 ? item.srcTypes : [item.srcType || "mail"];
@@ -1832,13 +1886,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const ready = bstate === "ready" || bstate === "partial";
 
       const icon = (size, color) => "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:" + size + "px;line-height:1;flex:0 0 auto;color:" + color;
-      const rowGap = isMobile ? 8 : 9;
-      const fieldRow = "display:flex;gap:10px;align-items:baseline";
-      const kStyle = "flex:0 0 " + (isMobile ? 66 : 78) + "px;font-size:12px;color:var(--muted);font-weight:600";
-      const vStyle = "flex:1;min-width:0;font-size:14px;color:var(--text);text-wrap:pretty";
-      const btn = (variant) => "display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:8px;font-size:14px;white-space:nowrap;" +
-        (isMobile ? "width:100%;min-height:44px;padding:0 16px;" : "padding:9px 15px;") +
-        (variant === "primary" ? "font-weight:600;color:var(--onaccent);background:var(--accent);border:1px solid var(--accent);" : "color:var(--text2);background:var(--panel);border:1px solid var(--border2);");
+      const tone = declined ? "declined" : phase === "pending" ? "pending" : "settled";
+      const kStyle = "font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--muted);font-weight:500";
+      const vStyle = "min-width:0;font-size:14px;color:var(--text);text-wrap:pretty";
+      const btn = (variant) => BLK.btn(isMobile, variant === "primary");
+      const iconTile = (bg, color) => "display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:" + bg + ";font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:" + color;
       const keyer = (run) => (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); run(); } };
 
       /* Controls only exist while the proposal is live and the block actually came back. */
@@ -1872,14 +1924,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         label: n.label, icon: n.icon, aria: n.label + " - leaves the conversation, you can come straight back",
         run: () => this.goLook(n), key: keyer(() => this.goLook(n)),
         iconStyle: icon(16, "var(--muted)"),
-        style: "display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border2);border-radius:999px;background:transparent;color:var(--text2);font-size:13px;white-space:nowrap;" +
-          (isMobile ? "min-height:44px;padding:0 14px;" : "padding:6px 12px;"),
+        style: BLK.link(isMobile),
       }));
 
-      const chip = phase === "pending" ? { icon: "help", label: "needs confirmation" }
-        : failed ? { icon: "error", label: "not done" }
-        : accepted ? { icon: "check_circle", label: "done" }
-        : declined ? { icon: "block", label: "declined" } : null;
+      const chip = phase === "pending" ? { icon: "help", label: "needs confirmation", kind: "pending" }
+        : failed ? { icon: "error", label: "not done", kind: "failed" }
+        : accepted ? { icon: "check_circle", label: "done", kind: "done" }
+        : declined ? { icon: "block", label: "declined", kind: "declined" } : null;
 
       const fields = b.type === "event" ? [
         { k: "When", v: b.when }, { k: "Duration", v: b.duration }, { k: "Attendees", v: b.attendees }, { k: "From", v: "thread “" + (b.from || "") + "”" },
@@ -1890,40 +1941,38 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       ] : [];
 
       const cols = (b.cols || []).length;
+      /* Cells carry the column gap as their own right padding, so a row's hairline runs unbroken. */
+      const cellPad = (ci) => "padding-right:" + (ci === cols - 1 ? 0 : isMobile ? 16 : 24) + "px;";
       const cells = b.type === "facttable"
-        ? (b.cols || []).map(c => ({ t: c, style: "font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);padding:0 0 7px 0;border-bottom:1px solid var(--line2);white-space:nowrap;font-weight:600" }))
+        ? (b.cols || []).map((c, ci) => ({ t: c, style: BLK.label + ";padding-bottom:8px;border-bottom:1px solid var(--line);white-space:nowrap;" + cellPad(ci) }))
           .concat([].concat.apply([], (b.rows || []).map((r, ri) => r.map((c, ci) => ({
             t: c,
-            style: "font-size:13px;padding:8px 0;white-space:nowrap;" + (ci === 0 ? "font-weight:600;" : "color:var(--text2);") + (ri ? "border-top:1px solid var(--line2);" : ""),
+            style: "font-size:13.5px;padding-top:9px;padding-bottom:9px;white-space:nowrap;" + cellPad(ci) + (ci === 0 ? "font-weight:600;color:var(--text);" : "color:var(--text2);") + (ri ? "border-top:1px solid var(--line2);" : ""),
           })))))
         : [];
 
       return {
         label: LABEL[b.type] || "Block",
         meta: b.meta || "",
-        cardStyle: "display:flex;flex-direction:column;gap:" + rowGap + "px;border-radius:12px;padding:" + (isMobile ? "12px 13px" : "13px 15px") + ";" +
-          /* The thread itself is flat, so the blocks carry the separation: they sit on panel with a
-             visible edge instead of melting into the page. */
-          (declined ? "border:1px dashed var(--border2);background:transparent;"
-            : phase === "pending" ? "border:1px solid var(--accent-line);background:var(--accent-soft);box-shadow:0 1px 2px var(--sh-1);"
-            : "border:1px solid var(--border2);background:var(--panel);box-shadow:0 1px 2px var(--sh-1);")
-          + (b.anim ? "animation:mfblkin 0.52s cubic-bezier(0.22,0.61,0.36,1) both;" : ""),
-        headStyle: "display:flex;align-items:center;gap:9px;flex-wrap:wrap",
-        labelStyle: "font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600",
-        metaStyle: "font-size:11px;color:var(--faint)",
+        /* The thread itself is flat, so the blocks carry the separation: they sit on panel with a
+           visible edge instead of melting into the page. */
+        cardStyle: BLK.card(isMobile, tone) + (b.anim ? "animation:mfblkin 0.52s cubic-bezier(0.22,0.61,0.36,1) both;" : ""),
+        headStyle: BLK.head,
+        icon: BLK_ICON[b.type] || "widgets",
+        tileStyle: BLK.tile(tone),
+        glyphStyle: BLK.glyph,
+        labelStyle: BLK.title,
+        metaStyle: BLK.meta,
         hasChip: !!chip,
         chipLabel: chip ? chip.label : "",
         chipIcon: chip ? chip.icon : "",
         chipIconStyle: icon(14, "inherit"),
-        chipStyle: "margin-left:auto;display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 9px;font-size:11px;white-space:nowrap;" +
-          (phase === "pending" ? "color:var(--accent-d);background:var(--panel);border:1px solid var(--accent-line);"
-            : failed ? "color:var(--text);background:var(--hl);border:1px solid var(--hl-line);"
-            : "color:var(--muted);background:var(--sub);border:1px solid var(--border2);"),
+        chipStyle: BLK.chip(chip ? chip.kind : ""),
 
         isDeclined: declined,
         showBody: !declined,
         declinedStyle: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted)",
-        declinedIconStyle: icon(16, "var(--muted)"),
+        declinedIconStyle: "display:none",
         strikeStyle: "text-decoration:line-through;min-width:0",
         declinedWord: "Declined",
         declinedNote: "nothing was done",
@@ -1933,19 +1982,19 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         isEmpty: bstate === "empty",
         isPartial: bstate === "partial",
         ready: ready,
-        skel: [96, 74, 58].map(w => ({ style: SHIM + "height:11px;border-radius:6px;width:" + w + "%" })),
-        emptyBodyStyle: "display:flex;flex-direction:column;align-items:flex-start;gap:7px;padding:4px 0 2px 0",
-        emptyIconStyle: icon(20, "var(--faint)"),
-        errIconStyle: icon(20, "var(--hl-line)"),
+        skel: [92, 76, 54].map(w => ({ style: SHIM + "height:10px;border-radius:5px;width:" + w + "%" })),
+        emptyBodyStyle: "display:flex;align-items:center;gap:12px;flex-wrap:wrap",
+        emptyIconStyle: iconTile("var(--sub)", "var(--faint)"),
+        errIconStyle: iconTile("var(--warn-soft)", "var(--warn)"),
         emptyIcon: b.type === "draft" ? "edit_note" : b.type === "task" ? "task_alt" : b.type === "event" ? "event_busy" : "find_in_page",
-        emptyTextStyle: "font-size:13px;color:var(--muted);text-wrap:pretty",
+        emptyTextStyle: "flex:1 1 200px;min-width:0;font-size:13.5px;color:var(--text2);text-wrap:pretty",
         emptyText: b.emptyText || "Nothing came back for this one.",
         errorText: b.errorText || "This block could not be built.",
         retry: () => this.retryBk(key),
         retryKey: keyer(() => this.retryBk(key)),
         retryAria: "Try again: " + (LABEL[b.type] || "block").toLowerCase(),
         retryStyle: btn("quiet"),
-        noteStyle: "display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)",
+        noteStyle: "display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);background:var(--sub);border-radius:8px;padding:7px 10px",
         noteIconStyle: icon(16, "var(--muted)"),
         partialNote: b.partialNote || "Still being read - more may appear.",
 
@@ -1957,82 +2006,92 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         isDraft: b.type === "draft",
         isProposal: b.type === "event" || b.type === "task" || b.type === "action",
 
-        tlWrapStyle: isMobile ? "display:flex;flex-direction:column;gap:0" : "display:flex;gap:0;overflow:auto",
-        items: b.type === "timeline" ? (b.items || []).map((t, i) => ({
+        tlWrapStyle: isMobile ? "display:flex;flex-direction:column;gap:0;padding-top:2px" : "display:flex;gap:0;overflow-x:auto;padding-top:2px",
+        items: b.type === "timeline" ? (b.items || []).map((t, i, all) => ({
           date: t.date, title: t.title, detail: t.detail,
-          style: isMobile
-            ? "display:flex;flex-direction:column;gap:2px;border-top:2px solid var(--border2);padding:8px 0 10px 0"
-            : "flex:1;min-width:110px;display:flex;flex-direction:column;gap:3px;border-top:2px solid var(--border2);padding:8px 12px 2px 0",
-          dateStyle: "font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--muted)",
-          titleStyle: "font-size:13px;font-weight:600;text-wrap:pretty",
-          detailStyle: "font-size:12px;color:var(--faint);text-wrap:pretty",
+          style: BLK.tlItem(isMobile, i === all.length - 1),
+          lineStyle: BLK.tlLine(isMobile, i === all.length - 1),
+          dotStyle: BLK.tlDot(isMobile),
+          dateStyle: BLK.tlDate,
+          titleStyle: BLK.tlTitle,
+          detailStyle: BLK.tlDetail,
         })) : b.type === "evidence" ? (b.items || []).map((e, i) => ({
           n: e.n, source: e.source, snippet: e.snippet, relevance: e.relevance, freshness: e.freshness,
           isPrivate: !!e.private, hasSnippet: !e.private && !!e.snippet,
           badge: e.badge,
-          style: "display:flex;flex-direction:column;gap:5px;padding:9px 0;" + (i ? "border-top:1px solid var(--line2);" : ""),
-          nStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:6px;font-size:11px;color:var(--accent-d);background:var(--panel);border:1px solid var(--accent-line)",
-          badgeStyle: "font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:2px 6px;white-space:nowrap;font-weight:600",
-          privStyle: "font-size:13px;color:var(--faint);font-style:italic;text-wrap:pretty",
-          snipStyle: "font-size:13px;color:var(--text2);text-wrap:pretty",
-          subStyle: "font-size:12px;color:var(--faint)",
+          style: "display:flex;flex-direction:column;gap:7px;padding:" + (i ? 12 : 2) + "px 0 12px 0;" + (i ? "border-top:1px solid var(--line2);" : ""),
+          nStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;box-sizing:border-box;border-radius:6px;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--accent-d);background:var(--accent-soft)",
+          badgeStyle: "font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:500;color:var(--muted);background:var(--sub);border-radius:999px;padding:2px 8px;white-space:nowrap",
+          /* The quote and its provenance line up under the source's name rather than under its number. */
+          privStyle: "margin-left:" + (isMobile ? 0 : 28) + "px;font-size:13px;line-height:1.5;color:var(--faint);font-style:italic;text-wrap:pretty",
+          snipStyle: "margin-left:" + (isMobile ? 0 : 28) + "px;font-size:13.5px;line-height:1.5;color:var(--text2);border-left:2px solid var(--accent-line);padding:1px 0 1px 11px;text-wrap:pretty",
+          subStyle: "margin-left:" + (isMobile ? 0 : 28) + "px;font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint)",
         })) : b.type === "attachments" ? (b.items || []).map((f, i) => ({
           name: f.name, meta: f.meta, icon: f.icon,
-          style: "display:flex;align-items:center;gap:10px;padding:8px 0;" + (i ? "border-top:1px solid var(--line2);" : ""),
-          iconStyle: icon(20, "var(--muted)"),
+          style: "display:flex;align-items:center;gap:12px;padding:" + (i ? 10 : 2) + "px 0 10px 0;" + (i ? "border-top:1px solid var(--line2);" : ""),
+          iconStyle: iconTile("var(--sub)", "var(--text2)") + ";box-shadow:inset 0 0 0 1px var(--line2)",
           nameStyle: "font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
-          metaStyle: "font-size:12px;color:var(--faint)",
+          metaStyle: "font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint)",
         })) : [],
 
-        colsStyle: isMobile ? "display:flex;flex-direction:column;gap:12px" : "display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px",
+        colsStyle: isMobile ? "display:flex;flex-direction:column;gap:16px" : "display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px",
         stateCols: (b.cols || []).map(c => ({
           label: c.label,
-          style: "display:flex;flex-direction:column;gap:6px;min-width:0",
-          labelStyle: "font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600",
+          style: "display:flex;flex-direction:column;gap:8px;min-width:0",
+          labelStyle: BLK.label + ";padding-bottom:7px;border-bottom:1px solid var(--line2)",
           items: (c.items || []).map(it => ({
             t: it.t,
-            style: "font-size:13px;line-height:1.45;text-wrap:pretty;border-left:2px solid " + (it.late ? "var(--hl-line)" : "var(--line)") + ";padding-left:8px;" + (it.late ? "color:var(--text);" : "color:var(--text2);"),
+            style: "font-size:13px;line-height:1.45;text-wrap:pretty;border-left:2px solid " + (it.late ? "var(--warn)" : "var(--border2)") + ";padding:1px 0 1px 10px;" + (it.late ? "color:var(--text);font-weight:500;" : "color:var(--text2);"),
           })),
         })),
 
         tableScrollStyle: "overflow-x:auto;max-width:100%",
-        tableStyle: "display:grid;grid-template-columns:repeat(" + (cols || 1) + ",max-content);gap:0 18px;min-width:min-content",
+        tableStyle: "display:grid;grid-template-columns:repeat(" + (cols || 1) + ",max-content);gap:0;min-width:min-content",
         cells: cells,
 
-        fields: fields.filter(f => !!f.v).map(f => ({ k: f.k, v: f.v, rowStyle: fieldRow, kStyle: kStyle, vStyle: vStyle })),
-        fieldsStyle: "display:flex;flex-direction:column;gap:5px",
-        propTitleStyle: "font-size:" + (isMobile ? 15 : 16) + "px;font-weight:600;letter-spacing:-0.01em;text-wrap:pretty",
+        fields: fields.filter(f => !!f.v).map(f => ({
+          k: f.k, v: f.v, kStyle: kStyle, vStyle: vStyle,
+          rowStyle: "display:grid;grid-template-columns:" + (isMobile ? 72 : 88) + "px minmax(0,1fr);gap:12px;align-items:baseline;padding:6px 0;border-top:1px solid var(--line2)",
+        })),
+        hasFields: fields.some(f => !!f.v),
+        fieldsStyle: "display:flex;flex-direction:column",
+        propTitleStyle: "font-size:" + (isMobile ? 15 : 16) + "px;font-weight:600;line-height:1.35;letter-spacing:-0.01em;text-wrap:pretty",
         title: b.title || "",
         hasConflict: !!b.conflict && !accepted,
         conflict: b.conflict || "",
-        conflictStyle: "display:flex;align-items:flex-start;gap:7px;font-size:13px;color:var(--text);background:var(--hl);border:1px solid var(--hl-line);border-radius:8px;padding:7px 9px;text-wrap:pretty",
-        conflictIconStyle: icon(16, "var(--hl-line)"),
+        conflictStyle: "display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.45;color:var(--warn-text);background:var(--warn-soft);border-radius:9px;padding:9px 11px;text-wrap:pretty",
+        conflictIconStyle: icon(16, "var(--warn)"),
         hasReason: !!b.reason,
         reason: b.reason || "",
-        reasonStyle: "font-size:13px;color:var(--text2);text-wrap:pretty",
+        reasonStyle: "font-size:13.5px;line-height:1.5;color:var(--text2);text-wrap:pretty",
         hasEffect: !!b.effect,
         effect: b.effect || "",
-        effectStyle: "display:flex;align-items:flex-start;gap:7px;font-size:13px;color:var(--muted);text-wrap:pretty",
+        effectStyle: "display:flex;align-items:flex-start;gap:7px;font-size:13px;line-height:1.45;color:var(--muted);text-wrap:pretty",
         effectIconStyle: icon(16, "var(--muted)"),
 
         editing: editing,
         notEditing: !editing,
         editText: editing ? editRaw : "",
         onEdit: (e) => this.editBk(key, true, e.target.value),
-        textareaStyle: "width:100%;box-sizing:border-box;min-height:" + (isMobile ? 150 : 130) + "px;resize:vertical;font-family:inherit;font-size:14px;line-height:1.6;color:var(--text);background:var(--sub);border:1px solid var(--accent-line);border-radius:8px;padding:10px 12px",
-        paras: (b.paras || []).map(p => ({ t: p, style: "font-size:14px;line-height:1.6;color:var(--text2);text-wrap:pretty" })),
+        /* The draft reads as a letter: its paragraphs sit in one well, and editing swaps the well for a field of the same shape. */
+        letterStyle: "display:flex;flex-direction:column;gap:10px;background:var(--sub);border:1px solid var(--line2);border-radius:10px;padding:" + (isMobile ? "12px 13px" : "14px 16px"),
+        textareaStyle: "width:100%;box-sizing:border-box;min-height:" + (isMobile ? 150 : 130) + "px;resize:vertical;font-family:inherit;font-size:14px;line-height:1.6;color:var(--text);background:var(--sub);border:1px solid var(--accent-line);border-radius:10px;padding:" + (isMobile ? "12px 13px" : "14px 16px"),
+        paras: (b.paras || []).map(p => ({ t: p, style: "font-size:14px;line-height:1.6;color:var(--text);text-wrap:pretty" })),
 
+        hasFoot: controls.length > 0 || nav.length > 0 || (accepted && !declined),
+        footStyle: BLK.foot(isMobile, tone),
         hasControls: controls.length > 0,
         controls: controls,
-        controlsStyle: (isMobile ? "display:flex;flex-direction:column;gap:8px;" : "display:flex;gap:8px;flex-wrap:wrap;align-items:center;") + "border-top:1px solid var(--line2);padding-top:10px",
+        controlsStyle: isMobile ? "display:flex;flex-direction:column;gap:8px" : "display:flex;gap:8px;flex-wrap:wrap;align-items:center",
         hasResult: accepted && !declined,
         resultText: (st.bkResult || {})[key] || b.result || ((b.done || "Done") + " · " + this.hm()),
         resultIcon: failed ? "error" : "check_circle",
-        resultIconStyle: icon(16, failed ? "var(--hl-line)" : "var(--accent-d)"),
-        resultStyle: "display:flex;align-items:center;gap:7px;font-size:13px;color:" + (failed ? "var(--text)" : "var(--accent-d)") + ";text-wrap:pretty",
+        resultIconStyle: icon(16, failed ? "var(--warn)" : "var(--ok)"),
+        resultStyle: "display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;line-height:1.45;color:" + (failed ? "var(--warn-text)" : "var(--ok-text)") + ";text-wrap:pretty",
         hasNav: nav.length > 0,
         nav: nav,
-        navStyle: isMobile ? "display:flex;flex-direction:column;gap:8px" : "display:flex;gap:8px;flex-wrap:wrap",
+        /* The way out sits at the far end of the tray when anything stands beside it. */
+        navStyle: isMobile ? "display:flex;flex-direction:column;gap:8px" : "display:flex;gap:8px;flex-wrap:wrap" + (controls.length || accepted ? ";margin-left:auto" : ""),
       };
     };
 
@@ -3195,18 +3254,33 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         resultMainStyle: isMobile
           ? "display:flex;flex-direction:column;gap:12px;padding:14px;min-width:0"
           : "flex:1;display:flex;flex-direction:column;gap:14px;padding:20px 24px;overflow:auto;min-width:0",
-        timelineRowStyle: isMobile ? "display:flex;flex-direction:column;gap:0" : "display:flex;gap:0",
-        tlItemStyle: isMobile
-          ? "display:flex;flex-direction:column;gap:3px;border-top:2px solid var(--border2);padding:9px 0 11px 0"
-          : "flex:1;display:flex;flex-direction:column;gap:5px;border-top:2px solid var(--border2);padding:10px 14px 0 0",
+        timelineRowStyle: isMobile ? "display:flex;flex-direction:column;gap:0;padding-top:2px" : "display:flex;gap:0;overflow-x:auto;padding-top:2px",
+        /* Discover's result blocks wear the same chrome as the Agent's (`BLK`). */
+        blk: {
+          card: BLK.card(isMobile, "settled"),
+          pendingCard: BLK.card(isMobile, "pending"),
+          head: BLK.head,
+          tile: BLK.tile("settled"),
+          accentTile: BLK.tile("accent"),
+          glyph: BLK.glyph,
+          title: BLK.title,
+          meta: BLK.meta,
+          label: BLK.label,
+          pendingChip: BLK.chip("pending"),
+          chipGlyph: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1",
+          pendingFoot: BLK.foot(isMobile, "pending"),
+          primaryBtn: BLK.btn(isMobile, true),
+          quietBtn: BLK.btn(isMobile, false),
+          propTitle: "font-size:" + (isMobile ? 15 : 16) + "px;font-weight:600;line-height:1.35;letter-spacing:-0.01em;text-wrap:pretty",
+          answerText: "font-size:" + (isMobile ? 16 : 17) + "px;line-height:1.6;color:var(--text);text-wrap:pretty",
+          tlDate: BLK.tlDate,
+          tlTitle: BLK.tlTitle,
+          tlDetail: BLK.tlDetail,
+        },
         tableGridStyle: "display:grid;grid-template-columns:1.3fr 1fr 0.8fr 1.4fr;gap:0" + (isMobile ? ";min-width:540px" : ""),
         galleryGridStyle: isMobile
           ? "display:grid;grid-template-columns:repeat(2,1fr);gap:10px"
           : "display:grid;grid-template-columns:repeat(4,1fr);gap:10px",
-        actionRowStyle: isMobile
-          ? "display:flex;flex-direction:column;align-items:flex-start;gap:12px;background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:14px 16px"
-          : "display:flex;align-items:center;gap:14px;background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:14px 18px",
-        actionBtnsStyle: isMobile ? "display:flex;gap:9px;flex-wrap:wrap" : "margin-left:auto;display:flex;gap:9px",
 
         inspectorPanelStyle: isMobile
           ? (evObj
@@ -3306,7 +3380,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         answerReady: !!ready.answer,
         answerParts: plan ? plan.parts.map(p => ({ text: p.text, cite: p.cite, open: openEv(p.cite) })) : [],
         timelineReady: !!ready.timeline,
-        timeline: plan && plan.timeline ? plan.timeline.map(t => ({ date: t.date, title: t.title, detail: t.detail, open: openEv(t.cite) })) : [],
+        timeline: plan && plan.timeline ? plan.timeline.map((t, i, all) => ({
+          date: t.date, title: t.title, detail: t.detail, open: openEv(t.cite),
+          style: BLK.tlItem(isMobile, i === all.length - 1), lineStyle: BLK.tlLine(isMobile, i === all.length - 1), dotStyle: BLK.tlDot(isMobile),
+        })) : [],
         tableReady: !!ready.table,
         table: plan && plan.table ? plan.table.map(r => {
           const cell = (value, cite, isLast) => ({

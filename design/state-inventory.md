@@ -156,7 +156,11 @@ Which blocks a run produces is the plan, and there are three (`PLANS`): `contrac
 (answer + people + action). **No single run draws every block**, so a screenshot of one plan is not
 the block set to build against; `ai-blocks.dc.html` is where the block types stand
 together. **Discover draws them read-only.** The same catalogue with controls on it is the Agent's,
-and the blocks screen carries both halves — see *Agent* below.
+and the blocks screen carries both halves — see *Agent* below. Discover's blocks wear the Agent's chrome
+(`blk`, built from the same `BLK` as `bkView`): the card, the icon-tile header, the timeline's rail of dots, and
+for the proposed action a pending card with its *needs confirmation* chip in the header and *Save as Case* and
+*Dismiss* on an `--accent-soft` footer tray. The Answer keeps its prominence through an accent icon tile rather
+than the 3 px accent edge it used to carry.
 
 ## Mail — `isMail`
 
@@ -456,10 +460,16 @@ it from the next. The template used to break a line between runs, and that break
 which put a stray gap before the punctuation after a bold, code or link run.
 
 So the separation between one answer and the next is carried by the blocks, and `bkView` says so in
-as many words: a settled block sits on `--panel` behind a `--border2` edge with
-`0 1px 2px var(--sh-1)`, a pending one keeps `--accent-soft` on `--accent-line` and takes the same
-shadow, the chip on a settled block moves to `--sub` on `--border2`, and the draft `textarea` moves
-to `--sub`. The conversation history follows the same rule and stops being a stack of cards: a 3 px
+as many words. Every block is drawn from one set of styles, `BLK` in `logic/prototype/component.js`
+(mirrored in `logic/ai-blocks.js`): a card at radius 12 with 16 × 18 px padding (14 × 14 on the phone)
+on `--panel` behind a `--line` edge, `0 1px 2px var(--sh-1)` and a one-pixel `--inset` highlight; a
+header of a 26 px icon tile (one glyph per type), the type's name in 13 px semibold `--text`, its meta
+in 12 px `--faint`, and the phase chip pushed to the right; and, where the block has anything to press
+or a result to state, a footer tray flush with the card's edges. A pending block keeps the
+`--panel` body behind an `--accent-line` edge and moves the accent onto its tile, its chip and its
+tray (`--accent-soft`), so the controls sit on the accent rather than the whole card; a settled
+block's tray is a `--line2` rule. The draft's paragraphs, and the `textarea` that replaces them,
+sit in one `--sub` well at radius 10. The conversation history follows the same rule and stops being a stack of cards: a 3 px
 left edge, `--accent` on the open row and transparent otherwise, and a 1 px gap between rows.
 
 ### What a run looks like while it runs
@@ -506,14 +516,14 @@ adds is that the last four carry controls, and therefore a phase.
 
 | State | Flag | Reveal |
 |---|---|---|
-| Pending | `phase === "pending"` | the block's own `phase`, or `bkPhase[key]` once something was pressed — an accent card (`--accent-soft` on `--accent-line`) with a `help` chip reading *needs confirmation* and the type's controls under a rule |
-| Accepted | `accepted` | `acceptBk` — the controls go, a `check_circle` chip reads *done*, and one result line states what happened and at what time |
-| Accepted but not done | `failed` | the block carries `failed` — an `error` chip reading *not done*, and *Try again* as the only control |
-| Declined | `isDeclined` | `declineBk` — the card collapses to a dashed outline holding one struck line, *Declined - nothing was done*, and its `nav` rows go with it |
-| Loading | `isLoading` | the block's `state` is `loading` — three skeleton bars |
-| Partial | `isPartial` | `state` is `partial` — an `hourglass_top` note, `partialNote`, under the body it did return |
-| Empty | `isEmpty` | `state` is `empty` — a per-type icon and sentence, `event_busy`, `task_alt`, `edit_note` or `find_in_page` |
-| Error | `isError` | `state` is `error` — `errorText` and a *Try again* control that `retryBk` puts back to `ready` |
+| Pending | `phase === "pending"` | the block's own `phase`, or `bkPhase[key]` once something was pressed — an `--accent-line` edge, an accent icon tile, a `help` chip on `--accent-soft` reading *needs confirmation*, and the type's controls on an `--accent-soft` footer tray (`hasFoot`, `footStyle`) with any `nav` row at its far end |
+| Accepted | `accepted` | `acceptBk` — the controls go, a `check_circle` chip on `--ok-soft` reads *done*, and the footer holds one `--ok-text` result line stating what happened and at what time, beside the `nav` row |
+| Accepted but not done | `failed` | the block carries `failed` — an `error` chip on `--warn-soft` reading *not done*, the result line in `--warn-text`, and *Try again* as the only control beside it |
+| Declined | `isDeclined` | `declineBk` — the card collapses to a dashed outline with a muted tile and a *declined* chip, holding one struck line, *Declined - nothing was done*, and its `nav` rows go with it |
+| Loading | `isLoading` | the block's `state` is `loading` — three shimmering skeleton bars |
+| Partial | `isPartial` | `state` is `partial` — an `hourglass_top` note on `--sub`, `partialNote`, under the body it did return |
+| Empty | `isEmpty` | `state` is `empty` — a per-type icon in a 32 px `--sub` tile beside its sentence, `event_busy`, `task_alt`, `edit_note` or `find_in_page` |
+| Error | `isError` | `state` is `error` — a `--warn-soft` icon tile, `errorText`, and a *Try again* control that `retryBk` puts back to `ready` |
 | Editing a draft | `editing` | *Edit here* — `editBk` swaps the paragraphs for a `textarea` inside the conversation, and the controls become *Send* and *Stop editing* |
 
 **The controls are the type's.** `Event proposal` takes *Add to calendar*, *Another time* and
