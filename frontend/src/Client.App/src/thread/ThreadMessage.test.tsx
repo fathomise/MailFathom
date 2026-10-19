@@ -169,15 +169,21 @@ describe('ThreadMessage', () => {
         expect(screen.getByText('In work, Sent')).toBeDefined();
     });
 
-    // The conversation is one document and every message in it is written out, so there is no control here that would
-    // fold one away: what a reader decides is how much of the correspondence stands in front of them, and that is the
-    // conversation's own decision rather than each message's.
     it('answers nothing while the history it belongs to folds away', () => {
         drawing(message(), {}, nothingMarkedRead, null, 'folding');
 
         expect(screen.getByText('The auditor').closest('[inert]')).not.toBeNull();
     });
 
+    it('answers as any message does while nothing about the history is moving', () => {
+        drawing();
+
+        expect(screen.getByText('The auditor').closest('[inert]')).toBeNull();
+    });
+
+    // The conversation is one document and every message in it is written out, so there is no control here that would
+    // fold one away: what a reader decides is how much of the correspondence stands in front of them, and that is the
+    // conversation's own decision rather than each message's.
     it('offers nothing that would collapse the message it draws', () => {
         drawing();
 

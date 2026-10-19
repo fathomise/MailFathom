@@ -134,6 +134,41 @@ test('folds the rest of a conversation away before taking it off the screen', as
     await expect.poll(() => page.evaluate(foldingMessages)).toBe(0);
 });
 
+// Pressing the control again while the history folds asks for it back, so the fold stops where it is and every message
+// stands again and answers presses — rather than the history going once the fold that was asked against finishes.
+test('takes the history back when the control is pressed again while it folds', async ({ page }) => {
+    await openSignedIn(page, '/#/mail');
+    await page
+        .getByRole('listbox', { name: 'Messages' })
+        .getByRole('option', { name: /The racking quote/u })
+        .click();
+
+    const conversation = page.getByRole('region', { name: 'Conversation' });
+    const messages = conversation.getByRole('article', { name: /^Message from/u });
+
+    await conversation.getByRole('button', { name: 'Show all the messages' }).click();
+    await expect(messages).toHaveCount(5);
+
+    const animations = await page.context().newCDPSession(page);
+    await animations.send('Animation.enable');
+    await animations.send('Animation.setPlaybackRate', { playbackRate: 0.05 });
+
+    await conversation.getByRole('button', { name: 'Hide the other messages' }).click();
+    await expect.poll(() => page.evaluate(foldingMessages)).toBe(4);
+
+    const showAgain = conversation.getByRole('button', { name: 'Show all the messages' });
+    await expect(showAgain).toHaveAttribute('aria-expanded', 'false');
+    await showAgain.click();
+
+    await expect.poll(() => page.evaluate(foldingMessages)).toBe(0);
+    await animations.send('Animation.setPlaybackRate', { playbackRate: 1 });
+    await expect(messages).toHaveCount(5);
+    await expect(conversation.getByRole('button', { name: 'Hide the other messages' })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+    );
+});
+
 // The list's filters are a band in the flow of the column rather than a surface over it, so what moves is its height:
 // it unfolds from nothing and folds back to nothing, and the list under it moves with it. Only a browser lays out a
 // height, and only one interpolating to `auto` travels it, so this is the check that the band is not merely fading

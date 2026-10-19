@@ -153,6 +153,10 @@ export function Thread({
     const [historyMotion, setHistoryMotion] = useState<HistoryMotion | null>(null);
     const historyList = useRef<HTMLOListElement>(null);
 
+    // What the control says and offers: a history folding away is already hidden as far as a reader is concerned, so
+    // the control names showing it again from the moment the fold starts.
+    const historyStanding = historyShown && historyMotion !== 'folding';
+
     useEffect(() => {
         if (historyMotion !== 'folding') {
             return;
@@ -506,10 +510,10 @@ export function Thread({
 
                             <button
                                 type="button"
-                                aria-expanded={historyShown && historyMotion !== 'folding'}
+                                aria-expanded={historyStanding}
                                 className="rounded-full border border-line bg-sunken px-3 py-1.25 text-sm text-muted transition hover:bg-hover"
                                 onClick={() => {
-                                    if (!historyShown || historyMotion === 'folding') {
+                                    if (!historyStanding) {
                                         setHistoryShown(true);
                                         setHistoryMotion('unfolding');
                                     } else if (animationsReported) {
@@ -519,7 +523,7 @@ export function Thread({
                                     }
                                 }}
                             >
-                                {translate(revealLabel(historyShown, openedIsLatest, held.length - 1, locale), {
+                                {translate(revealLabel(historyStanding, openedIsLatest, held.length - 1, locale), {
                                     count: new Intl.NumberFormat(locale).format(held.length - 1),
                                 })}
                             </button>

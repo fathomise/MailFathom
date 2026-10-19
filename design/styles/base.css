@@ -156,8 +156,14 @@ p, li, h1, h2, h3, h4 { text-wrap: pretty; }
 [data-motion="screen"] { animation: mf-screen-in var(--motion-base) var(--ease-out) backwards; }
 /* disclose — a band opened in the flow of a column, the list's filters: unfolds from no height and folds back to none,
    so the list under it moves with it rather than jumping. */
-[data-motion="disclose"] { interpolate-size: allow-keywords; min-height: 0; overflow: clip; animation: mf-disclose-in var(--motion-base) var(--ease-out) backwards; }
-[data-motion="disclose"][data-phase="out"] { animation: mf-disclose-out var(--motion-base) var(--ease-in) both; }
+[data-motion="disclose"] { min-height: 0; overflow: clip; animation: mf-fade-in var(--motion-base) var(--ease-out) backwards; }
+[data-motion="disclose"][data-phase="out"] { animation: mf-fade-out var(--motion-base) var(--ease-in) both; }
+/* Only an engine interpolating a height to `auto` travels it; elsewhere the band fades in place rather than sitting
+   collapsed for half its arrival and then jumping. */
+@supports (interpolate-size: allow-keywords) {
+  [data-motion="disclose"] { interpolate-size: allow-keywords; animation-name: mf-disclose-in; }
+  [data-motion="disclose"][data-phase="out"] { animation-name: mf-disclose-out; }
+}
 /* unfold — the earlier messages of a conversation shown around the one being read: each settles 10 px down into
    place, and hiding them folds them back up before they are taken out. The message being read stays still. */
 [data-motion="unfold"] { animation: mf-unfold-in var(--motion-base) var(--ease-out) backwards; }
