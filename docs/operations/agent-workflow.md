@@ -1490,7 +1490,12 @@ One thing asks for a review anyway, whichever skip refused it:
   the run that event creates. Nothing about the phrase or who may type it changes
   — the split is about concurrency, and
   [When a review is cancelled](#when-a-review-is-cancelled) is the whole reason
-  for it.
+  for it. The dispatch is sent with the workflow token, so that second run is
+  initiated by `github-actions[bot]` whoever wrote the comment, and
+  `claude-code-action` refuses a bot it is not told to admit. Both action steps
+  therefore admit that one bot through `allowed_bots`, on `repository_dispatch`
+  alone, and the gate's check that the dispatch came from this workflow stays
+  what decides whether the review runs.
 
   Three things about that phrase are deliberate. It is not `@claude`, which
   collides with GitHub Copilot's own trigger. It has to lead a line rather than

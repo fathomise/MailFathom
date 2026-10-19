@@ -1751,6 +1751,8 @@ jobs:
         with:
           claude_code_oauth_token: ${{ vars.CLAUDE_CODE_PROFILE == 'secondary' && secrets.CLAUDE_CODE_OAUTH_TOKEN_SECONDARY || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
+          # The same bot allowance the judge runs under, for the reason given there.
+          allowed_bots: ${{ github.event_name == 'repository_dispatch' && 'github-actions[bot]' || '' }}
           classify_inline_comments: 'false'
           # The same deny list the judge runs under, for the same reasons, stated here rather than
           # shared because a workflow has no mechanism to share one and a reader that quietly ran
@@ -2054,6 +2056,13 @@ jobs:
           # rather than exchanging an OIDC token for a GitHub App installation token whose scopes
           # this workflow does not state.
           github_token: ${{ github.token }}
+          # The action refuses a run whose actor is a bot, and a requested review is always one: the
+          # `request` job dispatches it with the workflow token, so its actor is `github-actions[bot]`
+          # whoever wrote the comment. That one bot is admitted on that one event and on no other, so
+          # no other bot-initiated run reaches a model, and the gate's own check that the dispatch
+          # came from this workflow stays what decides whether a requested review runs at all.
+          # `scripts/test-agent-workflow.sh` fails when this login and the one the gate accepts drift.
+          allowed_bots: ${{ github.event_name == 'repository_dispatch' && 'github-actions[bot]' || '' }}
           # The buffered inline comments this step would post are the mechanism this workflow
           # replaces with a validated submission of its own.
           classify_inline_comments: 'false'
