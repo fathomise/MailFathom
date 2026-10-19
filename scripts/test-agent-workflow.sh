@@ -9853,6 +9853,43 @@ the_reviewer_listens_for_the_dispatch_it_sends() {
   fi
 }
 
+# The `request` job dispatches the requested review with the workflow token, so the run it creates is
+# initiated by `github-actions[bot]`, and `claude-code-action` refuses a bot actor it is not told to
+# admit. The gate, every action step, and the token the dispatch is sent with have to name the same
+# bot, and the action steps may admit it on the dispatch alone, or every requested review fails before
+# a model runs while the asking job stays green.
+the_requested_review_is_admitted_as_the_actor_that_dispatches_it() {
+  python3 - "$source_repository_root/.github/workflows/fathom-review.yml" << 'PYTHON'
+import sys, yaml
+
+dispatcher = 'github-actions[bot]'
+allowance = "${{ github.event_name == 'repository_dispatch' && '" + dispatcher + "' || '' }}"
+jobs = yaml.safe_load(open(sys.argv[1]))['jobs']
+failures = []
+
+request_tokens = [step.get('env', {}).get('GH_TOKEN') for step in jobs['request']['steps']]
+if request_tokens != ['${{ github.token }}']:
+    failures.append(f'the request job dispatches with {request_tokens}, not the workflow token alone')
+
+if f'"$SENDER_LOGIN" != \'{dispatcher}\'' not in next(
+        step['run'] for step in jobs['decide']['steps'] if step.get('id') == 'gate'):
+    failures.append(f'the gate does not require the dispatch to come from {dispatcher}')
+
+action_steps = [(name, step) for name, job in jobs.items() for step in job.get('steps', [])
+                if step.get('uses', '').startswith('anthropics/claude-code-action@')]
+if len(action_steps) != 2:
+    failures.append(f'expected 2 claude-code-action steps, found {len(action_steps)}')
+for name, step in action_steps:
+    allowed = step.get('with', {}).get('allowed_bots')
+    if allowed != allowance:
+        failures.append(f'{name}: "{step["name"]}" admits {allowed!r}, expected {allowance!r}')
+
+for failure in failures:
+    print(failure, file=sys.stderr)
+sys.exit(1 if failures else 0)
+PYTHON
+}
+
 # The reviewer's subscription credential is named in five places: the workflow-level `env` that
 # carries the secret's *name* into the annotation reporting a missing one, the two action inputs
 # that spend it — a reader's and the judge's — and the two leak checks that refuse to publish
@@ -11912,6 +11949,7 @@ run_test only_the_owner_and_bots_are_exempt_from_the_licence_agreement
 run_test a_comment_never_cancels_a_review_in_flight
 run_test a_comment_never_cancels_a_queued_review
 run_test the_reviewer_listens_for_the_dispatch_it_sends
+run_test the_requested_review_is_admitted_as_the_actor_that_dispatches_it
 run_test the_reviewer_resolves_one_claude_credential_everywhere
 run_test the_development_tooling_never_reaches_a_published_artifact
 run_test a_committed_corpus_stays_within_its_size_bound
