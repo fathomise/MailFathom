@@ -466,7 +466,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* Some threads have an unread message from the middle of the history —
          we open exactly that one, not the newest. */
       const entry = { piotr: 2 };
-      const patch = { threadId: id, mailAnswer: false, cameFrom: this.state.cameFrom && id === "contoso", mailPane: "thread", threadOpen: true, unread: unread,
+      const patch = { threadId: id, mailAnswer: false, replyDock: null, cameFrom: this.state.cameFrom && id === "contoso", mailPane: "thread", threadOpen: true, unread: unread,
         activeMsg: Object.assign({}, this.state.activeMsg, { [id]: typeof entry[id] === "number" ? entry[id] : null }),
         histOpen: Object.assign({}, this.state.histOpen, { [id]: !!this.state.autoExpand }) };
       patch.msgLoading = true;
@@ -1372,7 +1372,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     goScreen = (id, patch) => {
       /* The first entry into mail starts with an empty panel; after that the open message
          is remembered for the session (in-memory state - gone when the app closes). */
-      const p = Object.assign({ screen: id }, patch || {});
+      const p = Object.assign({ screen: id, replyDock: null }, patch || {});
       /* Entering mail from another screen = fetching the list from the server. */
       if (id === "mail" && this.state.screen !== "mail") {
         if (p.mailPane === "thread") { p.msgLoading = true; this.loadMsg(); }
@@ -4218,7 +4218,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         askThreadBtnStyle: "display:flex;align-items:center;justify-content:center;flex:0 0 auto;white-space:nowrap;color:var(--onaccent);background:var(--accent);font-weight:600;border-radius:" + (isMobile ? 999 : 7) + "px;" + (isMobile
           ? "min-height:44px;padding:0 18px;font-size:14px;"
           : "height:" + (singlePane ? 30 : 36) + "px;padding:0 " + (singlePane ? 13 : 16) + "px;font-size:13px;"),
-        backToList: () => this.setState({ mailPane: "list" }),
+        backToList: () => this.setState({ mailPane: "list", replyDock: null }),
         threadListStyle: "position:relative;" + (singlePane
           ? "flex:1;display:flex;flex-direction:column;min-height:0;min-width:0"
           : "width:" + (tablet ? 284 : listW) + "px;flex:0 0 " + (tablet ? 284 : listW) + "px;display:flex;flex-direction:column;min-height:0"),
@@ -4600,7 +4600,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         stateToggleLabel: st.stateOpen ? "hide" : "3 fields",
         /* The bottom padding keeps the last line of the thread clear of the floating reply button. */
         threadBodyStyle: singlePane
-          ? "flex:1;display:flex;flex-direction:column;gap:10px;padding:12px 12px " + (st.stateBarOff ? 12 : 84) + "px;overflow:auto;min-height:0"
+          ? "flex:1;display:flex;flex-direction:column;gap:10px;padding:12px 12px " + (st.stateBarOff ? 12 : st.replyDock ? 96 : 84) + "px;overflow:auto;min-height:0"
           : "flex:1;display:flex;flex-direction:column;gap:12px;padding:18px 22px " + (st.stateBarOff ? 18 : st.replyDock ? 150 : 86) + "px;overflow:auto;min-height:0",
         composerStyle: "position:absolute;z-index:16;display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 44px var(--sh-3),0 2px 8px var(--sh-2);" +
           (singlePane ? "left:10px;right:10px;bottom:10px;padding:" + (touch ? "16px 8px 8px" : "8px") : "left:18px;right:18px;bottom:16px;padding:12px"),
