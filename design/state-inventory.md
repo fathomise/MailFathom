@@ -87,10 +87,10 @@ screenshot shows none of this, so the numbers are the contract the client matche
 | Kind | Arrives | Leaves | Used by |
 |---|---|---|---|
 | `scrim` | the colour fades up from transparent, base, ease-out | fades back to transparent, exit, ease-in | every backdrop: the drawer, both sheets, every dialog, the context menu, Settings on two panes |
-| `sheet` | from 100 % below its place, slow, ease-sheet | back down 100 %, exit, ease-in | the thread actions sheet (`threadSheetOpen`), the *More* sheet (`moreOpen`), and on the phone every full-screen surface: compose, the form dialogs, Settings on one pane |
+| `sheet` | from 100 % below its place, slow, ease-sheet | back down 100 %, exit, ease-in | the thread actions sheet (`threadSheetOpen`), the *More* sheet (`moreOpen`), and on the phone every full-screen surface: compose, the form dialogs, Settings on one pane; the AI reading wherever it fills the screen, the fold included |
 | `drawer` | from 100 % to the left, slow, ease-sheet | back out to the left, exit, ease-in | the folder list where it is a drawer (`showSide` under `drawer`) |
 | `pop` | from opacity 0 at 96 % scale, fast, ease-out | to opacity 0 at 96 %, exit, ease-in | the context menu (`ctxMenuOpen`), the user menu (`userMenuOpen`), the return pill (`convReturnShown`), and off the phone every dialog (new folder, reminder, move, AI summary, event) and Settings on two panes |
-| `rise` | from opacity 0, 18 px below, base, ease-out | back down 18 px to opacity 0, exit, ease-in | the composer where it docks over the screen rather than filling a pane |
+| `rise` | from opacity 0, 18 px below, base, ease-out | back down 18 px to opacity 0, exit, ease-in | the composer where it docks over the screen rather than filling a pane, and the reply drafter hanging over a thread (`replyDockOpen`) |
 | `fade` | from opacity 0, base, ease-out | to opacity 0, exit, ease-in | the composer in a pane, the list replacing its skeleton (`listReady`), the composer body on restore (`composeExpanded`) |
 | `veil` | at once | fades out, base, ease-out | the message skeleton (`msgLoading`) laid over a thread that is already there |
 | `push` | from opacity 0, 48 px to the right, slow, ease-sheet | — | one pane at a time: the thread (`showThreadPane` under `singlePane`), a case and a person (under `isMobile`) when it is opened from its list |
@@ -156,7 +156,11 @@ Which blocks a run produces is the plan, and there are three (`PLANS`): `contrac
 (answer + people + action). **No single run draws every block**, so a screenshot of one plan is not
 the block set to build against; `ai-blocks.dc.html` is where the block types stand
 together. **Discover draws them read-only.** The same catalogue with controls on it is the Agent's,
-and the blocks screen carries both halves — see *Agent* below.
+and the blocks screen carries both halves — see *Agent* below. Discover's blocks wear the Agent's chrome
+(`blk`, built from the same `BLK` as `bkView`): the card, the icon-tile header, the timeline's rail of dots, and
+for the proposed action a pending card with its *needs confirmation* chip in the header and *Save as Case* and
+*Dismiss* on an `--accent-soft` footer tray. The Answer keeps its prominence through an accent icon tile rather
+than the 3 px accent edge it used to carry.
 
 ## Mail — `isMail`
 
@@ -172,13 +176,16 @@ and the blocks screen carries both halves — see *Agent* below.
 | Primary actions in the bar | `tbPrimaryShown` | the toolbar has room for them |
 | Resizer between panes | `showResizer` | `!singlePane && !tablet` |
 | Side list expanded | `sideExpanded` | not collapsed; collapsed is 58 px, expanded is 210 px and draggable to 420 |
+| Side list show/hide | `sideToggleShown` / `toggleSide` | `!drawer` on Mail — the first control of the mail toolbar, a 32 px icon button (38 px on touch) reading `left_panel_close` while the list is open and `left_panel_open` while it is collapsed, titled *Hide folders and filters* and *Show folders and filters*, and set apart from *New message* by a 1 px rule with 6 px before it and 8 px after, so a press meant for one never lands on the other. It is never inside the list, so a long tree cannot scroll it away |
+| Side list scrolls | `sideScrollStyle` | the AI filters and every account scroll together inside the panel once they are taller than it, docked or as a drawer; the panel itself does not move |
+| AI filters | `aiFilters` | the first group in the side list, above every account, under an `auto_awesome` *AI filters* header — rows the same size as folder rows; a collapsed side list draws the glyph alone |
+| AI filters collapsed | `aiFiltersOpen` / `toggleAiFilters` | the header, exactly as an account header collapses its folders — `expand_more` against `chevron_right`, titled *Collapse AI filters* and *Show AI filters*; open by default (`st.aiFiltersOpen !== false`) |
 | Side list resizer | `showSideResizer` | `!drawer && !sideCollapsed && !isMobile` — drag widens the folder pane between 210 and 420 px, double-click returns it to 210 |
-| Side list as a drawer | `showSide` / `sideScrim` | `drawer && drawerOpen` |
+| Side list as a drawer | `showSide` / `sideScrim` | `drawer && drawerOpen` — its head reads *Folders and filters* beside a close control (`sideDrawerHead`) |
 | Folder button | `showFolderBtn` | `drawer` |
 | Account menu on a mailbox | `ctxMenu` through `g.ctxOpen` | right-click a mailbox header, or hold it for 460 ms — *New folder* and *Mark all as read*; **All accounts carries none** |
 | Menu on a folder row | `folderMenu` | right-click a folder, or hold it — *Mark all as read* always, *New folder inside* while the path is under three segments, and *Edit folder* and *Delete folder* only on a folder the user made; **All accounts carries none** |
-| New folder row | `g.canAdd` | drawn at the end of every account group as a `create_new_folder` row reading *New folder* — `g.key !== "all"`, so the unified view carries none, having no mail server of its own; a collapsed side list draws the glyph alone (`g.expanded`), and the row takes the phone's taller padding under `isMobile` |
-| A folder the user made | `st.extraFolders[<mailbox>]` | the row above, the two menus above it, or *New folder here* in the move sheet; it is drawn below the standard set |
+| A folder the user made | `st.extraFolders[<mailbox>]` | the two menus above, or *New folder here* in the move sheet; it is drawn below the standard set. **The side list draws no *New folder* row** — an account is given a folder from its own menu, so the tree holds folders and nothing else |
 
 An account draws six folders in the same order — Inbox, Sent, Drafts, Archive, Spam, Trash
 (`STD_FOLDERS`) — and a count only where the mock data gives one. **The unified view
@@ -196,7 +203,7 @@ list: it nests, it is placed somewhere in the account's own tree, and it can be 
 |---|---|---|
 | The folder tree | `st.folderOpen[<mailbox·path>]` | a folder with children draws a twisty; each level is indented 15 px, and **three path segments is the ceiling** (`MAX_DEPTH`) |
 | Children shown | `mb.hasKids` / `mb.twisty` | `expand_more` against `chevron_right`, titled *Collapse subfolders* and *Show subfolders*; a collapsed side list draws depth 0 only |
-| New folder dialog | `newFolderOpen` | the *New folder* row at the end of an account group, *New folder inside* on a folder, or *New folder here* in the move sheet |
+| New folder dialog | `newFolderOpen` | *New folder* in an account's menu, *New folder inside* on a folder, or *New folder here* in the move sheet |
 | Editing one | the same dialog in `mode: "edit"` | *Edit folder* — the title reads *Edit folder* and the button *Save changes* |
 | Its two fields | `nfName` / `nfParent` | *Folder name*, and *Inside* as a select rather than a text field |
 | Where it may sit | `nfLocations`, from `folderLocations` | the select's options: *Top level of the account* first, then the account's folders drawn as `Parent / Child`. Editing one drops the folder itself, everything under it, and any parent too shallow to hold its subtree |
@@ -228,13 +235,17 @@ and deleting it cannot be undone.*
 | State | Flag | Reveal |
 |---|---|---|
 | AI summary | `aiSumOpen` | the `auto_awesome` control on a message row, or *AI summary* at the top of that row's context menu |
-| Its cards | `aiSumCards` | **three at most**, each a heading, the claim, a *Why:* line, a model chip reading *Model - mailfathom-email-enrichment*, and the fragment of the message it rests on |
+| Its readings | `aiSumCards` | **three at most**, each a small heading, the claim, the reason in a muted line, and the fragment of the message it rests on — no card around a reading, a hairline between readings, and the model named once in the footer (`aiSumModel`) rather than on every reading |
 | Which headings exist | — | *What is settled*, *What is still open*, *What is the commitment*, *What the deadline is*, *What changed between versions* for a `Version difference` state, and *What this is about* where the list's own reading fills a card out. The cards follow the thread's state list and stop at three, so a fourth state never reaches the dialog — which is where both seeded `Version difference` states sit |
 | Jump to the source | `ac.showSrc` | only where the thread holds more than one message — *Open message N in the thread* |
 
-The dialog opens at 620 px on the desktop and full-screen on the phone. Its own sentence is the
-contract it states: *Every reading below comes from this message alone, and each one shows the
-fragment it rests on.*
+The dialog is *What MailFathom read*, with the message's subject under the title. **Wide** (900 px
+and up) it opens centred at 920 px (760 below 1020), at most `min(86dvh, 860px)` tall, and sets each
+reading beside its passage — the claim at 19 px on the left, the quote on `--sub` behind a 2 px
+`--accent-line` edge on the right, *Open message N in the thread* under the quote. **On the phone and
+the fold** it takes the whole screen and stacks each reading, the claim at 16 px and the passage held
+to four lines. Its footer states the contract, *Read from this message alone - every reading quotes
+the passage it rests on.*, shortened to *Quoted from this message alone* on the small compositions.
 
 ### The thread
 
@@ -300,7 +311,9 @@ what a finger reaches.
 | Composer expanded | `composeExpanded` | open and not minimised |
 | Minimise offered | `composeMinShown` | `!composeInPane && !isMobile` |
 | Composer chrome | `composeChromeShown` | the composer is not the active tab |
-| Suggestion chips | `showComposerChips` | `!singlePane && !tablet` |
+| The reply button | `replyFabShown` | a thread is open, the panels are not hidden, and the drafter is closed — **the drafter is closed by default**. A floating accent button at the thread's bottom-right, `auto_awesome` and *Draft a reply* (46 px tall, 22 px from the right and 20 from the bottom on two panes, 16 and 16 on one), the glyph alone in a 56 px square on the phone; it arrives with `pop`. The thread keeps its last line clear of it and of the drafter with its bottom padding: 84 px on one pane (96 with the drafter open) and 86 px on two panes (150 with the drafter open) |
+| The reply drafter | `replyDockOpen` / `mo.replyDock` | the reply button — a card hanging over the bottom of the thread, 18 px in from either side and 16 from the bottom on two panes (10, 10 on one pane), `--panel` on a 16 px radius with a lifted shadow, coming up with `rise` and leaving the same way. The input row: an `auto_awesome` glyph, *Describe the reply you want to send…* (*Describe the reply…* on one pane, `composerPlaceholder`) in a field with a 2 px accent edge (1 px on one pane), the accent *Draft a reply* (*Draft* on one pane), and a round close badge hanging off the card's top-right corner — 26 px, 11 px past either edge; on touch 32 px, 19 px above the card and 4 px past its side, the card keeping 16 px above its row so the badge clears *Draft* — titled *Close the reply drafter*, which puts the button back. *Draft a reply* writes the local draft into the thread and closes the card. It drafts a reply and nothing else — asking about the thread is *Ask* and the thread sheet. Back closes it like any surface over the screen, leaving the thread or opening another closes it too, and on the phone the floating *Refresh* steps aside while it is open (`refreshFabShown`) |
+| Scope chips | `showComposerChips` | `!singlePane && !tablet` — a second row in the drafter: *Scope: this thread*, *+ selected passage*, and *Draft stays local until confirmed* at the right |
 | Cc/Bcc | `ccOpen` | the Cc control |
 | Formatting bar | `fmtBarShown` | `!touch`, or the touch toggle was pressed |
 | Formatting toggle | `fmtToggleShown` | `touch` |
@@ -402,14 +415,19 @@ menu's *Tab mode* switch is turned on at a width of at least 1180 px**.
 | An answer still being worked | `m.working` | the message carries `working` — it draws an `autorenew` glyph and *The agent is going through your mail…* instead of prose |
 | An answer carrying blocks | `m.hasBlocks` | the message carries `blocks` |
 | Back to the conversation | `convReturnShown` | a block's `nav` row was pressed, which is what `goLook` records in `agentReturn`; the pill stands fixed over whatever screen was opened until `backToConv` is pressed |
-| History open | `historyOpen` | `!isMobile` by default, and the history control otherwise |
+| History open | `historyOpen` | `!isMobile` by default, and the history control otherwise. On the phone it covers the conversation, so **picking a conversation, *Open conversation* in its menu, or *New conversation* closes it** |
 | History close | `historyCloseShown` | `isMobile` |
-| History search has a value | `historySearchValue` | typing in it |
+| History header | `historyCount` | *History* and the count of conversations not archived — the header carries no second *New*, the toolbar already has one |
+| History search has a value | `historySearchValue` | typing in *Search conversations* — a 34 px field (44 px on the phone) with 12 px under it (16 px on the phone) before the list |
+| Nothing matches | `historyEmpty` | a search that matches no conversation — *No conversation matches.* |
+| History by day | `convHistoryGroups` | the rows fall under *Today*, *Yesterday* and *Earlier*, newest first, read off each conversation's `when`; an empty group is not drawn and a row under *Yesterday* repeats no date |
+| A history row | `h.style` / `h.titleStyle` | the title, the time in tabular figures, and one line of the last message under it; the open conversation carries `--accent-soft` and an accent title — no left edge, no card |
+| Row actions | `h.openMenu` | one `more_horiz` control per row opening the same menu as a right-click or a long press — *Select*, *Open*, *Archive* or *Restore*, *Delete* — instead of an archive and a delete glyph on every row |
 | **Archive section exists** | `hasArchived` | at least one conversation is archived |
 | Archive open | `archiveSectionOpen` | pressing the archive section |
 | History resizer | `showHistoryResizer` | `!isMobile` |
 | Conversation bar | `convBarShown` | tabs mode with more than one conversation — see the tabs note above |
-| Delete a conversation | `deleteConvAskOpen` | the delete control on a conversation |
+| Delete a conversation | `deleteConvAskOpen` | *Delete conversation* in a conversation's menu |
 
 ### The thread is flat, and the blocks are the only cards in it
 
@@ -442,11 +460,17 @@ it from the next. The template used to break a line between runs, and that break
 which put a stray gap before the punctuation after a bold, code or link run.
 
 So the separation between one answer and the next is carried by the blocks, and `bkView` says so in
-as many words: a settled block sits on `--panel` behind a `--border2` edge with
-`0 1px 2px var(--sh-1)`, a pending one keeps `--accent-soft` on `--accent-line` and takes the same
-shadow, the chip on a settled block moves to `--sub` on `--border2`, and the draft `textarea` moves
-to `--sub`. The conversation history follows the same rule and stops being a stack of cards: a 3 px
-left edge, `--accent` on the open row and transparent otherwise, and a 1 px gap between rows.
+as many words. Every block is drawn from one set of styles, `BLK` in `logic/prototype/component.js`
+(mirrored in `logic/ai-blocks.js`): a card at radius 12 with 16 × 18 px padding (14 × 14 on the phone)
+on `--panel` behind a `--line` edge, `0 1px 2px var(--sh-1)` and a one-pixel `--inset` highlight; a
+header of a 26 px icon tile (one glyph per type), the type's name in 13 px semibold `--text`, its meta
+in 12 px `--faint`, and the phase chip pushed to the right; and, where the block has anything to press
+or a result to state, a footer tray flush with the card's edges. A pending block keeps the
+`--panel` body behind an `--accent-line` edge and moves the accent onto its tile, its chip and its
+tray (`--accent-soft`), so the controls sit on the accent rather than the whole card; a settled
+block's tray is a `--line2` rule. The draft's paragraphs, and the `textarea` that replaces them,
+sit in one `--sub` well at radius 10. The conversation history follows the same rule and is no stack of cards:
+rows grouped by day, the open one tinted `--accent-soft` with an accent title — the history rows in the table above say the rest.
 
 ### What a run looks like while it runs
 
@@ -492,14 +516,14 @@ adds is that the last four carry controls, and therefore a phase.
 
 | State | Flag | Reveal |
 |---|---|---|
-| Pending | `phase === "pending"` | the block's own `phase`, or `bkPhase[key]` once something was pressed — an accent card (`--accent-soft` on `--accent-line`) with a `help` chip reading *needs confirmation* and the type's controls under a rule |
-| Accepted | `accepted` | `acceptBk` — the controls go, a `check_circle` chip reads *done*, and one result line states what happened and at what time |
-| Accepted but not done | `failed` | the block carries `failed` — an `error` chip reading *not done*, and *Try again* as the only control |
-| Declined | `isDeclined` | `declineBk` — the card collapses to a dashed outline holding one struck line, *Declined - nothing was done*, and its `nav` rows go with it |
-| Loading | `isLoading` | the block's `state` is `loading` — three skeleton bars |
-| Partial | `isPartial` | `state` is `partial` — an `hourglass_top` note, `partialNote`, under the body it did return |
-| Empty | `isEmpty` | `state` is `empty` — a per-type icon and sentence, `event_busy`, `task_alt`, `edit_note` or `find_in_page` |
-| Error | `isError` | `state` is `error` — `errorText` and a *Try again* control that `retryBk` puts back to `ready` |
+| Pending | `phase === "pending"` | the block's own `phase`, or `bkPhase[key]` once something was pressed — an `--accent-line` edge, an accent icon tile, a `help` chip on `--accent-soft` reading *needs confirmation*, and the type's controls on an `--accent-soft` footer tray (`hasFoot`, `footStyle`) with any `nav` row at its far end |
+| Accepted | `accepted` | `acceptBk` — the controls go, a `check_circle` chip on `--ok-soft` reads *done*, and the footer holds one `--ok-text` result line stating what happened and at what time, beside the `nav` row |
+| Accepted but not done | `failed` | the block carries `failed` — an `error` chip on `--warn-soft` reading *not done*, the result line in `--warn-text`, and *Try again* as the only control beside it |
+| Declined | `isDeclined` | `declineBk` — the card collapses to a dashed outline with a muted tile and a *declined* chip, holding one struck line, *Declined - nothing was done*, and its `nav` rows go with it |
+| Loading | `isLoading` | the block's `state` is `loading` — three shimmering skeleton bars |
+| Partial | `isPartial` | `state` is `partial` — an `hourglass_top` note on `--sub`, `partialNote`, under the body it did return |
+| Empty | `isEmpty` | `state` is `empty` — a per-type icon in a 32 px `--sub` tile beside its sentence, `event_busy`, `task_alt`, `edit_note` or `find_in_page` |
+| Error | `isError` | `state` is `error` — a `--warn-soft` icon tile, `errorText`, and a *Try again* control that `retryBk` puts back to `ready` |
 | Editing a draft | `editing` | *Edit here* — `editBk` swaps the paragraphs for a `textarea` inside the conversation, and the controls become *Send* and *Stop editing* |
 
 **The controls are the type's.** `Event proposal` takes *Add to calendar*, *Another time* and
@@ -540,17 +564,21 @@ to a folder, marking as read, adding to a case and closing a case stay a one-lin
 | Mail FAB | `showFab` | no composer, no document, no selection; on one pane it needs the list |
 | User menu | `userMenuOpen` | the avatar |
 | Settings | `settingsOpen` | the settings control; closing it also drops the account draft. It clears `acctDel` too, which nothing sets any more — removing an account left the design and that one line stayed behind |
-| Settings: its five tabs | `tabProfil` / `tabAccounts` / `tabAi` / `tabNotif` / `tabApp` | the tab strip — *Profile*, *Accounts*, *AI*, *Notifications*, *Application* (`settingsTabs`), `tabProfil` being the default |
+| Settings: its five sections | `tabProfil` / `tabAccounts` / `tabAi` / `tabNotif` / `tabApp` | *Profile*, *Accounts*, *AI*, *Notifications*, *Application*, `tabProfil` being the default. On two panes a section navigation (`settingsNavShown`) groups them under *You*, *Mail*, *Assistant* and *This device* (`settingsNavGroups`), each row an icon and a label; on one pane they are a tab strip that scrolls sideways (`settingsStripShown`) |
+| Settings: finding a section | `settingsQuery` / `settingsNavEmpty` | *Find a setting* at the top of the section navigation narrows it by a section's name and description; nothing left reads *No section matches.* |
+| Settings: the section head | `settingsSectionTitle` / `settingsSectionHint` | two panes only — the section's name at 22 px over one sentence saying what it holds |
 | Own photo | `meHasPhoto` | a photo was uploaded |
 | **Photo rejected** | `photoError` | a file over 1 MB — a real file has to be chosen, so **no click reaches this** |
 | Telemetry off | `telemetryOptOut` | the telemetry switch |
 | Notification centre | `notifCenterOpen` | the bell, or the phone's upward gesture |
 | Unread notifications | `notifHasUnread` | the unread count; it gates three regions including the rail badge. The panel's own badge is one composed string, `notifNewLabel`, reading *1 new* or *N new* |
-| **No notifications** | `notifEmpty` | the shown list is empty — reachable by filtering to unread after reading them all |
+| The centre's filter | `notifFilter` / `notifTabs` | **it opens on *Unread*** — the first of the two, *Unread* then *All*; `st.notifFilter` falls back to `"unread"` |
+| **No notifications** | `notifEmpty` | the shown list is empty — *Nothing new. All read.*, reached by opening the centre with nothing unread |
 | Refresh | `refreshAll` / `refreshBusy` | the `refresh` control in the rail, titled *Refresh*, and its floating copy at the phone's bottom-left — it re-reads the mail in front of the reader and the notification centre, pulses its glyph (`mfpulse`, 1 s) rather than spinning while it waits, and refuses a second press until the re-read lands |
 | Move dialog | `moveOpen` | the move action on a selection — grouped by mailbox (`moveGroups`), each group ending in *New folder here*, and the toast it produces names the mailbox |
 | Permanent delete | `confirmDel` under `inTrash` | a delete action while the open folder is a Trash — *Delete permanently*, no undo offered, and the toast reads *Permanently deleted* rather than *Moved to trash* |
 | The rail's nav scrolls | `railNavStyle` | a viewport too short for the seven destinations — the nav scrolls and the bottom cluster stays pinned |
+| A rail destination | `railBase` / `activeStyle` | a tile inset 7 px from either side of the rail on a 12 px radius, 4 px apart (2 px below 1020) — the current one on `--accent-soft` with an accent glyph and a semibold label, hover on `--hover`. No full-width slab and no edge bar, so neighbouring tiles never meet across a dark gap |
 | Cancel confirmation | `cancelAskOpen` | closing a toast that carries a running operation |
 | Toasts | `toasts` | any operation that reports; `toasts.dc.html` is the whole of it |
 
@@ -562,17 +590,14 @@ Every label in the prototype is English, among them the Settings tabs *Profile* 
 
 Added on 2026-09-11, where the panel had held two tabs and a fixed card.
 
-The card itself is two shapes. On one pane it fills the screen; on two it is `st.settingsW || 700`
-by `st.settingsH || 720` with a `south_east` grip in the bottom-right corner
-(`settingsResizable` / `settingsResizeDown`) that drags it between 560 × 420 and the
-viewport less 40 px. **The grip exists on two panes only**, so a phone or fold capture draws none.
-
-The card also **moves**. Its header is the handle: `settingsHeadDown` is `null` on one
-pane and a pointer drag on two, so the header carries `cursor:move;user-select:none` there and the
-card is drawn at `transform:translate(settingsDX, settingsDY)`. The travel is clamped to half the
-free space in each direction, so the card cannot be dragged past the viewport edge, and the close
-control is marked `data-nodrag` so pressing it closes the panel instead of starting a drag.
-*Reset layout* clears the offset with the sizes.
+**Settings take the whole window at every composition**, the desktop included, because the list of
+sections is meant to grow well past five and a dialog leaves no room for a navigation that grows with
+it. There is no card, no grip, no drag and no stored size: the panel is a full-window surface on
+`--bg` that arrives with `pop` on two panes and `sheet` on one. Its head is a 22 px `settings` glyph,
+*Settings* and the close control. On two panes a 264 px section navigation (220 below 1020) runs down
+the left on `--sub`, with *Find a setting* at its top and the version and build at its foot, and the
+section itself scrolls on the right in a column at most 760 px wide. On one pane the sections are a
+tab strip under the head and the version sits in a footer.
 
 | State | Flag | Reveal |
 |---|---|---|
@@ -704,7 +729,11 @@ glyph, the colour and the bar. What is worth reading in the source rather than i
 - Resting opacity is 0.8 and 1.0 under the pointer, so the content beneath stays readable.
 - The **blocking overlay** is a separate thing from a toast: determinate (a percentage) or
   indeterminate, no dismissal by scrim or Escape, and its *Cancel* asks before it aborts.
-- On a narrow screen the stack is full-width at the top instead of a 400 px column on the right.
+- On the phone and the fold (under 900 px) a toast is a **slim strip**: one row of a 28 px glyph, the
+  title at 14 px over a body held to two lines, the action inline at the right rather than under the
+  text, and the close control — 6 px apart, 8 px from the top, full-width on the phone and a centred
+  440 px column on the fold, and fully opaque, there being no pointer to raise it. Wider, the stack
+  is a 400 px column on the right. The prototype's toasts follow the same rule (`toastCompact`).
 
 ## The notification gesture — `notification-gesture.dc.html`
 

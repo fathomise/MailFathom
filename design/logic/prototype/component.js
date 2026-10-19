@@ -78,6 +78,60 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   /* Shared shimmer for every loading skeleton. */
   const SHIM = "border-radius:6px;background:linear-gradient(90deg,var(--line) 0%,var(--line2) 42%,var(--line) 78%);background-size:260% 100%;animation:mfshim 1.05s linear infinite;";
 
+  /* The AI block chrome, one family wherever a block stands — the Agent's (`bkView`) and Discover's result.
+     A card at radius 12, a header of icon tile + title + meta with the phase chip on the right, and a footer
+     tray, flush with the card's edges, that holds the controls and the way out. `tone` is `settled`,
+     `pending` (the accent edge, tile and tray) or `declined` (a dashed outline and nothing else).
+     logic/ai-blocks.js keeps an identical copy for the catalogue artboard — change both together. */
+  const BLK_ICON = { answer: "auto_awesome", timeline: "timeline", evidence: "fact_check", threadstate: "forum", facttable: "table_chart", attachments: "attach_file", people: "group", draft: "edit_note", event: "event", task: "task_alt", action: "bolt", trace: "route" };
+  const BLK_PAD = (isMobile) => isMobile ? { y: 14, x: 14 } : { y: 16, x: 18 };
+  const BLK = {
+    card: (isMobile, tone) => {
+      const p = BLK_PAD(isMobile);
+      return "display:flex;flex-direction:column;gap:12px;min-width:0;border-radius:12px;padding:" + p.y + "px " + p.x + "px;" +
+        (tone === "declined" ? "background:transparent;border:1px dashed var(--border2);"
+          : "background:var(--panel);border:1px solid " + (tone === "pending" ? "var(--accent-line)" : "var(--line)") + ";box-shadow:0 1px 2px var(--sh-1),inset 0 1px 0 var(--inset);");
+    },
+    head: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:26px",
+    tile: (tone) => "flex:0 0 26px;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;" +
+      (tone === "pending" || tone === "accent" ? "background:var(--accent-soft);color:var(--accent-d);box-shadow:inset 0 0 0 1px var(--accent-line)"
+        : tone === "declined" ? "background:transparent;color:var(--faint);box-shadow:inset 0 0 0 1px var(--line)"
+        : "background:var(--sub);color:var(--text2);box-shadow:inset 0 0 0 1px var(--line2)"),
+    glyph: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1",
+    title: "font-size:13px;font-weight:600;color:var(--text);letter-spacing:-0.005em;white-space:nowrap",
+    meta: "font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);min-width:0",
+    hint: "margin-left:auto;font-size:12px;color:var(--muted)",
+    chip: (kind) => "margin-left:auto;display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 10px 3px 7px;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;white-space:nowrap;" +
+      (kind === "pending" ? "color:var(--accent-d);background:var(--accent-soft);"
+        : kind === "done" ? "color:var(--ok-text);background:var(--ok-soft);"
+        : kind === "failed" ? "color:var(--warn-text);background:var(--warn-soft);"
+        : "color:var(--muted);background:var(--sub);"),
+    foot: (isMobile, tone) => {
+      const p = BLK_PAD(isMobile);
+      return "margin:2px -" + p.x + "px -" + p.y + "px -" + p.x + "px;padding:12px " + p.x + "px;border-radius:0 0 11px 11px;" +
+        (isMobile ? "display:flex;flex-direction:column;gap:8px;" : "display:flex;align-items:center;gap:8px;flex-wrap:wrap;") +
+        (tone === "pending" ? "background:var(--accent-soft);border-top:1px solid var(--accent-line);" : "background:transparent;border-top:1px solid var(--line2);");
+    },
+    btn: (isMobile, primary) => "display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:9px;font-size:14px;white-space:nowrap;box-sizing:border-box;" +
+      (isMobile ? "width:100%;min-height:44px;padding:0 16px;" : "min-height:36px;padding:0 15px;") +
+      (primary ? "font-weight:600;color:var(--onaccent);background:var(--accent);border:1px solid var(--accent);box-shadow:inset 0 1px 0 rgba(255,255,255,0.16),0 1px 2px var(--sh-1);"
+        : "font-weight:500;color:var(--text);background:var(--panel);border:1px solid var(--border2);box-shadow:0 1px 1px var(--sh-1);"),
+    link: (isMobile) => "display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--border2);border-radius:999px;background:transparent;color:var(--text2);font-size:13px;white-space:nowrap;box-sizing:border-box;" +
+      (isMobile ? "width:100%;min-height:44px;padding:0 14px;" : "min-height:32px;padding:0 13px 0 11px;"),
+    label: "font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--muted);letter-spacing:0.01em",
+    /* A timeline is a rail of dots: across on the desktop, down the left edge on the phone. */
+    tlItem: (isMobile, last) => isMobile
+      ? "position:relative;display:flex;flex-direction:column;gap:2px;padding:0 0 " + (last ? 2 : 14) + "px 22px"
+      : "position:relative;flex:1;min-width:120px;display:flex;flex-direction:column;gap:3px;padding:20px 16px 2px 0",
+    tlLine: (isMobile, last) => last ? "display:none"
+      : isMobile ? "position:absolute;left:4px;top:13px;bottom:-4px;width:1px;background:var(--border2)"
+      : "position:absolute;left:0;right:0;top:4px;height:1px;background:var(--border2)",
+    tlDot: (isMobile) => "position:absolute;left:0;top:" + (isMobile ? 4 : 0) + "px;width:9px;height:9px;box-sizing:border-box;border-radius:50%;background:var(--panel);border:2px solid var(--accent)",
+    tlDate: "font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--muted)",
+    tlTitle: "font-size:13.5px;font-weight:600;line-height:1.35;color:var(--text);text-wrap:pretty",
+    tlDetail: "font-size:12px;color:var(--faint);text-wrap:pretty",
+  };
+
   function srcTypeInfo(type) {
     const M = {
       mail: { icon: "mail", label: "message" },
@@ -88,7 +142,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     };
     return M[type] || M.mail;
   }
-  const SRC_BADGE_STYLE = "display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);background:var(--rail);border-radius:8px;padding:2px 8px;white-space:nowrap;margin-left:auto;cursor:default";
+  const SRC_BADGE_STYLE = "display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;color:var(--muted);background:var(--sub);border-radius:999px;padding:2px 8px;white-space:nowrap;margin-left:auto;cursor:default";
   const SRC_BADGE_ICON_STYLE = "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1";
   function srcBadge(item) {
     const types = item.srcTypes && item.srcTypes.length > 1 ? item.srcTypes : [item.srcType || "mail"];
@@ -412,7 +466,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* Some threads have an unread message from the middle of the history —
          we open exactly that one, not the newest. */
       const entry = { piotr: 2 };
-      const patch = { threadId: id, mailAnswer: false, cameFrom: this.state.cameFrom && id === "contoso", mailPane: "thread", threadOpen: true, unread: unread,
+      const patch = { threadId: id, mailAnswer: false, replyDock: null, cameFrom: this.state.cameFrom && id === "contoso", mailPane: "thread", threadOpen: true, unread: unread,
         activeMsg: Object.assign({}, this.state.activeMsg, { [id]: typeof entry[id] === "number" ? entry[id] : null }),
         histOpen: Object.assign({}, this.state.histOpen, { [id]: !!this.state.autoExpand }) };
       patch.msgLoading = true;
@@ -568,7 +622,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        ponytail: the held value is read by the whole render, so anything else gated on the same key (the FAB waits on
        `compose`) follows it 240 ms late; a per-surface snapshot is the upgrade if that ever shows. */
     static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "sideDrawer", "compose", "settings",
-      "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading"];
+      "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock"];
     static MOTION_PANES = ["mailPane", "casePane", "peoplePane"];
     static MOTION_EXIT_MS = 240;
 
@@ -616,7 +670,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        going back across one closes everything still standing, the way the client's change of destination does.
        ponytail: steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
     static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
-      "more", "aiSum", "moveFor", "newFolder", "remFor", "event", "ctxMenu"];
+      "more", "aiSum", "moveFor", "newFolder", "remFor", "event", "ctxMenu", "replyDock"];
 
     backSteps = (state) => {
       const FR = FRAMES[this.props.layout ?? "auto"] || null;
@@ -1069,7 +1123,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* Three readings at most — the modal is a summary, not a second copy of the thread. */
       if (th.ai && cards.length < 3) cards.push({ heading: "What this is about", claim: th.ai, why: "This is the reading the message list shows - it comes from the subject and the opening of the message.", idx: 0 });
       return cards.slice(0, 3).map(c => ({
-        heading: c.heading, claim: c.claim, why: "Why: " + c.why,
+        heading: c.heading, claim: c.claim, why: c.why,
         model: "Model - mailfathom-email-enrichment",
         quote: msgs[c.idx] || msgs.join(" ") || th.subject,
         showSrc: msgs.length > 1,
@@ -1318,7 +1372,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     goScreen = (id, patch) => {
       /* The first entry into mail starts with an empty panel; after that the open message
          is remembered for the session (in-memory state - gone when the app closes). */
-      const p = Object.assign({ screen: id }, patch || {});
+      const p = Object.assign({ screen: id, replyDock: null }, patch || {});
       /* Entering mail from another screen = fetching the list from the server. */
       if (id === "mail" && this.state.screen !== "mail") {
         if (p.mailPane === "thread") { p.msgLoading = true; this.loadMsg(); }
@@ -1832,13 +1886,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const ready = bstate === "ready" || bstate === "partial";
 
       const icon = (size, color) => "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:" + size + "px;line-height:1;flex:0 0 auto;color:" + color;
-      const rowGap = isMobile ? 8 : 9;
-      const fieldRow = "display:flex;gap:10px;align-items:baseline";
-      const kStyle = "flex:0 0 " + (isMobile ? 66 : 78) + "px;font-size:12px;color:var(--muted);font-weight:600";
-      const vStyle = "flex:1;min-width:0;font-size:14px;color:var(--text);text-wrap:pretty";
-      const btn = (variant) => "display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:8px;font-size:14px;white-space:nowrap;" +
-        (isMobile ? "width:100%;min-height:44px;padding:0 16px;" : "padding:9px 15px;") +
-        (variant === "primary" ? "font-weight:600;color:var(--onaccent);background:var(--accent);border:1px solid var(--accent);" : "color:var(--text2);background:var(--panel);border:1px solid var(--border2);");
+      const tone = declined ? "declined" : phase === "pending" ? "pending" : "settled";
+      const kStyle = "font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--muted);font-weight:500";
+      const vStyle = "min-width:0;font-size:14px;color:var(--text);text-wrap:pretty";
+      const btn = (variant) => BLK.btn(isMobile, variant === "primary");
+      const iconTile = (bg, color) => "display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:" + bg + ";font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:" + color;
       const keyer = (run) => (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); run(); } };
 
       /* Controls only exist while the proposal is live and the block actually came back. */
@@ -1872,14 +1924,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         label: n.label, icon: n.icon, aria: n.label + " - leaves the conversation, you can come straight back",
         run: () => this.goLook(n), key: keyer(() => this.goLook(n)),
         iconStyle: icon(16, "var(--muted)"),
-        style: "display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border2);border-radius:999px;background:transparent;color:var(--text2);font-size:13px;white-space:nowrap;" +
-          (isMobile ? "min-height:44px;padding:0 14px;" : "padding:6px 12px;"),
+        style: BLK.link(isMobile),
       }));
 
-      const chip = phase === "pending" ? { icon: "help", label: "needs confirmation" }
-        : failed ? { icon: "error", label: "not done" }
-        : accepted ? { icon: "check_circle", label: "done" }
-        : declined ? { icon: "block", label: "declined" } : null;
+      const chip = phase === "pending" ? { icon: "help", label: "needs confirmation", kind: "pending" }
+        : failed ? { icon: "error", label: "not done", kind: "failed" }
+        : accepted ? { icon: "check_circle", label: "done", kind: "done" }
+        : declined ? { icon: "block", label: "declined", kind: "declined" } : null;
 
       const fields = b.type === "event" ? [
         { k: "When", v: b.when }, { k: "Duration", v: b.duration }, { k: "Attendees", v: b.attendees }, { k: "From", v: "thread “" + (b.from || "") + "”" },
@@ -1890,40 +1941,38 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       ] : [];
 
       const cols = (b.cols || []).length;
+      /* Cells carry the column gap as their own right padding, so a row's hairline runs unbroken. */
+      const cellPad = (ci) => "padding-right:" + (ci === cols - 1 ? 0 : isMobile ? 16 : 24) + "px;";
       const cells = b.type === "facttable"
-        ? (b.cols || []).map(c => ({ t: c, style: "font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);padding:0 0 7px 0;border-bottom:1px solid var(--line2);white-space:nowrap;font-weight:600" }))
+        ? (b.cols || []).map((c, ci) => ({ t: c, style: BLK.label + ";padding-bottom:8px;border-bottom:1px solid var(--line);white-space:nowrap;" + cellPad(ci) }))
           .concat([].concat.apply([], (b.rows || []).map((r, ri) => r.map((c, ci) => ({
             t: c,
-            style: "font-size:13px;padding:8px 0;white-space:nowrap;" + (ci === 0 ? "font-weight:600;" : "color:var(--text2);") + (ri ? "border-top:1px solid var(--line2);" : ""),
+            style: "font-size:13.5px;padding-top:9px;padding-bottom:9px;white-space:nowrap;" + cellPad(ci) + (ci === 0 ? "font-weight:600;color:var(--text);" : "color:var(--text2);") + (ri ? "border-top:1px solid var(--line2);" : ""),
           })))))
         : [];
 
       return {
         label: LABEL[b.type] || "Block",
         meta: b.meta || "",
-        cardStyle: "display:flex;flex-direction:column;gap:" + rowGap + "px;border-radius:12px;padding:" + (isMobile ? "12px 13px" : "13px 15px") + ";" +
-          /* The thread itself is flat, so the blocks carry the separation: they sit on panel with a
-             visible edge instead of melting into the page. */
-          (declined ? "border:1px dashed var(--border2);background:transparent;"
-            : phase === "pending" ? "border:1px solid var(--accent-line);background:var(--accent-soft);box-shadow:0 1px 2px var(--sh-1);"
-            : "border:1px solid var(--border2);background:var(--panel);box-shadow:0 1px 2px var(--sh-1);")
-          + (b.anim ? "animation:mfblkin 0.52s cubic-bezier(0.22,0.61,0.36,1) both;" : ""),
-        headStyle: "display:flex;align-items:center;gap:9px;flex-wrap:wrap",
-        labelStyle: "font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600",
-        metaStyle: "font-size:11px;color:var(--faint)",
+        /* The thread itself is flat, so the blocks carry the separation: they sit on panel with a
+           visible edge instead of melting into the page. */
+        cardStyle: BLK.card(isMobile, tone) + (b.anim ? "animation:mfblkin 0.52s cubic-bezier(0.22,0.61,0.36,1) both;" : ""),
+        headStyle: BLK.head,
+        icon: BLK_ICON[b.type] || "widgets",
+        tileStyle: BLK.tile(tone),
+        glyphStyle: BLK.glyph,
+        labelStyle: BLK.title,
+        metaStyle: BLK.meta,
         hasChip: !!chip,
         chipLabel: chip ? chip.label : "",
         chipIcon: chip ? chip.icon : "",
         chipIconStyle: icon(14, "inherit"),
-        chipStyle: "margin-left:auto;display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 9px;font-size:11px;white-space:nowrap;" +
-          (phase === "pending" ? "color:var(--accent-d);background:var(--panel);border:1px solid var(--accent-line);"
-            : failed ? "color:var(--text);background:var(--hl);border:1px solid var(--hl-line);"
-            : "color:var(--muted);background:var(--sub);border:1px solid var(--border2);"),
+        chipStyle: BLK.chip(chip ? chip.kind : ""),
 
         isDeclined: declined,
         showBody: !declined,
         declinedStyle: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted)",
-        declinedIconStyle: icon(16, "var(--muted)"),
+        declinedIconStyle: "display:none",
         strikeStyle: "text-decoration:line-through;min-width:0",
         declinedWord: "Declined",
         declinedNote: "nothing was done",
@@ -1933,19 +1982,19 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         isEmpty: bstate === "empty",
         isPartial: bstate === "partial",
         ready: ready,
-        skel: [96, 74, 58].map(w => ({ style: SHIM + "height:11px;border-radius:6px;width:" + w + "%" })),
-        emptyBodyStyle: "display:flex;flex-direction:column;align-items:flex-start;gap:7px;padding:4px 0 2px 0",
-        emptyIconStyle: icon(20, "var(--faint)"),
-        errIconStyle: icon(20, "var(--hl-line)"),
+        skel: [92, 76, 54].map(w => ({ style: SHIM + "height:10px;border-radius:5px;width:" + w + "%" })),
+        emptyBodyStyle: "display:flex;align-items:center;gap:12px;flex-wrap:wrap",
+        emptyIconStyle: iconTile("var(--sub)", "var(--faint)"),
+        errIconStyle: iconTile("var(--warn-soft)", "var(--warn)"),
         emptyIcon: b.type === "draft" ? "edit_note" : b.type === "task" ? "task_alt" : b.type === "event" ? "event_busy" : "find_in_page",
-        emptyTextStyle: "font-size:13px;color:var(--muted);text-wrap:pretty",
+        emptyTextStyle: "flex:1 1 200px;min-width:0;font-size:13.5px;color:var(--text2);text-wrap:pretty",
         emptyText: b.emptyText || "Nothing came back for this one.",
         errorText: b.errorText || "This block could not be built.",
         retry: () => this.retryBk(key),
         retryKey: keyer(() => this.retryBk(key)),
         retryAria: "Try again: " + (LABEL[b.type] || "block").toLowerCase(),
         retryStyle: btn("quiet"),
-        noteStyle: "display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)",
+        noteStyle: "display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);background:var(--sub);border-radius:8px;padding:7px 10px",
         noteIconStyle: icon(16, "var(--muted)"),
         partialNote: b.partialNote || "Still being read - more may appear.",
 
@@ -1957,82 +2006,92 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         isDraft: b.type === "draft",
         isProposal: b.type === "event" || b.type === "task" || b.type === "action",
 
-        tlWrapStyle: isMobile ? "display:flex;flex-direction:column;gap:0" : "display:flex;gap:0;overflow:auto",
-        items: b.type === "timeline" ? (b.items || []).map((t, i) => ({
+        tlWrapStyle: isMobile ? "display:flex;flex-direction:column;gap:0;padding-top:2px" : "display:flex;gap:0;overflow-x:auto;padding-top:2px",
+        items: b.type === "timeline" ? (b.items || []).map((t, i, all) => ({
           date: t.date, title: t.title, detail: t.detail,
-          style: isMobile
-            ? "display:flex;flex-direction:column;gap:2px;border-top:2px solid var(--border2);padding:8px 0 10px 0"
-            : "flex:1;min-width:110px;display:flex;flex-direction:column;gap:3px;border-top:2px solid var(--border2);padding:8px 12px 2px 0",
-          dateStyle: "font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--muted)",
-          titleStyle: "font-size:13px;font-weight:600;text-wrap:pretty",
-          detailStyle: "font-size:12px;color:var(--faint);text-wrap:pretty",
+          style: BLK.tlItem(isMobile, i === all.length - 1),
+          lineStyle: BLK.tlLine(isMobile, i === all.length - 1),
+          dotStyle: BLK.tlDot(isMobile),
+          dateStyle: BLK.tlDate,
+          titleStyle: BLK.tlTitle,
+          detailStyle: BLK.tlDetail,
         })) : b.type === "evidence" ? (b.items || []).map((e, i) => ({
           n: e.n, source: e.source, snippet: e.snippet, relevance: e.relevance, freshness: e.freshness,
           isPrivate: !!e.private, hasSnippet: !e.private && !!e.snippet,
           badge: e.badge,
-          style: "display:flex;flex-direction:column;gap:5px;padding:9px 0;" + (i ? "border-top:1px solid var(--line2);" : ""),
-          nStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:6px;font-size:11px;color:var(--accent-d);background:var(--panel);border:1px solid var(--accent-line)",
-          badgeStyle: "font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:2px 6px;white-space:nowrap;font-weight:600",
-          privStyle: "font-size:13px;color:var(--faint);font-style:italic;text-wrap:pretty",
-          snipStyle: "font-size:13px;color:var(--text2);text-wrap:pretty",
-          subStyle: "font-size:12px;color:var(--faint)",
+          style: "display:flex;flex-direction:column;gap:7px;padding:" + (i ? 12 : 2) + "px 0 12px 0;" + (i ? "border-top:1px solid var(--line2);" : ""),
+          nStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;box-sizing:border-box;border-radius:6px;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--accent-d);background:var(--accent-soft)",
+          badgeStyle: "font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:500;color:var(--muted);background:var(--sub);border-radius:999px;padding:2px 8px;white-space:nowrap",
+          /* The quote and its provenance line up under the source's name rather than under its number. */
+          privStyle: "margin-left:" + (isMobile ? 0 : 28) + "px;font-size:13px;line-height:1.5;color:var(--faint);font-style:italic;text-wrap:pretty",
+          snipStyle: "margin-left:" + (isMobile ? 0 : 28) + "px;font-size:13.5px;line-height:1.5;color:var(--text2);border-left:2px solid var(--accent-line);padding:1px 0 1px 11px;text-wrap:pretty",
+          subStyle: "margin-left:" + (isMobile ? 0 : 28) + "px;font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint)",
         })) : b.type === "attachments" ? (b.items || []).map((f, i) => ({
           name: f.name, meta: f.meta, icon: f.icon,
-          style: "display:flex;align-items:center;gap:10px;padding:8px 0;" + (i ? "border-top:1px solid var(--line2);" : ""),
-          iconStyle: icon(20, "var(--muted)"),
+          style: "display:flex;align-items:center;gap:12px;padding:" + (i ? 10 : 2) + "px 0 10px 0;" + (i ? "border-top:1px solid var(--line2);" : ""),
+          iconStyle: iconTile("var(--sub)", "var(--text2)") + ";box-shadow:inset 0 0 0 1px var(--line2)",
           nameStyle: "font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
-          metaStyle: "font-size:12px;color:var(--faint)",
+          metaStyle: "font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint)",
         })) : [],
 
-        colsStyle: isMobile ? "display:flex;flex-direction:column;gap:12px" : "display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px",
+        colsStyle: isMobile ? "display:flex;flex-direction:column;gap:16px" : "display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px",
         stateCols: (b.cols || []).map(c => ({
           label: c.label,
-          style: "display:flex;flex-direction:column;gap:6px;min-width:0",
-          labelStyle: "font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600",
+          style: "display:flex;flex-direction:column;gap:8px;min-width:0",
+          labelStyle: BLK.label + ";padding-bottom:7px;border-bottom:1px solid var(--line2)",
           items: (c.items || []).map(it => ({
             t: it.t,
-            style: "font-size:13px;line-height:1.45;text-wrap:pretty;border-left:2px solid " + (it.late ? "var(--hl-line)" : "var(--line)") + ";padding-left:8px;" + (it.late ? "color:var(--text);" : "color:var(--text2);"),
+            style: "font-size:13px;line-height:1.45;text-wrap:pretty;border-left:2px solid " + (it.late ? "var(--warn)" : "var(--border2)") + ";padding:1px 0 1px 10px;" + (it.late ? "color:var(--text);font-weight:500;" : "color:var(--text2);"),
           })),
         })),
 
         tableScrollStyle: "overflow-x:auto;max-width:100%",
-        tableStyle: "display:grid;grid-template-columns:repeat(" + (cols || 1) + ",max-content);gap:0 18px;min-width:min-content",
+        tableStyle: "display:grid;grid-template-columns:repeat(" + (cols || 1) + ",max-content);gap:0;min-width:min-content",
         cells: cells,
 
-        fields: fields.filter(f => !!f.v).map(f => ({ k: f.k, v: f.v, rowStyle: fieldRow, kStyle: kStyle, vStyle: vStyle })),
-        fieldsStyle: "display:flex;flex-direction:column;gap:5px",
-        propTitleStyle: "font-size:" + (isMobile ? 15 : 16) + "px;font-weight:600;letter-spacing:-0.01em;text-wrap:pretty",
+        fields: fields.filter(f => !!f.v).map(f => ({
+          k: f.k, v: f.v, kStyle: kStyle, vStyle: vStyle,
+          rowStyle: "display:grid;grid-template-columns:" + (isMobile ? 72 : 88) + "px minmax(0,1fr);gap:12px;align-items:baseline;padding:6px 0;border-top:1px solid var(--line2)",
+        })),
+        hasFields: fields.some(f => !!f.v),
+        fieldsStyle: "display:flex;flex-direction:column",
+        propTitleStyle: "font-size:" + (isMobile ? 15 : 16) + "px;font-weight:600;line-height:1.35;letter-spacing:-0.01em;text-wrap:pretty",
         title: b.title || "",
         hasConflict: !!b.conflict && !accepted,
         conflict: b.conflict || "",
-        conflictStyle: "display:flex;align-items:flex-start;gap:7px;font-size:13px;color:var(--text);background:var(--hl);border:1px solid var(--hl-line);border-radius:8px;padding:7px 9px;text-wrap:pretty",
-        conflictIconStyle: icon(16, "var(--hl-line)"),
+        conflictStyle: "display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.45;color:var(--warn-text);background:var(--warn-soft);border-radius:9px;padding:9px 11px;text-wrap:pretty",
+        conflictIconStyle: icon(16, "var(--warn)"),
         hasReason: !!b.reason,
         reason: b.reason || "",
-        reasonStyle: "font-size:13px;color:var(--text2);text-wrap:pretty",
+        reasonStyle: "font-size:13.5px;line-height:1.5;color:var(--text2);text-wrap:pretty",
         hasEffect: !!b.effect,
         effect: b.effect || "",
-        effectStyle: "display:flex;align-items:flex-start;gap:7px;font-size:13px;color:var(--muted);text-wrap:pretty",
+        effectStyle: "display:flex;align-items:flex-start;gap:7px;font-size:13px;line-height:1.45;color:var(--muted);text-wrap:pretty",
         effectIconStyle: icon(16, "var(--muted)"),
 
         editing: editing,
         notEditing: !editing,
         editText: editing ? editRaw : "",
         onEdit: (e) => this.editBk(key, true, e.target.value),
-        textareaStyle: "width:100%;box-sizing:border-box;min-height:" + (isMobile ? 150 : 130) + "px;resize:vertical;font-family:inherit;font-size:14px;line-height:1.6;color:var(--text);background:var(--sub);border:1px solid var(--accent-line);border-radius:8px;padding:10px 12px",
-        paras: (b.paras || []).map(p => ({ t: p, style: "font-size:14px;line-height:1.6;color:var(--text2);text-wrap:pretty" })),
+        /* The draft reads as a letter: its paragraphs sit in one well, and editing swaps the well for a field of the same shape. */
+        letterStyle: "display:flex;flex-direction:column;gap:10px;background:var(--sub);border:1px solid var(--line2);border-radius:10px;padding:" + (isMobile ? "12px 13px" : "14px 16px"),
+        textareaStyle: "width:100%;box-sizing:border-box;min-height:" + (isMobile ? 150 : 130) + "px;resize:vertical;font-family:inherit;font-size:14px;line-height:1.6;color:var(--text);background:var(--sub);border:1px solid var(--accent-line);border-radius:10px;padding:" + (isMobile ? "12px 13px" : "14px 16px"),
+        paras: (b.paras || []).map(p => ({ t: p, style: "font-size:14px;line-height:1.6;color:var(--text);text-wrap:pretty" })),
 
+        hasFoot: controls.length > 0 || nav.length > 0 || (accepted && !declined),
+        footStyle: BLK.foot(isMobile, tone),
         hasControls: controls.length > 0,
         controls: controls,
-        controlsStyle: (isMobile ? "display:flex;flex-direction:column;gap:8px;" : "display:flex;gap:8px;flex-wrap:wrap;align-items:center;") + "border-top:1px solid var(--line2);padding-top:10px",
+        controlsStyle: isMobile ? "display:flex;flex-direction:column;gap:8px" : "display:flex;gap:8px;flex-wrap:wrap;align-items:center",
         hasResult: accepted && !declined,
         resultText: (st.bkResult || {})[key] || b.result || ((b.done || "Done") + " · " + this.hm()),
         resultIcon: failed ? "error" : "check_circle",
-        resultIconStyle: icon(16, failed ? "var(--hl-line)" : "var(--accent-d)"),
-        resultStyle: "display:flex;align-items:center;gap:7px;font-size:13px;color:" + (failed ? "var(--text)" : "var(--accent-d)") + ";text-wrap:pretty",
+        resultIconStyle: icon(16, failed ? "var(--warn)" : "var(--ok)"),
+        resultStyle: "display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;line-height:1.45;color:" + (failed ? "var(--warn-text)" : "var(--ok-text)") + ";text-wrap:pretty",
         hasNav: nav.length > 0,
         nav: nav,
-        navStyle: isMobile ? "display:flex;flex-direction:column;gap:8px" : "display:flex;gap:8px;flex-wrap:wrap",
+        /* The way out sits at the far end of the tray when anything stands beside it. */
+        navStyle: isMobile ? "display:flex;flex-direction:column;gap:8px" : "display:flex;gap:8px;flex-wrap:wrap" + (controls.length || accepted ? ";margin-left:auto" : ""),
       };
     };
 
@@ -2330,7 +2389,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const narrow = !isMobile && w < 1020;
       const railW = tablet ? 66 : 96;
       const touch = isMobile || tablet;
-      const notifFilter = st.notifFilter || "all";
+      const toastCompact = w < 900;
+      /* The centre opens on what the reader has not seen yet; *All* is one press away. */
+      const notifFilter = st.notifFilter || "unread";
       const notifAll = (st.notifs || NOTIFS).filter(n => !hid("notifs", n.id));
       const notifRead = st.notifRead || {};
       const notifUnreadCount = notifAll.filter(n => isNotifUnread(n, notifRead)).length;
@@ -2371,10 +2432,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
       const railBase = isMobile
         ? "flex:1;min-width:0;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:7px 2px;border-radius:16px;font-size:11px;"
-        : "display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;padding:" + (tablet ? 8 : 9) + "px 0;";
+        : "display:flex;flex-direction:column;align-items:center;gap:4px;width:calc(100% - 14px);box-sizing:border-box;border-radius:12px;padding:" + (tablet ? 8 : 9) + "px 0;";
       const activeStyle = isMobile
         ? "background:var(--accent-soft);color:var(--accent-d);font-weight:600;"
-        : "background:var(--accent-soft);color:var(--accent-d);border-right:3px solid var(--accent);";
+        : "background:var(--accent-soft);color:var(--accent-d);font-weight:600;";
       const idleColor = "color:var(--muted);";
       const myName = st.myName !== undefined ? st.myName : ME;
       const myPhoto = st.myPhoto || "";
@@ -2568,35 +2629,43 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       };
       const convRow = (c, isArchivedList) => {
         const lastMsg = c.msgs[c.msgs.length - 1];
+        const isOpen = c.id === (activeConv || {}).id;
+        /* On the phone the history covers the conversation, so picking one closes it. */
+        const openConv = () => this.setState(isMobile ? { convId: c.id, history: false } : { convId: c.id });
+        const rowPress = this.pressFor("convs", c.id, c.title || "New conversation", [
+          { icon: "check_box", label: "Select conversations", run: () => this.selStart("convs", c.id) },
+          { icon: "forum", label: "Open conversation", run: openConv },
+          { icon: isArchivedList ? "unarchive" : "archive", label: isArchivedList ? "Restore from archive" : "Archive", run: () => this.setState(s2 => ({ convs: (s2.convs || []).map(x => x.id === c.id ? Object.assign({}, x, { archived: !isArchivedList }) : x), convId: (!isArchivedList && s2.convId === c.id) ? null : s2.convId })) },
+          { icon: "delete", label: "Delete conversation", danger: true, run: () => this.setState({ deleteConvAsk: c.id }) },
+        ]);
+        const when = c.when || "today";
+        const day = when === "now" || when === "today" || /^\d{1,2}:\d{2}$/.test(when) ? "Today" : when === "yesterday" ? "Yesterday" : "Earlier";
         return {
           title: c.title || "New conversation",
-          when: c.when || "today",
+          /* The group already says yesterday; the row repeats only what the group does not. */
+          when: day === "Yesterday" && !isArchivedList ? "" : when,
+          day: day,
           preview: lastMsg ? lastMsg.text : "no messages",
-          activate: this.rowTap("convs", c.id, () => this.setState({ convId: c.id })),
-          press: this.pressFor("convs", c.id, c.title || "New conversation", [
-            { icon: "check_box", label: "Select conversations", run: () => this.selStart("convs", c.id) },
-            { icon: "forum", label: "Open conversation", run: () => this.setState({ convId: c.id }) },
-            { icon: isArchivedList ? "unarchive" : "archive", label: isArchivedList ? "Restore from archive" : "Archive", run: () => this.setState(s2 => ({ convs: (s2.convs || []).map(x => x.id === c.id ? Object.assign({}, x, { archived: !isArchivedList }) : x), convId: (!isArchivedList && s2.convId === c.id) ? null : s2.convId })) },
-            { icon: "delete", label: "Delete conversation", danger: true, run: () => this.setState({ deleteConvAsk: c.id }) },
-          ]),
+          activate: this.rowTap("convs", c.id, openConv),
+          press: rowPress,
+          /* One quiet control instead of an archive and a delete glyph on every row: it opens the
+             same menu a right-click or a long press does. */
           hasActions: !!c.id,
-          archiveIcon: isArchivedList ? "unarchive" : "archive",
-          archiveTitle: isArchivedList ? "Restore from archive" : "Archive",
-          toggleArchive: (e) => {
-            if (e && e.stopPropagation) e.stopPropagation();
-            this.setState(s2 => ({
-              convs: (s2.convs || []).map(x => x.id === c.id ? Object.assign({}, x, { archived: !isArchivedList }) : x),
-              convId: (!isArchivedList && s2.convId === c.id) ? null : s2.convId,
-            }));
-          },
-          askDelete: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.setState({ deleteConvAsk: c.id }); },
-          /* A readable list, not a stack of cards: hairline separation, the open one marked by an
-             accent edge and a tint. */
-          style: "display:flex;flex-direction:column;gap:2px;padding:9px 11px 10px 9px;border-radius:8px;border-left:3px solid " +
-            (c.id === (activeConv || {}).id ? "var(--accent);background:var(--accent-soft);" : "transparent;") +
-            (isSel("convs", c.id) ? "background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent);" : ""),
+          openMenu: (e) => { if (e && e.stopPropagation) e.stopPropagation(); rowPress.ctx(e); },
+          menuStyle: "flex:0 0 auto;width:" + (isMobile ? 36 : 24) + "px;height:" + (isMobile ? 36 : 24) + "px;margin:" + (isMobile ? "-6px -6px -6px 0" : "-3px -4px -3px 0") + ";display:flex;align-items:center;justify-content:center;border-radius:6px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--faint)",
+          /* A readable list, not a stack of cards: the open one carries a tint and an accent title. */
+          style: "display:flex;flex-direction:column;gap:3px;border-radius:10px;padding:" + (isMobile ? "11px 12px" : "8px 10px") + ";" +
+            (isOpen || isSel("convs", c.id) ? "background:var(--accent-soft);" : "") +
+            (isSel("convs", c.id) ? "box-shadow:inset 0 0 0 1px var(--accent-line);" : ""),
+          titleStyle: "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:" + (isMobile ? 15 : 13) + "px;line-height:1.35;" +
+            (isOpen ? "font-weight:600;color:var(--accent-d);" : "font-weight:500;color:var(--text);"),
+          whenStyle: "flex:0 0 auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;color:" + (isOpen ? "var(--accent-d)" : "var(--faint)"),
+          previewStyle: "font-size:" + (isMobile ? 13 : 12) + "px;line-height:1.4;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
         };
       };
+      const convGroups = (rows) => ["Today", "Yesterday", "Earlier"]
+        .map(d => ({ label: d, rows: rows.filter(r => r.day === d) }))
+        .filter(g => g.rows.length);
       const person = allContacts.find(c => c.id === st.personId) || allContacts[0];
       const personAi = CONTACT_AI[person.id] || {};
       const evStyle = (kind) => "display:flex;flex-direction:column;gap:3px;border-radius:8px;padding:8px 11px;border:1px solid " + (kind === "deadline"
@@ -2852,7 +2921,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* The nav scrolls on short viewports; the bottom cluster (demo, bell, avatar) stays pinned. */
         railNavStyle: isMobile
           ? "flex:1;min-width:0;display:flex;flex-direction:row;align-items:stretch;justify-content:space-between;gap:3px"
-          : "flex:1 1 auto;width:100%;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;align-items:center;gap:" + (narrow ? 10 : 14) + "px",
+          : "flex:1 1 auto;width:100%;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;align-items:center;gap:" + (narrow ? 2 : 4) + "px",
         railCasesStyle: (isMobile ? "display:none;" : railBase + (st.screen === "cases" ? activeStyle : idleColor)),
         goCases: () => this.goScreen("cases", { casePane: "list" }),
         isCases: st.screen === "cases" && !emptyApp,
@@ -3034,7 +3103,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             (c.id === (activeConv || {}).id ? "var(--line);border-bottom-color:var(--sub);background:var(--panel);color:var(--text);" : "transparent;background:transparent;color:var(--muted);"),
           titleStyle: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" + (c.id === (activeConv || {}).id ? "font-weight:600;" : ""),
         })),
-        agentNewConv: () => this.setState({ convId: null, agentInput: "", agentThinking: false }),
+        agentNewConv: () => this.setState(isMobile ? { convId: null, agentInput: "", agentThinking: false, history: false } : { convId: null, agentInput: "", agentThinking: false }),
         historyOpen: st.history == null ? !isMobile : !!st.history,
         historyLabel: isMobile ? "" : "History",
         toggleHistory: () => this.setState(s2 => ({ history: !s2.history })),
@@ -3044,9 +3113,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         resetHistoryResize: () => this.setState({ historyPanelW: 250 }),
         historyCloseShown: isMobile,
         historyPanelStyle: isMobile
-          ? "position:absolute;inset:0;z-index:45;display:flex;flex-direction:column;gap:1px;overflow:auto;background:var(--rail);padding:14px 12px 18px"
-          : "width:" + Math.max(200, Math.min(480, st.historyPanelW || 250)) + "px;flex:0 0 " + Math.max(200, Math.min(480, st.historyPanelW || 250)) + "px;display:flex;flex-direction:column;gap:1px;overflow:auto;background:var(--rail);border-right:1px solid var(--line);padding:14px 10px",
-        convHistory: (activeConvList.length ? activeConvList : [{ id: null, title: "New conversation", when: "now", msgs: [] }]).filter(matchesHistQuery).slice().reverse().map(c => convRow(c, false)),
+          ? "position:absolute;inset:0;z-index:45;display:flex;flex-direction:column;gap:1px;overflow:auto;background:var(--rail);padding:12px 12px 18px"
+          : "width:" + Math.max(200, Math.min(480, st.historyPanelW || 250)) + "px;flex:0 0 " + Math.max(200, Math.min(480, st.historyPanelW || 250)) + "px;display:flex;flex-direction:column;gap:1px;overflow:auto;scrollbar-width:thin;background:var(--rail);border-right:1px solid var(--line);padding:14px 10px",
+        convHistoryGroups: convGroups((activeConvList.length ? activeConvList : [{ id: null, title: "New conversation", when: "now", msgs: [] }]).filter(matchesHistQuery).slice().reverse().map(c => convRow(c, false))),
+        historyCount: activeConvList.length,
+        historyEmpty: !!histQuery && !activeConvList.filter(matchesHistQuery).length,
+        historySearchStyle: "flex:0 0 auto;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:0 10px;height:" + (isMobile ? 44 : 34) + "px;margin:" + (isMobile ? "4px 0 16px" : "2px 0 12px"),
+        historyGroupLabelStyle: "font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--faint);padding:" + (isMobile ? "10px 12px 6px" : "8px 10px 4px"),
         hasArchived: archivedConvList.length > 0,
         archivedCount: archivedConvList.length,
         archiveSectionOpen: !!st.historyArchiveOpen,
@@ -3181,18 +3254,33 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         resultMainStyle: isMobile
           ? "display:flex;flex-direction:column;gap:12px;padding:14px;min-width:0"
           : "flex:1;display:flex;flex-direction:column;gap:14px;padding:20px 24px;overflow:auto;min-width:0",
-        timelineRowStyle: isMobile ? "display:flex;flex-direction:column;gap:0" : "display:flex;gap:0",
-        tlItemStyle: isMobile
-          ? "display:flex;flex-direction:column;gap:3px;border-top:2px solid var(--border2);padding:9px 0 11px 0"
-          : "flex:1;display:flex;flex-direction:column;gap:5px;border-top:2px solid var(--border2);padding:10px 14px 0 0",
+        timelineRowStyle: isMobile ? "display:flex;flex-direction:column;gap:0;padding-top:2px" : "display:flex;gap:0;overflow-x:auto;padding-top:2px",
+        /* Discover's result blocks wear the same chrome as the Agent's (`BLK`). */
+        blk: {
+          card: BLK.card(isMobile, "settled"),
+          pendingCard: BLK.card(isMobile, "pending"),
+          head: BLK.head,
+          tile: BLK.tile("settled"),
+          accentTile: BLK.tile("accent"),
+          glyph: BLK.glyph,
+          title: BLK.title,
+          meta: BLK.meta,
+          label: BLK.label,
+          pendingChip: BLK.chip("pending"),
+          chipGlyph: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1",
+          pendingFoot: BLK.foot(isMobile, "pending"),
+          primaryBtn: BLK.btn(isMobile, true),
+          quietBtn: BLK.btn(isMobile, false),
+          propTitle: "font-size:" + (isMobile ? 15 : 16) + "px;font-weight:600;line-height:1.35;letter-spacing:-0.01em;text-wrap:pretty",
+          answerText: "font-size:" + (isMobile ? 16 : 17) + "px;line-height:1.6;color:var(--text);text-wrap:pretty",
+          tlDate: BLK.tlDate,
+          tlTitle: BLK.tlTitle,
+          tlDetail: BLK.tlDetail,
+        },
         tableGridStyle: "display:grid;grid-template-columns:1.3fr 1fr 0.8fr 1.4fr;gap:0" + (isMobile ? ";min-width:540px" : ""),
         galleryGridStyle: isMobile
           ? "display:grid;grid-template-columns:repeat(2,1fr);gap:10px"
           : "display:grid;grid-template-columns:repeat(4,1fr);gap:10px",
-        actionRowStyle: isMobile
-          ? "display:flex;flex-direction:column;align-items:flex-start;gap:12px;background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:14px 16px"
-          : "display:flex;align-items:center;gap:14px;background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:14px 18px",
-        actionBtnsStyle: isMobile ? "display:flex;gap:9px;flex-wrap:wrap" : "margin-left:auto;display:flex;gap:9px",
 
         inspectorPanelStyle: isMobile
           ? (evObj
@@ -3292,7 +3380,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         answerReady: !!ready.answer,
         answerParts: plan ? plan.parts.map(p => ({ text: p.text, cite: p.cite, open: openEv(p.cite) })) : [],
         timelineReady: !!ready.timeline,
-        timeline: plan && plan.timeline ? plan.timeline.map(t => ({ date: t.date, title: t.title, detail: t.detail, open: openEv(t.cite) })) : [],
+        timeline: plan && plan.timeline ? plan.timeline.map((t, i, all) => ({
+          date: t.date, title: t.title, detail: t.detail, open: openEv(t.cite),
+          style: BLK.tlItem(isMobile, i === all.length - 1), lineStyle: BLK.tlLine(isMobile, i === all.length - 1), dotStyle: BLK.tlDot(isMobile),
+        })) : [],
         tableReady: !!ready.table,
         table: plan && plan.table ? plan.table.map(r => {
           const cell = (value, cite, isLast) => ({
@@ -3335,8 +3426,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         toggleSide: drawer
           ? (() => this.setState({ sideDrawer: false }))
           : (() => this.setState(s2 => ({ sideCollapsed: !s2.sideCollapsed }))),
-        sideToggleIcon: drawer ? "close" : sideCollapsed ? "chevron_right" : "chevron_left",
-        sideToggleTitle: drawer ? "Close folders" : sideCollapsed ? "Expand the mailbox panel" : "Collapse the mailbox panel",
+        /* The panel's show/hide control leads the mail toolbar, kept apart from *New message* by a
+           rule, so a long folder tree never scrolls it away. The drawer closes from its own head. */
+        sideToggleIcon: sideCollapsed ? "left_panel_open" : "left_panel_close",
+        sideToggleTitle: sideCollapsed ? "Show folders and filters" : "Hide folders and filters",
+        sideDrawerHead: drawer,
+        sideToggleShown: !drawer && st.screen === "mail",
+        sideScrollStyle: "flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;display:flex;flex-direction:column;gap:4px;" + (drawer ? "padding:4px 14px 16px" : sideCollapsed ? "padding:12px 9px" : "padding:14px 14px 12px"),
+        sideToggleBtnStyle: "flex:0 0 auto;width:" + (touch ? 38 : 32) + "px;height:" + (touch ? 38 : 32) + "px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1",
         showSide: !drawer || drawerOpen,
         sideScrim: drawer && drawerOpen,
         closeDrawer: () => this.setState({ sideDrawer: false }),
@@ -3394,19 +3491,21 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         openFolders: () => this.setState({ sideDrawer: true }),
         folderBtnStyle: "flex:0 0 auto;width:" + (isMobile ? 48 : 36) + "px;height:" + (isMobile ? 48 : 36) + "px;display:flex;align-items:center;justify-content:center;border-radius:" + (isMobile ? 12 : 8) + "px;color:var(--text2);background:var(--rail);border:1px solid var(--line)",
         sideStyle: drawer
-          ? "position:fixed;top:0;bottom:0;left:0;width:262px;z-index:80;display:flex;flex-direction:column;gap:4px;overflow:auto;background:var(--panel);border-right:1px solid var(--line);padding:16px 14px;box-shadow:0 0 40px var(--sh-3)"
+          ? "position:fixed;top:0;bottom:0;left:0;width:262px;z-index:80;display:flex;flex-direction:column;min-height:0;background:var(--panel);border-right:1px solid var(--line);box-shadow:0 0 40px var(--sh-3)"
           : sideCollapsed
-          ? "width:58px;flex:0 0 58px;display:flex;flex-direction:column;gap:4px;background:var(--sub);border-right:1px solid var(--line);padding:12px 9px"
-          : "width:" + sideW + "px;flex:0 0 " + sideW + "px;display:flex;flex-direction:column;gap:4px;background:var(--sub);border-right:1px solid var(--line);padding:16px 14px",
+          ? "width:58px;flex:0 0 58px;display:flex;flex-direction:column;min-height:0;background:var(--sub);border-right:1px solid var(--line)"
+          : "width:" + sideW + "px;flex:0 0 " + sideW + "px;display:flex;flex-direction:column;min-height:0;background:var(--sub);border-right:1px solid var(--line)",
         showSideResizer: !drawer && !sideCollapsed && !isMobile,
         startSideResize: this.beginSideResize,
         resetSideResize: () => this.setState({ sideW: 210 }),
-        sideTopStyle: sideCollapsed
-          ? "display:flex;align-items:center;justify-content:center;height:30px;border-radius:8px;margin-bottom:4px"
-          : "display:flex;align-items:center;gap:8px;padding:4px 11px 8px 11px;border-radius:8px",
         filtersWrapStyle: sideCollapsed
-          ? "margin-top:12px;display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--line);padding-top:12px"
-          : "margin-top:16px;display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:14px",
+          ? "flex:0 0 auto;display:flex;flex-direction:column;gap:3px;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:8px"
+          : "flex:0 0 auto;display:flex;flex-direction:column;gap:2px;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:8px",
+        sideCollapsedView: sideCollapsed,
+        aiFiltersOpen: st.aiFiltersOpen !== false,
+        aiFiltersChevron: st.aiFiltersOpen !== false ? "expand_more" : "chevron_right",
+        aiFiltersTitle: st.aiFiltersOpen !== false ? "Collapse AI filters" : "Show AI filters",
+        toggleAiFilters: () => this.setState(s2 => ({ aiFiltersOpen: s2.aiFiltersOpen === false })),
         sideGroups: [{ key: "all", label: UNIFIED_ACCOUNTS.label, title: UNIFIED_ACCOUNTS.title, dot: UNIFIED_ACCOUNTS.dot, folders: STD_FOLDERS(UNIFIED_ACCOUNTS.counts, true) }]
           .concat(ACCOUNTS.map(a => ({ key: a.key, label: a.label, title: a.address, dot: a.dot, folders: STD_FOLDERS(a.counts) })))
           .map(g => {
@@ -3415,16 +3514,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           return {
             label: g.label, title: g.title, open, chevron: open ? "expand_more" : "chevron_right",
             showHeader: !sideCollapsed, showDot: sideCollapsed,
-            /* Creating a folder is drawn, not hidden in a right-click: the unified view has no
-               server of its own, so only real accounts get the row. */
-            canAdd: g.key !== "all",
-            expanded: !sideCollapsed,
-            newFolder: () => this.openNewFolder(g.key, g.label),
-            newFolderStyle: sideCollapsed
-              ? "display:flex;align-items:center;justify-content:center;height:34px;border-radius:8px;color:var(--accent-d)"
-              : "display:flex;align-items:center;gap:10px;font-size:14px;color:var(--accent-d);border-radius:8px;padding:" + (isMobile ? "12px 11px" : "7px 11px") + ";margin-top:1px",
-            newFolderIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;text-align:center;" +
-              (sideCollapsed ? "font-size:22px;width:24px;" : "font-size:18px;width:20px;flex:0 0 20px;"),
             ctxOpen: press ? press.ctx : noop, pressDown: press ? press.down : noop, pressUp: press ? press.up : noop,
             toggle: () => this.setState(s2 => ({ accOpen: Object.assign({}, s2.accOpen, { [g.key]: !((s2.accOpen || {})[g.key] !== false) }) })),
             wrapStyle: sideCollapsed ? "display:flex;flex-direction:column;gap:3px;padding-bottom:7px" : "display:flex;flex-direction:column;gap:2px;padding-bottom:9px",
@@ -3504,7 +3593,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           icon: fl.icon, label: fl.label, expanded: !sideCollapsed, title: "AI filter: " + fl.label,
           style: sideCollapsed
             ? "display:flex;align-items:center;justify-content:center;height:34px;border-radius:8px;color:var(--muted)"
-            : "display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text2);padding:5px 11px;border-radius:8px",
+            : "display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text2);padding:7px 11px;border-radius:8px",
           iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;text-align:center;color:var(--muted);" + (sideCollapsed ? "font-size:24px;width:24px;" : "font-size:18px;width:20px;"),
         })),
 
@@ -4123,10 +4212,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         })),
         showComposerChips: !singlePane && !tablet,
         askThreadLabel: singlePane ? "Draft" : "Draft a reply",
-        askThreadBtnStyle: "display:flex;align-items:center;justify-content:center;flex:0 0 auto;white-space:nowrap;color:var(--onaccent);background:var(--accent);border-radius:" + (isMobile ? 999 : 8) + "px;" + (isMobile
-          ? "min-height:48px;padding:0 20px;font-size:14px;font-weight:600;"
-          : "padding:8px 15px;font-size:13px;"),
-        backToList: () => this.setState({ mailPane: "list" }),
+        composerPlaceholder: singlePane ? "Describe the reply…" : "Describe the reply you want to send…",
+        composerBarStyle: "flex:1;min-width:0;display:flex;align-items:center;gap:10px;border:" + (singlePane ? "1px solid var(--accent-line)" : "2px solid var(--accent)") + ";background:var(--sub);border-radius:" + (isMobile ? 999 : 12) + "px;padding:" + (isMobile ? "4px 4px 4px 14px" : singlePane ? "4px 4px 4px 12px" : "6px 6px 6px 14px"),
+        composerPhStyle: "flex:1;min-width:0;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:" + (singlePane ? 14 : 15) + "px",
+        askThreadBtnStyle: "display:flex;align-items:center;justify-content:center;flex:0 0 auto;white-space:nowrap;color:var(--onaccent);background:var(--accent);font-weight:600;border-radius:" + (isMobile ? 999 : 7) + "px;" + (isMobile
+          ? "min-height:44px;padding:0 18px;font-size:14px;"
+          : "height:" + (singlePane ? 30 : 36) + "px;padding:0 " + (singlePane ? 13 : 16) + "px;font-size:13px;"),
+        backToList: () => this.setState({ mailPane: "list", replyDock: null }),
         threadListStyle: "position:relative;" + (singlePane
           ? "flex:1;display:flex;flex-direction:column;min-height:0;min-width:0"
           : "width:" + (tablet ? 284 : listW) + "px;flex:0 0 " + (tablet ? 284 : listW) + "px;display:flex;flex-direction:column;min-height:0"),
@@ -4185,16 +4277,36 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         ].map(a => ({ icon: a.icon, title: a.label, label: tbFull ? a.label : "", run: mailAct[a.icon], style: tbFull ? selBtn : tbIcon + ";flex:0 0 auto;color:var(--accent-d)" })),
         aiSumOpen: !!aiSumThread,
         aiSumSubject: aiSumThread ? aiSumThread.subject : "",
-        aiSumCards: aiSumThread ? this.aiSumCards(aiSumThread).map(c => Object.assign({}, c, {
-          cardStyle: "display:flex;flex-direction:column;gap:8px;background:var(--rail);border:1px solid var(--line2);border-radius:12px;padding:" + (isMobile ? "14px 14px" : "13px 15px"),
-          quoteStyle: "max-height:" + (isMobile ? 168 : 150) + "px;overflow:auto;font-size:13px;line-height:1.6;color:var(--text2);background:var(--panel);border-left:3px solid var(--line);border-radius:0 8px 8px 0;padding:10px 12px;text-wrap:pretty",
-        })) : [],
+        /* Wide: a reading and its passage side by side, one hairline between readings and no cards
+           inside the dialog. Phone and fold: the whole screen, stacked, the passage held to four lines. */
+        ...(() => {
+          const full = w < 900;
+          return {
+            aiSumCards: aiSumThread ? this.aiSumCards(aiSumThread) : [],
+            aiSumModel: "mailfathom-email-enrichment",
+            aiSumFootText: full ? "Quoted from this message alone" : "Read from this message alone - every reading quotes the passage it rests on.",
+            aiSumOverlayStyle: full
+              ? (isMobile ? this.ovStyle(97, true) : "position:fixed;inset:0;z-index:97;display:flex;align-items:stretch;justify-content:stretch;background:var(--scrim)")
+              : "position:fixed;inset:0;z-index:97;display:flex;align-items:center;justify-content:center;background:var(--scrim);padding:32px",
+            moAiSum: full ? "sheet" : "pop",
+            dlgAi: full
+              ? "box-sizing:border-box;width:100%;height:100%;display:flex;flex-direction:column;background:var(--panel);overflow:hidden"
+              : "width:" + (narrow ? 760 : 920) + "px;max-width:100%;max-height:min(86dvh, 860px);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 28px 64px var(--shadow);overflow:hidden",
+            aiSumHeadStyle: "flex:0 0 auto;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line);" + (full ? "padding:10px 10px 10px 16px" : "padding:18px 18px 16px 26px"),
+            aiSumGlyphStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:10px;background:var(--accent-soft);color:var(--accent-d);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;" + (full ? "width:32px;height:32px;font-size:18px" : "width:38px;height:38px;font-size:21px"),
+            aiSumTitleStyle: "font-weight:600;letter-spacing:-0.01em;" + (full ? "font-size:16px" : "font-size:18px"),
+            aiSumBodyStyle: "flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;" + (full ? "padding:4px 16px 16px" : "padding:6px 26px 18px"),
+            aiSumRowStyle: full
+              ? "display:flex;flex-direction:column;gap:10px;padding:14px 0;background:var(--panel)"
+              : "display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:28px;padding:22px 0;background:var(--panel)",
+            aiSumClaimStyle: "font-weight:600;line-height:1.35;text-wrap:balance;color:var(--text);" + (full ? "font-size:16px" : "font-size:19px;letter-spacing:-0.01em"),
+            aiSumQuoteStyle: "font-size:" + (full ? 13 : 14) + "px;line-height:1.6;color:var(--text2);background:var(--sub);border-left:2px solid var(--accent-line);border-radius:0 10px 10px 0;padding:" + (full ? "8px 11px" : "12px 16px") + ";text-wrap:pretty;" +
+              (full ? "display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden" : "max-height:180px;overflow:auto"),
+            aiSumSrcStyle: "align-self:flex-start;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--accent-d);border-radius:8px;padding:" + (touch ? "9px 8px" : "5px 8px") + ";margin-left:-8px",
+            aiSumFootStyle: "flex:0 0 auto;display:flex;align-items:center;gap:8px;border-top:1px solid var(--line);background:var(--sub);font-size:12px;color:var(--faint);" + (full ? "padding:9px 16px" : "padding:11px 26px"),
+          };
+        })(),
         closeAiSum: this.closeAiSum,
-        dlgAi: isMobile
-          ? "box-sizing:border-box;width:100%;height:100%;display:flex;flex-direction:column;background:var(--panel);overflow:hidden"
-          : "width:620px;max-width:100%;max-height:calc(100dvh - 44px);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 22px 52px var(--shadow);overflow:hidden",
-        aiSumHeadStyle: "display:flex;align-items:center;gap:10px;flex:0 0 auto;padding:" + (isMobile ? "16px 14px 13px" : "15px 16px 13px") + ";border-bottom:1px solid var(--line2)",
-        aiSumBodyStyle: "flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:13px;padding:" + (isMobile ? "14px 14px 24px" : "15px 16px 18px"),
         moveOpen: !!(st.moveFor && st.moveFor.length),
         moveTitle: st.moveFor ? "Move " + this.countWord(st.moveFor.length) : "",
         closeMove: this.closeMove,
@@ -4263,6 +4375,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         refreshBtnStyle: "position:relative;flex:0 0 auto;width:" + (tablet ? 30 : 34) + "px;height:" + (tablet ? 30 : 34) + "px;display:flex;align-items:center;justify-content:center;border-radius:12px;border:1px solid " +
           (st.refreshBusy ? "var(--accent-line);background:var(--accent-soft);color:var(--accent-d);" : "var(--line);background:var(--panel);color:var(--text2);") +
           "transition:background 140ms ease,color 140ms ease,border-color 140ms ease",
+        /* The phone's floating refresh steps aside while the reply drafter hangs over the same corner. */
+        refreshFabShown: isMobile && !(st.screen === "mail" && st.mailPane === "thread" && st.replyDock && !st.stateBarOff),
         refreshFabStyle: "position:fixed;left:12px;bottom:82px;z-index:70;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:12px;border:1px solid " +
           (st.refreshBusy ? "var(--accent-line);background:var(--accent-soft);color:var(--accent-d);" : "var(--line);background:var(--panel);color:var(--text2);") +
           "box-shadow:0 2px 8px var(--sh-2)",
@@ -4299,7 +4413,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
                 ? "transition:transform " + NG.springMs + "ms " + NG.springEase + ";"
                 : "transition:transform 300ms cubic-bezier(.32,.72,0,1);")
             : "transform:translateX(" + (notifIn ? "0" : "-102%") + ");transition:transform 260ms cubic-bezier(.3,.7,.1,1);"),
-        notifTabs: [{ k: "all", label: "All" }, { k: "unread", label: "Unread" + (notifUnreadCount ? " · " + notifUnreadCount : "") }].map(x => ({
+        notifTabs: [{ k: "unread", label: "Unread" + (notifUnreadCount ? " · " + notifUnreadCount : "") }, { k: "all", label: "All" }].map(x => ({
           label: x.label,
           pick: () => this.setState({ notifFilter: x.k }),
           style: "display:flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;font-size:13px;border:1px solid " +
@@ -4331,7 +4445,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               (notifAnim[n.id] === "in" ? "overflow:hidden;animation:mfrowin 480ms cubic-bezier(.22,1,.36,1) both;" : ""),
           };
         }),
-        toastWrapStyle: "position:fixed;z-index:97;top:" + (isMobile ? 12 : 18) + "px;" + (isMobile ? "left:12px;right:12px;" : "right:18px;width:min(400px,calc(100vw - 36px));") + "display:flex;flex-direction:column;gap:10px;pointer-events:none",
+        /* On the phone and the fold a toast is a slim strip at the top: it says one thing and goes. */
+        toastWrapStyle: "position:fixed;z-index:97;top:" + (toastCompact ? 8 : 18) + "px;" + (isMobile ? "left:8px;right:8px;" : toastCompact ? "left:50%;transform:translateX(-50%);width:min(440px,calc(100vw - 24px));" : "right:18px;width:min(400px,calc(100vw - 36px));") + "display:flex;flex-direction:column;gap:" + (toastCompact ? 6 : 10) + "px;pointer-events:none",
+        toastTitleStyle: "font-weight:600;color:var(--text);text-wrap:pretty;" + (toastCompact ? "font-size:14px;line-height:1.3;" : "font-size:15px;line-height:1.35;"),
+        toastBodyStyle: "color:var(--text2);text-wrap:pretty;" + (toastCompact ? "font-size:13px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;" : "font-size:14px;line-height:1.45;"),
+        toastTextStyle: "flex:1;min-width:0;display:flex;flex-direction:column;" + (toastCompact ? "gap:1px;padding:2px 0;" : "gap:4px;padding-top:2px;"),
+        toastActionStyle: "display:flex;align-items:center;border:1px solid var(--border2);border-radius:8px;font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;" + (toastCompact ? "flex:0 0 auto;align-self:center;min-height:36px;padding:0 12px;" : "align-self:flex-start;min-height:32px;margin-top:5px;padding:0 13px;"),
         toasts: (st.toasts || []).map(t => {
           const K = {
             neutral: ["info", "var(--text2)", "var(--hover)", "var(--border2)"],
@@ -4348,16 +4467,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             title: t.title,
             body: t.body,
             hasBody: !!t.body,
-            hasAction: !!t.actionLabel,
+            actionBelow: !!t.actionLabel && !toastCompact,
+            actionInline: !!t.actionLabel && toastCompact,
             actionLabel: t.actionLabel,
             action: t.onAction || this.undoOp,
             close: loading ? () => this.askCancelToast(t.id) : () => this.dismissToast(t.id),
             closeTitle: loading ? "Abort operation" : "Close",
             hasBar: !t.sticky && !t.out,
             barStyle: "position:absolute;left:0;right:0;bottom:0;height:2px;transform-origin:left;opacity:0.55;background:" + K[3] + ";animation:mftbar " + (t.ms || 5000) + "ms linear both",
-            iconWrapStyle: "flex:0 0 auto;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:" + K[2],
-            iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:22px;line-height:1;color:" + K[1] + (loading ? ";animation:mfspin 1.1s linear infinite" : ""),
-            style: "pointer-events:auto;position:relative;overflow:hidden;display:flex;align-items:flex-start;gap:12px;padding:13px 12px 15px 13px;border-radius:16px;background:var(--panel);border:1px solid var(--line);box-shadow:0 16px 38px var(--sh-2),0 2px 6px var(--sh-1);opacity:0.8;transition:opacity .15s ease;animation:" + (t.out ? "mftout .2s ease forwards" : "mftin .24s cubic-bezier(.2,.85,.3,1) backwards"),
+            iconWrapStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:" + K[2] + ";" + (toastCompact ? "width:28px;height:28px;border-radius:8px;" : "width:34px;height:34px;border-radius:12px;"),
+            iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;line-height:1;font-size:" + (toastCompact ? 18 : 22) + "px;color:" + K[1] + (loading ? ";animation:mfspin 1.1s linear infinite" : ""),
+            style: "pointer-events:auto;position:relative;overflow:hidden;display:flex;align-items:flex-start;" + (toastCompact ? "align-items:center;gap:10px;padding:6px 4px 6px 8px;border-radius:12px;" : "gap:12px;padding:13px 12px 15px 13px;border-radius:16px;") + "background:var(--panel);border:1px solid var(--line);box-shadow:0 16px 38px var(--sh-2),0 2px 6px var(--sh-1);opacity:" + (toastCompact ? 1 : 0.8) + ";transition:opacity .15s ease;animation:" + (t.out ? "mftout .2s ease forwards" : "mftin .24s cubic-bezier(.2,.85,.3,1) backwards"),
           };
         }),
         cancelAskOpen: !!st.cancelAsk,
@@ -4389,7 +4509,19 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* Condensed view: only the correspondence remains. On a narrow screen the header stays —
            mieszka w nim przycisk powrotu do listy. */
         showThreadHead: !st.stateBarOff || singlePane,
-        showComposerBar: !st.stateBarOff,
+        /* The reply drafter waits behind a floating button and comes up as a card hanging over the
+           thread, so the thread keeps its whole height until a reply is wanted. */
+        replyFabShown: !st.stateBarOff && !st.replyDock,
+        replyDockOpen: !st.stateBarOff && !!st.replyDock,
+        openReplyDock: () => this.setState({ replyDock: true }),
+        closeReplyDock: () => this.setState({ replyDock: null }),
+        replyFabLabel: isMobile ? "" : "Draft a reply",
+        replyFabStyle: "position:absolute;z-index:16;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--onaccent);background:var(--accent);font-weight:600;box-shadow:0 10px 26px var(--sh-3),0 2px 6px var(--sh-2);" +
+          (isMobile ? "right:16px;bottom:16px;width:56px;height:56px;border-radius:18px;" : "right:" + (singlePane ? 16 : 22) + "px;bottom:" + (singlePane ? 16 : 20) + "px;height:46px;padding:0 18px 0 15px;border-radius:14px;font-size:14px;"),
+        /* A round close badge hanging off the drafter's top-right corner. On touch it sits higher and the
+           card carries more room above its row, so the badge never lands on *Draft*. */
+        replyDockCloseStyle: "position:absolute;z-index:1;display:flex;align-items:center;justify-content:center;border-radius:50%;color:var(--text2);background:var(--panel);border:1px solid var(--line);box-shadow:0 4px 12px var(--sh-2);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;line-height:1;" +
+          (touch ? "top:-19px;right:-4px;width:32px;height:32px;font-size:18px;" : "top:-11px;right:-11px;width:26px;height:26px;font-size:16px;"),
         /* A reading that predates the conversation's newest message: a message joined or left after
            the state was derived, so the reading is held back instead of being shown out of date. */
         stateStale: !!thread.stateStale,
@@ -4466,12 +4598,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "margin-left:auto;font-size:12px;color:var(--accent-d);background:var(--accent-soft);border-radius:12px;padding:3px 10px"
           : "display:none",
         stateToggleLabel: st.stateOpen ? "hide" : "3 fields",
+        /* The bottom padding keeps the last line of the thread clear of the floating reply button. */
         threadBodyStyle: singlePane
-          ? "flex:1;display:flex;flex-direction:column;gap:10px;padding:12px;overflow:auto;min-height:0"
-          : "flex:1;display:flex;flex-direction:column;gap:12px;padding:18px 22px;overflow:auto;min-height:0",
-        composerStyle: singlePane || tablet
-          ? "display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding:9px 12px;background:var(--panel)"
-          : "display:flex;flex-direction:column;gap:9px;border-top:1px solid var(--line);padding:14px 22px;background:var(--panel)",
+          ? "flex:1;display:flex;flex-direction:column;gap:10px;padding:12px 12px " + (st.stateBarOff ? 12 : st.replyDock ? 96 : 84) + "px;overflow:auto;min-height:0"
+          : "flex:1;display:flex;flex-direction:column;gap:12px;padding:18px 22px " + (st.stateBarOff ? 18 : st.replyDock ? 150 : 86) + "px;overflow:auto;min-height:0",
+        composerStyle: "position:absolute;z-index:16;display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 44px var(--sh-3),0 2px 8px var(--sh-2);" +
+          (singlePane ? "left:10px;right:10px;bottom:10px;padding:" + (touch ? "16px 8px 8px" : "8px") : "left:18px;right:18px;bottom:16px;padding:12px"),
         backBannerStyle: isMobile
           ? "display:flex;flex-direction:column;gap:3px;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);padding:9px 14px"
           : "display:flex;align-items:center;gap:10px;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);padding:10px 22px",
@@ -4544,7 +4676,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         activeMessages: items,
         showExpandAll: false,
         showCitationTag: st.cameFrom && thread.id === "contoso",
-        askThread: () => this.setState({ mailAnswer: true }),
+        askThread: () => this.setState({ mailAnswer: true, replyDock: null }),
         closeMailAnswer: () => this.setState({ mailAnswer: false }),
         mailAnswer: st.mailAnswer && thread.id === "contoso",
         aiHints,
@@ -4718,33 +4850,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         })),
         settingsScrimStyle: isMobile
           ? "position:fixed;top:0;left:0;right:0;bottom:" + this.barH() + "px;z-index:96;display:flex;background:var(--bg)"
-          : singlePane
-          ? "position:fixed;inset:0;z-index:96;display:flex;background:var(--bg)"
-          : "position:fixed;inset:0;z-index:96;display:flex;align-items:center;justify-content:center;background:var(--scrim);padding:20px",
+          : "position:fixed;inset:0;z-index:96;display:flex;background:var(--bg)",
         appVersion: "v" + APP_VERSION,
         appBuild: APP_BUILD,
-        settingsCardStyle: singlePane
-          ? "flex:1;min-width:0;display:flex;flex-direction:column;background:var(--panel)"
-          : "position:relative;width:" + Math.min(st.settingsW || 700, w - 40) + "px;height:" + Math.min(st.settingsH || 720, Math.round((st.vh || (typeof window !== "undefined" ? window.innerHeight : 900)) * 0.92)) + "px;transform:translate(" + (st.settingsDX || 0) + "px," + (st.settingsDY || 0) + "px);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 22px 52px var(--sh-3);overflow:hidden",
-        settingsHeadDown: singlePane ? null : (e) => {
-          if (e.target && e.target.closest && e.target.closest("[data-nodrag]")) return;
-          const card = e.currentTarget.parentElement;
-          if (!card) return;
-          e.preventDefault();
-          const x0 = e.clientX, y0 = e.clientY, dx0 = st.settingsDX || 0, dy0 = st.settingsDY || 0;
-          const r = card.getBoundingClientRect();
-          const move = (ev) => {
-            const maxX = Math.max(0, Math.round((window.innerWidth - r.width) / 2));
-            const maxY = Math.max(0, Math.round((window.innerHeight - r.height) / 2));
-            this.setState({
-              settingsDX: Math.max(-maxX, Math.min(maxX, dx0 + ev.clientX - x0)),
-              settingsDY: Math.max(-maxY, Math.min(maxY, dy0 + ev.clientY - y0)),
-            });
-          };
-          const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
-          window.addEventListener("pointermove", move);
-          window.addEventListener("pointerup", up);
-        },
+        /* Settings take the whole window at every size: the list of sections is meant to grow, and a
+           dialog leaves no room for a navigation that grows with it. */
+        settingsCardStyle: "flex:1;min-width:0;display:flex;flex-direction:column;background:var(--panel)",
         notifDevice: !!st.notifDevice,
         notifDeviceSwitchStyle: "flex:0 0 auto;margin-top:2px;width:30px;height:17px;border-radius:8px;display:flex;align-items:center;padding:2px;background:var(" + (st.notifDevice ? "--accent" : "--border2") + ");justify-content:" + (st.notifDevice ? "flex-end" : "flex-start"),
         toggleNotifDevice: () => this.setState(s => ({ notifDevice: !s.notifDevice })),
@@ -4754,33 +4865,52 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const n = parseInt(e.target.value, 10);
           this.setState({ notifDuration: isNaN(n) ? 5 : Math.max(1, Math.min(30, n)) });
         },
-        settingsResizable: !singlePane,
-        settingsResizeDown: (e) => {
-          const card = e.currentTarget.parentElement;
-          if (!card) return;
-          e.preventDefault();
-          const r = card.getBoundingClientRect(), x0 = e.clientX, y0 = e.clientY;
-          const move = (ev) => this.setState({
-            settingsW: Math.max(560, Math.min(window.innerWidth - 40, Math.round(r.width + (ev.clientX - x0) * 2))),
-            settingsH: Math.max(420, Math.min(window.innerHeight - 40, Math.round(r.height + (ev.clientY - y0) * 2))),
-          });
-          const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
-          window.addEventListener("pointermove", move);
-          window.addEventListener("pointerup", up);
-        },
+        settingsMainStyle: "flex:1;min-height:0;display:flex;" + (singlePane ? "flex-direction:column;" : ""),
+        settingsNavShown: !singlePane,
+        settingsStripShown: singlePane,
+        settingsNavStyle: "flex:0 0 " + (narrow ? 220 : 264) + "px;min-height:0;overflow-y:auto;scrollbar-width:thin;display:flex;flex-direction:column;background:var(--sub);border-right:1px solid var(--line);padding:16px 12px 14px",
+        settingsScrollStyle: "flex:1;min-width:0;min-height:0;overflow-y:auto;scrollbar-width:thin",
         settingsBodyStyle: singlePane
-          ? "flex:1;min-height:0;display:flex;flex-direction:column;gap:11px;padding:14px 16px 28px;overflow:auto"
-          : "flex:1;min-height:0;display:flex;flex-direction:column;gap:11px;padding:18px 22px 24px;overflow:auto",
-        settingsHeadStyle: singlePane
-          ? "display:flex;align-items:center;gap:12px;padding:14px 14px 12px;border-bottom:1px solid var(--line);background:var(--sub)"
-          : "display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--sub);cursor:move;user-select:none",
-        settingsTitleStyle: singlePane ? "font-size:18px;font-weight:600" : "font-size:15px;font-weight:600",
+          ? "display:flex;flex-direction:column;gap:11px;padding:14px 16px 28px"
+          : "display:flex;flex-direction:column;gap:12px;max-width:760px;padding:" + (narrow ? "26px 28px 40px" : "34px 48px 48px"),
+        settingsHeadStyle: "flex:0 0 auto;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);background:var(--sub);" + (singlePane ? "padding:12px 12px 10px 16px" : "padding:10px 14px 10px 20px;min-height:36px"),
+        settingsTitleStyle: singlePane ? "font-size:18px;font-weight:600" : "font-size:16px;font-weight:600",
+        settingsQuery: st.settingsQuery || "",
+        onSettingsQuery: (e) => this.setState({ settingsQuery: e.target.value }),
         tabProfil: (st.settingsTab || "profil") === "profil",
         tabApp: st.settingsTab === "app",
+        ...(() => {
+          const sections = [
+            { v: "profil", label: "Profile", icon: "person", group: "You", hint: "Your name and photo, as the people you write to see them." },
+            { v: "accounts", label: "Accounts", icon: "alternate_email", group: "Mail", hint: "The mail accounts your administrator set up, and how each one syncs, deletes and sends." },
+            { v: "ai", label: "AI", icon: "auto_awesome", group: "Assistant", hint: "The language the assistant writes in, and what it may read." },
+            { v: "notif", label: "Notifications", icon: "notifications", group: "Assistant", hint: "What reaches you, on which device, and for how long it stays." },
+            { v: "app", label: "Application", icon: "tune", group: "This device", hint: "How messages are shown, and the layout this device remembers." },
+          ];
+          const cur = st.settingsTab || "profil";
+          const q = (st.settingsQuery || "").trim().toLowerCase();
+          const shown = sections.filter(x => !q || (x.label + " " + x.hint).toLowerCase().includes(q));
+          const curSec = sections.find(x => x.v === cur) || sections[0];
+          const item = (x) => ({
+            label: x.label, icon: x.icon,
+            pick: () => this.setState({ settingsTab: x.v }),
+            navStyle: "display:flex;align-items:center;gap:11px;border-radius:8px;padding:8px 12px;font-size:14px;" +
+              (cur === x.v ? "background:var(--accent-soft);color:var(--accent-d);font-weight:600;" : "color:var(--text2);"),
+            iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:19px;line-height:1;width:20px;text-align:center;" + (cur === x.v ? "" : "color:var(--muted);"),
+          });
+          return {
+            settingsSectionTitle: curSec.label,
+            settingsSectionHint: curSec.hint,
+            settingsNavEmpty: shown.length === 0,
+            settingsNavGroups: ["You", "Mail", "Assistant", "This device"]
+              .map(g => ({ label: g, items: shown.filter(x => x.group === g).map(item) }))
+              .filter(g => g.items.length),
+          };
+        })(),
         settingsTabs: [["profil", "Profile"], ["accounts", "Accounts"], ["ai", "AI"], ["notif", "Notifications"], ["app", "Application"]].map(([v, label]) => ({
           label,
           pick: () => this.setState({ settingsTab: v }),
-          style: "white-space:nowrap;border-bottom:2px solid " +
+          style: "flex:0 0 auto;white-space:nowrap;border-bottom:2px solid " +
             ((st.settingsTab || "profil") === v
               ? "var(--accent);color:var(--text);font-weight:600"
               : "transparent;color:var(--muted)") +
@@ -4859,7 +4989,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             resetLayoutDone: !!st.layoutReset,
             resetLayout: () => {
               this.setState({
-                listW: null, historyPanelW: null, settingsW: null, settingsH: null, settingsDX: 0, settingsDY: 0,
+                listW: null, historyPanelW: null,
                 notifH: null, notifDrag: null, docZoom: null, layoutReset: true,
               });
               setTimeout(() => this.setState({ layoutReset: false }), 3200);

@@ -206,7 +206,7 @@ Project repository: https://github.com/fathomise/MailFathom
     </div>
   </sc-if>
 
-  <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
+  <sc-if value="{{ refreshFabShown }}" hint-placeholder-val="{{ false }}">
     <div onClick="{{ refreshAll }}" title="Refresh" style="{{ refreshFabStyle }}" style-hover="cursor:pointer">
       <span style="{{ refreshIconStyle }}">refresh</span>
     </div>
@@ -303,7 +303,7 @@ Project repository: https://github.com/fathomise/MailFathom
           <div style="{{ resultMainStyle }}">
 
             <sc-if value="{{ running }}" hint-placeholder-val="{{ false }}">
-              <div style="display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 18px">
+              <div style="display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 18px;box-shadow:0 1px 2px var(--sh-1),inset 0 1px 0 var(--inset)">
                 <div style="width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:var(--accent);animation:mfpulse 1s ease-in-out infinite"></div>
                 <div style="font-size:14px;color:var(--text2);text-wrap:pretty">{{ progressText }}</div>
                 <div onClick="{{ reset }}" style="margin-left:auto;font-size:13px;color:var(--muted);border:1px solid var(--border2);border-radius:8px;padding:6px 12px;white-space:nowrap" style-hover="background:var(--rail);cursor:pointer">Cancel run</div>
@@ -311,16 +311,15 @@ Project repository: https://github.com/fathomise/MailFathom
             </sc-if>
 
             <sc-if value="{{ answerReady }}" hint-placeholder-val="{{ false }}">
-              <div style="display:flex;flex-direction:column;gap:9px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:16px 18px">
-                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-                  <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Answer</div>
+              <div style="{{ blk.card }}">
+                <div style="{{ blk.head }}"><span aria-hidden="true" style="{{ blk.accentTile }}"><span style="{{ blk.glyph }}">auto_awesome</span></span><div style="{{ blk.title }}">Answer</div>
                   <div style="font-size:11px;background:var(--ok-soft);color:var(--ok-text);border-radius:12px;padding:3px 9px">{{ confidence }}</div>
                   <sc-if value="{{ gapNote }}" hint-placeholder-val="{{ false }}">
                     <div style="font-size:11px;background:var(--warn-soft);color:var(--warn);border-radius:12px;padding:3px 9px">{{ gapNote }}</div>
                   </sc-if>
                   <div style="{{ answerHintStyle }}">click a citation to see the evidence</div>
                 </div>
-                <div style="font-size:18px;line-height:1.5;text-wrap:pretty">
+                <div style="{{ blk.answerText }}">
                   <sc-for list="{{ answerParts }}" as="p" hint-placeholder-count="2">
                     <span>{{ p.text }}<sup onClick="{{ p.open }}" style="font-size:11px;color:var(--accent-d);background:var(--accent-soft);border-radius:4px;padding:2px 6px;margin-left:3px" style-hover="background:var(--accent-2);color:var(--onaccent);cursor:pointer">{{ p.cite }}</sup></span>
                   </sc-for>
@@ -329,14 +328,15 @@ Project repository: https://github.com/fathomise/MailFathom
             </sc-if>
 
             <sc-if value="{{ timelineReady }}" hint-placeholder-val="{{ false }}">
-              <div style="display:flex;flex-direction:column;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px 18px">
-                <div style="display:flex;align-items:center;gap:10px"><div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Timeline</div><div style="margin-left:auto;font-size:12px;color:var(--muted)">{{ sample.timelineMeta }}</div></div>
+              <div style="{{ blk.card }}">
+                <div style="{{ blk.head }}"><span aria-hidden="true" style="{{ blk.tile }}"><span style="{{ blk.glyph }}">timeline</span></span><div style="{{ blk.title }}">Timeline</div><div style="{{ blk.meta }}">{{ sample.timelineMeta }}</div></div>
                 <div style="{{ timelineRowStyle }}">
                   <sc-for list="{{ timeline }}" as="t" hint-placeholder-count="4">
-                    <div onClick="{{ t.open }}" style="{{ tlItemStyle }}" style-hover="cursor:pointer;border-top-color:var(--accent)">
-                      <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--muted)">{{ t.date }}</div>
-                      <div style="font-size:14px;font-weight:600">{{ t.title }}</div>
-                      <div style="font-size:12px;color:var(--muted)">{{ t.detail }}</div>
+                    <div onClick="{{ t.open }}" style="{{ t.style }}" style-hover="cursor:pointer;color:var(--accent-d)">
+                      <span aria-hidden="true" style="{{ t.lineStyle }}"></span><span aria-hidden="true" style="{{ t.dotStyle }}"></span>
+                      <div style="{{ blk.tlDate }}">{{ t.date }}</div>
+                      <div style="{{ blk.tlTitle }};color:inherit">{{ t.title }}</div>
+                      <div style="{{ blk.tlDetail }}">{{ t.detail }}</div>
                     </div>
                   </sc-for>
                 </div>
@@ -344,14 +344,14 @@ Project repository: https://github.com/fathomise/MailFathom
             </sc-if>
 
             <sc-if value="{{ tableReady }}" hint-placeholder-val="{{ false }}">
-              <div style="display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px 18px">
-                <div style="display:flex;align-items:center;gap:10px"><div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Fact table</div><div style="{{ answerHintStyle }}">every cell has a source</div></div>
+              <div style="{{ blk.card }}">
+                <div style="{{ blk.head }}"><span aria-hidden="true" style="{{ blk.tile }}"><span style="{{ blk.glyph }}">table_chart</span></span><div style="{{ blk.title }}">Fact table</div><div style="{{ answerHintStyle }}">every cell has a source</div></div>
                 <div style="overflow-x:auto">
                   <div style="{{ tableGridStyle }}">
-                    <div style="font-size:12px;color:var(--muted);border-bottom:1px solid var(--line);padding:0 10px 8px 0">Version</div>
-                    <div style="font-size:12px;color:var(--muted);border-bottom:1px solid var(--line);padding:0 10px 8px 0">Price</div>
-                    <div style="font-size:12px;color:var(--muted);border-bottom:1px solid var(--line);padding:0 10px 8px 0">SLA</div>
-                    <div style="font-size:12px;color:var(--muted);border-bottom:1px solid var(--line);padding:0 0 8px 0">Indexation</div>
+                    <div style="{{ blk.label }};border-bottom:1px solid var(--line);padding:0 10px 8px 0">Version</div>
+                    <div style="{{ blk.label }};border-bottom:1px solid var(--line);padding:0 10px 8px 0">Price</div>
+                    <div style="{{ blk.label }};border-bottom:1px solid var(--line);padding:0 10px 8px 0">SLA</div>
+                    <div style="{{ blk.label }};border-bottom:1px solid var(--line);padding:0 0 8px 0">Indexation</div>
                     <sc-for list="{{ table }}" as="r" hint-placeholder-count="4">
                       <div style="{{ r.version.cellStyle }}"><span>{{ r.version.value }}</span><sc-if value="{{ r.version.hasCite }}" hint-placeholder-val="{{ false }}"><sup onClick="{{ r.version.open }}" style="font-size:11px;color:var(--accent-d);background:var(--accent-soft);border-radius:4px;padding:2px 6px" style-hover="background:var(--accent-2);color:var(--onaccent);cursor:pointer">{{ r.version.cite }}</sup></sc-if></div>
                       <div style="{{ r.price.cellStyle }}"><span>{{ r.price.value }}</span><sc-if value="{{ r.price.hasCite }}" hint-placeholder-val="{{ false }}"><sup onClick="{{ r.price.open }}" style="font-size:11px;color:var(--accent-d);background:var(--accent-soft);border-radius:4px;padding:2px 6px" style-hover="background:var(--accent-2);color:var(--onaccent);cursor:pointer">{{ r.price.cite }}</sup></sc-if></div>
@@ -364,12 +364,12 @@ Project repository: https://github.com/fathomise/MailFathom
             </sc-if>
 
             <sc-if value="{{ galleryReady }}" hint-placeholder-val="{{ false }}">
-              <div style="display:flex;flex-direction:column;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px 18px">
-                <div style="display:flex;align-items:center;gap:10px"><div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Attachments</div><div style="{{ answerHintStyle }}">{{ sample.attachmentsMeta }}</div></div>
+              <div style="{{ blk.card }}">
+                <div style="{{ blk.head }}"><span aria-hidden="true" style="{{ blk.tile }}"><span style="{{ blk.glyph }}">attach_file</span></span><div style="{{ blk.title }}">Attachments</div><div style="{{ blk.meta }}">{{ sample.attachmentsMeta }}</div></div>
                 <div style="{{ galleryGridStyle }}">
                   <sc-for list="{{ gallery }}" as="g" hint-placeholder-count="4">
-                    <div onClick="{{ g.open }}" style="display:flex;flex-direction:column;gap:7px;background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:13px 14px" style-hover="border-color:var(--accent);cursor:pointer">
-                      <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted)">{{ g.type }}</div>
+                    <div onClick="{{ g.open }}" style="display:flex;flex-direction:column;gap:7px;background:var(--sub);border:1px solid var(--line2);border-radius:10px;padding:13px 14px" style-hover="border-color:var(--accent);cursor:pointer">
+                      <div style="{{ blk.label }}">{{ g.type }}</div>
                       <div style="font-size:14px;font-weight:600;line-height:1.3">{{ g.name }}</div>
                       <div style="font-size:12px;color:var(--muted)">{{ g.meta }}</div>
                     </div>
@@ -379,8 +379,8 @@ Project repository: https://github.com/fathomise/MailFathom
             </sc-if>
 
             <sc-if value="{{ peopleReady }}" hint-placeholder-val="{{ false }}">
-              <div style="display:flex;flex-direction:column;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px 18px">
-                <div style="display:flex;align-items:center;gap:10px"><div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">People</div><div style="{{ answerHintStyle }}">{{ sample.peopleMeta }}</div></div>
+              <div style="{{ blk.card }}">
+                <div style="{{ blk.head }}"><span aria-hidden="true" style="{{ blk.tile }}"><span style="{{ blk.glyph }}">group</span></span><div style="{{ blk.title }}">People</div><div style="{{ blk.meta }}">{{ sample.peopleMeta }}</div></div>
                 <sc-for list="{{ people }}" as="p" hint-placeholder-count="3">
                   <div onClick="{{ p.open }}" style="display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--line2);padding:10px 0" style-hover="cursor:pointer">
                     <div style="width:32px;height:32px;flex:0 0 32px;border-radius:50%;background:var(--accent-soft);color:var(--accent-d);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">{{ p.initials }}</div>
@@ -392,23 +392,24 @@ Project repository: https://github.com/fathomise/MailFathom
             </sc-if>
 
             <sc-if value="{{ actionReady }}" hint-placeholder-val="{{ false }}">
-              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:8px;padding:13px 16px">
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:12px;padding:13px 16px">
                 <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:3px 7px;font-weight:600">AI</span>
                 <span style="font-size:14px;color:var(--text2);text-wrap:pretty">Want to dig deeper, or have something done with this?</span>
                 <div onClick="{{ continueInAgent }}" style="margin-left:auto;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:8px 15px;white-space:nowrap" style-hover="cursor:pointer;opacity:0.9">Hand to the agent</div>
               </div>
-              <div style="{{ actionRowStyle }}">
-                <div style="display:flex;flex-direction:column;gap:3px"><div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Suggested action</div><div style="font-size:14px;text-wrap:pretty">{{ actionText }}</div></div>
-                <div style="{{ actionBtnsStyle }}">
-                  <div style="font-size:13px;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:8px 15px" style-hover="opacity:0.88;cursor:pointer">Save as Case</div>
-                  <div style="font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:8px 15px" style-hover="background:var(--rail);cursor:pointer">Dismiss</div>
+              <div style="{{ blk.pendingCard }}">
+                <div style="{{ blk.head }}"><span aria-hidden="true" style="{{ blk.accentTile }}"><span style="{{ blk.glyph }}">bolt</span></span><div style="{{ blk.title }}">Suggested action</div><div style="{{ blk.meta }}">one step</div><div style="{{ blk.pendingChip }}"><span style="{{ blk.chipGlyph }}">help</span>needs confirmation</div></div>
+                <div style="{{ blk.propTitle }}">{{ actionText }}</div>
+                <div style="{{ blk.pendingFoot }}">
+                  <div style="{{ blk.primaryBtn }}" style-hover="opacity:0.88;cursor:pointer">Save as Case</div>
+                  <div style="{{ blk.quietBtn }}" style-hover="background:var(--rail);cursor:pointer">Dismiss</div>
                 </div>
               </div>
             </sc-if>
 
             <sc-if value="{{ showTrace }}" hint-placeholder-val="{{ false }}">
-              <div style="display:flex;flex-direction:column;gap:6px;background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:14px 18px">
-                <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Decision trail</div>
+              <div style="{{ blk.card }}">
+                <div style="{{ blk.head }}"><span aria-hidden="true" style="{{ blk.tile }}"><span style="{{ blk.glyph }}">route</span></span><div style="{{ blk.title }}">Decision trail</div></div>
                 <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--text2);line-height:1.6">{{ traceText }}</div>
               </div>
             </sc-if>
@@ -423,9 +424,9 @@ Project repository: https://github.com/fathomise/MailFathom
                 </div>
                 <div style="{{ evListStyle }}">
                   <sc-for list="{{ evidence }}" as="e" hint-placeholder-count="3">
-                    <div onClick="{{ e.open }}" style="display:flex;flex-direction:column;gap:5px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px" style-hover="border-color:var(--accent);cursor:pointer">
-                      <div style="display:flex;align-items:center;gap:8px"><span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent-2);border-radius:4px;padding:2px 6px">{{ e.n }}</span><span style="font-size:14px;font-weight:600">{{ e.title }}</span><span title="{{ e.badgeTitle }}" style="{{ e.badgeStyle }}"><span style="{{ e.badgeIconStyle }}">{{ e.badgeIcon }}</span>{{ e.badgeLabel }}</span></div>
-                      <div style="font-size:13px;color:var(--text2);line-height:1.4">{{ e.snippet }}</div>
+                    <div onClick="{{ e.open }}" style="display:flex;flex-direction:column;gap:7px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:0 1px 2px var(--sh-1)" style-hover="border-color:var(--accent);cursor:pointer">
+                      <div style="display:flex;align-items:center;gap:8px"><span style="display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;box-sizing:border-box;border-radius:6px;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--accent-d);background:var(--accent-soft)">{{ e.n }}</span><span style="font-size:14px;font-weight:600;min-width:0">{{ e.title }}</span><span title="{{ e.badgeTitle }}" style="{{ e.badgeStyle }}"><span style="{{ e.badgeIconStyle }}">{{ e.badgeIcon }}</span>{{ e.badgeLabel }}</span></div>
+                      <div style="font-size:13px;color:var(--text2);line-height:1.45;border-left:2px solid var(--accent-line);padding:1px 0 1px 10px">{{ e.snippet }}</div>
                       <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint)">{{ e.meta }}</div>
                     </div>
                   </sc-for>
@@ -481,6 +482,10 @@ Project repository: https://github.com/fathomise/MailFathom
     </sc-if>
     <sc-if value="{{ showMailToolbar }}" hint-placeholder-val="{{ true }}">
       <div ref="{{ tbRef }}" style="{{ toolbarStyle }}">
+        <sc-if value="{{ sideToggleShown }}" hint-placeholder-val="{{ true }}">
+          <div onClick="{{ toggleSide }}" title="{{ sideToggleTitle }}" aria-label="{{ sideToggleTitle }}" style="{{ sideToggleBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">{{ sideToggleIcon }}</div>
+          <div style="width:1px;align-self:stretch;background:var(--line);margin:0 8px 0 6px"></div>
+        </sc-if>
         <sc-if value="{{ tbPrimaryShown }}" hint-placeholder-val="{{ true }}">
           <div onClick="{{ openCompose }}" style="{{ tbPrimaryStyle }}" style-hover="cursor:pointer;opacity:0.9"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">edit_square</span>{{ tbNewLabel }}</div>
           <div style="width:1px;align-self:stretch;background:var(--line);margin:0 2px"></div>
@@ -553,30 +558,39 @@ Project repository: https://github.com/fathomise/MailFathom
       </div>
     </sc-if>
     <sc-if value="{{ aiSumOpen }}" hint-placeholder-val="{{ false }}">
-      <div data-motion="scrim" data-phase="{{ mo.aiSum }}" onClick="{{ closeAiSum }}" style="{{ ovZ97 }}">
-        <div data-motion="{{ moDialog }}" data-phase="{{ mo.aiSum }}" onClick="{{ stopProp }}" style="{{ dlgAi }}">
+      <div data-motion="scrim" data-phase="{{ mo.aiSum }}" onClick="{{ closeAiSum }}" style="{{ aiSumOverlayStyle }}">
+        <div data-motion="{{ moAiSum }}" data-phase="{{ mo.aiSum }}" onClick="{{ stopProp }}" style="{{ dlgAi }}">
           <div style="{{ aiSumHeadStyle }}">
-            <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--accent-d)">auto_awesome</span>
-            <span style="flex:1;min-width:0;font-size:15px;font-weight:600">What MailFathom read from this message</span>
-            <span onClick="{{ closeAiSum }}" style="width:28px;height:28px;flex:0 0 28px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px" style-hover="cursor:pointer;background:var(--hover)">close</span>
+            <span style="{{ aiSumGlyphStyle }}">auto_awesome</span>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+              <div style="{{ aiSumTitleStyle }}">What MailFathom read</div>
+              <div style="font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ aiSumSubject }}</div>
+            </div>
+            <span onClick="{{ closeAiSum }}" title="Close" style="{{ closeBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></span>
           </div>
           <div style="{{ aiSumBodyStyle }}">
-            <div style="font-size:13px;line-height:1.55;color:var(--muted);text-wrap:pretty">Every reading below comes from this message alone, and each one shows the fragment it rests on.</div>
-            <div style="font-size:15px;font-weight:600;line-height:1.45;text-wrap:pretty">{{ aiSumSubject }}</div>
+            <div style="display:flex;flex-direction:column;gap:1px;background:var(--line2)">
             <sc-for list="{{ aiSumCards }}" as="ac" hint-placeholder-count="3">
-              <div style="{{ ac.cardStyle }}">
-                <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
-                  <span style="flex:1;min-width:0;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">{{ ac.heading }}</span>
-                  <span style="font-size:11px;color:var(--accent-d);background:var(--accent-soft);border-radius:6px;padding:2px 7px;white-space:nowrap">{{ ac.model }}</span>
+              <div style="{{ aiSumRowStyle }}">
+                <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+                  <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--faint)">{{ ac.heading }}</div>
+                  <div style="{{ aiSumClaimStyle }}">{{ ac.claim }}</div>
+                  <div style="font-size:13px;line-height:1.55;color:var(--muted);text-wrap:pretty">{{ ac.why }}</div>
                 </div>
-                <div style="font-size:14px;font-weight:600;line-height:1.5;text-wrap:pretty">{{ ac.claim }}</div>
-                <div style="font-size:13px;line-height:1.55;color:var(--muted);text-wrap:pretty">{{ ac.why }}</div>
-                <div style="{{ ac.quoteStyle }}">{{ ac.quote }}</div>
-                <sc-if value="{{ ac.showSrc }}" hint-placeholder-val="{{ false }}">
-                  <div onClick="{{ ac.openSrc }}" style="align-self:flex-start;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--accent-d);border-radius:8px;padding:5px 8px;margin-left:-8px" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">open_in_new</span>{{ ac.srcLabel }}</div>
-                </sc-if>
+                <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+                  <div style="{{ aiSumQuoteStyle }}">{{ ac.quote }}</div>
+                  <sc-if value="{{ ac.showSrc }}" hint-placeholder-val="{{ false }}">
+                    <div onClick="{{ ac.openSrc }}" style="{{ aiSumSrcStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">open_in_new</span>{{ ac.srcLabel }}</div>
+                  </sc-if>
+                </div>
               </div>
             </sc-for>
+            </div>
+          </div>
+          <div style="{{ aiSumFootStyle }}">
+            <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">format_quote</span>
+            <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ aiSumFootText }}</span>
+            <span style="font-family:'Geist',system-ui,sans-serif;white-space:nowrap">{{ aiSumModel }}</span>
           </div>
         </div>
       </div>
@@ -641,9 +655,32 @@ Project repository: https://github.com/fathomise/MailFathom
       </sc-if>
       <sc-if value="{{ showSide }}" hint-placeholder-val="{{ true }}">
         <div data-motion="{{ moSide }}" data-phase="{{ mo.sideDrawer }}" style="{{ sideStyle }}">
-          <div onClick="{{ toggleSide }}" title="{{ sideToggleTitle }}" style="{{ sideTopStyle }}" style-hover="cursor:pointer;background:var(--hover)">
-            <sc-if value="{{ sideExpanded }}" hint-placeholder-val="{{ true }}"><span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Folders</span></sc-if>
-            <span style="margin-left:auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)">{{ sideToggleIcon }}</span>
+          <sc-if value="{{ sideDrawerHead }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:12px 10px 8px 16px">
+              <span style="flex:1;font-size:15px;font-weight:600">Folders and filters</span>
+              <div onClick="{{ closeDrawer }}" title="Close folders" style="{{ closeBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
+            </div>
+          </sc-if>
+          <div style="{{ sideScrollStyle }}">
+          <div style="{{ filtersWrapStyle }}">
+            <sc-if value="{{ sideExpanded }}" hint-placeholder-val="{{ true }}">
+              <div onClick="{{ toggleAiFilters }}" title="{{ aiFiltersTitle }}" style="display:flex;align-items:center;gap:8px;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);padding:5px 9px;border-radius:6px;font-weight:600" style-hover="cursor:pointer;background:var(--hover)">
+                <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:14px;line-height:1;color:var(--accent-d);width:8px;display:flex;justify-content:center">auto_awesome</span>
+                <span style="flex:1;min-width:0">AI filters</span>
+                <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--faint)">{{ aiFiltersChevron }}</span>
+              </div>
+            </sc-if>
+            <sc-if value="{{ sideCollapsedView }}" hint-placeholder-val="{{ false }}">
+              <div onClick="{{ toggleAiFilters }}" title="{{ aiFiltersTitle }}" style="display:flex;align-items:center;justify-content:center;height:24px" style-hover="cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:14px;line-height:1;color:var(--accent-d)">auto_awesome</span></div>
+            </sc-if>
+            <sc-if value="{{ aiFiltersOpen }}" hint-placeholder-val="{{ true }}">
+              <sc-for list="{{ aiFilters }}" as="fl" hint-placeholder-count="3">
+                <div title="{{ fl.title }}" style="{{ fl.style }}" style-hover="cursor:pointer;background:var(--hover)">
+                  <span style="{{ fl.iconStyle }}">{{ fl.icon }}</span>
+                  <sc-if value="{{ fl.expanded }}" hint-placeholder-val="{{ true }}"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ fl.label }}</span></sc-if>
+                </div>
+              </sc-for>
+            </sc-if>
           </div>
           <sc-for list="{{ sideGroups }}" as="g" hint-placeholder-count="3">
             <div style="{{ g.wrapStyle }}">
@@ -670,25 +707,9 @@ Project repository: https://github.com/fathomise/MailFathom
                     </sc-if>
                   </div>
                 </sc-for>
-                <sc-if value="{{ g.canAdd }}" hint-placeholder-val="{{ true }}">
-                  <div onClick="{{ g.newFolder }}" title="New folder" style="{{ g.newFolderStyle }}" style-hover="cursor:pointer;background:var(--hover)">
-                    <span style="{{ g.newFolderIconStyle }}">create_new_folder</span>
-                    <sc-if value="{{ g.expanded }}" hint-placeholder-val="{{ true }}"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">New folder</span></sc-if>
-                  </div>
-                </sc-if>
               </sc-if>
             </div>
           </sc-for>
-          <div style="{{ filtersWrapStyle }}">
-            <sc-if value="{{ sideExpanded }}" hint-placeholder-val="{{ true }}">
-              <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">AI filters</div>
-            </sc-if>
-            <sc-for list="{{ aiFilters }}" as="fl" hint-placeholder-count="3">
-              <div title="{{ fl.title }}" style="{{ fl.style }}" style-hover="cursor:pointer;background:var(--hover)">
-                <span style="{{ fl.iconStyle }}">{{ fl.icon }}</span>
-                <sc-if value="{{ fl.expanded }}" hint-placeholder-val="{{ true }}"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ fl.label }}</span></sc-if>
-              </div>
-            </sc-for>
           </div>
         </div>
       </sc-if>
@@ -1036,21 +1057,27 @@ Project repository: https://github.com/fathomise/MailFathom
               </div>
             </sc-if>
           </div>
-          <sc-if value="{{ showComposerBar }}" hint-placeholder-val="{{ true }}">
-          <div style="{{ composerStyle }}">
-            <div style="display:flex;align-items:center;gap:12px;border:2px solid var(--accent);border-radius:12px;padding:10px 13px">
-              <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:6px;padding:4px 8px;font-weight:600">AI</div>
-              <div style="flex:1;min-width:0;font-size:15px;color:var(--faint)">Ask about the thread or draft a reply…</div>
-              <div onClick="{{ askThread }}" style="{{ askThreadBtnStyle }}" style-hover="opacity:0.88;cursor:pointer">{{ askThreadLabel }}</div>
+          <sc-if value="{{ replyFabShown }}" hint-placeholder-val="{{ true }}">
+            <div data-motion="pop" onClick="{{ openReplyDock }}" title="Draft a reply with AI" style="{{ replyFabStyle }}" style-hover="cursor:pointer;filter:brightness(1.08)">
+              <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1">auto_awesome</span>{{ replyFabLabel }}
             </div>
-            <sc-if value="{{ showComposerChips }}" hint-placeholder-val="{{ true }}">
-              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                <div style="font-size:12px;background:var(--accent-soft);color:var(--accent-d);border-radius:16px;padding:5px 11px">Scope: this thread</div>
-                <div style="font-size:12px;background:var(--rail);border:1px solid var(--line);border-radius:16px;padding:5px 11px">+ selected passage</div>
-                <div style="margin-left:auto;font-size:12px;color:var(--muted)">Draft stays local until confirmed</div>
+          </sc-if>
+          <sc-if value="{{ replyDockOpen }}" hint-placeholder-val="{{ false }}">
+            <div data-motion="rise" data-phase="{{ mo.replyDock }}" style="{{ composerStyle }}">
+              <div onClick="{{ closeReplyDock }}" title="Close the reply drafter" aria-label="Close the reply drafter" style="{{ replyDockCloseStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">close</div>
+              <div style="{{ composerBarStyle }}">
+                <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--accent-d);flex:0 0 auto">auto_awesome</span>
+                <div style="{{ composerPhStyle }}">{{ composerPlaceholder }}</div>
+                <div onClick="{{ askThread }}" style="{{ askThreadBtnStyle }}" style-hover="opacity:0.88;cursor:pointer">{{ askThreadLabel }}</div>
               </div>
-            </sc-if>
-          </div>
+              <sc-if value="{{ showComposerChips }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:0 2px">
+                  <div style="font-size:12px;background:var(--accent-soft);color:var(--accent-d);border-radius:16px;padding:5px 11px">Scope: this thread</div>
+                  <div style="font-size:12px;background:var(--rail);border:1px solid var(--line);border-radius:16px;padding:5px 11px">+ selected passage</div>
+                  <div style="margin-left:auto;font-size:12px;color:var(--muted)">Draft stays local until confirmed</div>
+                </div>
+              </sc-if>
+            </div>
           </sc-if>
         </div>
       </sc-if>
@@ -1489,11 +1516,11 @@ Project repository: https://github.com/fathomise/MailFathom
       <div style="flex:1;display:flex;min-height:0;min-width:0;position:relative">
       <sc-if value="{{ historyOpen }}" hint-placeholder-val="{{ false }}">
         <div style="{{ historyPanelStyle }}">
-          <div style="display:flex;align-items:center;gap:9px;padding:0 2px 4px 2px">
-            <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">History</div>
-            <div onClick="{{ agentNewConv }}" style="margin-left:auto;font-size:12px;color:var(--accent-d)" style-hover="cursor:pointer;text-decoration:underline">New</div>
+          <div style="display:flex;align-items:center;gap:8px;padding:0 4px 6px 4px;min-height:28px">
+            <div style="font-size:14px;font-weight:600;color:var(--text)">History</div>
+            <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums">{{ historyCount }}</div>
             <sc-if value="{{ historyCloseShown }}" hint-placeholder-val="{{ false }}">
-              <div onClick="{{ toggleHistory }}" title="Close history" style="{{ closeBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
+              <div style="margin-left:auto"><div onClick="{{ toggleHistory }}" title="Close history" style="{{ closeBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div></div>
             </sc-if>
           </div>
           <sc-if value="{{ selBarShown }}" hint-placeholder-val="{{ false }}">
@@ -1507,45 +1534,50 @@ Project repository: https://github.com/fathomise/MailFathom
               <div onClick="{{ selClear }}" title="Cancel selection" style="{{ closeBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
             </div>
           </sc-if>
-          <div style="display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 9px;margin-bottom:2px">
-            <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--faint)">search</span>
-            <input ref="{{ historySearchRef }}" value="{{ historySearchValue }}" onChange="{{ onHistorySearch }}" placeholder="Search history" style="flex:1;min-width:0;border:none;outline:none;font-size:13px;color:var(--text);background:transparent" />
+          <div style="{{ historySearchStyle }}">
+            <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--faint)">search</span>
+            <input ref="{{ historySearchRef }}" value="{{ historySearchValue }}" onChange="{{ onHistorySearch }}" placeholder="Search conversations" style="flex:1;min-width:0;border:none;outline:none;font-size:14px;color:var(--text);background:transparent" />
             <sc-if value="{{ historySearchValue }}" hint-placeholder-val="{{ false }}">
-              <span onClick="{{ clearHistorySearch }}" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--faint)" style-hover="cursor:pointer;color:var(--text)">close</span>
+              <span onClick="{{ clearHistorySearch }}" title="Clear search" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--faint)" style-hover="cursor:pointer;color:var(--text)">close</span>
             </sc-if>
           </div>
-          <sc-for list="{{ convHistory }}" as="h" hint-placeholder-count="3">
-            <div onClick="{{ h.activate }}" onContextMenu="{{ h.press.ctx }}" onTouchStart="{{ h.press.down }}" onTouchEnd="{{ h.press.up }}" onTouchMove="{{ h.press.up }}" style="{{ h.style }}" style-hover="cursor:pointer;background:var(--hover)">
-              <div style="display:flex;align-items:center;gap:6px">
-                <div style="display:flex;align-items:baseline;gap:8px;flex:1;min-width:0">
-                  <span style="font-size:14px;font-weight:600;line-height:1.35;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ h.title }}</span>
-                  <span style="font-size:11px;color:var(--muted);white-space:nowrap">{{ h.when }}</span>
+          <sc-for list="{{ convHistoryGroups }}" as="hg" hint-placeholder-count="2">
+            <div style="display:flex;flex-direction:column;gap:2px;padding-bottom:6px">
+              <div style="{{ historyGroupLabelStyle }}">{{ hg.label }}</div>
+              <sc-for list="{{ hg.rows }}" as="h" hint-placeholder-count="3">
+                <div onClick="{{ h.activate }}" onContextMenu="{{ h.press.ctx }}" onTouchStart="{{ h.press.down }}" onTouchEnd="{{ h.press.up }}" onTouchMove="{{ h.press.up }}" style="{{ h.style }}" style-hover="cursor:pointer;background:var(--hover)">
+                  <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                    <span style="{{ h.titleStyle }}">{{ h.title }}</span>
+                    <span style="{{ h.whenStyle }}">{{ h.when }}</span>
+                    <sc-if value="{{ h.hasActions }}" hint-placeholder-val="{{ false }}">
+                      <span onClick="{{ h.openMenu }}" title="More actions" style="{{ h.menuStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">more_horiz</span>
+                    </sc-if>
+                  </div>
+                  <div style="{{ h.previewStyle }}">{{ h.preview }}</div>
                 </div>
-                <sc-if value="{{ h.hasActions }}" hint-placeholder-val="{{ false }}">
-                  <span onClick="{{ h.toggleArchive }}" title="{{ h.archiveTitle }}" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--faint)" style-hover="color:var(--text);cursor:pointer">{{ h.archiveIcon }}</span>
-                  <span onClick="{{ h.askDelete }}" title="Delete" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--faint)" style-hover="color:var(--warn);cursor:pointer">delete</span>
-                </sc-if>
-              </div>
-              <div style="font-size:12px;line-height:1.4;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ h.preview }}</div>
+              </sc-for>
             </div>
           </sc-for>
+          <sc-if value="{{ historyEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:13px;color:var(--muted);padding:10px 10px">No conversation matches.</div>
+          </sc-if>
           <sc-if value="{{ hasArchived }}" hint-placeholder-val="{{ false }}">
-            <div onClick="{{ toggleArchiveSection }}" style="display:flex;align-items:center;gap:6px;padding:8px 2px 4px 2px;margin-top:4px;border-top:1px solid var(--line2)" style-hover="cursor:pointer">
+            <div onClick="{{ toggleArchiveSection }}" style="display:flex;align-items:center;gap:6px;padding:10px 10px 6px;margin-top:4px;border-top:1px solid var(--line2);border-radius:0" style-hover="cursor:pointer;color:var(--text)">
               <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--muted)">{{ archiveChevron }}</span>
-              <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">ARCHIVED ({{ archivedCount }})</span>
+              <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Archived</span>
+              <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums">{{ archivedCount }}</span>
             </div>
             <sc-if value="{{ archiveSectionOpen }}" hint-placeholder-val="{{ false }}">
-              <sc-for list="{{ archivedHistory }}" as="h" hint-placeholder-count="2">
+              <sc-for list="{{ archivedHistory }}" as="h" hint-placeholder-count="3">
                 <div onClick="{{ h.activate }}" onContextMenu="{{ h.press.ctx }}" onTouchStart="{{ h.press.down }}" onTouchEnd="{{ h.press.up }}" onTouchMove="{{ h.press.up }}" style="{{ h.style }}" style-hover="cursor:pointer;background:var(--hover)">
-                  <div style="display:flex;align-items:center;gap:6px">
-                    <div style="display:flex;align-items:baseline;gap:8px;flex:1;min-width:0">
-                      <span style="font-size:14px;font-weight:600;line-height:1.35;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ h.title }}</span>
-                      <span style="font-size:11px;color:var(--muted);white-space:nowrap">{{ h.when }}</span>
-                    </div>
-                    <span onClick="{{ h.toggleArchive }}" title="{{ h.archiveTitle }}" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--faint)" style-hover="color:var(--text);cursor:pointer">{{ h.archiveIcon }}</span>
-                    <span onClick="{{ h.askDelete }}" title="Delete" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--faint)" style-hover="color:var(--warn);cursor:pointer">delete</span>
+                  <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                    <span style="{{ h.titleStyle }}">{{ h.title }}</span>
+                    <span style="{{ h.whenStyle }}">{{ h.when }}</span>
+                    <sc-if value="{{ h.hasActions }}" hint-placeholder-val="{{ false }}">
+                      <span onClick="{{ h.openMenu }}" title="More actions" style="{{ h.menuStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">more_horiz</span>
+                    </sc-if>
                   </div>
-                  <div style="font-size:12px;line-height:1.4;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ h.preview }}</div>
+                  <div style="{{ h.previewStyle }}">{{ h.preview }}</div>
                 </div>
               </sc-for>
             </sc-if>
@@ -1622,6 +1654,7 @@ Project repository: https://github.com/fathomise/MailFathom
                     <sc-for list="{{ m.blocks }}" as="bk" hint-placeholder-count="1">
                       <div style="{{ bk.cardStyle }}">
                         <div style="{{ bk.headStyle }}">
+                          <span aria-hidden="true" style="{{ bk.tileStyle }}"><span style="{{ bk.glyphStyle }}">{{ bk.icon }}</span></span>
                           <div style="{{ bk.labelStyle }}">{{ bk.label }}</div>
                           <div style="{{ bk.metaStyle }}">{{ bk.meta }}</div>
                           <sc-if value="{{ bk.hasChip }}" hint-placeholder-val="{{ false }}">
@@ -1660,6 +1693,7 @@ Project repository: https://github.com/fathomise/MailFathom
                               <div style="{{ bk.tlWrapStyle }}">
                                 <sc-for list="{{ bk.items }}" as="t" hint-placeholder-count="4">
                                   <div style="{{ t.style }}">
+                                    <span aria-hidden="true" style="{{ t.lineStyle }}"></span><span aria-hidden="true" style="{{ t.dotStyle }}"></span>
                                     <div style="{{ t.dateStyle }}">{{ t.date }}</div>
                                     <div style="{{ t.titleStyle }}">{{ t.title }}</div>
                                     <div style="{{ t.detailStyle }}">{{ t.detail }}</div>
@@ -1718,15 +1752,21 @@ Project repository: https://github.com/fathomise/MailFathom
                             <sc-if value="{{ bk.isProposal }}" hint-placeholder-val="{{ false }}">
                               <div style="{{ bk.propTitleStyle }}">{{ bk.title }}</div>
                             </sc-if>
-                            <sc-for list="{{ bk.fields }}" as="f" hint-placeholder-count="0">
-                              <div style="{{ f.rowStyle }}"><div style="{{ f.kStyle }}">{{ f.k }}</div><div style="{{ f.vStyle }}">{{ f.v }}</div></div>
-                            </sc-for>
+                            <sc-if value="{{ bk.hasFields }}" hint-placeholder-val="{{ false }}">
+                              <div style="{{ bk.fieldsStyle }}">
+                                <sc-for list="{{ bk.fields }}" as="f" hint-placeholder-count="0">
+                                  <div style="{{ f.rowStyle }}"><div style="{{ f.kStyle }}">{{ f.k }}</div><div style="{{ f.vStyle }}">{{ f.v }}</div></div>
+                                </sc-for>
+                              </div>
+                            </sc-if>
                             <sc-if value="{{ bk.isDraft }}" hint-placeholder-val="{{ false }}">
                               <sc-if value="{{ bk.editing }}" hint-placeholder-val="{{ false }}">
                                 <textarea value="{{ bk.editText }}" onChange="{{ bk.onEdit }}" aria-label="Edit the draft text before sending" style="{{ bk.textareaStyle }}"></textarea>
                               </sc-if>
                               <sc-if value="{{ bk.notEditing }}" hint-placeholder-val="{{ true }}">
-                                <sc-for list="{{ bk.paras }}" as="p" hint-placeholder-count="3"><div style="{{ p.style }}">{{ p.t }}</div></sc-for>
+                                <div style="{{ bk.letterStyle }}">
+                                  <sc-for list="{{ bk.paras }}" as="p" hint-placeholder-count="3"><div style="{{ p.style }}">{{ p.t }}</div></sc-for>
+                                </div>
                               </sc-if>
                             </sc-if>
                             <sc-if value="{{ bk.hasConflict }}" hint-placeholder-val="{{ false }}">
@@ -1743,21 +1783,25 @@ Project repository: https://github.com/fathomise/MailFathom
                             </sc-if>
                           </sc-if>
 
-                          <sc-if value="{{ bk.hasResult }}" hint-placeholder-val="{{ false }}">
-                            <div style="{{ bk.resultStyle }}"><span style="{{ bk.resultIconStyle }}">{{ bk.resultIcon }}</span>{{ bk.resultText }}</div>
-                          </sc-if>
-                          <sc-if value="{{ bk.hasControls }}" hint-placeholder-val="{{ false }}">
-                            <div style="{{ bk.controlsStyle }}">
-                              <sc-for list="{{ bk.controls }}" as="cn" hint-placeholder-count="2">
-                                <div role="button" tabIndex="0" aria-label="{{ cn.aria }}" onClick="{{ cn.run }}" onKeyDown="{{ cn.key }}" style="{{ cn.style }}" style-hover="cursor:pointer;opacity:0.9" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ cn.label }}</div>
-                              </sc-for>
-                            </div>
-                          </sc-if>
-                          <sc-if value="{{ bk.hasNav }}" hint-placeholder-val="{{ false }}">
-                            <div style="{{ bk.navStyle }}">
-                              <sc-for list="{{ bk.nav }}" as="nv" hint-placeholder-count="1">
-                                <div role="button" tabIndex="0" aria-label="{{ nv.aria }}" onClick="{{ nv.run }}" onKeyDown="{{ nv.key }}" style="{{ nv.style }}" style-hover="cursor:pointer;border-color:var(--accent);color:var(--accent-d)" style-focus="outline:2px solid var(--accent);outline-offset:2px"><span style="{{ nv.iconStyle }}">{{ nv.icon }}</span>{{ nv.label }}</div>
-                              </sc-for>
+                          <sc-if value="{{ bk.hasFoot }}" hint-placeholder-val="{{ false }}">
+                            <div style="{{ bk.footStyle }}">
+                              <sc-if value="{{ bk.hasResult }}" hint-placeholder-val="{{ false }}">
+                                <div style="{{ bk.resultStyle }}"><span style="{{ bk.resultIconStyle }}">{{ bk.resultIcon }}</span>{{ bk.resultText }}</div>
+                              </sc-if>
+                              <sc-if value="{{ bk.hasControls }}" hint-placeholder-val="{{ false }}">
+                                <div style="{{ bk.controlsStyle }}">
+                                  <sc-for list="{{ bk.controls }}" as="cn" hint-placeholder-count="2">
+                                    <div role="button" tabIndex="0" aria-label="{{ cn.aria }}" onClick="{{ cn.run }}" onKeyDown="{{ cn.key }}" style="{{ cn.style }}" style-hover="cursor:pointer;opacity:0.9" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ cn.label }}</div>
+                                  </sc-for>
+                                </div>
+                              </sc-if>
+                              <sc-if value="{{ bk.hasNav }}" hint-placeholder-val="{{ false }}">
+                                <div style="{{ bk.navStyle }}">
+                                  <sc-for list="{{ bk.nav }}" as="nv" hint-placeholder-count="1">
+                                    <div role="button" tabIndex="0" aria-label="{{ nv.aria }}" onClick="{{ nv.run }}" onKeyDown="{{ nv.key }}" style="{{ nv.style }}" style-hover="cursor:pointer;border-color:var(--accent);color:var(--accent-d)" style-focus="outline:2px solid var(--accent);outline-offset:2px"><span style="{{ nv.iconStyle }}">{{ nv.icon }}</span>{{ nv.label }}</div>
+                                  </sc-for>
+                                </div>
+                              </sc-if>
                             </div>
                           </sc-if>
                         </sc-if>
@@ -2609,16 +2653,55 @@ Project repository: https://github.com/fathomise/MailFathom
   <sc-if value="{{ settingsOpen }}" hint-placeholder-val="{{ false }}">
     <div data-motion="{{ moSettingsScrim }}" data-phase="{{ mo.settings }}" style="{{ settingsScrimStyle }}">
       <div data-motion="{{ moSettings }}" data-phase="{{ mo.settings }}" style="{{ settingsCardStyle }}">
-        <div onPointerDown="{{ settingsHeadDown }}" style="{{ settingsHeadStyle }}">
+        <div style="{{ settingsHeadStyle }}">
+          <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;color:var(--muted)">settings</span>
           <div style="{{ settingsTitleStyle }}">Settings</div>
-          <div data-nodrag="1" onClick="{{ closeSettings }}" style="{{ closeBtnAutoStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
+          <div onClick="{{ closeSettings }}" title="Close settings" style="{{ closeBtnAutoStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
         </div>
-        <div style="display:flex;align-items:stretch;gap:18px;padding:0 22px;border-bottom:1px solid var(--line);background:var(--sub)">
-          <sc-for list="{{ settingsTabs }}" as="tab" hint-placeholder-count="2">
-            <div onClick="{{ tab.pick }}" style="{{ tab.style }}" style-hover="cursor:pointer;color:var(--text)">{{ tab.label }}</div>
-          </sc-for>
-        </div>
+        <sc-if value="{{ settingsStripShown }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:0 0 auto;display:flex;align-items:stretch;gap:18px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--sub);overflow-x:auto;scrollbar-width:none">
+            <sc-for list="{{ settingsTabs }}" as="tab" hint-placeholder-count="2">
+              <div onClick="{{ tab.pick }}" style="{{ tab.style }}" style-hover="cursor:pointer;color:var(--text)">{{ tab.label }}</div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <div style="{{ settingsMainStyle }}">
+        <sc-if value="{{ settingsNavShown }}" hint-placeholder-val="{{ true }}">
+          <div style="{{ settingsNavStyle }}">
+            <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;margin:0 2px 12px;background:var(--panel);border:1px solid var(--line);border-radius:10px">
+              <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--faint)">search</span>
+              <input value="{{ settingsQuery }}" onChange="{{ onSettingsQuery }}" placeholder="Find a setting" style="flex:1;min-width:0;border:none;outline:none;font-size:14px;color:var(--text);background:transparent" />
+            </div>
+            <sc-for list="{{ settingsNavGroups }}" as="sg" hint-placeholder-count="3">
+              <div style="display:flex;flex-direction:column;gap:2px;padding-bottom:12px">
+                <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--faint);padding:4px 12px 6px">{{ sg.label }}</div>
+                <sc-for list="{{ sg.items }}" as="tab" hint-placeholder-count="2">
+                  <div onClick="{{ tab.pick }}" style="{{ tab.navStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">
+                    <span style="{{ tab.iconStyle }}">{{ tab.icon }}</span>
+                    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ tab.label }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+            <sc-if value="{{ settingsNavEmpty }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:13px;color:var(--muted);padding:6px 12px">No section matches.</div>
+            </sc-if>
+            <div style="margin-top:auto;display:flex;align-items:center;gap:7px;padding:12px 12px 2px;font-size:12px;color:var(--faint);white-space:nowrap">
+              <span>MailFathom</span>
+              <span style="font-family:'Geist',system-ui,sans-serif">{{ appVersion }}</span>
+              <span style="opacity:0.5">·</span>
+              <span>{{ appBuild }}</span>
+            </div>
+          </div>
+        </sc-if>
+        <div style="{{ settingsScrollStyle }}">
         <div style="{{ settingsBodyStyle }}">
+          <sc-if value="{{ settingsNavShown }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:4px;padding-bottom:10px;margin-bottom:6px;border-bottom:1px solid var(--line2)">
+              <div style="font-size:22px;font-weight:600;letter-spacing:-0.01em">{{ settingsSectionTitle }}</div>
+              <div style="font-size:14px;line-height:1.5;color:var(--muted);max-width:620px;text-wrap:pretty">{{ settingsSectionHint }}</div>
+            </div>
+          </sc-if>
           <sc-if value="{{ tabProfil }}" hint-placeholder-val="{{ true }}">
           <div style="display:flex;align-items:center;gap:11px">
             <div style="{{ mePreviewStyle }}">{{ meInitials }}</div>
@@ -2931,7 +3014,7 @@ Project repository: https://github.com/fathomise/MailFathom
           </sc-if>
           <div style="height:1px;background:var(--line2);margin:4px 0"></div>
           <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Layout on this device</div>
-          <div style="font-size:13px;line-height:1.5;max-width:620px;color:var(--muted);text-wrap:pretty">Column widths, panel sizes and the size of this window are remembered on this device only - they never go to the server, so every computer and phone keeps its own arrangement.</div>
+          <div style="font-size:13px;line-height:1.5;max-width:620px;color:var(--muted);text-wrap:pretty">Column widths and panel sizes are remembered on this device only - they never go to the server, so every computer and phone keeps its own arrangement.</div>
           <div onClick="{{ resetLayout }}" style="{{ resetLayoutStyle }}" style-hover="cursor:pointer;background:var(--hover)">
             <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">restart_alt</span>Reset layout
           </div>
@@ -2942,16 +3025,15 @@ Project repository: https://github.com/fathomise/MailFathom
           </sc-if>
           </sc-if>
         </div>
+        </div>
+        </div>
+        <sc-if value="{{ settingsStripShown }}" hint-placeholder-val="{{ false }}">
         <div style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:7px;padding:10px 16px;border-top:1px solid var(--line);background:var(--sub);font-size:12px;color:var(--faint);white-space:nowrap">
           <span>MailFathom</span>
           <span style="font-family:'Geist',system-ui,sans-serif">{{ appVersion }}</span>
           <span style="opacity:0.5">·</span>
           <span>{{ appBuild }}</span>
         </div>
-        <sc-if value="{{ settingsResizable }}" hint-placeholder-val="{{ true }}">
-          <div onPointerDown="{{ settingsResizeDown }}" title="Resize" style="position:absolute;right:0;bottom:0;width:22px;height:22px;display:flex;align-items:flex-end;justify-content:flex-end;padding:3px;cursor:nwse-resize;color:var(--faint);z-index:2" style-hover="color:var(--text2)">
-            <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">south_east</span>
-          </div>
         </sc-if>
       </div>
     </div>
@@ -3022,15 +3104,18 @@ Project repository: https://github.com/fathomise/MailFathom
     <sc-for list="{{ toasts }}" as="t" hint-placeholder-count="0">
       <div style="{{ t.style }}" style-hover="opacity:1">
         <div style="{{ t.iconWrapStyle }}"><span style="{{ t.iconStyle }}">{{ t.icon }}</span></div>
-        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;padding-top:2px">
-          <div style="font-size:15px;font-weight:600;line-height:1.35;color:var(--text);text-wrap:pretty">{{ t.title }}</div>
+        <div style="{{ toastTextStyle }}">
+          <div style="{{ toastTitleStyle }}">{{ t.title }}</div>
           <sc-if value="{{ t.hasBody }}" hint-placeholder-val="{{ false }}">
-            <div style="font-size:14px;line-height:1.45;color:var(--text2);text-wrap:pretty">{{ t.body }}</div>
+            <div style="{{ toastBodyStyle }}">{{ t.body }}</div>
           </sc-if>
-          <sc-if value="{{ t.hasAction }}" hint-placeholder-val="{{ false }}">
-            <div onClick="{{ t.action }}" style="align-self:flex-start;display:flex;align-items:center;min-height:32px;margin-top:5px;padding:0 13px;border:1px solid var(--border2);border-radius:8px;font-size:13px;font-weight:600;color:var(--text)" style-hover="cursor:pointer;background:var(--hover)">{{ t.actionLabel }}</div>
+          <sc-if value="{{ t.actionBelow }}" hint-placeholder-val="{{ false }}">
+            <div onClick="{{ t.action }}" style="{{ toastActionStyle }}" style-hover="cursor:pointer;background:var(--hover)">{{ t.actionLabel }}</div>
           </sc-if>
         </div>
+        <sc-if value="{{ t.actionInline }}" hint-placeholder-val="{{ false }}">
+          <div onClick="{{ t.action }}" style="{{ toastActionStyle }}" style-hover="cursor:pointer;background:var(--hover)">{{ t.actionLabel }}</div>
+        </sc-if>
         <div onClick="{{ t.close }}" title="{{ t.closeTitle }}" style="{{ toastCloseStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">close</div>
         <sc-if value="{{ t.hasBar }}" hint-placeholder-val="{{ false }}">
           <div style="{{ t.barStyle }}"></div>
