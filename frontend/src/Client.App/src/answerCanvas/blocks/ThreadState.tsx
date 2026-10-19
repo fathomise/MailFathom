@@ -46,6 +46,7 @@ export function ThreadState({ block }: { readonly block: AnswerBlock }) {
 
     return (
         <AnswerBlockCard
+            icon="forum"
             label={translate('threadStanding.label')}
             meta={
                 // Counted off the same emptiness the card is, rather than off the participants alone: a standing whose

@@ -99,7 +99,7 @@
         },
         {
           "expect": {
-            "role": "tab",
+            "role": "region",
             "name": "Profile"
           }
         }
@@ -126,13 +126,15 @@
         },
         {
           "click": {
-            "role": "tab",
-            "name": "Application"
+            "role": "button",
+            "name": "Application",
+            "exact": true
           }
         },
         {
           "expect": {
-            "role": "tabpanel"
+            "role": "region",
+            "name": "Application"
           }
         }
       ],

@@ -15,7 +15,7 @@ const body = 'Two rows and a citation on each';
 function renderCard(state: AnswerBlockState, onRetry?: () => void, note?: string) {
     return render(
         <LocalizationProvider>
-            <AnswerBlockCard label={label} meta="2 rows" note={note} state={state} onRetry={onRetry}>
+            <AnswerBlockCard icon="table_chart" label={label} meta="2 rows" note={note} state={state} onRetry={onRetry}>
                 <p>{body}</p>
             </AnswerBlockCard>
         </LocalizationProvider>,
@@ -109,7 +109,7 @@ describe('AnswerBlockCard', () => {
 
         rerender(
             <LocalizationProvider>
-                <AnswerBlockCard label={label} meta="2 rows" state="loading">
+                <AnswerBlockCard icon="table_chart" label={label} meta="2 rows" state="loading">
                     <p>{body}</p>
                 </AnswerBlockCard>
             </LocalizationProvider>,
@@ -123,7 +123,7 @@ describe('AnswerBlockCard', () => {
 
         rerender(
             <LocalizationProvider>
-                <AnswerBlockCard label={label} meta="2 rows" state="loading">
+                <AnswerBlockCard icon="table_chart" label={label} meta="2 rows" state="loading">
                     <p>{body}</p>
                 </AnswerBlockCard>
             </LocalizationProvider>,

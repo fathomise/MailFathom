@@ -163,7 +163,7 @@ describe('App', () => {
 
         await goTo('Mail');
 
-        await screen.findByText('Folders');
+        await screen.findByRole('complementary', { name: 'Folders and filters' });
 
         expect(screen.queryByRole('region', { name: 'AI filters' })).toBeNull();
     });
@@ -472,12 +472,12 @@ describe('App', () => {
             expect(await screen.findByText('A drawn message.')).toBeDefined();
 
             if (draftsReplies) {
-                expect(await screen.findByRole('form', { name: 'Ask about this correspondence' })).toBeDefined();
+                expect(await screen.findByRole('button', { name: 'Draft a reply' })).toBeDefined();
             } else {
                 await waitFor(() => {
                     expect(drafting.read).toBe(true);
                 });
-                expect(screen.queryByRole('form', { name: 'Ask about this correspondence' })).toBeNull();
+                expect(screen.queryByRole('button', { name: 'Draft a reply' })).toBeNull();
             }
 
             expect(screen.queryByRole('searchbox', { name: 'Ask your mail' })).toBeNull();

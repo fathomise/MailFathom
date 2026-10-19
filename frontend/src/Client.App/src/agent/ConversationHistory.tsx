@@ -11,7 +11,9 @@ import { Icon } from '../controls/Icon';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
-import { ConversationList } from './ConversationList';
+import { calendarDayIn, dayFrom } from '../localization/instants';
+import { useReadingZone } from '../localization/useReadingZone';
+import { ConversationList, type ConversationGroup } from './ConversationList';
 import { ConversationRowMenu } from './ConversationRowMenu';
 import { ConversationSelectionBar } from './ConversationSelectionBar';
 import type { ConversationHistory as History } from './useConversationHistory';
@@ -26,6 +28,32 @@ const historyFailures: Readonly<Record<ClientFailureReason, MessageKey>> = {
 };
 
 /**
+ * The conversations being worked in, under *Today*, *Yesterday* and *Earlier* by the day each last moved in the
+ * reader's own zone — newest first as the deployment listed them, and with no heading drawn over an empty day.
+ */
+function byDay(
+    conversations: readonly AgentConversationSummary[],
+    now: number,
+    timeZone: string | null,
+    translate: (key: MessageKey) => string,
+): ConversationGroup[] {
+    const today = calendarDayIn(now, timeZone);
+    const yesterday = dayFrom(today, -1);
+    const dayOf = (summary: AgentConversationSummary): MessageKey => {
+        const day = calendarDayIn(Date.parse(summary.lastActivityAt), timeZone);
+
+        return day >= today ? 'agent.today' : day === yesterday ? 'agent.yesterday' : 'agent.earlier';
+    };
+
+    return (['agent.today', 'agent.yesterday', 'agent.earlier'] as const)
+        .map((key) => ({
+            label: translate(key),
+            conversations: conversations.filter((summary) => dayOf(summary) === key),
+        }))
+        .filter((group) => group.conversations.length > 0);
+}
+
+/**
  * The conversations this person has had with the agent, newest first, and what can be done to them from here. The ones
  * put away stand under the rest in a section of their own, folded until it is opened.
  *
@@ -38,7 +66,6 @@ export function ConversationHistory({
     selected,
     onOpen,
     onSelected,
-    onNew,
     onArchive,
     onAskDeletion,
     onReadAgain,
@@ -52,7 +79,6 @@ export function ConversationHistory({
     readonly selected: readonly string[];
     readonly onOpen: (conversation: string) => void;
     readonly onSelected: (selected: readonly string[]) => void;
-    readonly onNew: () => void;
 
     /** Puts the conversations named away, or takes them back out of the archive where `archived` is false. */
     readonly onArchive: (conversations: readonly string[], archived: boolean) => void;
@@ -64,6 +90,8 @@ export function ConversationHistory({
     readonly onClose: (() => void) | null;
 }) {
     const { locale, translate } = useLocalization();
+    const timeZone = useReadingZone();
+    const [now] = useState(() => Date.now());
     const [menu, setMenu] = useState<{
         readonly conversation: AgentConversationSummary;
         readonly at: MenuPoint;
@@ -144,11 +172,11 @@ export function ConversationHistory({
         onSelected(withToggled(selected, conversation));
     }
 
-    function listOf(label: string, listedHere: readonly AgentConversationSummary[]) {
+    function listOf(label: string, groups: readonly ConversationGroup[]) {
         return (
             <ConversationList
                 label={label}
-                conversations={listedHere}
+                groups={groups}
                 open={open}
                 selected={selected}
                 focusable={focusable}
@@ -175,15 +203,24 @@ export function ConversationHistory({
                 lastFocused.current = event.target;
             }}
         >
-            <div className="flex items-center gap-2.25 px-0.5 pb-1">
+            {/* *History* and how many conversations are being worked in, and no second *New*: the toolbar above
+                already carries one. */}
+            <div className="flex min-h-9 items-center gap-2 px-1.5 pb-1">
                 <h2 className="text-xs font-semibold text-muted">{translate('agent.history')}</h2>
 
-                <span className="ms-auto">
-                    <Control label={translate('agent.new')} shape="link" onPress={onNew} />
+                <span className="text-xs tabular-nums text-faint">
+                    {new Intl.NumberFormat(locale).format(working.length)}
                 </span>
 
                 {onClose === null ? null : (
-                    <Control label={translate('agent.closeHistory')} icon="close" shape="symbol" onPress={onClose} />
+                    <span className="ms-auto">
+                        <Control
+                            label={translate('agent.closeHistory')}
+                            icon="close"
+                            shape="symbol"
+                            onPress={onClose}
+                        />
+                    </span>
                 )}
             </div>
 
@@ -201,7 +238,9 @@ export function ConversationHistory({
                 />
             ) : null}
 
-            {working.length > 0 ? listOf(translate('agent.conversations'), working) : null}
+            {working.length > 0
+                ? listOf(translate('agent.conversations'), byDay(working, now, timeZone, translate))
+                : null}
 
             {archived.length > 0 ? (
                 <>
@@ -223,7 +262,9 @@ export function ConversationHistory({
                         </span>
                     </button>
 
-                    {archiveOpen ? listOf(translate('agent.archivedConversations'), archived) : null}
+                    {archiveOpen
+                        ? listOf(translate('agent.archivedConversations'), [{ label: null, conversations: archived }])
+                        : null}
                 </>
             ) : null}
 

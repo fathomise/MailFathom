@@ -99,7 +99,7 @@ export function MailSpace({
     readonly tabs: ReactNode;
 
     /**
-     * The field that asks about what is open, which stands at the foot of the reading column.
+     * The reply drafter for what is open, which stands at the foot of the reading column.
      *
      * `null` wherever the column is not reading a correspondence — nothing open, a file or a sender's markup in its
      * place, a message being written — because the design draws it under an open message and nowhere else.
@@ -147,6 +147,7 @@ export function MailSpace({
     // in front of the list for a message somebody is writing exactly as it does for one they opened.
     const readingOpen = workspace.selection !== null || workspace.conversation !== null || composing.opening !== null;
     const readingInFront = !twoPanes && readingOpen;
+    const drafter = workspace.panelsHidden || threadField === null || threadField === undefined ? null : threadField;
     const paneMoved = usePaneMotion(readingInFront, twoPanes);
 
     // A message read in front of the list is one press of the back gesture away from it, exactly as the way back
@@ -467,13 +468,17 @@ export function MailSpace({
                             binds the words of a message rather than the column they sit in — `messageBody/Message.tsx`
                             carries it — because a head, a verdict, a row of attachment cards, and the field the reader
                             asks in are not text read line by line and have no measure to keep. */}
-                        <div className="min-h-0 flex-1 overflow-y-auto">{mail}</div>
-
-                        {/* The field goes with the panels. What the *fullscreen* control takes away is everything
-                            standing around the message — the head above it and the conversation's own state — and the
-                            field asking about it is the last of those: a column cleared of every panel with one row of
-                            controls still under it is not the screen that control promises. */}
-                        {workspace.panelsHidden ? null : threadField}
+                        {/* The reply drafter stands in the same scroller, stuck to its foot, so the room it takes is
+                            the thread's bottom clearance. It goes with the panels: what the *fullscreen* control takes
+                            away is everything standing around the message, and the drafter is the last of those. */}
+                        {drafter === null ? (
+                            <div className="min-h-0 flex-1 overflow-y-auto">{mail}</div>
+                        ) : (
+                            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                                {mail}
+                                {drafter}
+                            </div>
+                        )}
                     </section>
                 ) : null}
             </div>

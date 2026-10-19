@@ -183,19 +183,19 @@ export function ToastCard({
             {/* On a phone or a fold the card is one slim row with its action beside the words; wider, the action
                 stands under them. One control either way, moved by the layout rather than drawn twice. */}
             <div className="flex min-w-0 flex-1 items-center gap-2.5 wide:flex-col wide:items-stretch wide:gap-1">
-            <div className="flex min-w-0 flex-1 flex-col gap-px py-0.5 wide:gap-1 wide:pt-0.5 wide:pb-0">
-                <p className="text-md/snug font-semibold text-text text-pretty wide:text-lg">
-                    {/* What the symbol and its colour say to everybody else. Said before the title rather than after
+                <div className="flex min-w-0 flex-1 flex-col gap-px py-0.5 wide:gap-1 wide:pt-0.5 wide:pb-0">
+                    <p className="text-md/snug font-semibold text-text text-pretty wide:text-lg">
+                        {/* What the symbol and its colour say to everybody else. Said before the title rather than after
                         it, so somebody hearing the card knows what kind of news it is before they hear the news. */}
-                    <span className="sr-only">{translate(mark.said)}</span> {toast.title}
-                </p>
-
-                {toast.body === undefined ? null : (
-                    <p className="line-clamp-2 text-base/snug text-text-soft text-pretty wide:line-clamp-none wide:text-base">
-                        {toast.body}
+                        <span className="sr-only">{translate(mark.said)}</span> {toast.title}
                     </p>
-                )}
-            </div>
+
+                    {toast.body === undefined ? null : (
+                        <p className="line-clamp-2 text-base/snug text-text-soft text-pretty wide:line-clamp-none wide:text-base">
+                            {toast.body}
+                        </p>
+                    )}
+                </div>
 
                 {action === undefined ? null : (
                     <button

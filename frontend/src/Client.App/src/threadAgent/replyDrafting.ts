@@ -40,14 +40,14 @@ export interface ReplyDrafting {
     readonly letGo: () => void;
 
     /**
-     * Takes hold of the field the reply is asked for in, as the ref that field is drawn with.
+     * Takes hold of the button the reply drafter folds into, as the ref that button is drawn with.
      *
-     * The card and the field are a scroller apart, so neither can hand the other a ref; the one thing both already
-     * share is this.
+     * The card in the thread and the drafter at its foot are drawn apart, so neither can hand the other a ref; the one
+     * thing both already share is this.
      */
-    readonly holdField: (field: HTMLInputElement | null) => void;
+    readonly holdField: (button: HTMLElement | null) => void;
 
-    /** Puts the keyboard back on that field, which is where focus goes when the card it drew is discarded. */
+    /** Puts the keyboard back on that button, which is where focus goes when the card it drew is discarded. */
     readonly returnToField: () => void;
 }
 

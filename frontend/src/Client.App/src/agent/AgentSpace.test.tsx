@@ -153,6 +153,46 @@ describe('AgentSpace', () => {
         ]);
     });
 
+    it('groups the history by the day each conversation last moved, drawing no empty day', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-09-01T10:00:00+00:00'));
+
+        try {
+            screenOf(deploymentAnswering().transport);
+
+            const yesterday = await screen.findByRole('group', { name: 'Yesterday' });
+
+            expect(within(yesterday).getAllByRole('option')).toHaveLength(2);
+            expect(screen.queryByRole('group', { name: 'Today' })).toBeNull();
+            expect(screen.queryByRole('group', { name: 'Earlier' })).toBeNull();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('puts the history away once a conversation is opened from it on the phone, where it covers the thread', async () => {
+        Object.defineProperty(window, 'matchMedia', {
+            configurable: true,
+            value: (query: string) => ({
+                media: query,
+                matches: false,
+                addEventListener: () => undefined,
+                removeEventListener: () => undefined,
+            }),
+        });
+
+        screenOf(deploymentAnswering().transport);
+
+        fireEvent.click(screen.getByRole('button', { name: 'History' }));
+
+        const drawer = screen.getByRole('dialog', { name: 'History' });
+        const history = await within(drawer).findByRole('listbox', { name: 'Conversations with the agent' });
+
+        fireEvent.click(within(history).getAllByRole('option')[1] ?? history);
+
+        expect(drawer).toHaveProperty('open', false);
+    });
+
     it('puts one conversation in the tab order and walks the history with the arrow keys', async () => {
         screenOf(deploymentAnswering().transport);
 

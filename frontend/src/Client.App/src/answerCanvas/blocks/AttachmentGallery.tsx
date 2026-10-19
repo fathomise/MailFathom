@@ -41,6 +41,7 @@ export function AttachmentGallery({ block }: { readonly block: AnswerBlock }) {
 
     return (
         <AnswerBlockCard
+            icon="attach_file"
             label={translate('answer.galleryLabel')}
             meta={
                 entries.length === 0

@@ -53,16 +53,39 @@ function nothingDrawn(state: AnswerBlockState): state is NothingDrawn {
  */
 export type BlockCardTone = 'settled' | 'awaiting' | 'declined';
 
+// The design's one block chrome, shared by the Agent, Discover and the thread's answer: a card on the panel, its edge
+// in the accent while it waits on a decision, and a dashed outline with nothing else once it was declined.
 const tones: Readonly<Record<BlockCardTone, string>> = {
-    settled: 'border-line bg-panel',
-    awaiting: 'border-accent-line bg-accent-soft',
+    settled: 'border-line bg-panel shadow-raised',
+    awaiting: 'border-accent-line bg-panel shadow-raised',
     declined: 'border-dashed border-line-strong bg-transparent',
+};
+
+// The tile the block's symbol stands in, which takes the card's tone.
+const tiles: Readonly<Record<BlockCardTone, string>> = {
+    settled: 'bg-sunken text-text-soft ring-line-soft',
+    awaiting: 'bg-accent-soft text-accent-deep ring-accent-line',
+    declined: 'bg-transparent text-faint ring-line',
+};
+
+/**
+ * The tray at the foot of a block that holds its controls and its way out, flush with the card's edges — in the
+ * accent while the block waits on a decision.
+ */
+const blockTray: Readonly<Record<BlockCardTone, string>> = {
+    settled:
+        '-mx-3.5 -mb-3.5 mt-0.5 rounded-b-lg border-t border-line-soft px-3.5 py-3 workspace:-mx-4.5 workspace:-mb-4 workspace:px-4.5',
+    awaiting:
+        '-mx-3.5 -mb-3.5 mt-0.5 rounded-b-lg border-t border-accent-line bg-accent-soft px-3.5 py-3 workspace:-mx-4.5 workspace:-mb-4 workspace:px-4.5',
+    declined:
+        '-mx-3.5 -mb-3.5 mt-0.5 rounded-b-lg border-t border-line-soft px-3.5 py-3 workspace:-mx-4.5 workspace:-mb-4 workspace:px-4.5',
 };
 
 /**
  * One block of an answer, in whichever of its six states it is.
  *
  * @param label What this block is called, already in the reader's language.
+ * @param icon The symbol the block's kind is drawn with in its header tile.
  * @param meta What the block says about itself beside its name — how much it holds, or that it is still working.
  * @param state What the block is doing, which decides everything below the name.
  * @param note What the failing or empty state says, where the caller knows more about it than the state does, and
@@ -72,10 +95,12 @@ const tones: Readonly<Record<BlockCardTone, string>> = {
  * @param emptyIcon What an empty block draws above its sentence, where the block's own type has a better one.
  * @param tone How the card stands against the thread, which only a proposal changes.
  * @param chip What the block says about where it stands, drawn at the end of the line its name is on.
+ * @param tray The controls and the ways out the block offers, drawn in the tray at its foot once it has a body.
  * @param children The body, which is drawn for a block that is ready and for one that is partly so.
  */
 export function AnswerBlockCard({
     label,
+    icon,
     meta,
     state,
     note,
@@ -84,9 +109,11 @@ export function AnswerBlockCard({
     emptyIcon,
     tone = 'settled',
     chip,
+    tray,
     children,
 }: {
     readonly label: string;
+    readonly icon: IconName;
     readonly meta?: string | undefined;
     readonly state: AnswerBlockState;
     readonly note?: string | undefined;
@@ -95,6 +122,7 @@ export function AnswerBlockCard({
     readonly emptyIcon?: IconName | undefined;
     readonly tone?: BlockCardTone;
     readonly chip?: ReactNode;
+    readonly tray?: ReactNode;
     readonly children?: ReactNode;
 }) {
     const { translate } = useLocalization();
@@ -117,7 +145,7 @@ export function AnswerBlockCard({
     }, [offersAWayOut]);
 
     return (
-        <BlockCard chip={chip} label={label} labelId={named} meta={meta} ref={region} tone={tone}>
+        <BlockCard chip={chip} icon={icon} label={label} labelId={named} meta={meta} ref={region} tone={tone}>
             {state === 'loading' ? (
                 <>
                     <p className="sr-only" role="status">
@@ -135,6 +163,10 @@ export function AnswerBlockCard({
                     <Icon className="mt-0.25 size-icon-sm" name="hourglass_top" />
                     {translate('answerBlock.partial')}
                 </p>
+            ) : null}
+
+            {(state === 'ready' || state === 'partial') && tray !== undefined && tray !== null ? (
+                <div className={`flex flex-col gap-2.5 ${blockTray[tone]}`}>{tray}</div>
             ) : null}
 
             {nothingDrawn(state) ? (
@@ -177,6 +209,7 @@ export function UnrecognisedAnswerBlock({ named }: { readonly named: string }) {
 
     return (
         <BlockCard
+            icon="extension_off"
             label={translate('answerBlock.unrecognised')}
             labelId={labelled}
             meta={translate('answerBlock.unrecognisedType', { named })}
@@ -196,9 +229,13 @@ export function UnrecognisedAnswerBlock({ named }: { readonly named: string }) {
     );
 }
 
-/** The chrome every block stands in: the card, the name over it, and what the block says about itself beside that. */
+/**
+ * The chrome every block stands in: the card, a header of the block's symbol in its tile, its name, and what it says
+ * about itself, with where it stands at the end of that line.
+ */
 function BlockCard({
     label,
+    icon,
     labelId,
     meta,
     ref,
@@ -207,6 +244,7 @@ function BlockCard({
     children,
 }: {
     readonly label: string;
+    readonly icon: IconName;
     readonly labelId: string;
     readonly meta?: string | undefined;
     readonly ref?: RefObject<HTMLElement | null>;
@@ -217,16 +255,22 @@ function BlockCard({
     return (
         <article
             aria-labelledby={labelId}
-            className={`flex flex-col gap-3 rounded-md border px-4.5 py-4 ${tones[tone]}`}
+            className={`flex min-w-0 flex-col gap-3 rounded-lg border px-3.5 py-3.5 workspace:px-4.5 workspace:py-4 ${tones[tone]}`}
             ref={ref}
             tabIndex={0}
         >
-            <div className="flex flex-wrap items-center gap-2.5">
-                <h3 className="text-xs font-semibold text-muted" id={labelId}>
+            <div className="flex min-h-6.5 flex-wrap items-center gap-2.5">
+                <span
+                    className={`flex size-6.5 shrink-0 items-center justify-center rounded-md ring-1 ring-inset ${tiles[tone]}`}
+                >
+                    <Icon className="size-icon-sm" name={icon} />
+                </span>
+
+                <h3 className="text-base font-semibold tracking-tight whitespace-nowrap text-text" id={labelId}>
                     {label}
                 </h3>
 
-                {meta === undefined ? null : <p className="ms-auto text-xs whitespace-nowrap text-muted">{meta}</p>}
+                {meta === undefined ? null : <p className="min-w-0 text-sm text-faint">{meta}</p>}
 
                 {chip}
             </div>

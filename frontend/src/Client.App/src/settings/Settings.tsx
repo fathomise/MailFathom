@@ -665,19 +665,19 @@ function SystemNotifications() {
 
     return (
         <label className="flex cursor-pointer items-start gap-2.75 rounded-md px-2.5 py-2.25 transition hover:bg-hover">
-                <span className="flex min-w-0 flex-1 flex-col gap-0.75">
-                    {translate('settings.raiseSystemNotifications')}
-                    <span className="text-base text-muted">
-                        {translate(
-                            standing === 'refused'
-                                ? 'settings.systemNotificationsRefused'
-                                : 'settings.raiseSystemNotificationsExplanation',
-                        )}
-                    </span>
+            <span className="flex min-w-0 flex-1 flex-col gap-0.75">
+                {translate('settings.raiseSystemNotifications')}
+                <span className="text-base text-muted">
+                    {translate(
+                        standing === 'refused'
+                            ? 'settings.systemNotificationsRefused'
+                            : 'settings.raiseSystemNotificationsExplanation',
+                    )}
                 </span>
+            </span>
 
-                <Switch on={raising && standing === 'permitted'} onChange={choose} />
-            </label>
+            <Switch on={raising && standing === 'permitted'} onChange={choose} />
+        </label>
     );
 }
 

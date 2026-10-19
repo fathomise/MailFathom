@@ -394,9 +394,15 @@ export function AgentSpace({
             history={history}
             open={current}
             selected={selected}
-            onOpen={openConversation}
+            // Over the conversation on the phone, so opening one from the history puts the history away and shows it.
+            onOpen={(conversation) => {
+                openConversation(conversation);
+
+                if (inDrawer) {
+                    closeDrawer();
+                }
+            }}
             onSelected={setSelected}
-            onNew={startNew}
             onArchive={(conversations, archived) => {
                 void setArchived(conversations, archived);
             }}

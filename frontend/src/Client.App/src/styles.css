@@ -346,10 +346,11 @@
     --spacing-navigation: 4rem;
 
     /* The section navigation down the side of Settings where it has two panes, at the width the design draws it and
-       at the narrower one it takes below the roomy breakpoint. Settings fill the window at every composition, so these
-       are the one width in them that is given rather than whatever the window leaves. */
-    --spacing-settings-navigation: 16.5rem;
-    --spacing-settings-navigation-narrow: 13.75rem;
+       at the narrower one it takes below the roomy breakpoint. The design states 264 and 220 pixels of content beside
+       its 12-pixel padding and its one-pixel edge, so the box is 289 and 245. Settings fill the window at every
+       composition, so these are the one width in them that is given rather than whatever the window leaves. */
+    --spacing-settings-navigation: 18.0625rem;
+    --spacing-settings-navigation-narrow: 15.3125rem;
 
     /* The two windows that stand over the message where somebody does not work in tabs — the sender's own markup and an
        opened file — in the composition where each is a window rather than the whole screen. Each is a width and a

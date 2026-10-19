@@ -170,9 +170,9 @@ test('draws the settings surface as the whole window in a wide window too, its s
     expect(panel?.width).toBe(wideWindow.width);
     expect(panel?.height).toBe(wideWindow.height);
 
-    // The navigation's own width, 16.5rem at the root size this suite runs under, standing at the left edge.
+    // The navigation's own width, 18.0625rem at the root size this suite runs under, standing at the left edge.
     expect(navigation?.x).toBe(0);
-    expect(navigation?.width).toBeCloseTo(264, 0);
+    expect(navigation?.width).toBeCloseTo(289, 0);
 });
 
 test('draws the settings surface as the whole screen in a single-pane window', async ({ page }) => {

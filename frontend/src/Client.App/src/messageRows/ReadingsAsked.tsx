@@ -140,7 +140,9 @@ function AskedMessage({
     // What produced the readings is named once, in the footer, rather than on every reading — and every distinct
     // producer is named there, because a deterministic rule re-run over the same message says the same thing and a
     // model promises no such thing, so a dialog holding both says so rather than naming one of them for all.
-    const producers = [...new Set(asked.marks.map((mark) => translate(readingSources[mark.source], { origin: mark.origin })))];
+    const producers = [
+        ...new Set(asked.marks.map((mark) => translate(readingSources[mark.source], { origin: mark.origin }))),
+    ];
 
     return (
         <>

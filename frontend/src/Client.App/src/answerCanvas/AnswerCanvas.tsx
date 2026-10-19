@@ -127,6 +127,7 @@ export function AnswerCanvas({
                                     answer this client cannot parse each repeat identically on a second attempt, so
                                     offering the button there hands somebody an action that cannot work. */}
                                     <AnswerBlockCard
+                                        icon="auto_awesome"
                                         label={translate('answerCanvas.stillComing')}
                                         note={unread === undefined ? undefined : translate(unread.note)}
                                         state={unread?.state ?? 'loading'}

@@ -181,27 +181,93 @@ function drawing(
     };
 }
 
+const drafterName = 'Draft a reply to this correspondence';
+
+/** Opens the drafter where it is folded into its button, which is how it stands until somebody asks for it. */
+function openingTheDrafter(): void {
+    if (screen.queryByRole('form', { name: drafterName }) === null) {
+        fireEvent.click(screen.getByRole('button', { name: 'Draft a reply' }));
+    }
+}
+
 function field(): HTMLElement {
-    return screen.getByRole('textbox', { name: 'Ask about this correspondence' });
+    openingTheDrafter();
+
+    return screen.getByRole('textbox', { name: drafterName });
 }
 
 function draftingAReply(): void {
-    fireEvent.submit(screen.getByRole('form', { name: 'Ask about this correspondence' }));
+    openingTheDrafter();
+    fireEvent.submit(screen.getByRole('form', { name: drafterName }));
 }
 
 describe('ThreadAgentField', () => {
-    it('names the press in full where two panes are drawn', () => {
+    it('stands folded into its button until somebody asks for it', () => {
+        drawing(answeringDrafts().transport);
+
+        expect(screen.getByRole('button', { name: 'Draft a reply' })).toBeDefined();
+        expect(screen.queryByRole('form', { name: drafterName })).toBeNull();
+    });
+
+    it('opens the drafter from its button, with the keyboard in the field', () => {
+        drawing(answeringDrafts().transport);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Draft a reply' }));
+
+        expect(screen.getByRole('form', { name: drafterName })).toBeDefined();
+        expect(document.activeElement).toBe(screen.getByRole('textbox', { name: drafterName }));
+        expect(screen.queryByRole('button', { name: 'Draft a reply' })).toBeNull();
+    });
+
+    it('folds the drafter back into its button from the close badge, and puts the keyboard on the button', () => {
+        drawing(answeringDrafts().transport);
+        openingTheDrafter();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Close the reply drafter' }));
+
+        expect(screen.queryByRole('form', { name: drafterName })).toBeNull();
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Draft a reply' }));
+    });
+
+    it('folds the drafter back on Escape', () => {
+        drawing(answeringDrafts().transport);
+
+        fireEvent.keyDown(field(), { key: 'Escape' });
+
+        expect(screen.queryByRole('form', { name: drafterName })).toBeNull();
+    });
+
+    it('folds the drafter back once the reply is asked for', () => {
+        drawing(answeringDrafts().transport);
+
+        draftingAReply();
+
+        expect(screen.queryByRole('form', { name: drafterName })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Draft a reply' })).toBeDefined();
+    });
+
+    it('keeps what was typed while it is folded, so reopening it is not starting again', () => {
+        drawing(answeringDrafts().transport);
+
+        fireEvent.change(field(), { target: { value: 'accept the SLA' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Close the reply drafter' }));
+
+        expect(field()).toHaveProperty('value', 'accept the SLA');
+    });
+
+    it('names the press in full where two panes are drawn, and speaks only of drafting a reply', () => {
         theTabletComposition();
 
         drawing(answeringDrafts().transport);
 
+        expect(field()).toHaveProperty('placeholder', 'Describe the reply you want to send…');
         expect(screen.getByRole('button', { name: 'Draft a reply' })).toBeDefined();
-        expect(field()).toHaveProperty('placeholder', 'Ask about the thread or draft a reply…');
     });
 
-    it('shortens the press on one pane, where there is no room for the sentence', () => {
+    it('shortens the press and the placeholder on one pane, where there is no room for the sentence', () => {
         drawing(answeringDrafts().transport);
 
+        expect(field()).toHaveProperty('placeholder', 'Describe the reply…');
         expect(screen.getByRole('button', { name: 'Draft' })).toBeDefined();
         expect(screen.queryByRole('button', { name: 'Draft a reply' })).toBeNull();
     });
@@ -210,6 +276,7 @@ describe('ThreadAgentField', () => {
         theDesktopComposition();
 
         drawing(answeringDrafts().transport);
+        openingTheDrafter();
 
         expect(screen.getByText('Scope: this thread')).toBeDefined();
         expect(screen.getByText('+ selected passage')).toBeDefined();
@@ -220,6 +287,7 @@ describe('ThreadAgentField', () => {
         theTabletComposition();
 
         drawing(answeringDrafts().transport);
+        openingTheDrafter();
 
         expect(screen.queryByText('Scope: this thread')).toBeNull();
         expect(screen.queryByText('Draft stays local until confirmed')).toBeNull();
@@ -295,6 +363,7 @@ describe('ReplyDraftCard', () => {
         draftingAReply();
         await screen.findByText('AI is drafting…');
         opening(another);
+        openingTheDrafter();
 
         expect(screen.getByRole('button', { name: 'Draft' }).getAttribute('aria-disabled')).toBe('false');
 
@@ -330,14 +399,14 @@ describe('ReplyDraftCard', () => {
         expect(screen.queryByRole('region', { name: 'Draft · local' })).toBeNull();
     });
 
-    it('discards the draft and puts the keyboard back on the field it was asked for in', async () => {
+    it('discards the draft and puts the keyboard back on the button it was asked for from', async () => {
         drawing(answeringDrafts().transport);
 
         draftingAReply();
         fireEvent.click(await screen.findByRole('button', { name: 'Discard draft' }));
 
         expect(screen.queryByRole('region', { name: 'Draft · local' })).toBeNull();
-        expect(document.activeElement).toBe(field());
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Draft a reply' }));
     });
 
     it('offers no composer where the deployment offers none, and still lets the draft go', async () => {

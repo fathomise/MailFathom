@@ -180,7 +180,11 @@ export async function openApplicationSettings(page: Page): Promise<void> {
 
     await settings
         .getByRole('tab', { name: 'Application' })
-        .or(settings.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Application' }))
+        .or(
+            settings
+                .getByRole('navigation', { name: 'Settings sections' })
+                .getByRole('button', { name: 'Application' }),
+        )
         .click();
 }
 

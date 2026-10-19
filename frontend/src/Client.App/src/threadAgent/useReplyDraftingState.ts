@@ -38,7 +38,7 @@ export function useReplyDraftingState(
     const { translate } = useLocalization();
     const toasts = useToasts();
     const [held, setHeld] = useState<{ readonly signedInAs: string; readonly draft: ThreadDraft } | null>(null);
-    const field = useRef<HTMLInputElement>(null);
+    const field = useRef<HTMLElement>(null);
 
     // Which request is the one the screen still wants. Letting a draft go, or asking for another, makes whatever is
     // still on the wire an answer nobody is waiting for, and it is dropped rather than drawn over what replaced it.
@@ -94,7 +94,7 @@ export function useReplyDraftingState(
         setHeld(null);
     }
 
-    function holdField(element: HTMLInputElement | null): void {
+    function holdField(element: HTMLElement | null): void {
         field.current = element;
     }
 
