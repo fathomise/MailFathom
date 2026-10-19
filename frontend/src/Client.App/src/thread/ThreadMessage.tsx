@@ -43,11 +43,20 @@ const arrivalStyles: Readonly<Record<ArrivalMark, string>> = {
     result: 'border-s-3 border-s-accent bg-accent-soft ps-2.75',
 };
 
+/** How a message of the history moves as the reader shows it or hides it again. */
+export type HistoryMotion = 'unfolding' | 'folding';
+
+const historyMotions: Readonly<Record<HistoryMotion, string>> = {
+    unfolding: 'animate-unfold-in',
+    folding: 'animate-unfold-out',
+};
+
 export function ThreadMessage({
     session,
     transport,
     message,
     mark,
+    motion,
     online,
     onShowFullHtml,
     onRegion,
@@ -58,6 +67,9 @@ export function ThreadMessage({
 
     /** What marks this message out as the one the conversation arrived at, or `null` where nothing does. */
     readonly mark: ArrivalMark | null;
+
+    /** How this message moves as the history is shown or hidden, or `null` where it stands still. */
+    readonly motion: HistoryMotion | null;
 
     /** Whether the deployment is reachable, which decides whether a message the conversation did not carry is read. */
     readonly online: boolean;
@@ -75,7 +87,10 @@ export function ThreadMessage({
     const body = useMessageBody(session, transport, email.id, online && message.message !== null, message.body);
 
     return (
-        <li className="flex flex-col gap-3">
+        <li
+            inert={motion === 'folding'}
+            className={`flex flex-col gap-3 ${motion === null ? '' : historyMotions[motion]}`}
+        >
             <article
                 ref={onRegion}
                 tabIndex={-1}

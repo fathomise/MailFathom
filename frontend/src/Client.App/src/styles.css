@@ -475,14 +475,13 @@
     --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
     --ease-panel: cubic-bezier(0.3, 0.7, 0.1, 1);
 
-    /* How every surface that arrives or leaves moves, which is the design's one motion vocabulary: three speeds an
-       arrival takes by how far it travels, one a departure takes whatever it is, and the two curves they travel on. A
+    /* How every surface that arrives or leaves moves, which is the design's one motion vocabulary: three speeds a
+       surface takes by how far it travels, the same one leaving as arriving, and the two curves they travel on. A
        surface names its kind — `surface-*` below for what the platform puts in its top layer, an `animate-*` token
        here for everything else — and never a duration or a curve of its own. */
     --motion-fast: 160ms;
     --motion-base: 240ms;
     --motion-slow: 340ms;
-    --motion-exit: 200ms;
     --ease-arrive: cubic-bezier(0.22, 1, 0.36, 1);
     --ease-leave: cubic-bezier(0.4, 0, 1, 1);
 
@@ -502,13 +501,54 @@
        colour only. A departure holds its last frame — `both` — until it is taken away; an arrival keeps nothing once
        it ends, so it leaves no stacking context behind. */
     --animate-pop-in: pop-in var(--motion-fast) var(--ease-arrive) backwards;
-    --animate-pop-out: pop-out var(--motion-exit) var(--ease-leave) both;
+    --animate-pop-out: pop-out var(--motion-fast) var(--ease-leave) both;
     --animate-sheet-in: sheet-in var(--motion-slow) var(--ease-sheet) backwards;
-    --animate-sheet-out: sheet-out var(--motion-exit) var(--ease-leave) both;
+    --animate-sheet-out: sheet-out var(--motion-slow) var(--ease-leave) both;
     --animate-rise-in: rise-in var(--motion-base) var(--ease-arrive) backwards;
-    --animate-rise-out: rise-out var(--motion-exit) var(--ease-leave) both;
+    --animate-rise-out: rise-out var(--motion-base) var(--ease-leave) both;
     --animate-scrim-in: fade-in var(--motion-base) var(--ease-arrive) backwards;
-    --animate-scrim-out: fade-out var(--motion-exit) var(--ease-leave) both;
+    --animate-scrim-out: fade-out var(--motion-base) var(--ease-leave) both;
+
+    /* The earlier messages of a conversation, shown around the one being read: each settles 10 px down into place,
+       and hiding them folds them back up before they are taken out. The message being read stays still. */
+    --animate-unfold-in: unfold-in var(--motion-base) var(--ease-arrive) backwards;
+    --animate-unfold-out: unfold-out var(--motion-base) var(--ease-leave) both;
+
+    /* A band disclosed in the flow of a column — the list's filters — which unfolds from no height as it opens and
+       folds back to none as it closes, so what stands under it moves with it rather than jumping. The height travels
+       only where the platform interpolates to `auto` (`disclosure` asks it to); elsewhere the band fades in place. */
+    --animate-disclose-in: disclose-in var(--motion-base) var(--ease-arrive) backwards;
+    --animate-disclose-out: disclose-out var(--motion-base) var(--ease-leave) both;
+
+    @keyframes disclose-in {
+        from {
+            height: 0;
+            padding-block: 0;
+            opacity: 0;
+        }
+    }
+
+    @keyframes disclose-out {
+        to {
+            height: 0;
+            padding-block: 0;
+            opacity: 0;
+        }
+    }
+
+    @keyframes unfold-in {
+        from {
+            opacity: 0;
+            translate: 0 -0.625rem;
+        }
+    }
+
+    @keyframes unfold-out {
+        to {
+            opacity: 0;
+            translate: 0 -0.625rem;
+        }
+    }
 
     @keyframes pane-push {
         from {
@@ -923,6 +963,16 @@
     transition-timing-function: var(--ease-sheet);
 }
 
+/* What lets a disclosed band travel its own height: its size may interpolate to and from `auto`, its own animation may
+   make it shorter than its content while a column it stands in never does, and nothing inside it draws outside it
+   while it is. */
+@utility disclosure {
+    interpolate-size: allow-keywords;
+    flex-shrink: 0;
+    min-height: 0;
+    overflow: clip;
+}
+
 /* How a surface the platform puts in its top layer — a modal `dialog`, a popover — arrives and leaves, one utility
    per kind the design draws: `surface-pop` for a centred dialog and a menu, `surface-sheet` for a sheet rising from the
    foot of the window and for anything standing over the whole of a narrow one, `surface-drawer` for the mailboxes
@@ -938,7 +988,7 @@
     opacity: 0;
     scale: 0.96;
     transition-property: opacity, scale, display, overlay;
-    transition-duration: var(--motion-exit);
+    transition-duration: var(--motion-fast);
     transition-timing-function: var(--ease-leave);
     transition-behavior: allow-discrete;
 
@@ -956,7 +1006,7 @@
 
     &::backdrop {
         opacity: 0;
-        transition: opacity var(--motion-exit) var(--ease-leave);
+        transition: opacity var(--motion-base) var(--ease-leave);
     }
 
     &:is([open], :popover-open)::backdrop {
@@ -973,7 +1023,7 @@
 @utility surface-sheet {
     translate: 0 100%;
     transition-property: translate, display, overlay;
-    transition-duration: var(--motion-exit);
+    transition-duration: var(--motion-slow);
     transition-timing-function: var(--ease-leave);
     transition-behavior: allow-discrete;
 
@@ -989,7 +1039,7 @@
 
     &::backdrop {
         opacity: 0;
-        transition: opacity var(--motion-exit) var(--ease-leave);
+        transition: opacity var(--motion-base) var(--ease-leave);
     }
 
     &:is([open], :popover-open)::backdrop {
@@ -1006,7 +1056,7 @@
 @utility surface-drawer {
     translate: -100% 0;
     transition-property: translate, display, overlay;
-    transition-duration: var(--motion-exit);
+    transition-duration: var(--motion-slow);
     transition-timing-function: var(--ease-leave);
     transition-behavior: allow-discrete;
 
@@ -1022,7 +1072,7 @@
 
     &::backdrop {
         opacity: 0;
-        transition: opacity var(--motion-exit) var(--ease-leave);
+        transition: opacity var(--motion-base) var(--ease-leave);
     }
 
     &:is([open], :popover-open)::backdrop {

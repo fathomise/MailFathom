@@ -194,8 +194,8 @@ Project repository: https://github.com/fathomise/MailFathom
   </sc-if>
 
   <sc-if value="{{ delFolderOpen }}" hint-placeholder-val="{{ false }}">
-    <div style="{{ ovAsk98 }}">
-      <div style="{{ dlgAsk }}">
+    <div data-motion="scrim" data-phase="{{ mo.delFolder }}" style="{{ ovAsk98 }}">
+      <div data-motion="pop" data-phase="{{ mo.delFolder }}" style="{{ dlgAsk }}">
         <div style="font-size:16px;font-weight:600">Delete folder “{{ delFolderName }}”?</div>
         <div style="font-size:13px;color:var(--muted);line-height:1.5;text-wrap:pretty">{{ delFolderText }}</div>
         <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:2px">
@@ -496,8 +496,8 @@ Project repository: https://github.com/fathomise/MailFathom
       </div>
     </sc-if>
     <sc-if value="{{ htmlAskOpen }}" hint-placeholder-val="{{ false }}">
-      <div style="{{ ovAsk98 }}">
-        <div style="{{ dlgAsk }}">
+      <div data-motion="scrim" data-phase="{{ mo.htmlAsk }}" style="{{ ovAsk98 }}">
+        <div data-motion="pop" data-phase="{{ mo.htmlAsk }}" style="{{ dlgAsk }}">
           <div style="display:flex;align-items:flex-start;gap:11px">
             <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;color:var(--warn)">gpp_maybe</span>
             <div style="display:flex;flex-direction:column;gap:5px;min-width:0">
@@ -513,8 +513,8 @@ Project repository: https://github.com/fathomise/MailFathom
       </div>
     </sc-if>
     <sc-if value="{{ closeAskOpen }}" hint-placeholder-val="{{ false }}">
-      <div style="{{ ovAsk97 }}">
-        <div style="{{ dlgAsk }}">
+      <div data-motion="scrim" data-phase="{{ mo.closeAsk }}" style="{{ ovAsk97 }}">
+        <div data-motion="pop" data-phase="{{ mo.closeAsk }}" style="{{ dlgAsk }}">
           <div style="display:flex;align-items:flex-start;gap:11px">
             <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;color:var(--warn)">edit_note</span>
             <div style="display:flex;flex-direction:column;gap:5px;min-width:0">
@@ -531,8 +531,8 @@ Project repository: https://github.com/fathomise/MailFathom
       </div>
     </sc-if>
     <sc-if value="{{ sendAskOpen }}" hint-placeholder-val="{{ false }}">
-      <div style="{{ ovAsk97 }}">
-        <div style="{{ dlgAsk }}">
+      <div data-motion="scrim" data-phase="{{ mo.sendAsk }}" style="{{ ovAsk97 }}">
+        <div data-motion="pop" data-phase="{{ mo.sendAsk }}" style="{{ dlgAsk }}">
           <div style="display:flex;align-items:flex-start;gap:11px">
             <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;color:var(--accent)">send</span>
             <div style="display:flex;flex-direction:column;gap:5px;min-width:0">
@@ -616,8 +616,8 @@ Project repository: https://github.com/fathomise/MailFathom
       </div>
     </sc-if>
     <sc-if value="{{ deleteConvAskOpen }}" hint-placeholder-val="{{ false }}">
-      <div style="{{ ovAsk95 }}">
-        <div style="{{ dlgAsk }}">
+      <div data-motion="scrim" data-phase="{{ mo.deleteConvAsk }}" style="{{ ovAsk95 }}">
+        <div data-motion="pop" data-phase="{{ mo.deleteConvAsk }}" style="{{ dlgAsk }}">
           <div style="font-size:16px;font-weight:600">Delete this conversation?</div>
           <div style="font-size:13px;color:var(--muted);line-height:1.5;text-wrap:pretty">Messages in this conversation with the agent will be permanently deleted. This cannot be undone.</div>
           <div style="display:flex;gap:9px;justify-content:flex-end">
@@ -628,8 +628,8 @@ Project repository: https://github.com/fathomise/MailFathom
       </div>
     </sc-if>
     <sc-if value="{{ closeAllAsk }}" hint-placeholder-val="{{ false }}">
-      <div style="{{ ovAsk95 }}">
-        <div style="{{ dlgAsk }}">
+      <div data-motion="scrim" data-phase="{{ mo.closeAllAsk }}" style="{{ ovAsk95 }}">
+        <div data-motion="pop" data-phase="{{ mo.closeAllAsk }}" style="{{ dlgAsk }}">
           <div style="font-size:16px;font-weight:600">Close all tabs?</div>
           <div style="font-size:13px;color:var(--muted);line-height:1.5;text-wrap:pretty">{{ closeAllInfo }}</div>
           <div style="display:flex;gap:9px;justify-content:flex-end">
@@ -736,7 +736,7 @@ Project repository: https://github.com/fathomise/MailFathom
             <div onClick="{{ toggleFilters }}" title="{{ filtersTitle }}" style="{{ filtersBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">{{ filtersIcon }}</span><sc-if value="{{ filtersActive }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;font-weight:600">{{ filtersCount }}</span></sc-if></div>
           </div>
           <sc-if value="{{ filtersOpen }}" hint-placeholder-val="{{ false }}">
-            <div style="flex:0 0 auto;display:flex;flex-direction:column;gap:11px;padding:11px 12px;border-bottom:1px solid var(--line);background:var(--sub)">
+            <div data-motion="disclose" data-phase="{{ mo.filtersOpen }}" style="flex:0 0 auto;display:flex;flex-direction:column;gap:11px;padding:11px 12px;border-bottom:1px solid var(--line);background:var(--sub)">
               <div style="display:flex;gap:7px;flex-wrap:wrap">
                 <sc-for list="{{ filterToggles }}" as="ft" hint-placeholder-count="3">
                   <div onClick="{{ ft.toggle }}" style="{{ ft.style }}" style-hover="cursor:pointer;border-color:var(--accent)"><span style="{{ ft.iconStyle }}">{{ ft.icon }}</span>{{ ft.label }}</div>
@@ -950,7 +950,7 @@ Project repository: https://github.com/fathomise/MailFathom
                 </div>
               </sc-if>
               <sc-if value="{{ m.isMsg }}" hint-placeholder-val="{{ true }}">
-                <div style="{{ m.wrapStyle }}">
+                <div data-motion="{{ m.unfoldMotion }}" data-phase="{{ m.unfoldPhase }}" style="{{ m.wrapStyle }}">
                   <div style="{{ m.headPadStyle }}">
                     <sc-if value="{{ m.hasAvatar }}" hint-placeholder-val="{{ false }}"><div title="{{ m.from }}" style="{{ m.avatarImgStyle }}"></div></sc-if>
                     <sc-if value="{{ m.noAvatar }}" hint-placeholder-val="{{ true }}"><div style="{{ m.avatarStyle }}">{{ m.initials }}</div></sc-if>
@@ -1965,8 +1965,8 @@ Project repository: https://github.com/fathomise/MailFathom
   </sc-if>
 
   <sc-if value="{{ newCaseOpen }}" hint-placeholder-val="{{ false }}">
-    <div onClick="{{ closeNewCase }}" style="{{ ovZ96 }}">
-      <div onClick="{{ stopProp }}" style="width:520px;max-width:100%;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 22px 52px var(--sh-3);overflow:hidden">
+    <div data-motion="scrim" data-phase="{{ mo.newCase }}" onClick="{{ closeNewCase }}" style="{{ ovZ96 }}">
+      <div data-motion="{{ moDialog }}" data-phase="{{ mo.newCase }}" onClick="{{ stopProp }}" style="width:520px;max-width:100%;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 22px 52px var(--sh-3);overflow:hidden">
         <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--sub)">
           <div style="font-size:15px;font-weight:600">New case</div>
           <div onClick="{{ closeNewCase }}" style="{{ closeBtnAutoStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
@@ -2010,8 +2010,8 @@ Project repository: https://github.com/fathomise/MailFathom
   </sc-if>
 
   <sc-if value="{{ newTaskOpen }}" hint-placeholder-val="{{ false }}">
-    <div onClick="{{ closeNewTask }}" style="{{ ovZ96 }}">
-      <div onClick="{{ stopProp }}" style="{{ dlgFormWide }}">
+    <div data-motion="scrim" data-phase="{{ mo.newTask }}" onClick="{{ closeNewTask }}" style="{{ ovZ96 }}">
+      <div data-motion="{{ moDialog }}" data-phase="{{ mo.newTask }}" onClick="{{ stopProp }}" style="{{ dlgFormWide }}">
         <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--sub)">
           <div style="font-size:15px;font-weight:600">New task</div>
           <div onClick="{{ closeNewTask }}" style="{{ closeBtnAutoStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
@@ -2082,8 +2082,8 @@ Project repository: https://github.com/fathomise/MailFathom
   </sc-if>
 
   <sc-if value="{{ confirmDelOpen }}" hint-placeholder-val="{{ false }}">
-    <div onClick="{{ cancelConfirmDel }}" style="{{ ovAsk99 }}">
-      <div onClick="{{ stopProp }}" style="{{ dlgAsk }}">
+    <div data-motion="scrim" data-phase="{{ mo.confirmDel }}" onClick="{{ cancelConfirmDel }}" style="{{ ovAsk99 }}">
+      <div data-motion="pop" data-phase="{{ mo.confirmDel }}" onClick="{{ stopProp }}" style="{{ dlgAsk }}">
         <div style="display:flex;align-items:flex-start;gap:11px">
           <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;color:var(--err-text);padding-top:1px">delete</span>
           <div style="flex:1;min-width:0;font-size:16px;font-weight:600;text-wrap:pretty">{{ confirmDelTitle }}</div>
@@ -2552,8 +2552,8 @@ Project repository: https://github.com/fathomise/MailFathom
   </sc-if>
 
   <sc-if value="{{ newEventOpen }}" hint-placeholder-val="{{ false }}">
-    <div onClick="{{ closeNewEvent }}" style="{{ ovZ96 }}">
-      <div onClick="{{ stopProp }}" style="{{ dlgForm }}">
+    <div data-motion="scrim" data-phase="{{ mo.newEvent }}" onClick="{{ closeNewEvent }}" style="{{ ovZ96 }}">
+      <div data-motion="{{ moDialog }}" data-phase="{{ mo.newEvent }}" onClick="{{ stopProp }}" style="{{ dlgForm }}">
         <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--sub)">
           <div style="font-size:15px;font-weight:600">New event</div>
           <div onClick="{{ closeNewEvent }}" style="{{ closeBtnAutoStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
@@ -2625,8 +2625,8 @@ Project repository: https://github.com/fathomise/MailFathom
   </sc-if>
 
   <sc-if value="{{ newContactOpen }}" hint-placeholder-val="{{ false }}">
-    <div onClick="{{ closeNewContact }}" style="{{ ovZ96 }}">
-      <div onClick="{{ stopProp }}" style="{{ dlgForm }}">
+    <div data-motion="scrim" data-phase="{{ mo.newContact }}" onClick="{{ closeNewContact }}" style="{{ ovZ96 }}">
+      <div data-motion="{{ moDialog }}" data-phase="{{ mo.newContact }}" onClick="{{ stopProp }}" style="{{ dlgForm }}">
         <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--sub)">
           <div style="font-size:15px;font-weight:600">New contact</div>
           <div onClick="{{ closeNewContact }}" style="{{ closeBtnAutoStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
@@ -3124,8 +3124,8 @@ Project repository: https://github.com/fathomise/MailFathom
     </sc-for>
   </div>
   <sc-if value="{{ cancelAskOpen }}" hint-placeholder-val="{{ false }}">
-    <div style="{{ ovAsk98 }}">
-      <div style="{{ dlgAsk }}">
+    <div data-motion="scrim" data-phase="{{ mo.cancelAsk }}" style="{{ ovAsk98 }}">
+      <div data-motion="pop" data-phase="{{ mo.cancelAsk }}" style="{{ dlgAsk }}">
         <div style="font-size:16px;font-weight:600">{{ cancelAskTitle }}</div>
         <div style="font-size:13px;color:var(--muted);line-height:1.5;text-wrap:pretty">{{ cancelAskText }}</div>
         <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:2px">

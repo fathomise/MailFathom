@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { DepartureContext } from './departure';
+import { animationsReported, departureFinished, DepartureContext } from './departure';
 
 // How a surface drawn in the document leaves rather than vanishing. A surface the platform puts in its top layer leaves
 // by a transition the stylesheet already holds, because the platform keeps it drawn while it travels; one a component
@@ -16,8 +16,6 @@ import { DepartureContext } from './departure';
 // finished. One that never finishes — a spinner inside the surface — is not waited on. Where the platform reports none
 // at all, the motion was removed under `prefers-reduced-motion` or the surface is not drawn, and the value goes at once;
 // where it cannot report any — jsdom implements no animation — nothing is held to begin with.
-
-const animationsReported = typeof Element === 'function' && typeof Element.prototype.getAnimations === 'function';
 
 /**
  * Draws a surface from `value` while there is one, and from the last one while the surface leaves.
@@ -67,11 +65,8 @@ export function Departing<T>({
         }
 
         let waiting = true;
-        const running = (element?.getAnimations({ subtree: true }) ?? []).filter(
-            (animation) => animation.effect?.getComputedTiming().endTime !== Infinity,
-        );
 
-        void Promise.allSettled(running.map((animation) => animation.finished)).then(() => {
+        void departureFinished(element).then(() => {
             if (waiting) {
                 setHeld(null);
             }

@@ -620,11 +620,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        — its `data-phase` — until the timer unmounts it. A pane key (mailPane, casePane, peoplePane) records which way
        it last moved instead, read by `paneMotion`, so one pane at a time pushes forward and comes back.
        ponytail: the held value is read by the whole render, so anything else gated on the same key (the FAB waits on
-       `compose`) follows it 240 ms late; a per-surface snapshot is the upgrade if that ever shows. */
+       `compose`) follows it 340 ms late; a per-surface snapshot is the upgrade if that ever shows. */
     static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "sideDrawer", "compose", "settings",
-      "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock"];
+      "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock",
+      "newCase", "newTask", "newEvent", "newContact", "filtersOpen",
+      "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk"];
     static MOTION_PANES = ["mailPane", "casePane", "peoplePane"];
-    static MOTION_EXIT_MS = 240;
+    static MOTION_EXIT_MS = 340;
 
     motionHold = (state) => {
       const C = this.constructor;
@@ -2524,7 +2526,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             : activeIsNewest
               ? "Show " + hiddenCount + (hiddenCount === 1 ? " earlier message" : " earlier messages")
               : "Show all messages",
-          togglePill: () => this.setState(s2 => ({ histOpen: Object.assign({}, s2.histOpen, { [thread.id]: !histOpen }) })),
+          /* Showing unfolds the messages it brings; hiding folds them away first and only then takes them out. */
+          togglePill: () => {
+            if (!histOpen) { this.setState(s2 => ({ histUnfolded: thread.id, histOpen: Object.assign({}, s2.histOpen, { [thread.id]: true }) })); return; }
+            this.setState({ histFolding: thread.id });
+            setTimeout(() => this.setState(s2 => ({ histFolding: null, histOpen: Object.assign({}, s2.histOpen, { [thread.id]: false }) })), this.constructor.MOTION_EXIT_MS);
+          },
         });
       }
       msgs.forEach((m, i) => {
@@ -2538,8 +2545,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const remoteRefs = m.remoteRefs != null ? m.remoteRefs
           : m.mine ? 0 : (((m.from || "") + (m.when || "")).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 3 === 0 ? 0 : 3 + (((m.from || "").length * 7 + (m.when || "").length) % 16));
         const remoteOn = !!(st.remoteLoaded || {})[k];
+        const folding = st.histFolding === thread.id;
         items.push({
           isMsg: true, isPill: false, key: k, isActive,
+          unfoldMotion: i !== activeIdx && (folding || st.histUnfolded === thread.id) ? "unfold" : "none",
+          unfoldPhase: folding && i !== activeIdx ? "out" : "in",
           remoteBlocked: remoteRefs > 0 && !remoteOn,
           remoteLoaded: remoteRefs > 0 && remoteOn,
           remoteCountLabel: "Removed references: " + remoteRefs,
