@@ -2,10 +2,11 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocalization } from '../localization/useLocalization';
 import { MailSpace } from '../mailSpace/MailSpace';
 import { implementedSpaces, spaceLabels, type Space as SpaceName } from '../routing/spaces';
+import { SpaceInFrontContext } from './screenLayers';
 
 // The region the address decides the contents of. What each space actually holds is built by its own issue; what this
 // owns permanently is that a space is mounted once and then only moved in front of or behind the others, and what
@@ -99,6 +100,16 @@ export function Space({
         }
     }, [space]);
 
+    // Whether somebody has moved between spaces yet, which is what decides whether the one in front settles into place:
+    // landing in the client is not a move, so the first space is simply there.
+    const [drawnSpace, setDrawnSpace] = useState(space);
+    const [moved, setMoved] = useState(false);
+
+    if (drawnSpace !== space) {
+        setDrawnSpace(space);
+        setMoved(true);
+    }
+
     // **Every space is drawn whichever one is in front, and the others are stood aside rather than taken down.** What
     // a space holds is the thing it was reading, the pages of it the deployment answered, the place in those pages the
     // reader had scrolled to, what they had picked out and what they had open — and every one of those is state of the
@@ -151,57 +162,59 @@ export function Space({
                             composed
                                 ? 'flex min-h-0 flex-col overflow-hidden'
                                 : 'overflow-y-auto px-4 py-6 workspace:px-8'
-                        } ${inFront ? 'flex-1' : 'invisible absolute inset-0'}`}
+                        } ${inFront ? `flex-1 ${moved ? 'animate-space-arrival' : ''}` : 'invisible absolute inset-0'}`}
                     >
-                        {/* A built space whose columns are what it is carries no title here, which is how the design
-                            draws each of them: a heading over the columns would be a word above the thing the
-                            word names. Discover is the exception the design draws rather than one this frame takes —
-                            it heads its own screen, beside what the deployment is doing and the way back to asking —
-                            so the title is that space's and never this one's. Every region still carries its name,
-                            because a landmark a reader moves to is announced by it. */}
-                        {isDiscover ? (
-                            /* Drawn whether or not it is in front, exactly as every other space is, so a run being
-                               followed survives a visit to the mail. Which of the frame's two regions it was handed is
-                               decided where the address is known rather than here, for the prop's own reason. */
-                            discover
-                        ) : isAgent ? (
-                            agent
-                        ) : isMail ? (
-                            /* The field and the connection are handed to the space in front and to nothing else: two of
-                               either would be two live copies of one control — a second field a reply could be asked
-                               for in, and a second region saying what the deployment is doing. */
-                            <MailSpace
-                                folders={folders}
-                                list={list}
-                                mail={mail}
-                                tabs={tabs}
-                                threadField={inFront ? threadField : null}
-                                status={inFront ? status : null}
-                                person={person}
-                            />
-                        ) : ownColumns === null ? (
-                            <div className="flex max-w-3xl flex-col gap-3">
-                                <h1 className="text-4xl font-semibold tracking-tighter">
-                                    {translate(spaceLabels[name])}
-                                </h1>
+                        <SpaceInFrontContext value={inFront}>
+                            {/* A built space whose columns are what it is carries no title here, which is how the
+                                design draws each of them: a heading over the columns would be a word above the thing
+                                the word names. Discover is the exception the design draws rather than one this frame
+                                takes — it heads its own screen, beside what the deployment is doing and the way back to
+                                asking — so the title is that space's and never this one's. Every region still carries
+                                its name, because a landmark a reader moves to is announced by it. */}
+                            {isDiscover ? (
+                                /* Drawn whether or not it is in front, exactly as every other space is, so a run being
+                                   followed survives a visit to the mail. Which of the frame's two regions it was handed
+                                   is decided where the address is known rather than here, for the prop's own reason. */
+                                discover
+                            ) : isAgent ? (
+                                agent
+                            ) : isMail ? (
+                                /* The field and the connection are handed to the space in front and to nothing else:
+                                   two of either would be two live copies of one control — a second field a reply could
+                                   be asked for in, and a second region saying what the deployment is doing. */
+                                <MailSpace
+                                    folders={folders}
+                                    list={list}
+                                    mail={mail}
+                                    tabs={tabs}
+                                    threadField={inFront ? threadField : null}
+                                    status={inFront ? status : null}
+                                    person={person}
+                                />
+                            ) : ownColumns === null ? (
+                                <div className="flex max-w-3xl flex-col gap-3">
+                                    <h1 className="text-4xl font-semibold tracking-tighter">
+                                        {translate(spaceLabels[name])}
+                                    </h1>
 
-                                {inFront ? status : null}
+                                    {inFront ? status : null}
 
-                                {/* The note belongs to a space that holds nothing, which is every space no issue has
-                                    built yet. */}
-                                {implementedSpaces.includes(name) ? null : (
-                                    <p className="text-base text-muted">{translate('space.pending')}</p>
-                                )}
-                            </div>
-                        ) : (
-                            /* A space that composes its own columns, which is Tasks, People and Calendar. The
-                               connection stands at its foot and is handed to the one in front alone, exactly as it is
-                               to Mail; none of the three draws a field, because the design draws none there. */
-                            <div className="flex min-h-0 flex-1 flex-col">
-                                {ownColumns}
-                                {inFront ? status : null}
-                            </div>
-                        )}
+                                    {/* The note belongs to a space that holds nothing, which is every space no issue
+                                        has built yet. */}
+                                    {implementedSpaces.includes(name) ? null : (
+                                        <p className="text-base text-muted">{translate('space.pending')}</p>
+                                    )}
+                                </div>
+                            ) : (
+                                /* A space that composes its own columns, which is Tasks, People and Calendar. The
+                                   connection stands at its foot and is handed to the one in front alone, exactly as it
+                                   is to Mail; none of the three draws a field, because the design draws none there. */
+                                <div className="flex min-h-0 flex-1 flex-col">
+                                    {ownColumns}
+                                    {inFront ? status : null}
+                                </div>
+                            )}
+                        </SpaceInFrontContext>
                     </main>
                 );
             })}

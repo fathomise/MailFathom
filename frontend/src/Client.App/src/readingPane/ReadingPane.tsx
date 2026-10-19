@@ -447,7 +447,7 @@ function OpenMessage({
             ref={opened}
             tabIndex={-1}
             aria-label={message.headers.subject ?? translate('message.noSubject')}
-            className="flex flex-col"
+            className="flex animate-content-arrival flex-col"
         >
             <MessageHeaders headers={message.headers} message={message} thread={message.threadId} />
 

@@ -76,6 +76,7 @@ import { useSpace } from './routing/useSpace';
 import { MailSearch } from './search/MailSearch';
 import { offers, spacesOffered, withheldFrom } from './shell/capabilities';
 import { ConnectionSummary } from './shell/ConnectionSummary';
+import { Departing } from './shell/Departing';
 import { GrantNotice } from './shell/GrantNotice';
 import { AccountMenu } from './shell/AccountMenu';
 import { LanguageChoice, ThemeChoice } from './shell/Preferences';
@@ -85,8 +86,8 @@ import { ReturnToConversation } from './shell/ReturnToConversation';
 import { SpaceNavigation } from './shell/SpaceNavigation';
 import { useConnection } from './shell/useConnection';
 import { useBackNavigation } from './shellOperations/backNavigation';
-import { ScreenLayersContext, useScreenLayerStack } from './shell/screenLayers';
-import { useCoarsePointer, useDesktopComposition, useTwoPanes, useWideWorkspace } from './shell/useWideWorkspace';
+import { ScreenLayersContext, ScreenStep, useScreenLayerStack } from './shell/screenLayers';
+import { useCoarsePointer, useDesktopComposition, useWideWorkspace } from './shell/useWideWorkspace';
 import { CredentialNotices, type CredentialNotice } from './signIn/CredentialNotices';
 import type { CredentialStore } from './signIn/credentialStore';
 import { writeKeptSession, type KeptSession } from './signIn/keptSession';
@@ -587,6 +588,12 @@ export function App({
         },
         [openTabs],
     );
+    const awayFromConversation = lookedAwayFromAgent && space !== null && space !== 'agent' ? true : null;
+
+    function returnToConversation(): void {
+        setLookedAwayFromAgent(false);
+        window.location.hash = addressOf('agent');
+    }
 
     // Who the person is, asked on the same three conditions and for the same reasons. It is read here rather than in
     // the menu that shows it because the settings screen behind that menu writes it, and two reads made separately
@@ -682,48 +689,15 @@ export function App({
     // drawer in the Mail space, a menu on the rail, a sheet at the foot of a phone, and a confirmation opened from any
     // of them have no common parent below this, and what the shell asks of them is asked of all of them at once.
     const layers = useScreenLayerStack();
-    const twoPanes = useTwoPanes();
 
-    // What is standing in front of what a reader was last looking at, which is what the back gesture unwinds before it
-    // moves anywhere. The two surfaces count here only where they are tabs in the reading column: where somebody does
-    // not work in tabs each is drawn in a window over the message, and a window registers itself as a screen layer the
-    // way every other modal surface does — so counting it here as well would spend two presses on one window. The
-    // message covering the list counts only where the composition shows one pane, since that is the only composition
-    // where opening one took the other off the screen.
-    //
-    // One list rather than a count beside a chain of branches, because how many steps stand there and what each of
-    // them does to go away are one fact read twice. A press that unwinds two of them at once is what makes the
-    // difference: asking the workspace again for the second step would answer with the surface the first has already
-    // taken away, this event holding the revision that closed one no more than it holds the one that opened it.
-    //
-    // They are the Mail space's own steps, so they count only while that space is in front. It is stood aside rather
-    // than taken down and goes on holding what it had open, which is what makes the question worth asking at all: a
-    // step counted from another space is a press spent closing a message the reader cannot see instead of leaving the
-    // space they are on.
-    const inFrontOfTheList =
-        space !== 'mail'
-            ? []
-            : [
-                  inTabs && workspace.attachment !== null ? openTabs.closeAttachment : null,
-                  inTabs && workspace.fullHtml !== null ? openTabs.closeFullHtml : null,
-                  twoPanes || (workspace.selection === null && workspace.conversation === null)
-                      ? null
-                      : () => {
-                            revise({ selection: null, conversation: null });
-                        },
-              ].filter((close) => close !== null);
-
-    useBackNavigation(layers.depth + inFrontOfTheList.length, (used) => {
+    // Every press of the back gesture unwinds the topmost thing standing between the reader and the screen they came
+    // from — a surface over it, or a view drawn in place of another inside the space in front — and the stack holds
+    // both in the order they arrived, so a press that unwinds two at once reaches them topmost first.
+    useBackNavigation(layers.depth, (used) => {
         let left = used;
 
         while (left > 0 && layers.closeTop()) {
             left -= 1;
-        }
-
-        // Topmost first, which is the order the list is written in: a file stands in front of the message it was
-        // opened from, and that message in front of the list it was opened from.
-        for (const close of inFrontOfTheList.slice(0, left)) {
-            close();
         }
     });
 
@@ -1076,17 +1050,13 @@ export function App({
                         the region is what the connection says — reaching, retrying, offline, or refused — because that is
                         the only thing on the screen there is to read, and the way out of a deployment that never answers
                         has to be somewhere. */}
-                                                                            {lookedAwayFromAgent &&
-                                                                            space !== null &&
-                                                                            space !== 'agent' ? (
-                                                                                <ReturnToConversation
-                                                                                    onReturn={() => {
-                                                                                        setLookedAwayFromAgent(false);
-                                                                                        window.location.hash =
-                                                                                            addressOf('agent');
-                                                                                    }}
-                                                                                />
-                                                                            ) : null}
+                                                                            <Departing value={awayFromConversation}>
+                                                                                {() => (
+                                                                                    <ReturnToConversation
+                                                                                        onReturn={returnToConversation}
+                                                                                    />
+                                                                                )}
+                                                                            </Departing>
 
                                                                             {space === null ? (
                                                                                 <main className="flex-1 px-4 py-6 workspace:px-8">
@@ -1707,7 +1677,7 @@ function OpenMail({
     // In tabs the surface *is* the reading column, because a tab of its own is what it was opened as and the message it
     // came from is a tab beside it. Closing it is the workspace letting go of it, there being no window to leave.
     if (inTabs && opened !== null) {
-        return opened.draw(opened.onClosed);
+        return <ScreenStep back={opened.onClosed}>{opened.draw(opened.onClosed)}</ScreenStep>;
     }
 
     return (
@@ -1733,11 +1703,13 @@ function OpenMail({
                 />
             )}
 
-            {opened === null ? null : (
-                <SurfaceWindow label={opened.label} drawn={opened.drawn} onClosed={opened.onClosed}>
-                    {opened.draw}
-                </SurfaceWindow>
-            )}
+            <Departing value={opened}>
+                {(opened) => (
+                    <SurfaceWindow label={opened.label} drawn={opened.drawn} onClosed={opened.onClosed}>
+                        {opened.draw}
+                    </SurfaceWindow>
+                )}
+            </Departing>
         </>
     );
 }

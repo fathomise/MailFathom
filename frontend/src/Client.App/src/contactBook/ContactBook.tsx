@@ -14,6 +14,7 @@ import { estimatedRowHeight, offsetOfRow, windowOf } from '../messageRows/rowWin
 import { ContactRow } from './ContactRow';
 import { ContactRowMenu } from './ContactRowMenu';
 import type { ContactBookInForce, ContactBookName } from './useContactBook';
+import { Departing } from '../shell/Departing';
 
 // The column the address book is read down: the two books as the design draws them, how many people the one in
 // front holds, and the rows themselves.
@@ -363,26 +364,28 @@ export function ContactBook({
                 ) : null}
             </div>
 
-            {menu === null ? null : (
-                <ContactRowMenu
-                    contact={menu.contact}
-                    at={menu.at}
-                    erasable={erasable}
-                    onSelect={() => {
-                        onSelected(onlySelected(menu.contact.id));
-                    }}
-                    onOpen={() => {
-                        onOpen(menu.contact);
-                    }}
-                    onAskErasure={() => {
-                        onAskErasure([menu.contact]);
-                    }}
-                    onClose={() => {
-                        setMenu(null);
-                        wantsFocus.current = true;
-                    }}
-                />
-            )}
+            <Departing value={menu}>
+                {(menu) => (
+                    <ContactRowMenu
+                        contact={menu.contact}
+                        at={menu.at}
+                        erasable={erasable}
+                        onSelect={() => {
+                            onSelected(onlySelected(menu.contact.id));
+                        }}
+                        onOpen={() => {
+                            onOpen(menu.contact);
+                        }}
+                        onAskErasure={() => {
+                            onAskErasure([menu.contact]);
+                        }}
+                        onClose={() => {
+                            setMenu(null);
+                            wantsFocus.current = true;
+                        }}
+                    />
+                )}
+            </Departing>
         </div>
     );
 }

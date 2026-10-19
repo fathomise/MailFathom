@@ -2,9 +2,10 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useContext, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Icon } from '../controls/Icon';
 import type { IconName } from '../controls/icons';
+import { DepartureContext } from '../shell/departure';
 import { useScreenLayer } from '../shell/screenLayers';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
 import { placedWithin, type MenuPoint } from './menuPlacement';
@@ -61,6 +62,7 @@ export function ContextMenu({
     const within = useRef<HTMLDivElement>(null);
     const panel = useRef<HTMLDivElement>(null);
     const [placed, setPlaced] = useState<MenuPoint | null>(null);
+    const leaving = useContext(DepartureContext);
 
     // Measured rather than computed from what the items would come to: the menu's own size is the stylesheet's answer,
     // and a second copy of it here would be two numbers that have to agree. A layout effect, because this runs against
@@ -94,12 +96,16 @@ export function ContextMenu({
     // It stands over the row it was opened from, so the back gesture closes it before it does anything else — the same
     // way out Escape and a press outside it take. The component is on the screen only while the menu is, which is why
     // it is registered unconditionally.
-    useScreenLayer(true, onClose);
+    useScreenLayer(!leaving, onClose);
 
     // Closed by a press outside it rather than by the click that follows one. The tap ending a long press arrives as a
     // click with no press of its own behind it, so a menu listening for that would close under the finger that had
     // just asked for it — and the press that opened this one is already over by the time this is listening.
     useEffect(() => {
+        if (leaving) {
+            return;
+        }
+
         function pressedElsewhere(event: Event): void {
             if (panel.current?.contains(event.target as Node) !== true) {
                 onClose();
@@ -111,7 +117,7 @@ export function ContextMenu({
         return () => {
             document.removeEventListener('pointerdown', pressedElsewhere, true);
         };
-    }, [onClose]);
+    }, [onClose, leaving]);
 
     function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
         const walked = walkable(panel.current);
@@ -151,7 +157,7 @@ export function ContextMenu({
                 about leaving is the two effects above. */}
             <div
                 aria-hidden="true"
-                className="fixed inset-0 z-70 bg-scrim"
+                className={`fixed inset-0 z-70 bg-scrim ${leaving ? 'animate-scrim-out' : 'animate-scrim-in'}`}
                 onContextMenu={(event) => {
                     event.preventDefault();
                     onClose();
@@ -170,7 +176,7 @@ export function ContextMenu({
                     style={placed === null ? undefined : { left: placed.x, top: placed.y }}
                     className={`pointer-events-auto flex max-h-full w-75 max-w-full flex-col overflow-y-auto rounded-lg border border-line bg-panel pt-1.75 pr-1.5 pb-2 pl-1.5 text-text shadow-dialog workspace:absolute workspace:w-59 workspace:pointer-coarse:w-65.5 ${
                         wide && placed === null ? 'invisible' : ''
-                    }`}
+                    } ${leaving ? 'animate-pop-out' : 'animate-pop-in'}`}
                     onKeyDown={onKeyDown}
                     // The same gesture landing on the menu itself asks for what is already open, so it is refused and
                     // nothing else happens: closing here would take the menu away from somebody who pointed at it.

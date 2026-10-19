@@ -76,7 +76,7 @@ export function BlockingOverlay({
         <dialog
             ref={surface}
             aria-labelledby={named}
-            className="m-auto w-105 max-w-full rounded-xl border border-line bg-panel px-7.5 pt-8 pb-6 text-text shadow-dialog backdrop:bg-scrim backdrop:backdrop-blur-xs"
+            className="surface-pop m-auto w-105 max-w-full rounded-xl border border-line bg-panel px-7.5 pt-8 pb-6 text-text shadow-dialog backdrop:bg-scrim backdrop:backdrop-blur-xs"
             onCancel={(event) => {
                 // A close request — Escape, and whatever else a platform decides is one. Leaving this surface is
                 // stopping the operation, so it happens through the control below and the question in front of it.

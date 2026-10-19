@@ -294,7 +294,7 @@ function StateSheet({
         <dialog
             ref={sheet}
             aria-label={translate('threadState.label')}
-            className="fixed inset-x-0 top-auto bottom-0 m-0 hidden h-auto max-h-4/5 w-auto max-w-none flex-col gap-3 overflow-y-auto rounded-t-xl border-0 bg-panel px-4 pt-2.5 pb-safe-bottom text-text shadow-dialog backdrop:bg-scrim open:flex"
+            className="surface-sheet fixed inset-x-0 top-auto bottom-0 m-0 hidden h-auto max-h-4/5 w-auto max-w-none flex-col gap-3 overflow-y-auto rounded-t-xl border-0 bg-panel px-4 pt-2.5 pb-safe-bottom text-text shadow-dialog backdrop:bg-scrim open:flex"
             onCancel={(event) => {
                 event.preventDefault();
                 onClose();

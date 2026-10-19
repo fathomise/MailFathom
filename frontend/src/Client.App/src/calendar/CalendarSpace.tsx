@@ -38,6 +38,7 @@ import { NewEvent } from './NewEvent';
 import { ProposedDates } from './ProposedDates';
 import { useCalendarWindow } from './useCalendarWindow';
 import { WeekView } from './WeekView';
+import { Departing } from '../shell/Departing';
 
 // The Calendar space as the design composes it: a toolbar, the span somebody is looking at, one of four views
 // over it, and the dates their mail proposed down the side.
@@ -480,49 +481,53 @@ export function CalendarSpace({
                 />
             )}
 
-            {opened === null ? null : (
-                <EventDialog
-                    key={opened.event.id}
-                    event={opened.event}
-                    asked={opening}
-                    said={said?.where === 'event' ? said.said : null}
-                    remindersAsked={opened.reminders}
-                    onAmend={(amendment) => {
-                        amend(opened.event, amendment);
-                    }}
-                    onAskDeletion={() => {
-                        askDeletion([opened.event]);
-                    }}
-                    onOpenSource={onOpenMessage}
-                    onLeft={() => {
-                        setOpened(null);
-                    }}
-                />
-            )}
+            <Departing value={opened}>
+                {(opened) => (
+                    <EventDialog
+                        key={opened.event.id}
+                        event={opened.event}
+                        asked={opening}
+                        said={said?.where === 'event' ? said.said : null}
+                        remindersAsked={opened.reminders}
+                        onAmend={(amendment) => {
+                            amend(opened.event, amendment);
+                        }}
+                        onAskDeletion={() => {
+                            askDeletion([opened.event]);
+                        }}
+                        onOpenSource={onOpenMessage}
+                        onLeft={() => {
+                            setOpened(null);
+                        }}
+                    />
+                )}
+            </Departing>
 
-            {menu === null ? null : (
-                <EventMenu
-                    event={menu.event}
-                    at={menu.at}
-                    onSelect={() => {
-                        setSelected(onlySelected(menu.event.id));
-                    }}
-                    onOpen={() => {
-                        setSaid(null);
-                        setOpened({ event: menu.event, reminders: false });
-                    }}
-                    onAskReminders={() => {
-                        setSaid(null);
-                        setOpened({ event: menu.event, reminders: true });
-                    }}
-                    onAskDeletion={() => {
-                        askDeletion([menu.event]);
-                    }}
-                    onClose={() => {
-                        setMenu(null);
-                    }}
-                />
-            )}
+            <Departing value={menu}>
+                {(menu) => (
+                    <EventMenu
+                        event={menu.event}
+                        at={menu.at}
+                        onSelect={() => {
+                            setSelected(onlySelected(menu.event.id));
+                        }}
+                        onOpen={() => {
+                            setSaid(null);
+                            setOpened({ event: menu.event, reminders: false });
+                        }}
+                        onAskReminders={() => {
+                            setSaid(null);
+                            setOpened({ event: menu.event, reminders: true });
+                        }}
+                        onAskDeletion={() => {
+                            askDeletion([menu.event]);
+                        }}
+                        onClose={() => {
+                            setMenu(null);
+                        }}
+                    />
+                )}
+            </Departing>
 
             <Confirmation
                 asked={asked}

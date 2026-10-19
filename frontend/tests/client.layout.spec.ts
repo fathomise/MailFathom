@@ -17,6 +17,7 @@ import {
     openTheFirstMessage,
     phoneWindow,
     row,
+    settled,
     tabletWindow,
     test,
     wideWindow,
@@ -36,6 +37,8 @@ interface Box {
 // Playwright answers with nothing for an element that is not laid out, which is a different thing from an element in
 // the wrong place — so it is refused by name here rather than asserted through a non-null assertion.
 async function boxOf(element: Locator): Promise<Box> {
+    await settled(element.page());
+
     const box = await element.boundingBox();
 
     if (box === null) {

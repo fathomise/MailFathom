@@ -3,10 +3,11 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import type { ReactElement } from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ClientRequest, ClientSession, MailAccount, MailFathomTransport } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { ScreenLayersContext, useScreenLayerStack } from '../shell/screenLayers';
 import { everything, type MailScope } from '../workspace/mailScope';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import { MailSearch } from './MailSearch';
@@ -345,6 +346,23 @@ describe('MailSearch', () => {
 
         await screen.findByRole('listbox', { name: 'What this search found' });
         fireEvent.click(screen.getByRole('button', { name: 'Stop searching' }));
+
+        expect(screen.getByText(mailInScope)).toBeTruthy();
+    });
+
+    it('gives the mail in scope back on one press of the back gesture, the way stopping does', async () => {
+        const layers = renderHook(() => useScreenLayerStack()).result;
+        render(
+            <ScreenLayersContext value={layers.current}>
+                {searchUnder(recording(onePage).transport)}
+            </ScreenLayersContext>,
+        );
+        searchFor('invoice');
+
+        await screen.findByRole('listbox', { name: 'What this search found' });
+        act(() => {
+            layers.current.closeTop();
+        });
 
         expect(screen.getByText(mailInScope)).toBeTruthy();
     });

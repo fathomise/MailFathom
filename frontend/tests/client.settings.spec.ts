@@ -10,6 +10,7 @@ import {
     openApplicationSettings,
     openSettings,
     openSignedIn,
+    settled,
     test,
     wideWindow,
 } from './client.harness';
@@ -158,6 +159,7 @@ test('draws the settings surface as a card over the workspace in a wide window',
     await page.setViewportSize(wideWindow);
     await openSignedIn(page);
     await openSettings(page);
+    await settled(page);
 
     const panel = await page.getByRole('dialog', { name: 'Settings' }).boundingBox();
 
@@ -178,6 +180,7 @@ test('draws the settings surface as the whole screen in a single-pane window', a
     await page.setViewportSize(narrowWindow);
     await openSignedIn(page);
     await openSettings(page);
+    await settled(page);
 
     const panel = await page.getByRole('dialog', { name: 'Settings' }).boundingBox();
 

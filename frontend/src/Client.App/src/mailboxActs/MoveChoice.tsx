@@ -8,6 +8,7 @@ import { Icon } from '../controls/Icon';
 import { MailboxMark } from '../controls/MailboxMark';
 import { SurfaceControl } from '../controls/SurfaceControl';
 import { useLocalization } from '../localization/useLocalization';
+import { useTopLayerSurface } from '../shell/screenLayers';
 import { folderRoleIcons } from '../workspace/mailScope';
 import { destinationName, type MoveDestination, type MoveDestinationGroup } from './mailboxDestinations';
 
@@ -49,6 +50,7 @@ export function MoveChoice({
     readonly onChosen: (destination: MoveDestination) => void;
 }) {
     const { translate } = useLocalization();
+    const closesOnBack = useTopLayerSurface();
     const maintenance = useFolderMaintenance();
     const asks = useId();
 
@@ -59,9 +61,10 @@ export function MoveChoice({
 
     return (
         <dialog
+            onToggle={closesOnBack}
             ref={asked}
             aria-labelledby={asks}
-            className="m-auto w-96 max-w-full rounded-lg border border-line bg-panel p-0 text-text shadow-dialog backdrop:bg-scrim"
+            className="surface-pop m-auto w-96 max-w-full rounded-lg border border-line bg-panel p-0 text-text shadow-dialog backdrop:bg-scrim"
             onClose={(closing) => {
                 const dialog = closing.currentTarget;
                 const picked = dialog.returnValue;

@@ -11,6 +11,7 @@ import { SurfaceControl } from '../controls/SurfaceControl';
 import type { MessageKey } from '../localization/en';
 import { wordInstantRange } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
+import { useTopLayerSurface } from '../shell/screenLayers';
 import { useReadingZone } from '../localization/useReadingZone';
 import { ReminderPanel } from '../reminders/ReminderPanel';
 import { wordReminderCount } from '../reminders/reminderWords';
@@ -66,6 +67,7 @@ export function EventDialog({
     readonly remindersAsked?: boolean;
 }) {
     const { locale, translate } = useLocalization();
+    const closesOnBack = useTopLayerSurface();
     const timeZone = useReadingZone();
 
     const [amending, setAmending] = useState(false);
@@ -97,9 +99,10 @@ export function EventDialog({
 
     return (
         <dialog
+            onToggle={closesOnBack}
             ref={asked}
             aria-label={event.title}
-            className="m-auto w-dialog max-w-dialog-narrow rounded-lg border border-line bg-panel p-0 text-text shadow-dialog backdrop:bg-scrim"
+            className="surface-pop m-auto w-dialog max-w-dialog-narrow rounded-lg border border-line bg-panel p-0 text-text shadow-dialog backdrop:bg-scrim"
             // The screen lets go of the event as the dialog is left, which takes this component down with it — so
             // nothing half-typed outlives the question it was typed into and there is nothing here to put back.
             onClose={onLeft}

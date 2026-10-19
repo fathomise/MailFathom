@@ -5,7 +5,15 @@
 import { useState } from 'react';
 import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { ScreenLayersContext, useScreenLayer, useScreenLayerStack, type ScreenLayers } from './screenLayers';
+import {
+    ScreenLayersContext,
+    SpaceInFrontContext,
+    useScreenLayer,
+    useScreenLayerStack,
+    useScreenStep,
+    useTopLayerSurface,
+    type ScreenLayers,
+} from './screenLayers';
 
 // One surface standing over the screen, drawn as what a reader would see of it and left by a control of its own. It is
 // a paragraph and a button rather than a dialog because what is proven here is the order the shell closes them in, and
@@ -198,5 +206,160 @@ describe('useScreenLayer', () => {
         render(<Standing name={question} leaving={leaveTheQuestion} open onClose={() => undefined} />);
 
         expect(screen.getByText(question)).toBeTruthy();
+    });
+});
+
+// A view drawn in place of another inside a space, standing for as long as nobody went back from it. Not a catalogue
+// entry for the reason the surfaces above are not.
+const person = 'A person in front of the contact book';
+
+function Replacing({
+    inFront = true,
+    withAQuestion = false,
+}: {
+    readonly inFront?: boolean;
+    readonly withAQuestion?: boolean;
+}) {
+    const [standing, setStanding] = useState(true);
+    const [asked, setAsked] = useState(withAQuestion);
+
+    return (
+        <SpaceInFrontContext value={inFront}>
+            <Step
+                standing={standing}
+                onBack={() => {
+                    setStanding(false);
+                }}
+            />
+            <Standing
+                name={question}
+                leaving={leaveTheQuestion}
+                open={asked}
+                onClose={() => {
+                    setAsked(false);
+                }}
+            />
+        </SpaceInFrontContext>
+    );
+}
+
+function Step({ standing, onBack }: { readonly standing: boolean; readonly onBack: () => void }) {
+    useScreenStep(standing, onBack);
+
+    return standing ? <p>{person}</p> : null;
+}
+
+function stepsWith(standing: { readonly inFront?: boolean; readonly withAQuestion?: boolean } = {}) {
+    const stack = renderHook(() => useScreenLayerStack());
+    const view = render(
+        <ScreenLayersContext value={stack.result.current}>
+            <Replacing {...standing} />
+        </ScreenLayersContext>,
+    );
+
+    return { stack: stack.result, view };
+}
+
+describe('useScreenStep', () => {
+    it('goes back from the view by its own way back when the gesture reaches it', () => {
+        const { stack } = stepsWith();
+
+        act(() => {
+            stack.current.closeTop();
+        });
+
+        expect(screen.queryByText(person)).toBeNull();
+    });
+
+    it('stands under what was opened over it, so the gesture reaches that first', () => {
+        const { stack } = stepsWith({ withAQuestion: true });
+
+        act(() => {
+            stack.current.closeTop();
+        });
+
+        expect(screen.queryByText(question)).toBeNull();
+        expect(screen.getByText(person)).toBeTruthy();
+    });
+
+    it('stays where it is when the reader goes to another destination, where everything over it goes', () => {
+        const { stack } = stepsWith({ withAQuestion: true });
+
+        act(() => {
+            stack.current.closeEvery();
+        });
+
+        expect(screen.queryByText(question)).toBeNull();
+        expect(screen.getByText(person)).toBeTruthy();
+        expect(stack.current.depth).toBe(1);
+    });
+
+    it('counts nothing while its space stands aside, and counts again once it is back in front', () => {
+        const { stack, view } = stepsWith({ inFront: false });
+
+        expect(stack.current.depth).toBe(0);
+
+        view.rerender(
+            <ScreenLayersContext value={stack.current}>
+                <Replacing inFront />
+            </ScreenLayersContext>,
+        );
+
+        expect(stack.current.depth).toBe(1);
+    });
+});
+
+const surfaceName = 'A dialog the platform stands in its top layer';
+
+function TopLayerDialog() {
+    const closesOnBack = useTopLayerSurface();
+
+    return <dialog aria-label={surfaceName} onToggle={closesOnBack} />;
+}
+
+/** The platform's own report that the dialog opened, which jsdom never sends and declares no `ToggleEvent` for. */
+function reportOpened(dialog: HTMLElement): void {
+    const opening = new Event('toggle');
+
+    Object.defineProperty(opening, 'newState', { value: 'open' });
+
+    act(() => {
+        dialog.dispatchEvent(opening);
+    });
+}
+
+describe('useTopLayerSurface', () => {
+    it('stands over the screen from the moment the platform says the surface opened', () => {
+        const { result } = renderHook(() => useScreenLayerStack());
+        render(
+            <ScreenLayersContext value={result.current}>
+                <TopLayerDialog />
+            </ScreenLayersContext>,
+        );
+
+        expect(result.current.depth).toBe(0);
+
+        reportOpened(screen.getByRole('dialog', { hidden: true }));
+
+        expect(result.current.depth).toBe(1);
+    });
+
+    it('closes the dialog the way Escape does when the back gesture reaches it', () => {
+        const { result } = renderHook(() => useScreenLayerStack());
+        render(
+            <ScreenLayersContext value={result.current}>
+                <TopLayerDialog />
+            </ScreenLayersContext>,
+        );
+        const dialog = screen.getByRole<HTMLDialogElement>('dialog', { hidden: true });
+
+        dialog.showModal();
+        reportOpened(dialog);
+
+        act(() => {
+            result.current.closeTop();
+        });
+
+        expect(dialog.open).toBe(false);
     });
 });

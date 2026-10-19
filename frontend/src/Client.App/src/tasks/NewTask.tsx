@@ -9,6 +9,7 @@ import { dialogField, dialogFieldLabel } from '../controls/chrome';
 import { Icon } from '../controls/Icon';
 import { SurfaceControl } from '../controls/SurfaceControl';
 import { useLocalization } from '../localization/useLocalization';
+import { useTopLayerSurface } from '../shell/screenLayers';
 
 // Writing a task down, which is the one way this client puts something into the list. What it records is asserted by
 // whoever typed it, which is not a field on this form and never could be: the surface reads the origin off who is
@@ -54,6 +55,7 @@ export function NewTask({
     readonly onSave: (draft: TaskDraft) => void;
 }) {
     const { translate } = useLocalization();
+    const closesOnBack = useTopLayerSurface();
     const asks = useId();
     const titles = useId();
     const days = useId();
@@ -65,9 +67,10 @@ export function NewTask({
 
     return (
         <dialog
+            onToggle={closesOnBack}
             ref={asked}
             aria-labelledby={asks}
-            className="m-auto w-dialog max-w-dialog-narrow rounded-lg border border-line bg-panel p-0 text-text shadow-dialog backdrop:bg-scrim"
+            className="surface-pop m-auto w-dialog max-w-dialog-narrow rounded-lg border border-line bg-panel p-0 text-text shadow-dialog backdrop:bg-scrim"
             onClose={(closing) => {
                 const dialog = closing.currentTarget;
                 const answer = dialog.returnValue;

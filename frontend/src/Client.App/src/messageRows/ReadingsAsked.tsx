@@ -19,6 +19,7 @@ import { SurfaceControl } from '../controls/SurfaceControl';
 import type { MessageKey } from '../localization/en';
 import { wordInstant } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
+import { useTopLayerSurface } from '../shell/screenLayers';
 import { useReadingZone } from '../localization/useReadingZone';
 import { readingNames, readingSources } from './messageReadings';
 
@@ -75,10 +76,12 @@ export function ReadingsAsked({
     readonly dialog: RefObject<HTMLDialogElement | null>;
 }) {
     const { translate } = useLocalization();
+    const closesOnBack = useTopLayerSurface();
     const names = useId();
 
     return (
         <dialog
+            onToggle={closesOnBack}
             ref={dialog}
             aria-labelledby={names}
             // The whole screen at a phone width and a card above it, which is the design's own `dlgAi` and the
@@ -86,7 +89,7 @@ export function ReadingsAsked({
             // a strip of scrim down either side and a body too narrow for the passages the surface exists to show.
             // So the narrow shape is the screen — full size, no border, no radius, no shadow, its own safe-area
             // insets, since a dialog stands in the platform's top layer and the frame's padding is not around it.
-            className="m-0 h-full max-h-full w-full max-w-full rounded-none border-0 bg-panel p-0 pt-safe-top pr-safe-right pb-safe-bottom pl-safe-left text-text open:flex open:flex-col backdrop:bg-scrim workspace:m-auto workspace:h-auto workspace:max-h-readings-tall workspace:w-readings workspace:max-w-full workspace:rounded-lg workspace:border workspace:border-line workspace:shadow-dialog"
+            className="max-workspace:surface-sheet workspace:surface-pop m-0 h-full max-h-full w-full max-w-full rounded-none border-0 bg-panel p-0 pt-safe-top pr-safe-right pb-safe-bottom pl-safe-left text-text open:flex open:flex-col backdrop:bg-scrim workspace:m-auto workspace:h-auto workspace:max-h-readings-tall workspace:w-readings workspace:max-w-full workspace:rounded-lg workspace:border workspace:border-line workspace:shadow-dialog"
         >
             <div className="flex shrink-0 items-center gap-2.5 border-b border-line px-4 py-3">
                 <Icon name="auto_awesome" className="size-icon-lg shrink-0 text-accent-strong" />

@@ -2,7 +2,17 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type ReactNode,
+    type ToggleEvent,
+} from 'react';
 
 // What stands over the screen, in the order it was opened. A drawer, a dialog, a popover, and an overflow sheet are
 // each one of these, and the shell has two questions about them that no single one of them can answer for itself:
@@ -24,6 +34,15 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 // before the client is usable again is not something a gesture may dismiss, and it carries its own way to stop what it
 // is waiting on. A surface that back must not close is a surface that is not a layer.
 //
+// **A step is the other thing the back gesture unwinds**, and it shares this stack rather than having one of its own: a
+// view that replaced another inside a space — the message standing in front of the list on a phone, the person in
+// front of the contact book, the results a search put where the list was — is one press of the gesture away from the
+// view it replaced, exactly as a dialog is one press away from what it stood over. What differs is what a change of
+// destination does to it. A layer is closed, because coming back to a screen with something still over it is a trap;
+// a step is kept, because its space is stood aside rather than taken down so that what it held is there on the way
+// back. So a step counts only while its space is in front, which is `SpaceInFrontContext`, and `closeEvery` passes it
+// by. Its order is the order it was recorded in, so a message opened from a search result stands above the results.
+//
 // The array is a ref rather than state because `closeTop` is answered inside one event and its answer decides what the
 // next line does: unwinding two of them in one press has to reach two different surfaces, and a component's own state
 // has not settled by then. The count beside it is state, because what re-renders on it is the shell arithmetic that
@@ -32,6 +51,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 /** One thing standing over the screen, held as the way to close it. */
 interface OpenLayer {
     readonly close: (clearingTheScreen: boolean) => void;
+
+    /** Whether it is a step, which a change of destination keeps rather than closes. */
+    readonly kept: boolean;
 }
 
 /** The layers standing over the screen, and what the shell does to them. */
@@ -46,16 +68,23 @@ export interface ScreenLayers {
      * of the back gesture leaves a surface with whatever it stood on still on the screen, and clearing the screen
      * leaves nothing at all — so a surface that puts something back as it goes has to know not to.
      */
-    readonly opened: (close: (clearingTheScreen: boolean) => void) => () => void;
+    readonly opened: (close: (clearingTheScreen: boolean) => void, kept?: boolean) => () => void;
 
     /** Closes the one on top, answering whether there was one to close. */
     readonly closeTop: () => boolean;
 
-    /** Closes every one of them, the top first. */
+    /** Closes every one of them that is not a step, the top first. */
     readonly closeEvery: () => void;
 }
 
 export const ScreenLayersContext = createContext<ScreenLayers | null>(null);
+
+/**
+ * Whether the space a step is recorded from is the one in front. Every space is drawn whichever one is, so this is
+ * what tells a step standing in a space somebody cannot see that it is not one press of the gesture away. Outside any
+ * space — a test drawing one surface alone — it reads as in front.
+ */
+export const SpaceInFrontContext = createContext(true);
 
 /** Builds the stack the shell supplies, which the composition root does once. */
 export function useScreenLayerStack(): ScreenLayers {
@@ -65,8 +94,8 @@ export function useScreenLayerStack(): ScreenLayers {
     // Each of the three is built once and never again, because a surface registers itself against `opened` and would
     // withdraw and register afresh on every change of depth if that function were composed per render — which is a
     // registration that removes itself while the stack is being read.
-    const opened = useCallback((close: (clearingTheScreen: boolean) => void) => {
-        const layer: OpenLayer = { close };
+    const opened = useCallback((close: (clearingTheScreen: boolean) => void, kept = false) => {
+        const layer: OpenLayer = { close, kept };
 
         open.current = [...open.current, layer];
         setDepth(open.current.length);
@@ -99,10 +128,10 @@ export function useScreenLayerStack(): ScreenLayers {
     }, []);
 
     const closeEvery = useCallback(() => {
-        const standing = open.current;
+        const standing = open.current.filter((layer) => !layer.kept);
 
-        open.current = [];
-        setDepth(0);
+        open.current = open.current.filter((layer) => layer.kept);
+        setDepth(open.current.length);
 
         for (const layer of [...standing].reverse()) {
             layer.close(true);
@@ -131,6 +160,52 @@ export function useScreenLayerStack(): ScreenLayers {
  *   standing afterwards has to be recorded again or the next press would go straight past it.
  */
 export function useScreenLayer(open: boolean, close: (clearingTheScreen: boolean) => void, restoredBy?: unknown): void {
+    useRecorded(open, close, restoredBy, false);
+}
+
+/**
+ * Records a view that replaced another inside a space as one step of the back gesture, for as long as it stands there
+ * and its space is in front.
+ *
+ * @param standing Whether the view stands where the one it replaced was.
+ * @param back What the view's own way back does, which is what the gesture does too rather than a second
+ *   implementation of it.
+ */
+export function useScreenStep(standing: boolean, back: () => void): void {
+    const inFront = useContext(SpaceInFrontContext);
+
+    useRecorded(standing && inFront, back, undefined, true);
+}
+
+/**
+ * Records a surface the platform puts in its top layer — a modal `dialog` or a popover — from the platform's own
+ * `toggle` event, so that the back gesture closes it the way Escape does. The element is the state: nothing here holds
+ * a second copy of whether it is open, and the surface's own callers keep opening it however they already did.
+ *
+ * Returns the handler to put on the element's `onToggle`.
+ */
+export function useTopLayerSurface(): (event: ToggleEvent<HTMLElement>) => void {
+    const [standing, setStanding] = useState<HTMLElement | null>(null);
+
+    useScreenLayer(standing !== null, () => {
+        if (standing instanceof HTMLDialogElement) {
+            standing.close();
+        } else {
+            standing?.hidePopover();
+        }
+    });
+
+    return useCallback((event: ToggleEvent<HTMLElement>) => {
+        setStanding(event.newState === 'open' ? event.currentTarget : null);
+    }, []);
+}
+
+function useRecorded(
+    open: boolean,
+    close: (clearingTheScreen: boolean) => void,
+    restoredBy: unknown,
+    kept: boolean,
+): void {
     const layers = useContext(ScreenLayersContext);
     const closing = useRef(close);
 
@@ -149,6 +224,13 @@ export function useScreenLayer(open: boolean, close: (clearingTheScreen: boolean
 
         return opened((clearingTheScreen) => {
             closing.current(clearingTheScreen);
-        });
-    }, [open, opened, restoredBy]);
+        }, kept);
+    }, [open, opened, restoredBy, kept]);
+}
+
+/** A view drawn in place of another, recorded as one step of the back gesture for as long as it is drawn. */
+export function ScreenStep({ back, children }: { readonly back: () => void; readonly children: ReactNode }): ReactNode {
+    useScreenStep(true, back);
+
+    return children;
 }

@@ -5,7 +5,7 @@
 import { useId, useState, type RefObject } from 'react';
 import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
-import { useScreenLayer } from '../shell/screenLayers';
+import { useTopLayerSurface } from '../shell/screenLayers';
 import {
     reminderLeadFrom,
     reminderPresetsFor,
@@ -61,15 +61,12 @@ export function ReminderPanel({
     const names = useId();
     const describes = useId();
     const countsLabel = useId();
-    const [standing, setStanding] = useState(false);
     const [unit, setUnit] = useState<ReminderUnit>('minutes');
     const [typed, setTyped] = useState('');
 
     // The panel stands over whatever opened it, so the back gesture leaves it before reaching anything behind it,
     // which is what Escape already does on the same element.
-    useScreenLayer(standing, () => {
-        panel.current?.close();
-    });
+    const closesOnBack = useTopLayerSurface();
 
     function toggle(minutesBefore: number): void {
         onRemindersChanged(
@@ -95,10 +92,8 @@ export function ReminderPanel({
             ref={panel}
             aria-labelledby={names}
             aria-describedby={describes}
-            className="m-auto w-dialog max-w-dialog-narrow rounded-lg border border-line bg-panel p-5 text-text shadow-dialog backdrop:bg-scrim"
-            onToggle={(event) => {
-                setStanding(event.newState === 'open');
-            }}
+            className="surface-pop m-auto w-dialog max-w-dialog-narrow rounded-lg border border-line bg-panel p-5 text-text shadow-dialog backdrop:bg-scrim"
+            onToggle={closesOnBack}
         >
             <div className="flex flex-col gap-3.5">
                 <div className="flex items-start gap-2.5">

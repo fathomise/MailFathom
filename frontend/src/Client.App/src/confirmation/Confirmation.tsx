@@ -2,12 +2,12 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useId, useState, type ReactNode, type RefObject } from 'react';
+import { useId, type ReactNode, type RefObject } from 'react';
 import { Icon } from '../controls/Icon';
 import type { IconName } from '../controls/icons';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
-import { useScreenLayer } from '../shell/screenLayers';
+import { useTopLayerSurface } from '../shell/screenLayers';
 import { mannerDrawn, type Manner } from './wayOutShapes';
 
 // The one question this client puts in front of an act that leaves the deployment, and the vocabulary every screen asks
@@ -118,19 +118,14 @@ export function Confirmation({
     const { locale, translate } = useLocalization();
     const asks = useId();
     const explains = useId();
-    const [standing, setStanding] = useState(false);
 
     // The mark takes the error hue where one of the ways out takes something away, which is how the design
     // colours the symbol on a question whose answer cannot be taken back.
     const destroys = ways.some((way) => way.manner === 'destroy');
 
     // The question stands over whatever asked it, so the back gesture answers this before it reaches anything behind
-    // it: back on a confirmation is the same as Escape on one, which is leaving without choosing a way out. It is
-    // registered from the platform's own toggle rather than from a value the callers set, for the reason the ref is
-    // theirs to begin with — nothing here holds a second copy of whether the question is open.
-    useScreenLayer(standing, () => {
-        asked.current?.close();
-    });
+    // it: back on a confirmation is the same as Escape on one, which is leaving without choosing a way out.
+    const closesOnBack = useTopLayerSurface();
 
     // Which way out was pressed travels the way the platform carries it, in the return value, so that closing by any
     // route — a press, Escape, the backdrop — arrives in one place with focus already restored.
@@ -145,10 +140,8 @@ export function Confirmation({
             ref={asked}
             aria-labelledby={asks}
             aria-describedby={explains}
-            className="m-auto w-dialog max-w-dialog-narrow rounded-lg border border-line bg-panel p-5 text-text shadow-dialog backdrop:bg-scrim"
-            onToggle={(event) => {
-                setStanding(event.newState === 'open');
-            }}
+            className="surface-pop m-auto w-dialog max-w-dialog-narrow rounded-lg border border-line bg-panel p-5 text-text shadow-dialog backdrop:bg-scrim"
+            onToggle={closesOnBack}
             onClose={(closing) => {
                 const dialog = closing.currentTarget;
                 const way = chosen(dialog.returnValue);

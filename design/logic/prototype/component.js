@@ -338,6 +338,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (document.fonts && document.fonts.ready) document.fonts.ready.then(this.tbReset);
       document.addEventListener("mousedown", this.onDocDown, true);
       window.addEventListener("message", this.onHtmlFrameMessage);
+      window.addEventListener("popstate", this.onBackPressed);
+      this.backSync();
       this.measure = () => {
         const el = this.rootRef.current;
         const w = (el && el.clientWidth) || (typeof window !== "undefined" ? window.innerWidth : 1440);
@@ -605,6 +607,59 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     paneMotion = (k, side) => {
       const d = (this._moDir || {})[k];
       return d && Date.now() - d.at < 600 && d.to === side ? side : "none";
+    };
+
+    /* Back — the browser's (and Android's) back steps back one thing at a time, the way the client's does: the
+       surface on top first, then a view standing in place of another in a one-pane composition, then the space before.
+       Every step that stands records one history entry at the same address; a press consumes one and the top step
+       closes, and a step closed by its own control gives its entry back. A space switch is an entry of its own, and
+       going back across one closes everything still standing, the way the client's change of destination does.
+       ponytail: steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
+    static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
+      "more", "aiSum", "moveFor", "newFolder", "remFor", "event", "ctxMenu"];
+
+    backSteps = (state) => {
+      const FR = FRAMES[this.props.layout ?? "auto"] || null;
+      const w = FR ? FR.w : (state.vw || 1440);
+      const live = (v) => Array.isArray(v) ? v.length > 0 : !!v;
+      const steps = [];
+      if (state.screen === "mail" && w < 820 && (state.mailPane || "list") !== "list") steps.push("mailPane");
+      if (state.screen === "cases" && w < 700 && (state.casePane || "list") !== "list") steps.push("casePane");
+      if (state.screen === "people" && w < 700 && (state.peoplePane || "list") !== "list") steps.push("peoplePane");
+      /* The notification centre slides away before its key empties, so it stands for as long as it is shown. */
+      this.constructor.BACK_LAYERS.forEach(k => { if (k === "notifCenter" ? state.notifCenter && state.notifShown : live(state[k])) steps.push(k); });
+      return steps;
+    };
+
+    backClosing = (k, patch) => {
+      if (k === "notifCenter") this.closeNotifCenter();
+      else patch[k] = k.endsWith("Pane") ? "list" : null;
+    };
+
+    backSync = () => {
+      if (typeof window === "undefined" || this._backPops > 0) return;
+      const screen = this.state.screen, depth = this.backSteps(this.state).length;
+      let at = this._backAt;
+      if (!at) { window.history.replaceState({ mfBack: true, screen, depth: 0 }, ""); at = { screen, depth: 0 }; }
+      if (at.screen !== screen) { window.history.pushState({ mfBack: true, screen, depth: 0 }, ""); at = { screen, depth: 0 }; }
+      if (depth > at.depth) for (let d = at.depth + 1; d <= depth; d++) window.history.pushState({ mfBack: true, screen, depth: d }, "");
+      else if (depth < at.depth) { this._backPops = (this._backPops || 0) + 1; window.history.go(depth - at.depth); }
+      this._backAt = { screen, depth };
+    };
+
+    onBackPressed = (e) => {
+      if (this._backPops > 0) { this._backPops -= 1; this.backSync(); return; }
+      const to = e.state && e.state.mfBack ? e.state : { screen: this._backAt ? this._backAt.screen : this.state.screen, depth: 0 };
+      this._backAt = { screen: to.screen, depth: to.depth };
+      const steps = this.backSteps(this.state);
+      const patch = {};
+      if (to.screen !== this.state.screen) {
+        steps.forEach(k => { if (!k.endsWith("Pane")) this.backClosing(k, patch); });
+        this.setState(patch, () => this.goScreen(to.screen));
+        return;
+      }
+      steps.slice(to.depth).reverse().forEach(k => this.backClosing(k, patch));
+      this.setState(patch);
     };
 
     ovStyle = (z, mobile) => "position:fixed;z-index:" + z + ";display:flex;background:var(--scrim);" +
@@ -2120,6 +2175,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     };
 
     componentDidUpdate() {
+      this.backSync();
       this.tbMeasure();
       if (!this.state.listLoading) this.restoreScrolls();
       if (this.pendingDraft && this.bodyRef.current) {
@@ -2213,6 +2269,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     componentWillUnmount() {
       document.removeEventListener("mousedown", this.onDocDown, true);
       window.removeEventListener("message", this.onHtmlFrameMessage);
+      window.removeEventListener("popstate", this.onBackPressed);
       this.htmlFrames.forEach(r => { if (r.timer) clearTimeout(r.timer); });
       this.htmlFrames.clear();
       this.timers.forEach(clearTimeout);

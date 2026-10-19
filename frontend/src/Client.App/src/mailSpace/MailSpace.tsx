@@ -8,7 +8,7 @@ import { Control } from '../controls/Control';
 import { PlannedControl } from '../controls/PlannedControl';
 import { SurfaceControl } from '../controls/SurfaceControl';
 import { useLocalization } from '../localization/useLocalization';
-import { useScreenLayer } from '../shell/screenLayers';
+import { useScreenLayer, useScreenStep } from '../shell/screenLayers';
 import { useDesktopComposition, useTwoPanes, useWideWorkspace } from '../shell/useWideWorkspace';
 import { scopeKey } from '../workspace/mailScope';
 import { useWorkspace, type Workspace } from '../workspace/useWorkspace';
@@ -37,6 +37,7 @@ import { WidthGrip } from './WidthGrip';
 import { MailToolbar } from './MailToolbar';
 import { SelectionBar } from './SelectionBar';
 import { useStripFit } from './useStripFit';
+import { paneArrival, usePaneMotion } from '../shell/paneMotion';
 
 // The Mail space as the design composes it, out of the three regions a mail client is: the mailboxes, the list
 // of what is in the one that is scoped, and what is open from it. What this component owns is the composition alone —
@@ -144,6 +145,14 @@ export function MailSpace({
     // in front of the list for a message somebody is writing exactly as it does for one they opened.
     const readingOpen = workspace.selection !== null || workspace.conversation !== null || composing.opening !== null;
     const readingInFront = !twoPanes && readingOpen;
+    const paneMoved = usePaneMotion(readingInFront, twoPanes);
+
+    // A message read in front of the list is one press of the back gesture away from it, exactly as the way back
+    // above it is. Something being written is not: the composer stands there as a surface of its own and answers the
+    // gesture itself, asking first where there is something to lose.
+    useScreenStep(!twoPanes && (workspace.selection !== null || workspace.conversation !== null), () => {
+        revise({ selection: null, conversation: null });
+    });
 
     // The list is the last thing the *fullscreen* control takes away, and only at a tablet-class width: the design's
     // `showThreadList` is off where a tablet has both panes and something open under that control, and on at every
@@ -332,7 +341,7 @@ export function MailSpace({
                         aria-label={translate('mailboxes.open')}
                         // It stands in the platform's top layer, which the frame's own safe-area padding is not around,
                         // so a drawer running the height of the screen carries the insets it crosses itself.
-                        className="fixed inset-y-0 left-0 m-0 h-full max-h-none w-drawer max-w-full border-0 border-e border-line bg-sunken p-0 pt-safe-top pb-safe-bottom pl-safe-left text-text shadow-overlay backdrop:bg-scrim"
+                        className="surface-drawer fixed inset-y-0 left-0 m-0 h-full max-h-none w-drawer max-w-full border-0 border-e border-line bg-sunken p-0 pt-safe-top pb-safe-bottom pl-safe-left text-text shadow-overlay backdrop:bg-scrim"
                     >
                         <div className="flex h-full flex-col">
                             <Mailboxes
@@ -364,7 +373,7 @@ export function MailSpace({
                        has left, so the offset it keeps points at the row it pointed at. Only the two narrow cases
                        reach it: the desktop composition draws both columns, so the width somebody dragged is read
                        below and never here. */
-                    className={`flex min-h-0 min-w-0 flex-col bg-panel ${
+                    className={`flex min-h-0 min-w-0 flex-col bg-panel ${paneArrival(paneMoved, false)} ${
                         listAside
                             ? `invisible absolute inset-y-0 start-0 ${twoPanes ? 'w-list-tablet' : 'w-full'}`
                             : twoPanes
@@ -449,7 +458,7 @@ export function MailSpace({
                         ref={readingColumn}
                         tabIndex={-1}
                         aria-label={translate('mail.readingColumn')}
-                        className="flex min-h-0 min-w-0 flex-1 flex-col bg-page"
+                        className={`flex min-h-0 min-w-0 flex-1 flex-col bg-page ${paneArrival(paneMoved, true)}`}
                     >
                         {/* The way back to the list, above whatever the column draws — except a message, whose head
                             carries it beside the subject, which is where the design puts it. */}

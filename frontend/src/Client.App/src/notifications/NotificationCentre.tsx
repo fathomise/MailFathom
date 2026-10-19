@@ -18,6 +18,7 @@ import { NotificationRowMenu } from './NotificationRowMenu';
 import { wordNotification } from './notificationWords';
 import type { NotificationCentre as Centre, NotificationFilter } from './useNotificationCentre';
 import type { PanelSwipe } from './usePanelSwipe';
+import { Departing } from '../shell/Departing';
 
 // The notification centre itself: a panel entering from beside the rail in a wide window and rising from the foot of a
 // narrow one, over a scrim that closes it. It is the platform's own modal dialog, which is what makes four of its
@@ -354,31 +355,33 @@ export function NotificationCentre({
 
             {drawn.length === 0 ? <Nothing reading={centre.reading} failure={centre.failure} /> : null}
 
-            {menu === null ? null : (
-                <NotificationRowMenu
-                    notification={menu.notification}
-                    at={menu.at}
-                    onSelect={() => {
-                        toggleSelected(menu.notification.id);
-                    }}
-                    onToggleRead={() => {
-                        centre.markRead([menu.notification.id], !menu.notification.read);
-                    }}
-                    onOpen={() => {
-                        clear();
-                        centre.follow(menu.notification);
-                    }}
-                    onDelete={() => {
-                        askToDelete(
-                            [menu.notification.id],
-                            wordNotification(menu.notification, locale, translate).title,
-                        );
-                    }}
-                    onClose={() => {
-                        setMenu(null);
-                    }}
-                />
-            )}
+            <Departing value={menu}>
+                {(menu) => (
+                    <NotificationRowMenu
+                        notification={menu.notification}
+                        at={menu.at}
+                        onSelect={() => {
+                            toggleSelected(menu.notification.id);
+                        }}
+                        onToggleRead={() => {
+                            centre.markRead([menu.notification.id], !menu.notification.read);
+                        }}
+                        onOpen={() => {
+                            clear();
+                            centre.follow(menu.notification);
+                        }}
+                        onDelete={() => {
+                            askToDelete(
+                                [menu.notification.id],
+                                wordNotification(menu.notification, locale, translate).title,
+                            );
+                        }}
+                        onClose={() => {
+                            setMenu(null);
+                        }}
+                    />
+                )}
+            </Departing>
 
             {/* One question for both ways of asking it, which is what the confirmation's own note about the caller
                 holding the element is for. What differs between them is the sentence: a row names itself, and a

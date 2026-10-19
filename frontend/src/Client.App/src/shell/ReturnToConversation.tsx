@@ -2,8 +2,10 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+import { useContext } from 'react';
 import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
+import { DepartureContext } from './departure';
 
 /**
  * The one control back to the agent conversation somebody left to look at what a proposal pointed to.
@@ -14,10 +16,11 @@ import { useLocalization } from '../localization/useLocalization';
  */
 export function ReturnToConversation({ onReturn }: { readonly onReturn: () => void }) {
     const { translate } = useLocalization();
+    const leaving = useContext(DepartureContext);
 
     return (
         <button
-            className="fixed bottom-19.5 left-1/2 z-40 inline-flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full bg-accent px-4.5 text-md font-semibold whitespace-nowrap text-on-accent shadow-overlay transition hover:bg-accent-strong workspace:bottom-5.5"
+            className={`fixed bottom-19.5 left-1/2 z-40 inline-flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full bg-accent px-4.5 text-md font-semibold whitespace-nowrap text-on-accent shadow-overlay transition hover:bg-accent-strong workspace:bottom-5.5 ${leaving ? 'animate-pop-out' : 'animate-pop-in'}`}
             type="button"
             onClick={onReturn}
         >

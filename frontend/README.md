@@ -461,18 +461,24 @@ floating control over the list when they stop fitting, and the symbols stand alo
 fit without it.
 
 The **back gesture** is answered by the same frame, and on all three heads by one mechanism: `src/shell/screenLayers.ts`
-records what stands over the screen as each surface opens, `src/shellOperations/backNavigation.ts` keeps one history
-entry per layer standing, and `src/App.tsx` unwinds them topmost first before the address moves at all. So a press closes a
-drawer, a dialog, a menu, or the message drawn in front of the list, one layer at a time, and only a screen with
-nothing over it lets the gesture leave the client. What a press unwinds is the space in front of it, so the message
-the Mail space holds, and the one being written in it, are counted while that space is on the screen and not while
-another one is. Taking the navigation to another destination closes every layer standing over the space being left,
-and the surfaces standing over its reading column with them — but not what that column is drawing: the Mail space is
-stood aside rather than taken down, so coming back to it finds the folder, the pages read, the place scrolled to and
-the message open exactly as they were left, and a message being written is found with every word in it rather than
-behind a question about discarding them. Android reaches that through the committed `MainActivity`, which turns
-`handleBackNavigation` back on so the gesture arrives in the page as `popstate` exactly as it does in a browser —
-which is why no module here asks which head it is on.
+keeps one stack of everything a press can take away, `src/shellOperations/backNavigation.ts` keeps one history entry
+per thing in it, and `src/App.tsx` unwinds them topmost first before the address moves at all. Two kinds of thing are
+recorded there, each by the component that draws it rather than by anything that knows about it. A **layer** stands
+over the screen — a drawer, a sheet, a menu, the composer, and every modal dialog and popover, which records itself from
+the platform's own `toggle` through `useTopLayerSurface` so no dialog keeps a second copy of whether it is open. A
+**step** is a view drawn in place of another inside a space, recorded through `useScreenStep`: the message in front of
+the list in a one-pane composition, a file or a message's own markup open as a tab in place of the message, a person in
+front of the address book, the results a search put where the list was, and a cited source standing where Discover's
+evidence panel rested. So a press closes the topmost of them, one at a time, at every width — a tablet in the desktop
+composition steps back exactly as a phone does, with fewer steps because two panes side by side replaced nothing — and
+only a screen with nothing standing in it lets the gesture leave the space. A step counts only while its space is in
+front, which `src/shell/Space.tsx` tells it, so the message the Mail space holds is counted while that space is on the
+screen and not while another one is. Taking the navigation to another destination closes every layer standing over
+the space being left and keeps every step: the space is stood aside rather than taken down, so coming back to it finds
+the folder, the pages read, the place scrolled to and the message open exactly as they were left, and a message being
+written is found with every word in it rather than behind a question about discarding them. Android reaches that
+through the committed `MainActivity`, which turns `handleBackNavigation` back on so the gesture arrives in the page as
+`popstate` exactly as it does in a browser — which is why no module here asks which head it is on.
 
 Two questions are answered before the frame is drawn at all: which deployment this client belongs to, and who is
 asking it. `src/signIn/` is where both are, as one form rather than two screens, because a person was handed the
@@ -754,6 +760,19 @@ agreeing and it happening — and it performs nothing on being drawn, there bein
 Tailwind is wired CSS-first through `@tailwindcss/vite`. The palette, the type scale, the radii, the sizes a symbol is
 drawn at, the shadow steps, the breakpoints the composition changes at, the safe-area insets, and the motion defaults
 are `@theme` tokens in `src/Client.App/src/styles.css`, and there is no JavaScript configuration file.
+
+**Every surface arrives and leaves by the design's one motion vocabulary**, declared beside those tokens: three speeds
+and the one a departure takes, the two curves they travel on, and one kind per way a surface moves. A modal dialog or a
+popover names its kind with a `surface-pop`, `surface-sheet`, or `surface-drawer` utility — a transition with
+`@starting-style`, keeping `display` and `overlay` running discretely so the platform draws it while it travels away
+however it was closed — and a surface that changes shape with the width takes one kind per shape behind the same
+breakpoint. Everything else plays an `animate-*` token: one pane at a time is a push and a back on one horizontal axis
+(`src/shell/paneMotion.ts`), a space reached from the navigation settles into place, and content fades in where its
+skeleton stood. A surface a component draws conditionally — the context menu, the settings screen, the event, the
+attachment window, the way back to a conversation — is drawn inside `src/shell/Departing.tsx`, which keeps its last
+value on the screen, inert, for as long as the animations the platform reports on it are running, so no duration is
+written anywhere outside the stylesheet. `prefers-reduced-motion` takes every one of them to zero, which leaves each
+surface arriving where it was going and lets a departing one go at once.
 
 Every value there is the design's, read out of `design/styles/base.css` and declared in OKLCH under two themes. Three of
 those scales are closed, as the design's are: text is one of twelve sizes, a corner one of six radii beside the full
