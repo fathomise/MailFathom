@@ -91,6 +91,11 @@ function panel(held: Partial<Centre> = {}): { readonly current: ScreenLayers } {
     return result;
 }
 
+/** Moves the panel off the tab it opens on, so a row already read is drawn as well. */
+function showAll(): void {
+    fireEvent.click(screen.getByRole('radio', { name: 'All' }));
+}
+
 /** The row naming this notification, which is the list item its title sits in. */
 function rowFor(title: string): HTMLElement {
     const heading = screen.getByText(title);
@@ -159,24 +164,28 @@ describe('NotificationCentre', () => {
     // so what a poll brings back moves the row it brought and leaves the rows beside it where they were.
     it('opens the row that arrived, and only that one', () => {
         panel({ arrived: new Set(['n-mail']) });
+        showAll();
 
         expect([...rowFor('Ada Lovelace wrote').classList]).toContain('animate-row-opening');
         expect([...rowFor('Standing meeting moved').classList]).not.toContain('animate-row-opening');
     });
 
-    it('draws every notification on the tab that shows all of them', () => {
+    it('opens on what stands unread, the first of its two tabs, and says how much that is on the tab itself', () => {
         panel();
 
-        expect(screen.getAllByRole('listitem')).toHaveLength(2);
-    });
+        const tabs = screen.getAllByRole('radio');
 
-    it('draws only what stands unread on the other tab, and says how much that is on the tab itself', () => {
-        panel();
-
-        fireEvent.click(screen.getByRole('radio', { name: 'Unread · 1' }));
-
+        expect(tabs.map((tab) => tab.closest('label')?.textContent)).toEqual(['Unread · 1', 'All']);
+        expect(screen.getByRole('radio', { name: 'Unread · 1' })).toHaveProperty('checked', true);
         expect(screen.getAllByRole('listitem')).toHaveLength(1);
         expect(screen.getByText('Ada Lovelace wrote')).toBeDefined();
+    });
+
+    it('draws every notification on the tab that shows all of them', () => {
+        panel();
+        showAll();
+
+        expect(screen.getAllByRole('listitem')).toHaveLength(2);
     });
 
     it('words how long ago a notification happened, rather than when it did', () => {
@@ -204,12 +213,14 @@ describe('NotificationCentre', () => {
 
     it('falls back to the kind where a notification names no source of its own', () => {
         panel();
+        showAll();
 
         expect(rowFor('Standing meeting moved').textContent).toContain('Calendar');
     });
 
     it('says in words that a row stands unread, for a reader who is looking at neither weight nor colour', () => {
         panel();
+        showAll();
 
         expect(rowFor('Ada Lovelace wrote').textContent).toContain('Unread');
         expect(rowFor('Standing meeting moved').textContent).not.toContain('Unread');
@@ -227,6 +238,7 @@ describe('NotificationCentre', () => {
 
     it('marks a notification unread again from the same control, which says what it would do', () => {
         panel();
+        showAll();
 
         fireEvent.click(screen.getByRole('button', { name: 'Mark as unread' }));
 
@@ -274,7 +286,7 @@ describe('NotificationCentre', () => {
     it('says that nothing is waiting, rather than drawing an empty list', () => {
         panel({ notifications: [], unreadCount: 0 });
 
-        expect(screen.getByText('Nothing new. Everything has been read.')).toBeDefined();
+        expect(screen.getByText('Nothing new. All read.')).toBeDefined();
     });
 
     it('says it is reading while the first page is still in flight', () => {
@@ -304,6 +316,7 @@ describe('NotificationCentre', () => {
 
     it('acts on everything picked out, in one request rather than one per row', () => {
         panel();
+        showAll();
 
         fireEvent.pointerDown(screen.getByText('Ada Lovelace wrote'), {
             pointerType: 'mouse',
@@ -371,6 +384,7 @@ describe('NotificationCentre', () => {
 
     it('counts what a selection would take rather than naming one of the rows in it', () => {
         panel();
+        showAll();
 
         fireEvent.pointerDown(screen.getByText('Ada Lovelace wrote'), {
             pointerType: 'mouse',
@@ -423,6 +437,7 @@ describe('NotificationCentre', () => {
 
     it('leaves the source out of the menu on a notification that leads nowhere', () => {
         panel();
+        showAll();
 
         fireEvent.contextMenu(screen.getByText('Standing meeting moved'));
 

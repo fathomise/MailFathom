@@ -12,7 +12,7 @@ import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { MailboxActControls } from '../mailboxActs/MailboxActControls';
 import { actedMessages, useListedMail } from '../messageList/useListedMail';
-import { useTwoPanes } from '../shell/useWideWorkspace';
+import { useDesktopComposition, useTwoPanes } from '../shell/useWideWorkspace';
 import { useWorkspace } from '../workspace/useWorkspace';
 import type { StripFitting } from './useStripFit';
 
@@ -44,7 +44,9 @@ export function MailToolbar({ strip, fit }: StripFitting) {
     const composing = useComposing();
     const listed = useListedMail();
     const twoPanes = useTwoPanes();
+    const docked = useDesktopComposition();
     const open = workspace.selection;
+    const folded = workspace.mailboxesFolded;
     const panelsHidden = workspace.panelsHidden;
     const actShape: ControlShape = fit === 'symbols' ? 'symbol' : 'labelled';
 
@@ -55,6 +57,25 @@ export function MailToolbar({ strip, fit }: StripFitting) {
             aria-label={translate('mail.toolbar')}
             className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-line bg-panel px-3 py-2 shadow-raised"
         >
+            {/* The mailbox column's own show and hide, which leads the strip wherever the column is docked beside the
+                list rather than a drawer over it, so a long tree never scrolls it away. The rule after it keeps it
+                apart from composing, so a press meant for one never lands on the other. It and its rule are one child
+                of the strip, which is what the fitting reads ahead of composing. */}
+            {docked ? (
+                <span className="flex shrink-0 items-center self-stretch">
+                    <Control
+                        label={translate(folded ? 'mailboxes.unfold' : 'mailboxes.fold')}
+                        icon={folded ? 'left_panel_open' : 'left_panel_close'}
+                        shape="symbol"
+                        onPress={() => {
+                            revise({ mailboxesFolded: !folded });
+                        }}
+                    />
+
+                    <span aria-hidden="true" className="ms-1.5 me-2 w-px self-stretch bg-line" />
+                </span>
+            ) : null}
+
             {/* Composing stands first, and only while the names fit beside it: otherwise it is the floating control
                 over the list, which the mail space draws. The divider after it is what the measurement reads as the
                 second child, so nothing may stand between the two. */}

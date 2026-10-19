@@ -33,6 +33,11 @@ async function openCentre(page: Page): Promise<void> {
     await expect(centre(page)).toBeVisible();
 }
 
+/** Moves the centre off the unread tab it opens on, so a row already read is drawn as well. */
+async function showAll(page: Page): Promise<void> {
+    await centre(page).getByRole('radio', { name: 'All' }).check();
+}
+
 test('draws a notification that arrives while somebody works, and opens the message it is about from its notice', async ({
     page,
     deployment,
@@ -65,6 +70,7 @@ test('draws a notification that arrives while somebody works, and opens the mess
         .toMatchObject([{ body: { read: true } }]);
 
     await openCentre(page);
+    await showAll(page);
     await expect(row(page, notifications.arrivingNotification.body)).not.toContainText('Unread');
 });
 
@@ -90,6 +96,7 @@ test('goes to the space a notification names, and the centre and the bell agree 
 
     await expect(bell(page)).toHaveAccessibleName('1 unread notification');
     await openCentre(page);
+    await showAll(page);
     await expect(row(page, '4 new messages arrived.')).not.toContainText('Unread');
 });
 
@@ -104,8 +111,9 @@ test('marks one notification and then the rest read, and the bell holds nothing 
 
     await expect(bell(page)).toHaveAccessibleName('1 unread notification');
 
-    // The unread tab is read at the moment it is drawn, so the row marked a moment ago is not on it.
-    await centre(page).getByText('Unread · 1').click();
+    // The centre opens on the unread tab, which is read at the moment it is drawn, so the row marked a moment ago is
+    // not on it.
+    await expect(centre(page).getByRole('radio', { name: 'Unread · 1' })).toBeChecked();
     await expect(centre(page).getByRole('listitem')).toHaveCount(1);
 
     await centre(page).getByRole('button', { name: 'Mark all' }).click();
@@ -117,6 +125,8 @@ test('marks one notification and then the rest read, and the bell holds nothing 
 
     await expect(bell(page)).toHaveAccessibleName('Notifications');
     await openCentre(page);
+    await expect(centre(page).getByText('Nothing new. All read.')).toBeVisible();
+    await showAll(page);
     await expect(centre(page).getByRole('listitem')).toHaveCount(notifications.notificationPage.notifications.length);
     await expect(centre(page).getByRole('button', { name: 'Mark as read' })).toHaveCount(0);
 });
@@ -147,6 +157,7 @@ test('deletes a notification from its own menu, and it stays gone from the centr
 
     await expect(bell(page)).toHaveAccessibleName('1 unread notification');
     await openCentre(page);
+    await showAll(page);
     await expect(centre(page).getByRole('listitem')).toHaveCount(
         notifications.notificationPage.notifications.length - 1,
     );

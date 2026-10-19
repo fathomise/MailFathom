@@ -163,7 +163,7 @@ export function ToastCard({
             // An error is the one thing said here that cannot wait for a gap in what a screen reader is already
             // reading, so it announces where it stands rather than politely with the rest of the surface.
             role={!running && toast.stands.kind === 'error' ? 'alert' : undefined}
-            className={`pointer-events-auto relative flex touch-none items-start gap-3 overflow-hidden rounded-lg border border-line bg-panel ps-3.25 pe-3 pt-3.25 pb-3.75 opacity-80 shadow-overlay transition hover:opacity-100 ${
+            className={`pointer-events-auto relative flex touch-none items-center gap-2.5 overflow-hidden rounded-lg border border-line bg-panel py-1.5 ps-2 pe-1 shadow-overlay transition wide:items-start wide:gap-3 wide:ps-3.25 wide:pe-3 wide:pt-3.25 wide:pb-3.75 wide:opacity-80 wide:hover:opacity-100 ${
                 toast.leaving ? 'animate-toast-leaving' : 'animate-toast-arriving'
             }`}
             // How long leaving takes is how long the surface waits before the card is gone, which is one number in
@@ -175,24 +175,32 @@ export function ToastCard({
             onPointerCancel={endSwipe}
         >
             <span
-                className={`flex size-8 shrink-0 items-center justify-center rounded-md border border-line ${mark.tint}`}
+                className={`flex size-7 shrink-0 items-center justify-center rounded-md border border-line wide:size-8 ${mark.tint}`}
             >
-                <Icon name={mark.icon} className={`size-icon-xl ${running ? 'animate-spin' : ''}`} />
+                <Icon name={mark.icon} className={`size-icon-md wide:size-icon-xl ${running ? 'animate-spin' : ''}`} />
             </span>
 
-            <div className="flex min-w-0 flex-1 flex-col gap-1 pt-0.5">
-                <p className="text-lg font-semibold text-text text-pretty">
+            {/* On a phone or a fold the card is one slim row with its action beside the words; wider, the action
+                stands under them. One control either way, moved by the layout rather than drawn twice. */}
+            <div className="flex min-w-0 flex-1 items-center gap-2.5 wide:flex-col wide:items-stretch wide:gap-1">
+            <div className="flex min-w-0 flex-1 flex-col gap-px py-0.5 wide:gap-1 wide:pt-0.5 wide:pb-0">
+                <p className="text-md/snug font-semibold text-text text-pretty wide:text-lg">
                     {/* What the symbol and its colour say to everybody else. Said before the title rather than after
                         it, so somebody hearing the card knows what kind of news it is before they hear the news. */}
                     <span className="sr-only">{translate(mark.said)}</span> {toast.title}
                 </p>
 
-                {toast.body === undefined ? null : <p className="text-base text-text-soft text-pretty">{toast.body}</p>}
+                {toast.body === undefined ? null : (
+                    <p className="line-clamp-2 text-base/snug text-text-soft text-pretty wide:line-clamp-none wide:text-base">
+                        {toast.body}
+                    </p>
+                )}
+            </div>
 
                 {action === undefined ? null : (
                     <button
                         type="button"
-                        className="mt-1.25 self-start rounded-md border border-line-strong px-3.25 py-1.5 text-base font-semibold text-text transition hover:bg-hover"
+                        className="min-h-9 shrink-0 self-center rounded-md border border-line-strong px-3 text-base font-semibold whitespace-nowrap text-text transition hover:bg-hover wide:mt-1.25 wide:min-h-0 wide:self-start wide:px-3.25 wide:py-1.5"
                         onClick={() => {
                             // The card goes as the action is taken, which is the design's own behaviour and
                             // the honest one: a toast still offering to undo something already undone is a control

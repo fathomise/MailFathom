@@ -174,7 +174,14 @@ export async function settled(page: Page): Promise<void> {
 /** The settings surface opened on its second tab, which is where everything about the client rather than the person is. */
 export async function openApplicationSettings(page: Page): Promise<void> {
     await openSettings(page);
-    await page.getByRole('tab', { name: 'Application' }).click();
+
+    // A tab in the strip where the window has one pane, and a row of the section navigation where it has two.
+    const settings = page.getByRole('dialog', { name: 'Settings' });
+
+    await settings
+        .getByRole('tab', { name: 'Application' })
+        .or(settings.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Application' }))
+        .click();
 }
 
 // Opening a message is an act rather than a state the client lands in: the reading pane draws what a row of the list

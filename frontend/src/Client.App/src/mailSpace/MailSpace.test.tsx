@@ -361,14 +361,21 @@ describe('MailSpace, wide', () => {
     it('folds the mailbox column to a rail and opens it again, from a control named for each', () => {
         renderSpace(desktop);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Collapse the mailbox column' }));
+        // The control leads the toolbar rather than standing in the column, so a long tree cannot scroll it away.
+        expect(
+            within(screen.getByRole('toolbar', { name: 'Mail actions' })).getByRole('button', {
+                name: 'Hide folders and filters',
+            }),
+        ).toBeDefined();
 
-        expect(screen.queryByRole('button', { name: 'Collapse the mailbox column' })).toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: 'Hide folders and filters' }));
+
+        expect(screen.queryByRole('button', { name: 'Hide folders and filters' })).toBeNull();
         expect(screen.getByRole('complementary').className).toContain('w-mailboxes-folded');
 
-        fireEvent.click(screen.getByRole('button', { name: 'Expand the mailbox column' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Show folders and filters' }));
 
-        expect(screen.queryByRole('button', { name: 'Expand the mailbox column' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Show folders and filters' })).toBeNull();
 
         // Open, the column is whatever this person dragged it to rather than a width the stylesheet names, so what
         // says it is open is the width it is drawn at and the boundary that moves it.
@@ -380,7 +387,7 @@ describe('MailSpace, wide', () => {
     it('keeps the mailboxes in the folded rail, and drops what a rail has no room to say', () => {
         renderSpace(desktop);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Collapse the mailbox column' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Hide folders and filters' }));
 
         expect(screen.getByText(handedTheFolders)).toBeDefined();
         expect(screen.queryByText('Folders')).toBeNull();
@@ -390,15 +397,16 @@ describe('MailSpace, wide', () => {
     it('draws the AI filters as symbols in the folded rail, where their names would not fit', () => {
         renderSpace(desktop);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Collapse the mailbox column' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Hide folders and filters' }));
 
         const filters = screen.getByRole('region', { name: 'AI filters' });
 
-        // What the fold drops is the heading over the three entries. Each entry keeps its name, because a rail drawn
-        // as three unnamed symbols is three controls nobody reading with anything but their eyes can tell apart.
-        expect(within(filters).getAllByRole('button')).toHaveLength(3);
+        // What the fold drops is the drawn name over the three entries, the header standing as its symbol alone. Each
+        // keeps its name, because a rail drawn as unnamed symbols is controls nobody reading with anything but their
+        // eyes can tell apart.
+        expect(within(filters).getAllByRole('button')).toHaveLength(4);
+        expect(within(filters).getByRole('button', { name: 'AI filters', expanded: true })).toBeDefined();
         expect(within(filters).getByRole('button', { name: 'Needs a decision' })).toBeDefined();
-        expect(filters.querySelector('p')).toBeNull();
     });
 
     it('draws every action of the toolbar, each saying in its own name why it cannot act here', () => {
@@ -445,8 +453,19 @@ describe('MailSpace, wide', () => {
         expect(
             within(filters)
                 .getAllByRole('button')
+                .filter((entry) => !entry.hasAttribute('aria-expanded'))
                 .map((entry) => entry.textContent),
         ).toStrictEqual(['Needs a decision', 'Commitments', 'Deadlines this week']);
+    });
+
+    it('stands the AI filters above every account, first in the column', () => {
+        renderSpace(desktop);
+
+        const filters = screen.getByRole('region', { name: 'AI filters' });
+
+        expect(filters.compareDocumentPosition(screen.getByText(handedTheFolders))).toBe(
+            Node.DOCUMENT_POSITION_FOLLOWING,
+        );
     });
 });
 
@@ -518,7 +537,7 @@ describe('MailSpace, narrow', () => {
         expect(drawer.contains(screen.getByText(handedTheFolders))).toBe(true);
         expect(drawer.contains(screen.getByText(handedTheStatus))).toBe(true);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Close the folders' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Close folders' }));
 
         // The shell's record of it goes with the drawer itself: a step left on the stack is a press of the back
         // gesture spent closing something that is no longer there.

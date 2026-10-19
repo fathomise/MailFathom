@@ -9,6 +9,7 @@ import {
     shortestNotificationSeconds,
 } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
+import type { IconName } from '../controls/icons';
 import { PersonAvatar } from '../controls/PersonAvatar';
 import { Switch } from '../controls/Switch';
 import { VersionLine } from '../controls/VersionLine';
@@ -25,35 +26,59 @@ import { useTelemetry } from '../telemetry/clientTelemetry';
 import { chosenPortrait, type PortraitChoice } from './chosenPortrait';
 import { MessageView, MessageViewWarning } from './MessageView';
 import { DepartureContext } from '../shell/departure';
+import { useTwoPanes } from '../shell/useWideWorkspace';
 
 // The surface behind the account menu's own row, and the one place the client edits the person rather than the mail.
 //
-// One surface in two compositions, chosen by width exactly as every other pane in this client is: over the workspace
-// breakpoint the design draws it as a card of a stated width and height over a scrim, and below it as the whole
-// screen with a larger head and a taller body. Nothing here branches on that. The difference is entirely what a card
-// looks like against what a screen looks like, so it is written as the width variant on the element itself — a
-// component asking which composition it is in would be the same defect as one asking which head it is running on.
+// **It takes the whole window at every composition**, the desktop included, which is what the design draws: the list
+// of sections is meant to grow, and a card over a scrim leaves no room for a navigation that grows with it. Where the
+// window has two panes the sections stand in a navigation down the left, grouped the way the design groups them and
+// narrowed by *Find a setting*, with the open section's name and one sentence about it over its body; where it has one
+// pane they are a tab strip under the head and the version moves to a footer. That is one question about the width,
+// asked once through `useTwoPanes`, because the two are different controls rather than one control drawn two ways.
 //
-// It is a `dialog` opened as a modal rather than a panel drawn to look like one, in both compositions, because
-// everything the acceptance asks of it is what that element already does: it takes focus, it keeps focus, it closes on
-// Escape, it puts the page behind it out of reach, and closing it hands focus back to whatever opened it. A
-// hand-written trap would be a second implementation of all five, and the one that gets them wrong.
+// **It offers only the sections the client has settings for.** The design draws five; the three here are the ones
+// whose rows exist, and a section the client cannot fill is left out rather than drawn as a promise.
 //
-// It is mounted while it is open and unmounted when it closes, which is what makes "the tab last open is remembered
-// nowhere" a property of the tree rather than a reset somebody has to remember to write.
+// It is a `dialog` opened as a modal rather than a panel drawn to look like one, because everything the acceptance asks
+// of it is what that element already does: it takes focus, it keeps focus, it closes on Escape, it puts the page behind
+// it out of reach, and closing it hands focus back to whatever opened it. A hand-written trap would be a second
+// implementation of all five, and the one that gets them wrong.
+//
+// It is mounted while it is open and unmounted when it closes, which is what makes "the section last open is
+// remembered nowhere" a property of the tree rather than a reset somebody has to remember to write.
 //
 // The *message view* section holds two controls in the order the design draws them: which of the two reading
 // surfaces a message opens on, and whether a conversation opens with every message drawn. The first is a choice
 // between two named things and the second is a switch, which is what the design draws and what each of them is.
 
-/** Which half of the surface is being read, in the order the design puts the two tabs in. */
-const tabs = ['profile', 'application'] as const;
+/** The sections the client has settings for, in the order the design lists them. */
+const sections = ['profile', 'notifications', 'application'] as const;
 
-type SettingsTab = (typeof tabs)[number];
+type SettingsSection = (typeof sections)[number];
 
-const tabNames: Readonly<Record<SettingsTab, MessageKey>> = {
-    profile: 'settings.profile',
-    application: 'settings.application',
+/** What a section is called, what it holds, its symbol, and the group the navigation files it under. */
+interface SectionMark {
+    readonly name: MessageKey;
+    readonly hint: MessageKey;
+    readonly icon: IconName;
+    readonly group: MessageKey;
+}
+
+const sectionMarks: Readonly<Record<SettingsSection, SectionMark>> = {
+    profile: { name: 'settings.profile', hint: 'settings.profileHint', icon: 'person', group: 'settings.groupYou' },
+    notifications: {
+        name: 'settings.notifications',
+        hint: 'settings.notificationsHint',
+        icon: 'notifications',
+        group: 'settings.groupAssistant',
+    },
+    application: {
+        name: 'settings.application',
+        hint: 'settings.applicationHint',
+        icon: 'tune',
+        group: 'settings.thisDevice',
+    },
 };
 
 export function Settings({
@@ -93,8 +118,9 @@ export function Settings({
     const { translate } = useLocalization();
     const panel = useRef<HTMLDialogElement>(null);
     const named = useId();
-    const tabId = useId();
-    const [open, setOpen] = useState<SettingsTab>('profile');
+    const sectionId = useId();
+    const [open, setOpen] = useState<SettingsSection>('profile');
+    const twoPanes = useTwoPanes();
 
     // The one imperative browser API this surface synchronizes with, which is the whole of what an effect is for. It
     // runs once, because the element is in the document exactly as long as the surface is open.
@@ -115,6 +141,15 @@ export function Settings({
         panel.current?.close();
     });
 
+    const body =
+        open === 'profile' ? (
+            <Profile profile={profile} writable={writesProfile} />
+        ) : open === 'notifications' ? (
+            <Notifications preferences={preferences} writable={writesProfile} />
+        ) : (
+            <Application preferences={preferences} telemetryForwarding={telemetryForwarding} writable={writesProfile} />
+        );
+
     return (
         <dialog
             ref={panel}
@@ -124,11 +159,13 @@ export function Settings({
             }}
             // The insets are the screen's here rather than the frame's: a modal dialog stands in the platform's own top
             // layer, so the padding the frame carries is not around it and a full-bleed settings screen would run under
-            // a cutout and under the gesture bar. The card composition has the frame around it again and takes none.
-            className="max-workspace:surface-sheet workspace:surface-pop m-0 h-full max-h-full w-full max-w-full rounded-none border-0 bg-panel p-0 pt-safe-top pr-safe-right pb-safe-bottom pl-safe-left text-md text-text backdrop:bg-scrim open:flex open:flex-col workspace:m-auto workspace:h-settings-card workspace:w-settings workspace:rounded-lg workspace:border workspace:border-line workspace:p-0 workspace:shadow-dialog"
+            // a cutout and under the gesture bar.
+            className="max-panes:surface-sheet panes:surface-pop m-0 h-full max-h-full w-full max-w-full rounded-none border-0 bg-panel p-0 pt-safe-top pr-safe-right pb-safe-bottom pl-safe-left text-md text-text backdrop:bg-scrim open:flex open:flex-col"
         >
-            <div className="flex items-center gap-3 border-b border-line bg-sunken px-3.5 pt-3.5 pb-3 workspace:pt-2.5 workspace:pb-2.5">
-                <h2 id={named} className="text-2xl font-semibold workspace:text-lg">
+            <div className="flex shrink-0 items-center gap-2.5 border-b border-line bg-sunken pt-3 pr-3 pb-2.5 pl-4 panes:min-h-9 panes:py-2.5 panes:pr-3.5 panes:pl-5">
+                <Icon name="settings" className="size-icon-xl text-muted" />
+
+                <h2 id={named} className="text-2xl font-semibold panes:text-xl">
                     {translate('settings.title')}
                 </h2>
 
@@ -146,43 +183,163 @@ export function Settings({
                 </button>
             </div>
 
-            <SettingsTabs id={tabId} open={open} onOpen={setOpen} />
+            {twoPanes ? (
+                <div className="flex min-h-0 flex-1">
+                    <SettingsNavigation open={open} onOpen={setOpen} deploymentVersion={deploymentVersion} />
 
-            <div
-                role="tabpanel"
-                id={`${tabId}-panel`}
-                aria-labelledby={`${tabId}-${open}`}
-                className="flex min-h-0 flex-1 flex-col gap-2.75 overflow-y-auto px-4 pt-3.5 pb-7 workspace:px-5.5 workspace:pt-4.5 workspace:pb-6"
-            >
-                {open === 'profile' ? (
-                    <Profile profile={profile} writable={writesProfile} />
-                ) : (
-                    <Application
-                        preferences={preferences}
-                        telemetryForwarding={telemetryForwarding}
-                        writable={writesProfile}
+                    <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+                        <section
+                            aria-labelledby={`${sectionId}-title`}
+                            className="flex max-w-settings flex-col gap-3 px-7 pt-6.5 pb-10 roomy:px-12 roomy:pt-8.5 roomy:pb-12"
+                        >
+                            <div className="mb-1.5 flex flex-col gap-1 border-b border-line-soft pb-2.5">
+                                <h3 id={`${sectionId}-title`} className="text-4xl font-semibold tracking-tight">
+                                    {translate(sectionMarks[open].name)}
+                                </h3>
+                                <p className="max-w-settings-prose text-md text-pretty text-muted">
+                                    {translate(sectionMarks[open].hint)}
+                                </p>
+                            </div>
+
+                            {body}
+                        </section>
+                    </div>
+                </div>
+            ) : (
+                <>
+                    <SettingsTabs id={sectionId} open={open} onOpen={setOpen} />
+
+                    <div
+                        role="tabpanel"
+                        id={`${sectionId}-panel`}
+                        aria-labelledby={`${sectionId}-${open}`}
+                        className="flex min-h-0 flex-1 flex-col gap-2.75 overflow-y-auto px-4 pt-3.5 pb-7"
+                    >
+                        {body}
+                    </div>
+
+                    {/* Outside the scrolling panel and under every section, which is where the design draws it on one
+                        pane: what is running is about the client rather than about whichever section is open. */}
+                    <VersionLine
+                        deploymentVersion={deploymentVersion}
+                        className="border-t border-line bg-sunken px-4 py-2.5 text-center text-sm text-faint"
                     />
-                )}
-            </div>
-
-            {/* Outside the scrolling panel and under both tabs, which is where the design draws it: what is
-                running is about the client rather than about whichever half of this surface is open, and a line that
-                scrolled away with the profile would be one somebody has to go looking for. */}
-            <VersionLine
-                deploymentVersion={deploymentVersion}
-                className="border-t border-line bg-sunken px-4 py-2.5 text-center text-sm text-faint"
-            />
+                </>
+            )}
         </dialog>
     );
 }
 
+/** The groups the navigation files the sections under, each once, in the order the sections first reach them. */
+function groupsOf(shown: readonly SettingsSection[]): readonly MessageKey[] {
+    return [...new Set(shown.map((section) => sectionMarks[section].group))];
+}
+
 /**
- * The two halves of the surface as a tab list, which is what the design draws and what a screen reader is owed.
+ * The sections down the left of a window with two panes: *Find a setting* at the top, the sections grouped under the
+ * design's headings, and what is running at the foot.
+ *
+ * A navigation of buttons rather than a tab list, because a tab list owns tabs and nothing else, and the group headings
+ * are what make a long list of sections readable. The open one says so with `aria-current`, and the section beside it
+ * is named by its own heading.
+ *
+ * The search narrows the sections by their names and by the sentence saying what each holds, in the language being
+ * read, and it narrows the navigation only — the section that is open stays open.
+ */
+function SettingsNavigation({
+    open,
+    onOpen,
+    deploymentVersion,
+}: {
+    readonly open: SettingsSection;
+    readonly onOpen: (section: SettingsSection) => void;
+    readonly deploymentVersion: string | null;
+}) {
+    const { locale, translate } = useLocalization();
+    const [query, setQuery] = useState('');
+    const sought = query.trim().toLocaleLowerCase(locale);
+    const shown = sections.filter(
+        (section) =>
+            sought === '' ||
+            `${translate(sectionMarks[section].name)} ${translate(sectionMarks[section].hint)}`
+                .toLocaleLowerCase(locale)
+                .includes(sought),
+    );
+
+    return (
+        <nav
+            aria-label={translate('settings.sections')}
+            className="flex w-settings-navigation-narrow shrink-0 flex-col overflow-y-auto border-e border-line bg-sunken px-3 pt-4 pb-3.5 roomy:w-settings-navigation"
+        >
+            <label className="mx-0.5 mb-3 flex h-9 shrink-0 items-center gap-2 rounded-field border border-line bg-panel px-2.5 has-[:focus-visible]:border-accent">
+                <Icon name="search" className="size-icon-md text-faint" />
+                <span className="sr-only">{translate('settings.find')}</span>
+                <input
+                    type="search"
+                    value={query}
+                    placeholder={translate('settings.find')}
+                    className="min-w-0 flex-1 bg-transparent text-md text-text outline-none placeholder:text-faint"
+                    onChange={(event) => {
+                        setQuery(event.target.value);
+                    }}
+                />
+            </label>
+
+            {groupsOf(shown).map((group) => (
+                <div key={group} className="flex flex-col gap-0.5 pb-3">
+                    <p className="px-3 pt-1 pb-1.5 text-xs font-semibold text-faint">{translate(group)}</p>
+
+                    <ul className="flex flex-col gap-0.5">
+                        {shown
+                            .filter((section) => sectionMarks[section].group === group)
+                            .map((section) => (
+                                <li key={section}>
+                                    <button
+                                        type="button"
+                                        aria-current={section === open ? 'true' : undefined}
+                                        className={`flex w-full items-center gap-2.75 rounded-md px-3 py-2 text-start text-md transition ${
+                                            section === open
+                                                ? 'bg-accent-soft font-semibold text-accent-deep'
+                                                : 'text-text-soft hover:bg-hover hover:text-text'
+                                        }`}
+                                        onClick={() => {
+                                            onOpen(section);
+                                        }}
+                                    >
+                                        <Icon
+                                            name={sectionMarks[section].icon}
+                                            className={`size-icon-lg shrink-0 ${section === open ? '' : 'text-muted'}`}
+                                        />
+                                        <span className="min-w-0 flex-1 truncate">
+                                            {translate(sectionMarks[section].name)}
+                                        </span>
+                                    </button>
+                                </li>
+                            ))}
+                    </ul>
+                </div>
+            ))}
+
+            {shown.length === 0 ? (
+                <p className="px-3 py-1.5 text-base text-muted">{translate('settings.nothingFound')}</p>
+            ) : null}
+
+            <VersionLine
+                deploymentVersion={deploymentVersion}
+                className="mt-auto truncate px-3 pt-3 pb-0.5 text-sm text-faint"
+            />
+        </nav>
+    );
+}
+
+/**
+ * The sections as a tab strip, which is what the design draws on one pane and what a screen reader is owed there.
  *
  * Buttons carrying the tab role rather than radio inputs, because a tab list has its own keyboard contract: one tab
  * stop for the whole list, the arrow keys moving between the tabs inside it, and Home and End reaching the ends. That
  * is what the roving `tabIndex` below is — the selected tab is the one the Tab key lands on, and the arrows move both
- * the selection and the focus, which is the pattern for tabs whose panel follows the selection.
+ * the selection and the focus, which is the pattern for tabs whose panel follows the selection. The strip scrolls
+ * sideways where the window is narrower than the sections.
  */
 function SettingsTabs({
     id,
@@ -190,16 +347,16 @@ function SettingsTabs({
     onOpen,
 }: {
     readonly id: string;
-    readonly open: SettingsTab;
-    readonly onOpen: (tab: SettingsTab) => void;
+    readonly open: SettingsSection;
+    readonly onOpen: (section: SettingsSection) => void;
 }) {
     const { translate } = useLocalization();
 
-    // The two tabs themselves, so a key press can put focus on the one it selected. Held by identity rather than found
-    // by a selector, because `useId` composes identifiers a CSS selector would have to be escaped for.
-    const buttons = useRef(new Map<SettingsTab, HTMLButtonElement>());
+    // The tabs themselves, so a key press can put focus on the one it selected. Held by identity rather than found by a
+    // selector, because `useId` composes identifiers a CSS selector would have to be escaped for.
+    const buttons = useRef(new Map<SettingsSection, HTMLButtonElement>());
 
-    function move(to: SettingsTab): void {
+    function move(to: SettingsSection): void {
         onOpen(to);
         buttons.current.get(to)?.focus();
     }
@@ -208,9 +365,9 @@ function SettingsTabs({
         <div
             role="tablist"
             aria-label={translate('settings.sections')}
-            className="flex items-stretch gap-3.5 border-b border-line bg-sunken px-3.5"
+            className="flex shrink-0 items-stretch gap-4.5 overflow-x-auto border-b border-line bg-sunken px-4"
             onKeyDown={(event) => {
-                const stepped = steppedTo(event.key);
+                const stepped = steppedTo(event.key, open);
 
                 if (stepped !== null) {
                     event.preventDefault();
@@ -218,7 +375,7 @@ function SettingsTabs({
                 }
             }}
         >
-            {tabs.map((offered) => (
+            {sections.map((offered) => (
                 <button
                     key={offered}
                     ref={(element) => {
@@ -234,7 +391,7 @@ function SettingsTabs({
                     aria-selected={offered === open}
                     aria-controls={`${id}-panel`}
                     tabIndex={offered === open ? 0 : -1}
-                    className={`border-b-2 px-px pt-2.5 pb-2 text-md whitespace-nowrap transition pointer-coarse:text-xl ${
+                    className={`shrink-0 border-b-2 px-px pt-2.5 pb-2 text-md whitespace-nowrap transition pointer-coarse:px-1 pointer-coarse:pt-3.5 pointer-coarse:pb-3 pointer-coarse:text-xl ${
                         offered === open
                             ? 'border-accent font-semibold text-text'
                             : 'border-transparent text-muted hover:text-text'
@@ -243,7 +400,7 @@ function SettingsTabs({
                         onOpen(offered);
                     }}
                 >
-                    {translate(tabNames[offered])}
+                    {translate(sectionMarks[offered].name)}
                 </button>
             ))}
         </div>
@@ -251,20 +408,25 @@ function SettingsTabs({
 }
 
 /**
- * Which tab a key press moves to, or `null` where the press is not one this list answers.
+ * Which section a key press moves to from the one that is open, or `null` where the press is not one this list
+ * answers.
  *
- * The list does not wrap at its ends, which is what makes Home and End the same answers as the two arrows while there
- * are two tabs: a list of two that wrapped would make the left and right arrows one gesture, and holding either down
- * would oscillate the selection under the reader.
+ * The list does not wrap at its ends: holding an arrow down walks to the end and stays there rather than oscillating
+ * the selection under the reader, and Home and End reach the two ends at once.
  */
-function steppedTo(key: string): SettingsTab | null {
+function steppedTo(key: string, from: SettingsSection): SettingsSection | null {
+    const at = sections.indexOf(from);
+    const last = sections.length - 1;
+
     switch (key) {
         case 'ArrowLeft':
-        case 'Home':
-            return 'profile';
+            return sections[Math.max(0, at - 1)] ?? null;
         case 'ArrowRight':
+            return sections[Math.min(last, at + 1)] ?? null;
+        case 'Home':
+            return sections[0];
         case 'End':
-            return 'application';
+            return sections[last] ?? null;
         default:
             return null;
     }
@@ -279,16 +441,12 @@ function SectionName({ children }: { readonly children: string }) {
 }
 
 // What the client is read in and how it draws a conversation, in the design's own order: the language, then
-// the message view, then the privacy section carrying the telemetry decision. The notifications section between the
-// last two is the design's on neither count — it draws neither row, because what one decides is whether an
-// operating system is spoken to and the design draws the client rather than the machine under it, and the other is how
-// long a notification stands rather than what one looks like. Both take the shape of the rows around them rather than
-// one of their own, which is what keeps that from being a second house style.
+// the message view, then the privacy section carrying the telemetry decision.
 //
-// Two of the rows are this machine's and the rest follow the person, which is what the two groups below are: the
-// deployment keeps what follows somebody and takes a change to it under a grant of its own, so a credential without
-// that grant is shown those rows as they stand, with the sentence saying why, and keeps the language and the system
-// notification, which no deployment is asked about.
+// The language is this machine's and the rest follow the person, which is what the group below is: the deployment
+// keeps what follows somebody and takes a change to it under a grant of its own, so a credential without that grant is
+// shown those rows as they stand, with the sentence saying why, and keeps the language, which no deployment is asked
+// about.
 function Application({
     preferences,
     telemetryForwarding,
@@ -319,20 +477,37 @@ function Application({
 
                 <SectionName>{translate('settings.mailbox')}</SectionName>
                 <AiFiltersSection preferences={preferences} />
-            </fieldset>
-
-            {/* One section, because both rows are about the same notifications: whether this machine raises one of its
-                own, and how long one stands wherever it is drawn. The section name is the first component's, which is
-                why the second is a sibling under it rather than a section of its own repeating the word. */}
-            <SystemNotifications />
-
-            <fieldset disabled={!writable} className={followingThePerson}>
-                <NotificationDuration preferences={preferences} />
 
                 <Divider />
 
                 <SectionName>{translate('settings.privacy')}</SectionName>
                 <Telemetry preferences={preferences} forwarding={telemetryForwarding} />
+            </fieldset>
+        </>
+    );
+}
+
+// What reaches somebody and for how long, under the one heading the design gives both rows: whether this machine
+// raises a notification of its own, and how long one stands wherever it is drawn. The first is this machine's and is
+// drawn only where a head can raise one; the second follows the person, so it sits in a group the deployment keeps.
+function Notifications({
+    preferences,
+    writable,
+}: {
+    readonly preferences: ClientPreferencesInForce;
+    readonly writable: boolean;
+}) {
+    const { translate } = useLocalization();
+
+    return (
+        <>
+            <SectionName>{translate('settings.thisDevice')}</SectionName>
+            <SystemNotifications />
+
+            {writable ? null : <p className="text-base text-muted">{translate('settings.preferencesNotYours')}</p>}
+
+            <fieldset disabled={!writable} className={followingThePerson}>
+                <NotificationDuration preferences={preferences} />
             </fieldset>
         </>
     );
@@ -346,8 +521,8 @@ const followingThePerson = 'contents [&:disabled>*]:opacity-60';
 
 // Whether this machine raises a notification of its own while nobody is looking at the window.
 //
-// It is drawn only where a shell offered the operation, which is why the section is the component rather than a row
-// inside the one above: a switch the web head could move would decide nothing, and a setting that says nothing about
+// It is drawn only where a head offered the operation, which is why the row is a component that may draw nothing: a
+// switch on a head that cannot raise one would decide nothing, and a setting that says nothing about
 // the machine it is read on is worse than an absent one. Nothing here asks which head it is running in — it asks
 // whether the operation exists, which `shellOperations/systemNotifier.ts` is what answers.
 //
@@ -358,8 +533,7 @@ const followingThePerson = 'contents [&:disabled>*]:opacity-60';
 //
 // How long one of the client's own notifications stands, which is also how long the way back out of a permanent delete
 // is open — the toast carrying that offer is the whole of the window, so the two are one number rather than two that
-// have to agree. The design draws no such row either: it settles what a notification looks like rather than how
-// long somebody is given to read one, so this takes the shape of the rows around it exactly as the section below does.
+// have to agree.
 //
 // A field rather than a set of segments, because the bound is thirty whole seconds and a handful of segments over it
 // would be a choice this client invented on the deployment's behalf. It is corrected in place, like the name on the
@@ -490,12 +664,7 @@ function SystemNotifications() {
     }
 
     return (
-        <>
-            <Divider />
-
-            <SectionName>{translate('settings.systemNotifications')}</SectionName>
-
-            <label className="flex cursor-pointer items-start gap-2.75 rounded-md px-2.5 py-2.25 transition hover:bg-hover">
+        <label className="flex cursor-pointer items-start gap-2.75 rounded-md px-2.5 py-2.25 transition hover:bg-hover">
                 <span className="flex min-w-0 flex-1 flex-col gap-0.75">
                     {translate('settings.raiseSystemNotifications')}
                     <span className="text-base text-muted">
@@ -509,7 +678,6 @@ function SystemNotifications() {
 
                 <Switch on={raising && standing === 'permitted'} onChange={choose} />
             </label>
-        </>
     );
 }
 

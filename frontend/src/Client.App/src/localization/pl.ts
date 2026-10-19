@@ -584,7 +584,16 @@ export const pl: Catalogue = {
     'settings.close': 'Zamknij ustawienia',
     'settings.sections': 'Sekcje ustawień',
     'settings.profile': 'Profil',
+    'settings.notifications': 'Powiadomienia',
     'settings.application': 'Aplikacja',
+    'settings.profileHint': 'Twoje imię i nazwisko, zdjęcie oraz strefa czasowa, w której liczone są Twoje dni.',
+    'settings.notificationsHint': 'Czy to urządzenie mówi Ci, co przyszło, i jak długo powiadomienie zostaje na ekranie.',
+    'settings.applicationHint': 'Język, sposób pokazywania wiadomości i to, co wysyła to urządzenie.',
+    'settings.groupYou': 'Ty',
+    'settings.groupAssistant': 'Asystent',
+    'settings.thisDevice': 'To urządzenie',
+    'settings.find': 'Znajdź ustawienie',
+    'settings.nothingFound': 'Żadna sekcja nie pasuje.',
     'settings.name': 'Imię i nazwisko',
     'settings.nameNotYours':
         'Twoje imię i nazwisko prowadzi ten, kto zarządza tym wdrożeniem, więc jest tu pokazane, a nie oddane do zmiany.',
@@ -627,7 +636,6 @@ export const pl: Catalogue = {
     'settings.expandWholeThread': 'Rozwijaj cały wątek automatycznie',
     'settings.expandWholeThreadExplanation':
         'Bez tego wątek otwiera się na wybranej wiadomości, a pozostałe są pod przyciskiem.',
-    'settings.systemNotifications': 'Powiadomienia',
     'settings.raiseSystemNotifications': 'Powiadamiaj mnie na tym urządzeniu',
     'settings.raiseSystemNotificationsExplanation':
         'Gdy okno nie jest przed Tobą, to urządzenie mówi, ile rzeczy przyszło i jakiego rodzaju – nigdy od kogo ani w jakiej sprawie.',
@@ -766,9 +774,8 @@ export const pl: Catalogue = {
     'folders.namePlaceholder': 'np. Umowy 2027',
     'folders.close': 'Zamknij',
 
-    'mailboxes.heading': 'Katalogi',
-    'mailboxes.fold': 'Zwiń panel skrzynek',
-    'mailboxes.unfold': 'Rozwiń panel skrzynek',
+    'mailboxes.fold': 'Ukryj katalogi i filtry',
+    'mailboxes.unfold': 'Pokaż katalogi i filtry',
     'mailboxes.open': 'Katalogi i filtry',
     'mailboxes.close': 'Zamknij katalogi',
 
@@ -777,6 +784,8 @@ export const pl: Catalogue = {
     'aiFilters.commitments': 'Zobowiązania',
     'aiFilters.deadlinesThisWeek': 'Terminy w tym tygodniu',
     'aiFilters.entryTitle': 'Filtr AI: {view}',
+    'aiFilters.collapse': 'Zwiń filtry AI',
+    'aiFilters.show': 'Pokaż filtry AI',
 
     'mail.toolbar': 'Działania na poczcie',
     'mail.compose': 'Nowa wiadomość',
@@ -1103,12 +1112,11 @@ export const pl: Catalogue = {
     'reading.significance': 'Dlaczego to może być ważne',
     'reading.commitment': 'Jakie jest zobowiązanie',
     'reading.said': '{aspect}: {text}',
-    'reading.title': 'Co MailFathom wyczytał z tej wiadomości',
-    'reading.about':
-        'Każdy odczyt poniżej pochodzi wyłącznie z tej wiadomości i pokazuje fragment, na którym się opiera.',
+    'reading.title': 'Co wyczytał MailFathom',
+    'reading.about': 'Wyczytane wyłącznie z tej wiadomości – każdy odczyt cytuje fragment, na którym się opiera.',
+    'reading.aboutShort': 'Cytaty wyłącznie z tej wiadomości',
     'reading.check': 'Podsumowanie AI',
     'reading.close': 'Zamknij',
-    'reading.reason': 'Dlaczego: {reason}',
     'reading.dueAt': 'Termin: {when}',
     'reading.byRule': 'Reguła tego wdrożenia – {origin}',
     'reading.byModel': 'Model – {origin}',

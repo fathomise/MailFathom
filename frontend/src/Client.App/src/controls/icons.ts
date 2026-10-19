@@ -80,6 +80,8 @@ export const iconNames = [
     'insights',
     'label_important',
     'language',
+    'left_panel_close',
+    'left_panel_open',
     'link',
     'lock',
     'lock_open',

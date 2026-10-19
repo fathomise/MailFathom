@@ -198,6 +198,32 @@ describe('MailToolbar', () => {
         expect(showing.getAttribute('aria-pressed')).toBe('true');
     });
 
+    it('leads with the control that hides the mailbox column wherever the column stands beside the list', () => {
+        theCompositionHasTwoPanes();
+        drawToolbar(true);
+
+        const buttons = screen.getAllByRole('button');
+
+        expect(buttons[0]?.getAttribute('aria-label')).toBe('Hide folders and filters');
+        expect(buttons[1]?.textContent).toBe('New message');
+    });
+
+    it('hides the mailbox column and offers to show it again from the same place', () => {
+        theCompositionHasTwoPanes();
+        drawToolbar(true);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Hide folders and filters' }));
+
+        expect(screen.getByRole('button', { name: 'Show folders and filters' })).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Hide folders and filters' })).toBeNull();
+    });
+
+    it('offers no column control where the mailboxes are a drawer, which has a close control of its own', () => {
+        drawToolbar(true);
+
+        expect(screen.queryByRole('button', { name: 'Hide folders and filters' })).toBeNull();
+    });
+
     it('leaves the panel control out of a single-pane composition, which the design gives it nothing to do in', () => {
         drawToolbar(true, messageId, actsOffering(vi.fn()), 'labelled');
 

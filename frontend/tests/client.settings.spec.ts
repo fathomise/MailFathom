@@ -152,28 +152,27 @@ test('closes the settings screen on Escape, handing focus back to the row that o
     await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeFocused();
 });
 
-// The two compositions the design draws the settings surface in, and the one assertion only a browser can
-// make about them: jsdom computes no geometry, so what a unit test can prove is that the surface is one component
-// with one set of controls, and what is left is the composition itself.
-test('draws the settings surface as a card over the workspace in a wide window', async ({ page }) => {
+// The settings surface takes the whole window at every composition, and the one assertion only a browser can make
+// about that: jsdom computes no geometry, so what a unit test can prove is which controls the surface carries, and
+// what is left is the size it is drawn at.
+test('draws the settings surface as the whole window in a wide window too, its sections down the side', async ({
+    page,
+}) => {
     await page.setViewportSize(wideWindow);
     await openSignedIn(page);
     await openSettings(page);
     await settled(page);
 
-    const panel = await page.getByRole('dialog', { name: 'Settings' }).boundingBox();
+    const settings = page.getByRole('dialog', { name: 'Settings' });
+    const panel = await settings.boundingBox();
+    const navigation = await settings.getByRole('navigation', { name: 'Settings sections' }).boundingBox();
 
-    // The card's own measurements rather than merely "narrower than the window": a dialog the width utility failed to
-    // reach would still be a few pixels off the viewport's width once a scrollbar is counted, so bounding it below the
-    // window would pass for exactly the regression this test exists to catch. Both numbers are the tokens the design's
-    // card is drawn at, in pixels at the root size this suite runs under — 43.75rem, and 92% of a 720-pixel
-    // window, which is the lower of that token's two terms here.
-    expect(panel?.width).toBeCloseTo(700, 0);
-    expect(panel?.height).toBeCloseTo(0.92 * wideWindow.height, 0);
+    expect(panel?.width).toBe(wideWindow.width);
+    expect(panel?.height).toBe(wideWindow.height);
 
-    // The workspace is still behind it, which is what makes changing one setting something that opens over what
-    // somebody was doing rather than a place they navigated to.
-    await expect(page.getByRole('heading', { name: 'Discover', level: 1 })).toBeVisible();
+    // The navigation's own width, 16.5rem at the root size this suite runs under, standing at the left edge.
+    expect(navigation?.x).toBe(0);
+    expect(navigation?.width).toBeCloseTo(264, 0);
 });
 
 test('draws the settings surface as the whole screen in a single-pane window', async ({ page }) => {

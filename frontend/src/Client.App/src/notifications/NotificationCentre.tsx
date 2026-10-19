@@ -90,7 +90,7 @@ export function NotificationCentre({
     const now = useCurrentMinute();
     const panel = useRef<HTMLDialogElement>(null);
     const tabs = useId();
-    const [filter, setFilter] = useState<NotificationFilter>('all');
+    const [filter, setFilter] = useState<NotificationFilter>('unread');
     const [selected, setSelected] = useState<readonly string[]>([]);
     const [menu, setMenu] = useState<{ readonly notification: ClientNotification; readonly at: MenuPoint } | null>(
         null,
@@ -239,18 +239,6 @@ export function NotificationCentre({
                 <ChoiceSegment
                     shape="filter"
                     name={tabs}
-                    value="all"
-                    chosen={filter === 'all'}
-                    onChoose={() => {
-                        setFilter('all');
-                    }}
-                >
-                    {translate('notifications.all')}
-                </ChoiceSegment>
-
-                <ChoiceSegment
-                    shape="filter"
-                    name={tabs}
                     value="unread"
                     chosen={filter === 'unread'}
                     onChoose={() => {
@@ -262,6 +250,18 @@ export function NotificationCentre({
                               count: new Intl.NumberFormat(locale).format(centre.unreadCount),
                           })
                         : translate('notifications.unreadTab')}
+                </ChoiceSegment>
+
+                <ChoiceSegment
+                    shape="filter"
+                    name={tabs}
+                    value="all"
+                    chosen={filter === 'all'}
+                    onChoose={() => {
+                        setFilter('all');
+                    }}
+                >
+                    {translate('notifications.all')}
                 </ChoiceSegment>
 
                 <span className="min-w-1 flex-1" />

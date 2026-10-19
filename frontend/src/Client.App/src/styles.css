@@ -187,12 +187,18 @@
     --text-7xl: 2.125rem;
     --text-7xl--line-height: 1.15;
 
+    /* The one step off the scale: the claim a reading makes, which the design sets between `2xl` and `3xl` so it reads
+       as the line a reading is about rather than as a heading over it. */
+    --text-claim: 1.1875rem;
+    --text-claim--line-height: 1.35;
+
     /* The design's corners, closed the same way: 4, 6, 8, 12, 16 and 24 pixels, beside the full round a circle and a
        pill take. */
     --radius-*: initial;
     --radius-xs: 0.25rem;
     --radius-sm: 0.375rem;
     --radius-md: 0.5rem;
+    --radius-field: 0.625rem;
     --radius-lg: 0.75rem;
     --radius-xl: 1rem;
     --radius-2xl: 1.5rem;
@@ -250,6 +256,17 @@
        and stacks below it, which is wider than the workspace opens out at because a claim beside a form needs more room
        than a rail beside a list. It is the sign-in artboard's own number rather than a fourth shell composition. */
     --breakpoint-split: 58.75rem;
+
+    /* Where a surface over the screen stops being drawn for a phone or a fold. Below it a toast is a slim strip and the
+       reading of a message fills the screen; at or above it the toast is the full card and the reading a dialog. It is
+       the design's own number for exactly those two, which is why it sits between the fold and the tablet rather than
+       on either. */
+    --breakpoint-wide: 56.25rem;
+
+    /* Where the tablet composition stops being cramped. Below it the design narrows what stands beside the content —
+       the Settings section navigation, the reading dialog, and the gap between the rail's destinations — and above it
+       each takes its full measure. */
+    --breakpoint-roomy: 63.75rem;
 
     /* One row of the message list, in the heights the design draws it. Declared here rather than in the
        list because it is a density decision like any other — and because the list is arithmetic over it: the window
@@ -328,14 +345,11 @@
     --spacing-notifications: 25rem;
     --spacing-navigation: 4rem;
 
-    /* The settings surface, in the composition where it is a card rather than the whole screen: the width the design
-       draws it at, and the height it holds whatever is in it — so its body scrolls inside a card that does not
-       change size as somebody moves between its two tabs, and a tall window does not stretch it past what it needs.
-       Both are the design's, and both are a size the card is given rather than a ceiling it stops at, which is why
-       they sit here beside the rail's widths rather than among the `--container-*` measures a column is read against.
-       Below the workspace breakpoint neither is read, because the surface is the screen. */
-    --spacing-settings: 43.75rem;
-    --spacing-settings-card: min(92vh, 45rem);
+    /* The section navigation down the side of Settings where it has two panes, at the width the design draws it and
+       at the narrower one it takes below the roomy breakpoint. Settings fill the window at every composition, so these
+       are the one width in them that is given rather than whatever the window leaves. */
+    --spacing-settings-navigation: 16.5rem;
+    --spacing-settings-navigation-narrow: 13.75rem;
 
     /* The two windows that stand over the message where somebody does not work in tabs — the sender's own markup and an
        opened file — in the composition where each is a window rather than the whole screen. Each is a width and a
@@ -348,15 +362,14 @@
     --spacing-file-window: min(58.75rem, calc(100% - 3.5rem));
     --spacing-file-window-tall: min(88vh, calc(100% - 3.5rem));
 
-    /* The surface a message's readings are checked on, in the composition where it is a card rather than the whole
-       screen — the width the design draws it at, and the height it stops short of the viewport by the room the
-       design leaves above and below it. The height is a ceiling rather than a size, which is where this parts from the
-       settings card: a message carrying one reading is a short card and one carrying three scrolls inside a tall one,
-       and the design draws the surface that way because what is in it varies with the message. Below the workspace
-       breakpoint neither is read, because the surface is the screen there, which is what the design draws for a
-       phone. */
-    --spacing-readings: 38.75rem;
-    --spacing-readings-tall: calc(100vh - 2.75rem);
+    /* The surface a message's readings are checked on, in the composition where it is a dialog rather than the whole
+       screen — 920 pixels wide, 760 below the roomy breakpoint, never closer than the design's 32-pixel margin to the
+       window's edges, and a height that is a ceiling rather than a size: a message carrying one reading is a short
+       dialog and one carrying three scrolls inside a tall one. Below the wide breakpoint none of them is read, because
+       the surface is the screen there. */
+    --spacing-readings: min(57.5rem, calc(100% - 4rem));
+    --spacing-readings-narrow: min(47.5rem, calc(100% - 4rem));
+    --spacing-readings-tall: min(86dvh, 53.75rem);
 
     /* The share of the sign-in screen its brand column takes above the split breakpoint, which the design draws as a
        proportion of the window rather than as a width — so the column and the form beside it keep their ratio at
@@ -403,6 +416,11 @@
        stops at, so a dialog composes against one name and never learns the window's width. */
     --container-dialog: 27.5rem;
     --container-dialog-narrow: calc(100vw - 3rem);
+
+    /* The column a Settings section is read in, beside its navigation, and the measure its own explanatory sentences
+       stop at inside that column. A wide window gains margin rather than line length, as the reading pane does. */
+    --container-settings: 47.5rem;
+    --container-settings-prose: 38.75rem;
 
     /* What a notch, a rounded corner, or a system bar takes out of the viewport. Zero everywhere a window has none,
        which is every head this repository builds today; declaring it as a token is what keeps a screen from reaching

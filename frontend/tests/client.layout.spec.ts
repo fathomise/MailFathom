@@ -293,7 +293,7 @@ test.describe('driven by a finger', () => {
             await opener.click();
             await expect(drawer.getByRole('tree', { name: 'Mailboxes and folders' })).toBeVisible();
 
-            await drawer.getByRole('button', { name: 'Close the folders' }).click();
+            await drawer.getByRole('button', { name: 'Close folders' }).click();
             await expect(drawer).toBeHidden();
             await expect(opener).toBeFocused();
 
