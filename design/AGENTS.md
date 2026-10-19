@@ -17,6 +17,20 @@ defaults.**
 - Draw only what the client can ship under `frontend/src/AGENTS.md`.
 - These skills are for `design/` only. A client task builds from the design and opens none of them.
 
+## Drawn for a finger at three sizes
+
+**A screen is drawn for the phone, the fold and the tablet as deliberately as for the desktop, never narrowed from it.**
+`state-inventory.md` § *What every touch composition holds to* is the bar all three meet — the target size, the phone's
+bar, the bottom navigation, what stands in the *More* sheet, one-line prompts, no key names, segmented controls, no
+repeated actions, the smallest text — and a rule for small screens is added to that table rather than here.
+
+- A value drawn under `touch` meets that table rather than repeating the desktop's. The 44 px target matters most: the
+  client lifts every control under a coarse pointer to it, so a design drawing less is a difference the parity loop
+  reports on every pair rather than a choice the client follows.
+- A change that adds or reshapes a screen is opened at all three touch compositions, in both themes, before it is
+  finished — the four sizes are `frontend/AGENTS.md`'s — and the desktop composition is checked to be unchanged
+  unless the change is about it.
+
 ## Fast, in balance
 
 **The design is authored fast.** Nothing here ships, so what counts is how soon a screen can be looked at and judged,
