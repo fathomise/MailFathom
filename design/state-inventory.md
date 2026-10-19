@@ -469,8 +469,8 @@ or a result to state, a footer tray flush with the card's edges. A pending block
 `--panel` body behind an `--accent-line` edge and moves the accent onto its tile, its chip and its
 tray (`--accent-soft`), so the controls sit on the accent rather than the whole card; a settled
 block's tray is a `--line2` rule. The draft's paragraphs, and the `textarea` that replaces them,
-sit in one `--sub` well at radius 10. The conversation history follows the same rule and stops being a stack of cards: a 3 px
-left edge, `--accent` on the open row and transparent otherwise, and a 1 px gap between rows.
+sit in one `--sub` well at radius 10. The conversation history follows the same rule and is no stack of cards:
+rows grouped by day, the open one tinted `--accent-soft` with an accent title — the history rows in the table above say the rest.
 
 ### What a run looks like while it runs
 
