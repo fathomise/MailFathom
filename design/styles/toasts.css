@@ -7,8 +7,4 @@ html, body { margin: 0; padding: 0; background: oklch(0.982 0.003 262); }
 body:has([data-theme="dark"]) { background: oklch(0.183 0.016 262); }
 a { color: var(--accent); }
 a:hover { color: var(--accent-2); }
-@keyframes mftin { from { opacity: 0; transform: translateX(22px) scale(0.97) } }
-@keyframes mftout { to { opacity: 0; transform: translateX(22px) scale(0.97) } }
-@keyframes mfspin { to { transform: rotate(360deg) } }
-@keyframes mftbar { from { transform: scaleX(1) } to { transform: scaleX(0) } }
 @keyframes mfslide { 0% { margin-left: 0 } 50% { margin-left: 62% } 100% { margin-left: 0 } }

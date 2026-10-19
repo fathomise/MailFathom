@@ -4,8 +4,8 @@
  * Project repository: https://github.com/fathomise/MailFathom
  */
 
-/* What every artboard shares: the palette, the typeface, and how a control answers a press, a keyboard focus, and a
-   request for less motion. Each token states its light and its dark value together, and `color-scheme` picks between
+/* What every artboard shares: the palette, the typeface, how a control answers a press, a keyboard focus, and a
+   request for less motion, and how a surface arrives and leaves. Each colour token states its light and its dark value together, and `color-scheme` picks between
    them, so a page that follows the browser and an artboard that sets `data-theme` read the same declarations. */
 :root { color-scheme: light dark; }
 [data-theme="light"] { color-scheme: light; }
@@ -81,6 +81,77 @@ p, li, h1, h2, h3, h4 { text-wrap: pretty; }
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* Motion. One vocabulary for every surface that arrives or leaves: an element names its kind in `data-motion` and,
+   where it can also leave, its phase in `data-phase` (`in` or `out`). The prototype keeps a closing surface mounted
+   for `--motion-exit` and turns its phase to `out`, so a close animates as well as an open (`motionHold` in its
+   component). Every kind moves on `translate`, `scale` and `opacity` — the individual properties — so it composes
+   with whatever `transform` an element already positions itself with. An arrival fills backwards only, so once it
+   ends nothing of it stays on the element — no stacking context, no containing block for a fixed child. */
+:root {
+  --motion-fast: 160ms;
+  --motion-base: 240ms;
+  --motion-slow: 340ms;
+  --motion-exit: 200ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes mfpulse { 0%,100% { opacity: 0.35 } 50% { opacity: 1 } }
+@keyframes mfspin { to { transform: rotate(360deg) } }
+@keyframes mfshim { from { background-position: 130% 0 } to { background-position: -130% 0 } }
+@keyframes mftin { from { opacity: 0; transform: translateX(22px) scale(0.97) } }
+@keyframes mftout { to { opacity: 0; transform: translateX(22px) scale(0.97) } }
+@keyframes mftbar { from { transform: scaleX(1) } to { transform: scaleX(0) } }
+
+@keyframes mf-scrim-in { from { background-color: transparent } }
+@keyframes mf-scrim-out { to { background-color: transparent } }
+@keyframes mf-fade-in { from { opacity: 0 } }
+@keyframes mf-fade-out { to { opacity: 0 } }
+@keyframes mf-pop-in { from { opacity: 0; scale: 0.96 } }
+@keyframes mf-pop-out { to { opacity: 0; scale: 0.96 } }
+@keyframes mf-rise-in { from { opacity: 0; translate: 0 18px } }
+@keyframes mf-rise-out { to { opacity: 0; translate: 0 18px } }
+@keyframes mf-sheet-in { from { translate: 0 100% } }
+@keyframes mf-sheet-out { to { translate: 0 100% } }
+@keyframes mf-drawer-in { from { translate: -100% 0 } }
+@keyframes mf-drawer-out { to { translate: -100% 0 } }
+@keyframes mf-push-in { from { opacity: 0; translate: 48px 0 } }
+@keyframes mf-back-in { from { opacity: 0; translate: -48px 0 } }
+@keyframes mf-screen-in { from { opacity: 0; translate: 0 6px } }
+
+/* scrim — the dimmed backdrop behind a sheet, a drawer, a dialog or a menu: only its colour fades, so what it holds
+   moves on its own. */
+[data-motion="scrim"] { animation: mf-scrim-in var(--motion-base) var(--ease-out) backwards; }
+[data-motion="scrim"][data-phase="out"] { animation: mf-scrim-out var(--motion-exit) var(--ease-in) both; }
+/* fade — content replacing its skeleton, a section revealed in place; out is the skeleton giving way. */
+[data-motion="fade"] { animation: mf-fade-in var(--motion-base) var(--ease-out) backwards; }
+[data-motion="fade"][data-phase="out"] { animation: mf-fade-out var(--motion-exit) var(--ease-in) both; }
+/* veil — a skeleton laid over content that is already there: arrives at once, fades away when the content is ready. */
+[data-motion="veil"][data-phase="out"] { animation: mf-fade-out var(--motion-base) var(--ease-out) both; }
+/* pop — a menu, a popover, a centred dialog, a floating pill: grows out of 96 %. */
+[data-motion="pop"] { animation: mf-pop-in var(--motion-fast) var(--ease-out) backwards; }
+[data-motion="pop"][data-phase="out"] { animation: mf-pop-out var(--motion-exit) var(--ease-in) both; }
+/* rise — the docked composer on wider compositions: comes up 18 px from where it docks. */
+[data-motion="rise"] { animation: mf-rise-in var(--motion-base) var(--ease-out) backwards; }
+[data-motion="rise"][data-phase="out"] { animation: mf-rise-out var(--motion-exit) var(--ease-in) both; }
+/* sheet — a bottom sheet, and on the phone every full-screen surface (compose, a form dialog, Settings): enters from
+   the bottom edge on the sheet curve the notification gesture springs on, leaves the same way. */
+[data-motion="sheet"] { animation: mf-sheet-in var(--motion-slow) var(--ease-sheet) backwards; }
+[data-motion="sheet"][data-phase="out"] { animation: mf-sheet-out var(--motion-exit) var(--ease-in) both; }
+/* drawer — the folder list on the tablet and the phone, from the left edge. */
+[data-motion="drawer"] { animation: mf-drawer-in var(--motion-slow) var(--ease-sheet) backwards; }
+[data-motion="drawer"][data-phase="out"] { animation: mf-drawer-out var(--motion-exit) var(--ease-in) both; }
+/* push / back — one pane at a time, as a shared horizontal axis: the detail arrives from 48 px to the right and Back
+   brings the list from 48 px to the left, both fading through, so going deeper and coming back read as opposite
+   directions. The pane being left is already gone, so nothing slides over an empty frame. */
+[data-motion="push"] { animation: mf-push-in var(--motion-slow) var(--ease-sheet) backwards; }
+[data-motion="back"] { animation: mf-back-in var(--motion-slow) var(--ease-sheet) backwards; }
+/* screen — switching space from the rail or the bottom navigation: the spaces are peers, so they cross-fade with a
+   6 px settle rather than slide. */
+[data-motion="screen"] { animation: mf-screen-in var(--motion-base) var(--ease-out) backwards; }
+[data-phase="out"] { pointer-events: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

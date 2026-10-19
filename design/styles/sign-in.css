@@ -10,4 +10,3 @@ input::placeholder { color: var(--faint); }
 a { color: var(--accent); }
 a:hover { color: var(--accent-2); }
 input { font-family: inherit; }
-@keyframes mfspin { to { transform: rotate(360deg) } }

@@ -7,6 +7,3 @@ html, body { margin: 0; padding: 0; background: oklch(0.935 0.006 262); }
 html:has([data-page="dark"]), body:has([data-page="dark"]) { background: oklch(0.150 0.014 262); }
 a { color: var(--accent); }
 a:hover { color: var(--accent-2); }
-@keyframes mfpulse { 0%,100% { opacity: 0.35 } 50% { opacity: 1 } }
-@keyframes mfspin { to { transform: rotate(360deg) } }
-@keyframes mfshim { from { background-position: 130% 0 } to { background-position: -130% 0 } }
