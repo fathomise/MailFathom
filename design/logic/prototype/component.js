@@ -588,11 +588,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         if (held[k]) st[k] = held[k].v;
         mo[k] = held[k] ? "out" : "in";
       });
+      /* A pane reset in the same act that switches space (More → Cases, a notification opening a thread) is the
+         space switch's, so only a move made with the screen unchanged pushes or comes back. */
+      const sameScreen = prev.screen === state.screen;
       C.MOTION_PANES.forEach(k => {
         const v = state[k] || "list";
-        if (prev[k] !== undefined && prev[k] !== v) dir[k] = { to: v === "list" ? "back" : "push", at: Date.now() };
+        if (sameScreen && prev[k] !== undefined && prev[k] !== v) dir[k] = { to: v === "list" ? "back" : "push", at: Date.now() };
         prev[k] = v;
       });
+      prev.screen = state.screen;
       return { st, mo };
     };
 
@@ -4356,7 +4360,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         agentInputRef: this.agentInputRef,
         agentCtxLabel: st.agentCtx || (activeConv ? activeConv.ctx : "") || "",
         clearAgentCtx: () => this.setState({ agentCtx: null, agentCtxCleared: true }),
-        convReturnShown: !!st.agentReturn && st.screen !== "agent",
+        convReturnShown: !!st.agentReturn && (st.screen !== "agent" || mo.agentReturn === "out"),
         convReturnLabel: "Back to the conversation",
         backToConv: this.backToConv,
         backToConvKey: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.backToConv(); } },
