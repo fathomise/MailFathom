@@ -633,6 +633,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     backClosing = (k, patch) => {
       if (k === "notifCenter") this.closeNotifCenter();
+      else if (this._ownClose && this._ownClose[k]) this._ownClose[k]();
       else patch[k] = k.endsWith("Pane") ? "list" : null;
     };
 
@@ -2656,7 +2657,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const emptyMail = !composeInPane && !docInPane && !htmlInPane &&
         (tabsMode ? tabItems.length === 0 : (!singlePane && !st.threadOpen));
 
-      return {
+      const vals = {
         mo,
         moDialog: isMobile ? "sheet" : "pop",
         moSettings: singlePane ? "sheet" : "pop",
@@ -5062,6 +5063,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         acceptDraft: () => { this.unmarkAiDraft(); this.setState({ aiDraft: false }); },
         composeContext: thread.subject,
       };
+      /* What back calls for a surface whose own close does more than empty its key: asking before a draft is thrown
+         away, and closing the tab the surface stands in. */
+      this._ownClose = { compose: vals.closeCompose, doc: vals.closeDoc, htmlDoc: vals.closeHtml };
+      return vals;
     }
   }
 

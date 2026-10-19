@@ -70,24 +70,35 @@ test('takes that motion away for a reader who asked for less of it, rather than 
 });
 
 // A surface drawn in the document rather than in the top layer is gone the moment its value is, so leaving is what the
-// client has to hold it on the screen for. The page's animations are slowed for the length of the check, which turns
-// the departure from something over in a fifth of a second into something a check can find still running — without it,
-// whether the menu is caught leaving would depend on how loaded the machine is.
+// client has to hold it on the screen for. The page's animations are slowed while the menu leaves, which turns the
+// departure from something over in a fifth of a second into something a check can find still running — without it,
+// whether the menu is caught leaving would depend on how loaded the machine is — and are put back to speed once it has
+// been caught, so nothing waits the slowed departure out.
+//
+// Read in the page, because what is asserted is the one fact no role query reaches: that the menu still in the
+// document sits inside an inert region, so a press on something already going reaches nothing.
+const theMenuIsHeldInert = `(() => {
+    const menu = document.querySelector('[role="menu"]');
+    return menu !== null && menu.closest('[inert]') !== null;
+})()`;
+
 test('plays a menu’s departure before taking it off the screen', async ({ page, deployment }) => {
     deployment.grant(...actingGrants);
     await openSignedIn(page, '/#/mail');
 
-    const slowed = await page.context().newCDPSession(page);
-    await slowed.send('Animation.enable');
-    await slowed.send('Animation.setPlaybackRate', { playbackRate: 0.05 });
-
     await page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first().click({ button: 'right' });
     await expect(page.getByRole('menu')).toBeVisible();
 
-    // Left by a press outside it, which is what the page's own scrim answers.
-    await page.mouse.click(4, 4);
+    const animations = await page.context().newCDPSession(page);
+    await animations.send('Animation.enable');
+    await animations.send('Animation.setPlaybackRate', { playbackRate: 0.05 });
 
-    const leaving = page.getByRole('menu', { includeHidden: true });
-    await expect(leaving).toHaveCount(1);
-    await expect(leaving).toHaveCount(0, { timeout: 15_000 });
+    // Left by the keyboard's own way out, which the menu answers from wherever focus stands inside it.
+    await page.getByRole('menuitem').first().focus();
+    await page.keyboard.press('Escape');
+
+    await expect.poll(() => page.evaluate(theMenuIsHeldInert)).toBe(true);
+
+    await animations.send('Animation.setPlaybackRate', { playbackRate: 1 });
+    await expect(page.getByRole('menu', { includeHidden: true })).toHaveCount(0);
 });

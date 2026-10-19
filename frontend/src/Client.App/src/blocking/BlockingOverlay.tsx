@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
 import { StopConfirmation } from './StopConfirmation';
@@ -55,6 +55,14 @@ export function BlockingOverlay({
     const named = useId();
     const blocked = operation !== null;
 
+    // The operation last drawn, kept once it has stopped so the card fades out with what it said rather than as an
+    // empty box: the dialog plays its departure after `close()`, and its content would otherwise be gone already.
+    const [shown, setShown] = useState(operation);
+
+    if (operation !== null && operation !== shown) {
+        setShown(operation);
+    }
+
     // An effect, because opening a modal dialog is an imperative browser API and that is the whole of what this is for.
     // The `open` attribute is not the same thing: it draws a dialog without the top layer, the inertness, the focus
     // trap, or the backdrop, which are the four reasons this surface is a dialog at all.
@@ -68,6 +76,12 @@ export function BlockingOverlay({
         if (blocked && !dialog.open) {
             dialog.showModal();
         } else if (!blocked && dialog.open) {
+            // The question about stopping stays drawn with the rest of the card while it leaves, so a question still
+            // asked is put away here: left open, it would hold the page inert behind a card nobody can see.
+            for (const asked of dialog.querySelectorAll('dialog')) {
+                asked.close();
+            }
+
             dialog.close();
         }
     }, [blocked]);
@@ -83,7 +97,7 @@ export function BlockingOverlay({
                 event.preventDefault();
             }}
         >
-            {operation === null ? null : (
+            {shown === null ? null : (
                 <div className="flex flex-col items-center gap-3.5">
                     {/* The animation is removed under `prefers-reduced-motion` by the one rule in `styles.css` that
                     removes every animation, rather than by anything stated here: motion is decided once, and a
@@ -93,10 +107,10 @@ export function BlockingOverlay({
                     <Icon name="progress_activity" className="size-icon-4xl animate-spin text-accent-strong" />
 
                     <h2 id={named} className="text-2xl font-semibold text-balance">
-                        {operation.title}
+                        {shown.title}
                     </h2>
 
-                    <p className="text-md text-text-soft text-pretty">{operation.explanation}</p>
+                    <p className="text-md text-text-soft text-pretty">{shown.explanation}</p>
 
                     {/* The one place in the client where ARIA stands in for an element the platform has, and it is a
                     measurement rather than a preference: `progress` was drawn first, the way `readingPane/Attachment.tsx`
@@ -111,28 +125,28 @@ export function BlockingOverlay({
                         aria-label={translate('blocking.progress')}
                         aria-valuemin={0}
                         aria-valuemax={100}
-                        aria-valuenow={operation.progress === undefined ? undefined : percent(operation.progress)}
+                        aria-valuenow={shown.progress === undefined ? undefined : percent(shown.progress)}
                         className="mt-0.5 h-1.5 w-full overflow-hidden rounded-full bg-hover"
                     >
-                        {operation.progress === undefined ? (
+                        {shown.progress === undefined ? (
                             <div className="h-full rounded-full bg-accent progress-unknown" />
                         ) : (
                             <div
                                 className="h-full rounded-full bg-accent transition-all"
-                                style={{ width: `${String(percent(operation.progress))}%` }}
+                                style={{ width: `${String(percent(shown.progress))}%` }}
                             />
                         )}
                     </div>
 
                     <p className="text-sm text-muted">
-                        {operation.progress === undefined
+                        {shown.progress === undefined
                             ? translate('blocking.noKnownFinish')
                             : translate('blocking.progressReading', {
-                                  percentage: reading(percent(operation.progress), locale),
+                                  percentage: reading(percent(shown.progress), locale),
                               })}
                     </p>
 
-                    <StopConfirmation leavesBehind={operation.stoppingLeavesBehind} onStop={operation.stop} />
+                    <StopConfirmation leavesBehind={shown.stoppingLeavesBehind} onStop={shown.stop} />
 
                     <p className="text-xs text-faint text-pretty">{translate('blocking.doNotClose')}</p>
                 </div>

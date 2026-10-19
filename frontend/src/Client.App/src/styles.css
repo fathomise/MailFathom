@@ -497,7 +497,7 @@
     --animate-content-arrival: fade-in var(--motion-base) var(--ease-arrive) backwards;
 
     /* The surfaces drawn in the document rather than in the top layer, which arrive as they mount and leave while
-       `useDeparture` keeps them mounted: a menu or a pill grows out of 96 %, a sheet rises from the foot of the
+       `Departing` keeps them mounted: a menu or a pill grows out of 96 %, a sheet rises from the foot of the
        window, the composer docked on a wide one rises 18 px, and the dimmed scrim behind any of them fades its
        colour only. A departure holds its last frame — `both` — until it is taken away; an arrival keeps nothing once
        it ends, so it leaves no stacking context behind. */

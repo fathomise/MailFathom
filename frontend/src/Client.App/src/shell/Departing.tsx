@@ -40,6 +40,20 @@ export function Departing<T>({
     const [held, setHeld] = useState<T | null>(value);
     const [element, setElement] = useState<HTMLDivElement | null>(null);
 
+    // Every arrival is a fresh surface, including one that comes back while it is still leaving: what a surface does as
+    // it opens — showing a dialog, moving focus in — runs when it mounts, so a surface kept through its own departure
+    // and asked for again would otherwise stand on the screen without having opened.
+    const [previous, setPrevious] = useState(value);
+    const [arrivals, setArrivals] = useState(0);
+
+    if (value !== previous) {
+        setPrevious(value);
+
+        if (previous === null) {
+            setArrivals(arrivals + 1);
+        }
+    }
+
     if (value !== null && value !== held) {
         setHeld(value);
     }
@@ -69,7 +83,7 @@ export function Departing<T>({
     }, [leaving, element]);
 
     return shown === null ? null : (
-        <div ref={setElement} inert={leaving} className="contents">
+        <div key={arrivals} ref={setElement} inert={leaving} className="contents">
             <DepartureContext value={leaving}>{children(shown)}</DepartureContext>
         </div>
     );

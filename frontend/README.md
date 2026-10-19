@@ -464,8 +464,13 @@ The **back gesture** is answered by the same frame, and on all three heads by on
 keeps one stack of everything a press can take away, `src/shellOperations/backNavigation.ts` keeps one history entry
 per thing in it, and `src/App.tsx` unwinds them topmost first before the address moves at all. Two kinds of thing are
 recorded there, each by the component that draws it rather than by anything that knows about it. A **layer** stands
-over the screen — a drawer, a sheet, a menu, the composer, and every modal dialog and popover, which records itself from
-the platform's own `toggle` through `useTopLayerSurface` so no dialog keeps a second copy of whether it is open. A
+over the screen — a drawer, a sheet, a menu, the composer, and a dialog. A dialog or popover the platform alone knows
+is open — the form dialogs, the confirmation, the reminders, the markup and readings questions, the space overflow —
+records itself from the platform's own `toggle` through `useTopLayerSurface`, so none of them keeps a second copy of
+whether it is open. A surface whose being open is a value the screen already holds — Settings, the account menu, a
+context menu, the notification centre, a drawer, a window over the workspace — records through `useScreenLayer` from
+that value. The blocking overlay and the question about stopping it are deliberately not layers, because leaving them
+is stopping an operation. A
 **step** is a view drawn in place of another inside a space, recorded through `useScreenStep`: the message in front of
 the list in a one-pane composition, a file or a message's own markup open as a tab in place of the message, a person in
 front of the address book, the results a search put where the list was, and a cited source standing where Discover's

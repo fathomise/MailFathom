@@ -128,6 +128,9 @@ own control gives its entry back, so the next press is never spent on something 
 add no step, because opening a thread there replaced nothing. `backSteps` in the component is the list, and
 `backSync` keeps the history in step with it.
 
+A press closes a surface the way its own control would. The composer with anything written in it asks first
+(`closeAsk`) and stays until that question is answered, and a surface standing in a tab closes its tab.
+
 ## Discover — `isDiscover`
 
 The run is a phase machine (`st.phase`), and the blocks arrive one at a time (`ready.<block>`).

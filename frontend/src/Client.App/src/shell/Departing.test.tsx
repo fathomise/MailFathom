@@ -114,4 +114,17 @@ describe('Departing', () => {
 
         expect(screen.getByText('another menu').dataset['leaving']).toBe('false');
     });
+
+    it('opens afresh when the same surface is asked for again while it leaves', () => {
+        const { rerender } = render(drawn('menu'));
+        const first = screen.getByText('menu');
+        platform.running = [running().animation];
+
+        rerender(drawn(null));
+        rerender(drawn('menu'));
+
+        const again = screen.getByText('menu');
+        expect(again).not.toBe(first);
+        expect(again.dataset['leaving']).toBe('false');
+    });
 });
