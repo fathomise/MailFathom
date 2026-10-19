@@ -4,7 +4,7 @@
 
 import { expect, type Page } from '@playwright/test';
 
-import { actingGrants, openSignedIn, test } from './client.harness';
+import { actingGrants, openSignedIn, settled, test } from './client.harness';
 
 // The client's own motion, resolved against a real reduced-motion preference and a computed stylesheet.
 
@@ -101,4 +101,113 @@ test('plays a menu’s departure before taking it off the screen', async ({ page
 
     await animations.send('Animation.setPlaybackRate', { playbackRate: 1 });
     await expect(page.getByRole('menu', { includeHidden: true })).toHaveCount(0);
+});
+
+// Hiding a conversation's history folds it away before it goes, so the reader sees where the messages went. Slowed for
+// the same reason as the menu above, and read in the page for the same reason: the messages still drawn while they
+// fold sit inside an inert region, which no role query reaches.
+const foldingMessages = `document.querySelectorAll('li[inert]').length`;
+
+test('folds the rest of a conversation away before taking it off the screen', async ({ page }) => {
+    await openSignedIn(page, '/#/mail');
+    await page
+        .getByRole('listbox', { name: 'Messages' })
+        .getByRole('option', { name: /The racking quote/u })
+        .click();
+
+    const conversation = page.getByRole('region', { name: 'Conversation' });
+    const messages = conversation.getByRole('article', { name: /^Message from/u });
+
+    await conversation.getByRole('button', { name: 'Show all the messages' }).click();
+    await expect(messages).toHaveCount(5);
+
+    const animations = await page.context().newCDPSession(page);
+    await animations.send('Animation.enable');
+    await animations.send('Animation.setPlaybackRate', { playbackRate: 0.05 });
+
+    await conversation.getByRole('button', { name: 'Hide the other messages' }).click();
+
+    await expect.poll(() => page.evaluate(foldingMessages)).toBe(4);
+
+    await animations.send('Animation.setPlaybackRate', { playbackRate: 1 });
+    await expect(messages).toHaveCount(1);
+    await expect.poll(() => page.evaluate(foldingMessages)).toBe(0);
+});
+
+// Pressing the control again while the history folds asks for it back, so the fold stops where it is and every message
+// stands again and answers presses — rather than the history going once the fold that was asked against finishes.
+test('takes the history back when the control is pressed again while it folds', async ({ page }) => {
+    await openSignedIn(page, '/#/mail');
+    await page
+        .getByRole('listbox', { name: 'Messages' })
+        .getByRole('option', { name: /The racking quote/u })
+        .click();
+
+    const conversation = page.getByRole('region', { name: 'Conversation' });
+    const messages = conversation.getByRole('article', { name: /^Message from/u });
+
+    await conversation.getByRole('button', { name: 'Show all the messages' }).click();
+    await expect(messages).toHaveCount(5);
+
+    const animations = await page.context().newCDPSession(page);
+    await animations.send('Animation.enable');
+    await animations.send('Animation.setPlaybackRate', { playbackRate: 0.05 });
+
+    await conversation.getByRole('button', { name: 'Hide the other messages' }).click();
+    await expect.poll(() => page.evaluate(foldingMessages)).toBe(4);
+
+    const showAgain = conversation.getByRole('button', { name: 'Show all the messages' });
+    await expect(showAgain).toHaveAttribute('aria-expanded', 'false');
+    await showAgain.click();
+
+    await expect.poll(() => page.evaluate(foldingMessages)).toBe(0);
+    await animations.send('Animation.setPlaybackRate', { playbackRate: 1 });
+    await expect(messages).toHaveCount(5);
+    await expect(conversation.getByRole('button', { name: 'Hide the other messages' })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+    );
+});
+
+// The list's filters are a band in the flow of the column rather than a surface over it, so what moves is its height:
+// it unfolds from nothing and folds back to nothing, and the list under it moves with it. Only a browser lays out a
+// height, and only one interpolating to `auto` travels it, so this is the check that the band is not merely fading
+// in place at its full size.
+function bandHeight(band: string): string {
+    return `document.getElementById(${JSON.stringify(band)})?.getBoundingClientRect().height ?? 0`;
+}
+
+test('unfolds the list’s filters from no height and folds them back before they go', async ({ page }) => {
+    await openSignedIn(page, '/#/mail');
+
+    const filters = page.getByRole('button', { name: /^Filters/u }).first();
+    const band = (await filters.getAttribute('aria-controls')) ?? '';
+
+    await filters.click();
+    await expect(filters).toHaveAttribute('aria-expanded', 'true');
+    await expect.poll(async () => Number(await page.evaluate(bandHeight(band)))).toBeGreaterThan(0);
+    await settled(page);
+    const full = Number(await page.evaluate(bandHeight(band)));
+
+    await filters.click();
+    await expect.poll(async () => Number(await page.evaluate(bandHeight(band)))).toBe(0);
+
+    const animations = await page.context().newCDPSession(page);
+    await animations.send('Animation.enable');
+    await animations.send('Animation.setPlaybackRate', { playbackRate: 0.05 });
+
+    await filters.click();
+    await expect.poll(async () => Number(await page.evaluate(bandHeight(band)))).toBeGreaterThan(0);
+    expect(Number(await page.evaluate(bandHeight(band)))).toBeLessThan(full);
+
+    await animations.send('Animation.setPlaybackRate', { playbackRate: 1 });
+    await expect.poll(async () => Number(await page.evaluate(bandHeight(band)))).toBe(full);
+
+    await animations.send('Animation.setPlaybackRate', { playbackRate: 0.05 });
+    await filters.click();
+    await expect.poll(async () => Number(await page.evaluate(bandHeight(band)))).toBeLessThan(full);
+    expect(Number(await page.evaluate(bandHeight(band)))).toBeGreaterThan(0);
+
+    await animations.send('Animation.setPlaybackRate', { playbackRate: 1 });
+    await expect.poll(async () => Number(await page.evaluate(bandHeight(band)))).toBe(0);
 });

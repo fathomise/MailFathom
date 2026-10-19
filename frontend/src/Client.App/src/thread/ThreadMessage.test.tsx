@@ -17,7 +17,7 @@ import { LocalizationProvider } from '../localization/Localization';
 import { ReadMarkingContext, nothingMarkedRead, type ReadMarking } from '../readMarking/useReadMarking';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
 import { WorkspaceProvider } from '../workspace/Workspace';
-import { ThreadMessage } from './ThreadMessage';
+import { ThreadMessage, type HistoryMotion } from './ThreadMessage';
 import type { ArrivalMark } from './threadOpening';
 
 const session: ClientSession = {
@@ -117,6 +117,7 @@ function drawing(
     } = {},
     marking: ReadMarking = nothingMarkedRead,
     mark: ArrivalMark | null = null,
+    motion: HistoryMotion | null = null,
 ): void {
     render(
         <LocalizationProvider>
@@ -129,6 +130,7 @@ function drawing(
                                 transport={answersNothing}
                                 message={held}
                                 mark={mark}
+                                motion={motion}
                                 online
                                 onShowFullHtml={handlers.onShowFullHtml ?? (() => undefined)}
                                 onRegion={handlers.onRegion ?? (() => undefined)}
@@ -165,6 +167,18 @@ describe('ThreadMessage', () => {
         expect(screen.getByText('The auditor')).toBeDefined();
         expect(screen.getByText('The figures you asked for are attached.')).toBeDefined();
         expect(screen.getByText('In work, Sent')).toBeDefined();
+    });
+
+    it('answers nothing while the history it belongs to folds away', () => {
+        drawing(message(), {}, nothingMarkedRead, null, 'folding');
+
+        expect(screen.getByText('The auditor').closest('[inert]')).not.toBeNull();
+    });
+
+    it('answers as any message does while nothing about the history is moving', () => {
+        drawing();
+
+        expect(screen.getByText('The auditor').closest('[inert]')).toBeNull();
     });
 
     // The conversation is one document and every message in it is written out, so there is no control here that would

@@ -22,11 +22,12 @@ import { useLocalization } from '../localization/useLocalization';
 import type { ActedMessage } from '../mailboxActs/useMailboxActs';
 import { MessageWaiting } from '../messageBody/Message';
 import { MessageHeaders } from '../readingPane/MessageHeaders';
+import { animationsReported, departureFinished } from '../shell/departure';
 import { useTwoPanes } from '../shell/useWideWorkspace';
 import type { OpenConversation } from '../workspace/openConversation';
 import { useWorkspace } from '../workspace/useWorkspace';
 import { arrivalMark, arrivesAt, holdsMessage, messagesOf, type Arrival } from './threadOpening';
-import { ThreadMessage } from './ThreadMessage';
+import { ThreadMessage, type HistoryMotion } from './ThreadMessage';
 import { ThreadState } from './ThreadState';
 
 // A conversation, which is the unit people actually think in and the one mail screen no folder is the scope of: the
@@ -145,6 +146,35 @@ export function Thread({
     // says how a conversation *opens*: a switch moved while one is on the screen changes the next conversation rather
     // than this one, which is also why the control below still hides a correspondence the preference showed.
     const [historyShown, setHistoryShown] = useState(expandWholeThread);
+
+    // How the history moves when the reader's own press shows or hides it, and nothing when anything else does: a
+    // conversation opening expanded, or reading on, simply shows it. Hiding folds it away first and only then takes it
+    // out, for as long as its own departure runs, so the reader sees where it went.
+    const [historyMotion, setHistoryMotion] = useState<HistoryMotion | null>(null);
+    const historyList = useRef<HTMLOListElement>(null);
+
+    // What the control says and offers: a history folding away is already hidden as far as a reader is concerned, so
+    // the control names showing it again from the moment the fold starts.
+    const historyStanding = historyShown && historyMotion !== 'folding';
+
+    useEffect(() => {
+        if (historyMotion !== 'folding') {
+            return;
+        }
+
+        let waiting = true;
+
+        void departureFinished(historyList.current).then(() => {
+            if (waiting) {
+                setHistoryShown(false);
+                setHistoryMotion(null);
+            }
+        });
+
+        return () => {
+            waiting = false;
+        };
+    }, [historyMotion]);
 
     const regions = useRef(new Map<string, HTMLElement>());
 
@@ -325,6 +355,7 @@ export function Thread({
 
     function followSource(storedEmailId: string): void {
         setHistoryShown(true);
+        setHistoryMotion(null);
         setFollowed((last) => ({ storedEmailId, press: (last?.press ?? 0) + 1 }));
     }
 
@@ -479,13 +510,20 @@ export function Thread({
 
                             <button
                                 type="button"
-                                aria-expanded={historyShown}
+                                aria-expanded={historyStanding}
                                 className="rounded-full border border-line bg-sunken px-3 py-1.25 text-sm text-muted transition hover:bg-hover"
                                 onClick={() => {
-                                    setHistoryShown(!historyShown);
+                                    if (!historyStanding) {
+                                        setHistoryShown(true);
+                                        setHistoryMotion('unfolding');
+                                    } else if (animationsReported) {
+                                        setHistoryMotion('folding');
+                                    } else {
+                                        setHistoryShown(false);
+                                    }
                                 }}
                             >
-                                {translate(revealLabel(historyShown, openedIsLatest, held.length - 1, locale), {
+                                {translate(revealLabel(historyStanding, openedIsLatest, held.length - 1, locale), {
                                     count: new Intl.NumberFormat(locale).format(held.length - 1),
                                 })}
                             </button>
@@ -494,13 +532,14 @@ export function Thread({
                         </div>
                     )}
 
-                    <ol className="flex flex-col gap-4.5">
+                    <ol ref={historyList} className="flex flex-col gap-4.5">
                         {drawn.map((message) => (
                             <ThreadMessage
                                 key={message.email.id}
                                 session={session}
                                 transport={transport}
                                 message={message}
+                                motion={message === opened ? null : historyMotion}
                                 // A rule pointing at the only message on the screen points at nothing, so the mark
                                 // waits for the rest of the correspondence to stand beside it. Asked here rather than
                                 // where the arrival is decided, because it is a question about what is drawn: showing
@@ -552,6 +591,7 @@ export function Thread({
                         onActivate={() => {
                             setAsked(true);
                             setHistoryShown(true);
+                            setHistoryMotion(null);
                         }}
                     />
                 </div>

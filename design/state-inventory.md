@@ -76,29 +76,30 @@ screenshot shows none of this, so the numbers are the contract the client matche
 
 | Token | Value |
 |---|---|
-| `--motion-fast` | 160 ms |
-| `--motion-base` | 240 ms |
-| `--motion-slow` | 340 ms |
-| `--motion-exit` | 200 ms — every departure |
+| `--motion-fast` | 120 ms |
+| `--motion-base` | 180 ms |
+| `--motion-slow` | 240 ms |
 | `--ease-out` | `cubic-bezier(0.22, 1, 0.36, 1)` — arrivals |
 | `--ease-in` | `cubic-bezier(0.4, 0, 1, 1)` — departures |
 | `--ease-sheet` | `cubic-bezier(0.32, 0.72, 0, 1)` — anything that travels from an edge; the notification gesture's own spring |
 
 | Kind | Arrives | Leaves | Used by |
 |---|---|---|---|
-| `scrim` | the colour fades up from transparent, base, ease-out | fades back to transparent, exit, ease-in | every backdrop: the drawer, both sheets, every dialog, the context menu, Settings on two panes |
-| `sheet` | from 100 % below its place, slow, ease-sheet | back down 100 %, exit, ease-in | the thread actions sheet (`threadSheetOpen`), the *More* sheet (`moreOpen`), and on the phone every full-screen surface: compose, the form dialogs, Settings on one pane; the AI reading wherever it fills the screen, the fold included |
-| `drawer` | from 100 % to the left, slow, ease-sheet | back out to the left, exit, ease-in | the folder list where it is a drawer (`showSide` under `drawer`) |
-| `pop` | from opacity 0 at 96 % scale, fast, ease-out | to opacity 0 at 96 %, exit, ease-in | the context menu (`ctxMenuOpen`), the user menu (`userMenuOpen`), the return pill (`convReturnShown`), and off the phone every dialog (new folder, reminder, move, AI summary, event) and Settings on two panes |
-| `rise` | from opacity 0, 18 px below, base, ease-out | back down 18 px to opacity 0, exit, ease-in | the composer where it docks over the screen rather than filling a pane, and the reply drafter hanging over a thread (`replyDockOpen`) |
-| `fade` | from opacity 0, base, ease-out | to opacity 0, exit, ease-in | the composer in a pane, the list replacing its skeleton (`listReady`), the composer body on restore (`composeExpanded`) |
+| `scrim` | the colour fades up from transparent, base, ease-out | fades back to transparent, base, ease-in | every backdrop: the drawer, both sheets, every dialog, the context menu, Settings on two panes |
+| `sheet` | from 100 % below its place, slow, ease-sheet | back down 100 %, slow, ease-in | the thread actions sheet (`threadSheetOpen`), the *More* sheet (`moreOpen`), and on the phone every full-screen surface: compose, the form dialogs, Settings on one pane; the AI reading wherever it fills the screen, the fold included |
+| `drawer` | from 100 % to the left, slow, ease-sheet | back out to the left, slow, ease-in | the folder list where it is a drawer (`showSide` under `drawer`) |
+| `pop` | from opacity 0 at 96 % scale, fast, ease-out | to opacity 0 at 96 %, fast, ease-in | the context menu (`ctxMenuOpen`), the user menu (`userMenuOpen`), the return pill (`convReturnShown`), every short question at every width — discarding a draft (`closeAskOpen`), the send warnings (`sendAskOpen`), deleting a folder, a conversation or an item (`delFolderOpen`, `deleteConvAskOpen`, `confirmDelOpen`), closing every tab (`closeAllAsk`), aborting a running operation (`cancelAskOpen`), showing the original message (`htmlAskOpen`) — and off the phone every dialog (new folder, new case, new task, new event, new contact, reminder, move, AI summary, event) and Settings on two panes |
+| `rise` | from opacity 0, 18 px below, base, ease-out | back down 18 px to opacity 0, base, ease-in | the composer where it docks over the screen rather than filling a pane, and the reply drafter hanging over a thread (`replyDockOpen`) |
+| `fade` | from opacity 0, base, ease-out | to opacity 0, base, ease-in | the composer in a pane, the list replacing its skeleton (`listReady`), the composer body on restore (`composeExpanded`) |
 | `veil` | at once | fades out, base, ease-out | the message skeleton (`msgLoading`) laid over a thread that is already there |
 | `push` | from opacity 0, 48 px to the right, slow, ease-sheet | — | one pane at a time: the thread (`showThreadPane` under `singlePane`), a case and a person (under `isMobile`) when it is opened from its list |
 | `back` | from opacity 0, 48 px to the left, slow, ease-sheet | — | the same three lists when *Back* returns to them |
 | `screen` | from opacity 0, 6 px below, base, ease-out | — | each space's root when the rail or the bottom navigation switches to it |
+| `disclose` | from no height and opacity 0, base, ease-out | back to no height, base, ease-in | the list's filters (`filtersOpen`), so the list under them moves with them; an engine that cannot interpolate a height to `auto` fades the band in place instead |
+| `unfold` | from opacity 0, 10 px above its place, base, ease-out | back up 10 px to opacity 0, base, ease-in | the earlier messages of a conversation shown by its pill (`histUnfolded`) and folded away by it (`histFolding`); the message being read stays still |
 
 **A closing surface stays drawn until it has left.** Each surface is gated by a state key, and when the key empties the
-prototype keeps rendering its last value for 240 ms with `data-phase="out"` — `motionHold` in its component, over the
+prototype keeps rendering its last value for 240 ms — the slowest kind's time, a departure taking exactly as long as its arrival — with `data-phase="out"` — `motionHold` in its component, over the
 keys in `MOTION_HELD` — so a close animates exactly as an open does and the content does not empty under the
 departure. A surface leaving takes no pointer events. Two surfaces can therefore overlap for that window: a context menu
 leaving while the dialog it opened arrives, the *More* sheet going down while Settings comes up.
@@ -867,7 +868,7 @@ clicking a preview.
   it — only a width does.
 - **Pressed, keyboard focus, and reduced motion.** All three are rules in `styles/base.css` rather than regions of a
   template, so no artboard draws them at rest — *What every artboard shares* above states each one.
-- **Every arrival and departure.** A surface in motion lasts 160 to 340 ms and a capture is taken at rest, so no
+- **Every arrival and departure.** A surface in motion lasts 120 to 240 ms and a capture is taken at rest, so no
   screenshot holds one — *How a surface arrives and leaves* above is where they are stated, by number.
 - **What back does.** A press of back is a history traversal rather than a click on anything drawn, so no capture
   reaches the state before or after one — *What back does* above states each step.

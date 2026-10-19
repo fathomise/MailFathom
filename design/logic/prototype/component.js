@@ -622,7 +622,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        ponytail: the held value is read by the whole render, so anything else gated on the same key (the FAB waits on
        `compose`) follows it 240 ms late; a per-surface snapshot is the upgrade if that ever shows. */
     static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "sideDrawer", "compose", "settings",
-      "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock"];
+      "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock",
+      "newCase", "newTask", "newEvent", "newContact", "filtersOpen",
+      "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk"];
     static MOTION_PANES = ["mailPane", "casePane", "peoplePane"];
     static MOTION_EXIT_MS = 240;
 
@@ -979,7 +981,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.notify(nf.label + " · " + this.locLabel(parent), { kind: "success", title: "Folder “" + name + "” created" });
     };
 
-    askDeleteFolder = (key, accLabel, path) => this.setState({ delFolder: { key: key, label: accLabel, path: path } });
+    askDeleteFolder = (key, accLabel, path) => this.setState(s => ({ delFolder: { key: key, label: accLabel, path: path, extraFolders: s.extraFolders, moved: s.moved } }));
 
     closeDeleteFolder = () => this.setState({ delFolder: null });
 
@@ -2524,7 +2526,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             : activeIsNewest
               ? "Show " + hiddenCount + (hiddenCount === 1 ? " earlier message" : " earlier messages")
               : "Show all messages",
-          togglePill: () => this.setState(s2 => ({ histOpen: Object.assign({}, s2.histOpen, { [thread.id]: !histOpen }) })),
+          /* Showing unfolds the messages it brings; hiding folds them away first and only then takes them out. */
+          togglePill: () => {
+            if (!histOpen) { this.setState(s2 => ({ histUnfolded: thread.id, histOpen: Object.assign({}, s2.histOpen, { [thread.id]: true }) })); return; }
+            this.setState({ histFolding: thread.id });
+            setTimeout(() => this.setState(s2 => ({ histFolding: null, histOpen: Object.assign({}, s2.histOpen, { [thread.id]: false }) })), this.constructor.MOTION_EXIT_MS);
+          },
         });
       }
       msgs.forEach((m, i) => {
@@ -2538,8 +2545,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const remoteRefs = m.remoteRefs != null ? m.remoteRefs
           : m.mine ? 0 : (((m.from || "") + (m.when || "")).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 3 === 0 ? 0 : 3 + (((m.from || "").length * 7 + (m.when || "").length) % 16));
         const remoteOn = !!(st.remoteLoaded || {})[k];
+        const folding = st.histFolding === thread.id;
         items.push({
           isMsg: true, isPill: false, key: k, isActive,
+          unfoldMotion: i !== activeIdx && (folding || st.histUnfolded === thread.id) ? "unfold" : "none",
+          unfoldPhase: folding && i !== activeIdx ? "out" : "in",
           remoteBlocked: remoteRefs > 0 && !remoteOn,
           remoteLoaded: remoteRefs > 0 && remoteOn,
           remoteCountLabel: "Removed references: " + remoteRefs,
@@ -3616,9 +3626,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         ].map(a => ({ icon: a.icon, title: a.label, label: tbFull ? a.label : "", style: tbFull ? tbBtn : tbIcon + ";flex:0 0 auto" })),
         fieldStyle: "flex:1;min-width:0;font-family:inherit;font-size:14px;color:var(--text);background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:10px 12px;outline:none",
         newEventOpen: !!st.newEvent,
-        openNewEvent: () => { this.remSet("new:event", REM_DEFAULT); this.setState({ newEvent: true }); },
+        openNewEvent: () => { this.remSet("new:event", REM_DEFAULT); this.setState({ newEvent: true, evParsed: null }); },
         evRem: this.remBlock("new:event", { timed: true, numRef: this.remNumEventRef, hint: "before the event time" }),
-        closeNewEvent: () => this.setState({ newEvent: false, evParsed: null }),
+        closeNewEvent: () => this.setState({ newEvent: false }),
         evTitleRef: this.evTitleRef, evDayRef: this.evDayRef, evTimeRef: this.evTimeRef, evPromptRef: this.evPromptRef,
         promptFieldStyle: "font-family:inherit;font-size:14px;color:var(--text);background:var(--panel);border:2px solid var(--accent);border-radius:8px;padding:10px 12px;outline:none",
         evParsedShown: !!st.evParsed,
@@ -3643,7 +3653,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const time = (this.evTimeRef.current || {}).value || "12:00";
           const rem = this.remList("new:event");
           this.setState(s2 => ({
-            newEvent: false, evParsed: null,
+            newEvent: false,
             remMap: Object.assign({}, s2.remMap || {}, { [day + "|" + time + "|" + t]: rem.slice() }),
             calAdded: (s2.calAdded || []).concat([{ day, time, h: parseInt(time, 10) || 12, t, kind: "meeting" }]),
           }));
@@ -3948,7 +3958,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             { icon: "check_box", label: "Select contacts", run: () => this.selStart("people", c.id) },
             { icon: "edit", label: "Write a message", run: () => this.setState({ compose: true, composeMin: false, replyMode: null }) },
             { icon: "person", label: "Open contact", run: () => this.setState({ personId: c.id, peoplePane: "detail" }) },
-            { icon: "event", label: "Propose a meeting", run: () => this.setState({ screen: "cal", newEvent: true }) },
+            { icon: "event", label: "Propose a meeting", run: () => this.setState({ screen: "cal", newEvent: true, evParsed: null }) },
             { icon: "delete", label: "Delete contact", danger: true, run: () => this.askHide("people", [c.id], "Delete contact?", c.name + " will disappear from the contact list.") },
           ]),
           name: c.name, org: c.org, last: c.last, initials: initialsOf(c.name),
@@ -4014,8 +4024,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           { icon: "check_circle", label: "Close case" },
         ].map(a => ({ icon: a.icon, title: a.label, label: tbFull ? a.label : "", style: tbFull ? tbBtn : tbIcon + ";flex:0 0 auto" })),
         newCaseOpen: !!st.newCase,
-        openNewCase: () => this.setState({ newCase: true }),
-        closeNewCase: () => this.setState({ newCase: false, csFound: null }),
+        openNewCase: () => this.setState({ newCase: true, csFound: null }),
+        closeNewCase: () => this.setState({ newCase: false }),
         csPromptRef: this.csPromptRef, csTitleRef: this.csTitleRef, csPartiesRef: this.csPartiesRef, csDueRef: this.csDueRef,
         csFoundShown: !!st.csFound,
         csFound: st.csFound || [],
@@ -4044,7 +4054,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const due = (this.csDueRef.current || {}).value || "";
           const id = "case" + Date.now();
           this.setState(s2 => ({
-            newCase: false, csFound: null, caseId: id, casePane: "detail",
+            newCase: false, caseId: id, casePane: "detail",
             extraCases: (s2.extraCases || []).concat([{
               id, title, parties, status: due ? "Due " + due : "No deadline", statusKind: "attention", owner: "KK",
               summary: "Case created from a description. The agent attached threads and documents found in the mailbox; the state updates as new messages arrive.",
@@ -4336,9 +4346,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         delFolderText: (() => {
           const df = st.delFolder;
           if (!df) return "";
-          const nested = ((st.extraFolders || {})[df.key] || []).filter(p => p.indexOf(df.path + "/") === 0);
+          const nested = ((df.extraFolders || {})[df.key] || []).filter(p => p.indexOf(df.path + "/") === 0);
           const names = [df.path].concat(nested).map(p => p.split("/").pop());
-          const held = Object.keys(st.moved || {}).filter(id => names.indexOf((st.moved || {})[id]) >= 0).length;
+          const held = Object.keys(df.moved || {}).filter(id => names.indexOf((df.moved || {})[id]) >= 0).length;
           const acc = (st.accounts || [])[df.key === "acc2" ? 1 : 0];
           const hard = !acc || acc.hardDelete !== false;
           const what = nested.length
@@ -5147,8 +5157,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : "Pick a message from the list, write a new one or ask about the whole correspondence history.",
         openLastThread: () => this.openTab("thread:" + thread.id, { screen: "mail", threadId: thread.id, mailPane: "thread", threadOpen: true }),
         closeAllAsk: !!st.closeAllAsk,
-        closeAllInfo: "Open tabs: " + tabItems.length + ". An unsent draft will be discarded.",
-        askCloseAll: () => this.setState({ closeAllAsk: true }),
+        closeAllInfo: "Open tabs: " + (st.closeAllAsk ? st.closeAllAsk.count : 0) + ". An unsent draft will be discarded.",
+        askCloseAll: () => this.setState({ closeAllAsk: { count: tabItems.length } }),
         cancelCloseAll: () => this.setState({ closeAllAsk: false }),
         confirmCloseAll: () => this.setState({ tabs: [], activeTab: null, compose: false, closeAllAsk: false }),
         tabItems,

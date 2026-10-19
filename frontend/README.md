@@ -766,8 +766,8 @@ Tailwind is wired CSS-first through `@tailwindcss/vite`. The palette, the type s
 drawn at, the shadow steps, the breakpoints the composition changes at, the safe-area insets, and the motion defaults
 are `@theme` tokens in `src/Client.App/src/styles.css`, and there is no JavaScript configuration file.
 
-**Every surface arrives and leaves by the design's one motion vocabulary**, declared beside those tokens: three speeds
-and the one a departure takes, the two curves they travel on, and one kind per way a surface moves. A modal dialog or a
+**Every surface arrives and leaves by the design's one motion vocabulary**, declared beside those tokens: three speeds,
+each taken leaving exactly as long as arriving, the two curves they travel on, and one kind per way a surface moves. A modal dialog or a
 popover names its kind with a `surface-pop`, `surface-sheet`, or `surface-drawer` utility — a transition with
 `@starting-style`, keeping `display` and `overlay` running discretely so the platform draws it while it travels away
 however it was closed — and a surface that changes shape with the width takes one kind per shape behind the same
@@ -776,7 +776,11 @@ breakpoint. Everything else plays an `animate-*` token: one pane at a time is a 
 skeleton stood. A surface a component draws conditionally — the context menu, the settings screen, the event, the
 attachment window, the way back to a conversation — is drawn inside `src/shell/Departing.tsx`, which keeps its last
 value on the screen, inert, for as long as the animations the platform reports on it are running, so no duration is
-written anywhere outside the stylesheet. `prefers-reduced-motion` takes every one of them to zero, which leaves each
+written anywhere outside the stylesheet. A conversation's history unfolds around the message being read when its
+control shows it, and folds away before it is taken out when the same control hides it, waiting on its own animations
+the same way (`src/thread/Thread.tsx`), and a band disclosed in the flow of a column — the list's filters — unfolds from
+no height and folds back to none inside `Departing`, so the list under it moves with it rather than jumping.
+`prefers-reduced-motion` takes every one of them to zero, which leaves each
 surface arriving where it was going and lets a departing one go at once.
 
 Every value there is the design's, read out of `design/styles/base.css` and declared in OKLCH under two themes. Three of
