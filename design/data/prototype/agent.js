@@ -119,7 +119,7 @@
 
   const SEED_CONVS = () => [
     {
-      id: "c-plan", title: "Plan my day", when: "09:41",
+      id: "c-plan", title: "Plan my day", when: "Monday",
       msgs: [
         { role: "user", text: "Plan my day", ts: atToday(9, 41) },
         {
@@ -159,7 +159,7 @@
       ],
     },
     {
-      id: "c-slip", title: "What slipped this week?", when: "08:20",
+      id: "c-slip", title: "What slipped this week?", when: "yesterday",
       msgs: [
         { role: "user", text: "What slipped this week?", ts: atToday(8, 20) },
         {
@@ -259,7 +259,7 @@
       ],
     },
     {
-      id: "c-thread", title: "Contract addendum - what is agreed", when: "now",
+      id: "c-thread", title: "Contract addendum - what is agreed", when: "15:40",
       ctx: "thread “Contract addendum - signatures”",
       msgs: [
         { role: "user", text: "What has been agreed here so far?", ts: atToday(15, 12) },
@@ -281,7 +281,7 @@
       ],
     },
     {
-      id: "c-states", title: "Blocks that did not come back whole", when: "yesterday",
+      id: "c-states", title: "Blocks that did not come back whole", when: "now",
       msgs: [
         { role: "user", text: "Check the Fabrikam delivery dates", ts: atToday(7, 30) },
         {

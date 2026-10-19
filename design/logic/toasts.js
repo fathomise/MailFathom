@@ -140,16 +140,26 @@ MailFathomDesign.artboards.toasts = (DCLogic, React) => {
     vis = (t, live) => {
       const K = KINDS[t.kind] || KINDS.neutral;
       const loading = t.kind === "loading";
+      /* On the phone and the fold a live toast is a slim strip: one row, its action inline. */
+      const slim = live && this._slim;
       return {
         icon: K.icon,
+        slim: slim,
+        actionBelow: !!t.actionLabel && !slim,
+        actionInline: !!t.actionLabel && slim,
+        titleStyle: "font-weight:600;color:var(--text);text-wrap:pretty;" + (slim ? "font-size:14px;line-height:1.3" : "font-size:15px;line-height:1.35"),
+        bodyStyle: "color:var(--text2);text-wrap:pretty;" + (slim ? "font-size:13px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden" : "font-size:14px;line-height:1.45"),
+        textStyle: "flex:1;min-width:0;display:flex;flex-direction:column;" + (slim ? "gap:1px;padding:2px 0" : "gap:4px;padding-top:2px"),
+        actionStyle: "display:flex;align-items:center;border:1px solid var(--border2);border-radius:8px;font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;" + (slim ? "flex:0 0 auto;align-self:center;min-height:36px;padding:0 12px" : "align-self:flex-start;min-height:32px;margin-top:5px;padding:0 13px"),
         hasBar: !t.sticky && !t.out,
         barStyle: "position:absolute;left:0;right:0;bottom:0;height:2px;transform-origin:left;opacity:0.55;background:" + K.bar +
           (live ? ";animation:mftbar " + (t.ms || this.ms()) + "ms linear both" : ";transform:scaleX(0.62)"),
-        iconWrapStyle: "flex:0 0 auto;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:" + K.soft,
-        iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:22px;line-height:1;color:" + K.c + (loading ? ";animation:mfspin 1.1s linear infinite" : ""),
-        style: "position:relative;overflow:hidden;display:flex;align-items:flex-start;gap:12px;padding:13px 12px 15px 13px;border-radius:16px;background:var(--panel);border:1px solid var(--line);" +
+        iconWrapStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:" + K.soft + ";" + (slim ? "width:28px;height:28px;border-radius:8px" : "width:34px;height:34px;border-radius:12px"),
+        iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;line-height:1;font-size:" + (slim ? 18 : 22) + "px;color:" + K.c + (loading ? ";animation:mfspin 1.1s linear infinite" : ""),
+        style: "position:relative;overflow:hidden;display:flex;background:var(--panel);border:1px solid var(--line);" +
+          (slim ? "align-items:center;gap:10px;padding:6px 4px 6px 8px;border-radius:12px;" : "align-items:flex-start;gap:12px;padding:13px 12px 15px 13px;border-radius:16px;") +
           (live
-            ? "pointer-events:auto;box-shadow:0 16px 38px var(--sh-2),0 2px 6px var(--sh-1);opacity:0.8;transition:opacity .15s ease;animation:" + (t.out ? "mftout .2s ease forwards" : "mftin .24s cubic-bezier(.2,.85,.3,1) backwards")
+            ? "pointer-events:auto;box-shadow:0 16px 38px var(--sh-2),0 2px 6px var(--sh-1);opacity:" + (slim ? 1 : 0.8) + ";transition:opacity .15s ease;animation:" + (t.out ? "mftout .2s ease forwards" : "mftin .24s cubic-bezier(.2,.85,.3,1) backwards")
             : "box-shadow:0 6px 16px var(--sh-1)"),
       };
     };
@@ -161,6 +171,7 @@ MailFathomDesign.artboards.toasts = (DCLogic, React) => {
       const FR = FRAMES[mode] || null;
       const w = FR ? FR.w : (st.vw || 1200);
       const isMobile = w < 700;
+      this._slim = w < 900;
       /* In frame mode the overlays are absolute inside the frame so they do not spill past the phone screen. */
       const ovBase = (z) => (FR ? "position:absolute" : "position:fixed") + ";inset:0;z-index:" + z + ";display:flex;align-items:center;justify-content:center;padding:" + (isMobile ? 18 : 24) + "px;background:var(--scrim);";
       const btn = "display:flex;align-items:center;gap:8px;height:38px;padding:0 15px;border:1px solid var(--border2);border-radius:12px;font-size:13px;font-weight:500;color:var(--text2)";
@@ -249,7 +260,7 @@ MailFathomDesign.artboards.toasts = (DCLogic, React) => {
             closeTitle: loading ? "Abort operation" : "Close",
           });
         }),
-        toastWrapStyle: (FR ? "position:absolute" : "position:fixed") + ";z-index:97;top:" + (isMobile ? 12 : 18) + "px;" + (isMobile ? "left:12px;right:12px;" : (FR ? "right:18px;width:min(400px,calc(100% - 36px));" : "right:18px;width:min(400px,calc(100vw - 36px));")) + "display:flex;flex-direction:column;gap:10px;pointer-events:none",
+        toastWrapStyle: (FR ? "position:absolute" : "position:fixed") + ";z-index:97;top:" + (this._slim ? 8 : 18) + "px;" + (isMobile ? "left:8px;right:8px;" : this._slim ? "left:50%;transform:translateX(-50%);width:min(440px,calc(100% - 24px));" : (FR ? "right:18px;width:min(400px,calc(100% - 36px));" : "right:18px;width:min(400px,calc(100vw - 36px));")) + "display:flex;flex-direction:column;gap:" + (this._slim ? 6 : 10) + "px;pointer-events:none",
 
         burst: () => {
           const seq = BURST;
@@ -259,9 +270,9 @@ MailFathomDesign.artboards.toasts = (DCLogic, React) => {
         runFail: () => this.task(TASKS.sendFailure),
 
         specs: [
-          { k: "Position", v: "Top right corner, 18 px from the edge. On a narrow screen, full width at the top." },
+          { k: "Position", v: "Top right corner, 18 px from the edge. On the phone and the fold, a slim strip at the top: one row, the action inline, the body held to two lines." },
           { k: "Timing", v: "Auto-close after " + Math.round(this.ms() / 1000) + " s; the bar at the bottom shows the time left." },
-          { k: "Transparency", v: "0.8 at rest, 1.0 under the cursor - content beneath the stack stays readable." },
+          { k: "Transparency", v: "0.8 at rest, 1.0 under the cursor - content beneath the stack stays readable. Opaque on the phone and the fold, where there is no cursor." },
           { k: "Close button", v: "Always present. For a running operation it means abort and asks for confirmation." },
         ],
 
