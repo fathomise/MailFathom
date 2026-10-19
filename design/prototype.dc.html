@@ -1064,7 +1064,7 @@ Project repository: https://github.com/fathomise/MailFathom
           </sc-if>
           <sc-if value="{{ replyDockOpen }}" hint-placeholder-val="{{ false }}">
             <div data-motion="rise" data-phase="{{ mo.replyDock }}" style="{{ composerStyle }}">
-              <div onClick="{{ closeReplyDock }}" title="Minimize the reply drafter" aria-label="Minimize the reply drafter" style="{{ replyDockCloseStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ replyDockMinIconStyle }}">minimize</span></div>
+              <div onClick="{{ closeReplyDock }}" title="Close the reply drafter" aria-label="Close the reply drafter" style="{{ replyDockCloseStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">close</div>
               <div style="{{ composerBarStyle }}">
                 <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--accent-d);flex:0 0 auto">auto_awesome</span>
                 <div style="{{ composerPhStyle }}">{{ composerPlaceholder }}</div>
