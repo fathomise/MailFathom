@@ -4518,7 +4518,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         replyFabLabel: isMobile ? "" : "Draft a reply",
         replyFabStyle: "position:absolute;z-index:16;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--onaccent);background:var(--accent);font-weight:600;box-shadow:0 10px 26px var(--sh-3),0 2px 6px var(--sh-2);" +
           (isMobile ? "right:16px;bottom:16px;width:56px;height:56px;border-radius:18px;" : "right:" + (singlePane ? 16 : 22) + "px;bottom:" + (singlePane ? 16 : 20) + "px;height:46px;padding:0 18px 0 15px;border-radius:14px;font-size:14px;"),
-        replyDockCloseStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;" + (touch ? "width:40px;height:40px;font-size:22px;" : "width:30px;height:30px;font-size:18px;"),
+        /* A round minimize badge hanging off the drafter's top-right corner, clear of *Draft a reply*.
+           The glyph draws its bar at the foot of its box, so it is lifted to sit in the middle. */
+        replyDockMinIconStyle: "display:block;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 500;line-height:1;transform:translateY(-" + (touch ? 5 : 4) + "px);font-size:" + (touch ? 20 : 16) + "px",
+        replyDockCloseStyle: "position:absolute;z-index:1;display:flex;align-items:center;justify-content:center;border-radius:50%;color:var(--text2);background:var(--panel);border:1px solid var(--line);box-shadow:0 4px 12px var(--sh-2);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;line-height:1;" +
+          (touch ? "top:-14px;right:-8px;width:34px;height:34px;font-size:20px;" : "top:-11px;right:-11px;width:26px;height:26px;font-size:16px;"),
         /* A reading that predates the conversation's newest message: a message joined or left after
            the state was derived, so the reading is held back instead of being shown out of date. */
         stateStale: !!thread.stateStale,
@@ -4600,7 +4604,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "flex:1;display:flex;flex-direction:column;gap:10px;padding:12px 12px " + (st.stateBarOff ? 12 : 84) + "px;overflow:auto;min-height:0"
           : "flex:1;display:flex;flex-direction:column;gap:12px;padding:18px 22px " + (st.stateBarOff ? 18 : st.replyDock ? 150 : 86) + "px;overflow:auto;min-height:0",
         composerStyle: "position:absolute;z-index:16;display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 44px var(--sh-3),0 2px 8px var(--sh-2);" +
-          (singlePane ? "left:10px;right:10px;bottom:10px;padding:8px 6px 8px 8px" : "left:18px;right:18px;bottom:16px;padding:12px 10px 12px 12px"),
+          (singlePane ? "left:10px;right:10px;bottom:10px;padding:8px" : "left:18px;right:18px;bottom:16px;padding:12px"),
         backBannerStyle: isMobile
           ? "display:flex;flex-direction:column;gap:3px;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);padding:9px 14px"
           : "display:flex;align-items:center;gap:10px;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);padding:10px 22px",

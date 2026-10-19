@@ -1064,13 +1064,11 @@ Project repository: https://github.com/fathomise/MailFathom
           </sc-if>
           <sc-if value="{{ replyDockOpen }}" hint-placeholder-val="{{ false }}">
             <div data-motion="rise" data-phase="{{ mo.replyDock }}" style="{{ composerStyle }}">
-              <div style="display:flex;align-items:center;gap:6px">
-                <div style="{{ composerBarStyle }}">
-                  <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--accent-d);flex:0 0 auto">auto_awesome</span>
-                  <div style="{{ composerPhStyle }}">{{ composerPlaceholder }}</div>
-                  <div onClick="{{ askThread }}" style="{{ askThreadBtnStyle }}" style-hover="opacity:0.88;cursor:pointer">{{ askThreadLabel }}</div>
-                </div>
-                <div onClick="{{ closeReplyDock }}" title="Close the reply drafter" aria-label="Close the reply drafter" style="{{ replyDockCloseStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">close</div>
+              <div onClick="{{ closeReplyDock }}" title="Minimize the reply drafter" aria-label="Minimize the reply drafter" style="{{ replyDockCloseStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ replyDockMinIconStyle }}">minimize</span></div>
+              <div style="{{ composerBarStyle }}">
+                <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--accent-d);flex:0 0 auto">auto_awesome</span>
+                <div style="{{ composerPhStyle }}">{{ composerPlaceholder }}</div>
+                <div onClick="{{ askThread }}" style="{{ askThreadBtnStyle }}" style-hover="opacity:0.88;cursor:pointer">{{ askThreadLabel }}</div>
               </div>
               <sc-if value="{{ showComposerChips }}" hint-placeholder-val="{{ true }}">
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:0 2px">
