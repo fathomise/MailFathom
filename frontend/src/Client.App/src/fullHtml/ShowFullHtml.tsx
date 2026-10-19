@@ -6,6 +6,7 @@ import { useRef } from 'react';
 import { Icon } from '../controls/Icon';
 import { SurfaceControl } from '../controls/SurfaceControl';
 import { useLocalization } from '../localization/useLocalization';
+import { useTopLayerSurface } from '../shell/screenLayers';
 
 // The control the design puts on a message's head, and the question it asks before anything is shown. Pressing
 // it opens neither a frame nor a read: it opens a confirmation, because what the surface behind it draws is markup a
@@ -29,6 +30,7 @@ const markupShows = 'show-the-markup';
 
 export function ShowFullHtml({ onShow }: { readonly onShow: () => void }) {
     const { translate } = useLocalization();
+    const closesOnBack = useTopLayerSurface();
     const asked = useRef<HTMLDialogElement>(null);
 
     return (
@@ -42,9 +44,10 @@ export function ShowFullHtml({ onShow }: { readonly onShow: () => void }) {
             />
 
             <dialog
+                onToggle={closesOnBack}
                 ref={asked}
                 aria-labelledby="show-full-html"
-                className="m-auto w-dialog max-w-dialog-narrow rounded-lg border border-line bg-panel p-5 text-text shadow-dialog backdrop:bg-scrim"
+                className="surface-pop m-auto w-dialog max-w-dialog-narrow rounded-lg border border-line bg-panel p-5 text-text shadow-dialog backdrop:bg-scrim"
                 onClose={() => {
                     if (asked.current?.returnValue === markupShows) {
                         onShow();

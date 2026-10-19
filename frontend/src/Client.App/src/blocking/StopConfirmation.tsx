@@ -57,7 +57,7 @@ export function StopConfirmation({
             <dialog
                 ref={asked}
                 aria-labelledby={question}
-                className="m-auto w-95 max-w-full rounded-lg border border-line bg-panel px-5.5 py-5 text-text shadow-dialog backdrop:bg-scrim"
+                className="surface-pop m-auto w-95 max-w-full rounded-lg border border-line bg-panel px-5.5 py-5 text-text shadow-dialog backdrop:bg-scrim"
                 onClose={() => {
                     if (asked.current?.returnValue === operationStops) {
                         onStop();

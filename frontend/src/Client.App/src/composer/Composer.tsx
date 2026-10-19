@@ -551,7 +551,9 @@ export function Composer({
             aria-modal={wide ? undefined : true}
             onKeyDown={holdTheKeyboard}
             className={`flex flex-col bg-panel text-text ${
-                wide ? 'h-full min-h-0' : 'fixed inset-0 z-50 pt-safe-top pb-safe-bottom'
+                wide
+                    ? 'h-full min-h-0 animate-rise-in'
+                    : 'fixed inset-0 z-50 pt-safe-top pb-safe-bottom animate-sheet-in'
             }`}
         >
             <div className="flex shrink-0 items-center gap-3 border-b border-line bg-sunken px-4.25 py-3">

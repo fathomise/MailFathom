@@ -4,7 +4,7 @@
 
 import { expect, type Page } from '@playwright/test';
 
-import { openSignedIn, test } from './client.harness';
+import { actingGrants, openSignedIn, test } from './client.harness';
 
 // The client's own motion, resolved against a real reduced-motion preference and a computed stylesheet.
 
@@ -67,4 +67,38 @@ test('takes that motion away for a reader who asked for less of it, rather than 
     // Removed rather than shortened, which is the accessibility obligation: the panel still arrives where it belongs,
     // and what is gone is the travel. A duration merely made small would read as motion to somebody who asked for none.
     expect(await motionDurations(page)).toEqual(['0s']);
+});
+
+// A surface drawn in the document rather than in the top layer is gone the moment its value is, so leaving is what the
+// client has to hold it on the screen for. The page's animations are slowed while the menu leaves, which turns the
+// departure from something over in a fifth of a second into something a check can find still running — without it,
+// whether the menu is caught leaving would depend on how loaded the machine is — and are put back to speed once it has
+// been caught, so nothing waits the slowed departure out.
+//
+// Read in the page, because what is asserted is the one fact no role query reaches: that the menu still in the
+// document sits inside an inert region, so a press on something already going reaches nothing.
+const theMenuIsHeldInert = `(() => {
+    const menu = document.querySelector('[role="menu"]');
+    return menu !== null && menu.closest('[inert]') !== null;
+})()`;
+
+test('plays a menu’s departure before taking it off the screen', async ({ page, deployment }) => {
+    deployment.grant(...actingGrants);
+    await openSignedIn(page, '/#/mail');
+
+    await page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first().click({ button: 'right' });
+    await expect(page.getByRole('menu')).toBeVisible();
+
+    const animations = await page.context().newCDPSession(page);
+    await animations.send('Animation.enable');
+    await animations.send('Animation.setPlaybackRate', { playbackRate: 0.05 });
+
+    // Left by the keyboard's own way out, which the menu answers from wherever focus stands inside it.
+    await page.getByRole('menuitem').first().focus();
+    await page.keyboard.press('Escape');
+
+    await expect.poll(() => page.evaluate(theMenuIsHeldInert)).toBe(true);
+
+    await animations.send('Animation.setPlaybackRate', { playbackRate: 1 });
+    await expect(page.getByRole('menu', { includeHidden: true })).toHaveCount(0);
 });

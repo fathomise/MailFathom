@@ -17,6 +17,7 @@ import { useWorkspace } from '../workspace/useWorkspace';
 import { TabModeSwitch, ThemeSegments } from './Preferences';
 import { useScreenLayer } from './screenLayers';
 import { useWideWorkspace } from './useWideWorkspace';
+import { Departing } from './Departing';
 
 // The menu at the foot of the rail, which is where the design puts everything that is about the person rather
 // than about the mail: who they are, which mailboxes this deployment reads for them and which of those the client is
@@ -138,7 +139,7 @@ export function AccountMenu({
                     setStanding(event.newState === 'open');
                 }}
                 aria-label={translate('shell.accountMenu')}
-                className="inset-x-4 top-auto bottom-22 m-0 overflow-hidden rounded-lg border border-line bg-panel p-0 text-base text-text shadow-overlay workspace:inset-x-auto workspace:bottom-4.5 workspace:left-26.5 workspace:w-54"
+                className="surface-pop inset-x-4 top-auto bottom-22 m-0 overflow-hidden rounded-lg border border-line bg-panel p-0 text-base text-text shadow-overlay workspace:inset-x-auto workspace:bottom-4.5 workspace:left-26.5 workspace:w-54"
             >
                 <div className="flex flex-col gap-0.5 border-b border-line-soft px-3.25 py-2.75">
                     {profile.displayName === null ? null : (
@@ -184,17 +185,20 @@ export function AccountMenu({
 
             {/* Outside the popover rather than inside it, because the menu is folded away while this is open and a
                 dialog inside something the platform sets `display: none` on is a dialog nobody can see. Rendered only
-                while it is open, which is what keeps the tab it was last left on out of anything that outlives it. */}
-            {settingsOpen ? (
-                <Settings
-                    profile={profile}
-                    preferences={preferences}
-                    telemetryForwarding={telemetryForwarding}
-                    writesProfile={writesProfile}
-                    deploymentVersion={deploymentVersion}
-                    onClose={closeSettings}
-                />
-            ) : null}
+                while it is open and while it leaves, which is what keeps the tab it was last left on out of anything that
+                outlives it. */}
+            <Departing value={settingsOpen || null}>
+                {() => (
+                    <Settings
+                        profile={profile}
+                        preferences={preferences}
+                        telemetryForwarding={telemetryForwarding}
+                        writesProfile={writesProfile}
+                        deploymentVersion={deploymentVersion}
+                        onClose={closeSettings}
+                    />
+                )}
+            </Departing>
         </>
     );
 }

@@ -17,6 +17,7 @@ import { SecondaryButton } from '../controls/SecondaryButton';
 import { SurfaceControl } from '../controls/SurfaceControl';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { useTopLayerSurface } from '../shell/screenLayers';
 import { EventFields } from './EventFields';
 import { draftOn, draftedFrom, recordOf, type EventDraft } from './eventDraft';
 
@@ -61,6 +62,7 @@ export function NewEvent({
     readonly onSave: (record: CalendarEventRecord) => void;
 }) {
     const { translate } = useLocalization();
+    const closesOnBack = useTopLayerSurface();
     const describes = useId();
 
     const [described, setDescribed] = useState('');
@@ -129,9 +131,10 @@ export function NewEvent({
 
     return (
         <dialog
+            onToggle={closesOnBack}
             ref={asked}
             aria-label={translate('calendar.newEvent')}
-            className="m-auto w-dialog max-w-dialog-narrow rounded-lg border border-line bg-panel p-0 text-text shadow-dialog backdrop:bg-scrim"
+            className="surface-pop m-auto w-dialog max-w-dialog-narrow rounded-lg border border-line bg-panel p-0 text-text shadow-dialog backdrop:bg-scrim"
             onClose={emptied}
         >
             <form

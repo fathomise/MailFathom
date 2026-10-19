@@ -13,6 +13,7 @@ import { useReadingZone } from '../localization/useReadingZone';
 import { TaskRow } from './TaskRow';
 import { TaskRowMenu } from './TaskRowMenu';
 import { groupedTasks, type TaskGroupName } from './taskGrouping';
+import { Departing } from '../shell/Departing';
 
 // The list the design draws down the middle of the Tasks screen: work grouped by when it is due, each heading
 // carrying how much stands under it.
@@ -255,23 +256,25 @@ export function TaskList({
                 </p>
             ) : null}
 
-            {menu === null ? null : (
-                <TaskRowMenu
-                    task={menu.task}
-                    at={menu.at}
-                    onSelect={() => {
-                        onSelected(onlySelected(menu.task.id));
-                    }}
-                    onAskErasure={() => {
-                        onAskErasure([menu.task]);
-                    }}
-                    onClose={() => {
-                        rows.current.get(menu.task.id)?.focus();
-                        setMenu(null);
-                    }}
-                    {...acts(menu.task)}
-                />
-            )}
+            <Departing value={menu}>
+                {(menu) => (
+                    <TaskRowMenu
+                        task={menu.task}
+                        at={menu.at}
+                        onSelect={() => {
+                            onSelected(onlySelected(menu.task.id));
+                        }}
+                        onAskErasure={() => {
+                            onAskErasure([menu.task]);
+                        }}
+                        onClose={() => {
+                            rows.current.get(menu.task.id)?.focus();
+                            setMenu(null);
+                        }}
+                        {...acts(menu.task)}
+                    />
+                )}
+            </Departing>
         </div>
     );
 }

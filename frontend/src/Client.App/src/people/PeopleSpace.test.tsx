@@ -2,11 +2,12 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
 import { ComposingContext, type Composing } from '../composer/useComposing';
 import { LocalizationProvider } from '../localization/Localization';
+import { ScreenLayersContext, useScreenLayerStack, type ScreenLayers } from '../shell/screenLayers';
 import { PeopleSpace } from './PeopleSpace';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
@@ -146,21 +147,32 @@ const notWriting: Composing = {
 
 function drawSpace(
     transport: MailFathomTransport,
-    { writable = true, composing = notWriting }: { writable?: boolean; composing?: Composing } = {},
+    {
+        writable = true,
+        composing = notWriting,
+        layers = null,
+    }: { writable?: boolean; composing?: Composing; layers?: ScreenLayers | null } = {},
 ): void {
     render(
         <LocalizationProvider>
-            <ComposingContext value={composing}>
-                <PeopleSpace
-                    session={session}
-                    transport={transport}
-                    writable={writable}
-                    onOpenThread={vi.fn()}
-                    onOpenDocument={vi.fn()}
-                />
-            </ComposingContext>
+            <ScreenLayersContext value={layers}>
+                <ComposingContext value={composing}>
+                    <PeopleSpace
+                        session={session}
+                        transport={transport}
+                        writable={writable}
+                        onOpenThread={vi.fn()}
+                        onOpenDocument={vi.fn()}
+                    />
+                </ComposingContext>
+            </ScreenLayersContext>
         </LocalizationProvider>,
     );
+}
+
+/** The shell's stack, which a test hands the space so it can press the back gesture the way the shell does. */
+function shell(): { readonly current: ScreenLayers } {
+    return renderHook(() => useScreenLayerStack()).result;
 }
 
 describe('PeopleSpace', () => {
@@ -364,5 +376,35 @@ describe('PeopleSpace', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Back to the address book' }));
 
         expect(screen.getByRole('listbox', { name: 'Contacts' })).toBeDefined();
+    });
+
+    it('goes back to the book from the person on one press of the back gesture where the two cannot stand together', async () => {
+        atWidth(phone);
+        const layers = shell();
+
+        const { transport } = deployment();
+        drawSpace(transport, { layers: layers.current });
+
+        fireEvent.click(await screen.findByRole('option', { name: /Anna Kowalska/u }));
+        await screen.findByRole('heading', { name: 'Anna Kowalska' });
+
+        act(() => {
+            layers.current.closeTop();
+        });
+
+        expect(screen.getByRole('listbox', { name: 'Contacts' })).toBeDefined();
+        expect(layers.current.depth).toBe(0);
+    });
+
+    it('leaves the back gesture alone where the person stands beside the book', async () => {
+        const layers = shell();
+
+        const { transport } = deployment();
+        drawSpace(transport, { layers: layers.current });
+
+        fireEvent.click(await screen.findByRole('option', { name: /Anna Kowalska/u }));
+        await screen.findByRole('heading', { name: 'Anna Kowalska' });
+
+        expect(layers.current.depth).toBe(0);
     });
 });

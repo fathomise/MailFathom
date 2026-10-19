@@ -39,6 +39,7 @@ import {
 } from './folderTreeRows';
 import { unreadAfterMarking } from './unreadAfterMarking';
 import { useFolderMaintenance, type FolderMailbox } from './useFolderMaintenance';
+import { Departing } from '../shell/Departing';
 
 // The client's scope selector: which mailbox and which folder everything else is about. It is a tree because the
 // mailboxes are a tree, and it is one tree rather than one per account because several mailboxes are one workspace —
@@ -628,20 +629,22 @@ export function FolderTree({
 
             <DeleteQuestion messages={trashed} asked={deleting} />
 
-            {menu === null || pressed === undefined ? null : (
-                <FolderRowMenu
-                    acts={actsFor(pressed)}
-                    header={folderRowName(pressed, translate)}
-                    at={menu.at}
-                    onAct={(act) => {
-                        takeAct(act, pressed);
-                    }}
-                    onClose={() => {
-                        setMenu(null);
-                        elements.current.get(pressed.key)?.focus();
-                    }}
-                />
-            )}
+            <Departing value={menu === null || pressed === undefined ? null : { at: menu.at, folder: pressed }}>
+                {({ at, folder }) => (
+                    <FolderRowMenu
+                        acts={actsFor(folder)}
+                        header={folderRowName(folder, translate)}
+                        at={at}
+                        onAct={(act) => {
+                            takeAct(act, folder);
+                        }}
+                        onClose={() => {
+                            setMenu(null);
+                            elements.current.get(folder.key)?.focus();
+                        }}
+                    />
+                )}
+            </Departing>
         </>
     );
 }

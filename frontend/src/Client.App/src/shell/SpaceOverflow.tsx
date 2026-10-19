@@ -5,9 +5,9 @@
 import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
 import { addressOf, implementedSpaces, spaceLabels, type Space } from '../routing/spaces';
-import { useScreenLayer } from './screenLayers';
+import { useTopLayerSurface } from './screenLayers';
 import { spaceIcons } from './spaceIcons';
-import { useRef, useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
 // The fifth place in the bottom bar, and what stands behind it. A narrow window has room for five items and the design
 // spends them on three spaces, the bell, and this — so what does not fit is reached rather than dropped, which
@@ -55,16 +55,11 @@ export function SpaceOverflow({
     // `aria-current="true"` rather than `page`, which is the row inside the sheet — this says *the current one of these
     // five places*, which is what it is.
     const holdsCurrent = current !== null && spaces.includes(current);
-    const opened = useRef<HTMLDivElement>(null);
-    const [standing, setStanding] = useState(false);
 
     // The sheet stands over the screen, so the back gesture closes it before it navigates anywhere and taking the bar
     // to another destination leaves none of it behind. Whether it is open is read from the platform rather than held
-    // as a second copy of it: the control that names it is what opens and closes it, and the toggle below is the
-    // platform saying which of the two just happened.
-    useScreenLayer(standing, () => {
-        opened.current?.hidePopover();
-    });
+    // as a second copy of it: the control that names it is what opens and closes it.
+    const closesOnBack = useTopLayerSurface();
 
     return (
         <>
@@ -85,17 +80,14 @@ export function SpaceOverflow({
             {/* No display utility on the sheet itself, for the reason the account menu's own popover carries none: the
                 platform hides a closed popover from its own stylesheet, and a utility here would outrank that. */}
             <div
-                ref={opened}
                 id={sheet}
                 popover="auto"
-                onToggle={(event) => {
-                    setStanding(event.newState === 'open');
-                }}
+                onToggle={closesOnBack}
                 aria-label={translate('shell.more')}
                 // Dimmed behind, which the design draws and which is what says the sheet is the whole of what
                 // is being answered right now. The platform paints it: a popover has a `::backdrop` of its own exactly
                 // as the notification panel's dialog does, and this is the same token that one uses.
-                className="inset-x-0 top-auto bottom-0 m-0 w-full max-w-full rounded-t-xl border-t border-line bg-panel px-3 pt-3 pb-safe-bottom text-base text-text shadow-overlay backdrop:bg-scrim open:block"
+                className="surface-sheet inset-x-0 top-auto bottom-0 m-0 w-full max-w-full rounded-t-xl border-t border-line bg-panel px-3 pt-3 pb-safe-bottom text-base text-text shadow-overlay backdrop:bg-scrim open:block"
             >
                 <div className="flex flex-col gap-0.5 pb-3">
                     {/* The bar the design draws across the top of the sheet, which says a sheet is what this

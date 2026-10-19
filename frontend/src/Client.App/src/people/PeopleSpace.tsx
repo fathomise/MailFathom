@@ -23,6 +23,8 @@ import { useTwoPanes, useWideWorkspace } from '../shell/useWideWorkspace';
 import { NewContact, type ContactDraft } from './NewContact';
 import { PersonPage } from './PersonPage';
 import { useContactCorrespondence } from './useContactCorrespondence';
+import { paneArrival, usePaneMotion } from '../shell/paneMotion';
+import { useScreenStep } from '../shell/screenLayers';
 
 // The People space as the design composes it: the address book down one side and one person's own page beside
 // it, with the acts that change the book held here rather than in either.
@@ -234,6 +236,13 @@ export function PeopleSpace({
     }
 
     const personInFront = !twoPanes && opened !== null;
+    const paneMoved = usePaneMotion(personInFront, twoPanes);
+
+    // The person stands where the book was, so the back gesture returns to the book exactly as the way back on the page
+    // does.
+    useScreenStep(personInFront, () => {
+        open(null);
+    });
 
     return (
         <div className="relative flex min-h-0 flex-1 flex-col">
@@ -279,7 +288,7 @@ export function PeopleSpace({
                 <div
                     aria-hidden={personInFront ? true : undefined}
                     inert={personInFront}
-                    className={`flex min-h-0 min-w-0 flex-col panes:border-e panes:border-line ${
+                    className={`flex min-h-0 min-w-0 flex-col panes:border-e panes:border-line ${paneArrival(paneMoved, false)} ${
                         personInFront ? 'invisible absolute inset-0' : 'flex-1 panes:w-contact-list panes:flex-none'
                     }`}
                 >
@@ -319,26 +328,30 @@ export function PeopleSpace({
                         </div>
                     ) : null
                 ) : (
-                    <PersonPage
-                        contact={opened}
-                        correspondence={correspondence}
-                        writable={writable}
-                        promoting={promoting}
-                        promotionSaid={said?.where === 'person' ? said.said : null}
-                        onBack={
-                            twoPanes
-                                ? null
-                                : () => {
-                                      open(null);
-                                  }
-                        }
-                        onPromote={promote}
-                        onAskErasure={() => {
-                            askErasure([opened]);
-                        }}
-                        onOpenThread={onOpenThread}
-                        onOpenDocument={onOpenDocument}
-                    />
+                    // One element around the page so it can arrive the way a pane does: the page itself is drawn
+                    // the same in either composition, and only the narrow one moves it.
+                    <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${paneArrival(paneMoved, true)}`}>
+                        <PersonPage
+                            contact={opened}
+                            correspondence={correspondence}
+                            writable={writable}
+                            promoting={promoting}
+                            promotionSaid={said?.where === 'person' ? said.said : null}
+                            onBack={
+                                twoPanes
+                                    ? null
+                                    : () => {
+                                          open(null);
+                                      }
+                            }
+                            onPromote={promote}
+                            onAskErasure={() => {
+                                askErasure([opened]);
+                            }}
+                            onOpenThread={onOpenThread}
+                            onOpenDocument={onOpenDocument}
+                        />
+                    </div>
                 )}
             </div>
 

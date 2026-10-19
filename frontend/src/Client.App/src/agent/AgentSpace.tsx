@@ -471,7 +471,7 @@ export function AgentSpace({
                         onClose={() => {
                             setDrawerOpen(false);
                         }}
-                        className="fixed inset-y-0 left-0 m-0 h-full max-h-none w-drawer max-w-full border-0 border-e border-line bg-rail p-0 pt-safe-top pb-safe-bottom pl-safe-left text-text shadow-overlay backdrop:bg-scrim"
+                        className="surface-drawer fixed inset-y-0 left-0 m-0 h-full max-h-none w-drawer max-w-full border-0 border-e border-line bg-rail p-0 pt-safe-top pb-safe-bottom pl-safe-left text-text shadow-overlay backdrop:bg-scrim"
                     >
                         <div className="flex h-full flex-col">{historyPanel(true)}</div>
                     </dialog>

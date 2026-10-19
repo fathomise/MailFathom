@@ -2,7 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useState, type ReactNode } from 'react';
+import { DepartureContext } from '../shell/departure';
 import { useScreenLayer } from '../shell/screenLayers';
 
 // The other shape the two surfaces opened from a message take, and the one `useOpenTabs.ts` describes as standing *in
@@ -78,8 +79,11 @@ export function SurfaceWindow({
     }, []);
 
     // It stands over the message, so the back gesture closes it before it navigates anywhere, and going to another
-    // destination leaves it behind rather than over the screen somebody arrives at.
-    useScreenLayer(true, close);
+    // destination leaves it behind rather than over the screen somebody arrives at. A window already leaving stands
+    // over nothing.
+    const leaving = useContext(DepartureContext);
+
+    useScreenLayer(!leaving, close);
 
     return (
         <dialog
@@ -88,7 +92,7 @@ export function SurfaceWindow({
             onClose={onClosed}
             // The insets are the screen's here rather than the frame's, exactly as they are for the settings surface: a
             // modal dialog stands in the platform's own top layer, so the padding the frame carries is not around it.
-            className={`fixed inset-x-0 top-0 bottom-navigation m-0 mb-safe-bottom h-auto max-h-none w-auto max-w-none overflow-hidden rounded-none border-0 bg-panel p-0 text-text open:flex open:flex-col workspace:bottom-0 workspace:mb-0 panes:inset-0 panes:m-auto panes:rounded-lg panes:border panes:border-line panes:shadow-dialog panes:backdrop:bg-scrim ${windowSizes[drawn]}`}
+            className={`max-panes:surface-sheet panes:surface-pop fixed inset-x-0 top-0 bottom-navigation m-0 mb-safe-bottom h-auto max-h-none w-auto max-w-none overflow-hidden rounded-none border-0 bg-panel p-0 text-text open:flex open:flex-col workspace:bottom-0 workspace:mb-0 panes:inset-0 panes:m-auto panes:rounded-lg panes:border panes:border-line panes:shadow-dialog panes:backdrop:bg-scrim ${windowSizes[drawn]}`}
         >
             {children(close)}
         </dialog>

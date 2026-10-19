@@ -73,6 +73,7 @@ import { extendedTo, inReadingOrder, withToggled } from '../contextMenu/rowSelec
 import { noRows, rowSettled, rowWentOut, rowsAlsoMoved, rowsNoticed, rowsStillDrawn } from './movedRows';
 import { rememberedListing, rememberListing } from './rememberedListings';
 import { actedMessages, useListedMail } from './useListedMail';
+import { Departing } from '../shell/Departing';
 
 // The client's message list, which is where a mail client is judged: it stays smooth at message forty thousand, it puts
 // a returning reader back where they were, and it lets somebody pick out four messages for the question they are about
@@ -926,7 +927,7 @@ export function MessageList({
     }
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 animate-content-arrival flex-col">
             <ListSettings
                 listing={listing}
                 junkAskable={scope.kind !== 'folder' && scope.kind !== 'role'}
@@ -1059,26 +1060,28 @@ export function MessageList({
             {/* The row's own menu, over whichever row was pressed. It stands outside the scroller because it is placed
                 against the window rather than against the column, and it is drawn last so nothing in the list is over
                 it. */}
-            {pressed === null || pressedRow === null ? null : (
-                <MessageRowMenu
-                    email={pressedRow}
-                    messages={actedMessages(listed, [pressedRow.id])}
-                    at={pressed.at}
-                    onSelect={() => {
-                        setAnchor(pressedRow.id);
-                        select(withToggled(workspace.selected, pressedRow.id));
-                    }}
-                    onAsk={ask}
-                    onCheckReadings={
-                        hasReadings(pressedRow)
-                            ? () => {
-                                  checkReadings(pressedRow);
-                              }
-                            : undefined
-                    }
-                    onClose={closeMenu}
-                />
-            )}
+            <Departing value={pressed === null || pressedRow === null ? null : { at: pressed.at, row: pressedRow }}>
+                {({ at, row }) => (
+                    <MessageRowMenu
+                        email={row}
+                        messages={actedMessages(listed, [row.id])}
+                        at={at}
+                        onSelect={() => {
+                            setAnchor(row.id);
+                            select(withToggled(workspace.selected, row.id));
+                        }}
+                        onAsk={ask}
+                        onCheckReadings={
+                            hasReadings(row)
+                                ? () => {
+                                      checkReadings(row);
+                                  }
+                                : undefined
+                        }
+                        onClose={closeMenu}
+                    />
+                )}
+            </Departing>
 
             {/* The two questions an act from that menu stands behind. Here rather than in the menu, because the menu is
                 gone the moment an item is chosen and the question is what is left standing. */}

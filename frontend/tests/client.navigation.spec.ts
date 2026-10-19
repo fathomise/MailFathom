@@ -4,7 +4,7 @@
 
 import { expect } from '@playwright/test';
 
-import { declaredVersion, openSettings, openSignedIn, test } from './client.harness';
+import { declaredVersion, messageRegion, openSettings, openSignedIn, phoneWindow, test } from './client.harness';
 
 // Moving between spaces the way a document with a history does, and finding each one — and the folder tree — where it
 // was left after a reload.
@@ -51,6 +51,64 @@ test('moves back and forward through its own spaces without leaving the applicat
 
     await page.goForward();
     await expect(page.getByRole('main', { name: 'Mail' })).toBeVisible();
+});
+
+// What the back gesture of a phone does to a screen that replaced another: it goes back one screen, and only past the
+// last of them does it leave the space. Android's own back is the browser's history here, so `goBack` is the gesture.
+test('goes back one screen at a time on a phone, from the message to the list and only then to the space before', async ({
+    page,
+}) => {
+    await page.setViewportSize(phoneWindow);
+    await openSignedIn(page);
+    await expect(page.getByRole('heading', { name: 'Discover', level: 1 })).toBeVisible();
+
+    await page.getByRole('link', { name: 'Mail' }).click();
+    await page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first().click();
+    await expect(page.getByRole('article', messageRegion)).toBeVisible();
+
+    await page.goBack();
+    await expect(page.getByRole('listbox', { name: 'Messages' })).toBeVisible();
+    await expect(page.getByRole('article', messageRegion)).toHaveCount(0);
+    await expect(page).toHaveURL(/#\/mail$/u);
+
+    await page.goBack();
+    await expect(page.getByRole('heading', { name: 'Discover', level: 1 })).toBeVisible();
+});
+
+test('goes back from a person to the address book on a phone, rather than out of People', async ({
+    page,
+    deployment,
+}) => {
+    deployment.grant('mailfathom.contacts.read');
+    await page.setViewportSize(phoneWindow);
+    await openSignedIn(page, '/#/people');
+
+    const book = page.getByRole('listbox', { name: 'Contacts' });
+
+    await book.getByRole('option', { name: /Anna Marlow/u }).click();
+    await expect(page.getByRole('heading', { name: 'Anna Marlow' })).toBeVisible();
+    await expect(book).toBeHidden();
+
+    await page.goBack();
+    await expect(book).toBeVisible();
+    await expect(page).toHaveURL(/#\/people$/u);
+});
+
+test('closes a dialog with the back gesture and leaves the screen it stood over where it was', async ({
+    page,
+    deployment,
+}) => {
+    deployment.grant('mailfathom.contacts.read', 'mailfathom.contacts.write');
+    await openSignedIn(page, '/#/people');
+    await expect(page.getByRole('listbox', { name: 'Contacts' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'New contact' }).click();
+    await expect(page.getByRole('dialog', { name: 'New contact' })).toBeVisible();
+
+    await page.goBack();
+    await expect(page.getByRole('dialog', { name: 'New contact' })).toBeHidden();
+    await expect(page.getByRole('listbox', { name: 'Contacts' })).toBeVisible();
+    await expect(page).toHaveURL(/#\/people$/u);
 });
 
 // Discover's question is the only field that asks one, so what is carried is the sentence and its scope surviving a

@@ -130,4 +130,12 @@ describe('BlockingOverlay', () => {
 
         expect(screen.queryByRole('heading', { name: 'Moving this mailbox' })).toBeNull();
     });
+
+    it('keeps the words it said in the card while it leaves, rather than fading out as an empty box', () => {
+        const { rerender } = drawing(migrating());
+
+        rerender(null);
+
+        expect(screen.getByText('Moving this mailbox')).toBeDefined();
+    });
 });

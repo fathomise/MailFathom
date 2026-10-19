@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useContext, useEffect, useId, useRef, useState } from 'react';
 import {
     isNotificationTime,
     longestNotificationSeconds,
@@ -24,6 +24,7 @@ import { useSystemNotifier } from '../shellOperations/systemNotifier';
 import { useTelemetry } from '../telemetry/clientTelemetry';
 import { chosenPortrait, type PortraitChoice } from './chosenPortrait';
 import { MessageView, MessageViewWarning } from './MessageView';
+import { DepartureContext } from '../shell/departure';
 
 // The surface behind the account menu's own row, and the one place the client edits the person rather than the mail.
 //
@@ -107,8 +108,9 @@ export function Settings({
     // Every way out of this screen arrives at `onClose` through that one event — which is what keeps this screen with
     // one path out — so the answer is put down here and read on the other side of it.
     const clearingTheScreen = useRef(false);
+    const leaving = useContext(DepartureContext);
 
-    useScreenLayer(true, (clearing) => {
+    useScreenLayer(!leaving, (clearing) => {
         clearingTheScreen.current = clearing;
         panel.current?.close();
     });
@@ -123,7 +125,7 @@ export function Settings({
             // The insets are the screen's here rather than the frame's: a modal dialog stands in the platform's own top
             // layer, so the padding the frame carries is not around it and a full-bleed settings screen would run under
             // a cutout and under the gesture bar. The card composition has the frame around it again and takes none.
-            className="m-0 h-full max-h-full w-full max-w-full rounded-none border-0 bg-panel p-0 pt-safe-top pr-safe-right pb-safe-bottom pl-safe-left text-md text-text backdrop:bg-scrim open:flex open:flex-col workspace:m-auto workspace:h-settings-card workspace:w-settings workspace:rounded-lg workspace:border workspace:border-line workspace:p-0 workspace:shadow-dialog"
+            className="max-workspace:surface-sheet workspace:surface-pop m-0 h-full max-h-full w-full max-w-full rounded-none border-0 bg-panel p-0 pt-safe-top pr-safe-right pb-safe-bottom pl-safe-left text-md text-text backdrop:bg-scrim open:flex open:flex-col workspace:m-auto workspace:h-settings-card workspace:w-settings workspace:rounded-lg workspace:border workspace:border-line workspace:p-0 workspace:shadow-dialog"
         >
             <div className="flex items-center gap-3 border-b border-line bg-sunken px-3.5 pt-3.5 pb-3 workspace:pt-2.5 workspace:pb-2.5">
                 <h2 id={named} className="text-2xl font-semibold workspace:text-lg">

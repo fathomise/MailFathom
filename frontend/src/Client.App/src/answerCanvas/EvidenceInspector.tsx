@@ -20,7 +20,7 @@ import { wordInstant } from '../localization/instants';
 import { sizeOf } from '../localization/octets';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
-import { useScreenLayer } from '../shell/screenLayers';
+import { useScreenLayer, useScreenStep } from '../shell/screenLayers';
 import { useDesktopComposition } from '../shell/useWideWorkspace';
 import { sourceKinds } from './blocks/blockWording';
 import { useCitedEvidence, type CitedEvidence } from './useCitedEvidence';
@@ -73,6 +73,11 @@ export function EvidenceInspector({
 }) {
     const { translate } = useLocalization();
     const desktop = useDesktopComposition();
+
+    // Beside the answer, the source stands where the panel's resting words were, so the back gesture returns to them
+    // the way *Back to the answer* does. Over the answer it is a window, which answers the gesture as one.
+    useScreenStep(desktop && source !== null, onDismiss);
+
     const evidence = useCitedEvidence(session, transport, source?.target ?? null);
 
     const panel = useRef<HTMLDivElement>(null);
@@ -365,7 +370,7 @@ function EvidenceWindow({
     return (
         <dialog
             aria-label={label}
-            className="m-0 h-full max-h-none w-full max-w-none bg-panel text-text backdrop:bg-scrim"
+            className="m-0 h-full max-h-none w-full max-w-none bg-panel text-text backdrop:bg-scrim max-workspace:surface-sheet workspace:surface-pop"
             ref={setStanding}
             onClose={onClosed}
         >

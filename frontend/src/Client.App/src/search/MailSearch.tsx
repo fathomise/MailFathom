@@ -35,6 +35,7 @@ import {
     withoutCriterion,
     type MailSearchAsk,
 } from './searchAsk';
+import { useScreenStep } from '../shell/screenLayers';
 
 // Finding a message, which stands at the top of the mail a person is looking at rather than on a screen of its own.
 // That is where somebody reaches for it — they are looking at a folder and the message is not in front of them — and
@@ -186,6 +187,10 @@ export function MailSearch({
         setBeingRead(null);
         setAsk(null);
     }
+
+    // The results stand where the list was, so the back gesture leaves the search the way its own control does, and
+    // only after a message opened from them has been put back.
+    useScreenStep(ask !== null || beingRead !== null, stopSearching);
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">

@@ -15,6 +15,7 @@ import { ConversationList } from './ConversationList';
 import { ConversationRowMenu } from './ConversationRowMenu';
 import { ConversationSelectionBar } from './ConversationSelectionBar';
 import type { ConversationHistory as History } from './useConversationHistory';
+import { Departing } from '../shell/Departing';
 
 const historyFailures: Readonly<Record<ClientFailureReason, MessageKey>> = {
     unauthenticated: 'agent.historyFailed.unauthenticated',
@@ -252,29 +253,31 @@ export function ConversationHistory({
                 <p className="px-1 py-2 text-sm text-muted text-pretty">{translate('agent.historyEmpty')}</p>
             ) : null}
 
-            {menu === null ? null : (
-                <ConversationRowMenu
-                    title={menu.conversation.title ?? translate('agent.newConversation')}
-                    archived={menu.conversation.archived}
-                    at={menu.at}
-                    onSelect={() => {
-                        onSelected(onlySelected(menu.conversation.id));
-                    }}
-                    onOpen={() => {
-                        onOpen(menu.conversation.id);
-                    }}
-                    onArchive={() => {
-                        onArchive([menu.conversation.id], !menu.conversation.archived);
-                    }}
-                    onAskDeletion={() => {
-                        onAskDeletion([menu.conversation.id]);
-                    }}
-                    onClose={() => {
-                        menu.opener?.focus();
-                        setMenu(null);
-                    }}
-                />
-            )}
+            <Departing value={menu}>
+                {(menu) => (
+                    <ConversationRowMenu
+                        title={menu.conversation.title ?? translate('agent.newConversation')}
+                        archived={menu.conversation.archived}
+                        at={menu.at}
+                        onSelect={() => {
+                            onSelected(onlySelected(menu.conversation.id));
+                        }}
+                        onOpen={() => {
+                            onOpen(menu.conversation.id);
+                        }}
+                        onArchive={() => {
+                            onArchive([menu.conversation.id], !menu.conversation.archived);
+                        }}
+                        onAskDeletion={() => {
+                            onAskDeletion([menu.conversation.id]);
+                        }}
+                        onClose={() => {
+                            menu.opener?.focus();
+                            setMenu(null);
+                        }}
+                    />
+                )}
+            </Departing>
         </div>
     );
 }

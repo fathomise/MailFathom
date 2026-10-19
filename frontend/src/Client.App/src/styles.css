@@ -475,6 +475,114 @@
     --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
     --ease-panel: cubic-bezier(0.3, 0.7, 0.1, 1);
 
+    /* How every surface that arrives or leaves moves, which is the design's one motion vocabulary: three speeds an
+       arrival takes by how far it travels, one a departure takes whatever it is, and the two curves they travel on. A
+       surface names its kind — `surface-*` below for what the platform puts in its top layer, an `animate-*` token
+       here for everything else — and never a duration or a curve of its own. */
+    --motion-fast: 160ms;
+    --motion-base: 240ms;
+    --motion-slow: 340ms;
+    --motion-exit: 200ms;
+    --ease-arrive: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-leave: cubic-bezier(0.4, 0, 1, 1);
+
+    /* One pane at a time is one shared horizontal axis: the view going deeper arrives from the right and the one it
+       came from returns from the left, both fading through, so the two directions read as opposites. Only the
+       arriving pane moves — the one left is already gone, so nothing slides over an empty frame. A space reached
+       from the navigation is a peer rather than a deeper view, so it settles in place instead, and content replacing
+       the skeleton that stood for it fades in where that skeleton was. */
+    --animate-pane-push: pane-push var(--motion-slow) var(--ease-sheet) backwards;
+    --animate-pane-back: pane-back var(--motion-slow) var(--ease-sheet) backwards;
+    --animate-space-arrival: space-arrival var(--motion-base) var(--ease-arrive) backwards;
+    --animate-content-arrival: fade-in var(--motion-base) var(--ease-arrive) backwards;
+
+    /* The surfaces drawn in the document rather than in the top layer, which arrive as they mount and leave while
+       `Departing` keeps them mounted: a menu or a pill grows out of 96 %, a sheet rises from the foot of the
+       window, the composer docked on a wide one rises 18 px, and the dimmed scrim behind any of them fades its
+       colour only. A departure holds its last frame — `both` — until it is taken away; an arrival keeps nothing once
+       it ends, so it leaves no stacking context behind. */
+    --animate-pop-in: pop-in var(--motion-fast) var(--ease-arrive) backwards;
+    --animate-pop-out: pop-out var(--motion-exit) var(--ease-leave) both;
+    --animate-sheet-in: sheet-in var(--motion-slow) var(--ease-sheet) backwards;
+    --animate-sheet-out: sheet-out var(--motion-exit) var(--ease-leave) both;
+    --animate-rise-in: rise-in var(--motion-base) var(--ease-arrive) backwards;
+    --animate-rise-out: rise-out var(--motion-exit) var(--ease-leave) both;
+    --animate-scrim-in: fade-in var(--motion-base) var(--ease-arrive) backwards;
+    --animate-scrim-out: fade-out var(--motion-exit) var(--ease-leave) both;
+
+    @keyframes pane-push {
+        from {
+            opacity: 0;
+            translate: 3rem 0;
+        }
+    }
+
+    @keyframes pane-back {
+        from {
+            opacity: 0;
+            translate: -3rem 0;
+        }
+    }
+
+    @keyframes space-arrival {
+        from {
+            opacity: 0;
+            translate: 0 0.375rem;
+        }
+    }
+
+    @keyframes fade-in {
+        from {
+            opacity: 0;
+        }
+    }
+
+    @keyframes fade-out {
+        to {
+            opacity: 0;
+        }
+    }
+
+    @keyframes pop-in {
+        from {
+            opacity: 0;
+            scale: 0.96;
+        }
+    }
+
+    @keyframes pop-out {
+        to {
+            opacity: 0;
+            scale: 0.96;
+        }
+    }
+
+    @keyframes sheet-in {
+        from {
+            translate: 0 100%;
+        }
+    }
+
+    @keyframes sheet-out {
+        to {
+            translate: 0 100%;
+        }
+    }
+
+    @keyframes rise-in {
+        from {
+            opacity: 0;
+            translate: 0 1.125rem;
+        }
+    }
+
+    @keyframes rise-out {
+        to {
+            opacity: 0;
+            translate: 0 1.125rem;
+        }
+    }
+
     /* What one tile of a list does when it is the only thing that changed, which is the design's own pair and
        the standing rule this client holds every list to: a list is drawn as a skeleton once, when it has nothing, and
        every later change reaches the rows it actually touched rather than the whole column. A row that arrived opens
@@ -813,6 +921,119 @@
     transition-property: translate, transform, opacity;
     transition-duration: 260ms;
     transition-timing-function: var(--ease-sheet);
+}
+
+/* How a surface the platform puts in its top layer — a modal `dialog`, a popover — arrives and leaves, one utility
+   per kind the design draws: `surface-pop` for a centred dialog and a menu, `surface-sheet` for a sheet rising from the
+   foot of the window and for anything standing over the whole of a narrow one, `surface-drawer` for the mailboxes
+   entering from the start edge. A surface whose shape changes with the width takes the two kinds its two shapes are,
+   behind the same breakpoint its classes change at.
+
+   They are transitions rather than animations because the platform decides when such a surface goes: Escape, a press
+   outside a popover, `close()`, and the back gesture all take it away without asking anybody first. `display` and
+   `overlay` transitioned discretely are what keep it drawn and in the top layer for as long as it is travelling away,
+   and `@starting-style` is the frame it arrives from. The scrim behind it fades on its own. Removed under
+   `prefers-reduced-motion` by the rule at the foot of this file, which leaves each one arriving where it was going. */
+@utility surface-pop {
+    opacity: 0;
+    scale: 0.96;
+    transition-property: opacity, scale, display, overlay;
+    transition-duration: var(--motion-exit);
+    transition-timing-function: var(--ease-leave);
+    transition-behavior: allow-discrete;
+
+    &:is([open], :popover-open) {
+        opacity: 1;
+        scale: 1;
+        transition-duration: var(--motion-fast);
+        transition-timing-function: var(--ease-arrive);
+
+        @starting-style {
+            opacity: 0;
+            scale: 0.96;
+        }
+    }
+
+    &::backdrop {
+        opacity: 0;
+        transition: opacity var(--motion-exit) var(--ease-leave);
+    }
+
+    &:is([open], :popover-open)::backdrop {
+        opacity: 1;
+        transition-duration: var(--motion-base);
+        transition-timing-function: var(--ease-arrive);
+
+        @starting-style {
+            opacity: 0;
+        }
+    }
+}
+
+@utility surface-sheet {
+    translate: 0 100%;
+    transition-property: translate, display, overlay;
+    transition-duration: var(--motion-exit);
+    transition-timing-function: var(--ease-leave);
+    transition-behavior: allow-discrete;
+
+    &:is([open], :popover-open) {
+        translate: 0 0;
+        transition-duration: var(--motion-slow);
+        transition-timing-function: var(--ease-sheet);
+
+        @starting-style {
+            translate: 0 100%;
+        }
+    }
+
+    &::backdrop {
+        opacity: 0;
+        transition: opacity var(--motion-exit) var(--ease-leave);
+    }
+
+    &:is([open], :popover-open)::backdrop {
+        opacity: 1;
+        transition-duration: var(--motion-base);
+        transition-timing-function: var(--ease-arrive);
+
+        @starting-style {
+            opacity: 0;
+        }
+    }
+}
+
+@utility surface-drawer {
+    translate: -100% 0;
+    transition-property: translate, display, overlay;
+    transition-duration: var(--motion-exit);
+    transition-timing-function: var(--ease-leave);
+    transition-behavior: allow-discrete;
+
+    &:is([open], :popover-open) {
+        translate: 0 0;
+        transition-duration: var(--motion-slow);
+        transition-timing-function: var(--ease-sheet);
+
+        @starting-style {
+            translate: -100% 0;
+        }
+    }
+
+    &::backdrop {
+        opacity: 0;
+        transition: opacity var(--motion-exit) var(--ease-leave);
+    }
+
+    &:is([open], :popover-open)::backdrop {
+        opacity: 1;
+        transition-duration: var(--motion-base);
+        transition-timing-function: var(--ease-arrive);
+
+        @starting-style {
+            opacity: 0;
+        }
+    }
 }
 
 @keyframes progress-unknown {

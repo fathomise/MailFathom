@@ -155,6 +155,22 @@ export async function openSettings(page: Page): Promise<void> {
     await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible();
 }
 
+// Every surface the client opens travels onto the screen, so a box read while it is still travelling measures a
+// frame of the motion rather than the surface. Asked again until it holds rather than waited out for a duration, and
+// blind to what never stops moving — a spinner — which nothing arriving waits on either. An expression rather than a
+// closure for the reason the motion suite gives: this suite compiles without a DOM declaration. `evaluate` rather than
+// `waitForFunction`, because the second compiles its expression inside the page, which the client's own policy refuses.
+const everythingArrived = `
+    document
+        .getAnimations()
+        .every((animation) => animation.playState !== 'running' || animation.effect.getComputedTiming().endTime === Infinity)
+`;
+
+/** Waits until nothing on the page is still travelling to where it is going, which a geometry read stands on. */
+export async function settled(page: Page): Promise<void> {
+    await expect.poll(() => page.evaluate(everythingArrived)).toBe(true);
+}
+
 /** The settings surface opened on its second tab, which is where everything about the client rather than the person is. */
 export async function openApplicationSettings(page: Page): Promise<void> {
     await openSettings(page);

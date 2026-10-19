@@ -111,6 +111,26 @@ switch, the first render, a wider composition — does not slide. Two panes side
 **Arrivals fill backwards only.** Once one ends nothing of it is left on the element, so an animated root neither forms
 a stacking context nor becomes the containing block of a fixed child.
 
+### What back does
+
+The browser's back — and on Android the system back gesture, which reaches the page as the same thing — steps back
+**one thing at a time** and leaves the space only once nothing stands in it. That holds at every width: a tablet in the
+desktop composition steps back the same way a phone does, and what differs is only what counts as standing.
+
+| Press | What it takes away |
+|---|---|
+| A surface stands over the screen | That surface: the drawer, a sheet, the composer, a dialog, Settings, a menu, the notification centre |
+| A view stands where another was | That view, as its own *Back* does: the thread in front of the list (`singlePane`), a case or a person in front of its list (`isMobile`) |
+| Nothing stands in the space | The space, back to the one before it — closing every surface still open, as switching space does |
+
+Each thing standing records one history entry at the same address, and a press consumes one; a surface closed by its
+own control gives its entry back, so the next press is never spent on something already gone. Two panes side by side
+add no step, because opening a thread there replaced nothing. `backSteps` in the component is the list, and
+`backSync` keeps the history in step with it.
+
+A press closes a surface the way its own control would. The composer with anything written in it asks first
+(`closeAsk`) and stays until that question is answered, and a surface standing in a tab closes its tab.
+
 ## Discover — `isDiscover`
 
 The run is a phase machine (`st.phase`), and the blocks arrive one at a time (`ready.<block>`).
@@ -820,3 +840,5 @@ clicking a preview.
   template, so no artboard draws them at rest — *What every artboard shares* above states each one.
 - **Every arrival and departure.** A surface in motion lasts 160 to 340 ms and a capture is taken at rest, so no
   screenshot holds one — *How a surface arrives and leaves* above is where they are stated, by number.
+- **What back does.** A press of back is a history traversal rather than a click on anything drawn, so no capture
+  reaches the state before or after one — *What back does* above states each step.
