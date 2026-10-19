@@ -66,7 +66,50 @@ Three reactions are stated there as well, and no rendered preview shows any of t
 |---|---|---|
 | Pressed | `:active` on a `button` and on `role="button"`, `"tab"` and `"menuitem"` | the control scales to 0.98 over 140 ms. A list row does not: it is swiped and long-pressed, and shrinking under the finger would read as a fault |
 | Keyboard focus | `:focus-visible` on a control and on anything carrying `tabindex` | a 2 px `--accent` outline, 2 px off the edge. A text field keeps its own treatment instead — its border turns `--accent` (`style-focus`), and one drawn with no edge of its own hands the outline to the box around it, inset. The message body being written shows its caret and nothing else |
-| Less motion asked for | `prefers-reduced-motion: reduce` | every animation and transition ends at once: the pulses, the shimmer, the row and toast movement, and the press itself |
+| Less motion asked for | `prefers-reduced-motion: reduce` | every animation and transition ends at once: the pulses, the shimmer, the row and toast movement, the press itself, and every arrival and departure below |
+
+### How a surface arrives and leaves
+
+Every navigation and every overlay moves, and all of them move by one vocabulary stated in `styles/base.css`. An
+element names its **kind** in `data-motion`; one that can leave names its **phase** in `data-phase`, `in` or `out`. A
+screenshot shows none of this, so the numbers are the contract the client matches.
+
+| Token | Value |
+|---|---|
+| `--motion-fast` | 160 ms |
+| `--motion-base` | 240 ms |
+| `--motion-slow` | 340 ms |
+| `--motion-exit` | 200 ms — every departure |
+| `--ease-out` | `cubic-bezier(0.22, 1, 0.36, 1)` — arrivals |
+| `--ease-in` | `cubic-bezier(0.4, 0, 1, 1)` — departures |
+| `--ease-sheet` | `cubic-bezier(0.32, 0.72, 0, 1)` — anything that travels from an edge; the notification gesture's own spring |
+
+| Kind | Arrives | Leaves | Used by |
+|---|---|---|---|
+| `scrim` | the colour fades up from transparent, base, ease-out | fades back to transparent, exit, ease-in | every backdrop: the drawer, both sheets, every dialog, the context menu, Settings on two panes |
+| `sheet` | from 100 % below its place, slow, ease-sheet | back down 100 %, exit, ease-in | the thread actions sheet (`threadSheetOpen`), the *More* sheet (`moreOpen`), and on the phone every full-screen surface: compose, the form dialogs, Settings on one pane |
+| `drawer` | from 100 % to the left, slow, ease-sheet | back out to the left, exit, ease-in | the folder list where it is a drawer (`showSide` under `drawer`) |
+| `pop` | from opacity 0 at 96 % scale, fast, ease-out | to opacity 0 at 96 %, exit, ease-in | the context menu (`ctxMenuOpen`), the user menu (`userMenuOpen`), the return pill (`convReturnShown`), and off the phone every dialog (new folder, reminder, move, AI summary, event) and Settings on two panes |
+| `rise` | from opacity 0, 18 px below, base, ease-out | back down 18 px to opacity 0, exit, ease-in | the composer where it docks over the screen rather than filling a pane |
+| `fade` | from opacity 0, base, ease-out | to opacity 0, exit, ease-in | the composer in a pane, the list replacing its skeleton (`listReady`), the composer body on restore (`composeExpanded`) |
+| `veil` | at once | fades out, base, ease-out | the message skeleton (`msgLoading`) laid over a thread that is already there |
+| `push` | from opacity 0, 48 px to the right, slow, ease-sheet | — | one pane at a time: the thread (`showThreadPane` under `singlePane`), a case and a person (under `isMobile`) when it is opened from its list |
+| `back` | from opacity 0, 48 px to the left, slow, ease-sheet | — | the same three lists when *Back* returns to them |
+| `screen` | from opacity 0, 6 px below, base, ease-out | — | each space's root when the rail or the bottom navigation switches to it |
+
+**A closing surface stays drawn until it has left.** Each surface is gated by a state key, and when the key empties the
+prototype keeps rendering its last value for 240 ms with `data-phase="out"` — `motionHold` in its component, over the
+keys in `MOTION_HELD` — so a close animates exactly as an open does and the content does not empty under the
+departure. A surface leaving takes no pointer events. Two surfaces can therefore overlap for that window: a context menu
+leaving while the dialog it opened arrives, the *More* sheet going down while Settings comes up.
+
+**Push and back are the shared horizontal axis rather than a slide across.** The pane being left is gone at once and
+the arriving one fades through from 48 px, so the direction reads without anything sliding over an empty frame. They
+play only for 600 ms after the pane actually moved (`paneMotion`), so a pane that mounts for any other reason — a space
+switch, the first render, a wider composition — does not slide. Two panes side by side never animate.
+
+**Arrivals fill backwards only.** Once one ends nothing of it is left on the element, so an animated root neither forms
+a stacking context nor becomes the containing block of a fixed child.
 
 ## Discover — `isDiscover`
 
@@ -775,3 +818,5 @@ clicking a preview.
   it — only a width does.
 - **Pressed, keyboard focus, and reduced motion.** All three are rules in `styles/base.css` rather than regions of a
   template, so no artboard draws them at rest — *What every artboard shares* above states each one.
+- **Every arrival and departure.** A surface in motion lasts 160 to 340 ms and a capture is taken at rest, so no
+  screenshot holds one — *How a surface arrives and leaves* above is where they are stated, by number.

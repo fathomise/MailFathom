@@ -557,6 +557,52 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.notify("Archived " + this.countWord(t.length), true);
     };
 
+    /* Motion — the one place every surface's arrival and departure is decided. `styles/base.css` holds the kinds
+       (`data-motion`) and their numbers; this holds when each plays.
+       A surface is open while a state key below is truthy. When the key empties, the render keeps reading its last
+       value for MOTION_EXIT_MS, so the surface stays mounted and drawn with its content, and `mo[<key>]` reads `out`
+       — its `data-phase` — until the timer unmounts it. A pane key (mailPane, casePane, peoplePane) records which way
+       it last moved instead, read by `paneMotion`, so one pane at a time pushes forward and comes back.
+       ponytail: the held value is read by the whole render, so anything else gated on the same key (the FAB waits on
+       `compose`) follows it 240 ms late; a per-surface snapshot is the upgrade if that ever shows. */
+    static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "sideDrawer", "compose", "settings",
+      "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading"];
+    static MOTION_PANES = ["mailPane", "casePane", "peoplePane"];
+    static MOTION_EXIT_MS = 240;
+
+    motionHold = (state) => {
+      const C = this.constructor;
+      const prev = this._moPrev || (this._moPrev = {});
+      const held = this._moHeld || (this._moHeld = {});
+      const dir = this._moDir || (this._moDir = {});
+      const live = (v) => Array.isArray(v) ? v.length > 0 : !!v;
+      const st = Object.assign({}, state);
+      const mo = {};
+      C.MOTION_HELD.forEach(k => {
+        if (live(state[k])) delete held[k];
+        else if (live(prev[k]) && !held[k]) {
+          held[k] = { v: prev[k] };
+          setTimeout(() => { if (held[k] && !live(this.state[k])) { delete held[k]; this.forceUpdate(); } }, C.MOTION_EXIT_MS);
+        }
+        prev[k] = state[k];
+        if (held[k]) st[k] = held[k].v;
+        mo[k] = held[k] ? "out" : "in";
+      });
+      C.MOTION_PANES.forEach(k => {
+        const v = state[k] || "list";
+        if (prev[k] !== undefined && prev[k] !== v) dir[k] = { to: v === "list" ? "back" : "push", at: Date.now() };
+        prev[k] = v;
+      });
+      return { st, mo };
+    };
+
+    /* "push" on the detail and "back" on the list for 600 ms after the pane moved; "none" otherwise, so a pane that
+       mounts for any other reason (a space switch, the first render) does not slide. */
+    paneMotion = (k, side) => {
+      const d = (this._moDir || {})[k];
+      return d && Date.now() - d.at < 600 && d.to === side ? side : "none";
+    };
+
     ovStyle = (z, mobile) => "position:fixed;z-index:" + z + ";display:flex;background:var(--scrim);" +
       (mobile ? "top:0;left:0;right:0;bottom:" + this.barH() + "px;align-items:stretch;justify-content:stretch" : "inset:0;align-items:center;justify-content:center;padding:22px");
 
@@ -2193,7 +2239,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     }
 
     renderVals() {
-      const st = this.state;
+      const { st, mo } = this.motionHold(this.state);
       const aiSumThread = st.aiSum ? THREADS.find(t => t.id === st.aiSum) : null;
       const hidMap = st.hidden || {};
       const hid = (k, id) => (hidMap[k] || []).indexOf(id) >= 0;
@@ -2550,6 +2596,18 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         (tabsMode ? tabItems.length === 0 : (!singlePane && !st.threadOpen));
 
       return {
+        mo,
+        moDialog: isMobile ? "sheet" : "pop",
+        moSettings: singlePane ? "sheet" : "pop",
+        moSettingsScrim: singlePane ? "none" : "scrim",
+        moCompose: composeInPane ? "fade" : isMobile ? "sheet" : "rise",
+        moSide: drawer ? "drawer" : "none",
+        moMailList: singlePane ? this.paneMotion("mailPane", "back") : "none",
+        moMailDetail: singlePane ? this.paneMotion("mailPane", "push") : "none",
+        moCaseList: isMobile ? this.paneMotion("casePane", "back") : "none",
+        moCaseDetail: isMobile ? this.paneMotion("casePane", "push") : "none",
+        moPeopleList: isMobile ? this.paneMotion("peoplePane", "back") : "none",
+        moPeopleDetail: isMobile ? this.paneMotion("peoplePane", "push") : "none",
         rootRef: this.rootRef,
         themeAttr: theme,
         themeIcon: theme === "dark" ? "light_mode" : "dark_mode",
