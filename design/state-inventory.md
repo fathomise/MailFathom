@@ -76,9 +76,9 @@ screenshot shows none of this, so the numbers are the contract the client matche
 
 | Token | Value |
 |---|---|
-| `--motion-fast` | 160 ms |
-| `--motion-base` | 240 ms |
-| `--motion-slow` | 340 ms |
+| `--motion-fast` | 120 ms |
+| `--motion-base` | 180 ms |
+| `--motion-slow` | 240 ms |
 | `--ease-out` | `cubic-bezier(0.22, 1, 0.36, 1)` — arrivals |
 | `--ease-in` | `cubic-bezier(0.4, 0, 1, 1)` — departures |
 | `--ease-sheet` | `cubic-bezier(0.32, 0.72, 0, 1)` — anything that travels from an edge; the notification gesture's own spring |
@@ -99,7 +99,7 @@ screenshot shows none of this, so the numbers are the contract the client matche
 | `unfold` | from opacity 0, 10 px above its place, base, ease-out | back up 10 px to opacity 0, base, ease-in | the earlier messages of a conversation shown by its pill (`histUnfolded`) and folded away by it (`histFolding`); the message being read stays still |
 
 **A closing surface stays drawn until it has left.** Each surface is gated by a state key, and when the key empties the
-prototype keeps rendering its last value for 340 ms — the slowest kind's time, a departure taking exactly as long as its arrival — with `data-phase="out"` — `motionHold` in its component, over the
+prototype keeps rendering its last value for 240 ms — the slowest kind's time, a departure taking exactly as long as its arrival — with `data-phase="out"` — `motionHold` in its component, over the
 keys in `MOTION_HELD` — so a close animates exactly as an open does and the content does not empty under the
 departure. A surface leaving takes no pointer events. Two surfaces can therefore overlap for that window: a context menu
 leaving while the dialog it opened arrives, the *More* sheet going down while Settings comes up.
@@ -868,7 +868,7 @@ clicking a preview.
   it — only a width does.
 - **Pressed, keyboard focus, and reduced motion.** All three are rules in `styles/base.css` rather than regions of a
   template, so no artboard draws them at rest — *What every artboard shares* above states each one.
-- **Every arrival and departure.** A surface in motion lasts 160 to 340 ms and a capture is taken at rest, so no
+- **Every arrival and departure.** A surface in motion lasts 120 to 240 ms and a capture is taken at rest, so no
   screenshot holds one — *How a surface arrives and leaves* above is where they are stated, by number.
 - **What back does.** A press of back is a history traversal rather than a click on anything drawn, so no capture
   reaches the state before or after one — *What back does* above states each step.

@@ -89,9 +89,9 @@ p, li, h1, h2, h3, h4 { text-wrap: pretty; }
    with whatever `transform` an element already positions itself with. An arrival fills backwards only, so once it
    ends nothing of it stays on the element — no stacking context, no containing block for a fixed child. */
 :root {
-  --motion-fast: 160ms;
-  --motion-base: 240ms;
-  --motion-slow: 340ms;
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 240ms;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);

@@ -479,9 +479,9 @@
        surface takes by how far it travels, the same one leaving as arriving, and the two curves they travel on. A
        surface names its kind — `surface-*` below for what the platform puts in its top layer, an `animate-*` token
        here for everything else — and never a duration or a curve of its own. */
-    --motion-fast: 160ms;
-    --motion-base: 240ms;
-    --motion-slow: 340ms;
+    --motion-fast: 120ms;
+    --motion-base: 180ms;
+    --motion-slow: 240ms;
     --ease-arrive: cubic-bezier(0.22, 1, 0.36, 1);
     --ease-leave: cubic-bezier(0.4, 0, 1, 1);
 

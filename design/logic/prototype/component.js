@@ -620,13 +620,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        — its `data-phase` — until the timer unmounts it. A pane key (mailPane, casePane, peoplePane) records which way
        it last moved instead, read by `paneMotion`, so one pane at a time pushes forward and comes back.
        ponytail: the held value is read by the whole render, so anything else gated on the same key (the FAB waits on
-       `compose`) follows it 340 ms late; a per-surface snapshot is the upgrade if that ever shows. */
+       `compose`) follows it 240 ms late; a per-surface snapshot is the upgrade if that ever shows. */
     static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "sideDrawer", "compose", "settings",
       "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock",
       "newCase", "newTask", "newEvent", "newContact", "filtersOpen",
       "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk"];
     static MOTION_PANES = ["mailPane", "casePane", "peoplePane"];
-    static MOTION_EXIT_MS = 340;
+    static MOTION_EXIT_MS = 240;
 
     motionHold = (state) => {
       const C = this.constructor;
