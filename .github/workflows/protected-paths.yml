@@ -111,8 +111,9 @@ name: Protected paths
 # branch and rely on the reviewer's verdict alone. Write access is therefore the boundary, and the
 # organization's owner decides who holds it through the `contributors` and `maintainers` teams.
 #
-# The set itself is `.github/protected-paths/select-protected-paths.sh`, read from the base commit,
-# so a pull request cannot shorten the list it is judged against. It is a list rather than a pattern because each entry was added for a reason that had to
+# The set itself is `.github/protected-paths/select-protected-paths.sh`, which both this job and
+# `Fathom review` read from the base commit, so a pull request cannot shorten the list it is judged
+# against. It is a list rather than a pattern because each entry was added for a reason that had to
 # be stated. A directory joins it when a change to it decides what the repository enforces on every
 # other change; a dotted directory is not protected merely for being dotted, and `docs/decisions/`
 # is the entry showing that a directory is not excluded merely for holding prose. A file joins it

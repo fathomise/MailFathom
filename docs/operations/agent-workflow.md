@@ -2637,6 +2637,18 @@ still the clean verdict it says it is, so `Apply pull request rules` moves the
 issue to `Ready to merge` on it exactly as on an approval; a contributor's change
 therefore never merges on the reviewer's word alone, whatever paths it touches.
 
+**A contributor is told why.** `collect` reads every changed file — renames on
+both sides, vendored and generated files included, beyond the hundred the readers
+are given — through `.github/protected-paths/select-protected-paths.sh` from the
+base commit, and records the protected paths it found and whether the listing
+was complete. On a pull request from an author holding `write`, the `NO FINDINGS`
+notice names what it found: a protected path, a listing the changed-files
+endpoint cut short, or neither, in which case the role is the only reason. The
+reading is kept beside the rule rather than retired with the approval it used to
+withhold, because `Protected paths` judges a pull request with the pull request's
+own copy of the workflow: approving a contributor again would need exactly this
+reading to keep a change to a protected path waiting for a maintainer.
+
 `REQUEST_CHANGES` is never used in any branch: a reviewer that reports no
 status check must not be able to block a merge either, which is
 why `NEEDS CHANGES` is a heading in a body and never a review state.
