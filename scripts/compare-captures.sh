@@ -181,7 +181,7 @@ for design in "${design_captures[@]}"; do
   fi
 
   if [[ ! -f "$client" ]]; then
-    printf '%-24s %-18s %s\n' "$screen" "$composition" 'no client capture of this pair'
+    printf '%-24s %-18s %s%s\n' "$screen" "$composition" 'no client capture of this pair' "$held"
     mismatched=$((mismatched + 1))
     continue
   fi
@@ -190,8 +190,8 @@ for design in "${design_captures[@]}"; do
   client_size="$(magick identify -format '%wx%h' "$client")"
 
   if [[ "$design_size" != "$client_size" ]]; then
-    printf '%-24s %-18s design is %s and client is %s — not a pair\n' \
-      "$screen" "$composition" "$design_size" "$client_size"
+    printf '%-24s %-18s design is %s and client is %s — not a pair%s\n' \
+      "$screen" "$composition" "$design_size" "$client_size" "$held"
     mismatched=$((mismatched + 1))
     continue
   fi
