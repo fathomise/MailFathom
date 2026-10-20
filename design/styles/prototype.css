@@ -26,3 +26,20 @@ input { font-family: inherit; }
 @keyframes mfrowarc { 0% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 0 var(--warn-soft) } 28% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } 100% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } }
 @keyframes mfrowmoved { 0% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 0 var(--warn-soft) } 14% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } 62% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } 100% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 0 var(--warn-soft) } }
 @keyframes mfrowedit { 0% { box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 40px var(--accent-soft) } 55% { box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 40px var(--accent-soft) } 100% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 40px transparent } }
+
+/* The assistant orb (§ *The assistant orb* in the state inventory). One accent sphere, lit from the top left, that
+   stays still at rest; while the agent works a thin ring turns around it, and that ring is the only motion it has, so
+   a request for less motion leaves it a still ring. */
+.mf-orb { position: relative; box-sizing: border-box; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--onaccent);
+  background: radial-gradient(120% 120% at 30% 22%, oklch(0.78 0.11 250) 0%, var(--accent) 48%, oklch(0.40 0.16 270) 100%);
+  box-shadow: 0 6px 18px var(--sh-2), inset 0 1px 0 oklch(1 0 0 / 0.35), inset 0 -6px 12px oklch(0.30 0.12 270 / 0.35); }
+.mf-orb-float { transition: transform 140ms var(--ease-out), box-shadow 140ms var(--ease-out); }
+.mf-orb-float:hover { cursor: pointer; transform: translateY(-1px); box-shadow: 0 10px 26px var(--sh-3), inset 0 1px 0 oklch(1 0 0 / 0.35), inset 0 -6px 12px oklch(0.30 0.12 270 / 0.35); }
+.mf-orb-core { font-family: 'Material Symbols Rounded'; font-variation-settings: 'wght' 400, 'FILL' 1; font-size: 22px; line-height: 1; }
+.mf-orb[data-orb-working="true"]::before { content: ""; position: absolute; inset: -4px; border-radius: 50%; padding: 2px;
+  background: conic-gradient(from 0deg, transparent 0deg, var(--accent) 120deg, transparent 240deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: mfspin 1.4s linear infinite; }
+.mf-orb-count { position: absolute; top: -4px; right: -6px; min-width: 18px; height: 18px; box-sizing: border-box; padding: 0 5px; display: flex; align-items: center; justify-content: center;
+  border-radius: 999px; background: var(--panel); color: var(--accent-d); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--accent), 0 2px 6px var(--sh-2); }
+.mf-orb-mark { position: absolute; top: 1px; right: 1px; width: 10px; height: 10px; border-radius: 50%; background: var(--panel); box-shadow: 0 0 0 2px var(--accent); }

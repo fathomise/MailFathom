@@ -77,6 +77,16 @@ Project repository: https://github.com/fathomise/MailFathom
       <div style="{{ railLabelStyle }}">{{ railLabelAgent }}</div>
     </div>
     <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
+      <div role="button" tabIndex="0" aria-label="{{ orbLabel }}" aria-expanded="{{ orbOpen }}" onClick="{{ orbPress }}" onKeyDown="{{ orbKey }}" style="{{ orbNavStyle }}" style-hover="cursor:pointer">
+        <div class="mf-orb" data-orb-working="{{ orbWorking }}" style="{{ orbNavOrbStyle }}">
+        <span class="mf-orb-core" aria-hidden="true">auto_awesome</span>
+        <sc-if value="{{ orbAwaiting }}" hint-placeholder-val="{{ false }}"><span class="mf-orb-count" aria-hidden="true">{{ orbAwaitingCount }}</span></sc-if>
+        <sc-if value="{{ orbHasProposal }}" hint-placeholder-val="{{ false }}"><span class="mf-orb-mark" aria-hidden="true"></span></sc-if>
+        </div>
+        <div style="{{ railLabelStyle }}">Assistant</div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
       <div onClick="{{ toggleNotifCenter }}" style="{{ railNotifStyle }}" style-hover="background:var(--hover);cursor:pointer">
         <div style="position:relative;display:flex;align-items:center;justify-content:center">
           <div style="{{ railIconStyle }}">{{ railBellIcon }}</div>
@@ -228,7 +238,7 @@ Project repository: https://github.com/fathomise/MailFathom
       <div style="{{ searchWrapStyle }}">
         <div style="{{ searchBoxStyle }}">
           <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:6px;padding:4px 8px;font-weight:600">AI</div>
-          <input value="{{ query }}" onChange="{{ onQuery }}" onKeyDown="{{ onKey }}" placeholder="{{ discoverPlaceholder }}" style="flex:1;min-width:0;border:none;outline:none;font-size:16px;color:var(--text);background:transparent;text-overflow:ellipsis" />
+          <input ref="{{ discoverInputRef }}" value="{{ query }}" onChange="{{ onQuery }}" onKeyDown="{{ onKey }}" placeholder="{{ discoverPlaceholder }}" style="flex:1;min-width:0;border:none;outline:none;font-size:16px;color:var(--text);background:transparent;text-overflow:ellipsis" />
           <div onClick="{{ submit }}" style="{{ askBtnStyle }}" style-hover="opacity:0.88;cursor:pointer">{{ askLabel }}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -745,6 +755,9 @@ Project repository: https://github.com/fathomise/MailFathom
               <div onClick="{{ openListSearch }}" style="{{ searchFieldStyle }}" style-hover="cursor:pointer;border-color:var(--border2)">{{ listSearchPlaceholder }}</div>
             </sc-if>
             <sc-if value="{{ notTouch }}" hint-placeholder-val="{{ true }}"><div onClick="{{ openListSearch }}" title="Search" style="{{ listIconBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">search</span></div></sc-if>
+            <sc-if value="{{ mailComposeBtnShown }}" hint-placeholder-val="{{ false }}">
+              <div onClick="{{ openCompose }}" title="New message" aria-label="New message" style="{{ mailComposeBtnStyle }}" style-hover="cursor:pointer;opacity:0.9"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1">edit_square</span></div>
+            </sc-if>
             <div onClick="{{ toggleFilters }}" title="{{ filtersTitle }}" style="{{ filtersBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">{{ filtersIcon }}</span><sc-if value="{{ filtersActive }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;font-weight:600">{{ filtersCount }}</span></sc-if></div>
           </div>
           <sc-if value="{{ filtersOpen }}" hint-placeholder-val="{{ false }}">
@@ -1070,11 +1083,6 @@ Project repository: https://github.com/fathomise/MailFathom
               </div>
             </sc-if>
           </div>
-          <sc-if value="{{ replyFabShown }}" hint-placeholder-val="{{ true }}">
-            <div data-motion="pop" onClick="{{ openReplyDock }}" title="Draft a reply with AI" style="{{ replyFabStyle }}" style-hover="cursor:pointer;filter:brightness(1.08)">
-              <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1">auto_awesome</span>{{ replyFabLabel }}
-            </div>
-          </sc-if>
           <sc-if value="{{ replyDockOpen }}" hint-placeholder-val="{{ false }}">
             <div data-motion="rise" data-phase="{{ mo.replyDock }}" style="{{ composerStyle }}">
               <div onClick="{{ closeReplyDock }}" title="Close the reply drafter" aria-label="Close the reply drafter" style="{{ replyDockCloseStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">close</div>
@@ -3134,6 +3142,302 @@ Project repository: https://github.com/fathomise/MailFathom
       </div>
     </div>
   </sc-if>
+  <sc-if value="{{ orbFloatShown }}" hint-placeholder-val="{{ true }}">
+    <div data-motion="pop" role="button" tabIndex="0" aria-label="{{ orbLabel }}" aria-expanded="{{ orbOpen }}" title="{{ orbLabel }}" onClick="{{ orbPress }}" onKeyDown="{{ orbKey }}" class="mf-orb mf-orb-float" data-orb-working="{{ orbWorking }}" style="{{ orbFloatStyle }}">
+        <span class="mf-orb-core" aria-hidden="true">auto_awesome</span>
+        <sc-if value="{{ orbAwaiting }}" hint-placeholder-val="{{ false }}"><span class="mf-orb-count" aria-hidden="true">{{ orbAwaitingCount }}</span></sc-if>
+        <sc-if value="{{ orbHasProposal }}" hint-placeholder-val="{{ false }}"><span class="mf-orb-mark" aria-hidden="true"></span></sc-if>
+    </div>
+  </sc-if>
+  <sc-if value="{{ orbOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-motion="{{ orbScrimMotion }}" data-phase="{{ mo.orb }}" onClick="{{ closeOrb }}" style="{{ orbScrimStyle }}">
+      <div data-motion="{{ orbPanelMotion }}" data-phase="{{ mo.orb }}" role="dialog" aria-label="Assistant" onClick="{{ stopProp }}" style="{{ orbPanelStyle }}">
+          <sc-if value="{{ sheetGrabber }}" hint-placeholder-val="{{ false }}"><div style="{{ grabberStyle }}"></div></sc-if>
+          <div style="flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:10px 10px 10px 14px;border-bottom:1px solid var(--line2)">
+            <div class="mf-orb" data-orb-working="{{ orbWorking }}" style="width:28px;height:28px;flex:0 0 28px"><span class="mf-orb-core" aria-hidden="true" style="font-size:16px">auto_awesome</span></div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+              <div style="font-size:15px;font-weight:600;color:var(--text)">Assistant</div>
+              <div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ orbTitle }}</div>
+            </div>
+            <div onClick="{{ orbToAgent }}" title="Open in Agent" aria-label="Open the conversation in Agent" style="{{ orbHeadBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">open_in_full</span></div>
+            <div onClick="{{ closeOrb }}" title="Close the assistant" aria-label="Close the assistant" style="{{ orbHeadBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">close</span></div>
+          </div>
+          <div style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column-reverse;scrollbar-width:thin">
+            <div style="display:flex;flex-direction:column;gap:14px;padding:14px 14px 10px">
+        <sc-for list="{{ orbMsgs }}" as="m" hint-placeholder-count="2">
+          <div style="{{ m.rowStyle }}">
+            <div style="{{ m.colStyle }}">
+            <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ m.bubbleStyle }}">{{ m.text }}</div>
+            </sc-if>
+            <sc-if value="{{ m.isBot }}" hint-placeholder-val="{{ true }}">
+              <div style="{{ m.bubbleStyle }}">
+                <div style="display:flex;align-items:center;gap:7px;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">
+                  <span style="color:var(--accent-d)">AI</span>
+                  <span>·</span>
+                  <span>{{ m.scope }}</span>
+                </div>
+                <sc-if value="{{ m.hasMd }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;flex-direction:column;gap:12px">
+                  <sc-for list="{{ m.md }}" as="p" hint-placeholder-count="1">
+                    <sc-if value="{{ p.isText }}" hint-placeholder-val="{{ true }}">
+                      <div style="{{ p.style }}"><sc-for list="{{ p.runs }}" as="r" hint-placeholder-count="1"><sc-if value="{{ r.plain }}" hint-placeholder-val="{{ true }}"><span style="{{ r.style }}">{{ r.text }}</span></sc-if><sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" style="{{ r.style }}">{{ r.text }}</a></sc-if></sc-for></div>
+                    </sc-if>
+                    <sc-if value="{{ p.isList }}" hint-placeholder-val="{{ false }}">
+                      <div style="{{ p.style }}">
+                        <sc-for list="{{ p.items }}" as="it" hint-placeholder-count="3">
+                          <div style="{{ it.style }}">
+                            <span style="{{ it.markerStyle }}">{{ it.marker }}</span>
+                            <span style="{{ it.textStyle }}"><sc-for list="{{ it.runs }}" as="r" hint-placeholder-count="1"><sc-if value="{{ r.plain }}" hint-placeholder-val="{{ true }}"><span style="{{ r.style }}">{{ r.text }}</span></sc-if><sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" style="{{ r.style }}">{{ r.text }}</a></sc-if></sc-for></span>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ p.isTable }}" hint-placeholder-val="{{ false }}">
+                      <div style="{{ p.style }}">
+                        <sc-for list="{{ p.rows }}" as="row" hint-placeholder-count="3">
+                          <div style="{{ row.style }}">
+                            <sc-for list="{{ row.cells }}" as="cell" hint-placeholder-count="3">
+                              <div style="{{ cell.style }}">{{ cell.text }}</div>
+                            </sc-for>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ p.isCode }}" hint-placeholder-val="{{ false }}">
+                      <div style="{{ p.style }}">{{ p.text }}</div>
+                    </sc-if>
+                    <sc-if value="{{ p.isHr }}" hint-placeholder-val="{{ false }}">
+                      <div style="{{ p.style }}"></div>
+                    </sc-if>
+                  </sc-for>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ m.working }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--accent-d)">autorenew</span>The agent is going through your mail…</div>
+                </sc-if>
+                <sc-for list="{{ m.bullets }}" as="b" hint-placeholder-count="0">
+                  <div style="display:flex;gap:10px;align-items:baseline">
+                    <span style="width:6px;height:6px;flex:0 0 6px;border-radius:50%;background:var(--accent)"></span>
+                    <span style="font-size:14px;line-height:1.5;text-wrap:pretty">{{ b.t }}</span>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ m.hasBlocks }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ m.blocksStyle }}">
+                    <sc-for list="{{ m.blocks }}" as="bk" hint-placeholder-count="1">
+                      <div style="{{ bk.cardStyle }}">
+                        <div style="{{ bk.headStyle }}">
+                          <span aria-hidden="true" style="{{ bk.tileStyle }}"><span style="{{ bk.glyphStyle }}">{{ bk.icon }}</span></span>
+                          <div style="{{ bk.labelStyle }}">{{ bk.label }}</div>
+                          <div style="{{ bk.metaStyle }}">{{ bk.meta }}</div>
+                          <sc-if value="{{ bk.hasChip }}" hint-placeholder-val="{{ false }}">
+                            <div style="{{ bk.chipStyle }}"><span style="{{ bk.chipIconStyle }}">{{ bk.chipIcon }}</span>{{ bk.chipLabel }}</div>
+                          </sc-if>
+                        </div>
+
+                        <sc-if value="{{ bk.isDeclined }}" hint-placeholder-val="{{ false }}">
+                          <div style="{{ bk.declinedStyle }}">
+                            <span style="{{ bk.declinedIconStyle }}">block</span>
+                            <span style="{{ bk.strikeStyle }}">{{ bk.title }}</span>
+                            <span>{{ bk.declinedWord }} - {{ bk.declinedNote }}</span>
+                          </div>
+                        </sc-if>
+
+                        <sc-if value="{{ bk.showBody }}" hint-placeholder-val="{{ true }}">
+                          <sc-if value="{{ bk.isLoading }}" hint-placeholder-val="{{ false }}">
+                            <sc-for list="{{ bk.skel }}" as="s" hint-placeholder-count="3"><div style="{{ s.style }}"></div></sc-for>
+                          </sc-if>
+                          <sc-if value="{{ bk.isError }}" hint-placeholder-val="{{ false }}">
+                            <div style="{{ bk.emptyBodyStyle }}">
+                              <span style="{{ bk.errIconStyle }}">error</span>
+                              <div style="{{ bk.emptyTextStyle }}">{{ bk.errorText }}</div>
+                              <div role="button" tabIndex="0" aria-label="{{ bk.retryAria }}" onClick="{{ bk.retry }}" onKeyDown="{{ bk.retryKey }}" style="{{ bk.retryStyle }}" style-hover="cursor:pointer;border-color:var(--accent);color:var(--accent-d)" style-focus="outline:2px solid var(--accent);outline-offset:2px">Try again</div>
+                            </div>
+                          </sc-if>
+                          <sc-if value="{{ bk.isEmpty }}" hint-placeholder-val="{{ false }}">
+                            <div style="{{ bk.emptyBodyStyle }}">
+                              <span style="{{ bk.emptyIconStyle }}">{{ bk.emptyIcon }}</span>
+                              <div style="{{ bk.emptyTextStyle }}">{{ bk.emptyText }}</div>
+                            </div>
+                          </sc-if>
+
+                          <sc-if value="{{ bk.ready }}" hint-placeholder-val="{{ true }}">
+                            <sc-if value="{{ bk.isTimeline }}" hint-placeholder-val="{{ false }}">
+                              <div style="{{ bk.tlWrapStyle }}">
+                                <sc-for list="{{ bk.items }}" as="t" hint-placeholder-count="4">
+                                  <div style="{{ t.style }}">
+                                    <span aria-hidden="true" style="{{ t.lineStyle }}"></span><span aria-hidden="true" style="{{ t.dotStyle }}"></span>
+                                    <div style="{{ t.dateStyle }}">{{ t.date }}</div>
+                                    <div style="{{ t.titleStyle }}">{{ t.title }}</div>
+                                    <div style="{{ t.detailStyle }}">{{ t.detail }}</div>
+                                  </div>
+                                </sc-for>
+                              </div>
+                            </sc-if>
+                            <sc-if value="{{ bk.isEvidence }}" hint-placeholder-val="{{ false }}">
+                              <sc-for list="{{ bk.items }}" as="e" hint-placeholder-count="2">
+                                <div style="{{ e.style }}">
+                                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                                    <span style="{{ e.nStyle }}">{{ e.n }}</span>
+                                    <div style="font-size:14px;font-weight:600;min-width:0">{{ e.source }}</div>
+                                    <span style="{{ e.badgeStyle }}">{{ e.badge }}</span>
+                                  </div>
+                                  <sc-if value="{{ e.isPrivate }}" hint-placeholder-val="{{ false }}">
+                                    <div style="{{ e.privStyle }}">Content not available for review - the conclusion drawn from this source is kept in the result.</div>
+                                  </sc-if>
+                                  <sc-if value="{{ e.hasSnippet }}" hint-placeholder-val="{{ true }}">
+                                    <div style="{{ e.snipStyle }}">{{ e.snippet }}</div>
+                                  </sc-if>
+                                  <div style="{{ e.subStyle }}">relevance {{ e.relevance }} · {{ e.freshness }}</div>
+                                </div>
+                              </sc-for>
+                            </sc-if>
+                            <sc-if value="{{ bk.isThreadState }}" hint-placeholder-val="{{ false }}">
+                              <div style="{{ bk.colsStyle }}">
+                                <sc-for list="{{ bk.stateCols }}" as="c" hint-placeholder-count="3">
+                                  <div style="{{ c.style }}">
+                                    <div style="{{ c.labelStyle }}">{{ c.label }}</div>
+                                    <sc-for list="{{ c.items }}" as="it" hint-placeholder-count="2">
+                                      <div style="{{ it.style }}">{{ it.t }}</div>
+                                    </sc-for>
+                                  </div>
+                                </sc-for>
+                              </div>
+                            </sc-if>
+                            <sc-if value="{{ bk.isTable }}" hint-placeholder-val="{{ false }}">
+                              <div style="{{ bk.tableScrollStyle }}">
+                                <div style="{{ bk.tableStyle }}">
+                                  <sc-for list="{{ bk.cells }}" as="c" hint-placeholder-count="8"><div style="{{ c.style }}">{{ c.t }}</div></sc-for>
+                                </div>
+                              </div>
+                            </sc-if>
+                            <sc-if value="{{ bk.isFiles }}" hint-placeholder-val="{{ false }}">
+                              <sc-for list="{{ bk.items }}" as="f" hint-placeholder-count="3">
+                                <div style="{{ f.style }}">
+                                  <span style="{{ f.iconStyle }}">{{ f.icon }}</span>
+                                  <div style="min-width:0">
+                                    <div style="{{ f.nameStyle }}">{{ f.name }}</div>
+                                    <div style="{{ f.metaStyle }}">{{ f.meta }}</div>
+                                  </div>
+                                </div>
+                              </sc-for>
+                            </sc-if>
+                            <sc-if value="{{ bk.isProposal }}" hint-placeholder-val="{{ false }}">
+                              <div style="{{ bk.propTitleStyle }}">{{ bk.title }}</div>
+                            </sc-if>
+                            <sc-if value="{{ bk.hasFields }}" hint-placeholder-val="{{ false }}">
+                              <div style="{{ bk.fieldsStyle }}">
+                                <sc-for list="{{ bk.fields }}" as="f" hint-placeholder-count="0">
+                                  <div style="{{ f.rowStyle }}"><div style="{{ f.kStyle }}">{{ f.k }}</div><div style="{{ f.vStyle }}">{{ f.v }}</div></div>
+                                </sc-for>
+                              </div>
+                            </sc-if>
+                            <sc-if value="{{ bk.isDraft }}" hint-placeholder-val="{{ false }}">
+                              <sc-if value="{{ bk.editing }}" hint-placeholder-val="{{ false }}">
+                                <textarea value="{{ bk.editText }}" onChange="{{ bk.onEdit }}" aria-label="Edit the draft text before sending" style="{{ bk.textareaStyle }}"></textarea>
+                              </sc-if>
+                              <sc-if value="{{ bk.notEditing }}" hint-placeholder-val="{{ true }}">
+                                <div style="{{ bk.letterStyle }}">
+                                  <sc-for list="{{ bk.paras }}" as="p" hint-placeholder-count="3"><div style="{{ p.style }}">{{ p.t }}</div></sc-for>
+                                </div>
+                              </sc-if>
+                            </sc-if>
+                            <sc-if value="{{ bk.hasConflict }}" hint-placeholder-val="{{ false }}">
+                              <div style="{{ bk.conflictStyle }}"><span style="{{ bk.conflictIconStyle }}">warning</span>{{ bk.conflict }}</div>
+                            </sc-if>
+                            <sc-if value="{{ bk.hasReason }}" hint-placeholder-val="{{ false }}">
+                              <div style="{{ bk.reasonStyle }}">{{ bk.reason }}</div>
+                            </sc-if>
+                            <sc-if value="{{ bk.hasEffect }}" hint-placeholder-val="{{ false }}">
+                              <div style="{{ bk.effectStyle }}"><span style="{{ bk.effectIconStyle }}">bolt</span>{{ bk.effect }}</div>
+                            </sc-if>
+                            <sc-if value="{{ bk.isPartial }}" hint-placeholder-val="{{ false }}">
+                              <div style="{{ bk.noteStyle }}"><span style="{{ bk.noteIconStyle }}">hourglass_top</span>{{ bk.partialNote }}</div>
+                            </sc-if>
+                          </sc-if>
+
+                          <sc-if value="{{ bk.hasFoot }}" hint-placeholder-val="{{ false }}">
+                            <div style="{{ bk.footStyle }}">
+                              <sc-if value="{{ bk.hasResult }}" hint-placeholder-val="{{ false }}">
+                                <div style="{{ bk.resultStyle }}"><span style="{{ bk.resultIconStyle }}">{{ bk.resultIcon }}</span>{{ bk.resultText }}</div>
+                              </sc-if>
+                              <sc-if value="{{ bk.hasControls }}" hint-placeholder-val="{{ false }}">
+                                <div style="{{ bk.controlsStyle }}">
+                                  <sc-for list="{{ bk.controls }}" as="cn" hint-placeholder-count="2">
+                                    <div role="button" tabIndex="0" aria-label="{{ cn.aria }}" onClick="{{ cn.run }}" onKeyDown="{{ cn.key }}" style="{{ cn.style }}" style-hover="cursor:pointer;opacity:0.9" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ cn.label }}</div>
+                                  </sc-for>
+                                </div>
+                              </sc-if>
+                              <sc-if value="{{ bk.hasNav }}" hint-placeholder-val="{{ false }}">
+                                <div style="{{ bk.navStyle }}">
+                                  <sc-for list="{{ bk.nav }}" as="nv" hint-placeholder-count="1">
+                                    <div role="button" tabIndex="0" aria-label="{{ nv.aria }}" onClick="{{ nv.run }}" onKeyDown="{{ nv.key }}" style="{{ nv.style }}" style-hover="cursor:pointer;border-color:var(--accent);color:var(--accent-d)" style-focus="outline:2px solid var(--accent);outline-offset:2px"><span style="{{ nv.iconStyle }}">{{ nv.icon }}</span>{{ nv.label }}</div>
+                                  </sc-for>
+                                </div>
+                              </sc-if>
+                            </div>
+                          </sc-if>
+                        </sc-if>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-if>
+            <div style="font-size:11px;color:var(--faint);padding:0 4px">{{ m.time }}</div>
+            </div>
+          </div>
+        </sc-for>
+        <sc-if value="{{ agentThinking }}" hint-placeholder-val="{{ false }}">
+          <div style="align-self:flex-start;max-width:100%;display:flex;align-items:center;gap:9px;padding:2px">
+            <span style="display:inline-block;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--accent-d);animation:mfspin 1.15s linear infinite">progress_activity</span>
+            <span role="status" aria-live="polite" style="font-size:14px;color:var(--muted);min-width:0">{{ agentStatus }}</span>
+          </div>
+        </sc-if>
+        <sc-if value="{{ orbNextShown }}" hint-placeholder-val="{{ false }}">
+          <div style="align-self:flex-start;max-width:100%;display:flex;flex-direction:column;gap:8px;padding-top:2px">
+            <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Proposed next</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <sc-for list="{{ orbNext }}" as="n" hint-placeholder-count="0">
+                <div role="button" tabIndex="0" aria-label="{{ n.aria }}" onClick="{{ n.run }}" onKeyDown="{{ n.key }}" style="{{ n.style }}" style-hover="cursor:pointer;border-color:var(--accent);color:var(--accent-d)">
+                  <span style="{{ n.iconStyle }}">arrow_forward</span>{{ n.label }}
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+            </div>
+          </div>
+          <div style="flex:0 0 auto;display:flex;flex-direction:column;gap:9px;padding:10px 12px calc(12px + env(safe-area-inset-bottom)) 12px;border-top:1px solid var(--line2);background:var(--panel)">
+            <sc-if value="{{ agentCtxShown }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;gap:8px;align-self:flex-start;max-width:100%;box-sizing:border-box;background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:999px;padding:4px 4px 4px 11px">
+                <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--accent-d)">attach_file</span>
+                <span style="flex:1;min-width:0;font-size:13px;color:var(--accent-d);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ agentCtxLabel }}</span>
+                <span role="button" tabIndex="0" onClick="{{ clearAgentCtx }}" title="Remove context" aria-label="Remove context" style="{{ orbChipCloseStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">close</span>
+              </div>
+            </sc-if>
+            <sc-if value="{{ orbStartersShown }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -12px;padding:0 12px">
+                <sc-for list="{{ orbStarters }}" as="o" hint-placeholder-count="2">
+                  <div role="button" tabIndex="0" aria-label="{{ o.aria }}" onClick="{{ o.run }}" onKeyDown="{{ o.key }}" style="{{ o.style }}" style-hover="cursor:pointer;border-color:var(--accent);color:var(--accent-d)"><span style="{{ o.iconStyle }}">{{ o.icon }}</span>{{ o.label }}</div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <div style="{{ orbBoxStyle }}">
+              <input ref="{{ orbInputRef }}" value="{{ agentInput }}" onChange="{{ onAgentInput }}" onKeyDown="{{ orbOnKey }}" placeholder="{{ orbPlaceholder }}" aria-label="Ask the assistant" style="flex:1;min-width:0;border:none;outline:none;font-family:inherit;font-size:15px;color:var(--text);background:transparent;text-overflow:ellipsis" />
+              <sc-if value="{{ orbWorking }}" hint-placeholder-val="{{ false }}">
+                <div role="button" tabIndex="0" aria-label="Stop what the agent is doing" title="Stop" onClick="{{ agentCancel }}" onKeyDown="{{ agentCancelKey }}" style="{{ orbCancelStyle }}" style-hover="cursor:pointer;opacity:0.88"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1">stop</span></div>
+              </sc-if>
+              <sc-if value="{{ orbIdle }}" hint-placeholder-val="{{ true }}">
+                <div role="button" tabIndex="0" aria-label="Send" title="Send" onClick="{{ orbSend }}" style="{{ orbSendStyle }}" style-hover="cursor:pointer;opacity:0.88"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1">arrow_upward</span></div>
+              </sc-if>
+            </div>
+            <div style="font-size:12px;color:var(--faint)">Nothing goes out without your approval.</div>
+          </div>
+      </div>
+    </div>
+  </sc-if>
+
   <div style="{{ toastWrapStyle }}">
     <sc-for list="{{ toasts }}" as="t" hint-placeholder-count="0">
       <div style="{{ t.style }}" style-hover="opacity:1">

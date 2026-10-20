@@ -387,12 +387,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     photoRef = React.createRef();
     historySearchRef = React.createRef();
     listSearchRef = React.createRef();
+    orbInputRef = React.createRef();
+    discoverInputRef = React.createRef();
 
     componentDidMount() {
       if (document.fonts && document.fonts.ready) document.fonts.ready.then(this.tbReset);
       document.addEventListener("mousedown", this.onDocDown, true);
       window.addEventListener("message", this.onHtmlFrameMessage);
       window.addEventListener("popstate", this.onBackPressed);
+      window.addEventListener("keydown", this.onOrbKey);
       this.backSync();
       this.measure = () => {
         const el = this.rootRef.current;
@@ -624,7 +627,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "sideDrawer", "compose", "settings",
       "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock",
       "newCase", "newTask", "newEvent", "newContact", "filtersOpen",
-      "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk"];
+      "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk", "orb"];
     static MOTION_PANES = ["mailPane", "casePane", "peoplePane"];
     static MOTION_EXIT_MS = 240;
 
@@ -672,7 +675,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        going back across one closes everything still standing, the way the client's change of destination does.
        ponytail: steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
     static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
-      "more", "aiSum", "moveFor", "newFolder", "remFor", "event", "ctxMenu", "replyDock"];
+      "more", "aiSum", "moveFor", "newFolder", "remFor", "event", "ctxMenu", "replyDock", "orb"];
 
     backSteps = (state) => {
       const FR = FRAMES[this.props.layout ?? "auto"] || null;
@@ -732,6 +735,21 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     goAgentWith = (label) => {
       this.setState({ screen: "agent", convId: null, agentCtx: label, agentInput: "", threadSheet: false, agentThinking: false, more: false, agentFocusPending: true });
     };
+
+    /* The assistant orb — one control, in one place, on every space. It opens the Agent's own conversation over the
+       screen rather than leaving it, starting from what the screen shows (`ctx`, a removable chip). Where the screen
+       already is the assistant — Discover's field, the Agent — it does not open a second one: it puts the caret in
+       that screen's field instead. */
+    openOrb = (ctx) => {
+      const scr = this.state.screen;
+      if (scr === "agent") { this.setState({ more: false, agentFocusPending: true }); return; }
+      if (scr === "discover") { this.setState({ more: false, discoverFocusPending: true }); return; }
+      this.setState({ orb: true, orbUnseen: false, more: false, agentCtx: ctx || null, agentCtxCleared: !ctx, orbFocusPending: true });
+    };
+
+    closeOrb = () => this.setState({ orb: false });
+
+    onOrbKey = (e) => { if (e.key === "Escape" && this.state.orb) this.setState({ orb: false }); };
 
     localPt = (cx, cy) => {
       const el = this.rootRef.current;
@@ -1374,7 +1392,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     goScreen = (id, patch) => {
       /* The first entry into mail starts with an empty panel; after that the open message
          is remembered for the session (in-memory state - gone when the app closes). */
-      const p = Object.assign({ screen: id, replyDock: null }, patch || {});
+      /* Switching space puts the assistant panel away too; the conversation it held stays where it was. */
+      const p = Object.assign({ screen: id, replyDock: null, orb: null }, patch || {});
       /* Entering mail from another screen = fetching the list from the server. */
       if (id === "mail" && this.state.screen !== "mail") {
         if (p.mailPane === "thread") { p.msgLoading = true; this.loadMsg(); }
@@ -1801,7 +1820,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     /* Proposed next actions — only when the agent has stopped working, only from the last reply,
        never more than three. */
-    nextActs = (msgs, st) => {
+    nextActs = (msgs, st, stay) => {
       const lm = msgs && msgs.length ? msgs[msgs.length - 1] : null;
       if (st.agentThinking || st.demoRun || !lm || lm.role !== "bot") return [];
       return (lm.next || []).slice(0, 3).map(label => ({
@@ -1809,8 +1828,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         aria: "Ask the agent to: " + label,
         iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--accent-d)",
         style: "display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--text2);background:var(--panel);border:1px solid var(--border2);border-radius:8px;padding:7px 12px 7px 10px;text-align:left",
-        run: () => this.agentAsk(label),
-        key: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.agentAsk(label); } },
+        run: () => this.agentAsk(label, stay),
+        key: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.agentAsk(label, stay); } },
       }));
     };
 
@@ -1853,19 +1872,22 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (el.scrollHeight - el.clientHeight - el.scrollTop < 40) this._agAway = false;
     };
 
-    agentAsk = (text) => {
+    /* `stay` asks from the assistant panel: the question joins the same conversation, and the screen underneath
+       does not change. A reply that lands while the panel is closed and the Agent is not in front leaves the orb
+       its quiet mark (`orbUnseen`). */
+    agentAsk = (text, stay) => {
       const q = (text || "").trim();
       if (!q) return;
       this.demoStop();
       this.setState(s2 => Object.assign(
-        { screen: "agent", agentInput: "", agentThinking: true },
+        { screen: stay ? s2.screen : "agent", agentInput: "", agentThinking: true },
         this.pushMsg(s2, [{ role: "user", anim: true, text: q }])
       ));
       this.startAgentPin();
       this._askT = setTimeout(() => {
         const hit = AGENT_REPLIES.find(r => r.match.test(q)) || AGENT_FALLBACK;
         this.setState(s2 => Object.assign(
-          { agentThinking: false },
+          { agentThinking: false, orbUnseen: !s2.orb && s2.screen !== "agent" },
           this.pushMsg(s2, [{ role: "bot", anim: true, scope: hit.scope, text: hit.text, bullets: hit.bullets || [], blocks: hit.blocks || [], next: hit.next || NEXT_DEFAULT }])
         ));
         this.stopAgentPin();
@@ -2263,6 +2285,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         this.listSearchRef.current.focus();
         this.setState({ listSearchFocusPending: false });
       }
+      if (this.state.orbFocusPending && this.orbInputRef.current) {
+        this.orbInputRef.current.focus();
+        this.setState({ orbFocusPending: false });
+      }
+      if (this.state.discoverFocusPending && this.discoverInputRef.current) {
+        this.discoverInputRef.current.focus();
+        this.setState({ discoverFocusPending: false });
+      }
     }
 
     revealMessage = (tid, idx) => {
@@ -2338,6 +2368,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       document.removeEventListener("mousedown", this.onDocDown, true);
       window.removeEventListener("message", this.onHtmlFrameMessage);
       window.removeEventListener("popstate", this.onBackPressed);
+      window.removeEventListener("keydown", this.onOrbKey);
       this.htmlFrames.forEach(r => { if (r.timer) clearTimeout(r.timer); });
       this.htmlFrames.clear();
       this.timers.forEach(clearTimeout);
@@ -2748,6 +2779,73 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const foldTwoPanes = touch && !singlePane && narrow;
       const listStrip = foldTwoPanes && !emptyMail && !st.listWide && !selectionOn && !(st.stateBarOff);
 
+      /* What the orb carries into the panel, read off the screen in front of the reader. */
+      const orbPendingN = convMsgs.reduce((n, m, mi) => n + (m.blocks || []).filter((b, bi) =>
+        ((st.bkPhase || {})[(activeConv ? activeConv.id : "new") + "#" + mi + "#" + bi] || b.phase) === "pending").length, 0);
+      const orbWorking = !!(st.agentThinking || st.demoRun);
+      const orbAwaiting = !orbWorking && orbPendingN > 0;
+      const orbHasProposal = !orbWorking && !orbAwaiting && !!st.orbUnseen;
+      const orbThreadOpen = st.screen === "mail" && (singlePane ? (st.mailPane || "list") === "thread" : !emptyMail);
+      const orbSelN = st.screen === "mail" ? sel.length : 0;
+      const orbCtx = orbSelN > 0 ? orbSelN + (orbSelN === 1 ? " selected message" : " selected messages")
+        : orbThreadOpen ? "thread “" + thread.subject + "”"
+        : st.screen === "cases" && (!isMobile || st.casePane === "detail") ? "case “" + kase.title + "”"
+        : st.screen === "people" && (!isMobile || st.peoplePane === "detail") ? person.name
+        : null;
+      const orbAsk = (q) => () => this.agentAsk(q, true);
+      const orbStarters = (orbThreadOpen ? [
+          { icon: "edit_note", label: "Draft a reply", run: () => this.setState({ orb: false, replyDock: true }) },
+          { icon: "summarize", label: "Where does this stand?", run: orbAsk("Where does this thread stand?") },
+        ]
+        : st.screen === "mail" ? [
+          { icon: "edit_square", label: "Write a new message", run: () => { this.setState({ orb: false }); if (this._orbCompose) this._orbCompose(); } },
+          { icon: "mark_email_unread", label: "What needs a reply?", run: orbAsk("What needs a reply from me?") },
+        ]
+        : st.screen === "cases" ? [{ icon: "help", label: "What is still open here?", run: orbAsk("What is still open in this case?") }]
+        : st.screen === "people" ? [{ icon: "handshake", label: "What do I owe them?", run: orbAsk("What do I owe this person?") }]
+        : st.screen === "tasks" ? [{ icon: "event", label: "Plan my day", run: orbAsk("Plan my day") }]
+        : st.screen === "cal" ? [{ icon: "event_upcoming", label: "What is coming up?", run: orbAsk("What is coming up this week?") }]
+        : []).concat([{ icon: "history", label: "What slipped this week?", run: orbAsk("What slipped this week?") }]);
+      /* One turn of the conversation, drawn for the Agent space and for the assistant panel alike. `slim` is the
+         narrow column — the phone, and the panel at every width — where blocks stack their controls. */
+      const agentMsgSrc = convMsgs.length ? convMsgs : [{
+          role: "bot",
+          scope: "3 accounts · mail, calendar, cases",
+          text: "Hi. I can write a message, lay out your day or check what is stuck. I always show the result for approval - nothing goes out without you.",
+          bullets: [],
+          blocks: [],
+          ts: Date.now(),
+        }];
+      const msgView = (m, mi, slim) => ({
+          isUser: m.role === "user",
+          isBot: m.role === "bot",
+          time: formatMsgTime(m.ts),
+          text: m.text,
+          hasText: !!m.text,
+          md: (m.text ? mdView(m.text) : []).concat((m.paras || []).reduce((acc, p) => acc.concat(mdView(p.t).map(b => Object.assign({}, b, {
+            style: b.style + (p.anim ? ";animation:mfmsgin 0.44s cubic-bezier(0.22,0.61,0.36,1) both" : ""),
+          }))), [])),
+          hasMd: !!m.text || (m.paras || []).length > 0,
+          scope: m.scope || "",
+          working: !!m.working,
+          hasParas: (m.paras || []).length > 0,
+          paras: (m.paras || []).map(p => ({
+            t: p.t,
+            style: "font-size:15px;line-height:1.62;color:var(--text2);text-wrap:pretty" + (p.anim ? ";animation:mfmsgin 0.44s cubic-bezier(0.22,0.61,0.36,1) both" : ""),
+          })),
+          bullets: (m.bullets || []).map(t2 => ({ t: t2 })),
+          hasBlocks: (m.blocks || []).length > 0,
+          blocks: (m.blocks || []).map((b, bi) => this.bkView(b, (activeConv ? activeConv.id : "new") + "#" + mi + "#" + bi, slim)),
+          blocksStyle: "display:flex;flex-direction:column;gap:" + (slim ? 10 : 11) + "px",
+          rowStyle: "display:flex;justify-content:" + (m.role === "user" ? "flex-end" : "flex-start"),
+          colStyle: "display:flex;flex-direction:column;gap:4px;min-width:0;align-items:" + (m.role === "user" ? "flex-end" : "flex-start") + (m.role === "user" ? "" : ";flex:1"),
+          /* Quiet by default: the user turn is a lightly tinted block, the agent turn is plain text
+             on the page. The only cards in the thread are the result blocks themselves. */
+          bubbleStyle: (m.role === "user"
+            ? "max-width:" + (slim ? "92%" : "775px") + ";font-size:15px;line-height:1.55;color:var(--text);background:var(--accent-soft);border-radius:12px;padding:11px 14px;text-wrap:pretty"
+            : "width:100%;max-width:" + (slim ? "100%" : "900px") + ";display:flex;flex-direction:column;gap:11px")
+            + (m.anim ? ";animation:mfmsgin 0.44s cubic-bezier(0.22,0.61,0.36,1) both" : ""),
+      });
       const vals = {
         mo,
         moDialog: isMobile ? "sheet" : "pop",
@@ -2822,6 +2920,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         toggleMore: () => this.setState(s2 => ({ more: !s2.more })),
         closeMore: () => this.setState({ more: false }),
         moreItems: [
+          { icon: "auto_awesome", label: "Agent", go: { screen: "agent" } },
           { icon: "task_alt", label: "Tasks", go: { screen: "tasks" } },
           { icon: "topic", label: "Cases", go: { screen: "cases", casePane: "list" } },
           { icon: "calendar_month", label: "Calendar", go: { screen: "cal" } },
@@ -3090,7 +3189,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         },
         isAgent: st.screen === "agent" && !emptyApp,
         goAgent: () => this.goScreen("agent"),
-        railAgentStyle: railBase + (st.screen === "agent" ? activeStyle : idleColor),
+        railAgentStyle: (isMobile ? "display:none;" : railBase + (st.screen === "agent" ? activeStyle : idleColor)),
         agentScrollStyle: isMobile
           ? "flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:14px;padding:16px 14px"
           : "flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:16px;padding:22px " + (narrow ? "26px" : "max(26px, calc((100% - " + (compact ? 1170 : 1290) + "px) / 2))"),
@@ -3205,43 +3304,60 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         onAgentKey: (e) => { if (e.key === "Enter") this.agentAsk(st.agentInput); },
         agentSend: () => this.agentAsk(st.agentInput),
 
-        agentMsgs: (convMsgs.length ? convMsgs : [{
-          role: "bot",
-          scope: "3 accounts · mail, calendar, cases",
-          text: "Hi. I can write a message, lay out your day or check what is stuck. I always show the result for approval - nothing goes out without you.",
-          bullets: [],
-          blocks: [],
-          ts: Date.now(),
-        }]).map((m, mi) => ({
-          isUser: m.role === "user",
-          isBot: m.role === "bot",
-          time: formatMsgTime(m.ts),
-          text: m.text,
-          hasText: !!m.text,
-          md: (m.text ? mdView(m.text) : []).concat((m.paras || []).reduce((acc, p) => acc.concat(mdView(p.t).map(b => Object.assign({}, b, {
-            style: b.style + (p.anim ? ";animation:mfmsgin 0.44s cubic-bezier(0.22,0.61,0.36,1) both" : ""),
-          }))), [])),
-          hasMd: !!m.text || (m.paras || []).length > 0,
-          scope: m.scope || "",
-          working: !!m.working,
-          hasParas: (m.paras || []).length > 0,
-          paras: (m.paras || []).map(p => ({
-            t: p.t,
-            style: "font-size:15px;line-height:1.62;color:var(--text2);text-wrap:pretty" + (p.anim ? ";animation:mfmsgin 0.44s cubic-bezier(0.22,0.61,0.36,1) both" : ""),
-          })),
-          bullets: (m.bullets || []).map(t2 => ({ t: t2 })),
-          hasBlocks: (m.blocks || []).length > 0,
-          blocks: (m.blocks || []).map((b, bi) => this.bkView(b, (activeConv ? activeConv.id : "new") + "#" + mi + "#" + bi, isMobile)),
-          blocksStyle: "display:flex;flex-direction:column;gap:" + (isMobile ? 10 : 11) + "px",
-          rowStyle: "display:flex;justify-content:" + (m.role === "user" ? "flex-end" : "flex-start"),
-          colStyle: "display:flex;flex-direction:column;gap:4px;min-width:0;align-items:" + (m.role === "user" ? "flex-end" : "flex-start") + (m.role === "user" ? "" : ";flex:1"),
-          /* Quiet by default: the user turn is a lightly tinted block, the agent turn is plain text
-             on the page. The only cards in the thread are the result blocks themselves. */
-          bubbleStyle: (m.role === "user"
-            ? "max-width:" + (isMobile ? "92%" : "775px") + ";font-size:15px;line-height:1.55;color:var(--text);background:var(--accent-soft);border-radius:12px;padding:11px 14px;text-wrap:pretty"
-            : "width:100%;max-width:" + (isMobile ? "100%" : "900px") + ";display:flex;flex-direction:column;gap:11px")
-            + (m.anim ? ";animation:mfmsgin 0.44s cubic-bezier(0.22,0.61,0.36,1) both" : ""),
+        agentMsgs: agentMsgSrc.map((m, mi) => msgView(m, mi, isMobile)),
+        /* The assistant orb and its panel - one control in one place on every space (§ *The assistant orb* in the
+           state inventory). Bottom right over the screen on two panes; the centre place of the phone's bar. */
+        orbOpen: !!st.orb,
+        orbWorking: orbWorking,
+        orbAwaiting: orbAwaiting,
+        orbAwaitingCount: String(orbPendingN),
+        orbHasProposal: orbHasProposal,
+        orbRest: !orbWorking && !orbAwaiting && !orbHasProposal,
+        orbLabel: orbWorking ? "Assistant - working" : orbAwaiting ? "Assistant - " + orbPendingN + " waiting for your confirmation"
+          : orbHasProposal ? "Assistant - a new answer" : "Ask the assistant",
+        orbFloatShown: !isMobile && !st.orb && st.screen !== "discover" && st.screen !== "agent" && !st.settings &&
+          !(st.compose && !composeInPane) && !st.replyDock && !emptyApp,
+        orbNavStyle: railBase + (st.screen === "agent" || st.orb ? "color:var(--accent-d);font-weight:600;" : idleColor),
+        orbPress: () => (st.orb ? this.closeOrb() : this.openOrb(orbCtx)),
+        orbKey: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (st.orb) this.closeOrb(); else this.openOrb(orbCtx); } },
+        orbFloatStyle: "position:fixed;z-index:60;right:" + (touch ? 20 : 24) + "px;bottom:" + (touch ? 20 : 24) + "px;width:" + (touch ? 60 : 56) + "px;height:" + (touch ? 60 : 56) + "px",
+        orbNavOrbStyle: "width:44px;height:44px",
+        closeOrb: this.closeOrb,
+        orbInputRef: this.orbInputRef,
+        orbOnKey: (e) => { if (e.key === "Enter") this.agentAsk(st.agentInput, true); },
+        orbSend: () => this.agentAsk(st.agentInput, true),
+        orbPlaceholder: "Ask or tell me what to do…",
+        orbToAgent: () => this.setState({ orb: false }, () => this.goScreen("agent")),
+        orbTitle: activeConv && activeConv.title ? activeConv.title : "New conversation",
+        orbMsgs: agentMsgSrc.map((m, mi) => msgView(m, mi, true)),
+        orbNext: this.nextActs(convMsgs, st, true),
+        orbNextShown: this.nextActs(convMsgs, st, true).length > 0,
+        orbStarters: orbStarters.map(o => ({
+          label: o.label, icon: o.icon,
+          aria: o.label,
+          style: "display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;box-sizing:border-box;font-size:13px;color:var(--text2);background:var(--panel);border:1px solid var(--border2);border-radius:999px;white-space:nowrap;" +
+            (touch ? "min-height:36px;padding:0 14px 0 11px" : "padding:6px 12px 6px 9px"),
+          iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--accent-d)",
+          run: o.run,
+          key: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); o.run(); } },
         })),
+        orbStartersShown: !st.agentThinking && !st.demoRun && orbStarters.length > 0,
+        orbScrim: isMobile,
+        orbIdle: !orbWorking,
+        orbChipCloseStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:999px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--accent-d);" + (touch ? "width:36px;height:36px" : "width:24px;height:24px"),
+        discoverInputRef: this.discoverInputRef,
+        mailComposeBtnStyle: "flex:0 0 auto;width:44px;height:44px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:12px;color:var(--onaccent);background:var(--accent)",
+        orbPanelStyle: isMobile
+          ? "box-sizing:border-box;width:100%;height:min(88%, 720px);display:flex;flex-direction:column;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;box-shadow:0 -8px 30px var(--sh-3);overflow:hidden"
+          : "position:fixed;z-index:88;top:" + (touch ? 12 : 16) + "px;right:" + (touch ? 12 : 16) + "px;bottom:" + (touch ? 12 : 16) + "px;width:min(" + (narrow ? 380 : 420) + "px, calc(100vw - " + (railW + 32) + "px));box-sizing:border-box;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 22px 50px var(--sh-3);overflow:hidden",
+        /* One panel for both compositions: on two panes the scrim draws no box at all, so the screen beside the panel stays usable. */
+        orbScrimMotion: isMobile ? "scrim" : "none",
+        orbPanelMotion: isMobile ? "sheet" : "rise",
+        orbScrimStyle: !isMobile ? "display:contents" : "position:fixed;z-index:93;top:0;left:0;right:0;bottom:" + this.barH() + "px;display:flex;flex-direction:column;justify-content:flex-end;background:var(--scrim)",
+        orbHeadBtnStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);" + (touch ? "width:44px;height:44px" : "width:32px;height:32px"),
+        orbBoxStyle: "display:flex;align-items:center;gap:8px;background:var(--panel);border:2px solid var(--accent);border-radius:12px;" + (touch ? "padding:5px 5px 5px 14px" : "padding:6px 6px 6px 12px"),
+        orbSendStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:8px;background:var(--accent);color:var(--onaccent);" + (touch ? "width:44px;height:44px" : "width:34px;height:34px"),
+        orbCancelStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:8px;background:var(--err);color:var(--onaccent);" + (touch ? "width:44px;height:44px" : "width:34px;height:34px"),
         isPeople: st.screen === "people" && !emptyApp,
         goCal: () => this.goScreen("cal"),
         goPeople: () => this.goScreen("people", { peoplePane: "list" }),
@@ -4244,7 +4360,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         })),
         caseAskStyle: isMobile
           ? "flex:0 0 auto;display:flex;flex-direction:column;gap:7px;border-top:1px solid var(--line);background:var(--panel);padding:8px 12px 10px"
-          : "display:flex;flex-direction:column;gap:9px;border-top:1px solid var(--line);background:var(--panel);padding:14px 24px",
+          /* Its right end stays clear of the assistant orb, which stands in the corner below it on two panes. */
+          : "display:flex;flex-direction:column;gap:9px;border-top:1px solid var(--line);background:var(--panel);padding:14px " + (touch ? 96 : 100) + "px 14px 24px",
 
         /* On tablets and narrower screens "Hide panels" also removes the message list —
            the correspondence gets the full width (on desktop the list stays, there is room). */
@@ -4323,7 +4440,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           !(st.screen === "cases" && (st.casePane || "list") === "detail") &&
           !(st.screen === "people" && (st.peoplePane || "list") === "detail"),
         tbPrimaryShown: tbPriInBar,
-        showFab: !st.compose && !st.doc && !selectionOn && (singlePane ? mailPane === "list" : tbFabForced),
+        /* The phone's list carries *New message* in its own bar (`mailComposeBtnShown`); the floating one is left to
+           two panes whose toolbar has no room for it, where it stands over the list rather than in the orb's corner. */
+        showFab: !st.compose && !st.doc && !selectionOn && !singlePane && tbFabForced,
+        mailComposeBtnShown: singlePane && mailPane === "list" && !selectionOn && !st.compose,
         fabStyle: "position:absolute;right:16px;bottom:16px;z-index:30;width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--accent);color:var(--onaccent);box-shadow:0 6px 18px var(--sh-2)",
         /* In multi-panel layouts the circle sits over the thread list, not the reading panel —
            otherwise it would cover the reply composer. */
@@ -4555,7 +4675,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           };
         }),
         /* On the phone and the fold a toast is a slim strip at the top: it says one thing and goes. */
-        toastWrapStyle: "position:fixed;z-index:97;top:" + (toastCompact ? 8 : 18) + "px;" + (isMobile ? "left:8px;right:8px;" : toastCompact ? "left:50%;transform:translateX(-50%);width:min(440px,calc(100vw - 24px));" : "right:18px;width:min(400px,calc(100vw - 36px));") + "display:flex;flex-direction:column;gap:" + (toastCompact ? 6 : 10) + "px;pointer-events:none",
+        /* While the assistant panel stands on the right of two panes, the stack moves to its left edge rather than over its head. */
+        toastWrapStyle: "position:fixed;z-index:97;top:" + (toastCompact ? 8 : 18) + "px;" + (isMobile ? "left:8px;right:8px;" : toastCompact ? (st.orb ? "left:" + (railW + 12) + "px;width:min(400px,calc(100vw - " + (railW + 24) + "px));" : "left:50%;transform:translateX(-50%);width:min(440px,calc(100vw - 24px));") : "right:" + (st.orb ? (narrow ? 380 : 420) + 34 : 18) + "px;width:min(400px,calc(100vw - 36px));") + "display:flex;flex-direction:column;gap:" + (toastCompact ? 6 : 10) + "px;pointer-events:none",
         toastTitleStyle: "font-weight:600;color:var(--text);text-wrap:pretty;" + (toastCompact ? "font-size:14px;line-height:1.3;" : "font-size:15px;line-height:1.35;"),
         toastBodyStyle: "color:var(--text2);text-wrap:pretty;" + (toastCompact ? "font-size:13px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;" : "font-size:14px;line-height:1.45;"),
         toastTextStyle: "flex:1;min-width:0;display:flex;flex-direction:column;" + (toastCompact ? "gap:1px;padding:2px 0;" : "gap:4px;padding-top:2px;"),
@@ -4620,7 +4741,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         showThreadHead: !st.stateBarOff || singlePane,
         /* The reply drafter waits behind a floating button and comes up as a card hanging over the
            thread, so the thread keeps its whole height until a reply is wanted. */
-        replyFabShown: !st.stateBarOff && !st.replyDock,
+        /* Drafting a reply is reached through the assistant orb (*Draft a reply* in its panel) rather than a button of its own. */
         replyDockOpen: !st.stateBarOff && !!st.replyDock,
         openReplyDock: () => this.setState({ replyDock: true }),
         closeReplyDock: () => this.setState({ replyDock: null }),
@@ -5314,6 +5435,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* What back calls for a surface whose own close does more than empty its key: asking before a draft is thrown
          away, and closing the tab the surface stands in. */
       this._ownClose = { compose: vals.closeCompose, doc: vals.closeDoc, htmlDoc: vals.closeHtml };
+      this._orbCompose = vals.openCompose;
       return vals;
     }
   }

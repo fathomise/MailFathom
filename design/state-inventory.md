@@ -51,7 +51,7 @@ composition keeps its own sizes.
 |---|---|
 | A control's target | 44 × 44 px at least, and the target is not always the drawing. An icon button, a field, a standalone button, a row of a navigation and a text action such as *Mark all read* are drawn at 44; a chip in a wrapping group and a segment in its track are drawn at 36 and take the rest of the 44 from the space around them — 8 px between chips, the track's padding around a segment — so a group keeps the weight of the text beside it rather than outgrowing it. The phone keeps 48 where it already drew 48 — the back button, the thread's three actions, and *Ask*; the folders button and the search field are 44 there as everywhere else under a finger. The glyph inside stays 20–24 px and the target grows around it; a label is centred in the target's height, never left at its top |
 | The phone's bar | Every space names itself at the left of its top bar at 20 px semibold (`screenTitleStyle`, `tbTitleStyle`, `agentTitleStyle`), the bar at least 56 px tall with 16 px before the title, and its actions stand at the far end. Mail is the exception: its search field is its bar |
-| The bottom navigation | Five places, each a 56 × 32 px pill behind its glyph (`--nav-mark`) that marks the current one, and a 12 px label beneath — the tile around it is not filled. The bar pads its foot by `env(safe-area-inset-bottom)` |
+| The bottom navigation | Five places — *Discover*, *Mail*, the assistant orb, *Alerts*, *More* — each a 56 × 32 px pill behind its glyph (`--nav-mark`) that marks the current one, and a 12 px label beneath — the tile around it is not filled. The centre place is the orb itself, a 44 px sphere in place of the pill over *Assistant*, its label in the accent while the panel is open or the Agent is in front (§ *The assistant orb*). The *Agent* has no place of its own on the phone: it stands first in the *More* sheet. The bar pads its foot by `env(safe-area-inset-bottom)` |
 | Controls the bar has no place for | Stand in the *More* sheet, below the spaces and a rule: *Refresh*, then *Settings*. Each row of the sheet is 52 px. Nothing floats over the content of a screen except the one action that screen is for |
 | A prompt | Fits one line at the width it is drawn at, and ends in an ellipsis where it cannot: the phone and the narrow list panes take the short form (*Search mail…*, *Ask your mail…*, *Tell me what to do…*, *Describe the reply…*, *Write what this is about…*) |
 | Keys | No control names a key under `touch` — *Ask*, *Send*, and the composer's foot without *Ctrl+Enter sends* — because the screen has no keyboard to press it on |
@@ -106,11 +106,11 @@ screenshot shows none of this, so the numbers are the contract the client matche
 
 | Kind | Arrives | Leaves | Used by |
 |---|---|---|---|
-| `scrim` | the colour fades up from transparent, base, ease-out | fades back to transparent, base, ease-in | every backdrop: the drawer, both sheets, every dialog, the context menu, Settings on two panes |
-| `sheet` | from 100 % below its place, slow, ease-sheet | back down 100 %, slow, ease-in | the thread actions sheet (`threadSheetOpen`), the *More* sheet (`moreOpen`), and on the phone every full-screen surface: compose, the form dialogs, Settings on one pane; the AI reading wherever it fills the screen, the fold included |
+| `scrim` | the colour fades up from transparent, base, ease-out | fades back to transparent, base, ease-in | every backdrop: the drawer, the sheets, every dialog, the context menu, Settings on two panes, the assistant's sheet on the phone (`orbScrim`) |
+| `sheet` | from 100 % below its place, slow, ease-sheet | back down 100 %, slow, ease-in | the thread actions sheet (`threadSheetOpen`), the *More* sheet (`moreOpen`), and on the phone every full-screen surface: compose, the form dialogs, Settings on one pane, the assistant panel (`orbOpen` under `orbScrim`, `orbPanelMotion`); the AI reading wherever it fills the screen, the fold included |
 | `drawer` | from 100 % to the left, slow, ease-sheet | back out to the left, slow, ease-in | the folder list where it is a drawer (`showSide` under `drawer`) |
-| `pop` | from opacity 0 at 96 % scale, fast, ease-out | to opacity 0 at 96 %, fast, ease-in | the context menu (`ctxMenuOpen`), the user menu (`userMenuOpen`), the return pill (`convReturnShown`), every short question at every width — discarding a draft (`closeAskOpen`), the send warnings (`sendAskOpen`), deleting a folder, a conversation or an item (`delFolderOpen`, `deleteConvAskOpen`, `confirmDelOpen`), closing every tab (`closeAllAsk`), aborting a running operation (`cancelAskOpen`), showing the original message (`htmlAskOpen`) — and off the phone every dialog (new folder, new case, new task, new event, new contact, reminder, move, AI summary, event) and Settings on two panes |
-| `rise` | from opacity 0, 18 px below, base, ease-out | back down 18 px to opacity 0, base, ease-in | the composer where it docks over the screen rather than filling a pane, and the reply drafter hanging over a thread (`replyDockOpen`) |
+| `pop` | from opacity 0 at 96 % scale, fast, ease-out | to opacity 0 at 96 %, fast, ease-in | the context menu (`ctxMenuOpen`), the user menu (`userMenuOpen`), the return pill (`convReturnShown`), every short question at every width — discarding a draft (`closeAskOpen`), the send warnings (`sendAskOpen`), deleting a folder, a conversation or an item (`delFolderOpen`, `deleteConvAskOpen`, `confirmDelOpen`), closing every tab (`closeAllAsk`), aborting a running operation (`cancelAskOpen`), showing the original message (`htmlAskOpen`), the assistant orb coming back into its corner (`orbFloatShown`) — and off the phone every dialog (new folder, new case, new task, new event, new contact, reminder, move, AI summary, event) and Settings on two panes |
+| `rise` | from opacity 0, 18 px below, base, ease-out | back down 18 px to opacity 0, base, ease-in | the composer where it docks over the screen rather than filling a pane, the reply drafter hanging over a thread (`replyDockOpen`), and the assistant panel on two panes (`orbOpen` off the phone, `orbPanelMotion`), which rises from the orb's corner |
 | `fade` | from opacity 0, base, ease-out | to opacity 0, base, ease-in | the composer in a pane, the list replacing its skeleton (`listReady`), the composer body on restore (`composeExpanded`) |
 | `veil` | at once | fades out, base, ease-out | the message skeleton (`msgLoading`) laid over a thread that is already there |
 | `push` | from opacity 0, 48 px to the right, slow, ease-sheet | — | one pane at a time: the thread (`showThreadPane` under `singlePane`), a case and a person (under `isMobile`) when it is opened from its list |
@@ -141,7 +141,7 @@ desktop composition steps back the same way a phone does, and what differs is on
 
 | Press | What it takes away |
 |---|---|
-| A surface stands over the screen | That surface: the drawer, a sheet, the composer, a dialog, Settings, a menu, the notification centre |
+| A surface stands over the screen | That surface: the drawer, a sheet, the composer, a dialog, Settings, a menu, the notification centre, the assistant panel |
 | A view stands where another was | That view, as its own *Back* does: the thread in front of the list (`singlePane`), a case or a person in front of its list (`isMobile`) |
 | Nothing stands in the space | The space, back to the one before it — closing every surface still open, as switching space does |
 
@@ -152,6 +152,37 @@ add no step, because opening a thread there replaced nothing. `backSteps` in the
 
 A press closes a surface the way its own control would. The composer with anything written in it asks first
 (`closeAsk`) and stays until that question is answered, and a surface standing in a tab closes its tab.
+
+## The assistant orb — `orbFloatShown`, and the phone's centre place
+
+Added on 2026-10-20 for #2532. **One control reaches the assistant, in the same place on every space**: a round accent
+sphere at the bottom right of two-pane compositions (`orbFloatShown`), and the centre place of the phone's bottom
+navigation. Pressing it opens the assistant over the screen without leaving it, and the conversation it opens is the
+Agent's own — what is asked in the panel stands in the Agent's history, and *Open in Agent* carries it there whole.
+
+| State | Flag | Reveal |
+|---|---|---|
+| The orb in its corner | `orbFloatShown` | two panes, on every space but Discover and the Agent, while the panel, Settings, a docked composer and the reply drafter are all closed — 56 px (60 px under a finger), 24 px from the right and the bottom (20 px under a finger), arriving with `pop`. A sphere lit from the top left in the accent, with `auto_awesome` filled in `--onaccent`; hover lifts it 1 px. `.mf-orb` in `styles/prototype.css` |
+| The orb in the phone's bar | the centre `isPhone` place | always, as the bar's third place over the label *Assistant* — a 44 px sphere in the 56 px place |
+| Not drawn twice | — | **Discover and the Agent already are the assistant**, so on two panes neither draws the corner orb, and on the phone the orb in the bar does not open a second one there: on Discover it puts the caret in Discover's field (`discoverFocusPending`), on the Agent in the Agent's field (`agentFocusPending`) |
+| At rest | `orbRest` | none of the three below. It does not move |
+| Working | `orbWorking` | the Agent is answering or the scripted example is playing (`agentThinking`, `demoRun`) — a thin accent ring turns around the sphere (`data-orb-working`). That ring is the orb's only motion, so under reduced motion it is a still ring |
+| Waiting for a confirmation | `orbAwaiting` / `orbAwaitingCount` | the open conversation carries a block still `pending` — a count on a `--panel` pill ringed in the accent at its top right. Reached by opening a seeded conversation with a pending proposal, or by asking anything the Agent answers with one |
+| A new answer | `orbHasProposal` | an answer landed while the panel was closed and the Agent was not in front (`orbUnseen`) — a quiet 10 px `--panel` dot ringed in the accent; opening the panel clears it. Reached by asking in the panel and closing it before the answer lands. Waiting outranks it, working outranks both |
+| Its name | `orbLabel` | *Ask the assistant* at rest, and the state added to it otherwise — *Assistant - working*, *Assistant - N waiting for your confirmation*, *Assistant - a new answer*; it is the control's accessible name, `aria-expanded` saying whether the panel is open |
+| The panel, on two panes | `orbOpen` off the phone, `orbPanelMotion` | the orb — a panel standing at the right edge, 16 px in from the top, the right and the bottom (12 px under a finger), 420 px wide (380 px under `narrow`), on `--panel` at a 16 px radius with a lifted shadow, rising with `rise`. No scrim: the screen beside it stays where it was and stays usable |
+| The panel, on the phone | `orbOpen` under `orbScrim` | a sheet with its grabber over the screen and above the bar, at most 88 % of the height, on a scrim, arriving with `sheet`; pressing the orb again or the scrim closes it |
+| Its head | `orbTitle` | a 28 px orb, *Assistant* over the open conversation's title (*New conversation* when there is none), *Open in Agent* (`orbToAgent`, `open_in_full`) and *Close the assistant*, both 44 px under a finger |
+| The conversation | `orbMsgs` | the same turns the Agent space draws, in the narrow column — every block stacks its controls as on the phone, so a proposal is accepted or declined in the panel as in the Agent. It stays pinned to its newest turn |
+| What the screen gives it | `agentCtxShown` / `agentCtxLabel` | opening the orb on a thread, a case, a person or a selection of messages sets the context the Agent's chip shows — *thread “…”*, *case “…”*, the person's name, *N selected messages* — as a removable chip above the field. Opened anywhere else, no chip |
+| Starters | `orbStarters` / `orbStartersShown` | one scrolling row of chips above the field, by what is in front: on an open thread *Draft a reply* (closes the panel and opens the reply drafter) and *Where does this stand?*; on the mail list *Write a new message* (closes the panel and opens the composer) and *What needs a reply?*; *What is still open here?* on Cases, *What do I owe them?* on People, *Plan my day* on Tasks, *What is coming up?* on the calendar; and *What slipped this week?* everywhere. Hidden while the Agent works |
+| Proposed next | `orbNext` / `orbNextShown` | the last answer's next steps, as the Agent draws them; pressing one asks in the panel |
+| The field | `orbPlaceholder` / `orbSend` | *Ask or tell me what to do…* in a field with a 2 px accent edge, *Send* as an `arrow_upward` button, replaced by a filled `--err` *Stop* while the Agent works (`agentCancel`); Enter sends. A line under it: *Nothing goes out without your approval.* |
+| Closing it | `closeOrb` | its own close, Escape, back (one step, as every surface), the scrim on the phone, and switching space — the conversation stays where it was |
+
+Two things moved to make room. The reply button over a thread is gone, *Draft a reply* being the panel's first starter
+there (§ *Composing* under Mail), and the phone's floating *New message* is in the list's own bar (`mailComposeBtnShown`).
+The *Ask about this case* bar at the foot of a case keeps its right end clear of the orb on two panes.
 
 ## Discover — `isDiscover`
 
@@ -337,8 +368,8 @@ what a finger reaches.
 | Composer expanded | `composeExpanded` | open and not minimised |
 | Minimise offered | `composeMinShown` | `!composeInPane && !isMobile` |
 | Composer chrome | `composeChromeShown` | the composer is not the active tab |
-| The reply button | `replyFabShown` | a thread is open, the panels are not hidden, and the drafter is closed — **the drafter is closed by default**. A floating accent button at the thread's bottom-right, `auto_awesome` and *Draft a reply* (46 px tall, 22 px from the right and 20 from the bottom on two panes, 16 and 16 on one), the glyph alone in a 56 px square on the phone; it arrives with `pop`. The thread keeps its last line clear of it and of the drafter with its bottom padding: 84 px on one pane (96 with the drafter open) and 86 px on two panes (150 with the drafter open) |
-| The reply drafter | `replyDockOpen` / `mo.replyDock` | the reply button — a card hanging over the bottom of the thread, 18 px in from either side and 16 from the bottom on two panes (10, 10 on one pane), `--panel` on a 16 px radius with a lifted shadow, coming up with `rise` and leaving the same way. The input row: an `auto_awesome` glyph, *Describe the reply you want to send…* (*Describe the reply…* on one pane, `composerPlaceholder`) in a field with a 2 px accent edge (1 px on one pane), the accent *Draft a reply* (*Draft* on one pane), and a round close badge hanging off the card's top-right corner — 26 px, 11 px past either edge; on touch 32 px, 19 px above the card and 4 px past its side, the card keeping 16 px above its row so the badge clears *Draft* — titled *Close the reply drafter*, which puts the button back. *Draft a reply* writes the local draft into the thread and closes the card. It drafts a reply and nothing else — asking about the thread is *Ask* and the thread sheet. Back closes it like any surface over the screen, leaving the thread or opening another closes it too |
+| How the drafter is reached | — | **There is no reply button any more.** *Draft a reply* is the first starter of the assistant panel while a thread is open (§ *The assistant orb*); pressing it puts the panel away and opens the drafter. **The drafter is closed by default.** The thread keeps its last line clear of the orb in the corner and of the drafter with its bottom padding: 84 px on one pane (96 with the drafter open) and 86 px on two panes (150 with the drafter open) |
+| The reply drafter | `replyDockOpen` / `mo.replyDock` | *Draft a reply* in the assistant panel — a card hanging over the bottom of the thread, 18 px in from either side and 16 from the bottom on two panes (10, 10 on one pane), `--panel` on a 16 px radius with a lifted shadow, coming up with `rise` and leaving the same way. The input row: an `auto_awesome` glyph, *Describe the reply you want to send…* (*Describe the reply…* on one pane, `composerPlaceholder`) in a field with a 2 px accent edge (1 px on one pane), the accent *Draft a reply* (*Draft* on one pane), and a round close badge hanging off the card's top-right corner — 26 px, 11 px past either edge; on touch 32 px, 19 px above the card and 4 px past its side, the card keeping 16 px above its row so the badge clears *Draft* — titled *Close the reply drafter*, which puts the orb back in its corner. *Draft a reply* writes the local draft into the thread and closes the card. It drafts a reply and nothing else — asking about the thread is *Ask* and the thread sheet. Back closes it like any surface over the screen, leaving the thread or opening another closes it too |
 | Scope chips | `showComposerChips` | `!singlePane && !tablet` — a second row in the drafter: *Scope: this thread*, *+ selected passage*, and *Draft stays local until confirmed* at the right |
 | Cc/Bcc | `ccOpen` | the Cc control |
 | Formatting bar | `fmtBarShown` | `!touch`, or the touch toggle was pressed |
@@ -589,7 +620,8 @@ to a folder, marking as read, adding to a case and closing a case stay a one-lin
 | Phone composition | `isPhone` / `notMobile` | width alone |
 | Single pane | `isMobileState` | `singlePane` |
 | Screen FAB | `showScreenFab` | `isMobile` or the toolbar forced it, **and** no dialog is open |
-| Mail FAB | `showFab` | no composer, no document, no selection; on one pane it needs the list |
+| Mail FAB | `showFab` | two panes only, and only where the toolbar has no room for *New message* (`tbFabForced`); no composer, no document, no selection. It stands over the list, never in the orb's corner |
+| *New message* on one pane | `mailComposeBtnShown` | the list on one pane, with no selection and no composer — a 44 px accent `edit_square` button in the list's own bar beside the filters, which is where the phone's floating button went: the corner a floating button stood in is the orb's place in the bar now |
 | User menu | `userMenuOpen` | the avatar |
 | Settings | `settingsOpen` | the settings control; closing it also drops the account draft. It clears `acctDel` too, which nothing sets any more — removing an account left the design and that one line stayed behind |
 | Settings: its five sections | `tabProfil` / `tabAccounts` / `tabAi` / `tabNotif` / `tabApp` | *Profile*, *Accounts*, *AI*, *Notifications*, *Application*, `tabProfil` being the default. On two panes a section navigation (`settingsNavShown`) groups them under *You*, *Mail*, *Assistant* and *This device* (`settingsNavGroups`), each row an icon and a label; on one pane they are a tab strip that scrolls sideways (`settingsStripShown`) |
@@ -606,7 +638,7 @@ to a folder, marking as read, adding to a case and closing a case stay a one-lin
 | Move dialog | `moveOpen` | the move action on a selection — grouped by mailbox (`moveGroups`), each group ending in *New folder here*, and the toast it produces names the mailbox |
 | Permanent delete | `confirmDel` under `inTrash` | a delete action while the open folder is a Trash — *Delete permanently*, no undo offered, and the toast reads *Permanently deleted* rather than *Moved to trash* |
 | The rail's nav scrolls | `railNavStyle` | a viewport too short for the seven destinations — the nav scrolls and the bottom cluster stays pinned |
-| The *More* sheet | `moreOpen` / `moreItems` | the phone's *More* — *Tasks*, *Cases*, *Calendar* and *People*, the current one on `--accent-soft`, then under a rule *Refresh* (`moreRefresh`) and *Settings* (`moreSettings`); every row 52 px |
+| The *More* sheet | `moreOpen` / `moreItems` | the phone's *More* — *Agent*, *Tasks*, *Cases*, *Calendar* and *People*, the current one on `--accent-soft`, then under a rule *Refresh* (`moreRefresh`) and *Settings* (`moreSettings`); every row 52 px |
 | A rail destination | `railBase` / `activeStyle` | on the phone a bottom-bar place whose glyph sits in a 56 × 32 px pill, filled `--accent-soft` on the current one (`--nav-mark`); on the rail a tile inset 7 px from either side of the rail on a 12 px radius, 4 px apart (2 px below 1020) — the current one on `--accent-soft` with an accent glyph and a semibold label, hover on `--hover`. No full-width slab and no edge bar, so neighbouring tiles never meet across a dark gap |
 | Cancel confirmation | `cancelAskOpen` | closing a toast that carries a running operation |
 | Toasts | `toasts` | any operation that reports; `toasts.dc.html` is the whole of it |
@@ -762,7 +794,10 @@ glyph, the colour and the bar. What is worth reading in the source rather than i
   title at 14 px over a body held to two lines, the action inline at the right rather than under the
   text, and the close control — 6 px apart, 8 px from the top, full-width on the phone and a centred
   440 px column on the fold, and fully opaque, there being no pointer to raise it. Wider, the stack
-  is a 400 px column on the right. The prototype's toasts follow the same rule (`toastCompact`).
+  is a 400 px column on the right. The prototype's toasts follow the same rule (`toastCompact`). Neither stack
+  stands where the assistant orb does — the toasts are at the top and the orb at the bottom — and while the assistant
+  panel is open on two panes the stack moves to the panel's left edge (to the rail's edge under 900 px) rather than over
+  its head.
 
 ## The notification gesture — `notification-gesture.dc.html`
 
