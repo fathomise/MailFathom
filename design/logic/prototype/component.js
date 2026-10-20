@@ -2409,7 +2409,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const railW = compact ? 66 : 96;
       this._low = low;
       /* A dialog takes what a low window has and stops growing in a tall one. */
-      const dlgMaxH = low ? "calc(100dvh - 16px)" : "min(calc(100dvh - 44px), 760px)";
+      const dlgMaxH = low ? "calc(100dvh - 16px)" : tall ? "min(calc(100dvh - 44px), 760px)" : "calc(100dvh - 44px)";
       const toastCompact = w < 900;
       /* The centre opens on what the reader has not seen yet; *All* is one press away. */
       const notifFilter = st.notifFilter || "unread";
@@ -4865,7 +4865,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "flex:1;display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--panel)"
           : isMobile
           ? "position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;background:var(--panel)"
-          : "position:fixed;right:26px;bottom:0;width:680px;max-width:calc(100vw - 52px);max-height:" + (low ? "calc(100dvh - 8px)" : "min(86dvh, 760px)") + ";z-index:90;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-bottom:none;border-radius:12px 12px 0 0;box-shadow:0 -1px 0 var(--inset) inset,0 18px 44px var(--sh-3)",
+          : "position:fixed;right:26px;bottom:0;width:680px;max-width:calc(100vw - 52px);max-height:" + (low ? "calc(100dvh - 8px)" : tall ? "min(86dvh, 760px)" : "86dvh") + ";z-index:90;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-bottom:none;border-radius:12px 12px 0 0;box-shadow:0 -1px 0 var(--inset) inset,0 18px 44px var(--sh-3)",
         composeTitle: (st.composeMin ? composeKind + " - collapsed" : composeKind),
         composeToChips: composeTo.map(n => ({ name: n })),
         ccOpen: !!st.ccOpen,
@@ -4878,7 +4878,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* In a low window the fields, the AI drafting and the editor scroll together and the foot with *Send* stays
            pinned under them; anywhere else the wrapper is not a box at all. */
         composeScrollStyle: low ? "flex:1;min-height:0;display:flex;flex-direction:column;overflow:auto" : "display:contents",
-        threadSheetStyle: "display:flex;flex-direction:column;gap:12px;max-height:" + (low ? "calc(100dvh - 8px)" : "min(82dvh, 640px)") + ";overflow:auto;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;padding:10px 16px 20px 16px",
+        threadSheetStyle: "display:flex;flex-direction:column;gap:12px;max-height:" + (low ? "calc(100dvh - 8px)" : tall ? "min(82dvh, 640px)" : "82dvh") + ";overflow:auto;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;padding:10px 16px 20px 16px",
         composeBodyStyle: "display:flex;flex-direction:column;min-height:0;flex:1;--compose-label:" + (isMobile ? 58 : 88) + "px",
         ccToggleStyle: "flex:0 0 auto;font-size:12px;white-space:nowrap;border-radius:8px;" + (touch ? "display:flex;align-items:center;min-height:44px;padding:0 10px;" : "padding:2px 8px;") + (st.ccOpen ? "color:var(--accent-d);background:var(--accent-soft)" : "color:var(--muted)"),
         toggleCc: () => this.setState(s => ({ ccOpen: !s.ccOpen })),
@@ -4939,7 +4939,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : "position:fixed;inset:0;z-index:88;display:flex;align-items:center;justify-content:center;padding:26px;background:var(--scrim)",
         htmlWindowStyle: htmlInPane || singlePane
           ? "flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--panel)"
-          : "width:min(1000px,100%);height:min(90dvh,1100px,100%);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 26px 60px var(--scrim);overflow:hidden",
+          : "width:min(1000px,100%);height:" + (tall ? "min(90dvh,1100px,100%)" : "min(90dvh,100%)") + ";display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 26px 60px var(--scrim);overflow:hidden",
         htmlFrameStyle: "flex:1;min-height:0;width:100%;border:0;background:#ffffff" + (st.htmlLoading ? ";visibility:hidden" : ""),
         htmlLoading: !!st.htmlLoading,
         htmlSkelStyle: "position:absolute;inset:0;z-index:6;display:flex;flex-direction:column;gap:14px;background:#ffffff;padding:26px 30px",

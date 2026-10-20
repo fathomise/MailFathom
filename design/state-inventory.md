@@ -64,7 +64,8 @@ title, which the toolbar's `left_panel_open` widens to the column again. So `dra
 | `tall` | `h ≥ 960` | Lists and threads take the height; dialogs, sheets and the composer stop growing |
 
 Between the two — 480 to 960, every framed preview included — the composition is the one drawn everywhere else in
-this file.
+this file: a dialog up to the window less 44 px, a sheet up to `82dvh`, the docked composer up to `86dvh`, and a
+message's original HTML up to `90dvh`. The caps below apply in the tall band and nowhere else, so no frame moves.
 
 **In a low window** (`low`):
 
