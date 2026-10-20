@@ -9,8 +9,13 @@ Project repository: https://github.com/fathomise/MailFathom
         <meta charset="utf-8" />
         <!-- viewport-fit=cover is what makes the safe-area insets report anything: without it a window with a notch,
              a rounded corner, or a system bar is laid out inside them and `env(safe-area-inset-*)` is zero, so the
-             tokens the frame pads with would silently do nothing. -->
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+             tokens the frame pads with would silently do nothing. interactive-widget=resizes-content makes an
+             on-screen keyboard shorten the layout rather than cover it, which Chromium otherwise does, so a composer
+             at the foot of the window stays above the keyboard with its field and its send action. -->
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+        />
         <!-- What the browser paints its own canvas from before the bundle has loaded, so a reader whose machine is
              dark does not get a white document while it does. -->
         <meta name="color-scheme" content="light dark" />

@@ -344,6 +344,33 @@ test.describe('driven by a finger', () => {
             ).toBe(false);
         });
     }
+
+    // The viewport meta asks for the on-screen keyboard to shorten the layout rather than cover it, so a phone writing a
+    // message is a phone window little more than half as tall. What the composer owes it is the field being written in
+    // and the send action, both on the screen at once, with nothing it holds above them pushing either off the foot.
+    test('keeps the message being written and its send action on a phone the keyboard has shortened', async ({
+        page,
+        deployment,
+    }) => {
+        deployment.grant('mailfathom.mail.drafts.write', 'mailfathom.mail.send');
+        await page.setViewportSize(phoneWindow);
+        await openSignedIn(page, '/#/mail');
+        await page.getByRole('button', { name: 'New message', exact: true }).first().click();
+
+        const message = page.getByRole('textbox', { name: 'Message' });
+
+        await expect(message).toBeVisible();
+        await page.setViewportSize({ width: phoneWindow.width, height: 480 });
+        await message.focus();
+        await page.keyboard.type('The racking arrives on the ninth.');
+
+        const written = await boxOf(message);
+        const send = await boxOf(page.getByRole('button', { name: 'Send', exact: true }));
+
+        expect(written.y).toBeGreaterThanOrEqual(0);
+        expect(written.y + written.height).toBeLessThanOrEqual(send.y);
+        expect(send.y + send.height).toBeLessThanOrEqual(480);
+    });
 });
 
 test('keeps the open message, the folder, and the selection as the window crosses every composition', async ({
