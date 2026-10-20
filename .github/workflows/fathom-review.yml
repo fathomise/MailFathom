@@ -599,7 +599,8 @@ jobs:
       #
       # What is waited for is a run of the whole rules workflow, so the wait is only as short as its
       # slowest job on this event. That is what the board half of it is kept off `pull_request`
-      # events for: on the events this waits on, the labelling is the only job that runs.
+      # events for: on the events this waits on, only the labelling and the assigning run, two short
+      # jobs side by side, each a checkout and a few API calls.
       - name: Read the labels the change carries
         id: security
         if: steps.gate.outputs.review == 'true'

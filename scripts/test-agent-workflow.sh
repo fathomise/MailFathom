@@ -2945,6 +2945,14 @@ case "$endpoint" in
 
     exit 0
     ;;
+  */issues/*/assignees)
+    # Recorded one line per call, because the assigning step writes once for each issue it closes.
+    if [[ -n "${FAKE_ASSIGNEE_REQUEST:-}" ]]; then
+      printf '%s\n' "$*" >> "$FAKE_ASSIGNEE_REQUEST"
+    fi
+
+    exit 0
+    ;;
   */actions/workflows/*/runs*)
     # The labelling runs for this head. A countdown file rather than a constant, so a contract can
     # hold one open for a fixed number of polls and then let it go — which is the only way to assert
@@ -3723,6 +3731,77 @@ apply_pull_request_labels_reports_a_write_it_was_refused() {
 
   ((apply_labels_status == 0))
   assert_contains '::notice::' "$output_file"
+}
+
+run_apply_pull_request_assignees() {
+  local head_repository="$1"
+  local draft="$2"
+  local author_type="$3"
+  local output_file="$4"
+  local request_file="$5"
+  local step_script="$test_directory/apply-pull-request-assignees.sh"
+
+  extract_workflow_step \
+    "$source_repository_root/.github/workflows/apply-pull-request-rules.yml" \
+    'assign' "$step_script"
+  rm -f "$request_file"
+
+  set +e
+  (
+    export PATH="$collect_bin_directory:$PATH"
+    export GH_TOKEN='fake-token'
+    export REPOSITORY='fathomise/MailFathom'
+    export PULL_REQUEST_NUMBER='1'
+    export HEAD_REPOSITORY="$head_repository"
+    export DRAFT="$draft"
+    export AUTHOR='Krzysztof318'
+    export AUTHOR_TYPE="$author_type"
+    export CLOSING_ISSUES_SCRIPT="$source_repository_root/.github/pull-request/collect-closing-issues.sh"
+    export CLOSING_ISSUE_LIMIT='5'
+    export FAKE_ASSIGNEE_REQUEST="$request_file"
+    bash "$step_script"
+  ) > "$output_file" 2>&1
+  apply_assignees_status=$?
+  set -e
+}
+
+apply_pull_request_assignees_assigns_the_author_to_every_issue_it_closes() {
+  local output_file="$test_directory/apply-assignees-output"
+  local request_file="$test_directory/apply-assignees-request"
+
+  run_apply_pull_request_assignees 'fathomise/MailFathom' 'false' 'User' "$output_file" "$request_file"
+
+  ((apply_assignees_status == 0))
+  assert_contains 'repos/fathomise/MailFathom/issues/11/assignees' "$request_file"
+  assert_contains 'repos/fathomise/MailFathom/issues/12/assignees' "$request_file"
+  assert_contains 'assignees[]=Krzysztof318' "$request_file"
+  assert_contains '--method POST' "$request_file"
+}
+
+# A fork's author is not somebody the project handed the issue to, a draft is not published yet, and
+# a bot cannot be an assignee. Each ends green without a write, and a fork whose repository has since
+# been deleted arrives with no head repository at all and reads as a fork.
+apply_pull_request_assignees_assigns_nobody_on_a_fork_a_draft_or_a_bot() {
+  local output_file="$test_directory/apply-assignees-skipped-output"
+  local request_file="$test_directory/apply-assignees-skipped-request"
+  local head_repository
+  local draft
+  local author_type
+
+  while IFS=' ' read -r head_repository draft author_type; do
+    [[ "$head_repository" == '-' ]] && head_repository=''
+
+    run_apply_pull_request_assignees "$head_repository" "$draft" "$author_type" "$output_file" "$request_file"
+
+    ((apply_assignees_status == 0))
+    assert_contains 'no issue is assigned' "$output_file"
+    [[ ! -e "$request_file" ]]
+  done <<'CASES'
+passer-by/MailFathom false User
+- false User
+fathomise/MailFathom true User
+fathomise/MailFathom false Bot
+CASES
 }
 
 # The submission step is where the reviewer's answer becomes a review, and it is the one step whose
@@ -8921,6 +9000,11 @@ every_workflow_job_declares_its_permissions() {
 # minted from the App's private key, it is held by a job that checks nothing out and runs no model,
 # and `main`'s ruleset is what stands between the token and the default branch.
 #
+# A third: `apply-pull-request-rules.yml` holds `issues: write` on the one job that assigns a pull
+# request's author to the issues it closes, which is the narrowest permission that call takes. It
+# writes for a branch in this repository alone, since a fork's token is read-only whatever the job
+# declares, and it only ever adds an assignee.
+#
 # `publish-documentation.yml` publishes too, and what it publishes is a GitHub Pages deployment rather
 # than a package: `pages: write` creates the deployment and `id-token: write` is what the deployment is
 # claimed with. Both sit on the deploying job alone, and neither reaches the repository — the site is
@@ -8932,6 +9016,7 @@ every_write_scope_is_one_the_policy_records() {
 
   recorded_scopes="$(
     printf '%s\n' \
+      'apply-pull-request-rules.yml issues: write' \
       'apply-pull-request-rules.yml pull-requests: write' \
       'codeql.yml security-events: write' \
       'fathom-review.yml contents: write' \
@@ -11845,6 +11930,8 @@ run_test select_labels_earns_nothing_from_an_issue_it_could_not_read
 run_test apply_pull_request_labels_posts_the_labels_the_change_earns
 run_test apply_pull_request_labels_posts_nothing_for_an_ordinary_change
 run_test apply_pull_request_labels_reports_a_write_it_was_refused
+run_test apply_pull_request_assignees_assigns_the_author_to_every_issue_it_closes
+run_test apply_pull_request_assignees_assigns_nobody_on_a_fork_a_draft_or_a_bot
 run_test fathom_review_anchors_a_finding_to_its_line
 run_test fathom_review_holds_a_pass_carrying_only_a_deferred_finding
 run_test fathom_review_holds_a_pass_that_still_found_something_owed

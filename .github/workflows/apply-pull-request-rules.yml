@@ -16,11 +16,13 @@ name: Apply pull request rules
 # status its current state earns, so a new rule is one edit to a script the contract suite runs
 # rather than a rule spread across the workflows that happen to care.
 #
-# The two jobs are split by the event that can answer them, which is also what keeps each run short:
+# The jobs are split by the event that can answer them, which is also what keeps each run short:
 #
 # - **Labels** follow from the body, so they are decided on a `pull_request` event and on that one
 #   pull request. `Fathom review` waits for this workflow's run to conclude before it reads the
 #   labels off a pull request, so anything slower added to that path delays every review.
+#   The author is assigned to the issues it closes on the same events, in a job of its own beside
+#   it, and only where the branch lives in this repository. That job is on the same wait.
 # - **A board status** follows from three things the pull request cannot announce for itself: whether
 #   it still merges, which changes when something *else* merges into `main`; whether the reviewer
 #   approved the head in front of us; and what its pipelines concluded. So it is decided on a push to
@@ -38,8 +40,8 @@ name: Apply pull request rules
 #   required to merge, so nothing here reads its conclusion and a run of it decides nothing.
 #   `scripts/test-agent-workflow.sh` holds the list to exactly the workflows a pull request runs.
 #
-# It only ever adds a label. A label a hand applied answers a question this workflow cannot see,
-# and a workflow that tidied the list would erase it. The board write is bounded the other
+# It only ever adds a label or an assignee. One a hand applied answers a question this workflow
+# cannot see, and a workflow that tidied the list would erase it. The board write is bounded the other
 # way, by the statuses each rule declares it may act on.
 #
 # `pull_request` rather than `pull_request_target`, which two workflows hold as recorded exceptions —
@@ -215,6 +217,88 @@ jobs:
           else
             echo "::notice::The labels could not be applied, which is expected on a pull request from a fork."
           fi
+
+  # Who is carrying the work, written onto the issues the change closes. The pull request already
+  # names that person and the issue does not, so the issue list, the board, and every notification
+  # about the issue would otherwise say nothing about it until somebody assigned it by hand.
+  #
+  # It answers on the same events as the labels, for the same reason: which issues the change closes
+  # follows from the body, so a closing reference added after publication earns its assignee then.
+  # It is a job of its own because it is the one write to an issue in this workflow, so
+  # `issues: write` stays off the label job's token. It does not shorten `Fathom review`'s wait, which
+  # is for the whole run on these events, so it is kept as short as the labelling: a checkout and a
+  # few API calls.
+  assign:
+    name: Assign the issues the change closes to its author
+    if: github.event_name == 'pull_request' && github.event.action != 'enqueued' && github.event.action != 'dequeued'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      # Adding an assignee to the issues the body closes, and nothing else.
+      issues: write
+    steps:
+      # For `collect-closing-issues.sh`, on the merge ref for the reason the label job gives.
+      - name: Check out the pull request
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Assign the closing issues
+        id: assign
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+          # Empty when the fork the pull request came from has since been deleted, which reads as a
+          # fork below rather than as this repository.
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          DRAFT: ${{ github.event.pull_request.draft }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+          CLOSING_ISSUES_SCRIPT: ${{ github.workspace }}/.github/pull-request/collect-closing-issues.sh
+          CLOSING_ISSUE_LIMIT: '5'
+        run: |
+          set -euo pipefail
+
+          # Only somebody working from a branch here is somebody the project handed the issue to. An
+          # outside author is not assigned an issue by opening a pull request against it; that stays
+          # a maintainer's call, made when the change is triaged.
+          if [[ "$HEAD_REPOSITORY" != "$REPOSITORY" ]]; then
+            echo '::notice::The pull request comes from a fork, so no issue is assigned.'
+            exit 0
+          fi
+
+          # A draft is not published yet. Marking it ready raises the event that assigns it.
+          if [[ "$DRAFT" == 'true' ]]; then
+            echo 'The pull request is a draft, so no issue is assigned until it is published.'
+            exit 0
+          fi
+
+          # A bot or an app cannot be an assignee, and GitHub drops one silently rather than refusing.
+          if [[ "$AUTHOR_TYPE" != 'User' ]]; then
+            printf 'The pull request was opened by %s, which is not a user account, so no issue is assigned.\n' "$AUTHOR"
+            exit 0
+          fi
+
+          # Collected before the first write, so a failed collection fails the run rather than
+          # reading as a change that closes nothing.
+          issues="$("$CLOSING_ISSUES_SCRIPT" "$REPOSITORY" "$PULL_REQUEST_NUMBER" "$CLOSING_ISSUE_LIMIT")"
+
+          if [[ -z "$issues" ]]; then
+            echo 'The pull request closes no issue here, so nobody is assigned.'
+            exit 0
+          fi
+
+          # Additive, like the labels: this endpoint adds to the assignees rather than replacing
+          # them, so somebody assigned by hand stays and a second run changes nothing.
+          while IFS= read -r issue; do
+            gh api "repos/${REPOSITORY}/issues/${issue}/assignees" \
+              --method POST -f "assignees[]=${AUTHOR}" --silent
+
+            printf 'Assigned #%s to %s.\n' "$issue" "$AUTHOR"
+          done <<< "$issues"
 
   # What the open pull requests say about the issues they close, once something has merged into
   # `main`. A merge is what makes another branch stop merging, and GitHub raises nothing on the pull

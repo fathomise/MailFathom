@@ -937,7 +937,7 @@ Every condition lives in a script under `.github/pull-request/` and none of them
 workflow, so a new rule is one edit to a script the contract suite runs rather than a rule
 spread across whichever workflows happen to care.
 
-The two jobs are split by the event that can answer them, which is also what keeps each run
+The jobs are split by the event that can answer them, which is also what keeps each run
 short. `Fathom review` waits for this workflow's run to conclude before it reads the labels
 off a pull request, so anything slower on that path delays every review.
 
@@ -987,6 +987,27 @@ against a tree without the script. That is not hypothetical — it is how the pu
 introducing this workflow failed, with `No such file or directory`. So the checkout is the
 merge ref this trigger defaults to, which is the tree the workflow file itself came from,
 and the read-only token on a fork is what bounds what a script from there can do.
+
+### The author assigned to the issues it closes
+
+On the same events as the labels, a job of its own adds the pull request's author as an
+assignee of every issue in this repository the change closes — the list
+`collect-closing-issues.sh` asks GitHub for, capped at five. The pull request already names
+who is carrying the work and the issue does not, so without it the issue list, the board,
+and every notification about the issue say nothing about that until somebody assigns it by
+hand. It answers on `edited` for the reason the labels do: a closing reference added after
+publication earns its assignee then.
+
+It assigns only where the head branch lives in this repository. A pull request from a fork —
+including one whose fork has since been deleted — assigns nobody and says so: opening a pull
+request against an issue does not hand an outside author that issue, and triage is where a
+maintainer decides that. A draft assigns nobody until it is marked ready, and an author that
+is not a user account, which GitHub cannot assign, is passed over. Like the labelling it only
+adds, so an assignee set by hand stays and a second run changes nothing. It is a separate
+job because it is the one write to an issue in this workflow: `issues: write` sits there
+rather than on the labelling job's token. It does not shorten `Fathom review`'s wait, which
+is for the whole run on these events, so it is kept as short as the labelling — a checkout
+and a few API calls.
 
 ### The board status the state earns
 

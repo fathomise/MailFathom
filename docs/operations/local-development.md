@@ -1954,10 +1954,12 @@ Four of its decisions are the ones a reader would otherwise have to reconstruct,
 On a pull request from a fork the run gets the token GitHub grants that event, which is not the token a branch in this repository gets, and whether the alert upload succeeds there follows from GitHub's rules rather than from anything in this file. The check is required by nothing either way, so no merge waits on how it resolves, and the push to `main` after the merge analyses the same code under a token that certainly can upload.
 
 The fifth workflow, `Apply pull request rules`, derives every fact a pull request earns and carries
-two jobs, split by the event that can answer them. On a `pull_request` — opened, reopened, marked
+three jobs, split by the event that can answer them. On a `pull_request` — opened, reopened, marked
 ready, or edited — it checks out the merge commit and applies the labels
 `.github/pull-request/select-labels.sh` says the change earns, today `security` when any issue the
-body refers to carries it, whether the change closes that issue or merely names it. On a push to
+body refers to carries it, whether the change closes that issue or merely names it; beside that, once
+the pull request is out of draft and its branch lives in this repository rather than in a fork, it adds
+the author as an assignee of up to five of the issues the change closes. On a push to
 `main`, and on any of the seven workflows a pull request runs concluding, it instead reads what those
 pull requests are in — whether each still merges, whether the reviewer approved the head, and what
 its checks concluded — and writes the roadmap board where
@@ -1974,7 +1976,7 @@ the labelling as short as it was: `Fathom review` waits for this workflow's run 
 labels. It reports no status check and blocks nothing; a draft runs it, because a label is worth
 having while the change is still being written, and a draft earns none of the three rules about a
 review and a pipeline, though the conflict rule still reaches one that had been ready. It only ever adds
-a label, so one a hand applied stays. [Rules on the pull
+a label or an assignee, so one a hand applied stays. [Rules on the pull
 request](agent-workflow.md#rules-on-the-pull-request) carries the reasoning, including why the
 labelling takes `pull_request` rather than the trigger `Fathom review` holds, why the board half
 takes `workflow_run` rather than `check_suite`, and what either costs on a fork.
