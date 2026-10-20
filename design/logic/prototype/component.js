@@ -344,7 +344,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   };
 
   class Component extends DCLogic {
-    state = { workMode: "classic", tabs: [{ key: "thread:contoso", kind: "thread", id: "contoso" }], activeTab: "thread:contoso", screen: "discover", phase: "idle", query: "", planKey: null, ready: {}, ev: null, threadId: "contoso", fromCite: null, cameFrom: false, mailAnswer: false, mailPane: "list", themeOverride: null, stateOpen: false, vw: typeof window !== "undefined" ? window.innerWidth : 1440, listW: 340, remMap: { t1: [15], t3: [1440, 60] }, remUnit: "min", convs: SEED_CONVS(), bkPhase: {}, bkState: {}, bkResult: {}, bkEdit: {} };
+    state = { workMode: "classic", tabs: [{ key: "thread:contoso", kind: "thread", id: "contoso" }], activeTab: "thread:contoso", screen: "discover", phase: "idle", query: "", planKey: null, ready: {}, ev: null, threadId: "contoso", fromCite: null, cameFrom: false, mailAnswer: false, mailPane: "list", themeOverride: null, stateOpen: false, vw: typeof window !== "undefined" ? window.innerWidth : 1440, coarse: typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches, listW: null, remMap: { t1: [15], t3: [1440, 60] }, remUnit: "min", convs: SEED_CONVS(), bkPhase: {}, bkState: {}, bkResult: {}, bkEdit: {} };
     timers = [];
     rootRef = React.createRef();
     agentScrollRef = React.createRef();
@@ -404,6 +404,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         if (w && w !== this.state.vw) patch.vw = w;
         if (h && h !== this.state.vh) patch.vh = h;
         if (rh && rh !== this.state.railH) patch.railH = rh;
+        const coarse = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+        if (coarse !== !!this.state.coarse) patch.coarse = coarse;
         if (Object.keys(patch).length) this.setState(patch);
       };
       if (typeof ResizeObserver !== "undefined" && this.rootRef.current) {
@@ -411,6 +413,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         this.ro.observe(this.rootRef.current);
       }
       window.addEventListener("resize", this.measure);
+      if (typeof matchMedia === "function") matchMedia("(pointer: coarse)").addEventListener("change", this.measure);
       this.measure();
       this.timers.push(setTimeout(() => this.simulateNotif(), 14000));
     }
@@ -720,12 +723,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     };
 
     ovStyle = (z, mobile) => "position:fixed;z-index:" + z + ";display:flex;background:var(--scrim);" +
-      (mobile ? "top:0;left:0;right:0;bottom:" + this.barH() + "px;align-items:stretch;justify-content:stretch" : "inset:0;align-items:center;justify-content:center;padding:22px");
+      (mobile ? "top:0;left:0;right:0;bottom:" + this.barH() + "px;align-items:stretch;justify-content:stretch" : "inset:0;align-items:center;justify-content:center;padding:" + (this._low ? 8 : 22) + "px");
 
     /* Short confirmations (text + up to 3 buttons) always as a centred popup,
        on phones too - full screen is reserved for windows with forms. */
     ovAskStyle = (z, mobile) => "position:fixed;z-index:" + z + ";display:flex;align-items:center;justify-content:center;background:var(--scrim);" +
-      (mobile ? "top:0;left:0;right:0;bottom:" + this.barH() + "px;padding:20px" : "inset:0;padding:22px");
+      (mobile ? "top:0;left:0;right:0;bottom:" + this.barH() + "px;padding:20px" : "inset:0;padding:" + (this._low ? 8 : 22) + "px");
 
     barH = () => Math.max(70, (this.state.railH || 84)) + 2;
 
@@ -2317,7 +2320,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     beginResize = (e) => {
       e.preventDefault();
       const startX = e.clientX;
-      const startW = this.state.listW;
+      const startW = this._listW || 340;
       const move = (ev) => {
         const w = Math.max(232, Math.min(560, startW + (ev.clientX - startX)));
         this.setState({ listW: w });
@@ -2389,14 +2392,24 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
       const mode = this.props.layout ?? "auto";
       const FR = FRAMES[mode] || null;
+      /* Three axes, and every rule below reads exactly one of them — state-inventory.md § How a window is composed.
+         Width decides the columns, height the vertical density, the pointer the targets, gestures and hover. Nothing
+         reads orientation or aspect: upright and on its side are just two combinations of a width and a height band. */
       const w = FR ? FR.w : (st.vw || 1440);
+      const h = FR ? FR.h : (st.vh || 900);
       const isMobile = w < 700;
-      const tablet = !isMobile && w < 1180;
       const singlePane = isMobile || w < 820;
       const compact = !isMobile && w < 1180;
       const narrow = !isMobile && w < 1020;
-      const railW = tablet ? 66 : 96;
-      const touch = isMobile || tablet;
+      const wide = w >= 1920;
+      const low = h < 480;
+      const tall = h >= 960;
+      /* The framed previews are the three touch devices; anything else asks the pointer, as the client does. */
+      const touch = FR ? true : mode === "desktop" ? false : !!st.coarse;
+      const railW = compact ? 66 : 96;
+      this._low = low;
+      /* A dialog takes what a low window has and stops growing in a tall one. */
+      const dlgMaxH = low ? "calc(100dvh - 16px)" : tall ? "min(calc(100dvh - 44px), 760px)" : "calc(100dvh - 44px)";
       const toastCompact = w < 900;
       /* The centre opens on what the reader has not seen yet; *All* is one press away. */
       const notifFilter = st.notifFilter || "unread";
@@ -2412,8 +2425,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const notifShown = notifFilter === "unread" ? notifAll.filter(n => isNotifUnread(n, notifRead)) : notifAll;
       const avSz = isMobile ? 34 : 22;
       const mailPane = st.mailPane || "list";
-      const thCollapsed = !!st.thScroll;
-      const drawer = tablet || isMobile;
+      /* The one-pane head folds as the thread scrolls; a low window keeps it folded and a tall one keeps it open. */
+      const thCollapsed = low || (!!st.thScroll && !tall);
+      /* Width decides that the folder list stands as a column only from 1180; the pointer decides what it folds into
+         below that — a drawer under a finger, which has no hover to read a strip of icons by, and the 58 px strip of
+         icons under a mouse. The phone has no rail to fold beside, so its list is always the drawer. */
+      const drawer = isMobile || (compact && !!touch);
       const drawerOpen = !!st.sideDrawer;
       const rowStyleFor = (active, selected) =>
         "position:relative;display:flex;flex-direction:column;user-select:none;-webkit-user-select:none;" +
@@ -2440,7 +2457,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
       const railBase = isMobile
         ? "flex:1;min-width:0;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 0;border-radius:16px;font-size:12px;"
-        : "display:flex;flex-direction:column;align-items:center;gap:4px;width:calc(100% - 14px);box-sizing:border-box;border-radius:12px;padding:" + (tablet ? 8 : 9) + "px 0;";
+        : "display:flex;flex-direction:column;align-items:center;gap:4px;width:calc(100% - 14px);box-sizing:border-box;border-radius:12px;padding:" + (low ? (touch ? 0 : 4) : compact ? 8 : 9) + "px 0;" + (low ? "min-height:" + (touch ? 44 : 36) + "px;justify-content:center;" : "");
       /* The phone marks the current place with a pill behind its glyph rather than a tile around the whole item: a
          tile the full height of the bar reads as a pressed button, and the bar is navigation. */
       const activeStyle = isMobile
@@ -2702,7 +2719,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const tabsMode = w >= 1180 && (st.workMode || "tabs") === "tabs";
       const emptyApp = false;
       const filterCount = [!!st.fUnread, !!st.fFlagged, !!st.fAttach, !!st.fRange || !!st.fFrom || !!st.fTo, (st.fSort || "Newest") !== "Newest"].filter(Boolean).length;
-      const sideCollapsed = drawer ? false : (st.sideCollapsed !== undefined ? !!st.sideCollapsed : narrow);
+      const sideCollapsed = drawer ? false : (st.sideCollapsed !== undefined ? !!st.sideCollapsed : compact);
       const noop = () => {};
       /* A real account carries all six standard folders. The unified view drops the three that only
          make sense per account - Archive, Spam and Trash are always opened in the account they live in. */
@@ -2715,8 +2732,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         { icon: "delete", label: "Trash", perAccount: true },
       ].filter(mb => !(unified && mb.perAccount))
         .map(mb => ({ icon: mb.icon, label: mb.label, count: (counts || {})[mb.label] || "" }));
-      const sideW = drawer ? 0 : sideCollapsed ? 58 : Math.max(210, Math.min(420, st.sideW || 210));
-      const listW = Math.max(232, Math.min(st.listW, w - railW - sideW - (narrow ? 300 : 420)));
+      const sideW = drawer ? 0 : sideCollapsed ? 58 : Math.max(210, Math.min(420, st.sideW || (wide ? 240 : 210)));
+      /* The list's width is the width band's until a mouse drags it: 284 below 1180, 340 on a desktop, 420 from 1920. */
+      const listW = Math.max(232, Math.min(st.listW || (compact ? 284 : wide ? 420 : 340), w - railW - sideW - (narrow ? 300 : 420)));
+      this._listW = listW;
       const composeTabActive = tabsMode && st.activeTab === "compose" && !!st.compose;
       const docInPane = tabsMode && (st.activeTab || "").indexOf("doc:") === 0 && !!st.doc;
       const htmlInPane = tabsMode && (st.activeTab || "").indexOf("html:") === 0 && !!st.htmlDoc;
@@ -2743,10 +2762,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
          until something has been opened during this visit to mail. */
       const emptyMail = !composeInPane && !docInPane && !htmlInPane &&
         (tabsMode ? tabItems.length === 0 : (!singlePane && !st.threadOpen));
-      /* The fold: two panes under a finger in less width than the tablet. While a thread is open the list
-         folds to a strip of senders, so the thread gets the width; the strip's head widens it again. */
-      const foldTwoPanes = touch && !singlePane && narrow;
+      /* Two panes in less than 1020 px: while a thread is open the list folds to a strip of senders, so the thread
+         gets the width; the strip's head widens it again. A width rule — a mouse gets the same strip as a finger. */
+      const foldTwoPanes = !singlePane && narrow;
       const listStrip = foldTwoPanes && !emptyMail && !st.listWide && !selectionOn && !(st.stateBarOff);
+      /* What is inside the thread pane reads the pane's own width, not the window's: the same window gives the pane
+         more or less as the list is folded, dragged, or put away. These are the pane's container breakpoints. */
+      const paneW = singlePane ? w - (isMobile ? 0 : railW) : w - railW - sideW - (listStrip ? 76 : listW);
+      const paneCompact = paneW < 760;
+      const paneNarrow = paneW < 560;
+      const stateCards = !isMobile && paneCompact;
+      const readPad = (min) => "max(" + min + "px, calc((100% - 880px) / 2))";
 
       const vals = {
         mo,
@@ -2815,7 +2841,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           (st.userMenu ? "outline:2px solid var(--accent-line);outline-offset:2px;" : ""),
         railThemeStyle: railBase + "color:var(--muted);",
         notMobile: !isMobile,
-        railIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:" + (isMobile ? 24 : tablet ? 22 : 22) + "px" +
+        railIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:" + (isMobile ? 24 : 22) + "px" +
           (isMobile ? ";width:56px;height:32px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:var(--nav-mark,transparent);transition:background 120ms ease" : ""),
         railMoreStyle: railBase + (st.more ? activeStyle : idleColor),
         moreOpen: !!st.more,
@@ -2847,7 +2873,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         railLabelSettings: isMobile ? "Settings" : "Settings",
         railLabelStyle: isMobile
           ? "font-size:12px;line-height:1.1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%"
-          : tablet ? "font-size:12px;line-height:1.1;text-align:center" : "font-size:12px",
+          : low ? "width:1px;height:1px;margin:-1px;overflow:hidden;opacity:0;white-space:nowrap" : compact ? "font-size:12px;line-height:1.1;text-align:center" : "font-size:12px",
         rootStyle: FONT + (isMobile ? ";flex-direction:column-reverse" : "") + (FR
           ? ";width:" + FR.w + "px;max-width:100%;height:" + FR.h + "px;max-height:calc(100dvh - 40px);margin:20px auto;transform:translateZ(0);border:1px solid var(--border2);border-radius:" + (isMobile ? 24 : 12) + "px;overflow:hidden;box-shadow:0 20px 50px var(--sh-2)"
           : ""),
@@ -2934,19 +2960,21 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         ovAsk99: this.ovAskStyle(99, isMobile),
         dlgFormWide: isMobile
           ? "width:100%;height:100%;display:flex;flex-direction:column;background:var(--panel);overflow:auto"
-          : "width:460px;max-width:100%;max-height:calc(100dvh - 44px);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 22px 52px var(--sh-3);overflow:auto",
+          : "width:460px;max-width:100%;max-height:" + dlgMaxH + ";display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 22px 52px var(--sh-3);overflow:auto",
         dlgForm: isMobile
           ? "width:100%;height:100%;display:flex;flex-direction:column;background:var(--panel);overflow:auto"
-          : "width:440px;max-width:100%;max-height:calc(100dvh - 44px);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 22px 52px var(--sh-3);overflow:auto",
+          : "width:440px;max-width:100%;max-height:" + dlgMaxH + ";display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 22px 52px var(--sh-3);overflow:auto",
         dlgAsk: isMobile
           ? "box-sizing:border-box;width:100%;max-width:344px;max-height:100%;overflow:auto;display:flex;flex-direction:column;gap:13px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:19px 18px;box-shadow:0 24px 56px var(--sh-3)"
-          : "width:400px;max-width:100%;max-height:calc(100dvh - 44px);overflow:auto;display:flex;flex-direction:column;gap:13px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;box-shadow:0 22px 50px var(--sh-3)",
+          : "width:400px;max-width:100%;max-height:" + dlgMaxH + ";overflow:auto;display:flex;flex-direction:column;gap:13px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;box-shadow:0 22px 50px var(--sh-3)",
         remRowStyle: touch ? "display:flex;align-items:center;gap:8px;flex-wrap:wrap" : "display:flex;align-items:center;gap:7px",
         remHintStyle: touch ? "width:100%;font-size:12px;color:var(--faint);line-height:1.4" : "flex:1;min-width:0;font-size:11px;color:var(--faint);text-align:right",
         dlgList: isMobile
           ? "box-sizing:border-box;width:100%;height:100%;display:flex;flex-direction:column;gap:5px;background:var(--panel);padding:16px 14px 22px;overflow:auto"
-          : "width:330px;max-width:100%;max-height:calc(100dvh - 44px);overflow:auto;display:flex;flex-direction:column;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:0 22px 50px var(--sh-3)",
-        logoStyle: (tablet ? "width:30px;height:30px" : "width:40px;height:40px") + ";border-radius:12px;display:block;flex:0 0 auto",
+          : "width:330px;max-width:100%;max-height:" + dlgMaxH + ";overflow:auto;display:flex;flex-direction:column;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:0 22px 50px var(--sh-3)",
+        railLogoShown: !isMobile && !low,
+        railCaptionShown: !low,
+        logoStyle: (compact ? "width:30px;height:30px" : "width:40px;height:40px") + ";border-radius:12px;display:block;flex:0 0 auto",
         railStyle: isMobile
           ? "flex:0 0 auto;min-height:70px;box-sizing:border-box;display:flex;flex-direction:row;align-items:stretch;justify-content:space-between;gap:3px;background:var(--rail);border-top:1px solid var(--line);padding:6px 6px calc(8px + env(safe-area-inset-bottom)) 6px;touch-action:none"
           : "width:" + railW + "px;flex:0 0 " + railW + "px;display:flex;flex-direction:column;align-items:center;gap:" + (narrow ? 10 : 14) + "px;overflow:hidden;background:var(--rail);border-right:1px solid var(--line);padding:16px 0",
@@ -2975,7 +3003,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : "flex:1;min-height:0;display:flex;gap:0",
         tasksMainStyle: isMobile || compact
           ? "display:flex;flex-direction:column;gap:18px"
-          : "flex:1;min-width:0;overflow:auto;display:flex;flex-direction:column;gap:20px;padding:20px 26px",
+          : "flex:1;min-width:0;overflow:auto;display:flex;flex-direction:column;gap:20px;padding:20px max(26px, calc((100% - 310px - 1160px) / 2))",
         tasksSideStyle: isMobile || compact
           ? "display:flex;flex-direction:column;gap:10px;background:var(--sub);border:1px solid var(--line);border-radius:12px;padding:14px"
           : "width:310px;flex:0 0 310px;overflow:auto;display:flex;flex-direction:column;gap:10px;background:var(--sub);border-left:1px solid var(--line);padding:18px",
@@ -3093,11 +3121,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         railAgentStyle: railBase + (st.screen === "agent" ? activeStyle : idleColor),
         agentScrollStyle: isMobile
           ? "flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:14px;padding:16px 14px"
-          : "flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:16px;padding:22px " + (narrow ? "26px" : "max(26px, calc((100% - " + (compact ? 1170 : 1290) + "px) / 2))"),
+          : "flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:16px;padding:22px max(26px, calc((100% - 1290px) / 2))",
         agentBoxStyle: "display:flex;align-items:center;gap:" + (isMobile ? 8 : 12) + "px;background:var(--panel);border:2px solid var(--accent);border-radius:12px;" + (touch ? "padding:6px 6px 6px 14px" : "padding:10px 13px"),
         agentInputWrapStyle: isMobile
           ? "display:flex;flex-direction:column;gap:9px;background:var(--panel);border-top:1px solid var(--line);padding:12px 14px"
-          : "display:flex;flex-direction:column;gap:10px;background:var(--panel);border-top:1px solid var(--line);padding:14px " + (narrow ? "26px" : "max(26px, calc((100% - " + (compact ? 1170 : 1290) + "px) / 2))") + " 16px",
+          : "display:flex;flex-direction:column;gap:10px;background:var(--panel);border-top:1px solid var(--line);padding:14px max(26px, calc((100% - 1290px) / 2)) 16px",
         agentThinking: !!st.agentThinking,
         agentScrollRef: this.agentScrollRef,
         onAgentScroll: this.onAgentScroll,
@@ -3559,7 +3587,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : sideCollapsed
           ? "width:58px;flex:0 0 58px;display:flex;flex-direction:column;min-height:0;background:var(--sub);border-right:1px solid var(--line)"
           : "width:" + sideW + "px;flex:0 0 " + sideW + "px;display:flex;flex-direction:column;min-height:0;background:var(--sub);border-right:1px solid var(--line)",
-        showSideResizer: !drawer && !sideCollapsed && !isMobile,
+        showSideResizer: !drawer && !sideCollapsed && !touch,
         startSideResize: this.beginSideResize,
         resetSideResize: () => this.setState({ sideW: 210 }),
         filtersWrapStyle: sideCollapsed
@@ -4052,10 +4080,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : this.setState({ screen: "mail", compose: true, composeMin: false })),
         personHeadStyle: isMobile
           ? "display:flex;flex-direction:column;gap:9px;background:var(--sub);border-bottom:1px solid var(--line);padding:14px"
-          : "display:flex;flex-direction:column;gap:9px;background:var(--sub);border-bottom:1px solid var(--line);padding:18px 24px",
+          : "display:flex;flex-direction:column;gap:9px;background:var(--sub);border-bottom:1px solid var(--line);padding:18px max(24px, calc((100% - 1160px) / 2))",
         personBodyStyle: isMobile
           ? "flex:1;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14px"
-          : "flex:1;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:14px;padding:18px 24px",
+          : "flex:1;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:14px;padding:18px max(24px, calc((100% - 1160px) / 2))",
         personStatsStyle: isMobile || narrow ? "display:flex;flex-direction:column;gap:9px" : "display:flex;gap:10px",
         personNext: personAi.next || "",
         personHasNext: !!personAi.next,
@@ -4182,10 +4210,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         caseAskTextStyle: "flex:1;min-width:0;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:" + (isMobile ? 13 : 15) + "px",
         caseHeadStyle: isMobile
           ? "flex:0 0 auto;display:flex;flex-direction:column;gap:6px;background:var(--sub);border-bottom:1px solid var(--line);padding:" + (st.caseScroll ? "9px 14px" : "12px 14px")
-          : "display:flex;flex-direction:column;gap:9px;background:var(--sub);border-bottom:1px solid var(--line);padding:16px 24px",
+          : "display:flex;flex-direction:column;gap:9px;background:var(--sub);border-bottom:1px solid var(--line);padding:16px max(24px, calc((100% - 1160px) / 2))",
         caseBodyStyle: isMobile
           ? "flex:1;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14px"
-          : "flex:1;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:14px;padding:18px 24px",
+          : "flex:1;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:14px;padding:18px max(24px, calc((100% - 1160px) / 2))",
         caseStateGridStyle: isMobile || narrow
           ? "display:flex;flex-direction:column;gap:12px"
           : "display:grid;grid-template-columns:" + (touch ? "repeat(auto-fit,minmax(240px,1fr))" : "repeat(3,1fr)") + ";gap:12px;align-items:start",
@@ -4248,7 +4276,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
         /* On tablets and narrower screens "Hide panels" also removes the message list —
            the correspondence gets the full width (on desktop the list stays, there is room). */
-        showThreadList: (!singlePane || mailPane === "list") && !(tablet && st.stateBarOff && mailPane !== "list"),
+        showThreadList: (!singlePane || mailPane === "list") && !(compact && st.stateBarOff && mailPane !== "list"),
         showContentPane: !singlePane || mailPane === "thread" || !!st.compose || !!st.doc,
         showThreadPane: (!singlePane || mailPane === "thread") && !composeInPane && !docInPane && !htmlInPane && !emptyMail,
         showMailBack: singlePane && mailPane === "thread",
@@ -4260,10 +4288,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : "display:flex;align-items:center;gap:9px;min-width:0",
         subjectStyle: singlePane
           ? "order:3;flex:1 1 100%;min-width:0;box-sizing:border-box;padding:0 8px " + (thCollapsed ? 0 : 2) + "px;font-size:" + (thCollapsed ? 16 : 18) + "px;font-weight:600;line-height:1.3;letter-spacing:-0.01em;text-wrap:pretty;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:" + (thCollapsed ? 1 : 2) + ";overflow:hidden;transition:font-size 140ms ease"
-          : "font-size:20px;font-weight:600;min-width:0",
+          : low ? "font-size:16px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:20px;font-weight:600;min-width:0",
         /* Expandable thread address details — the chevron sits in the sender row so that, collapsed,
            it does not take a separate row in the header. */
-        metaWrapStyle: singlePane && thCollapsed
+        metaWrapStyle: (singlePane && thCollapsed) || low
           ? "display:none"
           : "display:flex;flex-direction:column;gap:2px;min-width:0",
         metaStyle: "display:flex;align-items:center;gap:4px;min-width:0;max-width:100%;align-self:flex-start;border-radius:6px;color:var(--muted);" +
@@ -4288,12 +4316,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         ].filter(() => singlePane || !touch).map(a => ({
           title: a.title,
           run: a.run,
-          label: singlePane ? a.icon : a.label,
-          style: singlePane
-            ? "width:" + (isMobile ? 48 : 44) + "px;height:" + (isMobile ? 48 : 44) + "px;display:flex;align-items:center;justify-content:center;border-radius:12px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : "--text2") + ");font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1"
+          label: singlePane || paneNarrow ? a.icon : a.label,
+          style: singlePane || paneNarrow
+            ? "width:" + (isMobile ? 48 : touch ? 44 : 34) + "px;height:" + (isMobile ? 48 : touch ? 44 : 34) + "px;display:flex;align-items:center;justify-content:center;border-radius:" + (touch ? 12 : 8) + "px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : "--text2") + ");font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1"
             : "display:flex;align-items:center;padding:5px 8px;border-radius:8px;font-size:13px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : "--muted") + ")",
         })),
-        showComposerChips: !singlePane && !tablet,
+        showComposerChips: !singlePane && !paneCompact,
         askThreadLabel: singlePane ? "Draft" : "Draft a reply",
         composerPlaceholder: singlePane ? "Describe the reply…" : "Describe the reply you want to send…",
         composerBarStyle: "flex:1;min-width:0;display:flex;align-items:center;gap:10px;border:" + (singlePane ? "1px solid var(--accent-line)" : "2px solid var(--accent)") + ";background:var(--sub);border-radius:" + (isMobile ? 999 : 12) + "px;padding:" + (isMobile ? "4px 4px 4px 14px" : singlePane ? "4px 4px 4px 12px" : "6px 6px 6px 14px"),
@@ -4305,7 +4333,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         backToList: () => this.setState({ mailPane: "list", replyDock: null }),
         threadListStyle: "position:relative;" + (singlePane
           ? "flex:1;display:flex;flex-direction:column;min-height:0;min-width:0"
-          : "width:" + (listStrip ? 76 : tablet ? 284 : listW) + "px;flex:0 0 " + (listStrip ? 76 : tablet ? 284 : listW) + "px;display:flex;flex-direction:column;min-height:0" + (listStrip ? ";background:var(--sub);border-right:1px solid var(--line)" : "")),
+          : "width:" + (listStrip ? 76 : listW) + "px;flex:0 0 " + (listStrip ? 76 : listW) + "px;display:flex;flex-direction:column;min-height:0" + (listStrip ? ";background:var(--sub);border-right:1px solid var(--line)" : "")),
         listStrip,
         listFull: !listStrip,
         listNarrowable: foldTwoPanes && !emptyMail && !!st.listWide && !selectionOn,
@@ -4399,7 +4427,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             moAiSum: full ? "sheet" : "pop",
             dlgAi: full
               ? "box-sizing:border-box;width:100%;height:100%;display:flex;flex-direction:column;background:var(--panel);overflow:hidden"
-              : "width:" + (narrow ? 760 : 920) + "px;max-width:100%;max-height:min(86dvh, 860px);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 28px 64px var(--shadow);overflow:hidden",
+              : "width:" + (narrow ? 760 : 920) + "px;max-width:100%;max-height:" + (low ? "calc(100dvh - 16px)" : "min(86dvh, 860px)") + ";display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 28px 64px var(--shadow);overflow:hidden",
             aiSumHeadStyle: "flex:0 0 auto;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line);" + (full ? "padding:10px 10px 10px 16px" : "padding:18px 18px 16px 26px"),
             aiSumGlyphStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:10px;background:var(--accent-soft);color:var(--accent-d);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;" + (full ? "width:32px;height:32px;font-size:18px" : "width:38px;height:38px;font-size:21px"),
             aiSumTitleStyle: "font-weight:600;letter-spacing:-0.01em;" + (full ? "font-size:16px" : "font-size:18px"),
@@ -4594,9 +4622,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         cancelAskText: st.cancelAsk ? st.cancelAsk.text : "",
         keepTask: () => this.setState({ cancelAsk: null }),
         abortTaskNow: this.abortTask,
-        showResizer: !singlePane && !tablet,
+        /* A drag handle is a fine pointer's: under a finger the list keeps the width its band gives it. */
+        showResizer: !singlePane && !touch && !listStrip,
         startResize: this.beginResize,
-        resetResize: () => this.setState({ listW: 340 }),
+        resetResize: () => this.setState({ listW: null }),
         /* The thread list leaves the DOM when a message opens (single-panel layout),
            so we keep the scroll position ourselves and restore it on return. */
         listScrollRef: this.keepScroll("mail"),
@@ -4613,8 +4642,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         listInnerStyle: "display:flex;flex-direction:column;gap:1px;padding:1px 0",
         threadHeadStyle: singlePane
           ? "flex:0 0 auto;display:flex;flex-direction:column;gap:2px;padding:" + (thCollapsed ? "3px 6px" : "6px 8px 8px 8px") + ";border-bottom:1px solid var(--line);background:var(--panel);transition:padding 140ms ease"
-          : "display:flex;flex-direction:column;gap:7px;padding:16px 22px;border-bottom:1px solid var(--line)",
-        showThreadStateBar: (!singlePane || !thCollapsed) && !tablet && !st.stateBarOff,
+          : "display:flex;flex-direction:column;gap:" + (low ? 2 : 7) + "px;padding:" + (low ? 8 : 16) + "px " + readPad(22) + ";border-bottom:1px solid var(--line)",
+        showThreadStateBar: (!singlePane || !thCollapsed) && !stateCards && !st.stateBarOff,
         /* Condensed view: only the correspondence remains. On a narrow screen the header stays —
            mieszka w nim przycisk powrotu do listy. */
         showThreadHead: !st.stateBarOff || singlePane,
@@ -4635,15 +4664,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
            the state was derived, so the reading is held back instead of being shown out of date. */
         stateStale: !!thread.stateStale,
         stateFresh: !thread.stateStale,
-        stateInBody: tablet && !st.stateBarOff && !thread.stateStale,
-        staleInBody: tablet && !st.stateBarOff && !!thread.stateStale,
+        stateInBody: stateCards && !st.stateBarOff && !thread.stateStale,
+        staleInBody: stateCards && !st.stateBarOff && !!thread.stateStale,
         threadAiLine: thread.ai || (thread.state[0] ? thread.state[0].value : ""),
         threadSheetOpen: !!st.threadSheet,
         showAgentJump: !isMobile && !st.stateBarOff,
-        agentJumpRowStyle: "flex:0 0 auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--line);background:var(--sub);padding:" + (tablet ? "9px 16px" : "10px 24px"),
-        askSheetLabel: isMobile || tablet ? "" : "Thread state",
+        agentJumpRowStyle: "flex:0 0 auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--line);background:var(--sub);padding:" + (paneCompact ? "9px 16px" : "10px 24px"),
+        askSheetLabel: isMobile || paneCompact ? "" : "Thread state",
         askSheetAltStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--border2);border-radius:999px;color:var(--text2);white-space:nowrap;" +
-          "box-sizing:border-box;" + (isMobile ? "width:48px;height:48px;padding:0;font-size:14px" : "min-height:" + (touch ? 44 : 38) + "px;padding:0 " + (tablet ? 12 : 14) + "px;font-size:13px"),
+          "box-sizing:border-box;" + (isMobile ? "width:48px;height:48px;padding:0;font-size:14px" : "min-height:" + (touch ? 44 : 38) + "px;padding:0 " + (paneCompact ? 12 : 14) + "px;font-size:13px"),
         askSheetBtnStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:7px;min-height:" + (isMobile ? 48 : touch ? 44 : 34) + "px;padding:0 " + (isMobile ? 18 : 13) + "px;border-radius:24px;font-size:" + (isMobile ? 14 : 13) + "px;font-weight:600;color:var(--onaccent);background:var(--accent)",
         openThreadSheet: () => this.setState({ threadSheet: true }),
         threadSheetAsks: [
@@ -4686,11 +4715,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         },
         threadStateStyle: singlePane
           ? "flex:0 0 auto;display:flex;align-items:center;gap:9px;background:var(--sub);border-bottom:1px solid var(--line);padding:9px 12px"
-          : "display:flex;flex-direction:column;gap:6px;background:var(--sub);border-bottom:1px solid var(--line);padding:9px 22px",
-        stateRowStyle: isMobile ? "display:flex;flex-direction:column;gap:6px;padding-top:1px"
+          : "display:flex;flex-direction:column;gap:6px;background:var(--sub);border-bottom:1px solid var(--line);padding:9px " + readPad(22),
+        stateRowStyle: isMobile || paneNarrow ? "display:flex;flex-direction:column;gap:6px;padding-top:1px"
           : thread.state.length >= 4 ? "display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 20px" : "display:flex;gap:12px 20px;flex-wrap:wrap",
         stateBodyRowStyle: thread.state.length >= 4
-          ? "flex:0 0 auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:8px"
+          ? "flex:0 0 auto;display:grid;grid-template-columns:" + (paneNarrow ? "minmax(0,1fr)" : "repeat(2,minmax(0,1fr))") + ";gap:7px;background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:8px"
           : "flex:0 0 auto;display:flex;gap:7px;flex-wrap:wrap;background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:8px",
         stateChips: thread.state.map(st2 => ({
           label: st2.label,
@@ -4710,7 +4739,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* The bottom padding keeps the last line of the thread clear of the floating reply button. */
         threadBodyStyle: singlePane
           ? "flex:1;display:flex;flex-direction:column;gap:10px;padding:12px 12px " + (st.stateBarOff ? 12 : st.replyDock ? 96 : 84) + "px;overflow:auto;min-height:0"
-          : "flex:1;display:flex;flex-direction:column;gap:12px;padding:18px 22px " + (st.stateBarOff ? 18 : st.replyDock ? 150 : 86) + "px;overflow:auto;min-height:0",
+          : "flex:1;display:flex;flex-direction:column;gap:12px;padding:18px " + readPad(22) + " " + (st.stateBarOff ? 18 : st.replyDock ? 150 : 86) + "px;overflow:auto;min-height:0",
         composerStyle: "position:absolute;z-index:16;display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 44px var(--sh-3),0 2px 8px var(--sh-2);" +
           (singlePane ? "left:10px;right:10px;bottom:10px;padding:" + (touch ? "16px 8px 8px" : "8px") : "left:18px;right:18px;bottom:16px;padding:12px"),
         backBannerStyle: isMobile
@@ -4744,7 +4773,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           avatarImgStyle: "width:" + avSz + "px;height:" + avSz + "px;flex:0 0 " + avSz + "px;border-radius:50%;background-color:var(--border2);background-position:center;background-size:cover;background-repeat:no-repeat;background-image:url(" + avatarOf(t.from) + ");display:block",
           fromStyle: (isMobile ? "flex:1;min-width:0;font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:14px;font-weight:600;white-space:nowrap") + (unreadMap[t.id] ? ";color:var(--text)" : ""),
           subjStyle: isMobile ? "font-size:14px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:14px",
-          orgStyle: isMobile || tablet ? "display:none" : "font-size:12px;color:var(--muted);white-space:nowrap",
+          orgStyle: isMobile || compact ? "display:none" : "font-size:12px;color:var(--muted);white-space:nowrap",
           showAi: aiHints && !!t.ai,
           openAiSum: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.openAiSum(t.id); },
           aiBtnStyle: "width:" + (touch ? 32 : 24) + "px;height:" + (touch ? 32 : 24) + "px;flex:0 0 " + (touch ? 32 : 24) + "px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:" + (touch ? 20 : 16) + "px;line-height:1",
@@ -4836,13 +4865,20 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "flex:1;display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--panel)"
           : isMobile
           ? "position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;background:var(--panel)"
-          : "position:fixed;right:26px;bottom:0;width:680px;max-width:calc(100vw - 52px);max-height:86dvh;z-index:90;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-bottom:none;border-radius:12px 12px 0 0;box-shadow:0 -1px 0 var(--inset) inset,0 18px 44px var(--sh-3)",
+          : "position:fixed;right:26px;bottom:0;width:680px;max-width:calc(100vw - 52px);max-height:" + (low ? "calc(100dvh - 8px)" : tall ? "min(86dvh, 760px)" : "86dvh") + ";z-index:90;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-bottom:none;border-radius:12px 12px 0 0;box-shadow:0 -1px 0 var(--inset) inset,0 18px 44px var(--sh-3)",
         composeTitle: (st.composeMin ? composeKind + " - collapsed" : composeKind),
         composeToChips: composeTo.map(n => ({ name: n })),
         ccOpen: !!st.ccOpen,
         ccTitle: st.ccOpen ? "Hide Cc and Bcc fields" : "Show Cc and Bcc fields",
         /* The phone's field labels take the width of the longest of them rather than a desktop column, so a recipient
            chip keeps one line beside its label. */
+        /* A low window lowers the editor's floor so the foot with *Send* stays on screen; the editor scrolls itself. */
+        composeEditorStyle: "flex:1;min-height:" + (low ? 72 : 170) + "px;overflow:auto;padding:16px 17px;font-size:15px;line-height:1.65;color:var(--text2);outline:none",
+        composeHeadStyle: "display:flex;align-items:center;gap:12px;padding:" + (low ? "0 6px 0 15px" : "11px 15px") + ";background:var(--sub);border-bottom:1px solid var(--line);border-radius:12px 12px 0 0",
+        /* In a low window the fields, the AI drafting and the editor scroll together and the foot with *Send* stays
+           pinned under them; anywhere else the wrapper is not a box at all. */
+        composeScrollStyle: low ? "flex:1;min-height:0;display:flex;flex-direction:column;overflow:auto" : "display:contents",
+        threadSheetStyle: "display:flex;flex-direction:column;gap:12px;max-height:" + (low ? "calc(100dvh - 8px)" : tall ? "min(82dvh, 640px)" : "82dvh") + ";overflow:auto;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;padding:10px 16px 20px 16px",
         composeBodyStyle: "display:flex;flex-direction:column;min-height:0;flex:1;--compose-label:" + (isMobile ? 58 : 88) + "px",
         ccToggleStyle: "flex:0 0 auto;font-size:12px;white-space:nowrap;border-radius:8px;" + (touch ? "display:flex;align-items:center;min-height:44px;padding:0 10px;" : "padding:2px 8px;") + (st.ccOpen ? "color:var(--accent-d);background:var(--accent-soft)" : "color:var(--muted)"),
         toggleCc: () => this.setState(s => ({ ccOpen: !s.ccOpen })),
@@ -4903,7 +4939,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : "position:fixed;inset:0;z-index:88;display:flex;align-items:center;justify-content:center;padding:26px;background:var(--scrim)",
         htmlWindowStyle: htmlInPane || singlePane
           ? "flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--panel)"
-          : "width:min(1000px,100%);height:min(90dvh,100%);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 26px 60px var(--scrim);overflow:hidden",
+          : "width:min(1000px,100%);height:" + (tall ? "min(90dvh,1100px,100%)" : "min(90dvh,100%)") + ";display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 26px 60px var(--scrim);overflow:hidden",
         htmlFrameStyle: "flex:1;min-height:0;width:100%;border:0;background:#ffffff" + (st.htmlLoading ? ";visibility:hidden" : ""),
         htmlLoading: !!st.htmlLoading,
         htmlSkelStyle: "position:absolute;inset:0;z-index:6;display:flex;flex-direction:column;gap:14px;background:#ffffff;padding:26px 30px",
@@ -4973,7 +5009,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         appBuild: APP_BUILD,
         /* Settings take the whole window at every size: the list of sections is meant to grow, and a
            dialog leaves no room for a navigation that grows with it. */
-        settingsCardStyle: "flex:1;min-width:0;display:flex;flex-direction:column;background:var(--panel)",
+        /* Past 1440 px Settings stands as a 1440 px surface centred on the window rather than stretching to its edge. */
+        settingsCardStyle: "flex:1;min-width:0;max-width:1440px;margin:0 auto;display:flex;flex-direction:column;background:var(--panel)" + (w > 1440 ? ";box-shadow:-1px 0 0 var(--line),1px 0 0 var(--line)" : ""),
         notifDevice: !!st.notifDevice,
         notifDeviceSwitchStyle: "flex:0 0 auto;margin-top:2px;width:30px;height:17px;border-radius:8px;display:flex;align-items:center;padding:2px;background:var(" + (st.notifDevice ? "--accent" : "--border2") + ");justify-content:" + (st.notifDevice ? "flex-end" : "flex-start"),
         toggleNotifDevice: () => this.setState(s => ({ notifDevice: !s.notifDevice })),

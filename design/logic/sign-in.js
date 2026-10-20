@@ -138,9 +138,9 @@ MailFathomDesign.artboards.signIn = (DCLogic, React) => {
       const stacked = w < 940;
       const pad = phone ? "22px 18px 28px 18px" : stacked ? "30px 34px" : "44px 46px";
       const tapH = phone ? 52 : 44;
-      /* Touch layouts (phone, fold, tablet) — the accessibility rule raises every finger target
-         to at least 44×44 px, so the theme and language switches must honour that in the design. */
-      const touchPick = w < 1180;
+      /* Under a finger the accessibility rule raises every target to at least 44×44 px, so the theme and language
+         switches honour it. The pointer decides, not the width: the framed previews are touch devices. */
+      const touchPick = FR ? true : mode === "desktop" ? false : typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
       const pickBase = touchPick
         ? "min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 7px;"
         : "min-width:26px;text-align:center;padding:4px 7px;";
