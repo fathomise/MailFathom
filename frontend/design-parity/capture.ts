@@ -18,7 +18,7 @@ import { password, userName } from '../tests/fixtures/deployment';
 // It is tooling rather than client source: it never reaches a bundle, `src/Client.App` does not import it, and it sits
 // beside `src-tauri/run-tauri.ts` in the workspace's own TypeScript that `tsconfig.json` type-checks and `jiti` runs.
 
-/** One of the design's four framed sizes, and whether the pointer at it is coarse. */
+/** One size of the window-size matrix, and whether the pointer at it is coarse. */
 interface Composition {
     name: string;
     width: number;
@@ -348,17 +348,51 @@ function contextFor(browser: Browser, plan: PlannedRun, composition: Composition
     });
 }
 
-async function captureDesign(
+/**
+ * Captures each pair in turn, and goes on past one that fails.
+ *
+ * One invocation is a screen at the whole window-size matrix, so a step that does not reach its state at one size would
+ * otherwise throw away every size after it. A failure is reported by the pair it belongs to, and the run ends with a
+ * non-zero status once every other pair has been captured.
+ */
+async function captureEach<T extends Capture>(
+    browser: Browser,
+    plan: PlannedRun,
+    pairs: T[],
+    side: 'design' | 'client',
+    captureOne: (page: Page, pair: T) => Promise<void>,
+): Promise<{ written: string[]; failed: string[] }> {
+    const written: string[] = [];
+    const failed: string[] = [];
+
+    for (const pair of pairs) {
+        const context = await contextFor(browser, plan, pair.composition);
+        const file = join(plan.outputDirectory, `${pair.screen}-${pair.composition.name}.${side}.png`);
+
+        try {
+            const page = await context.newPage();
+
+            await captureOne(page, pair);
+            await page.screenshot({ path: file });
+            written.push(file);
+        } catch (error) {
+            failed.push(
+                `${pair.screen}-${pair.composition.name}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+        } finally {
+            await context.close();
+        }
+    }
+
+    return { written, failed };
+}
+
+function captureDesign(
     browser: Browser,
     plan: PlannedRun & { pairs: DesignCapture[] },
     origin: string,
-): Promise<string[]> {
-    const written: string[] = [];
-
-    for (const pair of plan.pairs) {
-        const context = await contextFor(browser, plan, pair.composition);
-        const page = await context.newPage();
-
+): Promise<{ written: string[]; failed: string[] }> {
+    return captureEach(browser, plan, plan.pairs, 'design', async (page, pair) => {
         await page.goto(`${origin}/${encodeURIComponent(pair.file)}`);
 
         // The artboard is a component the design runtime boots after fetching React, so the page being loaded says
@@ -370,27 +404,14 @@ async function captureDesign(
         await settle(page);
         await walk(page, pair.steps);
         await settle(page);
-
-        const file = join(plan.outputDirectory, `${pair.screen}-${pair.composition.name}.design.png`);
-
-        await page.screenshot({ path: file });
-        written.push(file);
-        await context.close();
-    }
-
-    return written;
+    });
 }
 
-async function captureClient(
+function captureClient(
     browser: Browser,
     plan: PlannedRun & { clientOrigin: string; pairs: ClientCapture[] },
-): Promise<string[]> {
-    const written: string[] = [];
-
-    for (const pair of plan.pairs) {
-        const context = await contextFor(browser, plan, pair.composition);
-        const page = await context.newPage();
-
+): Promise<{ written: string[]; failed: string[] }> {
+    return captureEach(browser, plan, plan.pairs, 'client', async (page, pair) => {
         await page.goto(`${plan.clientOrigin}${pair.route}`);
         await page.addStyleTag({ content: stillness });
 
@@ -415,15 +436,7 @@ async function captureClient(
         await settle(page);
         await walk(page, pair.steps);
         await settle(page);
-
-        const file = join(plan.outputDirectory, `${pair.screen}-${pair.composition.name}.client.png`);
-
-        await page.screenshot({ path: file });
-        written.push(file);
-        await context.close();
-    }
-
-    return written;
+    });
 }
 
 // What arrives on standard input is a document a shell script composed, which is a boundary rather than a value this
@@ -616,19 +629,27 @@ async function main(): Promise<void> {
     let served: { server: Server; unanswered: string[] } | null = null;
 
     try {
-        let written: string[];
+        let outcome: { written: string[]; failed: string[] };
 
         if (plan.side === 'design') {
             served = serveDirectory(plan.designRoot);
             const port = await listening(served.server);
 
-            written = await captureDesign(browser, plan, `http://127.0.0.1:${String(port)}`);
+            outcome = await captureDesign(browser, plan, `http://127.0.0.1:${String(port)}`);
         } else {
-            written = await captureClient(browser, plan);
+            outcome = await captureClient(browser, plan);
         }
 
-        for (const file of written) {
+        for (const file of outcome.written) {
             process.stdout.write(`captured ${file}\n`);
+        }
+
+        for (const failure of outcome.failed) {
+            process.stdout.write(`failed ${failure}\n`);
+        }
+
+        if (outcome.failed.length > 0) {
+            process.exitCode = 1;
         }
 
         for (const asked of new Set(served?.unanswered ?? [])) {

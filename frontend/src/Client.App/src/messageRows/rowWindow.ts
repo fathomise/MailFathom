@@ -97,3 +97,19 @@ export function offsetOfRow(row: number, rowHeight: number): number {
 export function leadingRow(scrollTop: number, rowHeight: number): number {
     return rowHeight <= 0 ? 0 : Math.floor(Math.max(scrollTop, 0) / rowHeight);
 }
+
+/**
+ * Where a scroller stands once its rows have changed height, so the reader is still on the row they were on.
+ *
+ * A row's height follows the composition — the phone draws a taller row than the strip a foldable's list narrows to —
+ * so a window that changes composition under a reader keeps its place in rows rather than in pixels: the same offset
+ * over rows half as tall is twice as far down the folder.
+ *
+ * @param scrollTop How far the scroller stands, in pixels, measured against the old height.
+ * @param fromRowHeight What one row measured before, in pixels.
+ * @param toRowHeight What one row measures now, in pixels.
+ * @returns The offset that puts the same row under the top of the scroller at the new height.
+ */
+export function offsetKeptAcross(scrollTop: number, fromRowHeight: number, toRowHeight: number): number {
+    return fromRowHeight <= 0 ? scrollTop : Math.round((Math.max(scrollTop, 0) * toRowHeight) / fromRowHeight);
+}

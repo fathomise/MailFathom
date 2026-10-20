@@ -47,9 +47,33 @@ order.
 
 What makes the pair a pair is that both scripts read one manifest,
 [`design-parity/screens.json`](design-parity/screens.json): each screen's address, the steps that reach the state being
-compared, and the compositions it is compared at — the design's own four sizes, three of them under a coarse
-pointer. A comparison across two widths, two pointers or two device pixel ratios proves nothing while looking exactly
-like one that proves something, so neither side is given a viewport of its own to get wrong. The manifest describes the
+compared, and the window-size matrix it is compared at. A comparison across two widths, two pointers or two device
+pixel ratios proves nothing while looking exactly like one that proves something, so neither side is given a viewport
+of its own to get wrong.
+
+**The matrix is the sizes a real device or window gives**, each with whether the pointer at it is coarse, in four size
+classes:
+
+| Class      | Pointer | Sizes                                                                                                                                      |
+| ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `phone`    | touch   | 360×780, 390×844 (`telefon`), 430×932 upright; 844×390 on its side, held to _usable_ only                                                  |
+| `foldable` | touch   | the inner screen, 832×884 and 884×832 (`fold`)                                                                                             |
+| `tablet`   | touch   | 744×1133 and 1133×744, 820×1180 and 1180×820, 1024×1366 and 1366×1024, and 1024×768 (`tablet`)                                             |
+| `desktop`  | mouse   | 1280×720, 1440×900 (`desktop`), 1920×1080 and 2560×1440 landscape; 960×1040, 1280×1400, 1080×1800 and 1440×2460 upright or half the screen |
+
+The four sizes the design frames keep the names it gives them, shown in brackets, and every other size is named
+`<class>_<width>x<height>` — never with a hyphen, which is what separates the screen from the size in a capture's file
+name. They sit where the width, height, and pointer bands combine and on both sides of every width breakpoint, so a
+layout that breaks on an upright tablet, a half-screen window or a low laptop viewport breaks in a capture. Upright and
+on its side are separate sizes because each is a different combination of bands, not because anything in the client
+reads orientation. A phone on its side — which the Android head never draws, since it keeps a phone upright, and a
+phone's browser does — is held to _usable_ rather than to the design: nothing cut off, overlapping, or out of reach,
+which the manifest states as `usableOnly` and the comparison prints on that row.
+
+Every screen is captured at the whole matrix unless it narrows itself, with `compositions` naming sizes, `classes`
+naming classes, or both, and `narrowedBecause` saying why — both capture scripts refuse a narrowing with no reason,
+since one nobody explained reads exactly like a size somebody forgot. Each of the three scripts takes the whole matrix
+by default, one size class with `--class`, and one size with `--composition`. The manifest describes the
 client and says nothing about the design; the design half of the pairing — which artboard a screen is drawn on and what
 reaches it — describes the design and sits beside the artboards in `design/parity.json`, which moves in the same change
 as an artboard it names.
@@ -63,8 +87,9 @@ thing a session loads and the cost follows its pixel dimensions rather than its 
 quarter of its size changes what it costs to read by nothing. So the comparison answers in text first: how many pixels
 differ in each pair, and where, as regions with the crop that opens each one. A pass that captures four compositions and
 opens eight images has spent its context before it has found anything; the same pass reading the counts and then opening
-the two regions they flagged has spent almost none. That is also why both capture scripts refuse to produce more than
-four pairs per invocation and say so rather than truncating: a parity pass proceeds one screen at a time.
+the two regions they flagged has spent almost none. A parity pass also proceeds one screen at a time, so both capture
+scripts refuse to produce more pairs per invocation than one screen at the whole matrix and say so rather than
+truncating; checking a phone change is `--class phone`, a phone's worth of captures rather than the matrix.
 
 Nothing is tolerated by default, and a tolerance is not a way of making a report quieter. `--fuzz` and `--smallest`
 exist for a difference whose class has been named and explained — an image the design references and does not carry, say, which

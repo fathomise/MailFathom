@@ -2,9 +2,9 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { expect, type Locator, type Page } from '@playwright/test';
+import { expect } from '@playwright/test';
 
-import { openSignedIn, test } from './client.harness';
+import { openSignedIn, readOnward, restingFirstRow, test } from './client.harness';
 
 // The message list as a window over a folder of two hundred and fourteen thousand rows: one row height, a bounded
 // document however far a reader scrolls, and the reader put back where they were.
@@ -78,50 +78,6 @@ test('opens what MailFathom made of a message from its own row, with the passage
     await expect(checking.getByText('A model - agents/reader')).toBeVisible();
     await expect(checking.getByText('Please confirm the bays you want before the end of the week.')).toBeVisible();
 });
-
-/**
- * The row at the top of the list once it has stopped moving.
- *
- * A wheel gesture goes on arriving after the row under it has changed, and where the reader is is written down only
- * once the list has rested — so the row read the instant it changes is not the row the client will remember. Two reads
- * that agree across longer than that rest is what says the list has settled on one.
- */
-async function restingFirstRow(list: Locator): Promise<string> {
-    const row = list.getByRole('option').first();
-    let previous = '';
-
-    await expect
-        .poll(
-            async () => {
-                const now = (await row.textContent()) ?? '';
-                const rested = now !== '' && now === previous;
-
-                previous = now;
-
-                return rested;
-            },
-            { intervals: [600, 600, 600, 600] },
-        )
-        .toBe(true);
-
-    return (await row.textContent()) ?? '';
-}
-
-/**
- * Reads onward the way a reader does, and answers once the list has moved.
- *
- * A wheel over the rows rather than a scroll offset written into the scroller: the scroller carries no role of its
- * own, and this suite is compiled without a DOM declaration on purpose — `tsconfig.json` says why — so a closure
- * naming an element would be the one thing that changes. A gesture needs neither.
- */
-async function readOnward(page: Page, list: Locator): Promise<void> {
-    const before = await list.getByRole('option').first().textContent();
-
-    await list.getByRole('option').first().hover();
-    await page.mouse.wheel(0, 6_000);
-
-    await expect.poll(() => list.getByRole('option').first().textContent()).not.toBe(before);
-}
 
 test('holds a window of rows in the document however far down the folder it is scrolled', async ({ page }) => {
     await openSignedIn(page, '/#/mail');

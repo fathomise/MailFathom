@@ -42,8 +42,8 @@ and its component under `logic/` are the rest of one artboard.
 
 A page opens as it is, from the file system or from any static server rooted at `design/`; it boots on
 `design/runtime/support.js` and fetches React from a CDN, so a browser without network access renders nothing. Open it
-in `playwright-cli` at the composition that matters — `frontend/AGENTS.md` § *Holding a screen against the design* names
-the four sizes and which of them take a coarse pointer. An artboard takes its component properties (`theme`, `layout`,
+in `playwright-cli` at the composition that matters — `frontend/AGENTS.md` § *Holding a screen against the design* lists
+the window-size matrix and which of its sizes take a coarse pointer. An artboard takes its component properties (`theme`, `layout`,
 `state`, …) from the `data-props` attribute of its `data-dc-script` element, and a running page sets them with
 `window.__dcSetProps(window.__dcRootName(), { … })`.
 

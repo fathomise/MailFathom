@@ -52,7 +52,11 @@ How such a change is authored is [`AGENTS.md`](AGENTS.md)'s: the skills a screen
 artboard's own code is held to.
 
 A change that alters what an artboard looks like is checked by opening it in a browser at the compositions it reaches,
-in both themes — `frontend/AGENTS.md` § *Holding a screen against the design* names the four sizes and the scripts.
+in both themes. A paired screen is captured at the window-size matrix `frontend/design-parity/screens.json` holds —
+phones upright and on their side, a foldable's inner screen both ways, tablets upright and on their side, and desktops
+landscape, upright, and half the screen, four of them the sizes this design frames as `telefon`, `fold`, `tablet`, and
+`desktop` — and every size is held to the design except a phone on its side, which is held to being usable.
+`frontend/AGENTS.md` § *Holding a screen against the design* lists the sizes and the scripts.
 
 Every `.html`, `.css`, and `.js` file here carries the licensing header except `runtime/support.js`, which a design tool
 generated and which is replaced whole rather than edited; the root `AGENTS.md` states that exemption, and

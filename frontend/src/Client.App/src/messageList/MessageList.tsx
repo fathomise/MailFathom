@@ -40,7 +40,14 @@ import { MessageRow } from '../messageRows/MessageRow';
 import { MessageRowMenu, type ActAsked } from '../messageRows/MessageRowMenu';
 import { ReadingsAsked, type AskedReadings } from '../messageRows/ReadingsAsked';
 import { rowMark, rowWithFlags, type RowContents } from '../messageRows/rowContents';
-import { estimatedRowHeight, leadingRow, offsetOfRow, rowsDrawnAtOnce, windowOf } from '../messageRows/rowWindow';
+import {
+    estimatedRowHeight,
+    leadingRow,
+    offsetKeptAcross,
+    offsetOfRow,
+    rowsDrawnAtOnce,
+    windowOf,
+} from '../messageRows/rowWindow';
 import { needsAttention } from '../synchronization/synchronizationState';
 import { accountInScope, scopeReaches, type MailScope } from '../workspace/mailScope';
 import { useWorkspace } from '../workspace/useWorkspace';
@@ -391,6 +398,15 @@ export function MessageList({
 
         if (measured > 0 && measured !== rowHeight) {
             setRowHeight(measured);
+
+            // A composition that draws its rows at another height — a phone unfolding into a foldable's strip — keeps
+            // the reader on the row they were on. Before the reader is put back there is no row of theirs to keep.
+            if (restored) {
+                const kept = offsetKeptAcross(element.scrollTop, rowHeight, measured);
+
+                element.scrollTop = kept;
+                setScrollTop(kept);
+            }
         }
 
         // The reader is put back where they were once there is something to put them back into, and once only: every

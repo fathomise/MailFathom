@@ -1,27 +1,151 @@
 {
   "compositions": [
     {
+      "name": "phone_360x780",
+      "class": "phone",
+      "width": 360,
+      "height": 780,
+      "touch": true
+    },
+    {
       "name": "telefon",
+      "class": "phone",
       "width": 390,
       "height": 844,
       "touch": true
     },
     {
+      "name": "phone_430x932",
+      "class": "phone",
+      "width": 430,
+      "height": 932,
+      "touch": true
+    },
+    {
+      "name": "phone_844x390",
+      "class": "phone",
+      "width": 844,
+      "height": 390,
+      "touch": true,
+      "usableOnly": true
+    },
+    {
+      "name": "fold_832x884",
+      "class": "foldable",
+      "width": 832,
+      "height": 884,
+      "touch": true
+    },
+    {
       "name": "fold",
+      "class": "foldable",
       "width": 884,
       "height": 832,
       "touch": true
     },
     {
+      "name": "tablet_744x1133",
+      "class": "tablet",
+      "width": 744,
+      "height": 1133,
+      "touch": true
+    },
+    {
+      "name": "tablet_1133x744",
+      "class": "tablet",
+      "width": 1133,
+      "height": 744,
+      "touch": true
+    },
+    {
+      "name": "tablet_820x1180",
+      "class": "tablet",
+      "width": 820,
+      "height": 1180,
+      "touch": true
+    },
+    {
+      "name": "tablet_1180x820",
+      "class": "tablet",
+      "width": 1180,
+      "height": 820,
+      "touch": true
+    },
+    {
       "name": "tablet",
+      "class": "tablet",
       "width": 1024,
       "height": 768,
       "touch": true
     },
     {
+      "name": "tablet_1024x1366",
+      "class": "tablet",
+      "width": 1024,
+      "height": 1366,
+      "touch": true
+    },
+    {
+      "name": "tablet_1366x1024",
+      "class": "tablet",
+      "width": 1366,
+      "height": 1024,
+      "touch": true
+    },
+    {
+      "name": "desktop_1280x720",
+      "class": "desktop",
+      "width": 1280,
+      "height": 720,
+      "touch": false
+    },
+    {
       "name": "desktop",
+      "class": "desktop",
       "width": 1440,
       "height": 900,
+      "touch": false
+    },
+    {
+      "name": "desktop_1920x1080",
+      "class": "desktop",
+      "width": 1920,
+      "height": 1080,
+      "touch": false
+    },
+    {
+      "name": "desktop_2560x1440",
+      "class": "desktop",
+      "width": 2560,
+      "height": 1440,
+      "touch": false
+    },
+    {
+      "name": "desktop_960x1040",
+      "class": "desktop",
+      "width": 960,
+      "height": 1040,
+      "touch": false
+    },
+    {
+      "name": "desktop_1280x1400",
+      "class": "desktop",
+      "width": 1280,
+      "height": 1400,
+      "touch": false
+    },
+    {
+      "name": "desktop_1080x1800",
+      "class": "desktop",
+      "width": 1080,
+      "height": 1800,
+      "touch": false
+    },
+    {
+      "name": "desktop_1440x2460",
+      "class": "desktop",
+      "width": 1440,
+      "height": 2460,
       "touch": false
     }
   ],
@@ -37,8 +161,7 @@
             "name": "Connect your mailbox"
           }
         }
-      ],
-      "compositions": ["telefon", "fold", "tablet", "desktop"]
+      ]
     },
     {
       "id": "mail-list",
@@ -51,8 +174,7 @@
             "name": "Messages"
           }
         }
-      ],
-      "compositions": ["telefon", "fold", "tablet", "desktop"]
+      ]
     },
     {
       "id": "mail-thread",
@@ -76,13 +198,23 @@
             "role": "article"
           }
         }
-      ],
-      "compositions": ["telefon", "fold", "tablet", "desktop"]
+      ]
     },
     {
       "id": "settings-profile",
       "route": "/#/mail",
       "signIn": true,
+      "classes": ["foldable", "desktop"],
+      "compositions": [
+        "phone_844x390",
+        "tablet_1133x744",
+        "tablet_820x1180",
+        "tablet_1180x820",
+        "tablet",
+        "tablet_1024x1366",
+        "tablet_1366x1024"
+      ],
+      "narrowedBecause": "Settings is opened from the account control, which no width under 700 draws, and under 820 it opens on its list of sections rather than on one, so these steps reach the section only from 820 wide upward.",
       "steps": [
         {
           "click": {
@@ -103,13 +235,23 @@
             "name": "Profile"
           }
         }
-      ],
-      "compositions": ["tablet", "desktop"]
+      ]
     },
     {
       "id": "settings-application",
       "route": "/#/mail",
       "signIn": true,
+      "classes": ["foldable", "desktop"],
+      "compositions": [
+        "phone_844x390",
+        "tablet_1133x744",
+        "tablet_820x1180",
+        "tablet_1180x820",
+        "tablet",
+        "tablet_1024x1366",
+        "tablet_1366x1024"
+      ],
+      "narrowedBecause": "Settings is opened from the account control, which no width under 700 draws, and under 820 it opens on its list of sections rather than on one, so these steps reach the section only from 820 wide upward.",
       "steps": [
         {
           "click": {
@@ -137,8 +279,7 @@
             "name": "Application"
           }
         }
-      ],
-      "compositions": ["tablet", "desktop"]
+      ]
     },
     {
       "id": "notifications",
@@ -158,13 +299,15 @@
             "name": "Notifications"
           }
         }
-      ],
-      "compositions": ["tablet", "desktop"]
+      ]
     },
     {
       "id": "account-menu",
       "route": "/#/mail",
       "signIn": true,
+      "classes": ["foldable", "tablet", "desktop"],
+      "compositions": ["phone_844x390"],
+      "narrowedBecause": "The account control the menu opens from is not drawn under 700 wide, where the bottom bar stands in for the rail.",
       "steps": [
         {
           "click": {
@@ -179,8 +322,7 @@
             "exact": true
           }
         }
-      ],
-      "compositions": ["tablet", "desktop"]
+      ]
     },
     {
       "id": "full-html",
@@ -218,8 +360,7 @@
             "name": "The original message, as its sender wrote it"
           }
         }
-      ],
-      "compositions": ["tablet", "desktop"]
+      ]
     },
     {
       "id": "full-html-ask",
@@ -251,8 +392,7 @@
             "exact": true
           }
         }
-      ],
-      "compositions": ["tablet", "desktop"]
+      ]
     },
     {
       "id": "calendar",
@@ -266,8 +406,7 @@
             "exact": true
           }
         }
-      ],
-      "compositions": ["telefon", "fold", "tablet", "desktop"]
+      ]
     },
     {
       "id": "people",
@@ -280,8 +419,7 @@
             "name": "Contacts"
           }
         }
-      ],
-      "compositions": ["telefon", "fold", "tablet", "desktop"]
+      ]
     },
     {
       "id": "people-collected",
@@ -298,8 +436,7 @@
             "text": "from received mail headers"
           }
         }
-      ],
-      "compositions": ["tablet", "desktop"]
+      ]
     },
     {
       "id": "person",
@@ -324,8 +461,7 @@
             "name": "Shared threads"
           }
         }
-      ],
-      "compositions": ["telefon", "fold", "tablet", "desktop"]
+      ]
     },
     {
       "id": "tasks",
@@ -339,8 +475,7 @@
             "exact": true
           }
         }
-      ],
-      "compositions": ["telefon", "fold", "tablet", "desktop"]
+      ]
     },
     {
       "id": "discover",
@@ -360,8 +495,7 @@
             "name": "Answer"
           }
         }
-      ],
-      "compositions": ["telefon", "fold", "tablet", "desktop"]
+      ]
     },
     {
       "id": "agent",
@@ -374,8 +508,7 @@
             "name": "Conversation with the agent"
           }
         }
-      ],
-      "compositions": ["telefon", "fold", "tablet", "desktop"]
+      ]
     },
     {
       "id": "composer",
@@ -395,8 +528,7 @@
             "name": "Message"
           }
         }
-      ],
-      "compositions": ["telefon", "desktop"]
+      ]
     }
   ]
 }

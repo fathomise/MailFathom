@@ -135,12 +135,17 @@ bash scripts/compare-captures.sh "$WORK_DIR/pairs"
 The first serves `design/` to a browser, the second serves the client from
 the fixture corpus, and both read one manifest —
 [`frontend/design-parity/screens.json`](https://github.com/fathomise/MailFathom/blob/main/frontend/design-parity/screens.json) —
-so a pair cannot differ in size, state or device pixel ratio. The third compares
-each pair and answers in text: how many pixels differ, and where, as regions with
-the crop that opens one. `frontend/AGENTS.md` § _Holding a screen against the
-design_ is the rule, including why the report is read before any image and why an
-invocation produces at most four pairs. None of the three gates anything, and
-nothing they write enters the tree.
+so a pair cannot differ in size, state or device pixel ratio. That manifest holds
+the window-size matrix every paired screen is captured at — phones, a foldable's
+inner screen, tablets, and desktops, upright and on their side — and each script
+takes the whole of it, one size class with `--class`, or one size with
+`--composition`. The third compares each pair and answers in text: how many pixels
+differ, and where, as regions with the crop that opens one, marking the one size
+held to being usable rather than to the design — a phone on its side.
+`frontend/AGENTS.md` § _Holding a screen against the design_ is the rule, listing
+the sizes and saying why the report is read before any image and why an invocation
+produces at most one screen at the whole matrix. None of the three gates anything,
+and nothing they write enters the tree.
 
 Run the complete gate where its answer is wanted before a push, rather than as a
 step of every change:

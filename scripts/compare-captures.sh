@@ -33,6 +33,13 @@ Usage: bash scripts/compare-captures.sh <directory> [option...]
                            left on as a way of making a report quieter.
   --largest <count>        How many of a pair's regions are listed, biggest first. Default 12. The count of
                            regions is always reported in full; this bounds the listing, not the measurement.
+  --class <name>           Compare only the pairs at this size class of the window-size matrix: phone,
+                           foldable, tablet or desktop. Repeatable.
+  --composition <name>     Compare only the pairs at this size of the matrix. Repeatable, and added to any
+                           --class. With neither, every pair in the directory.
+
+A pair at a size the manifest marks `usableOnly` is held to being usable there — nothing cut off, overlapping,
+or out of reach — rather than to the design, and its row says so.
 
 It writes a report and no images. Open a region with the crop the report names for it; the whole frame is
 almost never what has to be read.
@@ -44,10 +51,17 @@ if ! command -v magick >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v jq >/dev/null 2>&1; then
+  printf 'jq is required to read the screen manifest.\n' >&2
+  exit 1
+fi
+
 directory=''
 smallest=1
 fuzz=0
 largest=12
+classes=()
+compositions=()
 
 while (($# > 0)); do
   case "$1" in
@@ -61,6 +75,14 @@ while (($# > 0)); do
       ;;
     --fuzz)
       fuzz="${2:-}"
+      shift 2
+      ;;
+    --class)
+      classes+=("${2:-}")
+      shift 2
+      ;;
+    --composition)
+      compositions+=("${2:-}")
       shift 2
       ;;
     -h | --help | help)
@@ -86,6 +108,41 @@ if [[ -z "$directory" || ! -d "$directory" ]]; then
   exit 1
 fi
 
+# The manifest the captures were taken from says which size belongs to which class and which sizes are held to usable
+# only. It is this checkout's, the same one the two capture scripts read.
+if ! repository_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  printf 'Not inside a Git repository, so there is no screen manifest to read the sizes from.\n' >&2
+  exit 1
+fi
+
+manifest="$repository_root/frontend/design-parity/screens.json"
+
+if [[ ! -f "$manifest" ]]; then
+  printf 'No screen manifest at %s.\n' "$manifest" >&2
+  exit 1
+fi
+
+for class in "${classes[@]}"; do
+  if ! jq -e --arg class "$class" 'any(.compositions[]; .class == $class)' >/dev/null "$manifest"; then
+    printf 'The manifest names no size class %s. It holds: %s\n' \
+      "$class" "$(jq -r '[.compositions[].class] | unique | join(", ")' "$manifest")" >&2
+    exit 1
+  fi
+
+  mapfile -t -O "${#compositions[@]}" compositions < <(jq -r --arg class "$class" '.compositions[] | select(.class == $class) | .name' "$manifest")
+done
+
+for composition in "${compositions[@]}"; do
+  if ! jq -e --arg name "$composition" 'any(.compositions[]; .name == $name)' >/dev/null "$manifest"; then
+    printf 'The manifest names no composition %s. It holds: %s\n' \
+      "$composition" "$(jq -r '[.compositions[].name] | join(", ")' "$manifest")" >&2
+    exit 1
+  fi
+done
+
+usable_only=" $(jq -r '[.compositions[] | select(.usableOnly == true) | .name] | join(" ")' "$manifest") "
+wanted=" ${compositions[*]} "
+
 shopt -s nullglob
 design_captures=("$directory"/*.design.png)
 shopt -u nullglob
@@ -99,9 +156,11 @@ fi
 # It is reported and skipped rather than scaled to fit.
 mismatched=0
 differing=0
+held_to_usable=0
+read_pairs=0
 
 printf 'Captures in %s\n\n' "$directory"
-printf '%-24s %-10s %12s %12s %8s %8s\n' 'SCREEN' 'COMPOSITION' 'DIFFERING' 'OF' 'SHARE' 'REGIONS'
+printf '%-24s %-18s %12s %12s %8s %8s\n' 'SCREEN' 'COMPOSITION' 'DIFFERING' 'OF' 'SHARE' 'REGIONS'
 
 for design in "${design_captures[@]}"; do
   pair="$(basename "$design" .design.png)"
@@ -109,8 +168,20 @@ for design in "${design_captures[@]}"; do
   screen="${pair%-*}"
   composition="${pair##*-}"
 
+  if ((${#compositions[@]} > 0)) && [[ "$wanted" != *" $composition "* ]]; then
+    continue
+  fi
+
+  read_pairs=$((read_pairs + 1))
+  held=''
+
+  if [[ "$usable_only" == *" $composition "* ]]; then
+    held='  usable only'
+    held_to_usable=$((held_to_usable + 1))
+  fi
+
   if [[ ! -f "$client" ]]; then
-    printf '%-24s %-10s %s\n' "$screen" "$composition" 'no client capture of this pair'
+    printf '%-24s %-18s %s\n' "$screen" "$composition" 'no client capture of this pair'
     mismatched=$((mismatched + 1))
     continue
   fi
@@ -119,7 +190,7 @@ for design in "${design_captures[@]}"; do
   client_size="$(magick identify -format '%wx%h' "$client")"
 
   if [[ "$design_size" != "$client_size" ]]; then
-    printf '%-24s %-10s design is %s and client is %s — not a pair\n' \
+    printf '%-24s %-18s design is %s and client is %s — not a pair\n' \
       "$screen" "$composition" "$design_size" "$client_size"
     mismatched=$((mismatched + 1))
     continue
@@ -134,10 +205,12 @@ for design in "${design_captures[@]}"; do
   magick "$design" "$client" -compose difference -composite \
     -colorspace Gray -threshold "$fuzz%" "$mask"
 
-  count="$(magick "$mask" -format '%[fx:int(mean*w*h+0.5)]' info:)"
+  # At the default precision of six digits ImageMagick prints a count past a million as `1.26886e+06`, which is no
+  # integer to the arithmetic below — and a large window differing over half its frame reaches that.
+  count="$(magick -precision 16 "$mask" -format '%[fx:int(mean*w*h+0.5)]' info:)"
 
   if ((count == 0)); then
-    printf '%-24s %-10s %12s %12s %7s%% %s\n' "$screen" "$composition" '0' "$total" '0.00' '—'
+    printf '%-24s %-18s %12s %12s %7s%% %8s%s\n' "$screen" "$composition" '0' "$total" '0.00' '—' "$held"
     rm -f "$mask"
     continue
   fi
@@ -166,10 +239,10 @@ for design in "${design_captures[@]}"; do
 
   found="$(printf '%s\n' "$regions" | grep -c . || true)"
 
-  printf '%-24s %-10s %12s %12s %7.2f%% %8s\n' \
+  printf '%-24s %-18s %12s %12s %7.2f%% %8s%s\n' \
     "$screen" "$composition" "$count" "$total" \
     "$(awk -v c="$count" -v t="$total" 'BEGIN { printf "%.2f", c * 100 / t }')" \
-    "$found"
+    "$found" "$held"
 
   # The listing is bounded and the count above is not, which is the same reasoning as the bound on how many pairs one
   # capture produces: a frame whose text is drawn one pixel across differs in a region per glyph run, and printing
@@ -189,6 +262,16 @@ for design in "${design_captures[@]}"; do
 done
 
 printf '\n'
+
+if ((read_pairs == 0)); then
+  printf 'No capture in %s is at a size you named, so nothing was compared.\n' "$directory" >&2
+  exit 1
+fi
+
+if ((held_to_usable > 0)); then
+  printf 'A pair marked usable only is held to the screen being usable at that size — nothing cut off, overlapping or\n'
+  printf 'out of reach — rather than to the design, so its count says how far it is from the design and nothing more.\n\n'
+fi
 
 if ((mismatched > 0)); then
   printf '%s pair(s) could not be compared. A missing or differently sized capture is a capture run to repeat,\n' "$mismatched"

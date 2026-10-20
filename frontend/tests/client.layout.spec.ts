@@ -16,6 +16,8 @@ import {
     openSignedIn,
     openTheFirstMessage,
     phoneWindow,
+    readOnward,
+    restingFirstRow,
     row,
     settled,
     tabletWindow,
@@ -370,6 +372,68 @@ test.describe('driven by a finger', () => {
         expect(written.y).toBeGreaterThanOrEqual(0);
         expect(written.y + written.height).toBeLessThanOrEqual(send.y);
         expect(send.y + send.height).toBeLessThanOrEqual(480);
+    });
+
+    // Unfolding a foldable mid-task is one window growing from the phone's width to the inner screen's, and folding it
+    // is the same window shrinking back. Nothing about it is a navigation, so everything the reader had in hand — the
+    // open message, the words typed into the drafter, which row is the open one, and how far down the list they were —
+    // is still theirs on the other side, in both directions.
+    test('keeps the open message, the drafter’s words, the open row, and the place in the list as a foldable unfolds and folds again', async ({
+        page,
+        deployment,
+    }) => {
+        deployment.grant('mailfathom.mail.drafts.write');
+
+        await page.setViewportSize(phoneWindow);
+        await openSignedIn(page, '/#/mail');
+
+        const list = page.getByRole('listbox', { name: 'Messages' });
+        const drafter = page.getByRole('textbox', { name: 'Draft a reply to this correspondence' });
+        const words = 'confirm the price';
+
+        await expect(list.getByRole('option').first()).toBeVisible();
+        await readOnward(page, list);
+
+        // Rows are told apart by the subject every corpus row numbers, because the strip a foldable narrows its list to
+        // draws a row with less in it than the phone does. The one opened is on the screen rather than in the overscan
+        // above it, so opening it scrolls nothing.
+        const subjectOf = (row: string): string => /Message \d+/u.exec(row)?.[0] ?? row;
+        const place = subjectOf(await restingFirstRow(list));
+        const opened = list.getByRole('option', {
+            name: new RegExp(`\\b${subjectOf((await list.getByRole('option').nth(8).textContent()) ?? '')}\\b`, 'u'),
+        });
+
+        await opened.click();
+        await expect(page.getByRole('article').first()).toBeVisible();
+        await page.getByRole('button', { name: 'Draft a reply' }).click();
+        await drafter.fill(words);
+
+        async function holdsTheMessage(): Promise<void> {
+            await expect(page.getByRole('article').first()).toBeVisible();
+            await expect(drafter).toHaveValue(words);
+        }
+
+        async function holdsThePlace(): Promise<void> {
+            expect(subjectOf(await restingFirstRow(list))).toBe(place);
+        }
+
+        // Unfolded, which is known by the toolbar only the two-pane compositions draw: the list stands beside the
+        // message again, on the row that is open and where the reader left it — although its rows are now the strip's,
+        // half the height of the phone's.
+        await page.setViewportSize(foldWindow);
+        await expect(page.getByRole('toolbar', { name: 'Mail actions' })).toBeVisible();
+        await holdsTheMessage();
+        await expect(opened).toHaveAttribute('aria-current', 'true');
+        await holdsThePlace();
+
+        // Folded again, which is known by the bottom bar's overflow: the message is in front with the list put aside
+        // behind it, and the way back — which closes the message, as it does on any phone — finds the list where it was.
+        await page.setViewportSize(phoneWindow);
+        await expect(page.getByRole('button', { name: 'More' })).toBeVisible();
+        await holdsTheMessage();
+
+        await page.getByRole('button', { name: 'Back to the list' }).click();
+        await holdsThePlace();
     });
 });
 
