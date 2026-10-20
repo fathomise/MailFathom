@@ -2236,7 +2236,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       }
     };
 
-    componentDidUpdate() {
+    componentDidUpdate(prevProps) {
+      /* `space` opens a space the way its rail item does, so a capture reaches it in one step at every
+         composition - on a phone Tasks, Calendar and People sit behind More. */
+      const space = this.props.space;
+      if (space && space !== (prevProps || {}).space) {
+        this.goScreen(space === "calendar" ? "cal" : space, space === "people" ? { peoplePane: "list" } : space === "cases" ? { casePane: "list" } : space === "mail" ? { mailPane: "list" } : {});
+      }
       this.backSync();
       this.tbMeasure();
       if (!this.state.listLoading) this.restoreScrolls();
