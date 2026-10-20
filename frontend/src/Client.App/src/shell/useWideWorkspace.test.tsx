@@ -4,7 +4,14 @@
 
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { useCoarsePointer, useDesktopComposition, useTwoPanes, useWideWorkspace } from './useWideWorkspace';
+import {
+    useCoarsePointer,
+    useDesktopComposition,
+    useLowWindow,
+    useTallWindow,
+    useTwoPanes,
+    useWideWorkspace,
+} from './useWideWorkspace';
 
 // What the pointer can do is the half of a composition a stylesheet cannot answer, because it decides whether a
 // listener is bound at all. It is stated here the way `theme/Theme.test.tsx` states a machine's appearance: a query
@@ -108,5 +115,42 @@ describe('the widths a composition changes at', () => {
         }));
 
         expect(composition.result.current).toEqual({ workspace, panes, desktop });
+    });
+});
+
+// The two heights, asked of a window whose width is held at the desktop's so nothing but the height moves. The query
+// answered here is the one the hooks build: a range over `height`, never `orientation` or `aspect-ratio`.
+function atHeight(pixels: number): void {
+    Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: (query: string) => {
+            const [, comparison, named] = /\(height (<|>=) ([\d.]+)rem\)/.exec(query) ?? [];
+            const boundary = Number(named) * 16;
+
+            return {
+                media: query,
+                matches: comparison === '<' ? pixels < boundary : comparison === '>=' && pixels >= boundary,
+                addEventListener: () => undefined,
+                removeEventListener: () => undefined,
+            };
+        },
+    });
+}
+
+describe('the heights a composition changes at', () => {
+    it.each([
+        ['a phone on its side', 390, true, false],
+        ['the last low window', 479, true, false],
+        ['the first regular one', 480, false, false],
+        ['the desktop the design frames', 900, false, false],
+        ['the last regular one', 959, false, false],
+        ['the first tall one', 960, false, true],
+        ['an upright tablet', 1366, false, true],
+    ])('reads %s as the design bands it', (_, pixels, low, tall) => {
+        atHeight(pixels);
+
+        const band = renderHook(() => ({ low: useLowWindow(), tall: useTallWindow() }));
+
+        expect(band.result.current).toEqual({ low, tall });
     });
 });

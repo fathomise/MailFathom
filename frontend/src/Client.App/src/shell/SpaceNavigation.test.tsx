@@ -142,10 +142,10 @@ describe('SpaceNavigation', () => {
 
         const bar = screen.getByRole('navigation', { name: 'Spaces' });
 
-        // The mark is drawn in the rail alone, and the overflow's own sheet is a child of the navigation without
-        // standing in it — the platform draws a closed popover nowhere and an open one in the top layer.
-        const places = Array.from(bar.children).filter(
-            (place) => place.tagName !== 'IMG' && !place.hasAttribute('popover'),
+        // Every control the bar holds, in the order it draws them. The overflow's own sheet is inside the navigation
+        // without standing in it — the platform draws a closed popover nowhere and an open one in the top layer.
+        const places = Array.from(bar.querySelectorAll('a, button')).filter(
+            (place) => place.closest('[popover]') === null,
         );
 
         expect(places.map((place) => place.textContent)).toEqual(['Discover', 'Mail', 'Agent', handedTheBell, 'More']);

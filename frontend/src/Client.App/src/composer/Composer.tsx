@@ -556,7 +556,9 @@ export function Composer({
                     : 'fixed inset-0 z-50 pt-safe-top pb-safe-bottom animate-sheet-in'
             }`}
         >
-            <div className="flex shrink-0 items-center gap-3 border-b border-line bg-sunken px-4.25 py-3">
+            {/* A low window shrinks the head to its close control and keeps it at the top, so the fields and the words
+                scroll between it and the foot carrying *Send* however far a keyboard shortens the window. */}
+            <div className="flex shrink-0 items-center gap-3 border-b border-line bg-sunken px-4.25 py-3 low:sticky low:top-0 low:z-10 low:py-0 low:pe-1.5">
                 <h2 className="text-md font-semibold">{title}</h2>
 
                 <div className="ms-auto flex items-center">
