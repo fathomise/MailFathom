@@ -550,7 +550,7 @@ export function Composer({
             role={wide ? undefined : 'dialog'}
             aria-modal={wide ? undefined : true}
             onKeyDown={holdTheKeyboard}
-            className={`flex flex-col bg-panel text-text ${
+            className={`flex flex-col overflow-y-auto bg-panel text-text ${
                 wide
                     ? 'h-full min-h-0 animate-rise-in'
                     : 'fixed inset-0 z-50 pt-safe-top pb-safe-bottom animate-sheet-in'
@@ -777,7 +777,11 @@ export function Composer({
 
                     <WhatIsHappening standing={draft.standing} online={online} />
 
-                    <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-line px-4.25 py-3">
+                    <div
+                        className={`sticky z-10 flex shrink-0 flex-wrap items-center gap-2 border-t border-line bg-panel px-4.25 py-3 ${
+                            wide ? 'bottom-0' : 'bottom-safe-bottom'
+                        }`}
+                    >
                         <SendConfirmation
                             asked={asked}
                             composition={sentAs(composition, copiesShown)}

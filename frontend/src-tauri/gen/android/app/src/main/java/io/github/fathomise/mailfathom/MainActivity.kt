@@ -1,5 +1,10 @@
 package io.github.fathomise.mailfathom
 
+import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
@@ -22,7 +27,45 @@ class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
+    keepAPhoneUpright()
     keepThePageClearOfTheSystemBars()
+  }
+
+  /**
+   * Holds a phone in portrait, and leaves every other device free to rotate.
+   *
+   * A phone on its side leaves the page about 390 pixels of height, less with the keyboard open, and the design draws
+   * no composition for that. A tablet and a foldable are the opposite case: they are read upright or sideways as they
+   * are held, and a foldable is often opened straight into the posture its reader wants.
+   *
+   * That is why this is decided here rather than in the manifest. Android 16 already ignores an orientation
+   * restriction on a display at least 600 dp wide for an application targeting API 36 or later, but a foldable's
+   * cover screen is narrower than that and a manifest attribute cannot tell it from a phone. A hinge can: a device
+   * that reports one is never locked, in either state, so opening it never finds the inner screen held upright by
+   * what the cover screen decided.
+   *
+   * The hinge is asked of the sensor as well as of the declared feature, because the sensor is what the platform's own
+   * fold postures are read from and a device can carry it without declaring the feature — the emulator's foldables do.
+   *
+   * The width read is the display's rather than the window's, so a tablet that started this activity in a split
+   * screen is not mistaken for a phone once it takes the whole display.
+   */
+  private fun keepAPhoneUpright() {
+    val sensors = getSystemService(SensorManager::class.java)
+    val isFoldable = packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_HINGE_ANGLE) ||
+      sensors?.getDefaultSensor(Sensor.TYPE_HINGE_ANGLE) != null
+    if (!isFoldable && smallestDisplayWidthInDp() < 600) {
+      requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+    }
+  }
+
+  private fun smallestDisplayWidthInDp(): Int {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+      return resources.configuration.smallestScreenWidthDp
+    }
+
+    val bounds = windowManager.maximumWindowMetrics.bounds
+    return (minOf(bounds.width(), bounds.height()) / resources.displayMetrics.density).toInt()
   }
 
   /**
