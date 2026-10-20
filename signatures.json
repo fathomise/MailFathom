@@ -1,4 +1,14 @@
 {
   "agreement": "CLA.md",
-  "signatures": []
+  "signatures": [
+    {
+      "login": "Dominosam",
+      "githubUserId": 46669257,
+      "pullRequest": 2533,
+      "commentId": 6290690223,
+      "agreementVersion": "1.0",
+      "agreementBlob": "d44abe753fbf1d689a32089acac64df8c61c3021",
+      "recordedAt": "2026-10-20T12:45:41Z"
+    }
+  ]
 }
