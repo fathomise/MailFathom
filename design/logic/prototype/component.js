@@ -466,7 +466,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* Some threads have an unread message from the middle of the history —
          we open exactly that one, not the newest. */
       const entry = { piotr: 2 };
-      const patch = { threadId: id, mailAnswer: false, replyDock: null, cameFrom: this.state.cameFrom && id === "contoso", mailPane: "thread", threadOpen: true, unread: unread,
+      const patch = { threadId: id, listWide: false, mailAnswer: false, replyDock: null, cameFrom: this.state.cameFrom && id === "contoso", mailPane: "thread", threadOpen: true, unread: unread,
         activeMsg: Object.assign({}, this.state.activeMsg, { [id]: typeof entry[id] === "number" ? entry[id] : null }),
         histOpen: Object.assign({}, this.state.histOpen, { [id]: !!this.state.autoExpand }) };
       patch.msgLoading = true;
@@ -2743,11 +2743,19 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
          until something has been opened during this visit to mail. */
       const emptyMail = !composeInPane && !docInPane && !htmlInPane &&
         (tabsMode ? tabItems.length === 0 : (!singlePane && !st.threadOpen));
+      /* The fold: two panes under a finger in less width than the tablet. While a thread is open the list
+         folds to a strip of senders, so the thread gets the width; the strip's head widens it again. */
+      const foldTwoPanes = touch && !singlePane && narrow;
+      const listStrip = foldTwoPanes && !emptyMail && !st.listWide && !selectionOn && !(st.stateBarOff);
 
       const vals = {
         mo,
         moDialog: isMobile ? "sheet" : "pop",
         moSettings: singlePane ? "sheet" : "pop",
+        /* Every sheet a finger can pull down to close shows where to take hold of it. */
+        sheetGrabber: isMobile,
+        settingsGrabber: singlePane,
+        grabberStyle: "flex:0 0 auto;display:flex;justify-content:center;align-items:center;height:20px;background-image:linear-gradient(var(--border2),var(--border2));background-size:38px 4px;background-position:center;background-repeat:no-repeat;",
         moSettingsScrim: singlePane ? "none" : "scrim",
         moCompose: composeInPane ? "fade" : isMobile ? "sheet" : "rise",
         moSide: drawer ? "drawer" : "none",
@@ -3251,6 +3259,19 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "display:flex;align-items:center;gap:8px;flex:0 0 auto;box-sizing:border-box;min-height:56px;padding:6px 12px 6px 16px;border-bottom:1px solid var(--line);background:var(--panel)"
           : "display:flex;align-items:center;gap:16px;padding:0 26px;height:56px;flex:0 0 56px;border-bottom:1px solid var(--line);background:var(--panel)",
         discoverPlaceholder: isMobile ? "Ask your mail…" : "What do you want to ask your mail?",
+        /* The composer's foot under a finger: one 44 row, Send filled, Attach a symbol alone on the phone,
+           and Save draft a text action whose target is the row's height rather than its words. */
+        composeSendStyle: touch
+          ? "display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 20px;box-sizing:border-box;font-size:14px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:10px"
+          : "font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:9px 18px",
+        composeAttachStyle: touch
+          ? "display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;min-width:44px;padding:0 " + (isMobile ? 0 : 14) + "px;box-sizing:border-box;font-size:14px;color:var(--text2);border:1px solid var(--border2);border-radius:10px"
+          : "font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:9px 13px",
+        composeAttachIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:" + (touch ? 20 : 18) + "px;line-height:1" + (touch ? "" : ";vertical-align:-3px;margin-right:6px"),
+        composeAttachLabel: !isMobile,
+        composeSaveStyle: touch
+          ? "display:inline-flex;align-items:center;min-height:44px;padding:0 6px;font-size:13px;color:var(--muted)"
+          : "font-size:12px;color:var(--muted)",
         composeAiPlaceholder: isMobile ? "Write what this is about…" : "Write what this is about - e.g. “we accept the 2 h SLA but ask for a 5% CPI cap”",
         askLabel: touch ? "Ask" : "Ask ⏎",
         askBtnStyle: "font-size:13px;color:var(--onaccent);background:var(--accent);border-radius:8px;white-space:nowrap;box-sizing:border-box;display:flex;align-items:center;" +
@@ -3771,7 +3792,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           label: v,
           pick: () => this.setState({ calView: v }),
           style: touch
-            ? "display:flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:44px;border-radius:8px;white-space:nowrap;font-size:13px;" +
+            ? "display:flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:36px;border-radius:8px;white-space:nowrap;font-size:13px;" +
               (isMobile ? "flex:1;padding:0 4px;" : "padding:0 14px;") +
               ((st.calView || "Week") === v
                 ? "background:var(--panel);color:var(--text);font-weight:600;box-shadow:0 1px 2px var(--sh-1);"
@@ -3962,10 +3983,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         peopleTabHint: peopleTab === "collected" ? "from received mail headers" : "address book",
         showOwnContacts: () => this.setState({ peopleTab: "own" }),
         showCollectedContacts: () => this.setState({ peopleTab: "collected" }),
-        tabOwnStyle: "display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex:1;text-align:center;border-radius:8px;font-size:13px;white-space:nowrap;" + (touch ? "min-height:44px;padding:0 10px;" : "padding:6px 10px;") + (peopleTab !== "collected"
+        tabOwnStyle: "display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex:1;text-align:center;border-radius:8px;font-size:13px;white-space:nowrap;" + (touch ? "min-height:36px;padding:0 10px;" : "padding:6px 10px;") + (peopleTab !== "collected"
           ? "background:var(--panel);color:var(--text);font-weight:600;box-shadow:0 1px 2px var(--sh-1);"
           : "background:transparent;color:var(--muted);"),
-        tabCollectedStyle: "display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex:1;text-align:center;border-radius:8px;font-size:13px;white-space:nowrap;" + (touch ? "min-height:44px;padding:0 10px;" : "padding:6px 10px;") + (peopleTab === "collected"
+        tabCollectedStyle: "display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex:1;text-align:center;border-radius:8px;font-size:13px;white-space:nowrap;" + (touch ? "min-height:36px;padding:0 10px;" : "padding:6px 10px;") + (peopleTab === "collected"
           ? "background:var(--panel);color:var(--text);font-weight:600;box-shadow:0 1px 2px var(--sh-1);"
           : "background:transparent;color:var(--muted);"),
         personCollected: !!person.collected,
@@ -4284,7 +4305,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         backToList: () => this.setState({ mailPane: "list", replyDock: null }),
         threadListStyle: "position:relative;" + (singlePane
           ? "flex:1;display:flex;flex-direction:column;min-height:0;min-width:0"
-          : "width:" + (tablet ? 284 : listW) + "px;flex:0 0 " + (tablet ? 284 : listW) + "px;display:flex;flex-direction:column;min-height:0"),
+          : "width:" + (listStrip ? 76 : tablet ? 284 : listW) + "px;flex:0 0 " + (listStrip ? 76 : tablet ? 284 : listW) + "px;display:flex;flex-direction:column;min-height:0" + (listStrip ? ";background:var(--sub);border-right:1px solid var(--line)" : "")),
+        listStrip,
+        listFull: !listStrip,
+        listNarrowable: foldTwoPanes && !emptyMail && !!st.listWide && !selectionOn,
+        widenList: () => this.setState({ listWide: true }),
+        narrowList: () => this.setState({ listWide: false }),
+        stripHeadStyle: "flex:0 0 auto;display:flex;justify-content:center;padding:8px 0;border-bottom:1px solid var(--line)",
+        stripBtnStyle: "width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:12px;color:var(--text2)",
+        stripScrollStyle: "flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0",
         selectionOn,
         selectionOff: !selectionOn,
         showMailToolbar: !selectionOn && !singlePane,
@@ -4721,6 +4750,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           aiBtnStyle: "width:" + (touch ? 32 : 24) + "px;height:" + (touch ? 32 : 24) + "px;flex:0 0 " + (touch ? 32 : 24) + "px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:" + (touch ? 20 : 16) + "px;line-height:1",
           selected: sel.indexOf(t.id) >= 0,
           select: (e) => this.pickThread(t.id, e),
+          stripStyle: "position:relative;width:52px;height:52px;flex:0 0 52px;display:flex;align-items:center;justify-content:center;border-radius:14px;" +
+            (t.id === st.threadId ? "background:var(--accent-soft);box-shadow:inset 0 0 0 1.5px var(--accent-line)" : ""),
+          stripAvatarStyle: "width:36px;height:36px;flex:0 0 36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;letter-spacing:0.02em;background:var(--border2);color:var(--text2)" +
+            (avatarOf(t.from) ? ";background-position:center;background-size:cover;background-repeat:no-repeat;background-image:url(" + avatarOf(t.from) + ")" : ""),
+          stripInitials: avatarOf(t.from) ? "" : initialsOf(t.from),
+          stripLabel: t.from + " - " + t.subject,
           longPress: (e) => { if (e && e.preventDefault) { e.preventDefault(); e.stopPropagation(); } this.armCtx(false); this.openMailMenu(t.id, e.clientX, e.clientY); },
           touchStart: (e) => {
             const p = e && e.touches && e.touches[0];
@@ -5261,12 +5296,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           { label: "Fix the language", run: () => this.aiWrite("full") },
         ].map(a => ({
           label: a.label, run: a.run,
-          style: "color:var(--accent-d);background:var(--panel);border:1px solid var(--accent-line);border-radius:" + (touch ? 22 : 16) + "px;white-space:nowrap;" + (touch ? "display:flex;align-items:center;box-sizing:border-box;min-height:44px;padding:0 14px;font-size:13px" : "padding:6px 12px;font-size:12px"),
+          style: "color:var(--accent-d);background:var(--panel);border:1px solid var(--accent-line);border-radius:" + (touch ? 18 : 16) + "px;white-space:nowrap;" + (touch ? "display:flex;align-items:center;box-sizing:border-box;min-height:36px;padding:0 14px;font-size:13px" : "padding:6px 12px;font-size:12px"),
         })),
         tones: ["Formal", "Neutral", "Direct"].map(t => ({
           label: t,
           pick: () => this.setState({ tone: t }),
-          style: "border-radius:" + (touch ? 22 : 12) + "px;white-space:nowrap;" + (touch ? "display:flex;align-items:center;box-sizing:border-box;min-height:44px;padding:0 14px;font-size:13px;" : "padding:5px 11px;font-size:12px;") + ((st.tone || "Neutralny") === t
+          style: "border-radius:" + (touch ? 18 : 12) + "px;white-space:nowrap;" + (touch ? "display:flex;align-items:center;box-sizing:border-box;min-height:36px;padding:0 14px;font-size:13px;" : "padding:5px 11px;font-size:12px;") + ((st.tone || "Neutralny") === t
             ? "background:var(--accent);color:var(--onaccent);"
             : "color:var(--text2);border:1px solid var(--line);"),
         })),

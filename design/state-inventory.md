@@ -49,13 +49,16 @@ composition keeps its own sizes.
 
 | What | The rule |
 |---|---|
-| A control's target | 44 × 44 px at least: an icon button, a field, a chip, a segment, a row of a navigation, a text action such as *Mark all read*. The phone keeps 48 where it already drew 48 — the back button, the thread's three actions, and *Ask*; the folders button and the search field are 44 there as everywhere else under a finger. The glyph inside stays 20–24 px; the target grows around it |
+| A control's target | 44 × 44 px at least, and the target is not always the drawing. An icon button, a field, a standalone button, a row of a navigation and a text action such as *Mark all read* are drawn at 44; a chip in a wrapping group and a segment in its track are drawn at 36 and take the rest of the 44 from the space around them — 8 px between chips, the track's padding around a segment — so a group keeps the weight of the text beside it rather than outgrowing it. The phone keeps 48 where it already drew 48 — the back button, the thread's three actions, and *Ask*; the folders button and the search field are 44 there as everywhere else under a finger. The glyph inside stays 20–24 px and the target grows around it; a label is centred in the target's height, never left at its top |
 | The phone's bar | Every space names itself at the left of its top bar at 20 px semibold (`screenTitleStyle`, `tbTitleStyle`, `agentTitleStyle`), the bar at least 56 px tall with 16 px before the title, and its actions stand at the far end. Mail is the exception: its search field is its bar |
 | The bottom navigation | Five places, each a 56 × 32 px pill behind its glyph (`--nav-mark`) that marks the current one, and a 12 px label beneath — the tile around it is not filled. The bar pads its foot by `env(safe-area-inset-bottom)` |
 | Controls the bar has no place for | Stand in the *More* sheet, below the spaces and a rule: *Refresh*, then *Settings*. Each row of the sheet is 52 px. Nothing floats over the content of a screen except the one action that screen is for |
 | A prompt | Fits one line at the width it is drawn at, and ends in an ellipsis where it cannot: the phone and the narrow list panes take the short form (*Search mail…*, *Ask your mail…*, *Tell me what to do…*, *Describe the reply…*, *Write what this is about…*) |
 | Keys | No control names a key under `touch` — *Ask*, *Send*, and the composer's foot without *Ctrl+Enter sends* — because the screen has no keyboard to press it on |
 | One choice among several | A segmented control — `--rail` track, the chosen segment raised on `--panel` — rather than loose bordered buttons: People's *Own* and *Collected*, the calendar's four views |
+| Symbols alone | Where a glyph names the action beyond doubt — attach, archive, delete, close, back, and the thread's reply, forward and flag — the phone draws the symbol alone in its 44 box, and the name stays its title and its accessible name. An action no glyph names keeps its words |
+| A sheet | Whatever rises from the bottom under a finger — the *More* sheet, the thread state, the phone's dialogs, Settings on one pane — closes by being pulled down as well as by its *X*, and shows where to take hold: a 38 × 4 px `--border2` grabber centred in a 20 px band at its top (`sheetGrabber`, `settingsGrabber`). The pull takes over only once the sheet's content is scrolled to its top; let go past a quarter of its height, or flung down, and it closes as its *X* would, otherwise it springs back. A drawer closes the same way, pushed back toward the edge it came from |
+| The fold's split | Two panes under a finger in less than 1020 px leave the thread the width: while a thread is open the list folds to a strip of senders (`listStrip`), and the strip's head widens it again — § *The panes* under Mail. With nothing open the whole list stays |
 | Duplicated actions | A two-pane composition under a finger does not repeat in the thread head what the toolbar above it already carries: the head keeps *Ask*, and the subject the width |
 | Text | 12 px is the smallest size a reader is asked to read; 11 px is left to captions over something larger and to counts on a badge |
 
@@ -194,6 +197,8 @@ than the 3 px accent edge it used to carry.
 | Toolbar | `showMailToolbar` | `!selectionOn && !singlePane` |
 | Primary actions in the bar | `tbPrimaryShown` | the toolbar has room for them |
 | Resizer between panes | `showResizer` | `!singlePane && !tablet` |
+| The list as a strip, on the fold | `listStrip` | `touch && !singlePane && narrow && !emptyMail && !st.listWide && !selectionOn && !stateBarOff` — while a thread is open the list folds to a 76 px `--sub` column of senders: per thread a 36 px avatar in a 52 px target, the open one on `--accent-soft` inside an `--accent-line` ring, an unread one with a 10 px `--accent` dot; picking one opens its thread. The strip's head is one 44 px `left_panel_open` button titled *Show the list* |
+| The list widened, on the fold | `st.listWide` / `listNarrowable` | *Show the list* — the list comes back at 284 px, the thread narrows beside it, and the list's head leads with a 44 px `left_panel_close` titled *Narrow the list*; picking a thread folds it to the strip again |
 | Side list expanded | `sideExpanded` | not collapsed; collapsed is 58 px, expanded is 210 px and draggable to 420 |
 | Side list show/hide | `sideToggleShown` / `toggleSide` | `!drawer` on Mail — the first control of the mail toolbar, a 32 px icon button (44 px on touch) reading `left_panel_close` while the list is open and `left_panel_open` while it is collapsed, titled *Hide folders and filters* and *Show folders and filters*, and set apart from *New message* by a 1 px rule with 6 px before it and 8 px after, so a press meant for one never lands on the other. It is never inside the list, so a long tree cannot scroll it away |
 | Side list scrolls | `sideScrollStyle` | the AI filters and every account scroll together inside the panel once they are taller than it, docked or as a drawer; the panel itself does not move |
@@ -341,6 +346,7 @@ what a finger reaches.
 | Formatting hint | `fmtHintShown` | `!touch` |
 | AI drafting | `aiBusy` | the AI draft action, while it streams |
 | AI draft standing | `aiDraftShown` | the same, once it finishes |
+| The composer's foot | `composeSendStyle`, `composeAttachStyle`, `composeSaveStyle` | always; under `touch` one 44 px row — *Send* filled, *Attach* bordered and on the phone the `attach_file` symbol alone (`composeAttachLabel` is `!isMobile`), *Save draft* a text action as tall as the row |
 | Send confirmation | `sendAskOpen` | pressing send with something to warn about |
 | Warnings in it | `sendHasWarn` | the warning list is not empty — an unaccepted AI draft is one |
 
