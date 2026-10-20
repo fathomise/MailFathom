@@ -103,17 +103,13 @@ name: Protected paths
 #
 # It is not a security boundary on its own. A `pull_request` run uses the workflow file as the pull
 # request would leave it, so a change to this file changes the check that judges it. The pair is what
-# holds: weakening the check means editing `.github/`, and a pull request doing that from a fork or
-# from an author holding no write access here cannot merge without an approval from an account that
-# does, because `Fathom review` approves neither; and deleting or renaming this job leaves the
-# required check permanently unreported, which the ruleset refuses to merge past. A pull request
-# opened from a branch here by an author holding `write` is held the same way: `Fathom review`
-# withholds its approval whenever the change reaches a protected path and the author is no
-# maintainer, so a weakened copy of this file still leaves the merge waiting on a maintainer's
-# approval. The approval reads who opened the pull request and never who pushed to it, so anybody
-# with write access can push onto a maintainer's branch and rely on the reviewer's verdict alone.
-# Write access is therefore the boundary, and the organization's owner decides who holds it through
-# the `contributors` and `maintainers` teams.
+# holds: weakening the check means editing `.github/`, and a pull request doing that from anybody but
+# a maintainer cannot merge without a maintainer's approval, because `Fathom review` approves only a
+# maintainer's own pull request; and deleting or renaming this job leaves the required check
+# permanently unreported, which the ruleset refuses to merge past. The approval reads who opened the
+# pull request and never who pushed to it, so anybody with write access can push onto a maintainer's
+# branch and rely on the reviewer's verdict alone. Write access is therefore the boundary, and the
+# organization's owner decides who holds it through the `contributors` and `maintainers` teams.
 #
 # The set itself is `.github/protected-paths/select-protected-paths.sh`, which both this job and
 # `Fathom review` read from the base commit, so a pull request cannot shorten the list it is judged

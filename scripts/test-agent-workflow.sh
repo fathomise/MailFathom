@@ -3757,7 +3757,7 @@ chmod +x "$submit_bin_directory/gh"
 write_fathom_review_collection() {
   local review_directory="$1"
   local head_repository="${2-fathomise/MailFathom}"
-  local author_role="${3-write}"
+  local author_role="${3-maintain}"
 
   # The protected paths the change reaches and whether that listing was complete, as `collect`
   # read them. None, read in full, is the ordinary case.
@@ -3791,9 +3791,9 @@ run_fathom_review_submit() {
   # Where the head branch lives, as `collect` read it from the API. This repository is the ordinary
   # case; a fork's name, or an empty value for a fork that was deleted, is what withholds approval.
   local head_repository="${7-fathomise/MailFathom}"
-  # The role the author holds on the repository, as `collect` read it. `write`, which the
-  # `contributors` team holds, is the ordinary case.
-  local author_role="${8-write}"
+  # The role the author holds on the repository, as `collect` read it. `maintain`, which the
+  # `maintainers` team holds, is the ordinary case and the one an approval is given for.
+  local author_role="${8-maintain}"
   local step_script="$test_directory/fathom-review-submit.sh"
   local review_directory="$test_directory/fathom-review-submit-review"
   local coverage_file="$test_directory/fathom-review-submit-coverage"
@@ -3955,16 +3955,17 @@ fathom_review_approves_when_it_finds_nothing() {
 
 # The approval satisfies the review the `main` ruleset requires, so a pull request whose head lives
 # in a fork — or in a fork since deleted, which the API reports as no repository at all — or whose
-# author holds no write access here gets the same verdict as a comment and never as an approval. A
-# role read as `permission` would answer `write` for `maintain`; the cases name the roles themselves.
-fathom_review_approves_only_a_pull_request_from_this_repository_by_an_author_with_write_access() {
+# author is not a maintainer here, a contributor holding `write` included, gets the same verdict as a
+# comment and never as an approval. A role read as `permission` would answer `write` for `maintain`;
+# the cases name the roles themselves.
+fathom_review_approves_only_a_pull_request_from_this_repository_by_a_maintainer() {
   local output_file="$test_directory/fathom-review-submit-fork-output"
   local payload_file="$test_directory/fathom-review-submit-fork-payload"
   local case_spec
   local head_repository
   local author_role
 
-  for case_spec in 'fathomise/MailFathom|write' 'fathomise/MailFathom|maintain' 'fathomise/MailFathom|admin'; do
+  for case_spec in 'fathomise/MailFathom|maintain' 'fathomise/MailFathom|admin'; do
     head_repository="${case_spec%%|*}"
     author_role="${case_spec#*|}"
     run_fathom_review_submit \
@@ -3977,7 +3978,7 @@ fathom_review_approves_only_a_pull_request_from_this_repository_by_an_author_wit
     assert_contains 'verdict=approved' "$submit_step_output_file"
   done
 
-  for case_spec in 'contributor/MailFathom|write' '|write' 'fathomise/MailFathom|triage' 'fathomise/MailFathom|read' 'fathomise/MailFathom|'; do
+  for case_spec in 'fathomise/MailFathom|write' 'contributor/MailFathom|maintain' '|maintain' 'fathomise/MailFathom|triage' 'fathomise/MailFathom|read' 'fathomise/MailFathom|'; do
     head_repository="${case_spec%%|*}"
     author_role="${case_spec#*|}"
     run_fathom_review_submit \
@@ -3988,16 +3989,16 @@ fathom_review_approves_only_a_pull_request_from_this_repository_by_an_author_wit
     ((submit_status == 0))
     assert_json '"COMMENT"' '.event' "$payload_file"
     assert_contains '# NO FINDINGS' "$payload_file"
-    assert_contains 'A project maintainer still has to review and approve it' "$payload_file"
+    assert_contains 'A maintainer still has to review and approve its current head' "$payload_file"
     assert_excludes '# APPROVED' "$payload_file"
     assert_contains 'verdict=no_findings' "$submit_step_output_file"
   done
 }
 
-# `Protected paths` judges with the pull request's own copy of itself, so the approval is what holds a
-# contributor's change to a protected path for a maintainer. A maintainer's own change is approved as
-# before, and a listing that could not be read in full is treated as one that reached a protected path.
-fathom_review_withholds_approval_from_a_contributor_changing_a_protected_path() {
+# A contributor's clean pass is never approved, and its notice says why from what `collect` recorded:
+# a protected path, a listing cut short, or the role alone. A maintainer's change to a protected path
+# is approved like any other.
+fathom_review_tells_a_contributor_why_it_withheld_the_approval() {
   local output_file="$test_directory/fathom-review-submit-protected-output"
   local payload_file="$test_directory/fathom-review-submit-protected-payload"
   local clean='{"summary":"Read every changed file and found nothing above the bar.","findings":[]}'
@@ -4029,6 +4030,15 @@ fathom_review_withholds_approval_from_a_contributor_changing_a_protected_path() 
   assert_json '"COMMENT"' '.event' "$payload_file"
   assert_contains 'could not be read in full' "$payload_file"
   assert_excludes 'changes a protected path' "$payload_file"
+
+  run_fathom_review_submit \
+    "$clean" "$output_file" "$payload_file" 'success' '' '<!-- fathom-review: automatic -->' \
+    'fathomise/MailFathom' 'write'
+
+  ((submit_status == 0))
+  assert_json '"COMMENT"' '.event' "$payload_file"
+  assert_contains 'The author of this pull request is not a maintainer' "$payload_file"
+  assert_excludes 'protected path' "$payload_file"
 }
 
 # The marker is what the ceiling counts with, and it is written by the only step that publishes. A
@@ -4474,11 +4484,11 @@ run_fathom_review_announcement() {
 }
 
 # Neither verdict reaches the board from this workflow. `Ready to merge` never did — it reads the
-# diff and cannot see the pipeline — and a withheld approval no longer does either, because it makes
-# the same claim about a state this run cannot see: what is owed is the agent's answer, while a
-# pipeline still in flight can add to what that answer has to cover. Both are decided in
-# `Apply pull request rules`, from the review and the checks together, and the only status left here
-# is the `In review` the announcement writes.
+# diff and cannot see the pipeline — and a review that found something no longer does either,
+# because it makes the same claim about a state this run cannot see: what is owed is the agent's
+# answer, while a pipeline still in flight can add to what that answer has to cover. Both are
+# decided in `Apply pull request rules`, from the review and the checks together, and the only
+# status left here is the `In review` the announcement writes.
 fathom_review_records_no_verdict_on_the_board() {
   local workflow="$source_repository_root/.github/workflows/fathom-review.yml"
 
@@ -4642,9 +4652,11 @@ board_state_green_checks='[
 
 # The state a rule reads, written as a fixture rather than fetched. Every condition in that script is
 # a question about these fields alone, which is what lets a board rule be tested without a token and
-# without a pull request to reproduce it on. `approval` is `none`, `current`, `stale`, or
-# `commented`: the third is an approval GitHub kept against a head that has since been pushed over,
-# and the fourth is the withheld approval the reviewer publishes as a `COMMENT` review on the head.
+# without a pull request to reproduce it on. `approval` is `none`, `current`, `stale`, `commented`,
+# or `no-findings`: the third is an approval GitHub kept against a head that has since been pushed
+# over, the fourth is the withheld approval the reviewer publishes as a `COMMENT` review under
+# `NEEDS CHANGES` on the head, and the fifth is the clean verdict it publishes as a `COMMENT` under
+# `NO FINDINGS` for an author who is not a maintainer.
 write_pull_request_state() {
   local state_file="$1"
   local mergeable="$2"
@@ -4662,7 +4674,10 @@ write_pull_request_state() {
       removedFromMergeQueueAt: (if $removed == "" then null else $removed end),
       reviews: (if $approval == "none" then []
                 else [{author: "fathom-reviewer[bot]",
-                       state: (if $approval == "commented" then "COMMENTED" else "APPROVED" end),
+                       state: (if $approval == "commented" or $approval == "no-findings" then "COMMENTED" else "APPROVED" end),
+                       body: (if $approval == "commented" then "# NEEDS CHANGES\n\nOne finding."
+                              elif $approval == "no-findings" then "# NO FINDINGS\n\nA maintainer still has to approve it."
+                              else "# APPROVED\n\nNothing above the bar." end),
                        submittedAt: "2026-10-17T10:00:00Z",
                        commit: (if $approval == "stale" then "older-commit" else "head-commit" end)}]
                 end),
@@ -4700,8 +4715,8 @@ select_board_status_earns_in_merge_while_the_queue_holds_the_pull_request() {
   assert_file_content $'In merge\t\tDone,Blocked' "$output_file"
 }
 
-# The queue letting go of an approved head is a change owed by the agent, and the green head would
-# otherwise read as `Ready to merge` again on the next sweep. A removal the current approval came
+# The queue letting go of a clean head is a change owed by the agent, and the green head would
+# otherwise read as `Ready to merge` again on the next sweep. A removal the current verdict came
 # after is one a push and a new review already answered.
 select_board_status_earns_changes_requested_for_a_head_the_queue_removed() {
   local output_file="$test_directory/select-board-status-removed"
@@ -4866,7 +4881,7 @@ select_board_status_earns_changes_requested_from_a_failed_check() {
   done
 }
 
-# The reviewer publishes a withheld approval as a `COMMENT` review so that it cannot block a merge,
+# The reviewer publishes what it found as a `COMMENT` review so that it cannot block a merge,
 # which is exactly why GitHub's built-in `Code changes requested` workflow never fires for it. This
 # rule is the only writer of that column, and it is asked here rather than in `Fathom review` because
 # it makes the same claim about the pipelines that `Ready to merge` does.
@@ -4875,6 +4890,25 @@ select_board_status_earns_changes_requested_from_a_withheld_approval() {
 
   run_select_board_status 'MERGEABLE' "$output_file" 'commented' "$board_state_green_checks"
 
+  assert_file_content $'Changes requested\t\tDone,Blocked' "$output_file"
+}
+
+# A clean pass on a change whose author is not a maintainer is published as a `COMMENT` under
+# `NO FINDINGS`, and it is the same verdict an approval is: what it still waits on is a maintainer's
+# approval, a merge decision rather than an answer the agent owes. So it earns what an approval earns
+# — `Ready to merge` where the change merges, and `Changes requested` where it conflicts or the queue
+# removed it after the verdict.
+select_board_status_reads_a_no_findings_comment_as_a_clean_verdict() {
+  local output_file="$test_directory/select-board-status-no-findings"
+
+  run_select_board_status 'MERGEABLE' "$output_file" 'no-findings' "$board_state_green_checks"
+  assert_file_content $'Ready to merge\t\tDone,Blocked' "$output_file"
+
+  run_select_board_status 'CONFLICTING' "$output_file" 'no-findings' "$board_state_green_checks"
+  assert_file_content $'Changes requested\t\tDone,Blocked' "$output_file"
+
+  run_select_board_status 'MERGEABLE' "$output_file" 'no-findings' "$board_state_green_checks" 'false' 'false' \
+    '2026-10-17T11:00:00Z'
   assert_file_content $'Changes requested\t\tDone,Blocked' "$output_file"
 }
 
@@ -5031,7 +5065,7 @@ if [[ "$arguments" == *'statusCheckRollup'* ]]; then
   # shape the API answers in.
   pull_request="$(
     jq -nc --arg mergeable "$mergeable" \
-      --argjson reviewed "$(cat "$FAKE_BOARD_DIRECTORY/reviewed" 2>/dev/null || printf 'false')" \
+      --arg reviewed "$(cat "$FAKE_BOARD_DIRECTORY/reviewed" 2>/dev/null || printf 'false')" \
       --argjson checks "$(cat "$FAKE_BOARD_DIRECTORY/checks.json" 2>/dev/null || printf '[]')" \
       --argjson queued "$(cat "$FAKE_BOARD_DIRECTORY/queued" 2>/dev/null || printf 'false')" \
       --arg removed "$(cat "$FAKE_BOARD_DIRECTORY/removed-at" 2>/dev/null || true)" \
@@ -5039,11 +5073,14 @@ if [[ "$arguments" == *'statusCheckRollup'* ]]; then
         headRefOid: "head-commit", isInMergeQueue: $queued,
         timelineItems: {nodes: (if $removed == "" then [] else [{createdAt: $removed}] end)},
         labels: {nodes: []},
-        latestReviews: {nodes: (if $reviewed
-                                then [{author: {__typename: "Bot", login: "fathom-reviewer"},
-                                       state: "APPROVED", submittedAt: "2026-10-17T10:00:00Z",
-                                       commit: {oid: "head-commit"}}]
-                                else [] end)},
+        latestReviews: {nodes: (if $reviewed == "false" then []
+                                else [{author: {__typename: "Bot", login: "fathom-reviewer"},
+                                       state: (if $reviewed == "no-findings" then "COMMENTED" else "APPROVED" end),
+                                       body: (if $reviewed == "no-findings"
+                                              then "# NO FINDINGS\n\nA maintainer still has to approve it."
+                                              else "# APPROVED\n\nNothing above the bar." end),
+                                       submittedAt: "2026-10-17T10:00:00Z",
+                                       commit: {oid: "head-commit"}}] end)},
         commits: {nodes: [{commit: {statusCheckRollup:
           {contexts: {totalCount: ($checks | length),
                       nodes: ($checks | map({__typename: "CheckRun", name: .name,
@@ -5197,6 +5234,23 @@ pull_request_rules_decide_the_pull_request_a_concluded_pipeline_ran_on() {
 
   ((board_status == 0))
   assert_contains 'Deciding pull request 1' "$output_file"
+  assert_contains 'option=option-ready' "$board_mutations_file"
+  assert_contains 'Issue 12 moved from In review to Ready to merge' "$output_file"
+}
+
+# A contributor's clean pass arrives as a `COMMENT` whose body opens with `NO FINDINGS`, and it reaches
+# `Ready to merge` only through the body the collecting script projects — so this runs the whole
+# sweep, from GitHub's answer through the projection to the board write, rather than a state file.
+pull_request_rules_read_a_no_findings_comment_as_ready_to_merge() {
+  local output_file="$test_directory/pull-request-rules-no-findings-output"
+  local workflow_run_head_sha='head-commit'
+  local commit_pull_requests='[{"number": 1, "state": "open"}]'
+  local reviewed='no-findings'
+  local checks_json='[{"workflow": "CI", "name": "Required CI", "status": "COMPLETED", "conclusion": "SUCCESS"}]'
+
+  run_pull_request_rules_board 'MERGEABLE' 'In review' '0' "$output_file"
+
+  ((board_status == 0))
   assert_contains 'option=option-ready' "$board_mutations_file"
   assert_contains 'Issue 12 moved from In review to Ready to merge' "$output_file"
 }
@@ -11797,8 +11851,8 @@ run_test fathom_review_holds_a_pass_that_still_found_something_owed
 run_test fathom_review_holds_a_settling_pass_whatever_the_severity
 run_test fathom_review_moves_a_finding_with_no_line_into_the_body
 run_test fathom_review_approves_when_it_finds_nothing
-run_test fathom_review_approves_only_a_pull_request_from_this_repository_by_an_author_with_write_access
-run_test fathom_review_withholds_approval_from_a_contributor_changing_a_protected_path
+run_test fathom_review_approves_only_a_pull_request_from_this_repository_by_a_maintainer
+run_test fathom_review_tells_a_contributor_why_it_withheld_the_approval
 run_test fathom_review_reports_the_files_a_review_never_named
 run_test fathom_review_reports_no_gap_when_the_review_named_every_file
 run_test fathom_review_counts_a_named_path_the_change_does_not_contain
@@ -11832,6 +11886,7 @@ run_test select_board_status_earns_nothing_from_an_approval_of_an_older_head
 run_test select_board_status_earns_nothing_while_a_check_is_still_running
 run_test select_board_status_earns_changes_requested_from_a_failed_check
 run_test select_board_status_earns_changes_requested_from_a_withheld_approval
+run_test select_board_status_reads_a_no_findings_comment_as_a_clean_verdict
 run_test select_board_status_earns_nothing_from_a_withheld_approval_of_an_older_head
 run_test select_board_status_reads_neither_codeql_nor_its_own_checks
 run_test select_board_status_asks_a_draft_only_whether_it_still_merges
@@ -11841,6 +11896,7 @@ run_test pull_request_rules_listen_to_every_workflow_a_pull_request_runs
 run_test pull_request_rules_move_a_pull_request_that_stopped_merging
 run_test pull_request_rules_move_nothing_for_a_pull_request_that_still_merges
 run_test pull_request_rules_decide_the_pull_request_a_concluded_pipeline_ran_on
+run_test pull_request_rules_read_a_no_findings_comment_as_ready_to_merge
 run_test pull_request_rules_move_an_approved_pull_request_that_stopped_merging_out_of_review
 run_test pull_request_rules_decide_nothing_for_a_head_no_open_pull_request_has
 run_test pull_request_rules_wait_for_github_to_decide_mergeability

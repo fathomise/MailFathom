@@ -7,7 +7,7 @@ name: Fathom review
 # A second reviewer, next to the Codex review that already comments here, in the same P1/P2/P3
 # vocabulary so one pass over the threads answers both. It reports no status check, but its approval
 # satisfies the one approving review the `main` ruleset requires on a pull request from this
-# repository whose author holds write access to it — so what it may approve, and whose words it
+# repository whose author is one of its maintainers — so what it may approve, and whose words it
 # reads, is bounded below.
 #
 # Every trigger here runs the workflow file from the default branch, never from the branch under
@@ -64,13 +64,12 @@ name: Fathom review
 #
 # The approval is what lets a change merge. The `main` ruleset requires one approving review and
 # does not ask for it from a code owner, so this one satisfies it — which is why it is given only to
-# a pull request whose head branch lives in this repository and whose author holds `write`,
-# `maintain`, or `admin` on it, which the `contributors` and `maintainers` teams are given — and, for
-# an author holding `write` alone, only while the change leaves every protected path alone, since
-# `Protected paths` runs from the pull request's own copy and so cannot hold such a change by itself.
-# Any other pull request never gets one: a pass that finds nothing there submits
-# `event: COMMENT` under `NO FINDINGS` instead, and a project maintainer's approval is what merges
-# it. `dismiss_stale_reviews_on_push` discards an
+# a pull request whose head branch lives in this repository and whose author holds `maintain` or
+# `admin` on it — the `maintainers` team and the organization's owner. Any other pull request never
+# gets one, a contributor's included: a pass that finds nothing there submits `event: COMMENT` under
+# `NO FINDINGS` instead, `Apply pull request rules` reads that heading as the clean verdict it is and
+# moves the board to `Ready to merge`, and a maintainer's approval is what merges it.
+# `dismiss_stale_reviews_on_push` discards an
 # approval on the next push, so it never outlives the commit it was given for, and that same push
 # starts the review that replaces it.
 on:
@@ -1071,8 +1070,8 @@ jobs:
             > "$REVIEW_DIRECTORY/pull-request.json"
 
           # The role the author holds on this repository, which is what the submission step gives an
-          # approval for: `write` from the `contributors` team, `maintain` from the `maintainers`
-          # team, `admin` for the organization's owner. `role_name` rather than `permission`, which
+          # approval for: `maintain` from the `maintainers` team and `admin` for the organization's
+          # owner, never `write` from the `contributors` team. `role_name` rather than `permission`, which
           # folds `maintain` into `write` and `triage` into `read`. An author the API reports no role
           # for — a client error is an answer here, and the helper does not repeat it — is recorded
           # as `null`, which withholds the approval rather than granting it.
@@ -1111,7 +1110,8 @@ jobs:
           # review cannot shorten the list. A rename counts on both sides. The listing is complete
           # only when it holds as many files as the pull request reports: the endpoint stops at 3000,
           # and a protected path past that point cannot be shown to be absent. The submission step
-          # withholds the approval on either answer for an author who is no maintainer.
+          # names either answer in the notice it gives a contributor, and it is what would withhold
+          # the approval again were `write` ever approved.
           protected_changes="$(
             jq -r '.[] | .filename, (.previous_filename // empty)' "$all_files" | bash "$SELECT_PROTECTED_PATHS"
           )"
@@ -2470,15 +2470,13 @@ jobs:
           # so an approval can never describe code that has since changed.
           #
           # The approval satisfies the one approving review the ruleset requires, so it is given only
-          # where the head branch lives in this repository and the author holds `write`, `maintain`,
-          # or `admin` on it — the `contributors` team, the `maintainers` team, or the organization's
-          # owner. An author holding `write` alone is approved only when `collect` read the complete
-          # list of changed files and it names no protected path: `Protected paths` judges with the
-          # pull request's own copy of itself, so this approval is what would otherwise let a
-          # contributor merge a change to the rules that judge them. Anything else — a fork, an author
-          # with no such role, a member of the organization in neither team included, or a
-          # contributor's protected change — gets the same verdict as a comment, and a maintainer's
-          # approval merges it. These facts are read from
+          # where the head branch lives in this repository and the author holds `maintain` or `admin`
+          # on it — the `maintainers` team or the organization's owner. Anything else — a fork, a
+          # contributor holding `write`, an author with no role at all — gets the same verdict as a
+          # comment under `NO FINDINGS`, which the board reads as `Ready to merge`, and a
+          # maintainer's approval merges it. A contributor's notice says why from the protected-path
+          # reading `collect` recorded: a protected path, a listing cut short, or neither, where the
+          # only reason is the role. These facts are read from
           # what `collect` asked the API, never from the event or the model, and an absent one — a
           # deleted fork reports `null` — withholds the approval. `REQUEST_CHANGES` is never used in
           # any branch: a reviewer that reports no status check must not be able to block a merge.
@@ -2498,12 +2496,8 @@ jobs:
           if [[ "$(jq '(.findings // []) | length' "$findings_file")" == '0' ]]; then
             head_repository="$(jq -r '.head_repository // ""' "$REVIEW_DIRECTORY/pull-request.json" 2>/dev/null || true)"
             author_role="$(jq -r '.author_role // ""' "$REVIEW_DIRECTORY/pull-request.json" 2>/dev/null || true)"
-            # `true` only when the complete listing named no protected path; an absent field, a
-            # truncated listing, and any protected path all read as `false`.
-            leaves_protected_paths_alone="$(jq -r '((.protected_changes_complete // false) and ((.protected_changes // ["unknown"]) | length == 0))' "$REVIEW_DIRECTORY/pull-request.json" 2>/dev/null || echo false)"
             if [[ "$head_repository" == "$REPOSITORY" ]] \
-              && [[ "$author_role" == 'maintain' || "$author_role" == 'admin' \
-                    || ( "$author_role" == 'write' && "$leaves_protected_paths_alone" == 'true' ) ]]; then
+              && [[ "$author_role" == 'maintain' || "$author_role" == 'admin' ]]; then
               event='APPROVE'
               heading='# APPROVED'
               notice=''
@@ -2512,15 +2506,17 @@ jobs:
               event='COMMENT'
               heading='# NO FINDINGS'
               if [[ "$(jq -r '(.protected_changes // []) | length' "$REVIEW_DIRECTORY/pull-request.json" 2>/dev/null || echo 0)" != '0' ]]; then
-                notice='This pull request changes a protected path and its author is not a maintainer of this repository, so this reviewer does not approve it. A maintainer has to approve its current head before it can merge.'
+                notice='This pull request changes a protected path and its author is not a maintainer of this repository, so this reviewer does not approve it. A maintainer still has to review and approve its current head before it can merge.'
+              elif [[ "$(jq -r '.protected_changes_complete // false' "$REVIEW_DIRECTORY/pull-request.json" 2>/dev/null || echo false)" != 'true' ]]; then
+                notice='The list of files this pull request changes could not be read in full, so it cannot be shown to leave every protected path alone, and its author is not a maintainer of this repository. This reviewer does not approve it; a maintainer still has to review and approve its current head before it can merge.'
               else
-                notice='The list of files this pull request changes could not be read in full, so it cannot be shown to leave every protected path alone, and its author is not a maintainer of this repository. This reviewer does not approve it; a maintainer has to approve its current head before it can merge.'
+                notice='The author of this pull request is not a maintainer of this repository, so this reviewer does not approve it. A maintainer still has to review and approve its current head before it can merge.'
               fi
               verdict='no_findings'
             else
               event='COMMENT'
               heading='# NO FINDINGS'
-              notice='This pull request comes from a fork or from an author who holds no write access to this repository, so this reviewer does not approve it. A project maintainer still has to review and approve it before it can merge.'
+              notice='This pull request comes from a fork or from an author who is not a maintainer of this repository, so this reviewer does not approve it. A maintainer still has to review and approve its current head before it can merge.'
               verdict='no_findings'
             fi
 
@@ -2563,7 +2559,7 @@ jobs:
             if [[ "$event" == 'APPROVE' ]]; then
               echo 'Approved: the review found nothing above the bar.'
             else
-              echo 'Found nothing above the bar; the head lives in a fork, the author holds no write access here, or a contributor changed a protected path, so a maintainer approves it.'
+              echo 'Found nothing above the bar; the head lives in a fork or the author is not a maintainer here, so a maintainer approves it.'
             fi
             exit 0
           fi

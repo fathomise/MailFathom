@@ -3,10 +3,10 @@
 # Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 # Project repository: https://github.com/fathomise/MailFathom
 
-# The paths only a maintainer of the repository may change, held once for the two places that judge
+# The paths only a maintainer of the repository may change, held once for the two places that read
 # them: `Protected paths`, which refuses such a change from anybody else, and `Fathom review`, which
-# withholds the approval that would otherwise merge it. Both read this file from the base commit, so
-# a pull request cannot shorten the list it is judged against.
+# names them in the notice telling a contributor why their pull request was not approved. Both read
+# this file from the base commit, so a pull request cannot shorten the list it is judged against.
 #
 # Reads one changed path per line on standard input and prints each protected one, sorted and
 # deduplicated. `--describe` prints the whole set on one line instead, for a message naming it.

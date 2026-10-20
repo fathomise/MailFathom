@@ -12,7 +12,7 @@
 #   {"total": <how many pull requests matched>, "pull_requests": [ {...}, ... ]}
 #
 # and each pull request carries `number`, `mergeable`, `isDraft`, `state`, `labels`, `headRefOid`,
-# `reviews`, and `checks`. A review is `{author, state, commit}` and a check is
+# `reviews`, and `checks`. A review is `{author, state, body, submittedAt, commit}` and a check is
 # `{workflow, name, status, conclusion}`, both as GitHub spells them, which is what lets a fixture
 # stand in for the API in the contract suite.
 #
@@ -68,7 +68,7 @@ pull_request_fields='
       nodes { ... on RemovedFromMergeQueueEvent { createdAt } }
     }
     labels(first: 20) { nodes { name } }
-    latestReviews(first: 20) { nodes { author { __typename login } state submittedAt commit { oid } } }
+    latestReviews(first: 20) { nodes { author { __typename login } state body submittedAt commit { oid } } }
     commits(last: 1) {
       nodes {
         commit {
@@ -119,6 +119,7 @@ projection='
         | {
           author: (.author.login + (if .author.__typename == "Bot" then "[bot]" else "" end)),
           state: .state,
+          body: .body,
           submittedAt: .submittedAt,
           commit: .commit.oid
         }
