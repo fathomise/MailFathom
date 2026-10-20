@@ -1581,6 +1581,7 @@ export const pl: Catalogue = {
     'notifications.notDeleted': 'Nie udało się usunąć tych powiadomień. Zostają w takim stanie, w jakim były.',
     'notifications.selectionBar': 'Działania na zaznaczonych powiadomieniach',
     'notifications.empty': 'Nic nowego. Wszystko przeczytane.',
+    'notifications.emptyAll': 'Nie ma jeszcze żadnych powiadomień.',
     'notifications.reading': 'Odczytujemy, co się wydarzyło…',
     'notifications.failed': 'Nie udało się odczytać powiadomień: {reason}.',
     'notifications.show': 'Pokaż',

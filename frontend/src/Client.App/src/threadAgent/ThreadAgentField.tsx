@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useContext, useRef, useState } from 'react';
+import { useCallback, useContext, useRef, useState } from 'react';
 import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
 import { Departing } from '../shell/Departing';
@@ -41,6 +41,19 @@ export function ThreadAgentField() {
     // Focus goes back to the button whenever the card folds into it, which is the button mounting again — so it is the
     // button's own ref that honours the debt rather than an effect watching the state that dropped it.
     const buttonFocusOwed = useRef(false);
+
+    // The field is held while the drafter is open, so a draft discarded with the drafter open puts the keyboard on the
+    // field rather than on the button that is not drawn; and it takes the keyboard as the card arrives, and only then.
+    const holdField = drafting?.holdField;
+    const holdTheField = useCallback(
+        (field: HTMLInputElement | null) => {
+            if (field !== null) {
+                holdField?.(field);
+                field.focus();
+            }
+        },
+        [holdField],
+    );
 
     const passage = fragmentBeingRead(workspace);
     const answering = workspace.selection;
@@ -109,16 +122,12 @@ export function ThreadAgentField() {
                         onClose={() => {
                             close();
                         }}
+                        holdTheField={holdTheField}
                     />
                 )}
             </Departing>
         </div>
     );
-}
-
-// Declared once rather than inline, so the field is focused as the card arrives and never again on a later render.
-function focusOnArrival(field: HTMLInputElement | null): void {
-    field?.focus();
 }
 
 function DrafterCard({
@@ -131,6 +140,7 @@ function DrafterCard({
     onType,
     onDraft,
     onClose,
+    holdTheField,
 }: {
     readonly typed: string;
     readonly busy: boolean;
@@ -141,6 +151,7 @@ function DrafterCard({
     readonly onType: (typed: string) => void;
     readonly onDraft: () => void;
     readonly onClose: () => void;
+    readonly holdTheField: (field: HTMLInputElement | null) => void;
 }) {
     const { translate } = useLocalization();
     const leaving = useContext(DepartureContext);
@@ -172,7 +183,7 @@ function DrafterCard({
                 <Icon name="auto_awesome" className="size-icon-md shrink-0 text-accent-deep" />
 
                 <input
-                    ref={focusOnArrival}
+                    ref={holdTheField}
                     type="text"
                     aria-label={translate('threadAgent.label')}
                     placeholder={translate(twoPanes ? 'threadAgent.placeholder' : 'threadAgent.placeholderShort')}

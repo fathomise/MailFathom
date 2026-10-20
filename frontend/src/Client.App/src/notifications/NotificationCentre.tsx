@@ -353,7 +353,7 @@ export function NotificationCentre({
                 ))}
             </ul>
 
-            {drawn.length === 0 ? <Nothing reading={centre.reading} failure={centre.failure} /> : null}
+            {drawn.length === 0 ? <Nothing reading={centre.reading} failure={centre.failure} filter={filter} /> : null}
 
             <Departing value={menu}>
                 {(menu) => (
@@ -430,7 +430,17 @@ export function NotificationCentre({
 // The three things an empty list can mean, each said as what it is rather than as an absence: a read still in flight, a
 // read that did not answer, and a centre with nothing in it. The last is the design's own, and it says the
 // thing a reader actually wants to know — that nothing is waiting — rather than that a list is empty.
-function Nothing({ reading, failure }: { readonly reading: boolean; readonly failure: ClientFailureReason | null }) {
+function Nothing({
+    reading,
+    failure,
+    filter,
+}: {
+    readonly reading: boolean;
+    readonly failure: ClientFailureReason | null;
+
+    /** Which list is empty, because the two are empty for different reasons: nothing unread, or nothing at all. */
+    readonly filter: NotificationFilter;
+}) {
     const { translate } = useLocalization();
 
     if (reading) {
@@ -452,7 +462,9 @@ function Nothing({ reading, failure }: { readonly reading: boolean; readonly fai
     return (
         <div className="flex flex-1 flex-col items-center justify-center gap-2.25 px-6 py-13 text-center">
             <Icon name="notifications_off" className="size-icon-3xl text-faint" />
-            <p className="text-base text-pretty text-muted">{translate('notifications.empty')}</p>
+            <p className="text-base text-pretty text-muted">
+                {translate(filter === 'unread' ? 'notifications.empty' : 'notifications.emptyAll')}
+            </p>
         </div>
     );
 }

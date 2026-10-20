@@ -229,6 +229,18 @@ describe('ThreadAgentField', () => {
         expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Draft a reply' }));
     });
 
+    it('puts the keyboard on the drafter’s field when a draft is discarded with the drafter open', async () => {
+        drawing(answeringDrafts().transport);
+
+        draftingAReply();
+        const discard = await screen.findByRole('button', { name: 'Discard draft' });
+        openingTheDrafter();
+        fireEvent.click(discard);
+
+        expect(screen.queryByRole('region', { name: 'Draft · local' })).toBeNull();
+        expect(document.activeElement).toBe(screen.getByRole('textbox', { name: drafterName }));
+    });
+
     it('folds the drafter back on Escape', () => {
         drawing(answeringDrafts().transport);
 

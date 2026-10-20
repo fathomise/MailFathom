@@ -187,10 +187,10 @@ test('draws the settings surface as the whole screen in a single-pane window', a
     expect(panel?.height).toBe(narrowWindow.height);
 });
 
-// The two tabs as a person uses them: a value changed on each, the screen that value governs redrawn at once, and the
-// choice read back from the deployment after the page is loaded afresh. What either tab draws in answer to the value
+// Two sections as a person uses them: a value changed in each, the screen that value governs redrawn at once, and the
+// choice read back from the deployment after the page is loaded afresh. What either section draws in answer to the value
 // it was handed is the unit suite's; what is asked here is whether a *different* surface follows it.
-test('corrects the name on the profile tab, and the account menu carries it at once and after a reload', async ({
+test('corrects the name in the Profile section, and the account menu carries it at once and after a reload', async ({
     page,
     deployment,
 }) => {
@@ -215,7 +215,7 @@ test('corrects the name on the profile tab, and the account menu carries it at o
     await expect(page.getByText('Iris Marlow-Vane', { exact: true })).toBeVisible();
 });
 
-test('takes the AI filters out of the folder column from the application tab, and keeps them out after a reload', async ({
+test('takes the AI filters out of the folder column from the Application section, and keeps them out after a reload', async ({
     page,
     deployment,
 }) => {

@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
     draftMailReply,
     longestDraftInstruction,
@@ -94,9 +94,14 @@ export function useReplyDraftingState(
         setHeld(null);
     }
 
-    function holdField(element: HTMLElement | null): void {
-        field.current = element;
-    }
+    // A control leaving is not a reason to forget the one that replaced it: the drafter's field and its button take each
+    // other's place, and the one going is detached after the one arriving was held. So a `null` keeps what was held
+    // last, and the identity is stable so a field held by it is not taken hold of — and focused — again on every render.
+    const holdField = useCallback((element: HTMLElement | null): void => {
+        if (element !== null) {
+            field.current = element;
+        }
+    }, []);
 
     function returnToField(): void {
         field.current?.focus();

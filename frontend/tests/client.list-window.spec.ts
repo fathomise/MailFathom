@@ -156,7 +156,7 @@ test('starts the list at its leading end when the order changes under a reader w
     }
 
     // The order is behind the list's filters, opened from the control at the end of the column's head row.
-    await page.getByRole('button', { name: 'Filters' }).click();
+    await page.getByRole('button', { name: 'Filters', exact: true }).click();
     await page.getByRole('group', { name: 'Order' }).getByText('Oldest first', { exact: true }).click();
 
     // Changing the order empties the list, which takes the scroller out of the document, so the one that comes back is

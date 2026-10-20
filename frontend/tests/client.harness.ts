@@ -171,7 +171,10 @@ export async function settled(page: Page): Promise<void> {
     await expect.poll(() => page.evaluate(everythingArrived)).toBe(true);
 }
 
-/** The settings surface opened on its second tab, which is where everything about the client rather than the person is. */
+/**
+ * The settings surface opened on its Application section — by the tab strip on one pane, by the section navigation on
+ * two — which is where everything about the client rather than the person is.
+ */
 export async function openApplicationSettings(page: Page): Promise<void> {
     await openSettings(page);
 

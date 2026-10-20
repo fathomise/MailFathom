@@ -501,7 +501,6 @@ function Notifications({
 
     return (
         <>
-            <SectionName>{translate('settings.thisDevice')}</SectionName>
             <SystemNotifications />
 
             {writable ? null : <p className="text-base text-muted">{translate('settings.preferencesNotYours')}</p>}
@@ -663,21 +662,27 @@ function SystemNotifications() {
         });
     }
 
+    // The heading goes with the row, because the row is the only thing on this page that belongs to the machine: a head
+    // that offers no notifier draws neither, rather than a device heading over the person's own setting below it.
     return (
-        <label className="flex cursor-pointer items-start gap-2.75 rounded-md px-2.5 py-2.25 transition hover:bg-hover">
-            <span className="flex min-w-0 flex-1 flex-col gap-0.75">
-                {translate('settings.raiseSystemNotifications')}
-                <span className="text-base text-muted">
-                    {translate(
-                        standing === 'refused'
-                            ? 'settings.systemNotificationsRefused'
-                            : 'settings.raiseSystemNotificationsExplanation',
-                    )}
-                </span>
-            </span>
+        <>
+            <SectionName>{translate('settings.thisDevice')}</SectionName>
 
-            <Switch on={raising && standing === 'permitted'} onChange={choose} />
-        </label>
+            <label className="flex cursor-pointer items-start gap-2.75 rounded-md px-2.5 py-2.25 transition hover:bg-hover">
+                <span className="flex min-w-0 flex-1 flex-col gap-0.75">
+                    {translate('settings.raiseSystemNotifications')}
+                    <span className="text-base text-muted">
+                        {translate(
+                            standing === 'refused'
+                                ? 'settings.systemNotificationsRefused'
+                                : 'settings.raiseSystemNotificationsExplanation',
+                        )}
+                    </span>
+                </span>
+
+                <Switch on={raising && standing === 'permitted'} onChange={choose} />
+            </label>
+        </>
     );
 }
 

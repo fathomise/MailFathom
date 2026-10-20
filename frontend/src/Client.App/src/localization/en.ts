@@ -1561,6 +1561,7 @@ export const en = {
     'notifications.notDeleted': 'Those notifications could not be deleted. They stand as they did.',
     'notifications.selectionBar': 'Actions on the notifications selected',
     'notifications.empty': 'Nothing new. All read.',
+    'notifications.emptyAll': 'No notifications yet.',
     'notifications.reading': 'Reading what has happened…',
     'notifications.failed': 'Your notifications could not be read: {reason}.',
     'notifications.show': 'Show',

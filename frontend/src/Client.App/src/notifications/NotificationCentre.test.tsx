@@ -289,6 +289,15 @@ describe('NotificationCentre', () => {
         expect(screen.getByText('Nothing new. All read.')).toBeDefined();
     });
 
+    it('says there are no notifications at all, rather than that all were read, on the All tab of an empty centre', () => {
+        panel({ notifications: [], unreadCount: 0 });
+
+        showAll();
+
+        expect(screen.getByText('No notifications yet.')).toBeDefined();
+        expect(screen.queryByText('Nothing new. All read.')).toBeNull();
+    });
+
     it('says it is reading while the first page is still in flight', () => {
         panel({ notifications: [], reading: true, unreadCount: 0 });
 

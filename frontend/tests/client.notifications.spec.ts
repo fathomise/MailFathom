@@ -33,9 +33,15 @@ async function openCentre(page: Page): Promise<void> {
     await expect(centre(page)).toBeVisible();
 }
 
-/** Moves the centre off the unread tab it opens on, so a row already read is drawn as well. */
+/**
+ * Moves the centre off the unread tab it opens on, so a row already read is drawn as well. The radio is drawn by its
+ * label and kept out of sight, so the press is on the label, as a person's would be.
+ */
 async function showAll(page: Page): Promise<void> {
-    await centre(page).getByRole('radio', { name: 'All' }).check();
+    await centre(page)
+        .locator('label', { has: page.getByRole('radio', { name: 'All' }) })
+        .click();
+    await expect(centre(page).getByRole('radio', { name: 'All' })).toBeChecked();
 }
 
 test('draws a notification that arrives while somebody works, and opens the message it is about from its notice', async ({

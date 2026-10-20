@@ -170,6 +170,8 @@ describe('AgentSpace', () => {
         }
     });
 
+    // A regression test for what opening a conversation already did: the design now states it for the phone, where the
+    // history covers the thread, so it is held here rather than left to the code that happens to do it.
     it('puts the history away once a conversation is opened from it on the phone, where it covers the thread', async () => {
         Object.defineProperty(window, 'matchMedia', {
             configurable: true,

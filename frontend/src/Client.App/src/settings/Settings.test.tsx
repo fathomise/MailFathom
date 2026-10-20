@@ -755,18 +755,20 @@ describe('Settings', () => {
         expect(screen.getByRole('switch', { name: /Show the AI filters/u })).toHaveProperty('checked', false);
     });
 
-    it('offers no system-notification switch where the head offered no such operation', () => {
+    it('offers no system-notification switch, and no device heading over it, where the head offered no such operation', () => {
         renderSettings();
         openNotifications();
 
         expect(screen.queryByRole('switch', { name: /Notify me on this machine/u })).toBeNull();
+        expect(screen.queryByText('This device')).toBeNull();
     });
 
-    it('draws the system-notification switch as on where the machine has been left raising them', () => {
+    it('draws the system-notification switch as on, under the device heading, where the machine has been left raising them', () => {
         renderSettings({ head: raisesThem });
         openNotifications();
 
         expect(screen.getByRole('switch', { name: /Notify me on this machine/u })).toHaveProperty('checked', true);
+        expect(screen.getByText('This device')).toBeDefined();
     });
 
     it('keeps a refusal on the device, which is where the answer belongs and what the next start reads', () => {
