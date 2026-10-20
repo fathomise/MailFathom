@@ -2,19 +2,26 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useComposing } from '../composer/useComposing';
 import { Control } from '../controls/Control';
 import { PlannedControl } from '../controls/PlannedControl';
 import { SurfaceControl } from '../controls/SurfaceControl';
 import { useLocalization } from '../localization/useLocalization';
 import { useScreenLayer, useScreenStep } from '../shell/screenLayers';
-import { useDesktopComposition, useTwoPanes, useWideWorkspace } from '../shell/useWideWorkspace';
+import {
+    useCoarsePointer,
+    useDesktopComposition,
+    useRoomyComposition,
+    useTwoPanes,
+    useWideWorkspace,
+} from '../shell/useWideWorkspace';
 import { scopeKey } from '../workspace/mailScope';
 import { useWorkspace, type Workspace } from '../workspace/useWorkspace';
 import { AiFilters } from './AiFilters';
 import { BackToList } from './BackToList';
 import { MailboxesDrawerContext } from './mailboxesDrawer';
+import { ListFoldContext, type ListFold } from './listFold';
 import {
     listWidthWithin,
     narrowestList,
@@ -169,6 +176,30 @@ export function MailSpace({
     // and goes back is owed the list they left rather than a skeleton of it — `shell/Space.tsx` carries the whole of
     // that reasoning, including why standing a surface aside is `visibility` and not `display`.
     const listAside = readingInFront || listGivenUp;
+
+    // The fold — two panes under a finger in less width than the tablet — folds the list to a strip of senders while
+    // something is open beside it, so the message gets the width, and the strip's head widens it again. Widening is
+    // remembered against what was open when it was asked for, so picking another message folds the list back without
+    // anything having to undo it.
+    const coarse = useCoarsePointer();
+    const roomy = useRoomyComposition();
+    const [widenedFor, setWidenedFor] = useState<string | null | undefined>(undefined);
+    const foldOffered = coarse && twoPanes && !roomy && readingOpen && !selecting && !listGivenUp;
+    const opened = workspace.selection;
+    const listFolded = widenedFor !== opened;
+    const listFold = useMemo<ListFold | null>(
+        () =>
+            foldOffered
+                ? {
+                      folded: listFolded,
+                      turn: () => {
+                          setWidenedFor((widened) => (widened === opened ? undefined : opened));
+                      },
+                  }
+                : null,
+        [foldOffered, listFolded, opened],
+    );
+    const listStrip = listFold?.folded === true;
 
     // Read from the workspace rather than held here, because the column is not the only thing that draws differently
     // once it is folded: the tree inside it draws a symbol where it drew a name, and the tree is a region handed in
@@ -329,6 +360,7 @@ export function MailSpace({
                             setDrawerOpen(false);
                         }}
                         aria-labelledby={drawerNamed}
+                        data-pull="start"
                         // It stands in the platform's top layer, which the frame's own safe-area padding is not around,
                         // so a drawer running the height of the screen carries the insets it crosses itself.
                         className="surface-drawer fixed inset-y-0 left-0 m-0 h-full max-h-none w-drawer max-w-full border-0 border-e border-line bg-panel p-0 pt-safe-top pb-safe-bottom pl-safe-left text-text shadow-overlay backdrop:bg-scrim"
@@ -375,7 +407,9 @@ export function MailSpace({
                             : twoPanes
                               ? desktop
                                   ? ''
-                                  : 'w-list-tablet shrink-0'
+                                  : listStrip
+                                    ? 'w-list-strip shrink-0 border-e border-line bg-sunken'
+                                    : 'w-list-tablet shrink-0'
                               : 'flex-1'
                     }`}
                     /* The one width in the client a person sets rather than the design, which is why it is drawn
@@ -400,10 +434,13 @@ export function MailSpace({
                     <div className="relative flex min-h-0 flex-1 flex-col">
                         {/* The list's own head row draws the way into the drawer, at its start, wherever there is
                             a drawer to open; the column has none, and offers nothing. */}
-                        <MailboxesDrawerContext value={desktop ? null : openDrawer}>{list}</MailboxesDrawerContext>
+                        <MailboxesDrawerContext value={desktop ? null : openDrawer}>
+                            <ListFoldContext value={listFold}>{list}</ListFoldContext>
+                        </MailboxesDrawerContext>
 
                         {(wide && toolbarFit === 'labelled') ||
                         readingInFront ||
+                        listStrip ||
                         selecting ? null : composing.offered ? (
                             <Control
                                 label={translate('mail.compose')}

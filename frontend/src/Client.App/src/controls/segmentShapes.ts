@@ -41,7 +41,7 @@ export const segmentShapes: Readonly<Record<SegmentShape, SegmentLook>> = {
     row: { shape: 'flex-1 rounded-md py-1 text-center text-sm', chosen: accented, unchosen: quiet },
     section: { shape: 'flex-1 rounded-md px-2 py-1.5 text-center text-base', chosen: accented, unchosen: quiet },
     raised: {
-        shape: 'flex flex-1 items-center justify-center rounded-md px-2.5 py-1.5 text-base whitespace-nowrap',
+        shape: 'touch-extended flex flex-1 items-center justify-center rounded-md px-2.5 py-1.5 text-base whitespace-nowrap',
         chosen: 'bg-panel font-semibold text-text shadow-raised',
         unchosen: 'text-muted hover:text-text',
     },
@@ -51,12 +51,12 @@ export const segmentShapes: Readonly<Record<SegmentShape, SegmentLook>> = {
         unchosen: quiet,
     },
     chip: {
-        shape: 'rounded-md px-3.25 py-1.5 text-sm',
+        shape: 'touch-extended rounded-md px-3.25 py-1.5 text-sm',
         chosen: accented,
         unchosen: 'border border-line bg-sunken text-text-soft hover:bg-hover',
     },
     filter: {
-        shape: 'rounded-md border px-3 py-1.25 text-base whitespace-nowrap',
+        shape: 'touch-extended rounded-md border px-3 py-1.25 text-base whitespace-nowrap',
         chosen: 'border-accent bg-accent-soft font-semibold text-accent-deep',
         unchosen: 'border-line-strong bg-panel text-text-soft hover:bg-hover',
     },

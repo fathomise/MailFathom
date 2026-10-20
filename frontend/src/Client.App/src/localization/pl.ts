@@ -817,6 +817,8 @@ export const pl: Catalogue = {
     'mail.hidePanels': 'Ukryj panele – sama korespondencja',
     'mail.showPanels': 'Pokaż panele wątku',
     'mail.listColumn': 'Lista wiadomości',
+    'mail.showList': 'Pokaż listę',
+    'mail.narrowList': 'Zwęź listę',
     'mail.readingColumn': 'To, co otwarte',
     'mail.listWidth': 'Szerokość listy wiadomości',
     'mail.listWidthHint':
@@ -1100,6 +1102,7 @@ export const pl: Catalogue = {
     'list.includeJunk': 'Uwzględnij spam',
 
     'list.unread': 'Nieprzeczytana',
+    'list.stripRow': '{sender} - {subject}',
     'list.flagged': 'Oznaczona',
     'list.answered': 'Odpowiedziano',
     'list.attachments': 'Załączniki: {count}',

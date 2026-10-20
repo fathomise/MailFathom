@@ -802,6 +802,8 @@ export const en = {
     'mail.hidePanels': 'Hide the panels - the correspondence alone',
     'mail.showPanels': "Show the thread's panels",
     'mail.listColumn': 'Message list',
+    'mail.showList': 'Show the list',
+    'mail.narrowList': 'Narrow the list',
     'mail.readingColumn': 'What is open',
     'mail.listWidth': 'Message list width',
     'mail.listWidthHint':
@@ -1083,6 +1085,7 @@ export const en = {
     'list.includeJunk': 'Include junk',
 
     'list.unread': 'Unread',
+    'list.stripRow': '{sender} - {subject}',
     'list.flagged': 'Flagged',
     'list.answered': 'Answered',
     'list.attachments': '{count} attached',

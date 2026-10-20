@@ -370,6 +370,7 @@ function EvidenceWindow({
     return (
         <dialog
             aria-label={label}
+            data-pull="down"
             className="m-0 h-full max-h-none w-full max-w-none bg-panel text-text backdrop:bg-scrim max-workspace:surface-sheet workspace:surface-pop"
             ref={setStanding}
             onClose={onClosed}

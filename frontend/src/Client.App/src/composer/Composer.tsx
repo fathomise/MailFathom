@@ -791,13 +791,16 @@ export function Composer({
                         <button
                             type="button"
                             disabled={!stillBeingWritten}
-                            className="flex items-center gap-1.75 rounded-md border border-line-strong px-3 py-2 text-sm text-text-soft transition hover:bg-hover disabled:opacity-60"
+                            title={translate('compose.attach')}
+                            // The symbol alone on the phone, where it names the act beyond doubt; the name stays the
+                            // control's, read out and shown on hover.
+                            className="flex items-center justify-center gap-1.75 rounded-md border border-line-strong px-3 py-2 text-sm text-text-soft transition hover:bg-hover disabled:opacity-60 max-workspace:px-2 pointer-coarse:text-md"
                             onClick={() => {
                                 files.current?.click();
                             }}
                         >
                             <Icon name="attach_file" className="size-icon-md" />
-                            {translate('compose.attach')}
+                            <span className="max-workspace:sr-only">{translate('compose.attach')}</span>
                         </button>
 
                         {/* The platform's own file picker, kept out of the accessible tree because the control above is
@@ -823,7 +826,7 @@ export function Composer({
                         <button
                             type="button"
                             disabled={!sendable}
-                            className="rounded-md px-2 py-2 text-sm text-muted transition hover:bg-hover hover:text-text disabled:opacity-60"
+                            className="rounded-md px-2 py-2 text-sm text-muted transition hover:bg-hover hover:text-text disabled:opacity-60 pointer-coarse:text-base"
                             onClick={() => {
                                 void draft.save(sentAs(composition, copiesShown));
                             }}

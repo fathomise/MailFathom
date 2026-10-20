@@ -376,6 +376,13 @@ so this is written to be mechanically visible in a diff rather than remembered.
   title stands, which acts a head repeats, and whether views are chips or segments follow the breakpoint tokens, while
   a key hint follows the pointer and is hidden with `pointer-coarse:hidden` rather than by width, since a touch screen at
   the desktop's width has no keyboard to press it on and a narrow window on a desktop still does.
+- **Three of that table's rows are met by one mechanism each, never by a screen of its own.** A chip in a wrapping group
+  and a segment in its track take `touch-extended`, which draws them at the design's 36 under a finger and reaches the
+  44 target past their edge, so `controls/segmentShapes.ts` carries it for every segment and chip shape. A sheet or a
+  drawer is pulled closed by `shell/useSurfacePull.ts`, installed once at the frame: the surface says `data-pull="down"`
+  or `data-pull="start"` and closes through the platform as its close control does, so no surface writes a gesture. And
+  a symbol drawn alone on the phone keeps its name as the control's label and its title, never as an icon nobody can
+  read out.
 - **`prefers-reduced-motion` is honoured**, and that is an accessibility obligation rather than a nicety: motion is
   removed under it, not merely shortened, and any transition conveying meaning still conveys it without the movement.
 - **Everything a screen draws comes out of the bundle, and no screen reaches an external origin for it.** The typeface

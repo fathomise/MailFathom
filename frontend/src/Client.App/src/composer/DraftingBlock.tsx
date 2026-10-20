@@ -155,7 +155,7 @@ export function DraftingBlock({
                         key={act.key}
                         type="button"
                         disabled={busy}
-                        className="rounded-full border border-accent-line bg-panel px-3 py-1.5 text-sm whitespace-nowrap text-accent-deep transition hover:bg-accent hover:text-on-accent disabled:opacity-60"
+                        className="touch-extended rounded-full border border-accent-line bg-panel px-3 py-1.5 text-sm whitespace-nowrap text-accent-deep transition hover:bg-accent hover:text-on-accent disabled:opacity-60"
                         onClick={() => {
                             askFor(act);
                         }}
@@ -178,7 +178,7 @@ export function DraftingBlock({
                             // The group is one tab stop: the tone in force is what a Tab lands on, and the arrows
                             // move within it. Three separate stops would make the keyboard disagree with the role.
                             tabIndex={tone === one.key ? 0 : -1}
-                            className={`rounded-full px-2.75 py-1.25 text-sm whitespace-nowrap transition ${
+                            className={`touch-extended rounded-full px-2.75 py-1.25 text-sm whitespace-nowrap transition ${
                                 tone === one.key
                                     ? 'bg-accent text-on-accent'
                                     : 'border border-line text-text-soft hover:bg-hover'

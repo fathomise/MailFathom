@@ -85,6 +85,7 @@ export function SpaceOverflow({
                 popover="auto"
                 onToggle={closesOnBack}
                 aria-label={translate('shell.more')}
+                data-pull="down"
                 // Dimmed behind, which the design draws and which is what says the sheet is the whole of what
                 // is being answered right now. The platform paints it: a popover has a `::backdrop` of its own exactly
                 // as the notification panel's dialog does, and this is the same token that one uses.

@@ -4,9 +4,10 @@
 
 import type { ReactElement } from 'react';
 import { act, fireEvent, render, renderHook, screen, within } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientSession, MailAccount, MailFathomTransport } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { ListFoldContext, type ListFold } from '../mailSpace/listFold';
 import { ScreenLayersContext, useScreenLayerStack } from '../shell/screenLayers';
 import { everything, type MailScope } from '../workspace/mailScope';
 import { WorkspaceProvider } from '../workspace/Workspace';
@@ -156,6 +157,10 @@ function searchUnder(transport: MailFathomTransport, scope: MailScope = everythi
             </WorkspaceProvider>
         </LocalizationProvider>
     );
+}
+
+function searchInAFoldedList(fold: ListFold): ReactElement {
+    return <ListFoldContext value={fold}>{searchUnder(recording(onePage).transport)}</ListFoldContext>;
 }
 
 function searchFor(words: string): void {
@@ -442,5 +447,27 @@ describe('MailSearch', () => {
         render(searchUnder(recording(onePage).transport));
 
         expect(screen.queryByRole('list', { name: 'Searched for before' })).toBeNull();
+    });
+});
+
+describe('MailSearch, at the fold', () => {
+    it('stands as the one control that widens the list while the list is folded to a strip', () => {
+        const turn = vi.fn();
+        render(searchInAFoldedList({ folded: true, turn }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Show the list' }));
+
+        expect(turn).toHaveBeenCalledOnce();
+        expect(screen.getByText(mailInScope)).toBeTruthy();
+    });
+
+    it('leads the widened list with the control that folds it again', () => {
+        const turn = vi.fn();
+        render(searchInAFoldedList({ folded: false, turn }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Narrow the list' }));
+
+        expect(turn).toHaveBeenCalledOnce();
+        expect(screen.queryByRole('button', { name: 'Show the list' })).toBeNull();
     });
 });

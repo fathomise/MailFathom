@@ -83,7 +83,7 @@ export function SendConfirmation({
             <button
                 type="button"
                 disabled={disabled}
-                className="flex items-center gap-1.75 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-on-accent transition hover:opacity-90 disabled:opacity-60"
+                className="flex items-center gap-1.75 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-on-accent transition hover:opacity-90 disabled:opacity-60 pointer-coarse:px-5 pointer-coarse:text-md"
                 onClick={() => {
                     asked.current?.showModal();
                 }}

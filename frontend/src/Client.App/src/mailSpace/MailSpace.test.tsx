@@ -14,6 +14,7 @@ import { useWorkspace, type Workspace } from '../workspace/useWorkspace';
 import { BackToList } from './BackToList';
 import { listWidthStep, readListWidth, startingListWidth, storeListWidth } from './listWidth';
 import { mailboxesWidthStep, readMailboxesWidth, startingMailboxesWidth, storeMailboxesWidth } from './mailboxesWidth';
+import { useListFold } from './listFold';
 import { useMailboxesDrawer } from './mailboxesDrawer';
 import { MailSpace } from './MailSpace';
 
@@ -51,6 +52,9 @@ const declaredClose = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototyp
 let watching: (() => void)[] = [];
 let room = 0;
 
+// Whether a finger drives the window, which is the one query here that names no width.
+let fingered = false;
+
 function atWidth(pixels: number): void {
     watching = [];
     room = pixels;
@@ -61,7 +65,9 @@ function atWidth(pixels: number): void {
             const named = /([\d.]+)rem/.exec(query)?.[1];
 
             return {
-                matches: named !== undefined && room >= Number(named) * 16,
+                matches: query.includes('pointer: coarse')
+                    ? fingered
+                    : named !== undefined && room >= Number(named) * 16,
                 media: query,
                 addEventListener: (_: string, watch: () => void) => {
                     watching.push(watch);
@@ -159,11 +165,18 @@ const nothingBeingWritten = {
 // Stands in for a row being opened, which is what the real list does to the workspace when one is pressed. A control
 // rather than an opening workspace, so that a case can watch the list go behind the message and come back.
 const opensTheMessage = 'Open a message, as pressing a row would.';
+const opensAnotherMessage = 'Open another message, as pressing a second row would.';
+
+// What the list draws for its fold, read from the context the space publishes: the strip's head widens it, and the
+// widened list's head folds it again.
+const listFoldedToAStrip = 'Show the list, as the strip would.';
+const listWidened = 'Narrow the list, as the widened head would.';
 
 // What the list column hands the space: a list whose head draws the way into the mailboxes drawer wherever the space
 // publishes one, which is what the real list's search row does.
 function HandedList() {
     const openMailboxes = useMailboxesDrawer();
+    const fold = useListFold();
     const { revise } = useWorkspace();
 
     return (
@@ -181,6 +194,19 @@ function HandedList() {
             >
                 {opensTheMessage}
             </button>
+            <button
+                type="button"
+                onClick={() => {
+                    revise({ selection: 'stored-2' });
+                }}
+            >
+                {opensAnotherMessage}
+            </button>
+            {fold === null ? null : (
+                <button type="button" onClick={fold.turn}>
+                    {fold.folded ? listFoldedToAStrip : listWidened}
+                </button>
+            )}
             <p>{handedTheList}</p>
         </>
     );
@@ -266,6 +292,7 @@ afterEach(() => {
         Object.defineProperty(HTMLDialogElement.prototype, 'close', declaredClose);
     }
 
+    fingered = false;
     window.sessionStorage.clear();
     window.localStorage.clear();
     vi.restoreAllMocks();
@@ -715,5 +742,47 @@ describe('MailSpace, in the four compositions', () => {
 
         expect(listStandsAside()).toBe(true);
         expect(document.activeElement).toBe(screen.getByRole('region', { name: 'What is open' }));
+    });
+});
+
+describe('MailSpace, at the fold under a finger', () => {
+    it('folds the list to a strip while a message is open, and widens it from the strip', () => {
+        fingered = true;
+        renderSpace(fold, { selection: 'stored-1' });
+
+        fireEvent.click(screen.getByRole('button', { name: listFoldedToAStrip }));
+
+        expect(screen.getByRole('button', { name: listWidened })).toBeDefined();
+    });
+
+    it('folds the widened list again once another message is opened from it', () => {
+        fingered = true;
+        renderSpace(fold, { selection: 'stored-1' });
+
+        fireEvent.click(screen.getByRole('button', { name: listFoldedToAStrip }));
+        fireEvent.click(screen.getByRole('button', { name: opensAnotherMessage }));
+
+        expect(screen.getByRole('button', { name: listFoldedToAStrip })).toBeDefined();
+    });
+
+    it('keeps the whole list while nothing is open beside it', () => {
+        fingered = true;
+        renderSpace(fold);
+
+        expect(screen.queryByRole('button', { name: listFoldedToAStrip })).toBeNull();
+        expect(screen.queryByRole('button', { name: listWidened })).toBeNull();
+    });
+
+    it('keeps the whole list at the tablet, which has the width for both', () => {
+        fingered = true;
+        renderSpace(tablet, { selection: 'stored-1' });
+
+        expect(screen.queryByRole('button', { name: listFoldedToAStrip })).toBeNull();
+    });
+
+    it('keeps the whole list at the fold under a mouse', () => {
+        renderSpace(fold, { selection: 'stored-1' });
+
+        expect(screen.queryByRole('button', { name: listFoldedToAStrip })).toBeNull();
     });
 });

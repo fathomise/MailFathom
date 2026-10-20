@@ -3262,10 +3262,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* The composer's foot under a finger: one 44 row, Send filled, Attach a symbol alone on the phone,
            and Save draft a text action whose target is the row's height rather than its words. */
         composeSendStyle: touch
-          ? "display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 20px;box-sizing:border-box;font-size:14px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:10px"
+          ? "display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 20px;box-sizing:border-box;font-size:14px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px"
           : "font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:9px 18px",
         composeAttachStyle: touch
-          ? "display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;min-width:44px;padding:0 " + (isMobile ? 0 : 14) + "px;box-sizing:border-box;font-size:14px;color:var(--text2);border:1px solid var(--border2);border-radius:10px"
+          ? "display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;min-width:44px;padding:0 " + (isMobile ? 0 : 14) + "px;box-sizing:border-box;font-size:14px;color:var(--text2);border:1px solid var(--border2);border-radius:8px"
           : "font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:9px 13px",
         composeAttachIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:" + (touch ? 20 : 18) + "px;line-height:1" + (touch ? "" : ";vertical-align:-3px;margin-right:6px"),
         composeAttachLabel: !isMobile,
@@ -4751,7 +4751,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           selected: sel.indexOf(t.id) >= 0,
           select: (e) => this.pickThread(t.id, e),
           stripStyle: "position:relative;width:52px;height:52px;flex:0 0 52px;display:flex;align-items:center;justify-content:center;border-radius:14px;" +
-            (t.id === st.threadId ? "background:var(--accent-soft);box-shadow:inset 0 0 0 1.5px var(--accent-line)" : ""),
+            (t.id === st.threadId ? "background:var(--accent-soft);box-shadow:inset 0 0 0 2px var(--accent-line)" : ""),
           stripAvatarStyle: "width:36px;height:36px;flex:0 0 36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;letter-spacing:0.02em;background:var(--border2);color:var(--text2)" +
             (avatarOf(t.from) ? ";background-position:center;background-size:cover;background-repeat:no-repeat;background-image:url(" + avatarOf(t.from) + ")" : ""),
           stripInitials: avatarOf(t.from) ? "" : initialsOf(t.from),
