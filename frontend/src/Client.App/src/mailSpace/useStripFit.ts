@@ -42,11 +42,12 @@ function marginOf(declared: string): number {
 }
 
 /**
- * How a strip fits the width it has, for a strip whose first two children are the primary control and the divider
- * after it when `withPrimary` holds. `contents` names what the strip holds — the language, whether writing is offered —
- * and a change to it forgets the sums, because they were measured over controls that are no longer there.
+ * How a strip fits the width it has, for a strip whose primary control and the divider after it stand after `ahead`
+ * children of their own when `withPrimary` holds — the control that shows and hides the mailbox column, where there is
+ * one. `contents` names what the strip holds — the language, whether writing is offered, what stands ahead — and a
+ * change to it forgets the sums, because they were measured over controls that are no longer there.
  */
-export function useStripFit(withPrimary: boolean, contents: string): StripFitting {
+export function useStripFit(withPrimary: boolean, contents: string, ahead = 0): StripFitting {
     const [fit, setFit] = useState<StripFit>('labelled');
     const element = useRef<HTMLElement | null>(null);
     const needed = useRef<{ contents: string; full: number | null; floating: number | null }>({
@@ -95,13 +96,13 @@ export function useStripFit(withPrimary: boolean, contents: string): StripFittin
                 sum += child.offsetWidth + marginOf(own.marginLeft) + marginOf(own.marginRight);
             }
 
-            const primary = children[0];
-            const divider = children[1];
+            const primary = children[ahead];
+            const divider = children[ahead + 1];
 
             if (
                 fit === 'labelled' &&
                 withPrimary &&
-                children.length > 2 &&
+                children.length > ahead + 2 &&
                 primary !== undefined &&
                 divider !== undefined
             ) {
@@ -129,7 +130,7 @@ export function useStripFit(withPrimary: boolean, contents: string): StripFittin
         } else {
             setFit('symbols');
         }
-    }, [withPrimary, contents, fit]);
+    }, [withPrimary, contents, ahead, fit]);
 
     // The newest measurement, for the two callers below that are set up once and outlive any one render: the
     // observer and the typeface's arrival. Each is armed once rather than re-armed on every change of fit, because

@@ -40,6 +40,7 @@ export function SynthesizedAnswer({ block }: { readonly block: AnswerBlock }) {
 
     return (
         <AnswerBlockCard
+            icon="auto_awesome"
             label={translate('answer.label')}
             meta={translate(citationCounts[new Intl.PluralRules(locale).select(evidence.citations.length)], {
                 count: new Intl.NumberFormat(locale).format(evidence.citations.length),

@@ -7,13 +7,20 @@ import type { AgentConversationSummary } from '@mailfathom/client-backend';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { ConversationRow } from './ConversationRow';
 
+/** Conversations listed under one heading, or under none where the list carries a single group. */
+export interface ConversationGroup {
+    readonly label: string | null;
+    readonly conversations: readonly AgentConversationSummary[];
+}
+
 /**
- * One list of the history — the conversations being worked in, or the ones put away — drawn as rows that can be picked
- * out. Which row the keyboard is on is the history's to decide, because the arrow keys walk from one list into the next.
+ * One list of the history — the conversations being worked in, grouped by the day each last moved, or the ones put
+ * away — drawn as rows that can be picked out. Which row the keyboard is on is the history's to decide, because the
+ * arrow keys walk from one list into the next and across the groups inside one.
  */
 export function ConversationList({
     label,
-    conversations,
+    groups,
     open,
     selected,
     focusable,
@@ -25,7 +32,7 @@ export function ConversationList({
     onPress,
 }: {
     readonly label: string;
-    readonly conversations: readonly AgentConversationSummary[];
+    readonly groups: readonly ConversationGroup[];
 
     /** The conversation in front, and `null` where a new one is. */
     readonly open: string | null;
@@ -42,6 +49,32 @@ export function ConversationList({
     readonly onToggle: (conversation: string) => void;
     readonly onPress: (conversation: AgentConversationSummary, at: MenuPoint) => void;
 }) {
+    const rowOf = (conversation: AgentConversationSummary) => (
+        <ConversationRow
+            key={conversation.id}
+            conversation={conversation}
+            open={conversation.id === open}
+            selected={selected.includes(conversation.id)}
+            selecting={selected.length > 0}
+            focusable={conversation.id === focusable}
+            attach={(row) => {
+                attach(conversation.id, row);
+            }}
+            onReached={() => {
+                onReached(conversation.id);
+            }}
+            onOpen={() => {
+                onOpen(conversation.id);
+            }}
+            onToggle={() => {
+                onToggle(conversation.id);
+            }}
+            onPress={(at) => {
+                onPress(conversation, at);
+            }}
+        />
+    );
+
     return (
         <ul
             role="listbox"
@@ -50,31 +83,26 @@ export function ConversationList({
             className="flex flex-col gap-px"
             onKeyDown={onWalk}
         >
-            {conversations.map((conversation) => (
-                <ConversationRow
-                    key={conversation.id}
-                    conversation={conversation}
-                    open={conversation.id === open}
-                    selected={selected.includes(conversation.id)}
-                    selecting={selected.length > 0}
-                    focusable={conversation.id === focusable}
-                    attach={(row) => {
-                        attach(conversation.id, row);
-                    }}
-                    onReached={() => {
-                        onReached(conversation.id);
-                    }}
-                    onOpen={() => {
-                        onOpen(conversation.id);
-                    }}
-                    onToggle={() => {
-                        onToggle(conversation.id);
-                    }}
-                    onPress={(at) => {
-                        onPress(conversation, at);
-                    }}
-                />
-            ))}
+            {groups.map((group) =>
+                group.label === null ? (
+                    group.conversations.map(rowOf)
+                ) : (
+                    // A group of options inside the one listbox, so the day is said to whoever walks into it and the
+                    // keyboard still walks the whole history as one list.
+                    <li key={group.label} role="group" aria-label={group.label} className="flex flex-col gap-px">
+                        <span
+                            aria-hidden="true"
+                            className="px-3 pt-2.5 pb-1.5 text-xs font-semibold text-faint workspace:px-2.5 workspace:pt-2 workspace:pb-1"
+                        >
+                            {group.label}
+                        </span>
+
+                        <ul role="presentation" className="flex flex-col gap-px">
+                            {group.conversations.map(rowOf)}
+                        </ul>
+                    </li>
+                ),
+            )}
         </ul>
     );
 }

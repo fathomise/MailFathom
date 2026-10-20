@@ -127,7 +127,7 @@ describe('ReadingsAsked', () => {
     it('names what a reading is about the message rather than of it', () => {
         check(asking([sense]), answering());
 
-        expect(screen.getByRole('dialog', { name: 'What MailFathom read from this message' })).toBeTruthy();
+        expect(screen.getByRole('dialog', { name: 'What MailFathom read' })).toBeTruthy();
         expect(screen.getByText('Contract annex — signatures')).toBeTruthy();
     });
 
@@ -141,10 +141,17 @@ describe('ReadingsAsked', () => {
         expect(screen.getByText('A rule of this deployment - rules/invoice')).toBeTruthy();
     });
 
-    it('says why the producer says it, so the reading can be disagreed with', () => {
+    it('names each producer once however many of its readings the message carries', () => {
+        check(asking([sense, { ...sense, aspect: 'Significance' }]), answering());
+
+        expect(screen.getAllByText('A rule of this deployment - rules/invoice')).toHaveLength(1);
+        expect(screen.getByText('Quoted from this message alone')).toBeTruthy();
+    });
+
+    it('says why the producer says it, with no prefix, so the reading can be disagreed with', () => {
         check(asking([sense]), answering());
 
-        expect(screen.getByText('Why: The message attaches a document the sender calls an invoice.')).toBeTruthy();
+        expect(screen.getByText('The message attaches a document the sender calls an invoice.')).toBeTruthy();
     });
 
     it('says when a commitment falls due', () => {

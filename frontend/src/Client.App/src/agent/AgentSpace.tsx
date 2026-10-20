@@ -396,7 +396,6 @@ export function AgentSpace({
             selected={selected}
             onOpen={openConversation}
             onSelected={setSelected}
-            onNew={startNew}
             onArchive={(conversations, archived) => {
                 void setArchived(conversations, archived);
             }}

@@ -43,6 +43,7 @@ export function Timeline({ block }: { readonly block: AnswerBlock }) {
 
     return (
         <AnswerBlockCard
+            icon="timeline"
             label={translate('answer.timelineLabel')}
             meta={
                 entries.length === 0

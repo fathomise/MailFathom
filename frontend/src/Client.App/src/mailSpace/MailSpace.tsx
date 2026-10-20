@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useComposing } from '../composer/useComposing';
 import { Control } from '../controls/Control';
 import { PlannedControl } from '../controls/PlannedControl';
@@ -99,7 +99,7 @@ export function MailSpace({
     readonly tabs: ReactNode;
 
     /**
-     * The field that asks about what is open, which stands at the foot of the reading column.
+     * The reply drafter for what is open, which stands at the foot of the reading column.
      *
      * `null` wherever the column is not reading a correspondence — nothing open, a file or a sender's markup in its
      * place, a message being written — because the design draws it under an open message and nowhere else.
@@ -128,11 +128,13 @@ export function MailSpace({
 
     // How the toolbar fits its width is measured here rather than in the toolbar, because what it decides is drawn in
     // two places: the names in the strip, and — once composing no longer fits beside them — the floating control over
-    // the list, which is this space's to draw. The selection bar measures itself; nothing outside it moves.
-    const { strip: toolbarStrip, fit: toolbarFit } = useStripFit(true, locale);
+    // the list, which is this space's to draw. The selection bar measures itself; nothing outside it moves. Where the
+    // mailbox column is docked, the control that shows and hides it stands ahead of composing in the strip.
+    const { strip: toolbarStrip, fit: toolbarFit } = useStripFit(true, `${locale}:${String(desktop)}`, desktop ? 1 : 0);
     const selecting = workspace.selected.length > 0;
     const [drawerOpen, setDrawerOpen] = useState(false);
     const drawer = useRef<HTMLDialogElement>(null);
+    const drawerNamed = useId();
 
     function openDrawer(): void {
         drawer.current?.showModal();
@@ -145,6 +147,7 @@ export function MailSpace({
     // in front of the list for a message somebody is writing exactly as it does for one they opened.
     const readingOpen = workspace.selection !== null || workspace.conversation !== null || composing.opening !== null;
     const readingInFront = !twoPanes && readingOpen;
+    const drafter = workspace.panelsHidden || threadField === null || threadField === undefined ? null : threadField;
     const paneMoved = usePaneMotion(readingInFront, twoPanes);
 
     // A message read in front of the list is one press of the back gesture away from it, exactly as the way back
@@ -292,20 +295,7 @@ export function MailSpace({
                             className={`flex shrink-0 flex-col bg-sunken ${folded ? 'w-mailboxes-folded border-e border-line' : ''}`}
                             style={folded ? undefined : { width: `${String(mailboxesWidth)}px` }}
                         >
-                            <Mailboxes
-                                folders={folders}
-                                status={status}
-                                folded={folded}
-                                control={
-                                    <SurfaceControl
-                                        label={translate(folded ? 'mailboxes.unfold' : 'mailboxes.fold')}
-                                        icon={folded ? 'chevron_right' : 'chevron_left'}
-                                        onActivate={() => {
-                                            revise({ mailboxesFolded: !folded });
-                                        }}
-                                    />
-                                }
-                            />
+                            <Mailboxes folders={folders} status={status} folded={folded} drawerHead={null} />
                         </aside>
 
                         {/* The boundary is only there where the column is drawn as one: folded to its rail it is the
@@ -338,25 +328,31 @@ export function MailSpace({
                         onClose={() => {
                             setDrawerOpen(false);
                         }}
-                        aria-label={translate('mailboxes.open')}
+                        aria-labelledby={drawerNamed}
                         // It stands in the platform's top layer, which the frame's own safe-area padding is not around,
                         // so a drawer running the height of the screen carries the insets it crosses itself.
-                        className="surface-drawer fixed inset-y-0 left-0 m-0 h-full max-h-none w-drawer max-w-full border-0 border-e border-line bg-sunken p-0 pt-safe-top pb-safe-bottom pl-safe-left text-text shadow-overlay backdrop:bg-scrim"
+                        className="surface-drawer fixed inset-y-0 left-0 m-0 h-full max-h-none w-drawer max-w-full border-0 border-e border-line bg-panel p-0 pt-safe-top pb-safe-bottom pl-safe-left text-text shadow-overlay backdrop:bg-scrim"
                     >
                         <div className="flex h-full flex-col">
                             <Mailboxes
                                 folders={folders}
                                 status={status}
                                 folded={false}
-                                control={
-                                    <SurfaceControl
-                                        label={translate('mailboxes.close')}
-                                        icon="close"
-                                        edged
-                                        onActivate={() => {
-                                            drawer.current?.close();
-                                        }}
-                                    />
+                                drawerHead={
+                                    <div className="flex shrink-0 items-center gap-2 pt-3 pr-2.5 pb-2 pl-4">
+                                        <h2 id={drawerNamed} className="min-w-0 flex-1 text-lg font-semibold">
+                                            {translate('mailboxes.open')}
+                                        </h2>
+
+                                        <SurfaceControl
+                                            label={translate('mailboxes.close')}
+                                            icon="close"
+                                            edged
+                                            onActivate={() => {
+                                                drawer.current?.close();
+                                            }}
+                                        />
+                                    </div>
                                 }
                             />
                         </div>
@@ -472,13 +468,17 @@ export function MailSpace({
                             binds the words of a message rather than the column they sit in — `messageBody/Message.tsx`
                             carries it — because a head, a verdict, a row of attachment cards, and the field the reader
                             asks in are not text read line by line and have no measure to keep. */}
-                        <div className="min-h-0 flex-1 overflow-y-auto">{mail}</div>
-
-                        {/* The field goes with the panels. What the *fullscreen* control takes away is everything
-                            standing around the message — the head above it and the conversation's own state — and the
-                            field asking about it is the last of those: a column cleared of every panel with one row of
-                            controls still under it is not the screen that control promises. */}
-                        {workspace.panelsHidden ? null : threadField}
+                        {/* The reply drafter stands in the same scroller, stuck to its foot, so the room it takes is
+                            the thread's bottom clearance. It goes with the panels: what the *fullscreen* control takes
+                            away is everything standing around the message, and the drafter is the last of those. */}
+                        {drafter === null ? (
+                            <div className="min-h-0 flex-1 overflow-y-auto">{mail}</div>
+                        ) : (
+                            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                                {mail}
+                                {drafter}
+                            </div>
+                        )}
                     </section>
                 ) : null}
             </div>
@@ -487,38 +487,40 @@ export function MailSpace({
 }
 
 // The mailbox column's contents, drawn once for the two places they stand: the column beside the list, and the drawer
-// in front of it. The heading, the tree, the filters MailFathom's own reading will add, and the connection at the foot.
+// in front of it. The AI filters first and every account under them, scrolling together as one region once they are
+// taller than the column, and the connection at the foot, which stays where it is.
+//
+// The column carries no head of its own: the control that hides and shows it leads the mail toolbar, where a long tree
+// cannot scroll it away. The drawer is the one place with a head, its name and the way to close it, because the
+// toolbar's control does not stand where the column is a drawer.
 //
 // Folded, it is the same tree at the rail's width rather than a column emptied of it: the point of folding is to give
-// the width to the list while keeping the mailboxes one click away, and a rail with nothing in it would make the
-// control the only thing left to click. What the rail does drop is the heading, which names a column a reader can see
-// the whole of, and the connection line at the foot, which is a sentence and has nowhere to wrap to.
+// the width to the list while keeping the mailboxes one click away. What the rail does drop is the connection line at
+// the foot, which is a sentence and has nowhere to wrap to.
 function Mailboxes({
     folders,
     status,
     folded,
-    control,
+    drawerHead,
 }: {
     readonly folders: ReactNode;
     readonly status: ReactNode;
     readonly folded: boolean;
-    readonly control: ReactNode;
-}) {
-    const { translate } = useLocalization();
 
+    /** The drawer's name and its way out, or `null` where the mailboxes stand as a column beside the list. */
+    readonly drawerHead: ReactNode;
+}) {
     return (
         <>
-            <div className={`flex items-center px-2.25 pt-3 pb-1.5 ${folded ? 'justify-end' : 'justify-between'}`}>
-                {folded ? null : (
-                    <p className="ps-1.5 text-xs font-semibold text-muted">{translate('mailboxes.heading')}</p>
-                )}
+            {drawerHead}
 
-                {control}
-            </div>
-
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2.25 py-1">
-                {folders}
+            <div
+                className={`flex min-h-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto ${
+                    drawerHead !== null ? 'px-3.5 pt-1 pb-4' : folded ? 'px-2.25 py-3' : 'px-3.5 pt-3.5 pb-3'
+                }`}
+            >
                 <AiFilters folded={folded} />
+                {folders}
             </div>
 
             {folded ? null : <div className="border-t border-line px-3.5 py-2.5">{status}</div>}

@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { act, fireEvent, render, screen, type RenderResult } from '@testing-library/react';
+import { act, fireEvent, render, screen, within, type RenderResult } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { largestPortraitOctets } from '@mailfathom/client-backend';
 import type { TelemetryForwarding } from '../deployment/telemetryForwarding';
@@ -159,10 +159,38 @@ const alreadyRefused: SystemNotifier = {
     whenActedOn: () => () => undefined,
 };
 
-/** The second tab opened, which is where everything about the client rather than about the person is. */
+/** The last section opened, which is where everything about the client rather than about the person is. */
 function openApplication(): void {
     fireEvent.click(screen.getByRole('tab', { name: 'Application' }));
 }
+
+/** The section holding what reaches somebody and for how long. */
+function openNotifications(): void {
+    fireEvent.click(screen.getByRole('tab', { name: 'Notifications' }));
+}
+
+// jsdom evaluates no media query, so the setup answers every one of them with `false` and Settings are drawn in the
+// one-pane composition unless a test says otherwise. Stating a width is stating what `useTwoPanes` reads, which is a
+// `min-width` query built from the token — so what is answered here is that query and nothing else.
+const declaredMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+
+function theCompositionHasTwoPanes(): void {
+    Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: (query: string) => ({
+            media: query,
+            matches: query.includes('min-width'),
+            addEventListener: () => undefined,
+            removeEventListener: () => undefined,
+        }),
+    });
+}
+
+afterEach(() => {
+    if (declaredMatchMedia !== undefined) {
+        Object.defineProperty(window, 'matchMedia', declaredMatchMedia);
+    }
+});
 
 /** One file of a stated kind and size, which is the whole of what the client judges a chosen picture by. */
 function file(name: string, type: string, octets: number): File {
@@ -429,7 +457,7 @@ describe('Settings', () => {
     it('says a typed notification time outside the bound was not taken, and sends nothing for it', () => {
         const chooseNotificationSeconds = vi.fn();
         renderSettings({ preferences: { ...settings, chooseNotificationSeconds } });
-        openApplication();
+        openNotifications();
 
         const field = screen.getByRole('spinbutton', { name: /^How long a notification stands/ });
         fireEvent.change(field, { target: { value: '45' } });
@@ -442,7 +470,7 @@ describe('Settings', () => {
     it('sends a typed notification time inside the bound, and takes back the refusal it had drawn', () => {
         const chooseNotificationSeconds = vi.fn();
         renderSettings({ preferences: { ...settings, chooseNotificationSeconds } });
-        openApplication();
+        openNotifications();
 
         const field = screen.getByRole('spinbutton', { name: /^How long a notification stands/ });
         fireEvent.change(field, { target: { value: '0' } });
@@ -553,26 +581,124 @@ describe('Settings', () => {
 
         fireEvent.keyDown(screen.getByRole('tablist'), { key: 'ArrowRight' });
 
+        expect(screen.getByRole('tab', { selected: true })).toHaveProperty('textContent', 'Notifications');
+
+        fireEvent.keyDown(screen.getByRole('tablist'), { key: 'ArrowRight' });
+
         expect(screen.getByRole('tab', { selected: true })).toHaveProperty('textContent', 'Application');
 
-        fireEvent.keyDown(screen.getByRole('tablist'), { key: 'ArrowLeft' });
+        fireEvent.keyDown(screen.getByRole('tablist'), { key: 'Home' });
 
         expect(screen.getByRole('tab', { selected: true })).toHaveProperty('textContent', 'Profile');
     });
 
-    it('stays on the tab at the end of the list rather than wrapping round to the other one', () => {
+    it('stays on the tab at either end of the list rather than wrapping round to the other end', () => {
         renderSettings();
 
         fireEvent.keyDown(screen.getByRole('tablist'), { key: 'ArrowLeft' });
 
         expect(screen.getByRole('tab', { selected: true })).toHaveProperty('textContent', 'Profile');
+
+        fireEvent.keyDown(screen.getByRole('tablist'), { key: 'End' });
+        fireEvent.keyDown(screen.getByRole('tablist'), { key: 'ArrowRight' });
+
+        expect(screen.getByRole('tab', { selected: true })).toHaveProperty('textContent', 'Application');
     });
 
     it('leaves one tab stop on the list, which is the tab that is open', () => {
         renderSettings();
 
         expect(screen.getByRole('tab', { name: 'Profile' })).toHaveProperty('tabIndex', 0);
+        expect(screen.getByRole('tab', { name: 'Notifications' })).toHaveProperty('tabIndex', -1);
         expect(screen.getByRole('tab', { name: 'Application' })).toHaveProperty('tabIndex', -1);
+    });
+
+    it('offers only the sections the client has settings for, in the order the design lists them', () => {
+        renderSettings();
+
+        expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+            'Profile',
+            'Notifications',
+            'Application',
+        ]);
+    });
+
+    describe('where the window has two panes', () => {
+        it('files the sections under the design’s headings in a navigation rather than a tab strip', () => {
+            theCompositionHasTwoPanes();
+            renderSettings();
+
+            const navigation = within(screen.getByRole('navigation', { name: 'Settings sections' }));
+
+            expect(screen.queryByRole('tablist')).toBeNull();
+            expect(navigation.getAllByRole('button').map((button) => button.textContent)).toEqual([
+                'Profile',
+                'Notifications',
+                'Application',
+            ]);
+            expect(navigation.getByText('You')).toBeDefined();
+            expect(navigation.getByText('Assistant')).toBeDefined();
+            expect(navigation.getByText('This device')).toBeDefined();
+        });
+
+        it('names the open section over its body, with the sentence saying what it holds', () => {
+            theCompositionHasTwoPanes();
+            renderSettings();
+
+            expect(screen.getByRole('button', { name: 'Profile' }).getAttribute('aria-current')).toBe('true');
+            expect(screen.getByRole('region', { name: 'Profile' })).toBeDefined();
+            expect(screen.getByText(/the time zone your days are read in/u)).toBeDefined();
+        });
+
+        it('opens the section chosen in the navigation and marks it as the open one', () => {
+            theCompositionHasTwoPanes();
+            renderSettings();
+
+            fireEvent.click(screen.getByRole('button', { name: 'Application' }));
+
+            expect(screen.getByRole('button', { name: 'Application' }).getAttribute('aria-current')).toBe('true');
+            expect(screen.getByRole('button', { name: 'Profile' }).getAttribute('aria-current')).toBeNull();
+            expect(screen.getByRole('region', { name: 'Application' })).toBeDefined();
+            expect(screen.getByRole('group', { name: 'Language' })).toBeDefined();
+        });
+
+        it('narrows the navigation to the sections whose name or description holds what was typed', () => {
+            theCompositionHasTwoPanes();
+            renderSettings();
+
+            fireEvent.change(screen.getByRole('searchbox', { name: 'Find a setting' }), {
+                target: { value: 'LANGUAGE' },
+            });
+
+            const navigation = within(screen.getByRole('navigation', { name: 'Settings sections' }));
+
+            expect(navigation.getAllByRole('button').map((button) => button.textContent)).toEqual(['Application']);
+            expect(navigation.queryByText('You')).toBeNull();
+            expect(screen.getByRole('region', { name: 'Profile' })).toBeDefined();
+        });
+
+        it('says so where nothing it offers matches what was typed', () => {
+            theCompositionHasTwoPanes();
+            renderSettings();
+
+            fireEvent.change(screen.getByRole('searchbox', { name: 'Find a setting' }), {
+                target: { value: 'printer' },
+            });
+
+            expect(screen.getByText('No section matches.')).toBeDefined();
+            expect(
+                within(screen.getByRole('navigation', { name: 'Settings sections' })).queryAllByRole('button'),
+            ).toHaveLength(0);
+        });
+
+        it('says what is running at the foot of the navigation', () => {
+            theCompositionHasTwoPanes();
+            renderSettings({ deploymentVersion: '0.9.0' });
+
+            expect(
+                within(screen.getByRole('navigation', { name: 'Settings sections' })).getByText(/deployment 0\.9\.0/u),
+            ).toBeDefined();
+        });
     });
 
     it('says where the name and the picture are held, and where they are not sent', () => {
@@ -629,23 +755,25 @@ describe('Settings', () => {
         expect(screen.getByRole('switch', { name: /Show the AI filters/u })).toHaveProperty('checked', false);
     });
 
-    it('offers no system-notification switch where the head offered no such operation', () => {
+    it('offers no system-notification switch, and no device heading over it, where the head offered no such operation', () => {
         renderSettings();
-        openApplication();
+        openNotifications();
 
         expect(screen.queryByRole('switch', { name: /Notify me on this machine/u })).toBeNull();
+        expect(screen.queryByText('This device')).toBeNull();
     });
 
-    it('draws the system-notification switch as on where the machine has been left raising them', () => {
+    it('draws the system-notification switch as on, under the device heading, where the machine has been left raising them', () => {
         renderSettings({ head: raisesThem });
-        openApplication();
+        openNotifications();
 
         expect(screen.getByRole('switch', { name: /Notify me on this machine/u })).toHaveProperty('checked', true);
+        expect(screen.getByText('This device')).toBeDefined();
     });
 
     it('keeps a refusal on the device, which is where the answer belongs and what the next start reads', () => {
         renderSettings({ head: raisesThem });
-        openApplication();
+        openNotifications();
 
         fireEvent.click(screen.getByRole('switch', { name: /Notify me on this machine/u }));
 
@@ -655,7 +783,7 @@ describe('Settings', () => {
 
     it('follows a refusal written while it is open, since the operating system is the other writer', () => {
         renderSettings({ head: raisesThem });
-        openApplication();
+        openNotifications();
 
         act(() => {
             chooseSystemNotifications(false);
@@ -666,7 +794,7 @@ describe('Settings', () => {
 
     it('draws the switch off on a head nobody has been asked in, however the device was left', () => {
         renderSettings({ head: asksFirst('permitted') });
-        openApplication();
+        openNotifications();
 
         expect(screen.getByRole('switch', { name: /Notify me on this machine/u })).toHaveProperty('checked', false);
     });
@@ -674,7 +802,7 @@ describe('Settings', () => {
     it('asks from the gesture, and a grant leaves the switch on and the answer on the device', async () => {
         const browser = asksFirst('permitted');
         renderSettings({ head: browser });
-        openApplication();
+        openNotifications();
 
         await act(async () => {
             fireEvent.click(screen.getByRole('switch', { name: /Notify me on this machine/u }));
@@ -688,7 +816,7 @@ describe('Settings', () => {
 
     it('says so in the row where the answer to that question was no, and leaves the switch off', async () => {
         renderSettings({ head: asksFirst('refused') });
-        openApplication();
+        openNotifications();
 
         await act(async () => {
             fireEvent.click(screen.getByRole('switch', { name: /Notify me on this machine/u }));
@@ -702,7 +830,7 @@ describe('Settings', () => {
 
     it('writes nothing on the device where the question reached nobody, which nobody decided', async () => {
         renderSettings({ head: asksFirst('unasked') });
-        openApplication();
+        openNotifications();
 
         await act(async () => {
             fireEvent.click(screen.getByRole('switch', { name: /Notify me on this machine/u }));
@@ -719,7 +847,7 @@ describe('Settings', () => {
         async (answered) => {
             const recorded = recordingTelemetry();
             renderSettings({ head: asksFirst(answered), telemetry: recorded.telemetry });
-            openApplication();
+            openNotifications();
 
             await act(async () => {
                 fireEvent.click(screen.getByRole('switch', { name: /Notify me on this machine/u }));
@@ -735,7 +863,7 @@ describe('Settings', () => {
     it('follows the head where a permission is taken back underneath an open dialog', async () => {
         const browser = asksFirst('permitted');
         renderSettings({ head: browser });
-        openApplication();
+        openNotifications();
 
         await act(async () => {
             fireEvent.click(screen.getByRole('switch', { name: /Notify me on this machine/u }));
@@ -760,7 +888,7 @@ describe('Settings', () => {
         const browser = asksFirst('permitted');
         browser.toldToBlockThem();
         renderSettings({ head: browser });
-        openApplication();
+        openNotifications();
 
         expect(screen.getByText(/told to block notifications/u)).toBeTruthy();
 
@@ -778,7 +906,7 @@ describe('Settings', () => {
 
     it('reports a browser already told to block them without putting the question to it again', () => {
         renderSettings({ head: alreadyRefused });
-        openApplication();
+        openNotifications();
 
         expect(screen.getByText(/told to block notifications/u)).toBeTruthy();
         expect(screen.getByRole('switch', { name: /Notify me on this machine/u })).toHaveProperty('checked', false);

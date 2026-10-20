@@ -246,7 +246,7 @@ export function ToastsProvider({ children }: { readonly children: ReactNode }) {
             <ol
                 aria-label={translate('toast.surface')}
                 aria-live="polite"
-                className="pointer-events-none fixed inset-x-3 top-3 z-60 mt-safe-top flex flex-col gap-2.5 workspace:inset-x-auto workspace:top-4.5 workspace:right-4.5 workspace:w-87.5"
+                className="pointer-events-none fixed inset-x-2 top-2 z-60 mt-safe-top flex flex-col gap-1.5 workspace:inset-x-auto workspace:left-1/2 workspace:w-110 workspace:-translate-x-1/2 wide:left-auto wide:top-4.5 wide:right-4.5 wide:w-87.5 wide:translate-x-0 wide:gap-2.5"
             >
                 {standing.map((toast) => (
                     <li key={toast.id}>

@@ -96,13 +96,21 @@ interface Chip {
 const waitingChip: Chip = {
     icon: 'help',
     said: 'proposal.needsConfirmation',
-    tint: 'border-accent-line bg-panel text-accent-deep',
+    tint: 'bg-accent-soft text-accent-deep',
 };
 
 const settledChips: Readonly<Record<Exclude<ProposalPhase, 'pending'>, Chip>> = {
-    accepted: { icon: 'check_circle', said: 'proposal.done', tint: 'border-line-strong bg-sunken text-muted' },
-    failed: { icon: 'error', said: 'proposal.notDone', tint: 'border-highlight-line bg-highlight text-text' },
-    declined: { icon: 'block', said: 'proposal.declined', tint: 'border-line-strong bg-sunken text-muted' },
+    accepted: { icon: 'check_circle', said: 'proposal.done', tint: 'bg-healthy-soft text-healthy-text' },
+    failed: { icon: 'error', said: 'proposal.notDone', tint: 'bg-warning-soft text-warning-text' },
+    declined: { icon: 'block', said: 'proposal.declined', tint: 'bg-sunken text-muted' },
+};
+
+/** The symbol each kind of proposal is drawn with in its header tile, which is the design's own for each. */
+const kindIcons: Readonly<Record<ProposalKind, IconName>> = {
+    eventProposal: 'event',
+    taskProposal: 'task_alt',
+    draft: 'edit_note',
+    suggestedAction: 'bolt',
 };
 
 const looks: Readonly<Record<ProposalLook['kind'], { readonly icon: IconName; readonly said: MessageKey }>> = {
@@ -188,12 +196,74 @@ export function ProposalCard({
                 ? []
                 : [{ kind: 'thread', email: thread.email }];
 
+    // The tray at the card's foot holds the controls, what the deployment refused, and the way out to what the
+    // proposal is about. A declined proposal offers none of them.
+    const tray =
+        phase === 'declined' || (offered.length === 0 && refused === null && leadsTo.length === 0) ? null : (
+            <>
+                {offered.length === 0 ? null : (
+                    <div className="flex flex-wrap items-center gap-2 pointer-coarse:flex-col pointer-coarse:items-stretch">
+                        {offered.map((control) => (
+                            <button
+                                key={control.said}
+                                aria-label={control.name}
+                                aria-disabled={control.held === true ? true : undefined}
+                                className={`inline-flex items-center justify-center gap-1.75 rounded-md border px-3.75 py-2.25 text-md whitespace-nowrap transition disabled:opacity-60 aria-disabled:opacity-60 ${
+                                    control.primary === true
+                                        ? 'border-accent bg-accent font-semibold text-on-accent hover:bg-accent-strong'
+                                        : 'border-line-strong bg-panel text-text-soft hover:bg-hover'
+                                }`}
+                                disabled={answering?.answering === true}
+                                type="button"
+                                onClick={() => {
+                                    if (control.held !== true) {
+                                        control.run();
+                                    }
+                                }}
+                            >
+                                {control.said}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                {refused === null ? null : (
+                    <p role="alert" className="text-sm text-warning-text text-pretty">
+                        {translate(refusals[refused])}
+                    </p>
+                )}
+
+                {leadsTo.length === 0 ? null : (
+                    <div className="flex flex-wrap gap-2 pointer-coarse:flex-col">
+                        {leadsTo.map((where) => {
+                            const drawn = looks[where.kind];
+
+                            return (
+                                <button
+                                    key={where.kind}
+                                    aria-label={translate('proposal.lookName', { look: translate(drawn.said) })}
+                                    className="inline-flex items-center gap-1.75 rounded-full border border-line-strong px-3 py-1.5 text-base whitespace-nowrap text-text-soft transition hover:border-accent hover:text-accent-deep"
+                                    type="button"
+                                    onClick={() => {
+                                        look?.(where);
+                                    }}
+                                >
+                                    <Icon className="size-icon-sm text-muted" name={drawn.icon} />
+                                    {translate(drawn.said)}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+            </>
+        );
+
     return (
         <AnswerBlockCard
             chip={
                 chip === null ? null : (
                     <span
-                        className={`ms-auto flex items-center gap-1.25 rounded-full border px-2.25 py-0.75 text-xs whitespace-nowrap ${chip.tint}`}
+                        className={`ms-auto flex items-center gap-1.25 rounded-full py-0.75 ps-1.75 pe-2.5 text-xs font-semibold whitespace-nowrap ${chip.tint}`}
                     >
                         <Icon className="size-icon-xs" name={chip.icon} />
                         {translate(chip.said)}
@@ -201,6 +271,7 @@ export function ProposalCard({
                 )
             }
             emptyIcon={wording.emptyIcon}
+            icon={kindIcons[kind]}
             label={label}
             note={
                 state === 'empty' ? translate(wording.empty) : state === 'error' ? translate(wording.error) : undefined
@@ -208,6 +279,7 @@ export function ProposalCard({
             retryName={translate('proposal.retryName', { block: label })}
             state={state}
             tone={tone}
+            tray={tray}
             onRetry={onRetry}
         >
             {phase === 'declined' ? (
@@ -235,61 +307,6 @@ export function ProposalCard({
                             {translate(phase === 'accepted' ? wording.done : wording.failed)}
                         </p>
                     ) : null}
-
-                    {offered.length === 0 ? null : (
-                        <div className="flex flex-wrap items-center gap-2 border-t border-line-soft pt-2.5 pointer-coarse:flex-col pointer-coarse:items-stretch">
-                            {offered.map((control) => (
-                                <button
-                                    key={control.said}
-                                    aria-label={control.name}
-                                    aria-disabled={control.held === true ? true : undefined}
-                                    className={`inline-flex items-center justify-center gap-1.75 rounded-md border px-3.75 py-2.25 text-md whitespace-nowrap transition disabled:opacity-60 aria-disabled:opacity-60 ${
-                                        control.primary === true
-                                            ? 'border-accent bg-accent font-semibold text-on-accent hover:bg-accent-strong'
-                                            : 'border-line-strong bg-panel text-text-soft hover:bg-hover'
-                                    }`}
-                                    disabled={answering?.answering === true}
-                                    type="button"
-                                    onClick={() => {
-                                        if (control.held !== true) {
-                                            control.run();
-                                        }
-                                    }}
-                                >
-                                    {control.said}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-
-                    {refused === null ? null : (
-                        <p role="alert" className="text-sm text-warning-text text-pretty">
-                            {translate(refusals[refused])}
-                        </p>
-                    )}
-
-                    {leadsTo.length === 0 ? null : (
-                        <div className="flex flex-wrap gap-2 pointer-coarse:flex-col">
-                            {leadsTo.map((where) => {
-                                const drawn = looks[where.kind];
-
-                                return (
-                                    <button
-                                        key={where.kind}
-                                        aria-label={translate('proposal.lookName', { look: translate(drawn.said) })}
-                                        className="inline-flex items-center gap-1.75 rounded-full border border-line-strong px-3 py-1.5 text-base whitespace-nowrap text-text-soft transition hover:border-accent hover:text-accent-deep"
-                                        type="button"
-                                        onClick={() => {
-                                            look?.(where);
-                                        }}
-                                    >
-                                        <Icon className="size-icon-sm text-muted" name={drawn.icon} />
-                                        {translate(drawn.said)}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    )}
                 </>
             )}
         </AnswerBlockCard>

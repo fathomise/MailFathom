@@ -11,8 +11,12 @@ import { ReceivedAt } from '../controls/ReceivedAt';
 import { useLocalization } from '../localization/useLocalization';
 
 /**
- * One conversation in the history: its title and when it last moved, marked down its leading edge where it is the one
- * open, and washed in the accent where it is picked out.
+ * One conversation in the history: its title and when it last moved, tinted with an accent title where it is the one
+ * open, and tinted and outlined where it is picked out — a readable row rather than a card, with no edge marking it.
+ *
+ * Its quiet `more_horiz` control opens the same menu a right-click or a long press does. It is the pointer's way in
+ * and hidden from the accessibility tree, because an option holds no focusable descendant; the menu key and Shift+F10
+ * are the keyboard's.
  *
  * A row answers a press the way every list in this client does: a modifier-held click picks it out, a plain click picks
  * it out while a selection is held and opens it otherwise, and a right-click, a long press, the menu key or Shift+F10
@@ -80,9 +84,9 @@ export function ConversationRow({
             aria-current={open ? 'true' : undefined}
             ref={attach}
             tabIndex={focusable ? 0 : -1}
-            className={`flex cursor-pointer flex-col gap-0.5 rounded-md border-s-3 py-2.25 pe-2.75 ps-2.25 ${
-                open || selected ? 'border-s-accent bg-accent-soft' : 'border-s-transparent hover:bg-hover'
-            }`}
+            className={`group flex cursor-pointer flex-col gap-0.75 rounded-field px-3 py-2.75 workspace:px-2.5 workspace:py-2 ${
+                open || selected ? 'bg-accent-soft' : 'hover:bg-hover'
+            } ${selected ? 'ring-1 ring-accent-line ring-inset' : ''}`}
             onKeyDown={pressed}
             onFocus={onReached}
             onContextMenu={press.onContextMenu}
@@ -105,11 +109,34 @@ export function ConversationRow({
             <span className="flex items-baseline gap-2">
                 {selected ? <Icon name="check" className="size-icon-xs shrink-0 self-center text-accent-deep" /> : null}
 
-                <span className="min-w-0 flex-1 truncate text-md font-semibold">
+                <span
+                    className={`min-w-0 flex-1 truncate text-lg/snug workspace:text-base/snug ${
+                        open ? 'font-semibold text-accent-deep' : 'font-medium text-text'
+                    }`}
+                >
                     {conversation.title ?? translate('agent.newConversation')}
                 </span>
 
                 <ReceivedAt at={conversation.lastActivityAt} />
+
+                <span
+                    aria-hidden="true"
+                    className="-my-1.5 -me-1.5 flex size-9 shrink-0 cursor-pointer items-center justify-center self-center rounded-sm text-faint opacity-0 transition group-hover:opacity-100 hover:bg-hover hover:text-text pointer-coarse:opacity-100 workspace:-my-0.75 workspace:-me-1 workspace:size-6"
+                    onPointerDown={(event) => {
+                        event.stopPropagation();
+                    }}
+                    onPointerUp={(event) => {
+                        event.stopPropagation();
+                    }}
+                    onClick={(event) => {
+                        const box = event.currentTarget.getBoundingClientRect();
+
+                        event.stopPropagation();
+                        onPress({ x: box.left + box.width / 2, y: box.bottom });
+                    }}
+                >
+                    <Icon name="more_horiz" className="size-icon-md" />
+                </span>
             </span>
         </li>
     );

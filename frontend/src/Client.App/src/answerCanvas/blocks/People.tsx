@@ -45,6 +45,7 @@ export function People({ block }: { readonly block: AnswerBlock }) {
 
     return (
         <AnswerBlockCard
+            icon="group"
             label={translate('answer.peopleLabel')}
             meta={
                 entries.length === 0

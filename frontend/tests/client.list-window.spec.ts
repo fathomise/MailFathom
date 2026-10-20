@@ -73,7 +73,7 @@ test('opens what MailFathom made of a message from its own row, with the passage
     await enriched.click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'AI summary' }).click();
 
-    const checking = page.getByRole('dialog', { name: 'What MailFathom read from this message' });
+    const checking = page.getByRole('dialog', { name: 'What MailFathom read' });
 
     await expect(checking.getByText('A model - agents/reader')).toBeVisible();
     await expect(checking.getByText('Please confirm the bays you want before the end of the week.')).toBeVisible();
@@ -156,7 +156,7 @@ test('starts the list at its leading end when the order changes under a reader w
     }
 
     // The order is behind the list's filters, opened from the control at the end of the column's head row.
-    await page.getByRole('button', { name: 'Filters' }).click();
+    await page.getByRole('button', { name: 'Filters', exact: true }).click();
     await page.getByRole('group', { name: 'Order' }).getByText('Oldest first', { exact: true }).click();
 
     // Changing the order empties the list, which takes the scroller out of the document, so the one that comes back is

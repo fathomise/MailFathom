@@ -90,7 +90,7 @@ export function NotificationCentre({
     const now = useCurrentMinute();
     const panel = useRef<HTMLDialogElement>(null);
     const tabs = useId();
-    const [filter, setFilter] = useState<NotificationFilter>('all');
+    const [filter, setFilter] = useState<NotificationFilter>('unread');
     const [selected, setSelected] = useState<readonly string[]>([]);
     const [menu, setMenu] = useState<{ readonly notification: ClientNotification; readonly at: MenuPoint } | null>(
         null,
@@ -200,7 +200,12 @@ export function NotificationCentre({
                     leave();
                 }
             }}
-            onClose={clear}
+            // However it closed, the next opening starts where the design opens it, on what stands unread: the filter is
+            // the reader's for as long as the panel is open, and only the selection is otherwise cleared here.
+            onClose={() => {
+                clear();
+                setFilter('unread');
+            }}
         >
             {/* The handle the design draws at the top of the sheet, which says the panel is something a finger
                 can push away. It is drawn where that gesture exists and nowhere else. */}
@@ -239,18 +244,6 @@ export function NotificationCentre({
                 <ChoiceSegment
                     shape="filter"
                     name={tabs}
-                    value="all"
-                    chosen={filter === 'all'}
-                    onChoose={() => {
-                        setFilter('all');
-                    }}
-                >
-                    {translate('notifications.all')}
-                </ChoiceSegment>
-
-                <ChoiceSegment
-                    shape="filter"
-                    name={tabs}
                     value="unread"
                     chosen={filter === 'unread'}
                     onChoose={() => {
@@ -262,6 +255,18 @@ export function NotificationCentre({
                               count: new Intl.NumberFormat(locale).format(centre.unreadCount),
                           })
                         : translate('notifications.unreadTab')}
+                </ChoiceSegment>
+
+                <ChoiceSegment
+                    shape="filter"
+                    name={tabs}
+                    value="all"
+                    chosen={filter === 'all'}
+                    onChoose={() => {
+                        setFilter('all');
+                    }}
+                >
+                    {translate('notifications.all')}
                 </ChoiceSegment>
 
                 <span className="min-w-1 flex-1" />
@@ -353,7 +358,7 @@ export function NotificationCentre({
                 ))}
             </ul>
 
-            {drawn.length === 0 ? <Nothing reading={centre.reading} failure={centre.failure} /> : null}
+            {drawn.length === 0 ? <Nothing reading={centre.reading} failure={centre.failure} filter={filter} /> : null}
 
             <Departing value={menu}>
                 {(menu) => (
@@ -430,7 +435,17 @@ export function NotificationCentre({
 // The three things an empty list can mean, each said as what it is rather than as an absence: a read still in flight, a
 // read that did not answer, and a centre with nothing in it. The last is the design's own, and it says the
 // thing a reader actually wants to know — that nothing is waiting — rather than that a list is empty.
-function Nothing({ reading, failure }: { readonly reading: boolean; readonly failure: ClientFailureReason | null }) {
+function Nothing({
+    reading,
+    failure,
+    filter,
+}: {
+    readonly reading: boolean;
+    readonly failure: ClientFailureReason | null;
+
+    /** Which list is empty, because the two are empty for different reasons: nothing unread, or nothing at all. */
+    readonly filter: NotificationFilter;
+}) {
     const { translate } = useLocalization();
 
     if (reading) {
@@ -452,7 +467,9 @@ function Nothing({ reading, failure }: { readonly reading: boolean; readonly fai
     return (
         <div className="flex flex-1 flex-col items-center justify-center gap-2.25 px-6 py-13 text-center">
             <Icon name="notifications_off" className="size-icon-3xl text-faint" />
-            <p className="text-base text-pretty text-muted">{translate('notifications.empty')}</p>
+            <p className="text-base text-pretty text-muted">
+                {translate(filter === 'unread' ? 'notifications.empty' : 'notifications.emptyAll')}
+            </p>
         </div>
     );
 }

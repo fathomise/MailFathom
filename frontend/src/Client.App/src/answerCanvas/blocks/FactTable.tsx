@@ -52,6 +52,7 @@ export function FactTable({ block }: { readonly block: AnswerBlock }) {
 
     return (
         <AnswerBlockCard
+            icon="table_chart"
             label={translate('answer.factTableLabel')}
             meta={
                 empty

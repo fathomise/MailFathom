@@ -48,6 +48,7 @@ export function EvidenceList({ block }: { readonly block: AnswerBlock }) {
 
     return (
         <AnswerBlockCard
+            icon="fact_check"
             label={translate('answer.evidenceLabel')}
             meta={
                 entries.length === 0

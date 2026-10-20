@@ -85,7 +85,7 @@ export function SpaceNavigation({
             // The bar is `pan-x` so a finger moving up it is this navigation's rather than the page's, which is what a
             // gesture that has to be followed one to one needs; the rail above the workspace breakpoint has no such
             // gesture and is unaffected by it.
-            className="flex shrink-0 touch-pan-x justify-around gap-0.75 border-t border-line bg-rail px-1.5 pt-1.5 pb-2 workspace:order-first workspace:min-h-0 workspace:w-rail-narrow workspace:touch-auto desktop:w-rail workspace:flex-col workspace:justify-start workspace:gap-0.5 workspace:overflow-y-auto workspace:border-t-0 workspace:border-e workspace:px-0 workspace:pt-4 workspace:pb-3 min-h-navigation"
+            className="flex shrink-0 touch-pan-x justify-around gap-0.75 border-t border-line bg-rail px-1.5 pt-1.5 pb-2 workspace:order-first workspace:min-h-0 workspace:w-rail-narrow workspace:touch-auto desktop:w-rail workspace:flex-col workspace:justify-start workspace:gap-0.5 roomy:gap-1 workspace:overflow-y-auto workspace:border-t-0 workspace:border-e workspace:px-0 workspace:pt-4 workspace:pb-3 min-h-navigation"
             onPointerDown={onPointerDown}
             onClickCapture={onClickCapture}
         >
@@ -129,10 +129,12 @@ function SpaceLink({ space, current }: { readonly space: Space; readonly current
             // A placeholder says what it is in its own name rather than in a note beside it: the name is what a screen
             // reader announces on the link, and it is the one place the sentence is not read on every other item too.
             aria-label={built ? undefined : translate('space.notBuiltYet', { space: name })}
-            className={`flex flex-1 flex-col items-center gap-0.75 rounded-xl px-0.5 py-1.75 text-sm transition workspace:flex-none workspace:gap-1 workspace:rounded-none workspace:border-e-3 workspace:py-2.25 workspace:text-xs desktop:text-sm ${
+            // In the rail each destination is a tile inset from both edges, so two neighbours never meet across a
+            // dark gap and the current one needs no edge bar to stand out — the tint and the weight carry it.
+            className={`flex flex-1 flex-col items-center gap-0.75 rounded-xl px-0.5 py-1.75 text-sm transition workspace:mx-1.75 workspace:flex-none workspace:gap-1 workspace:rounded-lg workspace:py-2 workspace:text-xs desktop:py-2.25 desktop:text-sm ${
                 current
-                    ? 'bg-accent-soft font-semibold text-accent-deep workspace:border-accent workspace:font-normal'
-                    : `workspace:border-transparent hover:bg-hover hover:text-text ${built ? 'text-muted' : 'text-faint'}`
+                    ? 'bg-accent-soft font-semibold text-accent-deep'
+                    : `hover:bg-hover hover:text-text ${built ? 'text-muted' : 'text-faint'}`
             }`}
         >
             <Icon name={spaceIcons[space]} className="size-icon-2xl workspace:size-icon-xl" />

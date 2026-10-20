@@ -84,19 +84,27 @@ export function ReadingsAsked({
             onToggle={closesOnBack}
             ref={dialog}
             aria-labelledby={names}
-            // The whole screen at a phone width and a card above it, which is the design's own `dlgAi` and the
-            // arrangement the settings surface already takes: a card of readings centred in a 390-pixel window leaves
-            // a strip of scrim down either side and a body too narrow for the passages the surface exists to show.
-            // So the narrow shape is the screen — full size, no border, no radius, no shadow, its own safe-area
-            // insets, since a dialog stands in the platform's top layer and the frame's padding is not around it.
-            className="max-workspace:surface-sheet workspace:surface-pop m-0 h-full max-h-full w-full max-w-full rounded-none border-0 bg-panel p-0 pt-safe-top pr-safe-right pb-safe-bottom pl-safe-left text-text open:flex open:flex-col backdrop:bg-scrim workspace:m-auto workspace:h-auto workspace:max-h-readings-tall workspace:w-readings workspace:max-w-full workspace:rounded-lg workspace:border workspace:border-line workspace:shadow-dialog"
+            // The whole screen below the wide breakpoint and a dialog from it up, which is the design's own `dlgAi`:
+            // a reading set beside its passage needs the width, and one stacked over it on a phone or a fold reads
+            // better across the whole screen than in a card with scrim down either side. The full-screen shape has no
+            // border, radius, or shadow, and its own safe-area insets, since a dialog stands in the platform's top
+            // layer and the frame's padding is not around it.
+            className="max-wide:surface-sheet wide:surface-pop m-0 h-full max-h-full w-full max-w-full rounded-none border-0 bg-panel p-0 pt-safe-top pr-safe-right pb-safe-bottom pl-safe-left text-text open:flex open:flex-col backdrop:bg-scrim wide:m-auto wide:h-auto wide:max-h-readings-tall wide:w-readings-narrow wide:max-w-readings-narrow wide:overflow-hidden wide:rounded-xl wide:border wide:border-line wide:shadow-dialog roomy:w-readings roomy:max-w-readings"
         >
-            <div className="flex shrink-0 items-center gap-2.5 border-b border-line px-4 py-3">
-                <Icon name="auto_awesome" className="size-icon-lg shrink-0 text-accent-strong" />
+            <div className="flex shrink-0 items-center gap-3 border-b border-line py-2.5 ps-4 pe-2.5 wide:pt-4.5 wide:pb-4 wide:ps-6.5 wide:pe-4.5">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-field bg-accent-soft text-accent-deep wide:size-9.5">
+                    <Icon name="auto_awesome" className="size-icon-md wide:size-icon-xl" />
+                </span>
 
-                <h2 id={names} className="flex-1 truncate text-base font-semibold">
-                    {translate('reading.title')}
-                </h2>
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <h2 id={names} className="text-xl font-semibold tracking-tight wide:text-2xl">
+                        {translate('reading.title')}
+                    </h2>
+
+                    {asked === null ? null : (
+                        <p className="truncate text-base text-muted">{asked.subject ?? translate('list.noSubject')}</p>
+                    )}
+                </div>
 
                 <SurfaceControl
                     label={translate('reading.close')}
@@ -129,62 +137,74 @@ function AskedMessage({
     const timeZone = useReadingZone();
     const evidence = useCitedEvidence(session, transport, asked);
 
+    // What produced the readings is named once, in the footer, rather than on every reading — and every distinct
+    // producer is named there, because a deterministic rule re-run over the same message says the same thing and a
+    // model promises no such thing, so a dialog holding both says so rather than naming one of them for all.
+    const producers = [
+        ...new Set(asked.marks.map((mark) => translate(readingSources[mark.source], { origin: mark.origin }))),
+    ];
+
     return (
-        // The readings scroll inside whatever height the surface has, which is the whole screen at a phone width and
-        // the card's ceiling above it. Neither is a height this states: the dialog is the flex column and this is the
-        // one part of it that gives, so a message carrying one reading draws a short card and one carrying three
-        // scrolls in a tall one without either being measured here.
-        <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-4 py-3.5">
-            <p className="text-sm text-muted text-pretty">{translate('reading.about')}</p>
+        <>
+            {/* The readings scroll inside whatever height the surface has, which is the whole screen below the wide
+                breakpoint and the dialog's ceiling above it. Neither is a height this states: the dialog is the flex
+                column and this is the one part of it that gives. */}
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pt-1 pb-4 wide:px-6.5 wide:pt-1.5 wide:pb-4.5">
+                <div className="flex flex-col gap-px bg-line-soft">
+                    {asked.marks.map((mark) => {
+                        const due = mark.dueAt === null ? null : wordInstant(mark.dueAt, locale, 'full', timeZone);
 
-            <p className="text-base font-semibold text-pretty">{asked.subject ?? translate('list.noSubject')}</p>
-
-            {asked.marks.map((mark) => {
-                const due = mark.dueAt === null ? null : wordInstant(mark.dueAt, locale, 'full', timeZone);
-
-                return (
-                    <section
-                        key={mark.aspect}
-                        className="flex flex-col gap-2 rounded-lg border border-line bg-sunken px-3.75 py-3.25"
-                    >
-                        <div className="flex flex-wrap items-center gap-1.5">
-                            <h3 className="text-xs font-semibold text-muted">{translate(readingNames[mark.aspect])}</h3>
-
-                            {/* What produced the reading, drawn apart from the reading itself and drawn differently
-                                for each producer: a deterministic rule re-run over the same message says the same
-                                thing and a model promises no such thing, so somebody weighing a mark meets that before
-                                they read the sentence. The words carry the distinction as well as the tint, because
-                                one only a colour makes is one a reader who cannot see it does not get. */}
-                            <span
-                                className={`ms-auto rounded-full px-2 py-px text-xs ${
-                                    mark.source === 'Model'
-                                        ? 'bg-accent-soft text-accent-deep'
-                                        : 'bg-healthy-soft text-healthy-text'
-                                }`}
+                        return (
+                            <section
+                                key={mark.aspect}
+                                className="flex flex-col gap-2.5 bg-panel py-3.5 wide:flex-row wide:gap-7 wide:py-5.5"
                             >
-                                {translate(readingSources[mark.source], { origin: mark.origin })}
-                            </span>
-                        </div>
+                                <div className="flex min-w-0 flex-col gap-1.5 wide:flex-5">
+                                    <h3 className="text-xs font-semibold text-faint">
+                                        {translate(readingNames[mark.aspect])}
+                                    </h3>
 
-                        <p className="text-base text-pretty">{mark.text}</p>
+                                    <p className="text-xl/snug font-semibold text-balance wide:text-claim wide:tracking-tight">
+                                        {mark.text}
+                                    </p>
 
-                        {due === null ? null : (
-                            <p className="flex items-center gap-1.5 text-sm text-muted">
-                                <Icon name="schedule" className="size-icon-sm shrink-0" />
+                                    {due === null ? null : (
+                                        <p className="flex items-center gap-1.5 text-sm text-muted">
+                                            <Icon name="schedule" className="size-icon-sm shrink-0" />
 
-                                {translate('reading.dueAt', { when: due })}
-                            </p>
-                        )}
+                                            {translate('reading.dueAt', { when: due })}
+                                        </p>
+                                    )}
 
-                        <p className="text-sm text-muted text-pretty">
-                            {translate('reading.reason', { reason: mark.reason })}
-                        </p>
+                                    <p className="text-base/relaxed text-muted text-pretty">{mark.reason}</p>
+                                </div>
 
-                        <MarkEvidence mark={mark} evidence={evidence} />
-                    </section>
-                );
-            })}
-        </div>
+                                <div className="flex min-w-0 flex-col gap-1.5 wide:flex-6">
+                                    <MarkEvidence mark={mark} evidence={evidence} />
+                                </div>
+                            </section>
+                        );
+                    })}
+                </div>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2 border-t border-line bg-sunken px-4 py-2.25 text-sm text-faint wide:px-6.5 wide:py-2.75">
+                <Icon name="format_quote" className="size-icon-sm shrink-0" />
+
+                {/* The contract stated in full where there is room for it and shortened where there is not, so the
+                    footer stays one line at every width. */}
+                <span className="min-w-0 flex-1 truncate">
+                    <span className="wide:hidden">{translate('reading.aboutShort')}</span>
+                    <span className="max-wide:hidden">{translate('reading.about')}</span>
+                </span>
+
+                {producers.map((producer) => (
+                    <span key={producer} className="whitespace-nowrap">
+                        {producer}
+                    </span>
+                ))}
+            </div>
+        </>
     );
 }
 
@@ -230,12 +250,13 @@ function MarkEvidence({ mark, evidence }: { readonly mark: MailEnrichmentMark; r
                 const cited = evidence.passages.get(passage);
                 const words = cited?.text ?? null;
 
-                // Bounded rather than as long as the passage is, which is what the design draws: a card is a summary,
-                // and one quotation running the height of the dialog would push every reading after it off the screen.
+                // Bounded rather than as long as the passage is, which is what the design draws: four lines where the
+                // reading is stacked over it, and a height that scrolls where it stands beside it, so one long
+                // quotation never pushes every reading after it off the screen.
                 return (
                     <li
                         key={passage}
-                        className="max-h-37.5 overflow-y-auto rounded-e-md border-s-2 border-s-line-strong bg-panel px-3 py-2.5 text-sm text-text-soft text-pretty"
+                        className="line-clamp-4 rounded-e-field border-s-2 border-s-accent-line bg-sunken px-2.75 py-2 text-base/relaxed text-text-soft text-pretty wide:line-clamp-none wide:max-h-45 wide:overflow-y-auto wide:px-4 wide:py-3 wide:text-md/relaxed"
                     >
                         {words ?? <span className="text-faint">{translate(insteadOf(cited))}</span>}
                     </li>
