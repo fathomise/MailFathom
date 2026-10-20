@@ -461,6 +461,13 @@ every control keeps its name in words for as long as the names fit the strip, co
 floating control over the list when they stop fitting, and the symbols stand alone only when the names still do not
 fit without it.
 
+Height is a second axis beside the width, and no rule reads both or the window's orientation. Below the
+`--window-height-low` token the window is low — a phone on its side, a laptop's shortest viewport — and what is vertical
+folds: the rail draws its destinations as symbols named by their labels and drops the mark, and a dialog or a sheet may
+take all but a sliver of the height. From `--window-height-tall` up it is tall, and a dialog stops at 760 pixels and a
+sheet at 640 rather than growing with the window. A stylesheet asks the two as `low:` and `tall:`, and a component that
+has to choose a tree by one asks `src/shell/useWideWorkspace.ts`, as it asks a width.
+
 The **back gesture** is answered by the same frame, and on all three heads by one mechanism: `src/shell/screenLayers.ts`
 keeps one stack of everything a press can take away, `src/shellOperations/backNavigation.ts` keeps one history entry
 per thing in it, and `src/App.tsx` unwinds them topmost first before the address moves at all. Two kinds of thing are

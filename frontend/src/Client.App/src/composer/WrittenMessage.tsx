@@ -280,7 +280,8 @@ export function WrittenMessage({
                 contentEditable
                 suppressContentEditableWarning
                 tabIndex={0}
-                className="min-h-42.5 flex-1 overflow-auto px-4.25 py-4 text-lg text-text-soft focus-visible:-outline-offset-2"
+                // A low window lowers the floor so the foot carrying *Send* stays on the screen above a keyboard.
+                className="min-h-42.5 flex-1 overflow-auto px-4.25 py-4 text-lg text-text-soft focus-visible:-outline-offset-2 low:min-h-18"
                 onInput={written}
                 onPaste={(event) => {
                     // What arrives from somewhere else arrives as text. A message carries the formatting its author

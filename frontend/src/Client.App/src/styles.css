@@ -268,6 +268,21 @@
        each takes its full measure. */
     --breakpoint-roomy: 63.75rem;
 
+    /* The two heights a composition changes at, which are a second axis beside the widths above rather than a
+       refinement of any of them: width decides how many columns there are, height how dense the vertical is, and no
+       rule reads both — or the window's orientation or aspect, so a device upright and on its side is one width band
+       beside one height band rather than a case of its own. Not `--breakpoint-*` names, which Tailwind reads as widths;
+       a stylesheet asks them as `low:` and `tall:`, declared under this block, and a component through
+       `shell/useWideWorkspace.ts`.
+
+       Below the first the window is low — a phone on its side, a laptop's shortest viewport — and everything vertical
+       folds to fit: the rail draws its destinations as symbols, and what stands over the screen takes all but a sliver
+       of the height. From the second it is tall — an upright tablet, half a desktop screen, a monitor on its side — and
+       the extra height goes to lists and threads while what stands over them stops growing. Between the two is the
+       composition drawn everywhere else, which every framed size the design shows sits in. */
+    --window-height-low: 30rem;
+    --window-height-tall: 60rem;
+
     /* One row of the message list, in the heights the design draws it. Declared here rather than in the
        list because it is a density decision like any other — and because the list is arithmetic over it: the window
        that keeps a mailbox of two hundred thousand messages costing what a screenful costs measures this value off a
@@ -374,6 +389,15 @@
     --spacing-readings: min(57.5rem, calc(100% - 4rem));
     --spacing-readings-narrow: min(47.5rem, calc(100% - 4rem));
     --spacing-readings-tall: min(86dvh, 53.75rem);
+
+    /* How tall a centred dialog and a sheet rising from the foot of the window may grow before they scroll as a whole,
+       in the regular height band: a dialog to the window less the design's 22-pixel margin above and below, a sheet to
+       82 per cent of it. Each is redeclared for the low and the tall band in the base layer, which is where a token
+       that follows a media query is stated — a low window leaves a dialog 8 pixels off either edge and a sheet a
+       sliver over it, and a tall one stops them at 760 and 640 pixels rather than stretching them with the window. A
+       dialog reads its own through the base rule on every modal dialog, so a new one is capped without asking. */
+    --spacing-dialog-height: calc(100dvh - 2.75rem);
+    --spacing-sheet-height: 82dvh;
 
     /* The share of the sign-in screen its brand column takes above the split breakpoint, which the design draws as a
        proportion of the window rather than as a width — so the column and the form beside it keep their ratio at
@@ -793,6 +817,12 @@
         'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     --font-mono: 'Geist Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
 }
+
+/* The two height bands as variants, read from their tokens above so each threshold is stated once. Tailwind builds a
+   variant for every `--breakpoint-*` width on its own and has no namespace that does the same for a height, so these
+   are declared rather than generated. */
+@custom-variant low (@media (height < theme(--window-height-low)));
+@custom-variant tall (@media (height >= theme(--window-height-tall)));
 
 /* The disclosed band's two tokens, inlined into the utilities rather than resolved on the root: which frames the band
    plays is the `disclosure` utility's to say on the band itself, because only an engine interpolating a height to
@@ -1268,6 +1298,27 @@
        `warning-text` reads at 6.32 in the light theme and 7.55 in the dark one. */
     blockquote {
         --color-warning: var(--color-warning-text);
+    }
+
+    /* How tall what stands over the screen may grow, in the two height bands that move it; the regular band's values
+       are the tokens themselves. A modal dialog reads its own here rather than each of a dozen dialogs carrying it, so
+       none of them is left on the browser's own margin — and a surface that is the whole screen, or a sheet, states a
+       height of its own, which a utility does over this. Each scrolls as a whole once its content passes the cap,
+       which is what the platform already does for a modal dialog. */
+    :root {
+        @variant low {
+            --spacing-dialog-height: calc(100dvh - 1rem);
+            --spacing-sheet-height: calc(100dvh - 0.5rem);
+        }
+
+        @variant tall {
+            --spacing-dialog-height: min(calc(100dvh - 2.75rem), 47.5rem);
+            --spacing-sheet-height: min(82dvh, 40rem);
+        }
+    }
+
+    dialog:modal {
+        max-height: var(--spacing-dialog-height);
     }
 
     /* What a control measures under a finger, decided once here for the same reason the ring above is: a floor met by

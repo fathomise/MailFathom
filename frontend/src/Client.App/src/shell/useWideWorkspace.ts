@@ -4,27 +4,28 @@
 
 import { useSyncExternalStore } from 'react';
 
-// The three widths a component has to ask about rather than compose against. A stylesheet answers a width question for
-// anything CSS can lay out two ways from one tree, and that is almost everything; what it cannot do is decide *which*
-// of two screens is in the document, or whether a control is one a person may operate at all.
+// The widths and heights a component has to ask about rather than compose against. A stylesheet answers a size question
+// for anything CSS can lay out two ways from one tree, and that is almost everything; what it cannot do is decide
+// *which* of two screens is in the document, or whether a control is one a person may operate at all.
 //
-// Both queries are built from the tokens in `styles.css` rather than from a second copy of either number, so each
-// breakpoint stays one decision.
+// Every query is built from the tokens in `styles.css` rather than from a second copy of the number, so each
+// breakpoint stays one decision. Width and height are separate axes and no query here reads both, or the window's
+// orientation or aspect: upright and on its side are each one width band beside one height band.
 
-function widthAtLeast(token: string, fallback: string) {
+function windowSize(token: string, fallback: string, condition: (size: string) => string, unanswered: boolean) {
     function query(): MediaQueryList | null {
         if (typeof window.matchMedia !== 'function') {
             return null;
         }
 
-        const width = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+        const size = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
 
-        return window.matchMedia(`(min-width: ${width === '' ? fallback : width})`);
+        return window.matchMedia(condition(size === '' ? fallback : size));
     }
 
     return {
-        /** Whether the window is at least this wide. A runtime that cannot answer is read as wide. */
-        matches: (): boolean => query()?.matches ?? true,
+        /** Whether the window is in this band. A runtime that cannot answer is read as wide and as neither low nor tall. */
+        matches: (): boolean => query()?.matches ?? unanswered,
 
         watch: (changed: () => void): (() => void) => {
             const watched = query();
@@ -38,8 +39,8 @@ function widthAtLeast(token: string, fallback: string) {
     };
 }
 
-// What the pointer can do, which is the other half of what a screen adapts to and the only one of the two that is not
-// a width. It is asked here beside them because a component asking either question asks it the same way, and because
+// What the pointer can do, which is the third axis a screen adapts to and the only one that is not a size. It is asked
+// here beside the other two because a component asking any of them asks it the same way, and because
 // what it answers decides which gestures exist rather than how something is laid out — a query CSS cannot answer for
 // a listener that has to be bound or not bound at all.
 function pointerIsCoarse() {
@@ -65,10 +66,13 @@ function pointerIsCoarse() {
 
 // Built once each, because `useSyncExternalStore` compares the two functions it is handed by identity and a pair
 // rebuilt per render would resubscribe on every one of them.
-const workspaceWidth = widthAtLeast('--breakpoint-workspace', '43.75rem');
-const paneWidth = widthAtLeast('--breakpoint-panes', '51.25rem');
-const desktopWidth = widthAtLeast('--breakpoint-desktop', '73.75rem');
-const roomyWidth = widthAtLeast('--breakpoint-roomy', '63.75rem');
+const atLeastWide = (width: string) => `(min-width: ${width})`;
+const workspaceWidth = windowSize('--breakpoint-workspace', '43.75rem', atLeastWide, true);
+const paneWidth = windowSize('--breakpoint-panes', '51.25rem', atLeastWide, true);
+const desktopWidth = windowSize('--breakpoint-desktop', '73.75rem', atLeastWide, true);
+const roomyWidth = windowSize('--breakpoint-roomy', '63.75rem', atLeastWide, true);
+const lowHeight = windowSize('--window-height-low', '30rem', (height) => `(height < ${height})`, false);
+const tallHeight = windowSize('--window-height-tall', '60rem', (height) => `(height >= ${height})`, false);
 const coarsePointer = pointerIsCoarse();
 
 /**
@@ -116,6 +120,26 @@ export function useRoomyComposition(): boolean {
  */
 export function useDesktopComposition(): boolean {
     return useSyncExternalStore(desktopWidth.watch, desktopWidth.matches);
+}
+
+/**
+ * Whether the window is in the low height band, kept current as it is resized across that breakpoint.
+ *
+ * It is the band a phone on its side is in, where the design folds what is vertical — the rail's labels, a message's
+ * head — so nothing needed is pushed off the bottom. A stylesheet asks it as `low:`; this is for what decides a tree.
+ */
+export function useLowWindow(): boolean {
+    return useSyncExternalStore(lowHeight.watch, lowHeight.matches);
+}
+
+/**
+ * Whether the window is in the tall height band, kept current as it is resized across that breakpoint.
+ *
+ * It is the band an upright tablet, half a desktop screen, and a monitor on its side are in, where the extra height
+ * goes to lists and threads and what stands over them stops growing. A stylesheet asks it as `tall:`.
+ */
+export function useTallWindow(): boolean {
+    return useSyncExternalStore(tallHeight.watch, tallHeight.matches);
 }
 
 /**

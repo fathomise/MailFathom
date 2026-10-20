@@ -89,7 +89,7 @@ export function SpaceOverflow({
                 // Dimmed behind, which the design draws and which is what says the sheet is the whole of what
                 // is being answered right now. The platform paints it: a popover has a `::backdrop` of its own exactly
                 // as the notification panel's dialog does, and this is the same token that one uses.
-                className="surface-sheet inset-x-0 top-auto bottom-0 m-0 w-full max-w-full rounded-t-xl border-t border-line bg-panel px-3 pt-3 pb-safe-bottom text-base text-text shadow-overlay backdrop:bg-scrim open:block"
+                className="surface-sheet inset-x-0 top-auto bottom-0 m-0 max-h-sheet-height w-full max-w-full overflow-y-auto rounded-t-xl border-t border-line bg-panel px-3 pt-3 pb-safe-bottom text-base text-text shadow-overlay backdrop:bg-scrim open:block"
             >
                 <div className="flex flex-col gap-0.5 pb-3">
                     {/* The bar the design draws across the top of the sheet, which says a sheet is what this

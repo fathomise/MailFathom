@@ -79,6 +79,7 @@ export function SpaceNavigation({
     // on the screen without either shape having to be told about it twice.
     const drawn = wide ? offered : offered.filter((space) => barSpaces.includes(space));
     const behindMore = wide ? [] : overflowSpaces.filter((space) => offered.includes(space));
+    const destinations = drawn.map((space) => <SpaceLink key={space} space={space} current={space === current} />);
 
     return (
         <nav
@@ -91,12 +92,20 @@ export function SpaceNavigation({
             onClickCapture={onClickCapture}
         >
             {/* The mark stands at the top of the rail and nowhere in the bottom bar: a narrow window gives the row to
-                destinations, and a logo taking one of five places there would cost a reader a space to reach. */}
-            <BrandMark label={translate('shell.title')} className="mb-3 hidden size-10 self-center workspace:block" />
+                destinations, and a logo taking one of five places there would cost a reader a space to reach. A low
+                window gives its height to them for the same reason. */}
+            <BrandMark
+                label={translate('shell.title')}
+                className="mb-3 hidden size-10 self-center workspace:block low:hidden"
+            />
 
-            {drawn.map((space) => (
-                <SpaceLink key={space} space={space} current={space === current} />
-            ))}
+            {/* In the rail the destinations scroll between its top and its foot, so the bell and the account stay where
+                they are however short the window is; in the bar they are the bar's own places, laid out by it. */}
+            {wide ? (
+                <div className="flex min-h-0 flex-col gap-0.5 overflow-y-auto roomy:gap-1">{destinations}</div>
+            ) : (
+                destinations
+            )}
 
             {/* The bell and the account, in that order at both widths: what happened while nobody was looking stands
                 beside who is looking. In the rail that is the foot of it, with the bell above the account; in the bar
@@ -133,7 +142,10 @@ function SpaceLink({ space, current }: { readonly space: Space; readonly current
             // In the rail each destination is a tile inset from both edges, so two neighbours never meet across a
             // dark gap and the current one needs no edge bar to stand out — the tint and the weight carry it. The
             // bottom bar marks it with the pill behind the symbol instead.
-            className={`group flex flex-1 flex-col items-center gap-1 rounded-xl px-0.5 py-1.5 text-sm transition workspace:mx-1.75 workspace:flex-none workspace:px-0 workspace:gap-1 workspace:rounded-lg workspace:py-2 desktop:py-2.25 ${
+            // A low window draws the symbol alone, the name staying the link's, in a target the design sizes by the
+            // pointer: 36 under a mouse and 44 under a finger, stated here because the touch floor reaches controls
+            // and a link is not one.
+            className={`group flex flex-1 flex-col items-center gap-1 rounded-xl px-0.5 py-1.5 text-sm transition workspace:mx-1.75 workspace:flex-none workspace:px-0 workspace:gap-1 workspace:rounded-lg workspace:py-2 desktop:py-2.25 workspace:low:min-h-9 workspace:low:justify-center workspace:low:py-1 workspace:low:pointer-coarse:min-h-11 workspace:low:pointer-coarse:py-0 ${
                 current
                     ? 'font-semibold text-accent-deep workspace:bg-accent-soft'
                     : `hover:bg-hover hover:text-text ${built ? 'text-muted' : 'text-faint'}`
@@ -142,7 +154,7 @@ function SpaceLink({ space, current }: { readonly space: Space; readonly current
             <NavigationMark current={current}>
                 <Icon name={spaceIcons[space]} className="size-icon-2xl workspace:size-icon-xl" />
             </NavigationMark>
-            <span className="max-w-full truncate workspace:overflow-visible">{name}</span>
+            <span className="max-w-full truncate workspace:overflow-visible workspace:low:sr-only">{name}</span>
         </a>
     );
 }

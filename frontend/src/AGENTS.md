@@ -258,9 +258,11 @@ the sign-in screen; moving it is a change of its own rather than a side effect o
 above is a component, a hook, or a screen asking the question itself, and that refusal is unchanged by either
 paragraph.
 
-**What a screen adapts to instead is the width it has been given and what the pointer can do.** Those two are the whole
-of it, and the refusal above is not an instruction to adapt to nothing: a window is resized far more often than a head
-is changed, and one head produces both shapes anyway. A half-width window on a desktop gets the composition a
+**What a screen adapts to instead is the width it has been given, the height it has been given, and what the pointer
+can do.** Those three are the whole of it, and the refusal above is not an instruction to adapt to nothing: a window is
+resized far more often than a head is changed, and one head produces every shape anyway. Each rule reads exactly one of
+the three and none reads the window's orientation or aspect, so a device upright and the same device on its side need
+no rules of their own — each is one width band beside one height band. A half-width window on a desktop gets the composition a
 phone-width viewport gets — a stack, not a wide layout that stopped fitting — and the same desktop maximized gets the
 wide one, out of the same tree at the same breakpoint. `pointer: coarse` is asked where a target has to be big enough
 for a finger and `hover` where an affordance would otherwise exist only under one; neither is a question about the
@@ -351,9 +353,9 @@ so this is written to be mechanically visible in a diff rather than remembered.
   plus the `@theme` block in `Client.App/src/styles.css`, which is where MailFathom's own values are declared and the
   only place a hexadecimal colour is written. An arbitrary-value utility — `text-[#0048e0]`, `p-[13px]`, `text-[15px]` —
   is the thing this rule refuses: a value that needs one is a token missing from the theme, so add it there.
-- **A breakpoint is a token like any other.** The widths a composition changes at are declared once, beside the colours,
-  and every screen composes against those names — so the point where narrow stops is one decision rather than one per
-  screen. An arbitrary width such as `min-[734px]:` is the same defect as `text-[#0048e0]`, and is answered the same
+- **A breakpoint is a token like any other.** The widths and heights a composition changes at are declared once, beside
+  the colours, and every screen composes against those names — so the point where narrow stops is one decision rather
+  than one per screen. An arbitrary width such as `min-[734px]:` is the same defect as `text-[#0048e0]`, and is answered the same
   way: add the breakpoint to the theme.
 - **A repeated structure has one shape, stated once.** The second screen needing a card, a list row, a section header,
   or a page title uses the first one's component rather than a similar arrangement of utilities. Two implementations of
