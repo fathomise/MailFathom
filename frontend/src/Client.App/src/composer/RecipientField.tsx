@@ -171,20 +171,23 @@ export function RecipientField({
 
     return (
         <div className="relative flex flex-wrap items-center gap-2.5 border-b border-line-soft px-3.75 py-2.25 focus-within:border-accent focus-within:ring-3 focus-within:ring-accent-soft focus-within:ring-inset">
-            <label htmlFor={fieldId} className="w-22 shrink-0 text-sm text-muted">
+            <label htmlFor={fieldId} className="w-14.5 shrink-0 text-sm text-muted workspace:w-22">
                 {label}
             </label>
 
             {addresses.map((address) => (
                 <span
                     key={address}
-                    className="flex items-center gap-1.75 rounded-lg border border-line bg-rail px-2.5 py-0.75 text-base"
+                    className="flex max-w-full min-w-0 items-center gap-1.75 rounded-lg border border-line bg-rail px-2.5 py-0.75 text-base whitespace-nowrap"
                 >
-                    {address}
+                    {/* One line however long the address, cut rather than wrapped, so a chip never outgrows the row. */}
+                    <span className="min-w-0 truncate" title={address}>
+                        {address}
+                    </span>
                     <button
                         type="button"
                         aria-label={translate('compose.removeRecipient', { address, header: label })}
-                        className="flex items-center rounded-xs text-faint transition hover:text-text"
+                        className="flex shrink-0 items-center rounded-xs text-faint transition hover:text-text"
                         onClick={() => {
                             onChanged(addresses.filter((kept) => kept !== address));
                         }}
@@ -205,7 +208,7 @@ export function RecipientField({
                 inputMode="email"
                 autoComplete="off"
                 placeholder={placeholder}
-                className="min-w-40 flex-1 border-none bg-transparent text-base text-text outline-none placeholder:text-faint"
+                className="min-w-24 flex-1 border-none bg-transparent text-base text-ellipsis text-text outline-none placeholder:text-faint workspace:min-w-40"
                 onChange={(event) => {
                     setRefused(null);
                     setDismissed(false);

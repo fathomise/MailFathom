@@ -243,7 +243,7 @@ export function ContactBook({
                     {books.map((name) => (
                         <ChoiceSegment
                             key={name}
-                            shape="section"
+                            shape="raised"
                             name="contact-book"
                             value={name}
                             chosen={book === name}

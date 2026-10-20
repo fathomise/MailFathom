@@ -6,6 +6,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Icon } from '../controls/Icon';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { useWideWorkspace } from '../shell/useWideWorkspace';
 
 // What a new conversation offers to start with. The design's prototype opens a seeded conversation from each;
 // a client has none to open, so each asks its question exactly as typing it would.
@@ -50,6 +51,7 @@ export function AgentComposer({
     readonly onClearContext: () => void;
 }) {
     const { translate } = useLocalization();
+    const wide = useWideWorkspace();
     const field = useId();
     const [text, setText] = useState('');
     const [sending, setSending] = useState(false);
@@ -131,7 +133,7 @@ export function AgentComposer({
             ) : null}
 
             <form
-                className="flex w-full max-w-agent-thread items-center gap-3 rounded-lg border-2 border-accent bg-panel px-3.25 py-2.5 transition focus-within:ring-3 focus-within:ring-accent-soft"
+                className="flex w-full max-w-agent-thread items-center gap-2 rounded-lg border-2 border-accent bg-panel py-1.5 ps-3.5 pe-1.5 transition focus-within:ring-3 focus-within:ring-accent-soft workspace:gap-3 desktop:px-3.25 desktop:py-2.5"
                 onSubmit={(event) => {
                     event.preventDefault();
                     void send(text);
@@ -146,27 +148,41 @@ export function AgentComposer({
                     id={field}
                     value={text}
                     autoComplete="off"
-                    placeholder={translate('agent.composerPlaceholder')}
+                    placeholder={translate(wide ? 'agent.composerPlaceholder' : 'agent.composerPlaceholderShort')}
                     className="min-w-0 flex-1 bg-transparent text-lg text-text outline-none placeholder:text-faint"
                     onChange={(event) => {
                         setText(event.target.value);
                     }}
                 />
 
+                {/* The phone draws both buttons as their symbols, so the field keeps the width its prompt needs; and no
+                    button names a key where a finger drives the client, since there is no keyboard to press it on. */}
                 <button
                     type="submit"
                     disabled={sending}
-                    className="rounded-md bg-accent px-4 py-2 text-base whitespace-nowrap text-on-accent transition hover:opacity-90 disabled:opacity-60"
+                    aria-label={wide ? undefined : translate('agent.send')}
+                    title={wide ? undefined : translate('agent.send')}
+                    className="flex size-11 shrink-0 items-center justify-center rounded-md bg-accent text-base whitespace-nowrap text-on-accent transition hover:opacity-90 disabled:opacity-60 workspace:size-auto workspace:px-4.5 workspace:py-2 desktop:px-4"
                 >
-                    {translate('agent.send')} <span aria-hidden="true">{translate('agent.sendKey')}</span>
+                    {wide ? (
+                        <>
+                            {translate('agent.send')}
+                            <span aria-hidden="true" className="ms-1 pointer-coarse:hidden">
+                                {translate('agent.sendKey')}
+                            </span>
+                        </>
+                    ) : (
+                        <Icon name="send" className="size-icon-xl" />
+                    )}
                 </button>
 
                 <button
                     type="button"
                     aria-disabled={!running}
                     aria-label={translate(running ? 'agent.cancelRunning' : 'agent.cancelIdle')}
+                    title={wide ? undefined : translate(running ? 'agent.cancelRunning' : 'agent.cancelIdle')}
                     tabIndex={running ? 0 : -1}
-                    className={`rounded-md border px-3.5 py-2 text-base whitespace-nowrap transition ${
+                    className={`flex size-11 shrink-0 items-center justify-center rounded-md border text-base whitespace-nowrap transition workspace:size-auto workspace:px-4 workspace:py-2 desktop:px-3.5 ${
                         running
                             ? 'border-error bg-error font-semibold text-on-accent hover:opacity-90'
                             : 'cursor-default border-line text-faint'
@@ -177,7 +193,7 @@ export function AgentComposer({
                         }
                     }}
                 >
-                    {translate('agent.cancel')}
+                    {wide ? translate('agent.cancel') : <Icon name="cancel" className="size-icon-xl" />}
                 </button>
             </form>
 

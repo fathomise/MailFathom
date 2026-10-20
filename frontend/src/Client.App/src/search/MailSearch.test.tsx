@@ -2,11 +2,12 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { act, fireEvent, render, renderHook, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientSession, MailAccount, MailFathomTransport } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { ListFoldContext, type ListFold } from '../messageRows/listFold';
 import { ScreenLayersContext, useScreenLayerStack } from '../shell/screenLayers';
 import { everything, type MailScope } from '../workspace/mailScope';
 import { WorkspaceProvider } from '../workspace/Workspace';
@@ -158,14 +159,56 @@ function searchUnder(transport: MailFathomTransport, scope: MailScope = everythi
     );
 }
 
+// A list whose fold turns when it is asked to, as the Mail space's does.
+function TurningList() {
+    const [folded, setFolded] = useState(true);
+
+    return searchInAFoldedList({
+        folded,
+        turn: () => {
+            setFolded((was) => !was);
+        },
+    });
+}
+
+function searchInAFoldedList(fold: ListFold): ReactElement {
+    return <ListFoldContext value={fold}>{searchUnder(recording(onePage).transport)}</ListFoldContext>;
+}
+
 function searchFor(words: string): void {
     fireEvent.change(screen.getByLabelText('Find a message'), { target: { value: words } });
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
 }
 
+// jsdom answers every media query `false`, which is the phone, and the field's prompt is the desktop's everywhere a
+// test does not say otherwise, so every test starts in a window as wide as the desktop composition.
+const declaredMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+
+function aWindowMatching(matches: boolean): void {
+    Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: (query: string) => ({
+            media: query,
+            matches,
+            addEventListener: () => undefined,
+            removeEventListener: () => undefined,
+        }),
+    });
+}
+
+beforeEach(() => {
+    aWindowMatching(true);
+});
+
 // The workspace keeps what was searched for, and the store is one per file rather than one per test.
 afterEach(() => {
     window.sessionStorage.clear();
+
+    if (declaredMatchMedia === undefined) {
+        Reflect.deleteProperty(window, 'matchMedia');
+    } else {
+        Object.defineProperty(window, 'matchMedia', declaredMatchMedia);
+    }
 });
 
 describe('MailSearch', () => {
@@ -219,6 +262,13 @@ describe('MailSearch', () => {
         render(searchUnder(deployment({ readsPhrases: true }).transport));
 
         expect(await screen.findByPlaceholderText('Search, or describe what you need')).toBeTruthy();
+    });
+
+    it('asks in words that fit the field below the desktop composition', async () => {
+        aWindowMatching(false);
+        render(searchUnder(deployment({ readsPhrases: true }).transport));
+
+        expect(await screen.findByPlaceholderText('Search mail…')).toBeTruthy();
     });
 
     it('offers the word search where the deployment reads no sentence', async () => {
@@ -409,5 +459,39 @@ describe('MailSearch', () => {
         render(searchUnder(recording(onePage).transport));
 
         expect(screen.queryByRole('list', { name: 'Searched for before' })).toBeNull();
+    });
+});
+
+describe('MailSearch, at the fold', () => {
+    it('stands as the one control that widens the list while the list is folded to a strip', () => {
+        const turn = vi.fn();
+        render(searchInAFoldedList({ folded: true, turn }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Show the list' }));
+
+        expect(turn).toHaveBeenCalledOnce();
+        expect(screen.getByText(mailInScope)).toBeTruthy();
+    });
+
+    it('leads the widened list with the control that folds it again', () => {
+        const turn = vi.fn();
+        render(searchInAFoldedList({ folded: false, turn }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Narrow the list' }));
+
+        expect(turn).toHaveBeenCalledOnce();
+        expect(screen.queryByRole('button', { name: 'Show the list' })).toBeNull();
+    });
+
+    it('puts focus on the control that turns the list back, the pressed one having gone with its head', () => {
+        render(<TurningList />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Show the list' }));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Narrow the list' }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Narrow the list' }));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Show the list' }));
     });
 });

@@ -41,7 +41,7 @@ export function ProposedDates({
     return (
         <section
             aria-label={translate('calendar.proposedHeading')}
-            className="flex shrink-0 flex-col gap-2.75 border-line bg-sunken px-4 py-3.5 panes:w-calendar-side panes:overflow-y-auto panes:border-s"
+            className="flex shrink-0 flex-col gap-2.75 border-t border-line bg-sunken px-4 py-3.5 desktop:w-calendar-side desktop:border-t-0 desktop:overflow-y-auto desktop:border-s"
         >
             <h3 className="flex items-center gap-2.25 text-xs font-semibold text-muted">
                 {translate('calendar.proposedHeading')}

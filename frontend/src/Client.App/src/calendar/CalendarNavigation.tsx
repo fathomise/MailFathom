@@ -7,6 +7,7 @@ import { Control } from '../controls/Control';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { useDesktopComposition } from '../shell/useWideWorkspace';
 import { calendarViews, isoWeek, type CalendarSpan, type CalendarView } from './calendarSpan';
 import { wordMonth, wordSpan } from './calendarWording';
 
@@ -49,10 +50,12 @@ export function CalendarNavigation({
 }) {
     const { locale, translate } = useLocalization();
 
+    const desktop = useDesktopComposition();
+
     const covered = wordSpan(view, span, locale);
 
     return (
-        <div className="flex shrink-0 flex-col gap-2.25 border-b border-line bg-sunken px-4 py-2.75 workspace:flex-row workspace:items-center workspace:gap-3.5 workspace:px-6">
+        <div className="flex shrink-0 flex-wrap items-center gap-x-3.5 gap-y-2.25 border-b border-line bg-sunken px-4 py-2.75 workspace:flex-nowrap workspace:px-6">
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <h2 className="truncate text-xl font-semibold tracking-tighter">{wordMonth(anchor, locale)}</h2>
 
@@ -90,13 +93,21 @@ export function CalendarNavigation({
                 />
             </div>
 
-            <fieldset className="flex items-center gap-1.75 overflow-x-auto">
+            {/* Chips at the desktop's width, and one segmented control under it, where four chips in a row read as
+                four separate buttons rather than four ways of drawing the same span. */}
+            <fieldset
+                className={
+                    desktop
+                        ? 'flex items-center gap-1.75 overflow-x-auto'
+                        : 'flex basis-full items-center gap-0.5 rounded-md border border-line bg-rail p-0.75 workspace:shrink-0 workspace:basis-auto'
+                }
+            >
                 <legend className="sr-only">{translate('calendar.views')}</legend>
 
                 {calendarViews.map((name) => (
                     <ChoiceSegment
                         key={name}
-                        shape="chip"
+                        shape={desktop ? 'chip' : 'raised'}
                         name="calendar-view"
                         value={name}
                         chosen={view === name}

@@ -337,6 +337,9 @@
        the choice to change anything but the message beside it. */
     --spacing-list-tablet: 17.75rem;
 
+    /* The same list folded to a strip of senders at the fold while a message is open beside it. */
+    --spacing-list-strip: 4.75rem;
+
     /* The notification centre, in the two shapes the design draws it: how wide the panel is beside the rail,
        and how tall the bottom navigation is — which the panel reads as well as the navigation itself, because the
        narrow shape is a sheet that stops above the bar rather than covering it. Both are the design's own, and the
@@ -1005,6 +1008,23 @@
     }
 }
 
+/* A chip in a wrapping group or a segment in its track, under a finger: drawn at 36 rather than lifted to the 44 floor,
+   so a row of them keeps the weight of the text beside it, and still a 44 target, which reaches past its own edge into
+   the gap the group leaves around it. The design's touch table states the pair. A utility, so it outranks the floor the
+   base layer sets on every control. */
+@utility touch-extended {
+    @media (pointer: coarse) {
+        position: relative;
+        min-height: --spacing(9);
+
+        &::after {
+            content: '';
+            position: absolute;
+            inset: --spacing(-1) 0;
+        }
+    }
+}
+
 /* How a surface the platform puts in its top layer — a modal `dialog`, a popover — arrives and leaves, one utility
    per kind the design draws: `surface-pop` for a centred dialog and a menu, `surface-sheet` for a sheet rising from the
    foot of the window and for anything standing over the whole of a narrow one, `surface-drawer` for the mailboxes
@@ -1270,6 +1290,10 @@
         input:not(.sr-only):not([type='checkbox']):not([type='radio']):not([type='range']) {
             min-width: --spacing(11);
             min-height: --spacing(11);
+
+            /* A block lifted to the floor keeps its words in the middle of the height it was given rather than at the
+               top of it, which is where a label lands in a box taller than its line. */
+            align-content: center;
         }
 
         /* The message row at the wide compositions, which the design draws taller where the mark on it is the size

@@ -31,7 +31,7 @@ export function DayView({
     const ofTheDay = inTimeOrder(eventsOn(events, span.from));
 
     return (
-        <div className="flex min-w-0 flex-1 flex-col px-4 py-2.75 panes:min-h-0 panes:overflow-y-auto workspace:px-6">
+        <div className="flex min-w-0 flex-1 flex-col px-4 py-2.75 desktop:min-h-0 desktop:overflow-y-auto workspace:px-6">
             {hoursOfDay(span.from).map((hour) => (
                 <div
                     key={hour.getTime()}

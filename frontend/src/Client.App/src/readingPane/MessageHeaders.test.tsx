@@ -64,6 +64,18 @@ function HidesThePanels({ hidden }: { readonly hidden: boolean }) {
     return null;
 }
 
+// A selection is the workspace's, written by the list rather than by the head, so a test about one states it the same
+// way the panels' value is stated above.
+function Selects({ selected }: { readonly selected: readonly string[] }) {
+    const { revise } = useWorkspace();
+
+    useEffect(() => {
+        revise({ selected });
+    }, [revise, selected]);
+
+    return null;
+}
+
 const author: MailParticipant = { role: 'From', address: 'billing@example.invalid', displayName: 'Billing' };
 
 const conversation = '0198f4a1-0000-7000-8000-00000000b001';
@@ -74,12 +86,14 @@ function drawing(
     handToAgent: (handOver: AgentHandOver) => void = vi.fn(),
     thread: string | null = conversation,
     messagesInThread: number | null = null,
+    selected: readonly string[] = [],
 ): void {
     render(
         <LocalizationProvider>
             <AgentHandOverContext value={handToAgent}>
                 <WorkspaceProvider>
                     <HidesThePanels hidden={panelsHidden} />
+                    <Selects selected={selected} />
                     <MessageHeaders
                         headers={{ ...headers, ...written }}
                         message={message}
@@ -96,6 +110,19 @@ function drawing(
 // which it is about. Every test that states neither inherits the narrow reading: `vitest.setup.ts` puts a `matchMedia`
 // over jsdom's missing one that answers `false` to every query, so the head composes as it does at the phone.
 const declaredMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+
+/** Two panes stand side by side and the window is narrower than the desktop composition, the tablet and the fold. */
+function atTwoPanesNarrowerThanTheDesktop(): void {
+    Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: (query: string) => ({
+            media: query,
+            matches: !query.includes('73.75rem'),
+            addEventListener: () => undefined,
+            removeEventListener: () => undefined,
+        }),
+    });
+}
 
 function atWorkspaceWidth(wideEnough: boolean): void {
     Object.defineProperty(window, 'matchMedia', {
@@ -319,6 +346,23 @@ describe('MessageHeaders at the width its column has', () => {
         expect(screen.getByText('Reply')).toBeDefined();
         expect(screen.getByText('Forward')).toBeDefined();
         expect(screen.getByText('Flag')).toBeDefined();
+    });
+
+    it('leaves the three acts to the toolbar above it at two panes narrower than the desktop', () => {
+        atTwoPanesNarrowerThanTheDesktop();
+        drawing();
+
+        expect(screen.queryByText('Reply')).toBeNull();
+        expect(screen.queryByText('Forward')).toBeNull();
+        expect(screen.queryByText('Flag')).toBeNull();
+    });
+
+    it('draws the three acts again there while a selection has taken the toolbar’s place', () => {
+        atTwoPanesNarrowerThanTheDesktop();
+        drawing({}, false, vi.fn(), conversation, null, ['AAMkAD-7']);
+
+        expect(screen.getByText('Reply')).toBeDefined();
+        expect(screen.getByText('Forward')).toBeDefined();
     });
 
     it('draws the three acts as symbols alone at the width the column is the whole screen', () => {

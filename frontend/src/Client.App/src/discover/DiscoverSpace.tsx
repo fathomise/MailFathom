@@ -142,7 +142,9 @@ export function DiscoverSpace({
     return (
         <div className="flex min-h-0 flex-1 flex-col">
             <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-4 py-3 workspace:px-5.5">
-                <h1 className="text-md font-semibold">{translate('space.discover')}</h1>
+                <h1 className="text-3xl leading-tight font-semibold tracking-tight workspace:text-md workspace:leading-normal workspace:tracking-normal">
+                    {translate('space.discover')}
+                </h1>
 
                 {status}
 

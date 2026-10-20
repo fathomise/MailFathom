@@ -442,7 +442,7 @@ export function CalendarSpace({
                 </div>
             )}
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto panes:flex-row panes:overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto desktop:flex-row desktop:overflow-hidden">
                 {drawnView()}
 
                 <ProposedDates proposals={standing} onAccept={accept} onDismiss={dismiss} />

@@ -368,6 +368,21 @@ so this is written to be mechanically visible in a diff rather than remembered.
   draws large keeps its own size. This is the one place where the two questions § _The two heads_ separates are visible
   side by side: what a screen composes as follows the width it was given, and how big a target is follows what is
   driving it.
+- **The phone, the fold and the tablet are held to the design's table rather than to one here.**
+  `design/state-inventory.md` § _What every touch composition holds to_ states what each of them owes — the phone's bar
+  naming the space, prompts that fit one line, a segmented control where views or halves are switched, no action drawn
+  twice on one screen, no key named to somebody without a keyboard — and a screen meets it as it meets the rest of the
+  design. The prototype calls a width _touch_ because width is all it has, so the client splits what it reads: where a
+  title stands, which acts a head repeats, and whether views are chips or segments follow the breakpoint tokens, while
+  a key hint follows the pointer and is hidden with `pointer-coarse:hidden` rather than by width, since a touch screen at
+  the desktop's width has no keyboard to press it on and a narrow window on a desktop still does.
+- **Three of that table's rows are met by one mechanism each, never by a screen of its own.** A chip in a wrapping group
+  and a segment in its track take `touch-extended`, which draws them at the design's 36 under a finger and reaches the
+  44 target past their edge, so `controls/segmentShapes.ts` carries it for every segment and chip shape. A sheet or a
+  drawer is pulled closed by `shell/useSurfacePull.ts`, installed once at the frame: the surface says `data-pull="down"`
+  or `data-pull="start"` and closes through the platform as its close control does, so no surface writes a gesture. And
+  a symbol drawn alone on the phone keeps its name as the control's label and its title, never as an icon nobody can
+  read out.
 - **`prefers-reduced-motion` is honoured**, and that is an accessibility obligation rather than a nicety: motion is
   removed under it, not merely shortened, and any transition conveying meaning still conveys it without the movement.
 - **Everything a screen draws comes out of the bundle, and no screen reaches an external origin for it.** The typeface

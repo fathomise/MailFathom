@@ -68,6 +68,7 @@ function pointerIsCoarse() {
 const workspaceWidth = widthAtLeast('--breakpoint-workspace', '43.75rem');
 const paneWidth = widthAtLeast('--breakpoint-panes', '51.25rem');
 const desktopWidth = widthAtLeast('--breakpoint-desktop', '73.75rem');
+const roomyWidth = widthAtLeast('--breakpoint-roomy', '63.75rem');
 const coarsePointer = pointerIsCoarse();
 
 /**
@@ -92,6 +93,16 @@ export function useWideWorkspace(): boolean {
  */
 export function useTwoPanes(): boolean {
     return useSyncExternalStore(paneWidth.watch, paneWidth.matches);
+}
+
+/**
+ * Whether the window is at or above the width where the tablet composition stops being cramped.
+ *
+ * Below it, and with two panes, is the fold: the one composition where the list beside an open message leaves the
+ * message too little to read, so Mail folds the list to a strip of senders while something is open.
+ */
+export function useRoomyComposition(): boolean {
+    return useSyncExternalStore(roomyWidth.watch, roomyWidth.matches);
 }
 
 /**

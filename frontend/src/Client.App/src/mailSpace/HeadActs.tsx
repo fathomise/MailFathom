@@ -19,11 +19,13 @@ import { useWideWorkspace } from '../shell/useWideWorkspace';
 // draw it — a message opened from the list and the conversation it belongs to — and the acts have to be the same acts
 // from both.
 //
-// The design draws the three as words alone wherever the head has a column to itself, and as symbols alone where the
-// column is the whole screen and the head is one compact bar over the message. Asking the agent is drawn on the accent
-// as a pill everywhere but on a phone, the compact bar of a one-pane window wider than one included: on a phone the
-// design moves it into the row of the thread's own state, and a width between the two would otherwise have neither. It is drawn only where there is an agent to reach and a conversation to hand over, which a
-// message the deployment has not placed in one does not have.
+// The design draws the three as words alone where the head has a column to itself and no toolbar above it offers them
+// already, and as symbols alone where the column is the whole screen and the head is one compact bar over the message.
+// So two panes narrower than the desktop leave the three to the toolbar, and draw them again while a selection has
+// taken the toolbar's place. Asking the agent is drawn on the accent as a pill everywhere but on a
+// phone, the compact bar of a one-pane window wider than one included: on a phone the design moves it into the row of
+// the thread's own state, and a width between the two would otherwise have neither. It is drawn only where there is an
+// agent to reach and a conversation to hand over, which a message the deployment has not placed in one does not have.
 //
 // The other three act on the message the head is about, and each goes the way every other surface already goes: an
 // answer is `useComposing`'s, exactly as the toolbar's three answers and a row's own menu are, and the flag is a
@@ -40,10 +42,17 @@ import { useWideWorkspace } from '../shell/useWideWorkspace';
 
 export function HeadActs({
     compact,
+    toolbarCarriesActs = false,
     message,
     thread,
 }: {
     readonly compact: boolean;
+
+    /**
+     * Whether the toolbar standing above the head already offers the three acts, which is where the head leaves them
+     * to it and keeps asking the agent alone: the subject keeps the width a second copy would take from it.
+     */
+    readonly toolbarCarriesActs?: boolean;
 
     /**
      * The message these acts are about, or `null` where the head stands over nothing one could be taken on.
@@ -122,35 +131,37 @@ export function HeadActs({
                 />
             )}
 
-            <div className="flex items-center gap-0.75">
-                {answer === null ? (
-                    <PlannedControl label={translate('mail.reply')} icon="reply" shape={actShape} />
-                ) : (
-                    <Control
-                        label={translate('mail.reply')}
-                        icon="reply"
-                        shape={actShape}
-                        onPress={answer('senderOnly')}
-                    />
-                )}
+            {toolbarCarriesActs ? null : (
+                <div className="flex items-center gap-0.75">
+                    {answer === null ? (
+                        <PlannedControl label={translate('mail.reply')} icon="reply" shape={actShape} />
+                    ) : (
+                        <Control
+                            label={translate('mail.reply')}
+                            icon="reply"
+                            shape={actShape}
+                            onPress={answer('senderOnly')}
+                        />
+                    )}
 
-                {answer === null ? (
-                    <PlannedControl label={translate('message.forward')} icon="forward" shape={actShape} />
-                ) : (
-                    <Control
-                        label={translate('message.forward')}
-                        icon="forward"
-                        shape={actShape}
-                        onPress={answer('forward')}
-                    />
-                )}
+                    {answer === null ? (
+                        <PlannedControl label={translate('message.forward')} icon="forward" shape={actShape} />
+                    ) : (
+                        <Control
+                            label={translate('message.forward')}
+                            icon="forward"
+                            shape={actShape}
+                            onPress={answer('forward')}
+                        />
+                    )}
 
-                {'press' in flag ? (
-                    <Control label={flagLabel} icon="flag" shape={actShape} onPress={flag.press} />
-                ) : (
-                    <PlannedControl label={flagLabel} icon="flag" shape={actShape} why={flag.why} />
-                )}
-            </div>
+                    {'press' in flag ? (
+                        <Control label={flagLabel} icon="flag" shape={actShape} onPress={flag.press} />
+                    ) : (
+                        <PlannedControl label={flagLabel} icon="flag" shape={actShape} why={flag.why} />
+                    )}
+                </div>
+            )}
         </div>
     );
 }

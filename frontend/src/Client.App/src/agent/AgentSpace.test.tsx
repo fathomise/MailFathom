@@ -138,6 +138,26 @@ async function opened(title: string): Promise<void> {
 }
 
 describe('AgentSpace', () => {
+    it('fits the field to a phone: a prompt on one line and Send as a named symbol', async () => {
+        Object.defineProperty(window, 'matchMedia', {
+            configurable: true,
+            value: (query: string) => ({
+                media: query,
+                matches: false,
+                addEventListener: () => undefined,
+                removeEventListener: () => undefined,
+            }),
+        });
+
+        screenOf(deploymentAnswering().transport);
+
+        expect(await screen.findByRole('textbox', { name: 'Tell the agent what to do' })).toHaveProperty(
+            'placeholder',
+            'Tell me what to do…',
+        );
+        expect(screen.getByRole('button', { name: 'Send' }).textContent).toBe('');
+    });
+
     it('lists the conversations the history holds', async () => {
         screenOf(deploymentAnswering().transport);
 

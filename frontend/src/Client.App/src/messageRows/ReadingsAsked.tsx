@@ -84,6 +84,7 @@ export function ReadingsAsked({
             onToggle={closesOnBack}
             ref={dialog}
             aria-labelledby={names}
+            data-pull="down"
             // The whole screen below the wide breakpoint and a dialog from it up, which is the design's own `dlgAi`:
             // a reading set beside its passage needs the width, and one stacked over it on a phone or a fold reads
             // better across the whole screen than in a card with scrim down either side. The full-screen shape has no

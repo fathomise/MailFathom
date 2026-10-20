@@ -603,7 +603,10 @@ export function Composer({
                 <>
                     {accounts.length > 1 && composition.answering === null ? (
                         <div className="flex items-center gap-2.5 border-b border-line-soft px-3.75 py-2.25">
-                            <label htmlFor={`${subjectId}-from`} className="w-22 shrink-0 text-sm text-muted">
+                            <label
+                                htmlFor={`${subjectId}-from`}
+                                className="w-14.5 shrink-0 text-sm text-muted workspace:w-22"
+                            >
                                 {translate('compose.from')}
                             </label>
 
@@ -667,7 +670,7 @@ export function Composer({
                             />
 
                             <p className="flex items-start gap-2.25 border-b border-line-soft bg-sunken px-3.75 py-2.25">
-                                <span className="w-22 shrink-0">
+                                <span className="w-14.5 shrink-0 workspace:w-22">
                                     <Icon name="visibility" className="size-icon-md text-warning-text" />
                                 </span>
                                 <span className="min-w-0 flex-1 text-sm text-text-soft text-pretty">
@@ -696,7 +699,10 @@ export function Composer({
                             word beside it. */}
                         {composition.answering === null ? (
                             <>
-                                <label htmlFor={subjectId} className="w-22 shrink-0 text-sm text-muted">
+                                <label
+                                    htmlFor={subjectId}
+                                    className="w-14.5 shrink-0 text-sm text-muted workspace:w-22"
+                                >
                                     {translate('compose.subject')}
                                 </label>
 
@@ -712,7 +718,7 @@ export function Composer({
                             </>
                         ) : (
                             <>
-                                <span id={subjectId} className="w-22 shrink-0 text-sm text-muted">
+                                <span id={subjectId} className="w-14.5 shrink-0 text-sm text-muted workspace:w-22">
                                     {translate('compose.subject')}
                                 </span>
 
@@ -785,13 +791,16 @@ export function Composer({
                         <button
                             type="button"
                             disabled={!stillBeingWritten}
-                            className="flex items-center gap-1.75 rounded-md border border-line-strong px-3 py-2 text-sm text-text-soft transition hover:bg-hover disabled:opacity-60"
+                            title={translate('compose.attach')}
+                            // The symbol alone on the phone, where it names the act beyond doubt; the name stays the
+                            // control's, read out and shown on hover.
+                            className="flex items-center justify-center gap-1.75 rounded-md border border-line-strong px-3 py-2 text-sm text-text-soft transition hover:bg-hover disabled:opacity-60 max-workspace:px-2 pointer-coarse:text-md"
                             onClick={() => {
                                 files.current?.click();
                             }}
                         >
                             <Icon name="attach_file" className="size-icon-md" />
-                            {translate('compose.attach')}
+                            <span className="max-workspace:sr-only">{translate('compose.attach')}</span>
                         </button>
 
                         {/* The platform's own file picker, kept out of the accessible tree because the control above is
@@ -817,7 +826,7 @@ export function Composer({
                         <button
                             type="button"
                             disabled={!sendable}
-                            className="rounded-md px-2 py-2 text-sm text-muted transition hover:bg-hover hover:text-text disabled:opacity-60"
+                            className="rounded-md px-2 py-2 text-sm text-muted transition hover:bg-hover hover:text-text disabled:opacity-60 pointer-coarse:text-base"
                             onClick={() => {
                                 void draft.save(sentAs(composition, copiesShown));
                             }}
@@ -825,7 +834,9 @@ export function Composer({
                             {translate('compose.saveDraft')}
                         </button>
 
-                        <p className="ms-auto text-xs text-faint">{translate('compose.shortcutSends')}</p>
+                        <p className="ms-auto text-xs text-faint pointer-coarse:hidden">
+                            {translate('compose.shortcutSends')}
+                        </p>
                     </div>
                 </>
             )}

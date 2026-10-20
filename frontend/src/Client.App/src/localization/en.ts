@@ -114,6 +114,7 @@ export const en = {
     'agent.starter.cases': 'Status of open cases',
     'agent.composerLabel': 'Tell the agent what to do',
     'agent.composerPlaceholder': 'Tell me what to do - write, schedule, check',
+    'agent.composerPlaceholderShort': 'Tell me what to do…',
     'agent.sendKey': '⏎',
     'agent.send': 'Send',
     'agent.cancel': 'Cancel',
@@ -424,6 +425,7 @@ export const en = {
 
     'intent.label': 'Ask your mail',
     'intent.placeholder': 'What do you want to ask your mail?',
+    'intent.placeholderShort': 'Ask your mail…',
     'intent.ask': 'Ask',
     'intent.askedBefore': 'Asked before',
     'intent.askedUnder': '{question}, asking about {scope}',
@@ -800,6 +802,8 @@ export const en = {
     'mail.hidePanels': 'Hide the panels - the correspondence alone',
     'mail.showPanels': "Show the thread's panels",
     'mail.listColumn': 'Message list',
+    'mail.showList': 'Show the list',
+    'mail.narrowList': 'Narrow the list',
     'mail.readingColumn': 'What is open',
     'mail.listWidth': 'Message list width',
     'mail.listWidthHint':
@@ -892,6 +896,7 @@ export const en = {
     'compose.aiPrompt': 'What the draft should say',
     'compose.aiPromptPlaceholder':
         'Write what this is about - e.g. \u201cwe accept the 2 h SLA but ask for a 5% CPI cap\u201d',
+    'compose.aiPromptPlaceholderShort': 'Write what this is about…',
     'compose.aiWrite': 'Write a draft',
     'compose.aiShorten': 'Shorten',
     'compose.aiExpand': 'Expand',
@@ -1080,6 +1085,7 @@ export const en = {
     'list.includeJunk': 'Include junk',
 
     'list.unread': 'Unread',
+    'list.stripRow': '{sender} - {subject}',
     'list.flagged': 'Flagged',
     'list.answered': 'Answered',
     'list.attachments': '{count} attached',
@@ -1119,6 +1125,7 @@ export const en = {
     'search.label': 'Find a message',
     'search.placeholder': 'Words from the message you are looking for',
     'search.placeholderDescribed': 'Search, or describe what you need',
+    'search.placeholderShort': 'Search mail…',
     'search.readingPhrase': 'Reading what you wrote…',
     'search.criteria': 'What this search is ranked by',
     'search.removeCriterion': 'Stop ranking by {criterion}',

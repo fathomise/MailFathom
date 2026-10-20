@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
     longestSearchText,
     phraseNotRead,
@@ -19,6 +19,7 @@ import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { ListHeadRowContext } from '../mailSpace/listHeadRow';
+import { useListFold } from '../messageRows/listFold';
 import { useMailboxesDrawer } from '../mailSpace/mailboxesDrawer';
 import type { MailScope } from '../workspace/mailScope';
 import { mostRecentSearches } from '../workspace/rememberedWorkspace';
@@ -36,6 +37,7 @@ import {
     type MailSearchAsk,
 } from './searchAsk';
 import { useScreenStep } from '../shell/screenLayers';
+import { useDesktopComposition } from '../shell/useWideWorkspace';
 
 // Finding a message, which stands at the top of the mail a person is looking at rather than on a screen of its own.
 // That is where somebody reaches for it — they are looking at a folder and the message is not in front of them — and
@@ -87,8 +89,30 @@ export function MailSearch({
     readonly onOpenDraft: ((storedEmailId: string) => void) | null;
 }) {
     const { translate } = useLocalization();
+    const desktop = useDesktopComposition();
     const { workspace, revise } = useWorkspace();
     const openMailboxes = useMailboxesDrawer();
+    const fold = useListFold();
+    const strip = fold?.folded === true;
+    const showPlace = useRef<HTMLDivElement>(null);
+    const narrowPlace = useRef<HTMLSpanElement>(null);
+    const turnedHere = useRef(false);
+
+    // The control pressed to fold or widen the list goes with the head it stood in, so focus is put on the one that
+    // turns it back rather than left on an element no longer drawn, which is where keyboard use stops silently.
+    useEffect(() => {
+        if (!turnedHere.current) {
+            return;
+        }
+
+        turnedHere.current = false;
+        (strip ? showPlace : narrowPlace).current?.querySelector('button')?.focus();
+    }, [strip]);
+
+    function turnTheList(): void {
+        turnedHere.current = true;
+        fold?.turn();
+    }
 
     const [typed, setTyped] = useState('');
 
@@ -194,8 +218,22 @@ export function MailSearch({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
+            {/* Folded to a strip, the head is the one control that widens the list again; the field and what stands
+                in its row stay in the document, hidden, so a search in progress is where it was when the list widens. */}
+            {fold !== null && strip ? (
+                <div ref={showPlace} className="flex shrink-0 justify-center border-b border-line py-2">
+                    <SurfaceControl
+                        label={translate('mail.showList')}
+                        icon="left_panel_open"
+                        onActivate={turnTheList}
+                    />
+                </div>
+            ) : null}
+
             <form
-                className="flex flex-wrap items-center gap-2.25 border-b border-line px-3 py-2.5"
+                className={`flex-wrap items-center gap-2 border-b border-line px-3 py-2 desktop:gap-2.25 desktop:py-2.5 ${
+                    strip ? 'hidden' : 'flex'
+                }`}
                 onSubmit={(event) => {
                     event.preventDefault();
                     search(typed);
@@ -203,6 +241,17 @@ export function MailSearch({
             >
                 {/* The way to the mailboxes stands first in this row wherever they are behind a drawer, which is the
                     design's own head row: the drawer, the field, and what searches it, on one line. */}
+                {fold === null ? null : (
+                    <span ref={narrowPlace} className="contents">
+                        <SurfaceControl
+                            label={translate('mail.narrowList')}
+                            icon="left_panel_close"
+                            edged
+                            onActivate={turnTheList}
+                        />
+                    </span>
+                )}
+
                 {openMailboxes === null ? null : (
                     <SurfaceControl label={translate('mailboxes.open')} icon="menu" edged onActivate={openMailboxes} />
                 )}
@@ -214,9 +263,13 @@ export function MailSearch({
                     <span className="sr-only">{translate('search.label')}</span>
                     <input
                         type="search"
-                        className="min-h-12 w-full rounded-full border border-line bg-rail px-4 text-md text-text transition placeholder:text-faint hover:border-line-strong workspace:min-h-0 workspace:px-3.25 workspace:py-2.25 workspace:text-base"
+                        className="min-h-11 w-full rounded-full border border-line bg-rail px-4 text-md text-text transition placeholder:text-faint hover:border-line-strong desktop:min-h-0 desktop:px-3.25 desktop:py-2.25 desktop:text-base"
                         placeholder={translate(
-                            readsPhrases === true ? 'search.placeholderDescribed' : 'search.placeholder',
+                            !desktop
+                                ? 'search.placeholderShort'
+                                : readsPhrases === true
+                                  ? 'search.placeholderDescribed'
+                                  : 'search.placeholder',
                         )}
                         value={typed}
                         onChange={(event) => {
@@ -226,12 +279,14 @@ export function MailSearch({
                     />
                 </label>
 
-                {/* Its symbol alone, as the design draws it; the name is on the control for whoever is not looking. */}
+                {/* Its symbol alone, as the design draws it; the name is on the control for whoever is not looking. Below
+                    the desktop composition the list pane is too narrow to spend a target on a second way into the same
+                    search — the field submits it, from a keyboard's Enter or a phone's own search key. */}
                 <button
                     type="submit"
                     aria-label={translate('search.submit')}
                     title={translate('search.submit')}
-                    className={`flex shrink-0 items-center whitespace-nowrap text-muted transition ${controlShapes.symbol}`}
+                    className={`hidden shrink-0 items-center whitespace-nowrap text-muted transition desktop:flex ${controlShapes.symbol}`}
                 >
                     <Icon name="search" className="size-icon-lg" />
                 </button>
@@ -251,7 +306,7 @@ export function MailSearch({
                 />
             </form>
 
-            {refused === null ? null : (
+            {refused === null || strip ? null : (
                 <p className="px-3 pt-2 text-sm text-warning" role="alert">
                     {translate(refused, { longest: String(longestSearchText) })}
                 </p>
@@ -260,7 +315,7 @@ export function MailSearch({
             {/* Offered where there is nothing else in the column's own controls to read, which is where somebody is
                 about to type. They are this tab's own and they go with the credential, which is what the workspace
                 already promises everything it holds. */}
-            {ask === null && beingRead === null && workspace.recentSearches.length > 0 ? (
+            {ask === null && beingRead === null && !strip && workspace.recentSearches.length > 0 ? (
                 <RecentSearches
                     searches={workspace.recentSearches}
                     onSearch={search}
@@ -273,7 +328,7 @@ export function MailSearch({
             {/* What stands under the row while a sentence is being read. It is a line rather than a spinner over the
                 folder's own list, because the list below is about to be replaced by results and a column that goes on
                 showing the inbox reads as a search that did nothing. */}
-            {beingRead === null ? null : (
+            {beingRead === null || strip ? null : (
                 <p className="px-3 pt-2 text-sm text-muted" role="status">
                     {translate('search.readingPhrase')}
                 </p>

@@ -6,6 +6,7 @@ import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
 import { addressOf, implementedSpaces, spaceLabels, type Space } from '../routing/spaces';
 import { useTopLayerSurface } from './screenLayers';
+import { NavigationMark } from './NavigationMark';
 import { spaceIcons } from './spaceIcons';
 import { type ReactNode } from 'react';
 
@@ -67,13 +68,13 @@ export function SpaceOverflow({
                 type="button"
                 popoverTarget={sheet}
                 aria-current={holdsCurrent ? 'true' : undefined}
-                className={`flex flex-1 cursor-pointer flex-col items-center gap-0.75 rounded-xl px-0.5 py-1.75 text-sm transition ${
-                    holdsCurrent
-                        ? 'bg-accent-soft font-semibold text-accent-deep'
-                        : 'text-muted hover:bg-hover hover:text-text'
+                className={`flex flex-1 cursor-pointer flex-col items-center gap-1 rounded-xl px-0.5 py-1.5 text-sm transition ${
+                    holdsCurrent ? 'font-semibold text-accent-deep' : 'text-muted hover:bg-hover hover:text-text'
                 }`}
             >
-                <Icon name="more_horiz" className="size-icon-2xl" />
+                <NavigationMark current={holdsCurrent}>
+                    <Icon name="more_horiz" className="size-icon-2xl" />
+                </NavigationMark>
                 <span className="max-w-full truncate">{translate('shell.more')}</span>
             </button>
 
@@ -84,6 +85,7 @@ export function SpaceOverflow({
                 popover="auto"
                 onToggle={closesOnBack}
                 aria-label={translate('shell.more')}
+                data-pull="down"
                 // Dimmed behind, which the design draws and which is what says the sheet is the whole of what
                 // is being answered right now. The platform paints it: a popover has a `::backdrop` of its own exactly
                 // as the notification panel's dialog does, and this is the same token that one uses.

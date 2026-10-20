@@ -35,14 +35,14 @@ export function AgendaView({
 
     if (days.length === 0) {
         return (
-            <div className="flex min-w-0 flex-1 flex-col px-4 py-4 panes:min-h-0 panes:overflow-y-auto workspace:px-6">
+            <div className="flex min-w-0 flex-1 flex-col px-4 py-4 desktop:min-h-0 desktop:overflow-y-auto workspace:px-6">
                 <p className="text-base text-muted text-pretty">{translate('calendar.nothingInSpan')}</p>
             </div>
         );
     }
 
     return (
-        <div className="flex min-w-0 flex-1 flex-col gap-3.5 px-4 py-3.5 panes:min-h-0 panes:overflow-y-auto workspace:px-6">
+        <div className="flex min-w-0 flex-1 flex-col gap-3.5 px-4 py-3.5 desktop:min-h-0 desktop:overflow-y-auto workspace:px-6">
             {days.map(({ day, ofTheDay }) => (
                 <div key={day.getTime()} className="flex min-w-0 items-start gap-3.5">
                     <p className="flex w-16 shrink-0 flex-col">

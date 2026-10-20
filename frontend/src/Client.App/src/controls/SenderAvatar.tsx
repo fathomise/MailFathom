@@ -20,13 +20,14 @@ import { initialsOf } from './initials';
 // letters is the same circle wherever it stands.
 
 /**
- * Where the avatar stands: a row of a list, the head of a message drawn as a card, an opened person's own page, or one
+ * Where the avatar stands: a row of a list or that row folded to a strip, the head of a message drawn as a card, an opened person's own page, or one
  * of the two places a block of an AI answer draws somebody.
  */
-export type SenderAvatarPlace = 'row' | 'card' | 'contact' | 'person' | 'answerRow' | 'answerStack';
+export type SenderAvatarPlace = 'row' | 'strip' | 'card' | 'contact' | 'person' | 'answerRow' | 'answerStack';
 
 const places: Readonly<Record<SenderAvatarPlace, string>> = {
     row: 'size-8.5 text-sm workspace:size-5.5 workspace:text-xs',
+    strip: 'size-9 text-sm',
     card: 'size-7.5 text-xs',
     contact: 'size-8 text-xs',
     person: 'size-13 text-lg',

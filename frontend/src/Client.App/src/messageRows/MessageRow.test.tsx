@@ -9,6 +9,7 @@ import { LocalizationProvider } from '../localization/Localization';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { pressDrift, pressOpensAfter } from '../contextMenu/rowPress';
 import { swipeCarriesTo, swipeDistance, swipeDrift, swipeEngages } from '../controls/swipeAcross';
+import { ListFoldContext } from './listFold';
 import { MailboxActsContext, nothingActed, type MailboxAct, type MailboxActs } from '../mailboxActs/useMailboxActs';
 import { ReadMarkingContext, nothingMarkedRead, type MarkedIn, type ReadMarking } from '../readMarking/useReadMarking';
 import { MessageRow } from './MessageRow';
@@ -360,6 +361,31 @@ describe('MessageRow', () => {
         const row = screen.getByRole('option', { name: /^Anna Kowalska/ });
 
         expect(within(row).getByText('AK')).toBeDefined();
+    });
+
+    it('draws the sender alone where the list is folded to a strip, named by who wrote and about what', () => {
+        render(
+            <LocalizationProvider>
+                <ListFoldContext value={{ folded: true, turn: () => undefined }}>
+                    <ul>
+                        <MessageRow
+                            email={{ ...email, senderDisplayName: 'Anna Kowalska' }}
+                            position={1}
+                            open
+                            selected={false}
+                            focusable
+                            onOpen={() => undefined}
+                            onPoint={() => undefined}
+                            onElement={() => undefined}
+                        />
+                    </ul>
+                </ListFoldContext>
+            </LocalizationProvider>,
+        );
+
+        const row = screen.getByRole('option', { name: /^Anna Kowalska - The quarter is closed/ });
+
+        expect(within(row).getByTitle('Anna Kowalska - The quarter is closed')).toBeDefined();
     });
 
     it('says nothing of another message’s act, the pending line belonging to the row it is about', () => {

@@ -114,6 +114,7 @@ export const pl: Catalogue = {
     'agent.starter.cases': 'Stan otwartych spraw',
     'agent.composerLabel': 'Powiedz agentowi, co ma zrobić',
     'agent.composerPlaceholder': 'Powiedz, co mam zrobić – napisać, zaplanować, sprawdzić',
+    'agent.composerPlaceholderShort': 'Powiedz, co mam zrobić…',
     'agent.sendKey': '⏎',
     'agent.send': 'Wyślij',
     'agent.cancel': 'Anuluj',
@@ -432,6 +433,7 @@ export const pl: Catalogue = {
 
     'intent.label': 'Zapytaj swoją pocztę',
     'intent.placeholder': 'O co chcesz zapytać swoją pocztę?',
+    'intent.placeholderShort': 'Zapytaj swoją pocztę…',
     'intent.ask': 'Zapytaj',
     'intent.askedBefore': 'Wcześniejsze pytania',
     'intent.askedUnder': '{question}, pytanie dotyczy: {scope}',
@@ -815,6 +817,8 @@ export const pl: Catalogue = {
     'mail.hidePanels': 'Ukryj panele – sama korespondencja',
     'mail.showPanels': 'Pokaż panele wątku',
     'mail.listColumn': 'Lista wiadomości',
+    'mail.showList': 'Pokaż listę',
+    'mail.narrowList': 'Zwęź listę',
     'mail.readingColumn': 'To, co otwarte',
     'mail.listWidth': 'Szerokość listy wiadomości',
     'mail.listWidthHint':
@@ -906,6 +910,7 @@ export const pl: Catalogue = {
     'compose.aiPrompt': 'Czego ma dotyczy\u0107 szkic',
     'compose.aiPromptPlaceholder':
         'Napisz, o co chodzi – np. \u201eprzyjmujemy SLA 2 h, ale prosimy o 5% czapki na indeksacj\u0119\u201d',
+    'compose.aiPromptPlaceholderShort': 'Napisz, o co chodzi…',
     'compose.aiWrite': 'Napisz szkic',
     'compose.aiShorten': 'Skr\u00f3\u0107',
     'compose.aiExpand': 'Rozwi\u0144',
@@ -1097,6 +1102,7 @@ export const pl: Catalogue = {
     'list.includeJunk': 'Uwzględnij spam',
 
     'list.unread': 'Nieprzeczytana',
+    'list.stripRow': '{sender} - {subject}',
     'list.flagged': 'Oznaczona',
     'list.answered': 'Odpowiedziano',
     'list.attachments': 'Załączniki: {count}',
@@ -1137,6 +1143,7 @@ export const pl: Catalogue = {
     'search.label': 'Znajdź wiadomość',
     'search.placeholder': 'Słowa z wiadomości, której szukasz',
     'search.placeholderDescribed': 'Szukaj lub opisz, czego potrzebujesz',
+    'search.placeholderShort': 'Szukaj w poczcie…',
     'search.readingPhrase': 'Czytam wpisane zdanie…',
     'search.criteria': 'Co ustala kolejność wyników',
     'search.removeCriterion': 'Przestań brać pod uwagę: {criterion}',

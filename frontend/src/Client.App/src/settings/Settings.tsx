@@ -157,11 +157,16 @@ export function Settings({
             onClose={() => {
                 onClose(clearingTheScreen.current);
             }}
+            data-pull="down"
             // The insets are the screen's here rather than the frame's: a modal dialog stands in the platform's own top
             // layer, so the padding the frame carries is not around it and a full-bleed settings screen would run under
             // a cutout and under the gesture bar.
             className="max-panes:surface-sheet panes:surface-pop m-0 h-full max-h-full w-full max-w-full rounded-none border-0 bg-panel p-0 pt-safe-top pr-safe-right pb-safe-bottom pl-safe-left text-md text-text backdrop:bg-scrim open:flex open:flex-col"
         >
+            <span aria-hidden="true" className="flex h-5 shrink-0 items-center justify-center bg-sunken panes:hidden">
+                <span className="h-1 w-9.5 rounded-full bg-line-strong" />
+            </span>
+
             <div className="flex shrink-0 items-center gap-2.5 border-b border-line bg-sunken pt-3 pr-3 pb-2.5 pl-4 panes:min-h-9 panes:py-2.5 panes:pr-3.5 panes:pl-5">
                 <Icon name="settings" className="size-icon-xl text-muted" />
 

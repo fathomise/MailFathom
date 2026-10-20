@@ -15,6 +15,7 @@ import { SenderAvatar } from '../controls/SenderAvatar';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { actsDrawn } from '../mailboxActs/drawnActs';
+import { useListFold } from './listFold';
 import {
     actPending,
     changesAFlag,
@@ -207,7 +208,14 @@ export function MessageRow({
     const marking = useReadMarking();
     const acts = useMailboxActs();
     const press = useRowPress(onPress);
-    const swipe = useRowSwipe(press, { answer: onAnswer, archive: onArchive });
+    const folded = useListFold()?.folded === true;
+
+    // A strip of senders is too narrow to carry a row across, so folded it answers a tap and its menu alone.
+    const swipe = useRowSwipe(press, folded ? {} : { answer: onAnswer, archive: onArchive });
+    const stripName = translate('list.stripRow', {
+        sender: correspondent(email) ?? translate('list.senderUnknown'),
+        subject: email.subject ?? translate('list.noSubject'),
+    });
 
     // Whether the primary button went down on this row and has neither left it as a drag nor been let go elsewhere,
     // which is what makes letting it go here a press on the row.
@@ -365,10 +373,40 @@ export function MessageRow({
             // just been drawn has nothing to have changed from, so washing it as well would be marking it against a
             // version of itself the reader never saw. All three are the design's, and `styles.css` holds why
             // neither the arrival nor the going here carries the height a flowing list's does.
-            className={`relative h-message-row-narrow touch-pan-y overflow-hidden border-b border-b-sunken workspace:h-message-row ${
+            className={`relative touch-pan-y overflow-hidden ${
+                folded
+                    ? 'flex h-14 items-center justify-center'
+                    : 'h-message-row-narrow border-b border-b-sunken workspace:h-message-row'
+            } ${
                 going ?? (arrived === true ? 'animate-row-landing' : changed === true ? 'animate-row-changed' : '')
             } ${carried ? 'opacity-45' : ''}`}
         >
+            {folded ? (
+                // Folded to a strip at the fold, the row is its sender alone: a target a finger takes, the open one
+                // ringed, an unread one dotted. Its name is the one the whole row would have read out, so the list is
+                // the same list to a screen reader either way.
+                <span
+                    title={stripName}
+                    className={`relative flex size-13 cursor-pointer items-center justify-center rounded-xl transition ${
+                        selected || open ? 'bg-accent-soft ring-2 ring-accent-line ring-inset' : 'hover:bg-hover'
+                    }`}
+                >
+                    <SenderAvatar displayName={email.senderDisplayName} address={email.senderAddress} place="strip" />
+
+                    <span className="sr-only">{stripName}</span>
+
+                    {unread ? (
+                        <>
+                            <span
+                                aria-hidden="true"
+                                className="absolute end-1.75 top-1.75 size-2.5 rounded-full bg-accent ring-2 ring-sunken"
+                            />
+                            <span className="sr-only">{translate('list.unread')}</span>
+                        </>
+                    ) : null}
+                </span>
+            ) : null}
+
             {carrying === undefined ? null : (
                 // What the row is being carried off is showing: the act, named and drawn, against the edge the finger
                 // has uncovered. Hidden from the accessibility tree because it says what a gesture is about to do, and
@@ -395,7 +433,7 @@ export function MessageRow({
                 // The row that is open, and the rows picked out for a question, are marked at the edge rather than by
                 // a ring around them, which is the design's mark and keeps the row's own lines where they
                 // were.
-                className={`flex h-full cursor-pointer flex-col justify-center gap-1.5 overflow-hidden border-s-4 ps-3 pe-4 workspace:gap-1.25 workspace:ps-2.5 workspace:pe-3.5 ${
+                className={`${folded ? 'hidden' : 'flex'} h-full cursor-pointer flex-col justify-center gap-1.5 overflow-hidden border-s-4 ps-3 pe-4 workspace:gap-1.25 workspace:ps-2.5 workspace:pe-3.5 ${
                     wash ?? ''
                 } ${swipe.carried === 0 ? 'transition' : ''} ${
                     selected

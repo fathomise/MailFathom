@@ -52,12 +52,14 @@ function drawHead({
     acting = message,
     acts = actsOffering(),
     compact = false,
+    toolbarCarriesActs = false,
     handToAgent = null,
 }: {
     readonly offered?: boolean;
     readonly acting?: ActedMessage | null;
     readonly acts?: MailboxActs;
     readonly compact?: boolean;
+    readonly toolbarCarriesActs?: boolean;
     readonly handToAgent?: ((handOver: AgentHandOver) => void) | null;
 } = {}): { composed: ReturnType<typeof vi.fn> } {
     const composed = vi.fn();
@@ -68,7 +70,12 @@ function drawHead({
             <AgentHandOverContext value={handToAgent}>
                 <MailboxActsContext value={acts}>
                     <ComposingContext value={composing}>
-                        <HeadActs compact={compact} message={acting} thread={conversation} />
+                        <HeadActs
+                            compact={compact}
+                            toolbarCarriesActs={toolbarCarriesActs}
+                            message={acting}
+                            thread={conversation}
+                        />
                     </ComposingContext>
                 </MailboxActsContext>
             </AgentHandOverContext>
@@ -174,6 +181,14 @@ describe('HeadActs', () => {
 
         expect(composed).not.toHaveBeenCalled();
         expect(performed).not.toHaveBeenCalled();
+    });
+
+    it('leaves the three to the toolbar where the toolbar above already offers them', () => {
+        drawHead({ toolbarCarriesActs: true });
+
+        expect(screen.queryByRole('button', { name: 'Reply' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Forward' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Flag' })).toBeNull();
     });
 
     it('hands the conversation it stands over to the agent', () => {

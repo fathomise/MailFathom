@@ -12,6 +12,7 @@ import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
 import { TaskRow } from './TaskRow';
 import { TaskRowMenu } from './TaskRowMenu';
+import { reachedTheRowsRead } from './rowsRead';
 import { groupedTasks, type TaskGroupName } from './taskGrouping';
 import { Departing } from '../shell/Departing';
 
@@ -131,11 +132,8 @@ export function TaskList({
     const groups = groupedTasks(tasks, now, timeZone);
     const counted = new Intl.NumberFormat(locale);
 
-    // Whether a scroll has reached the rows already read, which is what asks the deployment for the page after them.
-    // It is read off the scroll rather than off a render, because a read going out is something a person's gesture
-    // caused rather than something a commit should start.
     function scrolled(element: HTMLDivElement): void {
-        if (element.scrollHeight - element.scrollTop - element.clientHeight <= element.clientHeight) {
+        if (reachedTheRowsRead(element)) {
             onReadMore();
         }
     }
@@ -176,7 +174,7 @@ export function TaskList({
 
     return (
         <div
-            className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 py-5 workspace:px-6"
+            className="flex shrink-0 flex-col gap-5 px-4 py-5 workspace:px-6 panes:min-h-0 panes:flex-1 panes:shrink panes:overflow-y-auto"
             onScroll={(event) => {
                 scrolled(event.currentTarget);
             }}
