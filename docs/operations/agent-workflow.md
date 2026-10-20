@@ -1009,6 +1009,12 @@ below leave it out for. `scripts/test-agent-workflow.sh` holds the list to exact
 workflows a pull request runs, in both directions, so a new pipeline cannot be forgotten
 into a pull request that then never reaches `Ready to merge`.
 
+A **clean head**, below, is one the reviewer approved, or one it found nothing on and
+published as a `COMMENT` under `NO FINDINGS` because the author is not a maintainer. The rules
+read the two alike: what the second still waits on is a maintainer's approval, which is a
+merge decision rather than a change the agent owes, so it belongs in `Ready to merge` beside
+the first.
+
 Six rules live in `.github/pull-request/select-board-status.sh`, read top to bottom:
 
 - A pull request **in the merge queue** earns `In merge`, before anything else is asked of it
@@ -1023,15 +1029,10 @@ Six rules live in `.github/pull-request/select-board-status.sh`, read top to bot
   `SKIPPED` and `NEUTRAL` are the ordinary shape of a job a path filter turned off, and
   `CANCELLED` is what a superseded run leaves behind on a head that has since been read
   again.
-- A **head the reviewer withheld approval on for a finding** earns `Changes requested` as
-  well. That verdict is published as a `COMMENT` review under `NEEDS CHANGES` on purpose, so
+- A **head the reviewer found something on** earns `Changes requested` as well. That verdict is published as a `COMMENT` review under `NEEDS CHANGES` on purpose, so
   that a reviewer reporting no status check cannot block a merge, which is exactly why GitHub's
   built-in `Code changes requested` workflow never fires for it — this rule and the three below
   are the column's only writers.
-- A **clean head** is one the reviewer approved, or one it found nothing on and published as a
-  `COMMENT` under `NO FINDINGS` because the author is not a maintainer. The rules below read the
-  two alike: what the second still waits on is a maintainer's approval, which is a merge decision
-  rather than a change the agent owes, so it belongs in `Ready to merge` beside the first.
 - A **clean head the merge queue removed after the verdict** earns `Changes requested`.
   The queue lets go of a pull request when the tree it combined failed a required check, and
   that is a change the agent owes however green the head is; read without it, the verdict and
@@ -1047,7 +1048,7 @@ Six rules live in `.github/pull-request/select-board-status.sh`, read top to bot
   nothing left to wait for is claimed from an answer rather than from the absence of one.
   A conflict is a rebase the agent owes, which is what `Changes requested` already says, so
   it takes no column of its own. Both answers carry one authority, every status but `Done` and
-  `Blocked`. That is what moves an approval that met a conflict before its pipelines
+  `Blocked`. That is what moves a clean verdict that met a conflict before its pipelines
   finished, which never reached `Ready to merge`.
 - A pull request that **no longer merges** and that none of the rules above describes moves
   the issues it closes from `Ready to merge` to `Changes requested`. That is a draft, and a
@@ -1069,8 +1070,8 @@ flight can add to what that answer has to cover. So a review published minutes b
 running waits with it, and the pipeline that concludes last raises the event that asks again.
 
 **Whether the change still merges is asked after the verdicts, not before them.** A conflict
-is not an answer to what a reader or a pipeline objected to: a head the reviewer withheld
-approval on owes the answer and the rebase both, and the column that says the agent owes
+is not an answer to what a reader or a pipeline objected to: a head the reviewer found
+something on owes the answer and the rebase both, and the column that says the agent owes
 something is `Changes requested`. Asked first, the conflict rule would print a status whose
 write is refused everywhere but `Ready to merge`, and the verdict it shadowed would never be
 published — the item would stay in `In review` until a hand moved it.

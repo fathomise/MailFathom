@@ -7,7 +7,7 @@
 #
 # Two callers share this walk today: `Fathom review` announcing that a review is running, and
 # `Apply pull request rules` writing whichever status a pull request's state earns — a failed
-# pipeline, a withheld approval, an approval the checks agree with, or a conflict.
+# pipeline, a review that found something, a clean verdict the checks agree with, or a conflict.
 # They differ in which value they write and in which statuses they may write it over;
 # everything else is the same — collect what the pull request closes, resolve the field and its
 # option by name, find the item on *this* board, and mutate it. That is why the walk lives here

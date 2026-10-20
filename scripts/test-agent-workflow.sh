@@ -4484,11 +4484,11 @@ run_fathom_review_announcement() {
 }
 
 # Neither verdict reaches the board from this workflow. `Ready to merge` never did — it reads the
-# diff and cannot see the pipeline — and a withheld approval no longer does either, because it makes
-# the same claim about a state this run cannot see: what is owed is the agent's answer, while a
-# pipeline still in flight can add to what that answer has to cover. Both are decided in
-# `Apply pull request rules`, from the review and the checks together, and the only status left here
-# is the `In review` the announcement writes.
+# diff and cannot see the pipeline — and a review that found something no longer does either,
+# because it makes the same claim about a state this run cannot see: what is owed is the agent's
+# answer, while a pipeline still in flight can add to what that answer has to cover. Both are
+# decided in `Apply pull request rules`, from the review and the checks together, and the only
+# status left here is the `In review` the announcement writes.
 fathom_review_records_no_verdict_on_the_board() {
   local workflow="$source_repository_root/.github/workflows/fathom-review.yml"
 
@@ -4715,8 +4715,8 @@ select_board_status_earns_in_merge_while_the_queue_holds_the_pull_request() {
   assert_file_content $'In merge\t\tDone,Blocked' "$output_file"
 }
 
-# The queue letting go of an approved head is a change owed by the agent, and the green head would
-# otherwise read as `Ready to merge` again on the next sweep. A removal the current approval came
+# The queue letting go of a clean head is a change owed by the agent, and the green head would
+# otherwise read as `Ready to merge` again on the next sweep. A removal the current verdict came
 # after is one a push and a new review already answered.
 select_board_status_earns_changes_requested_for_a_head_the_queue_removed() {
   local output_file="$test_directory/select-board-status-removed"
@@ -4881,7 +4881,7 @@ select_board_status_earns_changes_requested_from_a_failed_check() {
   done
 }
 
-# The reviewer publishes a withheld approval as a `COMMENT` review so that it cannot block a merge,
+# The reviewer publishes what it found as a `COMMENT` review so that it cannot block a merge,
 # which is exactly why GitHub's built-in `Code changes requested` workflow never fires for it. This
 # rule is the only writer of that column, and it is asked here rather than in `Fathom review` because
 # it makes the same claim about the pipelines that `Ready to merge` does.
@@ -5065,7 +5065,7 @@ if [[ "$arguments" == *'statusCheckRollup'* ]]; then
   # shape the API answers in.
   pull_request="$(
     jq -nc --arg mergeable "$mergeable" \
-      --argjson reviewed "$(cat "$FAKE_BOARD_DIRECTORY/reviewed" 2>/dev/null || printf 'false')" \
+      --arg reviewed "$(cat "$FAKE_BOARD_DIRECTORY/reviewed" 2>/dev/null || printf 'false')" \
       --argjson checks "$(cat "$FAKE_BOARD_DIRECTORY/checks.json" 2>/dev/null || printf '[]')" \
       --argjson queued "$(cat "$FAKE_BOARD_DIRECTORY/queued" 2>/dev/null || printf 'false')" \
       --arg removed "$(cat "$FAKE_BOARD_DIRECTORY/removed-at" 2>/dev/null || true)" \
@@ -5073,11 +5073,14 @@ if [[ "$arguments" == *'statusCheckRollup'* ]]; then
         headRefOid: "head-commit", isInMergeQueue: $queued,
         timelineItems: {nodes: (if $removed == "" then [] else [{createdAt: $removed}] end)},
         labels: {nodes: []},
-        latestReviews: {nodes: (if $reviewed
-                                then [{author: {__typename: "Bot", login: "fathom-reviewer"},
-                                       state: "APPROVED", submittedAt: "2026-10-17T10:00:00Z",
-                                       commit: {oid: "head-commit"}}]
-                                else [] end)},
+        latestReviews: {nodes: (if $reviewed == "false" then []
+                                else [{author: {__typename: "Bot", login: "fathom-reviewer"},
+                                       state: (if $reviewed == "no-findings" then "COMMENTED" else "APPROVED" end),
+                                       body: (if $reviewed == "no-findings"
+                                              then "# NO FINDINGS\n\nA maintainer still has to approve it."
+                                              else "# APPROVED\n\nNothing above the bar." end),
+                                       submittedAt: "2026-10-17T10:00:00Z",
+                                       commit: {oid: "head-commit"}}] end)},
         commits: {nodes: [{commit: {statusCheckRollup:
           {contexts: {totalCount: ($checks | length),
                       nodes: ($checks | map({__typename: "CheckRun", name: .name,
@@ -5231,6 +5234,23 @@ pull_request_rules_decide_the_pull_request_a_concluded_pipeline_ran_on() {
 
   ((board_status == 0))
   assert_contains 'Deciding pull request 1' "$output_file"
+  assert_contains 'option=option-ready' "$board_mutations_file"
+  assert_contains 'Issue 12 moved from In review to Ready to merge' "$output_file"
+}
+
+# A contributor's clean pass arrives as a `COMMENT` whose body opens with `NO FINDINGS`, and it reaches
+# `Ready to merge` only through the body the collecting script projects — so this runs the whole
+# sweep, from GitHub's answer through the projection to the board write, rather than a state file.
+pull_request_rules_read_a_no_findings_comment_as_ready_to_merge() {
+  local output_file="$test_directory/pull-request-rules-no-findings-output"
+  local workflow_run_head_sha='head-commit'
+  local commit_pull_requests='[{"number": 1, "state": "open"}]'
+  local reviewed='no-findings'
+  local checks_json='[{"workflow": "CI", "name": "Required CI", "status": "COMPLETED", "conclusion": "SUCCESS"}]'
+
+  run_pull_request_rules_board 'MERGEABLE' 'In review' '0' "$output_file"
+
+  ((board_status == 0))
   assert_contains 'option=option-ready' "$board_mutations_file"
   assert_contains 'Issue 12 moved from In review to Ready to merge' "$output_file"
 }
@@ -11876,6 +11896,7 @@ run_test pull_request_rules_listen_to_every_workflow_a_pull_request_runs
 run_test pull_request_rules_move_a_pull_request_that_stopped_merging
 run_test pull_request_rules_move_nothing_for_a_pull_request_that_still_merges
 run_test pull_request_rules_decide_the_pull_request_a_concluded_pipeline_ran_on
+run_test pull_request_rules_read_a_no_findings_comment_as_ready_to_merge
 run_test pull_request_rules_move_an_approved_pull_request_that_stopped_merging_out_of_review
 run_test pull_request_rules_decide_nothing_for_a_head_no_open_pull_request_has
 run_test pull_request_rules_wait_for_github_to_decide_mergeability

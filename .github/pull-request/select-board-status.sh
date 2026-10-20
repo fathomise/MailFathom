@@ -37,10 +37,10 @@
 #   that whether the objection was written by a reader or produced by a build — so this rule names no
 #   required status and describes whatever item it finds, the way a review's verdict does.
 #
-# - A head the reviewer withheld approval on for a finding earns `Changes requested` as well. That
-#   verdict is published as a `COMMENT` review under `NEEDS CHANGES` on purpose, so that it cannot
-#   block a merge, and GitHub's built-in `Code changes requested` workflow therefore never fires for
-#   it — the column that says a change is waiting on the agent has no other writer.
+# - A head the reviewer found something on earns `Changes requested` as well. That verdict is
+#   published as a `COMMENT` review under `NEEDS CHANGES` on purpose, so that it cannot block a
+#   merge, and GitHub's built-in `Code changes requested` workflow therefore never fires for it —
+#   the column that says a change is waiting on the agent has no other writer.
 #
 # - A clean head the merge queue removed after the verdict earns `Changes requested`. The queue
 #   lets go of a pull request when the tree it combined failed a required check, and that is a change
@@ -76,7 +76,7 @@
 # Rules are read top to bottom and the first match wins, because the field holds one value. Order is
 # therefore a decision, and whether the change still merges is asked after the verdicts rather than
 # before them. A conflict is not an answer to what a reader or a pipeline objected to: an item whose
-# reviewer withheld approval on a conflicting head owes the answer and the rebase both, and the column
+# reviewer found something on a conflicting head owes the answer and the rebase both, and the column
 # that says the agent owes something is `Changes requested`. Asked first, the conflict rule would print
 # a status whose write is refused everywhere but `Ready to merge`, and the verdict it shadowed would
 # never be published.
