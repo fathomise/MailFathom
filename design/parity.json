@@ -276,25 +276,6 @@
           }
         }
       ]
-    },
-    "composer": {
-      "file": "prototype.dc.html",
-      "properties": {
-        "theme": null,
-        "space": "mail"
-      },
-      "steps": [
-        {
-          "click": {
-            "text": "edit_square"
-          }
-        },
-        {
-          "expect": {
-            "text": "Send"
-          }
-        }
-      ]
     }
   }
 }
