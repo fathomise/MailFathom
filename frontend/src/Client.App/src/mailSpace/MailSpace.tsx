@@ -21,7 +21,7 @@ import { useWorkspace, type Workspace } from '../workspace/useWorkspace';
 import { AiFilters } from './AiFilters';
 import { BackToList } from './BackToList';
 import { MailboxesDrawerContext } from './mailboxesDrawer';
-import { ListFoldContext, type ListFold } from './listFold';
+import { ListFoldContext, type ListFold } from '../messageRows/listFold';
 import {
     listWidthWithin,
     narrowestList,

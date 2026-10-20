@@ -9,7 +9,7 @@ import { LocalizationProvider } from '../localization/Localization';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { pressDrift, pressOpensAfter } from '../contextMenu/rowPress';
 import { swipeCarriesTo, swipeDistance, swipeDrift, swipeEngages } from '../controls/swipeAcross';
-import { ListFoldContext } from '../mailSpace/listFold';
+import { ListFoldContext } from './listFold';
 import { MailboxActsContext, nothingActed, type MailboxAct, type MailboxActs } from '../mailboxActs/useMailboxActs';
 import { ReadMarkingContext, nothingMarkedRead, type MarkedIn, type ReadMarking } from '../readMarking/useReadMarking';
 import { MessageRow } from './MessageRow';

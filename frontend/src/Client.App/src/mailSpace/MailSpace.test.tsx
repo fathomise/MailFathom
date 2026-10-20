@@ -14,7 +14,7 @@ import { useWorkspace, type Workspace } from '../workspace/useWorkspace';
 import { BackToList } from './BackToList';
 import { listWidthStep, readListWidth, startingListWidth, storeListWidth } from './listWidth';
 import { mailboxesWidthStep, readMailboxesWidth, startingMailboxesWidth, storeMailboxesWidth } from './mailboxesWidth';
-import { useListFold } from './listFold';
+import { useListFold } from '../messageRows/listFold';
 import { useMailboxesDrawer } from './mailboxesDrawer';
 import { MailSpace } from './MailSpace';
 

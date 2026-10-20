@@ -2,12 +2,12 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { act, fireEvent, render, renderHook, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientSession, MailAccount, MailFathomTransport } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
-import { ListFoldContext, type ListFold } from '../mailSpace/listFold';
+import { ListFoldContext, type ListFold } from '../messageRows/listFold';
 import { ScreenLayersContext, useScreenLayerStack } from '../shell/screenLayers';
 import { everything, type MailScope } from '../workspace/mailScope';
 import { WorkspaceProvider } from '../workspace/Workspace';
@@ -157,6 +157,18 @@ function searchUnder(transport: MailFathomTransport, scope: MailScope = everythi
             </WorkspaceProvider>
         </LocalizationProvider>
     );
+}
+
+// A list whose fold turns when it is asked to, as the Mail space's does.
+function TurningList() {
+    const [folded, setFolded] = useState(true);
+
+    return searchInAFoldedList({
+        folded,
+        turn: () => {
+            setFolded((was) => !was);
+        },
+    });
 }
 
 function searchInAFoldedList(fold: ListFold): ReactElement {
@@ -469,5 +481,17 @@ describe('MailSearch, at the fold', () => {
 
         expect(turn).toHaveBeenCalledOnce();
         expect(screen.queryByRole('button', { name: 'Show the list' })).toBeNull();
+    });
+
+    it('puts focus on the control that turns the list back, the pressed one having gone with its head', () => {
+        render(<TurningList />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Show the list' }));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Narrow the list' }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Narrow the list' }));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Show the list' }));
     });
 });

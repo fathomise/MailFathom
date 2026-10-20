@@ -15,7 +15,7 @@ import { SenderAvatar } from '../controls/SenderAvatar';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { actsDrawn } from '../mailboxActs/drawnActs';
-import { useListFold } from '../mailSpace/listFold';
+import { useListFold } from './listFold';
 import {
     actPending,
     changesAFlag,

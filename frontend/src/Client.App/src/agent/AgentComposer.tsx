@@ -161,7 +161,8 @@ export function AgentComposer({
                     type="submit"
                     disabled={sending}
                     aria-label={wide ? undefined : translate('agent.send')}
-                    className="flex size-11 shrink-0 items-center justify-center rounded-md bg-accent text-base whitespace-nowrap text-on-accent transition hover:opacity-90 disabled:opacity-60 workspace:size-auto workspace:min-h-11 workspace:px-4.5 desktop:min-h-0 desktop:px-4 desktop:py-2"
+                    title={wide ? undefined : translate('agent.send')}
+                    className="flex size-11 shrink-0 items-center justify-center rounded-md bg-accent text-base whitespace-nowrap text-on-accent transition hover:opacity-90 disabled:opacity-60 workspace:size-auto workspace:px-4.5 workspace:py-2 desktop:px-4"
                 >
                     {wide ? (
                         <>
@@ -179,8 +180,9 @@ export function AgentComposer({
                     type="button"
                     aria-disabled={!running}
                     aria-label={translate(running ? 'agent.cancelRunning' : 'agent.cancelIdle')}
+                    title={wide ? undefined : translate(running ? 'agent.cancelRunning' : 'agent.cancelIdle')}
                     tabIndex={running ? 0 : -1}
-                    className={`flex size-11 shrink-0 items-center justify-center rounded-md border text-base whitespace-nowrap transition workspace:size-auto workspace:min-h-11 workspace:px-4 desktop:min-h-0 desktop:px-3.5 desktop:py-2 ${
+                    className={`flex size-11 shrink-0 items-center justify-center rounded-md border text-base whitespace-nowrap transition workspace:size-auto workspace:px-4 workspace:py-2 desktop:px-3.5 ${
                         running
                             ? 'border-error bg-error font-semibold text-on-accent hover:opacity-90'
                             : 'cursor-default border-line text-faint'

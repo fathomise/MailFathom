@@ -352,8 +352,9 @@ describe('MessageHeaders at the width its column has', () => {
         atTwoPanesNarrowerThanTheDesktop();
         drawing();
 
-        expect(screen.queryByRole('button', { name: 'Reply' })).toBeNull();
-        expect(screen.queryByRole('button', { name: 'Forward' })).toBeNull();
+        expect(screen.queryByText('Reply')).toBeNull();
+        expect(screen.queryByText('Forward')).toBeNull();
+        expect(screen.queryByText('Flag')).toBeNull();
     });
 
     it('draws the three acts again there while a selection has taken the toolbar’s place', () => {

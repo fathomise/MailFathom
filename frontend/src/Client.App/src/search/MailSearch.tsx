@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
     longestSearchText,
     phraseNotRead,
@@ -19,7 +19,7 @@ import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { ListHeadRowContext } from '../mailSpace/listHeadRow';
-import { useListFold } from '../mailSpace/listFold';
+import { useListFold } from '../messageRows/listFold';
 import { useMailboxesDrawer } from '../mailSpace/mailboxesDrawer';
 import type { MailScope } from '../workspace/mailScope';
 import { mostRecentSearches } from '../workspace/rememberedWorkspace';
@@ -94,6 +94,25 @@ export function MailSearch({
     const openMailboxes = useMailboxesDrawer();
     const fold = useListFold();
     const strip = fold?.folded === true;
+    const showPlace = useRef<HTMLDivElement>(null);
+    const narrowPlace = useRef<HTMLSpanElement>(null);
+    const turnedHere = useRef(false);
+
+    // The control pressed to fold or widen the list goes with the head it stood in, so focus is put on the one that
+    // turns it back rather than left on an element no longer drawn, which is where keyboard use stops silently.
+    useEffect(() => {
+        if (!turnedHere.current) {
+            return;
+        }
+
+        turnedHere.current = false;
+        (strip ? showPlace : narrowPlace).current?.querySelector('button')?.focus();
+    }, [strip]);
+
+    function turnTheList(): void {
+        turnedHere.current = true;
+        fold?.turn();
+    }
 
     const [typed, setTyped] = useState('');
 
@@ -202,8 +221,12 @@ export function MailSearch({
             {/* Folded to a strip, the head is the one control that widens the list again; the field and what stands
                 in its row stay in the document, hidden, so a search in progress is where it was when the list widens. */}
             {fold !== null && strip ? (
-                <div className="flex shrink-0 justify-center border-b border-line py-2">
-                    <SurfaceControl label={translate('mail.showList')} icon="left_panel_open" onActivate={fold.turn} />
+                <div ref={showPlace} className="flex shrink-0 justify-center border-b border-line py-2">
+                    <SurfaceControl
+                        label={translate('mail.showList')}
+                        icon="left_panel_open"
+                        onActivate={turnTheList}
+                    />
                 </div>
             ) : null}
 
@@ -219,12 +242,14 @@ export function MailSearch({
                 {/* The way to the mailboxes stands first in this row wherever they are behind a drawer, which is the
                     design's own head row: the drawer, the field, and what searches it, on one line. */}
                 {fold === null ? null : (
-                    <SurfaceControl
-                        label={translate('mail.narrowList')}
-                        icon="left_panel_close"
-                        edged
-                        onActivate={fold.turn}
-                    />
+                    <span ref={narrowPlace} className="contents">
+                        <SurfaceControl
+                            label={translate('mail.narrowList')}
+                            icon="left_panel_close"
+                            edged
+                            onActivate={turnTheList}
+                        />
+                    </span>
                 )}
 
                 {openMailboxes === null ? null : (
