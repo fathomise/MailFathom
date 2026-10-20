@@ -196,6 +196,105 @@
           }
         }
       ]
+    },
+    "calendar": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "space": "calendar"
+      },
+      "steps": [
+        {
+          "expect": {
+            "text": "Today"
+          }
+        }
+      ]
+    },
+    "people": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "space": "people"
+      },
+      "steps": [
+        {
+          "expect": {
+            "text": "Collected"
+          }
+        }
+      ]
+    },
+    "people-collected": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "space": "people"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Collected"
+          }
+        },
+        {
+          "expect": {
+            "text": "from received mail headers"
+          }
+        }
+      ]
+    },
+    "person": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "space": "people"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Anna Kowalska"
+          }
+        },
+        {
+          "expect": {
+            "text": "Shared threads"
+          }
+        }
+      ]
+    },
+    "tasks": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "space": "tasks"
+      },
+      "steps": [
+        {
+          "expect": {
+            "text": "This week"
+          }
+        }
+      ]
+    },
+    "composer": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "space": "mail"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "edit_square"
+          }
+        },
+        {
+          "expect": {
+            "text": "Send"
+          }
+        }
+      ]
     }
   }
 }
