@@ -532,7 +532,9 @@ multi-selection the rest of the client reads as scope for the question it is abo
 
 Three bounds hold that up, and each is one module. **The document holds a window of rows rather than the folder** —
 `src/messageRows/rowWindow.ts` is arithmetic over four numbers, and the number of rows in the document is the same on
-the first screen as at message forty thousand. **The list holds a window of pages rather than every page it has read** —
+the first screen as at message forty thousand. A composition that draws its rows at another height — a phone unfolding
+into a foldable, whose list narrows to a strip of rows half as tall — keeps the reader on the row they were on rather
+than at the same offset, which over shorter rows would be further down the folder. **The list holds a window of pages rather than every page it has read** —
 `heldTimeline.ts`; a page too far from the reader keeps its place and its cursor but loses its rows, so the list keeps
 its height, nothing under the reader moves, and scrolling back into it reads that page again from its own cursor rather
 than reading the folder from its leading end. **Where the reader is lives outside React** — `rememberedListings.ts`,

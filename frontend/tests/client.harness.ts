@@ -209,6 +209,60 @@ export function row(page: Page, subject: string): Locator {
         .getByRole('option', { name: new RegExp(`\\b${subject}$`, 'u') });
 }
 
+/**
+ * The numbered subject a generated corpus row carries, out of whatever else the row draws.
+ *
+ * What else it draws follows the composition — the strip a foldable narrows its list to draws less than the phone's row
+ * does — so a row read at two widths is compared by this rather than by its whole text.
+ */
+export function subjectOf(row: string): string {
+    return /Message \d+/u.exec(row)?.[0] ?? row;
+}
+
+/**
+ * The row at the top of the list once it has stopped moving.
+ *
+ * A wheel gesture goes on arriving after the row under it has changed, and where the reader is is written down only
+ * once the list has rested — so the row read the instant it changes is not the row the client will remember. Two reads
+ * that agree across longer than that rest is what says the list has settled on one.
+ */
+export async function restingFirstRow(list: Locator): Promise<string> {
+    const row = list.getByRole('option').first();
+    let previous = '';
+
+    await expect
+        .poll(
+            async () => {
+                const now = (await row.textContent()) ?? '';
+                const rested = now !== '' && now === previous;
+
+                previous = now;
+
+                return rested;
+            },
+            { intervals: [600, 600, 600, 600] },
+        )
+        .toBe(true);
+
+    return (await row.textContent()) ?? '';
+}
+
+/**
+ * Reads onward the way a reader does, and answers once the list has moved.
+ *
+ * A wheel over the rows rather than a scroll offset written into the scroller: the scroller carries no role of its
+ * own, and this suite is compiled without a DOM declaration on purpose — `tsconfig.json` says why — so a closure
+ * naming an element would be the one thing that changes. A gesture needs neither.
+ */
+export async function readOnward(page: Page, list: Locator): Promise<void> {
+    const before = await list.getByRole('option').first().textContent();
+
+    await list.getByRole('option').first().hover();
+    await page.mouse.wheel(0, 6_000);
+
+    await expect.poll(() => list.getByRole('option').first().textContent()).not.toBe(before);
+}
+
 /** One folder of the tree, by the name it is drawn with — the inbox's carrying its count. */
 export function folder(page: Page, name: string): Locator {
     return page.getByRole('tree', { name: 'Mailboxes and folders' }).getByRole('treeitem', { name, exact: true });

@@ -24,7 +24,7 @@ import { useLocalization, type Translate } from '../localization/useLocalization
 import { opensAsDraft, useMailboxActs } from '../mailboxActs/useMailboxActs';
 import { useListedMail } from '../messageList/useListedMail';
 import { MessageRow } from '../messageRows/MessageRow';
-import { estimatedRowHeight, offsetOfRow, windowOf } from '../messageRows/rowWindow';
+import { estimatedRowHeight, offsetKeptAcross, offsetOfRow, windowOf } from '../messageRows/rowWindow';
 import { useSignalledChanges } from '../signals/signalledChanges';
 import { useWorkspace } from '../workspace/useWorkspace';
 import { explainingFileOf } from './citedFile';
@@ -225,7 +225,12 @@ export function SearchResults({
         const measured = elements.current.get(drawn.first)?.offsetHeight ?? 0;
 
         if (measured > 0 && measured !== rowHeight) {
+            const kept = offsetKeptAcross(element.scrollTop, rowHeight, measured);
+
+            // Rows drawn at another height by another composition keep the reader on the row they were on.
             setRowHeight(measured);
+            element.scrollTop = kept;
+            setScrollTop(kept);
         }
 
         if (wantsFocus.current) {
@@ -405,7 +410,7 @@ export function SearchResults({
 
             <div
                 ref={scroller}
-                className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+                className="rows-windowed min-h-0 flex-1 overflow-y-auto overscroll-contain"
                 onScroll={(event) => {
                     setScrollTop(event.currentTarget.scrollTop);
                 }}

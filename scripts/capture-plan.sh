@@ -4,20 +4,12 @@
 # Project repository: https://github.com/fathomise/MailFathom
 
 # What `scripts/capture-design.sh` and `scripts/capture-client.sh` have in common, sourced by both rather than written
-# twice: which screens and compositions an invocation asked for, where a capture may be written, how many pairs one
-# invocation produces, and how the browser half is reached. A rule stated once here is a rule the two sides cannot
+# twice: which screens, size classes and compositions an invocation asked for, where a capture may be written, how many
+# pairs one invocation produces, and how the browser half is reached. A rule stated once here is a rule the two sides cannot
 # disagree about, which is the whole premise of comparing their output.
 #
 # It is sourced rather than run, so it defines and checks and never captures anything itself. The caller defines
 # `usage` before sourcing this, and calls `run_capture` with the plan it built.
-
-# How many pairs one invocation produces.
-#
-# The bound is the point of the loop rather than a safety margin. A screenshot is the most expensive thing a session
-# loads and the cost follows its pixel dimensions rather than its bytes, so a run that captured every screen at every
-# composition would spend a context window before anything had been compared. Four is one screen at all four
-# compositions, or two screens at two, which is the size a parity pass actually proceeds in.
-maximum_pairs=4
 
 # Where the sibling scripts are, resolved from this file rather than from the repository root: a script calls the one
 # beside it, which is what lets the whole set be run against a checkout that is not the one they were read from.
@@ -49,6 +41,7 @@ fi
 out=''
 theme='light'
 screens=()
+classes=()
 compositions=()
 
 while (($# > 0)); do
@@ -59,6 +52,10 @@ while (($# > 0)); do
       ;;
     --screen)
       screens+=("${2:-}")
+      shift 2
+      ;;
+    --class)
+      classes+=("${2:-}")
       shift 2
       ;;
     --composition)
@@ -117,12 +114,61 @@ if ! under "$out" "$artifacts_root" && ! { under "$out" "$scratch_root" && ! und
   exit 1
 fi
 
-if ((${#screens[@]} == 0)); then
-  mapfile -t screens < <(jq -r '.screens[].id' "$manifest")
+# A screen is captured at the whole window-size matrix unless it narrows itself, and a narrowing states why in the
+# manifest. Both are resolved here, once, into the manifest both callers read, so the two sides cannot disagree about
+# which sizes a screen is held at.
+unexplained="$(jq -r '[.screens[] | select((has("compositions") or has("classes")) and ((.narrowedBecause // "") == "")) | .id] | join(", ")' "$manifest")"
+
+if [[ -n "$unexplained" ]]; then
+  printf 'A screen captured at less than the whole matrix says why in narrowedBecause, and these do not: %s\n' "$unexplained" >&2
+  exit 1
 fi
 
+# A narrowing naming a size or a class the matrix does not hold would quietly hold the screen at less than it says.
+unknown="$(jq -r '
+  [.compositions[].name] as $names | [.compositions[].class] as $classes
+  | [.screens[] | (.compositions[]? | select(IN($names[]) | not)), (.classes[]? | select(IN($classes[]) | not))]
+  | unique | join(", ")' "$manifest")"
+
+if [[ -n "$unknown" ]]; then
+  printf 'A screen narrows itself to sizes or classes the matrix does not hold: %s\n' "$unknown" >&2
+  exit 1
+fi
+
+resolved_manifest="$(
+  jq '
+    .compositions as $matrix
+    | .screens |= map(
+        if has("compositions") or has("classes") then
+          . as $screen
+          | .compositions = [
+              $matrix[]
+              | select(.name as $name | .class as $class
+                  | any($screen.compositions[]?; . == $name) or any($screen.classes[]?; . == $class))
+              | .name
+            ]
+        else
+          .compositions = [$matrix[].name]
+        end
+      )' "$manifest"
+)"
+
+if ((${#screens[@]} == 0)); then
+  mapfile -t screens < <(jq -r '.screens[].id' <<<"$resolved_manifest")
+fi
+
+for class in "${classes[@]}"; do
+  if ! jq -e --arg class "$class" 'any(.compositions[]; .class == $class)' >/dev/null "$manifest"; then
+    printf 'The manifest names no size class %s. It holds: %s\n' \
+      "$class" "$(jq -r '[.compositions[].class] | unique | join(", ")' "$manifest")" >&2
+    exit 1
+  fi
+
+  mapfile -t -O "${#compositions[@]}" compositions < <(jq -r --arg class "$class" '.compositions[] | select(.class == $class) | .name' "$manifest")
+done
+
 if ((${#compositions[@]} == 0)); then
-  mapfile -t compositions < <(jq -r '[.screens[].compositions[]] | unique | .[]' "$manifest")
+  mapfile -t compositions < <(jq -r '.compositions[].name' "$manifest")
 fi
 
 for screen in "${screens[@]}"; do
@@ -141,6 +187,15 @@ for composition in "${compositions[@]}"; do
   fi
 done
 
+# How many pairs one invocation produces: one screen at the whole matrix.
+#
+# The bound is the point of the loop rather than a safety margin. A capture costs a browser and a development server's
+# worth of time per pair, and the report a comparison prints grows with every pair it reads, so a run that captured
+# every screen at every size would take the better part of an hour and answer with more than anybody reads at once. A
+# parity pass proceeds one screen at a time, which is what this allows: that screen at every size, at one size class
+# with `--class`, or at one size with `--composition` — or several screens at a narrower set.
+maximum_pairs="$(jq '.compositions | length' "$manifest")"
+
 # How many pairs this invocation would produce, counted from the manifest before either caller does anything at all.
 # It is checked here rather than on the built plan so the refusal costs neither a browser nor a development server —
 # a caller that had already started one would be reporting "nothing was captured" while tearing something down.
@@ -149,7 +204,7 @@ asked_for="$(
     --argjson screens "$(printf '%s\n' "${screens[@]}" | jq -R . | jq -s .)" \
     --argjson compositions "$(printf '%s\n' "${compositions[@]}" | jq -R . | jq -s .)" '
       [.screens[] | select(.id | IN($screens[])) | .compositions[] | select(IN($compositions[]))] | length' \
-    "$manifest"
+    <<<"$resolved_manifest"
 )"
 
 if ((asked_for == 0)); then
@@ -159,7 +214,7 @@ fi
 
 if ((asked_for > maximum_pairs)); then
   printf 'That asks for %s pairs and one invocation produces at most %s.\n' "$asked_for" "$maximum_pairs" >&2
-  printf 'Name fewer screens or fewer compositions; nothing was captured.\n' >&2
+  printf 'Name fewer screens, a size class, or fewer compositions; nothing was captured.\n' >&2
   exit 1
 fi
 

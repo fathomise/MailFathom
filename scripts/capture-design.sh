@@ -22,13 +22,15 @@ Usage: bash scripts/capture-design.sh --out <directory> [option...]
                            under this repository's `artifacts/`. Anything else is refused.
   --screen <id>            A screen from frontend/design-parity/screens.json. Repeatable; every screen when
                            none is named.
-  --composition <name>     telefon, fold, tablet or desktop. Repeatable; every composition the screen states
-                           when none is named.
+  --class <name>           A size class of the window-size matrix: phone, foldable, tablet or desktop.
+                           Repeatable.
+  --composition <name>     One size of the matrix, by its name in frontend/design-parity/screens.json.
+                           Repeatable, and added to any --class. With neither, every size the screen is
+                           held at, which is the whole matrix unless the screen narrows itself.
   --theme light|dark       Which `prefers-color-scheme` both sides are captured under. Default light.
 
-One invocation produces at most four pairs and refuses rather than truncating, because a screenshot costs a
-session context by its pixel dimensions: a parity pass proceeds one screen at a time and reads the report
-before it opens an image.
+One invocation produces at most one screen's worth of pairs at the whole matrix and refuses rather than
+truncating: a parity pass proceeds one screen at a time and reads the report before it opens an image.
 
 Captures are named `<screen>-<composition>.design.png`, which is what `scripts/compare-captures.sh` pairs
 them by.
@@ -64,7 +66,7 @@ plan="$(
     --arg out "$out" \
     --arg theme "$theme" \
     --arg root "$design_root" \
-    --argjson manifest "$(cat "$manifest")" \
+    --argjson manifest "$resolved_manifest" \
     --argjson pairing "$(cat "$pairing")" \
     --argjson screens "$(printf '%s\n' "${screens[@]}" | jq -R . | jq -s .)" \
     --argjson compositions "$(printf '%s\n' "${compositions[@]}" | jq -R . | jq -s .)" '

@@ -10945,55 +10945,20 @@ write_parity_fixture() {
 
   mkdir -p "$repository_root/frontend/design-parity" "$repository_root/design/runtime"
 
-  # Two screens at three compositions, which is six pairs and past what one invocation produces, and
-  # one screen at three, which is inside it. The bound is therefore exercised from either side of it
-  # by naming one screen or none.
-  cat >"$repository_root/frontend/design-parity/screens.json" <<'MANIFEST'
-{
-    "compositions": [
-        { "name": "telefon", "width": 390, "height": 844, "touch": true },
-        { "name": "tablet", "width": 1024, "height": 768, "touch": true },
-        { "name": "desktop", "width": 1440, "height": 900, "touch": false }
-    ],
-    "screens": [
-        {
-            "id": "first",
-            "route": "/#/first",
-            "signIn": true,
-            "steps": [],
-            "compositions": ["telefon", "tablet", "desktop"]
-        },
-        {
-            "id": "second",
-            "route": "/#/second",
-            "signIn": true,
-            "steps": [],
-            "compositions": ["telefon", "tablet", "desktop"]
-        }
-    ]
-}
-MANIFEST
-
-  if ((screens == 1)); then
-    cat >"$repository_root/frontend/design-parity/screens.json" <<'MANIFEST'
-{
-    "compositions": [
-        { "name": "telefon", "width": 390, "height": 844, "touch": true },
-        { "name": "tablet", "width": 1024, "height": 768, "touch": true },
-        { "name": "desktop", "width": 1440, "height": 900, "touch": false }
-    ],
-    "screens": [
-        {
-            "id": "first",
-            "route": "/#/first",
-            "signIn": true,
-            "steps": [],
-            "compositions": ["telefon", "tablet", "desktop"]
-        }
-    ]
-}
-MANIFEST
-  fi
+  # A matrix of three sizes in three classes, the middle one held to usable only, and either one screen or two held at
+  # all of it. The bound is one screen at the whole matrix, so naming no screen asks for six pairs and naming one asks
+  # for three — the bound is exercised from either side of it.
+  jq -n --argjson screens "$screens" '{
+      compositions: [
+        { name: "telefon", class: "phone", width: 390, height: 844, touch: true },
+        { name: "tablet", class: "tablet", width: 1024, height: 768, touch: true, usableOnly: true },
+        { name: "desktop", class: "desktop", width: 1440, height: 900, touch: false }
+      ],
+      screens: [
+        { id: "first", route: "/#/first", signIn: true, steps: [] },
+        { id: "second", route: "/#/second", signIn: true, steps: [] }
+      ][0:$screens]
+    }' >"$repository_root/frontend/design-parity/screens.json"
 
   printf 'screen' >"$repository_root/design/$parity_test_artboard"
   printf 'run' >"$repository_root/design/runtime/support.js"
@@ -11046,9 +11011,8 @@ a_capture_refuses_more_pairs_than_one_invocation_produces() {
   write_parity_fixture 2
   write_parity_pairing
 
-  # A screenshot costs a session context by its pixel dimensions, so a run that captured everything
-  # would spend a context window before anything had been compared. Naming no screen means every
-  # screen, which is where an unbounded invocation would come from.
+  # A pass proceeds one screen at a time, so a run is bounded at one screen across the whole matrix.
+  # Naming no screen means every screen, which is where an unbounded invocation would come from.
   if (cd "$repository_root" && bash "$source_repository_root/scripts/capture-design.sh" \
     --out "$test_directory/parity-captures") >"$output" 2>&1; then
     printf 'The design capture produced more pairs than one invocation may\n' >&2
@@ -11059,10 +11023,60 @@ a_capture_refuses_more_pairs_than_one_invocation_produces() {
   assert_contains 'asks for 6 pairs' "$output"
   assert_contains 'nothing was captured' "$output"
 
-  # One screen at all three compositions is inside the bound and proceeds.
+  # One screen at the whole matrix is inside the bound and proceeds, and so are both screens at one
+  # size class — which is what makes checking a phone change cost a phone's worth of captures.
   (cd "$repository_root" && bash "$source_repository_root/scripts/capture-design.sh" \
     --out "$test_directory/parity-captures" --screen first) >"$output" 2>&1
   assert_excludes 'asks for' "$output"
+
+  (cd "$repository_root" && bash "$source_repository_root/scripts/capture-design.sh" \
+    --out "$test_directory/parity-captures" --class phone) >"$output" 2>&1
+  assert_excludes 'asks for' "$output"
+
+  # A class the matrix does not hold is refused by name rather than read as no sizes at all.
+  if (cd "$repository_root" && bash "$source_repository_root/scripts/capture-design.sh" \
+    --out "$test_directory/parity-captures" --class watch) >"$output" 2>&1; then
+    printf 'The design capture accepted a size class the matrix does not hold\n' >&2
+    return 1
+  fi
+  assert_contains 'no size class watch' "$output"
+
+  rm -rf "$repository_root/design" "$repository_root/frontend/design-parity"
+}
+
+a_capture_refuses_a_screen_narrowed_without_a_reason() {
+  local output="$test_directory/capture.out"
+
+  rm -rf "$repository_root/design" "$repository_root/frontend/design-parity"
+  write_parity_fixture 2
+  write_parity_pairing
+
+  # Every paired screen is held at the whole matrix, so a screen held at less says why — a narrowing
+  # nobody explained reads exactly like a size somebody forgot.
+  jq '.screens[1].classes = ["desktop"]' "$repository_root/frontend/design-parity/screens.json" \
+    >"$test_directory/narrowed.json"
+  mv "$test_directory/narrowed.json" "$repository_root/frontend/design-parity/screens.json"
+
+  if (cd "$repository_root" && bash "$source_repository_root/scripts/capture-design.sh" \
+    --out "$test_directory/parity-captures" --screen first) >"$output" 2>&1; then
+    printf 'The design capture accepted a screen narrowed without a reason\n' >&2
+    return 1
+  fi
+  assert_contains 'narrowedBecause' "$output"
+  assert_contains 'second' "$output"
+
+  # With the reason stated, the screen is held at its narrower set: both screens are now four pairs,
+  # one past the bound, rather than six.
+  jq '.screens[1].narrowedBecause = "Drawn for a pointer only."' \
+    "$repository_root/frontend/design-parity/screens.json" >"$test_directory/narrowed.json"
+  mv "$test_directory/narrowed.json" "$repository_root/frontend/design-parity/screens.json"
+
+  if (cd "$repository_root" && bash "$source_repository_root/scripts/capture-design.sh" \
+    --out "$test_directory/parity-captures") >"$output" 2>&1; then
+    printf 'The design capture produced more pairs than one invocation may\n' >&2
+    return 1
+  fi
+  assert_contains 'asks for 4 pairs' "$output"
 
   rm -rf "$repository_root/design" "$repository_root/frontend/design-parity"
 }
@@ -11092,8 +11106,9 @@ the_comparison_reports_where_a_pair_differs_before_any_image_is_opened() {
   local work="$test_directory/parity-compare" output="$test_directory/compare.out"
   local stub="$test_directory/parity-stubs"
 
-  rm -rf "$work" "$stub"
+  rm -rf "$work" "$stub" "$repository_root/design" "$repository_root/frontend/design-parity"
   mkdir -p "$work" "$stub"
+  write_parity_fixture 1
   printf 'design' >"$work/first-desktop.design.png"
   printf 'client' >"$work/first-desktop.client.png"
 
@@ -11130,7 +11145,8 @@ printf 'mask' >"${*: -1}"
 FAKE_MAGICK
   chmod +x "$stub/magick"
 
-  PATH="$stub:$PATH" bash "$source_repository_root/scripts/compare-captures.sh" "$work" >"$output" 2>&1
+  (cd "$repository_root" && PATH="$stub:$PATH" bash "$source_repository_root/scripts/compare-captures.sh" "$work") \
+    >"$output" 2>&1
 
   # The count first, then where — as regions with the crop that opens one, which is the whole reason
   # this answers in text: an image costs a session by its pixel dimensions, so the region a number
@@ -11143,6 +11159,31 @@ FAKE_MAGICK
 
   # The background is a component too, and it is not a difference. Only the white ones are.
   assert_excludes '20x10+0+0' "$output"
+  assert_excludes 'usable only' "$output"
+
+  # A pair at a size held to usable only says so on its row and under the table, and one size class
+  # reads that class's pairs and no others.
+  printf 'design' >"$work/first-tablet.design.png"
+  printf 'client' >"$work/first-tablet.client.png"
+
+  (cd "$repository_root" && PATH="$stub:$PATH" bash "$source_repository_root/scripts/compare-captures.sh" "$work") \
+    >"$output" 2>&1
+  assert_contains 'usable only' "$output"
+  assert_contains 'rather than to the design' "$output"
+
+  (cd "$repository_root" && PATH="$stub:$PATH" bash "$source_repository_root/scripts/compare-captures.sh" "$work" \
+    --class desktop) >"$output" 2>&1
+  assert_contains 'desktop' "$output"
+  assert_excludes 'usable only' "$output"
+
+  # A class with no capture in the directory compared nothing, which is never reported as a match.
+  if (cd "$repository_root" && PATH="$stub:$PATH" bash "$source_repository_root/scripts/compare-captures.sh" "$work" \
+    --class phone) >"$output" 2>&1; then
+    printf 'The comparison reported a size class with no captures as compared\n' >&2
+    return 1
+  fi
+  assert_contains 'nothing was compared' "$output"
+  assert_excludes 'matches pixel for pixel' "$output"
 
   # A pair whose halves are different sizes is not a pair, and scaling one to fit would report the
   # resize as a difference in the design.
@@ -11157,11 +11198,12 @@ done
 FAKE_MAGICK
   chmod +x "$stub/magick"
 
-  PATH="$stub:$PATH" bash "$source_repository_root/scripts/compare-captures.sh" "$work" >"$output" 2>&1
+  (cd "$repository_root" && PATH="$stub:$PATH" bash "$source_repository_root/scripts/compare-captures.sh" "$work") \
+    >"$output" 2>&1
   assert_contains 'not a pair' "$output"
   assert_contains 'a capture run to repeat' "$output"
 
-  rm -rf "$work" "$stub"
+  rm -rf "$work" "$stub" "$repository_root/design" "$repository_root/frontend/design-parity"
 }
 
 # The client's example mail, held against the HTTP surface the service actually publishes.
@@ -11295,6 +11337,7 @@ mail.ts emptyFolderPage GET /api/client/emails
 mail.ts rackingQuote GET /api/client/emails
 mail.ts searchResults GET /api/client/emails/search
 mail.ts noSearchResults GET /api/client/emails/search
+mail.ts searchResultsAcrossTheFolder GET /api/client/emails/search
 mail.ts readsPhrases GET /api/client/emails/search/phrasing
 mail.ts phraseReading POST /api/client/emails/search/phrasing
 mail.ts conversationRows - -
@@ -11969,6 +12012,7 @@ run_test the_editor_workspace_opens_the_service_and_the_repository
 run_test every_shell_script_carries_the_license_header
 run_test a_capture_refuses_a_destination_in_the_tree
 run_test a_capture_refuses_more_pairs_than_one_invocation_produces
+run_test a_capture_refuses_a_screen_narrowed_without_a_reason
 run_test the_design_capture_refuses_a_design_with_no_runtime
 run_test the_comparison_reports_where_a_pair_differs_before_any_image_is_opened
 run_test every_skill_declares_its_license

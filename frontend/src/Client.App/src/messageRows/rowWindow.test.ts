@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { describe, expect, it } from 'vitest';
-import { leadingRow, offsetOfRow, overscanRows, rowsDrawnAtOnce, windowOf } from './rowWindow';
+import { leadingRow, offsetKeptAcross, offsetOfRow, overscanRows, rowsDrawnAtOnce, windowOf } from './rowWindow';
 
 // Ten rows of a hundred pixels each, so a number in an expectation reads as the row it stands for.
 const rowHeight = 100;
@@ -84,6 +84,18 @@ describe('leadingRow', () => {
 
     it('answers the first row before anything has been measured', () => {
         expect(leadingRow(4_250, 0)).toBe(0);
+    });
+});
+
+describe('offsetKeptAcross', () => {
+    it('keeps the reader on the row they were on when the rows change height under them', () => {
+        const kept = offsetKeptAcross(4_250, rowHeight, 50);
+
+        expect(leadingRow(kept, 50)).toBe(leadingRow(4_250, rowHeight));
+    });
+
+    it('keeps the offset where there was no height to measure it against', () => {
+        expect(offsetKeptAcross(4_250, 0, 50)).toBe(4_250);
     });
 });
 

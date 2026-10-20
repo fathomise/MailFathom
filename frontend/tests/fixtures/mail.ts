@@ -290,6 +290,22 @@ export const searchResults = {
     includedJunkMail: false,
 };
 
+/**
+ * What a search matching most of the folder answers with: forty rows, which is more than a screen holds at any width and
+ * so the one answer a reader can scroll through and be somewhere in. Each is the folder's own message found by its
+ * words, and the forty are fewer than the page the client asks for, so the answer carries no cursor.
+ */
+export const searchResultsAcrossTheFolder = {
+    ...searchResults,
+    results: Array.from({ length: 40 }, (_, at) => ({
+        ...timelineRow(at),
+        snippets: [`the opening of **message** ${String(at)}`],
+        matchedBy: 'LexicalRanking',
+        attachmentMatches: [],
+        isDepictedMatch: false,
+    })),
+};
+
 /** What a search that matched nothing answers with, which is a page rather than a refusal. */
 export const noSearchResults = {
     results: [],

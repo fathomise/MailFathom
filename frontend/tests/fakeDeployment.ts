@@ -315,6 +315,7 @@ export class FakeDeployment {
 
     private minted = 0;
     private nextAnswerRunning = false;
+    private findingAcrossTheFolder = false;
 
     private readonly version: string;
 
@@ -491,6 +492,11 @@ export class FakeDeployment {
         this.nextAnswerRunning = true;
     }
 
+    /** Makes every search answer with most of the folder, which is the one answer long enough to scroll through. */
+    findAcrossTheFolder(): void {
+        this.findingAcrossTheFolder = true;
+    }
+
     /** What the fake answers one request with, which is the whole of it and needs no browser to be asked. */
     answer(request: FakeRequest): FakeAnswer {
         const address = new URL(request.url);
@@ -636,11 +642,11 @@ export class FakeDeployment {
                 return this.folderDeleted(request.body);
             case 'GET /emails':
                 return answering(this.folderPage(request.query));
-            case 'GET /emails/search':
-                return answering({
-                    ...mail.searchResults,
-                    results: mail.searchResults.results.filter(({ id }) => !this.deleted.has(id)),
-                });
+            case 'GET /emails/search': {
+                const found = this.findingAcrossTheFolder ? mail.searchResultsAcrossTheFolder : mail.searchResults;
+
+                return answering({ ...found, results: found.results.filter(({ id }) => !this.deleted.has(id)) });
+            }
             case 'GET /emails/search/phrasing':
                 return answering(mail.readsPhrases);
             case 'POST /emails/search/phrasing':
