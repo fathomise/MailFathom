@@ -410,7 +410,7 @@ export function SearchResults({
 
             <div
                 ref={scroller}
-                className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+                className="rows-windowed min-h-0 flex-1 overflow-y-auto overscroll-contain"
                 onScroll={(event) => {
                     setScrollTop(event.currentTarget.scrollTop);
                 }}

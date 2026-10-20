@@ -11337,6 +11337,7 @@ mail.ts emptyFolderPage GET /api/client/emails
 mail.ts rackingQuote GET /api/client/emails
 mail.ts searchResults GET /api/client/emails/search
 mail.ts noSearchResults GET /api/client/emails/search
+mail.ts searchResultsAcrossTheFolder GET /api/client/emails/search
 mail.ts readsPhrases GET /api/client/emails/search/phrasing
 mail.ts phraseReading POST /api/client/emails/search/phrasing
 mail.ts conversationRows - -

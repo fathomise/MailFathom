@@ -19,6 +19,7 @@ import {
     readOnward,
     restingFirstRow,
     row,
+    subjectOf,
     settled,
     tabletWindow,
     test,
@@ -394,10 +395,7 @@ test.describe('driven by a finger', () => {
         await expect(list.getByRole('option').first()).toBeVisible();
         await readOnward(page, list);
 
-        // Rows are told apart by the subject every corpus row numbers, because the strip a foldable narrows its list to
-        // draws a row with less in it than the phone does. The one opened is on the screen rather than in the overscan
-        // above it, so opening it scrolls nothing.
-        const subjectOf = (row: string): string => /Message \d+/u.exec(row)?.[0] ?? row;
+        // The row opened is on the screen rather than in the overscan above it, so opening it scrolls nothing.
         const place = subjectOf(await restingFirstRow(list));
         const opened = list.getByRole('option', {
             name: new RegExp(`\\b${subjectOf((await list.getByRole('option').nth(8).textContent()) ?? '')}\\b`, 'u'),

@@ -210,6 +210,16 @@ export function row(page: Page, subject: string): Locator {
 }
 
 /**
+ * The numbered subject a generated corpus row carries, out of whatever else the row draws.
+ *
+ * What else it draws follows the composition — the strip a foldable narrows its list to draws less than the phone's row
+ * does — so a row read at two widths is compared by this rather than by its whole text.
+ */
+export function subjectOf(row: string): string {
+    return /Message \d+/u.exec(row)?.[0] ?? row;
+}
+
+/**
  * The row at the top of the list once it has stopped moving.
  *
  * A wheel gesture goes on arriving after the row under it has changed, and where the reader is is written down only

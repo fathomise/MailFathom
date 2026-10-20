@@ -1025,6 +1025,13 @@
     }
 }
 
+/* A windowed list's scroller, which places its reader itself. The browser's scroll anchoring would move the offset too
+   when the rows change height under a new composition, and the list's own correction on top of it would put the reader
+   a row or more away from where they were. */
+@utility rows-windowed {
+    overflow-anchor: none;
+}
+
 /* How a surface the platform puts in its top layer — a modal `dialog`, a popover — arrives and leaves, one utility
    per kind the design draws: `surface-pop` for a centred dialog and a menu, `surface-sheet` for a sheet rising from the
    foot of the window and for anything standing over the whole of a narrow one, `surface-drawer` for the mailboxes
