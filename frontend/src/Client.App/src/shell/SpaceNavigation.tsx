@@ -100,12 +100,14 @@ export function SpaceNavigation({
             />
 
             {/* In the rail the destinations scroll between its top and its foot, so the bell and the account stay where
-                they are however short the window is; in the bar they are the bar's own places, laid out by it. */}
-            {wide ? (
-                <div className="flex min-h-0 flex-col gap-0.5 overflow-y-auto roomy:gap-1">{destinations}</div>
-            ) : (
-                destinations
-            )}
+                they are however short the window is; in the bar they are the bar's own places, laid out by it. The
+                region clips at its padding, so it carries room for a focus ring above the first and below the last and
+                gives the same room back outside, which leaves the rail laid out as it was. It stands in both shapes,
+                drawing no box of its own in the bar, so a window crossing the workspace width keeps the same tree and
+                remounts no destination — a remount there is a render the list keeping its place would have to race. */}
+            <div className="contents workspace:-my-1 workspace:flex workspace:min-h-0 workspace:flex-col workspace:gap-0.5 workspace:overflow-y-auto workspace:py-1 roomy:gap-1">
+                {destinations}
+            </div>
 
             {/* The bell and the account, in that order at both widths: what happened while nobody was looking stands
                 beside who is looking. In the rail that is the foot of it, with the bell above the account; in the bar

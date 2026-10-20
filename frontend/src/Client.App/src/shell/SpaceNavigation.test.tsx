@@ -135,19 +135,6 @@ describe('SpaceNavigation', () => {
         expect(screen.getByRole('button', { name: handedTheAccount })).toBeDefined();
     });
 
-    // A low window can be shorter than every destination, the bell, and the account together, so the rail scrolls its
-    // destinations alone and the foot stays where the reader left it.
-    it('scrolls the rail’s destinations apart from the refresh, the bell, and the account at its foot', () => {
-        atWorkspaceWidth(true);
-        renderNavigation();
-
-        const destinations = screen.getByRole('link', { name: 'Mail' }).parentElement;
-
-        expect(destinations).not.toBe(screen.getByRole('navigation', { name: 'Spaces' }));
-        expect(destinations?.querySelectorAll('a')).toHaveLength(spaces.length);
-        expect(destinations?.querySelectorAll('button')).toHaveLength(0);
-    });
-
     // The bar has five places and the rail has as many as the session offers, which is the one difference between the
     // two shapes that is not a matter of laying the same nodes out differently.
     it('spends the bar’s five places on three spaces, the bell, and the overflow', () => {
@@ -155,10 +142,10 @@ describe('SpaceNavigation', () => {
 
         const bar = screen.getByRole('navigation', { name: 'Spaces' });
 
-        // The mark is drawn in the rail alone, and the overflow's own sheet is a child of the navigation without
-        // standing in it — the platform draws a closed popover nowhere and an open one in the top layer.
-        const places = Array.from(bar.children).filter(
-            (place) => place.tagName !== 'IMG' && !place.hasAttribute('popover'),
+        // Every control the bar holds, in the order it draws them. The overflow's own sheet is inside the navigation
+        // without standing in it — the platform draws a closed popover nowhere and an open one in the top layer.
+        const places = Array.from(bar.querySelectorAll('a, button')).filter(
+            (place) => place.closest('[popover]') === null,
         );
 
         expect(places.map((place) => place.textContent)).toEqual(['Discover', 'Mail', 'Agent', handedTheBell, 'More']);

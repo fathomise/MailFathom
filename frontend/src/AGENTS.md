@@ -260,9 +260,12 @@ paragraph.
 
 **What a screen adapts to instead is the width it has been given, the height it has been given, and what the pointer
 can do.** Those three are the whole of it, and the refusal above is not an instruction to adapt to nothing: a window is
-resized far more often than a head is changed, and one head produces every shape anyway. Each rule reads exactly one of
-the three and none reads the window's orientation or aspect, so a device upright and the same device on its side need
-no rules of their own — each is one width band beside one height band. A half-width window on a desktop gets the composition a
+resized far more often than a head is changed, and one head produces every shape anyway. Each axis decides one kind of
+thing — the width which surfaces stand, the height how dense they are, the pointer how large a target is and which
+gestures exist — and none of them is the window's orientation or aspect, so a device upright and the same device on its
+side need no rules of their own: each is one width band beside one height band. A rule may be scoped to a surface
+another axis put there and still decide only its own kind of thing: the rail stands only where the width gave one, so
+what a low window does to it is a height rule about the rail, and how large its targets are then is still the pointer's. A half-width window on a desktop gets the composition a
 phone-width viewport gets — a stack, not a wide layout that stopped fitting — and the same desktop maximized gets the
 wide one, out of the same tree at the same breakpoint. `pointer: coarse` is asked where a target has to be big enough
 for a finger and `hover` where an affordance would otherwise exist only under one; neither is a question about the

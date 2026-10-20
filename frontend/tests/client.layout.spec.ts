@@ -375,6 +375,39 @@ test.describe('driven by a finger', () => {
         expect(send.y + send.height).toBeLessThanOrEqual(480);
     });
 
+    // A phone on its side is a window lower than the rail's destinations and its foot together, and it is held to being
+    // usable rather than to a composition: the refresh, the bell, and the account stay on the screen, and every
+    // destination scrolls into view above them rather than under them.
+    test('keeps the rail’s foot on the screen and every destination within reach on a phone on its side', async ({
+        page,
+    }) => {
+        const onItsSide = { width: phoneWindow.height, height: phoneWindow.width };
+
+        await page.setViewportSize(onItsSide);
+        await openSignedIn(page, '/#/mail');
+
+        const navigation = page.getByRole('navigation', { name: 'Spaces' });
+        const refresh = navigation.getByRole('button', { name: 'Refresh' });
+        const account = navigation.getByRole('button', { name: 'Account and preferences' });
+
+        // The account stands in the rail and nowhere in the bottom bar, so it is the composition's own sign.
+        await expect(account).toBeVisible();
+
+        const foot = await boxOf(refresh);
+        const last = await boxOf(account);
+
+        expect(last.y + last.height).toBeLessThanOrEqual(onItsSide.height);
+
+        for (const destination of await navigation.getByRole('link').all()) {
+            await destination.scrollIntoViewIfNeeded();
+
+            const box = await boxOf(destination);
+
+            expect(box.y).toBeGreaterThanOrEqual(0);
+            expect(box.y + box.height).toBeLessThanOrEqual(foot.y);
+        }
+    });
+
     // Unfolding a foldable mid-task is one window growing from the phone's width to the inner screen's, and folding it
     // is the same window shrinking back. Nothing about it is a navigation, so everything the reader had in hand — the
     // open message, the words typed into the drafter, which row is the open one, and how far down the list they were —

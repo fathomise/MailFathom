@@ -461,7 +461,9 @@ every control keeps its name in words for as long as the names fit the strip, co
 floating control over the list when they stop fitting, and the symbols stand alone only when the names still do not
 fit without it.
 
-Height is a second axis beside the width, and no rule reads both or the window's orientation. Below the
+Height is a second axis beside the width: the width decides which surfaces stand, the height how dense they are, and
+nothing reads the window's orientation. A height rule may be scoped to a surface the width put there — the rail's is
+written for the rail alone. Below the
 `--window-height-low` token the window is low — a phone on its side, a laptop's shortest viewport — and what is vertical
 folds: the rail draws its destinations as symbols named by their labels and drops the mark, and a dialog or a sheet may
 take all but a sliver of the height. From `--window-height-tall` up it is tall, and a dialog stops at 760 pixels and a

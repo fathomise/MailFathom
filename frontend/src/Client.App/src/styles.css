@@ -269,9 +269,11 @@
     --breakpoint-roomy: 63.75rem;
 
     /* The two heights a composition changes at, which are a second axis beside the widths above rather than a
-       refinement of any of them: width decides how many columns there are, height how dense the vertical is, and no
-       rule reads both — or the window's orientation or aspect, so a device upright and on its side is one width band
-       beside one height band rather than a case of its own. Not `--breakpoint-*` names, which Tailwind reads as widths;
+       refinement of any of them: width decides which surfaces stand, height how dense they are, and nothing reads the
+       window's orientation or aspect, so a device upright and on its side is one width band beside one height band
+       rather than a case of its own. A height rule may be scoped to a surface a width put there — `workspace:low:` is
+       the rail's, there being no rail below the workspace width — and still decide only density. Not `--breakpoint-*`
+       names, which Tailwind reads as widths;
        a stylesheet asks them as `low:` and `tall:`, declared under this block, and a component through
        `shell/useWideWorkspace.ts`.
 
