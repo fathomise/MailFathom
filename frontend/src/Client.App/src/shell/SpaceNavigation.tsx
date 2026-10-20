@@ -133,7 +133,7 @@ function SpaceLink({ space, current }: { readonly space: Space; readonly current
             // In the rail each destination is a tile inset from both edges, so two neighbours never meet across a
             // dark gap and the current one needs no edge bar to stand out — the tint and the weight carry it. The
             // bottom bar marks it with the pill behind the symbol instead.
-            className={`group flex flex-1 flex-col items-center gap-1 rounded-xl px-0.5 py-1.5 text-sm transition workspace:mx-1.75 workspace:flex-none workspace:gap-1 workspace:rounded-lg workspace:py-2 desktop:py-2.25 ${
+            className={`group flex flex-1 flex-col items-center gap-1 rounded-xl px-0.5 py-1.5 text-sm transition workspace:mx-1.75 workspace:flex-none workspace:px-0 workspace:gap-1 workspace:rounded-lg workspace:py-2 desktop:py-2.25 ${
                 current
                     ? 'font-semibold text-accent-deep workspace:bg-accent-soft'
                     : `hover:bg-hover hover:text-text ${built ? 'text-muted' : 'text-faint'}`
@@ -142,7 +142,7 @@ function SpaceLink({ space, current }: { readonly space: Space; readonly current
             <NavigationMark current={current}>
                 <Icon name={spaceIcons[space]} className="size-icon-2xl workspace:size-icon-xl" />
             </NavigationMark>
-            <span className="max-w-full truncate">{name}</span>
+            <span className="max-w-full truncate workspace:overflow-visible">{name}</span>
         </a>
     );
 }

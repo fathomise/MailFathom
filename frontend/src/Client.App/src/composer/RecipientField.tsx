@@ -178,13 +178,16 @@ export function RecipientField({
             {addresses.map((address) => (
                 <span
                     key={address}
-                    className="flex items-center gap-1.75 rounded-lg border border-line bg-rail px-2.5 py-0.75 text-base whitespace-nowrap"
+                    className="flex max-w-full min-w-0 items-center gap-1.75 rounded-lg border border-line bg-rail px-2.5 py-0.75 text-base whitespace-nowrap"
                 >
-                    {address}
+                    {/* One line however long the address, cut rather than wrapped, so a chip never outgrows the row. */}
+                    <span className="min-w-0 truncate" title={address}>
+                        {address}
+                    </span>
                     <button
                         type="button"
                         aria-label={translate('compose.removeRecipient', { address, header: label })}
-                        className="flex items-center rounded-xs text-faint transition hover:text-text"
+                        className="flex shrink-0 items-center rounded-xs text-faint transition hover:text-text"
                         onClick={() => {
                             onChanged(addresses.filter((kept) => kept !== address));
                         }}

@@ -12,18 +12,20 @@ import { useLocalization } from '../localization/useLocalization';
 import { flagActFor, refusalSaid, standsInTheWay } from '../mailboxActs/drawnActs';
 import { useMailboxActs, type ActedMessage } from '../mailboxActs/useMailboxActs';
 import { useAgentHandOver, type AgentHandOver } from '../routing/agentHandOver';
-import { useDesktopComposition, useWideWorkspace } from '../shell/useWideWorkspace';
+import { useWideWorkspace } from '../shell/useWideWorkspace';
 
 // What stands at the end of the head of a message or a conversation, beside its subject: handing the thread to the
 // agent, and the three things the design offers to do with it from there. One component because two heads
 // draw it — a message opened from the list and the conversation it belongs to — and the acts have to be the same acts
 // from both.
 //
-// The design draws the three as words alone wherever the head has a column to itself, and as symbols alone where the
-// column is the whole screen and the head is one compact bar over the message. Asking the agent is drawn on the accent
-// as a pill everywhere but on a phone, the compact bar of a one-pane window wider than one included: on a phone the
-// design moves it into the row of the thread's own state, and a width between the two would otherwise have neither. It is drawn only where there is an agent to reach and a conversation to hand over, which a
-// message the deployment has not placed in one does not have.
+// The design draws the three as words alone where the head has a column to itself and no toolbar above it offers them
+// already, and as symbols alone where the column is the whole screen and the head is one compact bar over the message.
+// So two panes narrower than the desktop leave the three to the toolbar, and draw them again while a selection has
+// taken the toolbar's place. Asking the agent is drawn on the accent as a pill everywhere but on a
+// phone, the compact bar of a one-pane window wider than one included: on a phone the design moves it into the row of
+// the thread's own state, and a width between the two would otherwise have neither. It is drawn only where there is an
+// agent to reach and a conversation to hand over, which a message the deployment has not placed in one does not have.
 //
 // The other three act on the message the head is about, and each goes the way every other surface already goes: an
 // answer is `useComposing`'s, exactly as the toolbar's three answers and a row's own menu are, and the flag is a
@@ -40,10 +42,17 @@ import { useDesktopComposition, useWideWorkspace } from '../shell/useWideWorkspa
 
 export function HeadActs({
     compact,
+    toolbarCarriesActs = false,
     message,
     thread,
 }: {
     readonly compact: boolean;
+
+    /**
+     * Whether the toolbar standing above the head already offers the three acts, which is where the head leaves them
+     * to it and keeps asking the agent alone: the subject keeps the width a second copy would take from it.
+     */
+    readonly toolbarCarriesActs?: boolean;
 
     /**
      * The message these acts are about, or `null` where the head stands over nothing one could be taken on.
@@ -59,7 +68,6 @@ export function HeadActs({
 }) {
     const { translate } = useLocalization();
     const wideWorkspace = useWideWorkspace();
-    const desktop = useDesktopComposition();
     const acts = useMailboxActs();
     const handToAgent = useAgentHandOver();
 
@@ -123,9 +131,7 @@ export function HeadActs({
                 />
             )}
 
-            {/* Two panes narrower than the desktop carry these three in the toolbar above already, so the head keeps
-                asking the agent alone and the subject keeps the width a second copy would take from it. */}
-            {!compact && !desktop ? null : (
+            {toolbarCarriesActs ? null : (
                 <div className="flex items-center gap-0.75">
                     {answer === null ? (
                         <PlannedControl label={translate('mail.reply')} icon="reply" shape={actShape} />

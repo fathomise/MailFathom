@@ -49,7 +49,7 @@ composition keeps its own sizes.
 
 | What | The rule |
 |---|---|
-| A control's target | 44 × 44 px at least: an icon button, a field, a chip, a segment, a row of a navigation, a text action such as *Mark all read*. The phone keeps 48 where it already drew 48 — the back button, the thread's three actions, *Ask*, the folders button's row. The glyph inside stays 20–24 px; the target grows around it |
+| A control's target | 44 × 44 px at least: an icon button, a field, a chip, a segment, a row of a navigation, a text action such as *Mark all read*. The phone keeps 48 where it already drew 48 — the back button, the thread's three actions, and *Ask*; the folders button and the search field are 44 there as everywhere else under a finger. The glyph inside stays 20–24 px; the target grows around it |
 | The phone's bar | Every space names itself at the left of its top bar at 20 px semibold (`screenTitleStyle`, `tbTitleStyle`, `agentTitleStyle`), the bar at least 56 px tall with 16 px before the title, and its actions stand at the far end. Mail is the exception: its search field is its bar |
 | The bottom navigation | Five places, each a 56 × 32 px pill behind its glyph (`--nav-mark`) that marks the current one, and a 12 px label beneath — the tile around it is not filled. The bar pads its foot by `env(safe-area-inset-bottom)` |
 | Controls the bar has no place for | Stand in the *More* sheet, below the spaces and a rule: *Refresh*, then *Settings*. Each row of the sheet is 52 px. Nothing floats over the content of a screen except the one action that screen is for |

@@ -12,7 +12,7 @@ import { useReadingZone } from '../localization/useReadingZone';
 import { BackToList } from '../mailSpace/BackToList';
 import { HeadActs } from '../mailSpace/HeadActs';
 import type { ActedMessage } from '../mailboxActs/useMailboxActs';
-import { useTwoPanes } from '../shell/useWideWorkspace';
+import { useDesktopComposition, useTwoPanes } from '../shell/useWideWorkspace';
 import { useWorkspace } from '../workspace/useWorkspace';
 
 // What a message displays above its body: what it is called, who wrote it and when on one line under it, and everybody
@@ -98,7 +98,11 @@ export function MessageHeaders({
     const { locale, translate } = useLocalization();
     const twoPanes = useTwoPanes();
     const timeZone = useReadingZone();
-    const panelsHidden = useWorkspace().workspace.panelsHidden;
+    const desktop = useDesktopComposition();
+    const { panelsHidden, selected } = useWorkspace().workspace;
+
+    // The toolbar stands above the head wherever two panes do, and a selection puts its own bar in the toolbar's place.
+    const toolbarCarriesActs = twoPanes && !desktop && selected.length === 0;
 
     const authors = headers.participants.filter((participant) => participant.role === 'From');
     const others = headers.participants.filter((participant) => participant.role !== 'From');
@@ -159,6 +163,7 @@ export function MessageHeaders({
 
                 <HeadActs
                     compact={!twoPanes}
+                    toolbarCarriesActs={toolbarCarriesActs}
                     message={message}
                     thread={thread === null ? null : { scope: { kind: 'thread', subject: thread }, title: subject }}
                 />
