@@ -53,7 +53,7 @@ composition keeps its own sizes.
 | The phone's bar | Every space names itself at the left of its top bar at 20 px semibold (`screenTitleStyle`, `tbTitleStyle`, `agentTitleStyle`), the bar at least 56 px tall with 16 px before the title, and its actions stand at the far end. Mail is the exception: its search field is its bar |
 | The bottom navigation | Five places, each a 56 × 32 px pill behind its glyph (`--nav-mark`) that marks the current one, and a 12 px label beneath — the tile around it is not filled. The bar pads its foot by `env(safe-area-inset-bottom)` |
 | Controls the bar has no place for | Stand in the *More* sheet, below the spaces and a rule: *Refresh*, then *Settings*. Each row of the sheet is 52 px. Nothing floats over the content of a screen except the one action that screen is for |
-| A prompt | Fits one line at the width it is drawn at, and ends in an ellipsis where it cannot: the phone and the narrow list panes take the short form (*Search mail…*, *Ask your mail…*, *Tell me what to do…*) |
+| A prompt | Fits one line at the width it is drawn at, and ends in an ellipsis where it cannot: the phone and the narrow list panes take the short form (*Search mail…*, *Ask your mail…*, *Tell me what to do…*, *Describe the reply…*, *Write what this is about…*) |
 | Keys | No control names a key under `touch` — *Ask*, *Send*, and the composer's foot without *Ctrl+Enter sends* — because the screen has no keyboard to press it on |
 | One choice among several | A segmented control — `--rail` track, the chosen segment raised on `--panel` — rather than loose bordered buttons: People's *Own* and *Collected*, the calendar's four views |
 | Duplicated actions | A two-pane composition under a finger does not repeat in the thread head what the toolbar above it already carries: the head keeps *Ask*, and the subject the width |
@@ -271,7 +271,7 @@ the passage it rests on.*, shortened to *Quoted from this message alone* on the 
 | State | Flag | Reveal |
 |---|---|---|
 | Thread head | `showThreadHead` | `!st.stateBarOff \|\| singlePane` |
-| The subject on one pane | `threadHeadRowStyle` / `subjectStyle` | `singlePane` — the back button and the three actions share the first row, and the subject takes a row of its own under them at 19 px, two lines before it ends in an ellipsis; scrolled (`thCollapsed`) it folds to one line at 16 px |
+| The subject on one pane | `threadHeadRowStyle` / `subjectStyle` | `singlePane` — the back button and the three actions share the first row, and the subject takes a row of its own under them at 18 px, two lines before it ends in an ellipsis; scrolled (`thCollapsed`) it folds to one line at 16 px |
 | The head's actions under a finger | `threadActions` | `!singlePane && touch` draws none — the toolbar above carries *Reply*, *Forward* and *Flag*, so the head keeps *Ask* (44 px) beside the subject |
 | State bar beside the thread | `showThreadStateBar` | `!singlePane && !tablet && !stateBarOff` |
 | State cards | `showStateCards` | `!singlePane && !stateStale` |

@@ -3251,6 +3251,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "display:flex;align-items:center;gap:8px;flex:0 0 auto;box-sizing:border-box;min-height:56px;padding:6px 12px 6px 16px;border-bottom:1px solid var(--line);background:var(--panel)"
           : "display:flex;align-items:center;gap:16px;padding:0 26px;height:56px;flex:0 0 56px;border-bottom:1px solid var(--line);background:var(--panel)",
         discoverPlaceholder: isMobile ? "Ask your mail…" : "What do you want to ask your mail?",
+        composeAiPlaceholder: isMobile ? "Write what this is about…" : "Write what this is about - e.g. “we accept the 2 h SLA but ask for a 5% CPI cap”",
         askLabel: touch ? "Ask" : "Ask ⏎",
         askBtnStyle: "font-size:13px;color:var(--onaccent);background:var(--accent);border-radius:8px;white-space:nowrap;box-sizing:border-box;display:flex;align-items:center;" +
           (touch ? "min-height:44px;padding:0 18px" : "padding:8px 16px"),
@@ -4237,7 +4238,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "display:flex;flex-wrap:wrap;align-items:center;gap:2px 9px;min-width:0"
           : "display:flex;align-items:center;gap:9px;min-width:0",
         subjectStyle: singlePane
-          ? "order:3;flex:1 1 100%;min-width:0;box-sizing:border-box;padding:0 8px " + (thCollapsed ? 0 : 2) + "px;font-size:" + (thCollapsed ? 16 : 19) + "px;font-weight:600;line-height:1.3;letter-spacing:-0.01em;text-wrap:pretty;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:" + (thCollapsed ? 1 : 2) + ";overflow:hidden;transition:font-size 140ms ease"
+          ? "order:3;flex:1 1 100%;min-width:0;box-sizing:border-box;padding:0 8px " + (thCollapsed ? 0 : 2) + "px;font-size:" + (thCollapsed ? 16 : 18) + "px;font-weight:600;line-height:1.3;letter-spacing:-0.01em;text-wrap:pretty;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:" + (thCollapsed ? 1 : 2) + ";overflow:hidden;transition:font-size 140ms ease"
           : "font-size:20px;font-weight:600;min-width:0",
         /* Expandable thread address details — the chevron sits in the sender row so that, collapsed,
            it does not take a separate row in the header. */
@@ -4268,7 +4269,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           run: a.run,
           label: singlePane ? a.icon : a.label,
           style: singlePane
-            ? "width:" + (isMobile ? 48 : 38) + "px;height:" + (isMobile ? 48 : 38) + "px;display:flex;align-items:center;justify-content:center;border-radius:12px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : "--text2") + ");font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1"
+            ? "width:" + (isMobile ? 48 : 44) + "px;height:" + (isMobile ? 48 : 44) + "px;display:flex;align-items:center;justify-content:center;border-radius:12px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : "--text2") + ");font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1"
             : "display:flex;align-items:center;padding:5px 8px;border-radius:8px;font-size:13px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : "--muted") + ")",
         })),
         showComposerChips: !singlePane && !tablet,
