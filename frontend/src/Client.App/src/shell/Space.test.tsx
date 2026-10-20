@@ -184,6 +184,22 @@ describe('Space', () => {
         expect(screen.getByText(handedToMail)).toBeDefined();
     });
 
+    it('names the space at the top of a phone, which has no rail beside it saying where the reader is', () => {
+        Object.defineProperty(window, 'matchMedia', {
+            configurable: true,
+            value: (query: string) => ({
+                media: query,
+                matches: false,
+                addEventListener: () => undefined,
+                removeEventListener: () => undefined,
+            }),
+        });
+
+        render(inStrictMode('people'));
+
+        expect(screen.getByRole('heading', { level: 1, name: 'People' })).toBeDefined();
+    });
+
     it('draws People without a heading either, and names its landmark the same way', () => {
         render(inStrictMode('people'));
 

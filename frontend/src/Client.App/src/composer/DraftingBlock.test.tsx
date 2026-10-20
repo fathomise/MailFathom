@@ -40,6 +40,16 @@ describe('DraftingBlock', () => {
         expect(screen.getByText('the draft stays local until you send it')).toBeDefined();
     });
 
+    // jsdom answers every width query `false`, which is the phone.
+    it('asks in words that fit one line on a phone', () => {
+        drawBlock();
+
+        expect(screen.getByRole('textbox', { name: 'What the draft should say' })).toHaveProperty(
+            'placeholder',
+            'Write what this is about…',
+        );
+    });
+
     it('stands on the tone nobody chose, which is the one the design draws as in force', () => {
         drawBlock();
 
