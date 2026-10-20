@@ -12,7 +12,7 @@ import { useLocalization } from '../localization/useLocalization';
 import { flagActFor, refusalSaid, standsInTheWay } from '../mailboxActs/drawnActs';
 import { useMailboxActs, type ActedMessage } from '../mailboxActs/useMailboxActs';
 import { useAgentHandOver, type AgentHandOver } from '../routing/agentHandOver';
-import { useWideWorkspace } from '../shell/useWideWorkspace';
+import { useDesktopComposition, useWideWorkspace } from '../shell/useWideWorkspace';
 
 // What stands at the end of the head of a message or a conversation, beside its subject: handing the thread to the
 // agent, and the three things the design offers to do with it from there. One component because two heads
@@ -59,6 +59,7 @@ export function HeadActs({
 }) {
     const { translate } = useLocalization();
     const wideWorkspace = useWideWorkspace();
+    const desktop = useDesktopComposition();
     const acts = useMailboxActs();
     const handToAgent = useAgentHandOver();
 
@@ -122,35 +123,39 @@ export function HeadActs({
                 />
             )}
 
-            <div className="flex items-center gap-0.75">
-                {answer === null ? (
-                    <PlannedControl label={translate('mail.reply')} icon="reply" shape={actShape} />
-                ) : (
-                    <Control
-                        label={translate('mail.reply')}
-                        icon="reply"
-                        shape={actShape}
-                        onPress={answer('senderOnly')}
-                    />
-                )}
+            {/* Two panes narrower than the desktop carry these three in the toolbar above already, so the head keeps
+                asking the agent alone and the subject keeps the width a second copy would take from it. */}
+            {!compact && !desktop ? null : (
+                <div className="flex items-center gap-0.75">
+                    {answer === null ? (
+                        <PlannedControl label={translate('mail.reply')} icon="reply" shape={actShape} />
+                    ) : (
+                        <Control
+                            label={translate('mail.reply')}
+                            icon="reply"
+                            shape={actShape}
+                            onPress={answer('senderOnly')}
+                        />
+                    )}
 
-                {answer === null ? (
-                    <PlannedControl label={translate('message.forward')} icon="forward" shape={actShape} />
-                ) : (
-                    <Control
-                        label={translate('message.forward')}
-                        icon="forward"
-                        shape={actShape}
-                        onPress={answer('forward')}
-                    />
-                )}
+                    {answer === null ? (
+                        <PlannedControl label={translate('message.forward')} icon="forward" shape={actShape} />
+                    ) : (
+                        <Control
+                            label={translate('message.forward')}
+                            icon="forward"
+                            shape={actShape}
+                            onPress={answer('forward')}
+                        />
+                    )}
 
-                {'press' in flag ? (
-                    <Control label={flagLabel} icon="flag" shape={actShape} onPress={flag.press} />
-                ) : (
-                    <PlannedControl label={flagLabel} icon="flag" shape={actShape} why={flag.why} />
-                )}
-            </div>
+                    {'press' in flag ? (
+                        <Control label={flagLabel} icon="flag" shape={actShape} onPress={flag.press} />
+                    ) : (
+                        <PlannedControl label={flagLabel} icon="flag" shape={actShape} why={flag.why} />
+                    )}
+                </div>
+            )}
         </div>
     );
 }

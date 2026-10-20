@@ -409,6 +409,23 @@ export function AgentSpace({
 
     const conversationTitle = current === null ? null : titleOf(current);
 
+    const newConversation = (
+        <Control
+            label={translate('agent.newConversation')}
+            icon="add"
+            shape={wide ? 'primary' : 'primarySymbol'}
+            onPress={startNew}
+        />
+    );
+
+    const title = (
+        <h1
+            className={`min-w-0 truncate font-semibold ${wide ? 'text-xl' : 'flex-1 text-3xl leading-tight tracking-tight'}`}
+        >
+            {conversationTitle ?? translate('space.agent')}
+        </h1>
+    );
+
     return (
         <div className="flex min-h-0 flex-1 flex-col bg-sunken">
             {desktop && open.length > 1 ? (
@@ -421,7 +438,7 @@ export function AgentSpace({
                 />
             ) : null}
 
-            <header className="flex shrink-0 flex-wrap items-center gap-2.5 border-b border-line bg-panel px-3.5 py-2.75 workspace:h-14 workspace:flex-nowrap workspace:gap-4 workspace:px-6.5 workspace:py-0">
+            <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-2.5 border-b border-line bg-panel px-3.5 py-1.5 workspace:h-14 workspace:flex-nowrap workspace:gap-4 workspace:px-6.5 workspace:py-0">
                 <Control
                     label={translate('agent.history')}
                     icon="menu"
@@ -437,20 +454,16 @@ export function AgentSpace({
                     }}
                 />
 
-                <Control
-                    label={translate('agent.newConversation')}
-                    icon="add"
-                    shape={wide ? 'primary' : 'primarySymbol'}
-                    onPress={startNew}
-                />
-
-                <h1 className="min-w-0 truncate text-xl font-semibold">
-                    {conversationTitle ?? translate('space.agent')}
-                </h1>
+                {/* The phone names the space at the top as every other space does there, between the way to the
+                    history and the way to a new conversation; the wider compositions keep it after both. */}
+                {wide ? newConversation : title}
+                {wide ? title : newConversation}
 
                 {wide ? <p className="ms-auto shrink-0 text-base text-muted">{translate('agent.reach')}</p> : null}
 
-                {status}
+                {/* The phone gives the connection a line of its own under the bar, where it would otherwise take the
+                    title's width; it draws nothing at all while the connection is fine. */}
+                {wide ? status : <div className="basis-full empty:hidden has-[>div:empty]:hidden">{status}</div>}
             </header>
 
             <div className="relative flex min-h-0 flex-1">

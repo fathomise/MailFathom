@@ -9,6 +9,7 @@ import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import type { Locale } from '../localization/locale';
 import { useLocalization, type Translate } from '../localization/useLocalization';
+import { useWideWorkspace } from '../shell/useWideWorkspace';
 import {
     askScopeInForce,
     askScopeKey,
@@ -53,6 +54,7 @@ export function IntentField({
     readonly recall: boolean;
 }) {
     const { locale, translate } = useLocalization();
+    const wideWorkspace = useWideWorkspace();
     const { workspace, revise } = useWorkspace();
     const question = useRef<HTMLInputElement>(null);
 
@@ -120,7 +122,7 @@ export function IntentField({
                     type="search"
                     aria-label={translate('intent.label')}
                     aria-keyshortcuts={askShortcut}
-                    placeholder={translate('intent.placeholder')}
+                    placeholder={translate(wideWorkspace ? 'intent.placeholder' : 'intent.placeholderShort')}
                     value={workspace.question}
                     onChange={(event) => {
                         revise({ question: event.target.value });

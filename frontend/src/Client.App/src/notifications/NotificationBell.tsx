@@ -5,6 +5,7 @@
 import { Icon } from '../controls/Icon';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { NavigationMark } from '../shell/NavigationMark';
 
 // The one control in the navigation that is not a place to go. It draws two things: whether anything is unread, which
 // is the symbol, and how much of it, which is the badge — and the design caps the badge at *9+* because the
@@ -59,14 +60,14 @@ export function NotificationBell({
                       })
                     : translate('notifications.place')
             }
-            className={`flex flex-1 cursor-pointer flex-col items-center gap-0.75 rounded-lg px-0.5 py-1.75 text-xs font-medium transition workspace:size-11.5 workspace:flex-none workspace:justify-center workspace:gap-0 workspace:rounded-lg workspace:border workspace:px-0 workspace:py-0 ${
+            className={`flex flex-1 cursor-pointer flex-col items-center gap-1 rounded-lg px-0.5 py-1.5 text-xs font-medium transition workspace:size-11.5 workspace:flex-none workspace:justify-center workspace:gap-0 workspace:rounded-lg workspace:border workspace:px-0 workspace:py-0 ${
                 shown
-                    ? 'bg-accent-soft text-accent-deep workspace:border-accent-line'
+                    ? 'text-accent-deep workspace:border-accent-line workspace:bg-accent-soft'
                     : 'text-muted hover:bg-hover hover:text-text workspace:border-line workspace:bg-panel workspace:text-text-soft workspace:shadow-raised'
             }`}
             onClick={onPress}
         >
-            <span className="relative flex items-center justify-center">
+            <NavigationMark current={shown} className="relative">
                 <Icon name={unread ? 'notifications_active' : 'notifications'} className="size-icon-2xl" />
 
                 {/* Bounded rather than round, so `9+` is as legible as `3`. The ring is the rail's own colour, which is
@@ -79,7 +80,7 @@ export function NotificationBell({
                         {unreadCount > mostUnreadShown ? `${counted}+` : counted}
                     </span>
                 ) : null}
-            </span>
+            </NavigationMark>
 
             {/* The name is under the symbol in the bottom bar, where every item carries one, and gone in the rail,
                 where the design draws this control as the symbol alone above the account. */}

@@ -254,9 +254,9 @@ export function TaskRow({
                 )}
 
                 {task.dueOn === null ? (
-                    <span className="text-sm whitespace-nowrap text-faint">{translate('tasks.noDay')}</span>
+                    <span className="text-base whitespace-nowrap text-text-soft">{translate('tasks.noDay')}</span>
                 ) : (
-                    <time dateTime={task.dueOn} className="text-sm whitespace-nowrap text-faint">
+                    <time dateTime={task.dueOn} className="text-base whitespace-nowrap text-text-soft">
                         <span aria-hidden="true">{wordDueDay(task.dueOn, locale, now, timeZone)}</span>
                         <span className="sr-only">
                             {translate('tasks.dueOn', { day: wordCalendarDay(task.dueOn, locale) })}

@@ -35,6 +35,7 @@ import { TaskList } from './TaskList';
 import { TaskSelectionBar } from './TaskSelectionBar';
 import { TodayCalendar } from './TodayCalendar';
 import { dayAround, endAfter, startOfDay } from './dayInstants';
+import { reachedTheRowsRead } from './rowsRead';
 import { groupedTasks } from './taskGrouping';
 import { useTasks } from './useTasks';
 import { useTodayCalendar } from './useTodayCalendar';
@@ -575,7 +576,14 @@ export function TasksSpace({
                 </p>
             )}
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto panes:flex-row panes:overflow-visible">
+            <div
+                className="flex min-h-0 flex-1 flex-col overflow-y-auto panes:flex-row panes:overflow-visible"
+                onScroll={(event) => {
+                    if (reachedTheRowsRead(event.currentTarget)) {
+                        reading.readMore();
+                    }
+                }}
+            >
                 <TaskList
                     tasks={shown}
                     reading={reading.reading}

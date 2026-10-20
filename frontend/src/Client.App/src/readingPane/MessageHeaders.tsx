@@ -142,14 +142,16 @@ export function MessageHeaders({
         <header
             className={`flex flex-col border-b border-line ${twoPanes ? 'gap-1.75 px-5.5 py-4' : 'gap-0.5 px-2 pt-1.5 pb-2'}`}
         >
-            <div className="flex min-w-0 items-center gap-2.25">
+            {/* One pane gives the subject a row of its own under the way back and the acts, two lines before it is
+                cut, so a long subject is read rather than guessed from its first words. */}
+            <div className={`flex min-w-0 items-center ${twoPanes ? 'gap-2.25' : 'flex-wrap gap-x-2.25 gap-y-0.5'}`}>
                 {twoPanes ? null : <BackToList />}
 
                 <h2
                     className={
                         twoPanes
                             ? 'min-w-0 flex-1 text-3xl font-semibold text-balance'
-                            : 'min-w-0 flex-1 truncate text-xl font-semibold'
+                            : 'order-3 line-clamp-2 min-w-0 basis-full px-2 pb-0.5 text-2xl leading-snug font-semibold text-pretty'
                     }
                 >
                     {subject}

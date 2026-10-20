@@ -4,12 +4,35 @@
 
 import { useEffect } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { MailAccount } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import { useWorkspace, type Workspace } from '../workspace/useWorkspace';
 import { IntentField } from './IntentField';
+
+// jsdom answers every media query `false`, which is the phone, so a test about a wider window states one.
+const declaredMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+
+afterEach(() => {
+    if (declaredMatchMedia === undefined) {
+        Reflect.deleteProperty(window, 'matchMedia');
+    } else {
+        Object.defineProperty(window, 'matchMedia', declaredMatchMedia);
+    }
+});
+
+function aWindowWiderThanAPhone(): void {
+    Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: (query: string) => ({
+            media: query,
+            matches: true,
+            addEventListener: () => undefined,
+            removeEventListener: () => undefined,
+        }),
+    });
+}
 
 const workAccount: MailAccount = {
     id: 'work',
@@ -393,12 +416,22 @@ describe('IntentField history', () => {
 // nothing this field says or does: it stays Discover's question.
 describe('IntentField wording', () => {
     it('asks the Discover screen\u2019s own question even while a correspondence is being read', () => {
+        aWindowWiderThanAPhone();
         fieldStanding({ conversation: { threadId: 'thread-1', openAt: null }, selection: 'AAMkAD-42' });
 
         expect(screen.getByRole('button', { name: 'Ask' })).toBeDefined();
         expect(screen.getByRole('searchbox', { name: 'Ask your mail' })).toHaveProperty(
             'placeholder',
             'What do you want to ask your mail?',
+        );
+    });
+
+    it('asks in words that fit one line on a phone', () => {
+        fieldStanding({});
+
+        expect(screen.getByRole('searchbox', { name: 'Ask your mail' })).toHaveProperty(
+            'placeholder',
+            'Ask your mail…',
         );
     });
 

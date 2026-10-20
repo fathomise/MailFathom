@@ -36,6 +36,7 @@ import {
     type MailSearchAsk,
 } from './searchAsk';
 import { useScreenStep } from '../shell/screenLayers';
+import { useDesktopComposition } from '../shell/useWideWorkspace';
 
 // Finding a message, which stands at the top of the mail a person is looking at rather than on a screen of its own.
 // That is where somebody reaches for it — they are looking at a folder and the message is not in front of them — and
@@ -87,6 +88,7 @@ export function MailSearch({
     readonly onOpenDraft: ((storedEmailId: string) => void) | null;
 }) {
     const { translate } = useLocalization();
+    const desktop = useDesktopComposition();
     const { workspace, revise } = useWorkspace();
     const openMailboxes = useMailboxesDrawer();
 
@@ -195,7 +197,7 @@ export function MailSearch({
     return (
         <div className="flex min-h-0 flex-1 flex-col">
             <form
-                className="flex flex-wrap items-center gap-2.25 border-b border-line px-3 py-2.5"
+                className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2 desktop:gap-2.25 desktop:py-2.5"
                 onSubmit={(event) => {
                     event.preventDefault();
                     search(typed);
@@ -214,9 +216,13 @@ export function MailSearch({
                     <span className="sr-only">{translate('search.label')}</span>
                     <input
                         type="search"
-                        className="min-h-12 w-full rounded-full border border-line bg-rail px-4 text-md text-text transition placeholder:text-faint hover:border-line-strong workspace:min-h-0 workspace:px-3.25 workspace:py-2.25 workspace:text-base"
+                        className="min-h-11 w-full rounded-full border border-line bg-rail px-4 text-md text-text transition placeholder:text-faint hover:border-line-strong desktop:min-h-0 desktop:px-3.25 desktop:py-2.25 desktop:text-base"
                         placeholder={translate(
-                            readsPhrases === true ? 'search.placeholderDescribed' : 'search.placeholder',
+                            !desktop
+                                ? 'search.placeholderShort'
+                                : readsPhrases === true
+                                  ? 'search.placeholderDescribed'
+                                  : 'search.placeholder',
                         )}
                         value={typed}
                         onChange={(event) => {
@@ -226,12 +232,14 @@ export function MailSearch({
                     />
                 </label>
 
-                {/* Its symbol alone, as the design draws it; the name is on the control for whoever is not looking. */}
+                {/* Its symbol alone, as the design draws it; the name is on the control for whoever is not looking. Below
+                    the desktop composition the list pane is too narrow to spend a target on a second way into the same
+                    search — the field submits it, from a keyboard's Enter or a phone's own search key. */}
                 <button
                     type="submit"
                     aria-label={translate('search.submit')}
                     title={translate('search.submit')}
-                    className={`flex shrink-0 items-center whitespace-nowrap text-muted transition ${controlShapes.symbol}`}
+                    className={`hidden shrink-0 items-center whitespace-nowrap text-muted transition desktop:flex ${controlShapes.symbol}`}
                 >
                     <Icon name="search" className="size-icon-lg" />
                 </button>

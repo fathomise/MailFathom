@@ -215,7 +215,7 @@ export function WrittenMessage({
 
             {address === null ? null : (
                 <div className="flex shrink-0 flex-wrap items-center gap-2.5 border-b border-line-soft px-3.75 py-2.25 focus-within:border-accent focus-within:ring-3 focus-within:ring-accent-soft focus-within:ring-inset">
-                    <label htmlFor={addressId} className="w-22 shrink-0 text-sm text-muted">
+                    <label htmlFor={addressId} className="w-14.5 shrink-0 text-sm text-muted workspace:w-22">
                         {translate('compose.linkAddress')}
                     </label>
 

@@ -6,6 +6,7 @@ import { useState, type KeyboardEvent } from 'react';
 import { longestDraftInstruction } from '@mailfathom/client-backend';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { useWideWorkspace } from '../shell/useWideWorkspace';
 
 // Asking the deployment to write the message, as the design draws it over the body: a field with the product's
 // mark on it, the four acts beside it, the three tones after them, and a line saying what the draft is written against
@@ -79,6 +80,7 @@ export function DraftingBlock({
     readonly onDraft: (instruction: string) => void;
 }) {
     const { translate } = useLocalization();
+    const wideWorkspace = useWideWorkspace();
     const [written, setWritten] = useState('');
     const [tone, setTone] = useState<Tone>('neutral');
 
@@ -135,7 +137,9 @@ export function DraftingBlock({
 
                 <input
                     aria-label={translate('compose.aiPrompt')}
-                    placeholder={translate('compose.aiPromptPlaceholder')}
+                    placeholder={translate(
+                        wideWorkspace ? 'compose.aiPromptPlaceholder' : 'compose.aiPromptPlaceholderShort',
+                    )}
                     value={written}
                     maxLength={longestDraftInstruction}
                     className="min-w-0 flex-1 bg-transparent text-base text-text outline-none placeholder:text-faint"

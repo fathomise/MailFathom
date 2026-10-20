@@ -603,7 +603,10 @@ export function Composer({
                 <>
                     {accounts.length > 1 && composition.answering === null ? (
                         <div className="flex items-center gap-2.5 border-b border-line-soft px-3.75 py-2.25">
-                            <label htmlFor={`${subjectId}-from`} className="w-22 shrink-0 text-sm text-muted">
+                            <label
+                                htmlFor={`${subjectId}-from`}
+                                className="w-14.5 shrink-0 text-sm text-muted workspace:w-22"
+                            >
                                 {translate('compose.from')}
                             </label>
 
@@ -667,7 +670,7 @@ export function Composer({
                             />
 
                             <p className="flex items-start gap-2.25 border-b border-line-soft bg-sunken px-3.75 py-2.25">
-                                <span className="w-22 shrink-0">
+                                <span className="w-14.5 shrink-0 workspace:w-22">
                                     <Icon name="visibility" className="size-icon-md text-warning-text" />
                                 </span>
                                 <span className="min-w-0 flex-1 text-sm text-text-soft text-pretty">
@@ -696,7 +699,10 @@ export function Composer({
                             word beside it. */}
                         {composition.answering === null ? (
                             <>
-                                <label htmlFor={subjectId} className="w-22 shrink-0 text-sm text-muted">
+                                <label
+                                    htmlFor={subjectId}
+                                    className="w-14.5 shrink-0 text-sm text-muted workspace:w-22"
+                                >
                                     {translate('compose.subject')}
                                 </label>
 
@@ -712,7 +718,7 @@ export function Composer({
                             </>
                         ) : (
                             <>
-                                <span id={subjectId} className="w-22 shrink-0 text-sm text-muted">
+                                <span id={subjectId} className="w-14.5 shrink-0 text-sm text-muted workspace:w-22">
                                     {translate('compose.subject')}
                                 </span>
 
@@ -825,7 +831,9 @@ export function Composer({
                             {translate('compose.saveDraft')}
                         </button>
 
-                        <p className="ms-auto text-xs text-faint">{translate('compose.shortcutSends')}</p>
+                        <p className="ms-auto text-xs text-faint pointer-coarse:hidden">
+                            {translate('compose.shortcutSends')}
+                        </p>
                     </div>
                 </>
             )}

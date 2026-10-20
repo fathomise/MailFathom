@@ -4,7 +4,7 @@
 
 import type { ReactElement } from 'react';
 import { act, fireEvent, render, renderHook, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ClientRequest, ClientSession, MailAccount, MailFathomTransport } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import { ScreenLayersContext, useScreenLayerStack } from '../shell/screenLayers';
@@ -163,9 +163,35 @@ function searchFor(words: string): void {
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
 }
 
+// jsdom answers every media query `false`, which is the phone, and the field's prompt is the desktop's everywhere a
+// test does not say otherwise, so every test starts in a window as wide as the desktop composition.
+const declaredMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+
+function aWindowMatching(matches: boolean): void {
+    Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: (query: string) => ({
+            media: query,
+            matches,
+            addEventListener: () => undefined,
+            removeEventListener: () => undefined,
+        }),
+    });
+}
+
+beforeEach(() => {
+    aWindowMatching(true);
+});
+
 // The workspace keeps what was searched for, and the store is one per file rather than one per test.
 afterEach(() => {
     window.sessionStorage.clear();
+
+    if (declaredMatchMedia === undefined) {
+        Reflect.deleteProperty(window, 'matchMedia');
+    } else {
+        Object.defineProperty(window, 'matchMedia', declaredMatchMedia);
+    }
 });
 
 describe('MailSearch', () => {
@@ -219,6 +245,13 @@ describe('MailSearch', () => {
         render(searchUnder(deployment({ readsPhrases: true }).transport));
 
         expect(await screen.findByPlaceholderText('Search, or describe what you need')).toBeTruthy();
+    });
+
+    it('asks in words that fit the field below the desktop composition', async () => {
+        aWindowMatching(false);
+        render(searchUnder(deployment({ readsPhrases: true }).transport));
+
+        expect(await screen.findByPlaceholderText('Search mail…')).toBeTruthy();
     });
 
     it('offers the word search where the deployment reads no sentence', async () => {

@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-// The four shapes one choice out of a group takes in the design, stated once for the single component that
+// The shapes one choice out of a group takes in the design, stated once for the single component that
 // draws one. They are here rather than in that component for the reason `controlShapes.ts` gives about its own table:
 // a module Vite hot-reloads may export components alone.
 //
@@ -16,8 +16,12 @@
 // reason `filter` stands beside `chip` rather than reusing it: a setting says what this client will do from now on and
 // is drawn in the full accent, while a filter says what the list in front of you is showing and is drawn as a tint —
 // loud enough to read against the other chip, quiet enough not to compete with the rows underneath it.
+//
+// **A raised segment is a segmented control rather than a choice drawn in the accent**: the chosen one stands on the
+// panel above the pill the group draws, which is how the design draws a switch between two halves of one screen and
+// every group of views under a finger.
 
-export type SegmentShape = 'row' | 'section' | 'compact' | 'chip' | 'filter';
+export type SegmentShape = 'row' | 'section' | 'raised' | 'compact' | 'chip' | 'filter';
 
 interface SegmentLook {
     /** What the segment measures, whichever of the group is chosen. */
@@ -36,6 +40,11 @@ const quiet = 'text-muted hover:bg-hover';
 export const segmentShapes: Readonly<Record<SegmentShape, SegmentLook>> = {
     row: { shape: 'flex-1 rounded-md py-1 text-center text-sm', chosen: accented, unchosen: quiet },
     section: { shape: 'flex-1 rounded-md px-2 py-1.5 text-center text-base', chosen: accented, unchosen: quiet },
+    raised: {
+        shape: 'flex flex-1 items-center justify-center rounded-md px-2.5 py-1.5 text-base whitespace-nowrap',
+        chosen: 'bg-panel font-semibold text-text shadow-raised',
+        unchosen: 'text-muted hover:text-text',
+    },
     compact: {
         shape: 'min-w-6.5 rounded-sm px-1.75 py-1 text-center text-sm font-semibold',
         chosen: accented,

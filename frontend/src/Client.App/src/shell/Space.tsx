@@ -7,6 +7,7 @@ import { useLocalization } from '../localization/useLocalization';
 import { MailSpace } from '../mailSpace/MailSpace';
 import { implementedSpaces, spaceLabels, type Space as SpaceName } from '../routing/spaces';
 import { SpaceInFrontContext } from './screenLayers';
+import { useWideWorkspace } from './useWideWorkspace';
 
 // The region the address decides the contents of. What each space actually holds is built by its own issue; what this
 // owns permanently is that a space is mounted once and then only moved in front of or behind the others, and what
@@ -80,6 +81,7 @@ export function Space({
     readonly person: string | null;
 }) {
     const { translate } = useLocalization();
+    const wideWorkspace = useWideWorkspace();
     const inFrontRegion = useRef<HTMLElement>(null);
     const shown = useRef(space);
 
@@ -210,6 +212,15 @@ export function Space({
                                    connection stands at its foot and is handed to the one in front alone, exactly as it
                                    is to Mail; none of the three draws a field, because the design draws none there. */
                                 <div className="flex min-h-0 flex-1 flex-col">
+                                    {/* The phone is the one composition where these three do carry a title, because
+                                        it has no rail beside them saying where the reader is: every space names itself
+                                        at the top of the phone, as the design draws it. */}
+                                    {wideWorkspace ? null : (
+                                        <h1 className="flex min-h-14 shrink-0 items-center border-b border-line bg-panel px-4 py-1.5 text-3xl leading-tight font-semibold tracking-tight shadow-raised">
+                                            {translate(spaceLabels[name])}
+                                        </h1>
+                                    )}
+
                                     {ownColumns}
                                     {inFront ? status : null}
                                 </div>

@@ -34,7 +34,7 @@ export function WeekView({
     const { locale, translate } = useLocalization();
 
     return (
-        <div className="grid min-w-0 flex-1 grid-cols-7 panes:min-h-0 panes:overflow-y-auto">
+        <div className="grid min-w-0 flex-1 grid-cols-7 desktop:min-h-0 desktop:overflow-y-auto">
             {daysOf(span).map((day, column) => {
                 const standing = sameDay(day, today);
 
