@@ -283,6 +283,16 @@ describe('NotificationCentre', () => {
         expect(acts.hide).toHaveBeenCalledOnce();
     });
 
+    it('opens on Unread again after it was closed on All, because the filter lasts only while the panel is open', () => {
+        panel();
+        showAll();
+
+        fireEvent(screen.getByRole('dialog'), new Event('close'));
+
+        expect(screen.getByRole('radio', { name: /^Unread/u })).toHaveProperty('checked', true);
+        expect(screen.getByRole('radio', { name: 'All' })).toHaveProperty('checked', false);
+    });
+
     it('says that nothing is waiting, rather than drawing an empty list', () => {
         panel({ notifications: [], unreadCount: 0 });
 

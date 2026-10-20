@@ -200,7 +200,12 @@ export function NotificationCentre({
                     leave();
                 }
             }}
-            onClose={clear}
+            // However it closed, the next opening starts where the design opens it, on what stands unread: the filter is
+            // the reader's for as long as the panel is open, and only the selection is otherwise cleared here.
+            onClose={() => {
+                clear();
+                setFilter('unread');
+            }}
         >
             {/* The handle the design draws at the top of the sheet, which says the panel is something a finger
                 can push away. It is drawn where that gesture exists and nowhere else. */}
