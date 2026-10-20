@@ -3010,7 +3010,6 @@ case "$endpoint" in
                            status: "modified", additions: 1, deletions: 0,
                            patch: "@@ -1,2 +1,3 @@\n unchanged\n+added\n unchanged"}]
          | if length == 1 then [.[0] + {filename: "backend/src/Sample.cs"}] else . end
-         | if (env.FAKE_RENAMED_FROM // "") != "" then .[0].previous_filename = env.FAKE_RENAMED_FROM else . end
          | . + [range($runtime)
                 | {filename: "design/runtime/bundle\(.).js", previous_filename: null,
                    status: "modified", additions: 6000, deletions: 5000,
@@ -3088,7 +3087,7 @@ case "$endpoint" in
                  repo: (if env.FAKE_DELETED_HEAD_REPOSITORY == "true" then null
                         else {full_name: "fathomise/MailFathom"} end)},
           base: {sha: "89abcdef0123456789abcdef0123456789abcdef", ref: "main"},
-          changed_files: ((env.FAKE_PULL_REQUEST_CHANGED_FILES // "1") | tonumber),
+          changed_files: 1,
           additions: 1,
           deletions: 0}'
     )"
@@ -3206,8 +3205,6 @@ run_fathom_review_collect() {
     # rather than into it. The workflow declares the path from `runner.temp`; here it is the same
     # directory the review one sits in.
     export OBLIGATIONS_FILES="$test_directory/fathom-review-collect-files.obligations.json"
-    export ALL_FILES="$test_directory/fathom-review-collect-files.all.json"
-    export SELECT_PROTECTED_PATHS="$source_repository_root/.github/protected-paths/select-protected-paths.sh"
     export_api_retry_environment
     export REVIEWER_LOGIN='fathom-reviewer[bot]'
     export EXPLICIT="$explicit"
@@ -3248,29 +3245,6 @@ fathom_review_collects_where_the_head_lives_and_who_opened_it() {
   FAKE_DELETED_HEAD_REPOSITORY='true' run_fathom_review_collect "$output_file"
 
   assert_json 'null' '.head_repository' "$collect_review_directory/pull-request.json"
-}
-
-# The protected paths are read from every changed file rather than from the ones the readers are
-# given, so a vendored skill dropped from the review still counts as the change to `.agents/` it is.
-# A listing shorter than the pull request's own count cannot show a protected path to be absent.
-fathom_review_collects_the_protected_paths_a_change_reaches() {
-  local output_file="$test_directory/fathom-review-collect-protected-output"
-
-  run_fathom_review_collect "$output_file"
-  assert_json '[]' '.protected_changes' "$collect_review_directory/pull-request.json"
-  assert_json 'true' '.protected_changes_complete' "$collect_review_directory/pull-request.json"
-
-  run_fathom_review_collect "$output_file" 120 120 1 false 0 0 2
-  assert_json '[".agents/skills/brandkit/vendored0.md",".agents/skills/brandkit/vendored1.md",".agents/skills/start-task/SKILL.md"]' \
-    '.protected_changes' "$collect_review_directory/pull-request.json"
-  assert_json 'true' '.protected_changes_complete' "$collect_review_directory/pull-request.json"
-
-  # A file moved out of a protected directory changed that directory.
-  FAKE_RENAMED_FROM='.github/workflows/retired.yml' run_fathom_review_collect "$output_file"
-  assert_json '[".github/workflows/retired.yml"]' '.protected_changes' "$collect_review_directory/pull-request.json"
-
-  FAKE_PULL_REQUEST_CHANGED_FILES='3001' run_fathom_review_collect "$output_file"
-  assert_json 'false' '.protected_changes_complete' "$collect_review_directory/pull-request.json"
 }
 
 # A prefix covers its directory and nothing beside it, a name matches at any depth and only whole, a
@@ -3757,20 +3731,12 @@ chmod +x "$submit_bin_directory/gh"
 write_fathom_review_collection() {
   local review_directory="$1"
   local head_repository="${2-fathomise/MailFathom}"
-  local author_role="${3-write}"
-
-  # The protected paths the change reaches and whether that listing was complete, as `collect`
-  # read them. None, read in full, is the ordinary case.
-  local protected_changes="${PROTECTED_CHANGES-[]}"
-  local protected_changes_complete="${PROTECTED_CHANGES_COMPLETE-true}"
+  local author_role="${3-maintain}"
 
   mkdir -p "$review_directory"
   jq -n --arg head_repository "$head_repository" --arg author_role "$author_role" \
-    --argjson protected_changes "$protected_changes" --argjson complete "$protected_changes_complete" \
     '{head_repository: (if $head_repository == "" then null else $head_repository end),
-      author_role: (if $author_role == "" then null else $author_role end),
-      protected_changes: $protected_changes,
-      protected_changes_complete: $complete}' \
+      author_role: (if $author_role == "" then null else $author_role end)}' \
     > "$review_directory/pull-request.json"
   printf '[{"filename":"backend/src/Sample.cs","lines":[12,13,14]}]\n' > "$review_directory/lines.json"
   : > "$review_directory/truncation.txt"
@@ -3791,9 +3757,9 @@ run_fathom_review_submit() {
   # Where the head branch lives, as `collect` read it from the API. This repository is the ordinary
   # case; a fork's name, or an empty value for a fork that was deleted, is what withholds approval.
   local head_repository="${7-fathomise/MailFathom}"
-  # The role the author holds on the repository, as `collect` read it. `write`, which the
-  # `contributors` team holds, is the ordinary case.
-  local author_role="${8-write}"
+  # The role the author holds on the repository, as `collect` read it. `maintain`, which the
+  # `maintainers` team holds, is the ordinary case and the one an approval is given for.
+  local author_role="${8-maintain}"
   local step_script="$test_directory/fathom-review-submit.sh"
   local review_directory="$test_directory/fathom-review-submit-review"
   local coverage_file="$test_directory/fathom-review-submit-coverage"
@@ -3955,16 +3921,17 @@ fathom_review_approves_when_it_finds_nothing() {
 
 # The approval satisfies the review the `main` ruleset requires, so a pull request whose head lives
 # in a fork — or in a fork since deleted, which the API reports as no repository at all — or whose
-# author holds no write access here gets the same verdict as a comment and never as an approval. A
-# role read as `permission` would answer `write` for `maintain`; the cases name the roles themselves.
-fathom_review_approves_only_a_pull_request_from_this_repository_by_an_author_with_write_access() {
+# author is not a maintainer here, a contributor holding `write` included, gets the same verdict as a
+# comment and never as an approval. A role read as `permission` would answer `write` for `maintain`;
+# the cases name the roles themselves.
+fathom_review_approves_only_a_pull_request_from_this_repository_by_a_maintainer() {
   local output_file="$test_directory/fathom-review-submit-fork-output"
   local payload_file="$test_directory/fathom-review-submit-fork-payload"
   local case_spec
   local head_repository
   local author_role
 
-  for case_spec in 'fathomise/MailFathom|write' 'fathomise/MailFathom|maintain' 'fathomise/MailFathom|admin'; do
+  for case_spec in 'fathomise/MailFathom|maintain' 'fathomise/MailFathom|admin'; do
     head_repository="${case_spec%%|*}"
     author_role="${case_spec#*|}"
     run_fathom_review_submit \
@@ -3977,7 +3944,7 @@ fathom_review_approves_only_a_pull_request_from_this_repository_by_an_author_wit
     assert_contains 'verdict=approved' "$submit_step_output_file"
   done
 
-  for case_spec in 'contributor/MailFathom|write' '|write' 'fathomise/MailFathom|triage' 'fathomise/MailFathom|read' 'fathomise/MailFathom|'; do
+  for case_spec in 'fathomise/MailFathom|write' 'contributor/MailFathom|maintain' '|maintain' 'fathomise/MailFathom|triage' 'fathomise/MailFathom|read' 'fathomise/MailFathom|'; do
     head_repository="${case_spec%%|*}"
     author_role="${case_spec#*|}"
     run_fathom_review_submit \
@@ -3988,47 +3955,10 @@ fathom_review_approves_only_a_pull_request_from_this_repository_by_an_author_wit
     ((submit_status == 0))
     assert_json '"COMMENT"' '.event' "$payload_file"
     assert_contains '# NO FINDINGS' "$payload_file"
-    assert_contains 'A project maintainer still has to review and approve it' "$payload_file"
+    assert_contains 'A maintainer still has to review and approve its current head' "$payload_file"
     assert_excludes '# APPROVED' "$payload_file"
     assert_contains 'verdict=no_findings' "$submit_step_output_file"
   done
-}
-
-# `Protected paths` judges with the pull request's own copy of itself, so the approval is what holds a
-# contributor's change to a protected path for a maintainer. A maintainer's own change is approved as
-# before, and a listing that could not be read in full is treated as one that reached a protected path.
-fathom_review_withholds_approval_from_a_contributor_changing_a_protected_path() {
-  local output_file="$test_directory/fathom-review-submit-protected-output"
-  local payload_file="$test_directory/fathom-review-submit-protected-payload"
-  local clean='{"summary":"Read every changed file and found nothing above the bar.","findings":[]}'
-  local author_role
-
-  for author_role in maintain admin; do
-    PROTECTED_CHANGES='[".github/workflows/protected-paths.yml"]' run_fathom_review_submit \
-      "$clean" "$output_file" "$payload_file" 'success' '' '<!-- fathom-review: automatic -->' \
-      'fathomise/MailFathom' "$author_role"
-
-    ((submit_status == 0))
-    assert_json '"APPROVE"' '.event' "$payload_file"
-  done
-
-  PROTECTED_CHANGES='[".github/workflows/protected-paths.yml"]' run_fathom_review_submit \
-    "$clean" "$output_file" "$payload_file" 'success' '' '<!-- fathom-review: automatic -->' \
-    'fathomise/MailFathom' 'write'
-
-  ((submit_status == 0))
-  assert_json '"COMMENT"' '.event' "$payload_file"
-  assert_contains 'changes a protected path and its author is not a maintainer' "$payload_file"
-  assert_contains 'verdict=no_findings' "$submit_step_output_file"
-
-  PROTECTED_CHANGES_COMPLETE='false' run_fathom_review_submit \
-    "$clean" "$output_file" "$payload_file" 'success' '' '<!-- fathom-review: automatic -->' \
-    'fathomise/MailFathom' 'write'
-
-  ((submit_status == 0))
-  assert_json '"COMMENT"' '.event' "$payload_file"
-  assert_contains 'could not be read in full' "$payload_file"
-  assert_excludes 'changes a protected path' "$payload_file"
 }
 
 # The marker is what the ceiling counts with, and it is written by the only step that publishes. A
@@ -4642,9 +4572,11 @@ board_state_green_checks='[
 
 # The state a rule reads, written as a fixture rather than fetched. Every condition in that script is
 # a question about these fields alone, which is what lets a board rule be tested without a token and
-# without a pull request to reproduce it on. `approval` is `none`, `current`, `stale`, or
-# `commented`: the third is an approval GitHub kept against a head that has since been pushed over,
-# and the fourth is the withheld approval the reviewer publishes as a `COMMENT` review on the head.
+# without a pull request to reproduce it on. `approval` is `none`, `current`, `stale`, `commented`,
+# or `no-findings`: the third is an approval GitHub kept against a head that has since been pushed
+# over, the fourth is the withheld approval the reviewer publishes as a `COMMENT` review under
+# `NEEDS CHANGES` on the head, and the fifth is the clean verdict it publishes as a `COMMENT` under
+# `NO FINDINGS` for an author who is not a maintainer.
 write_pull_request_state() {
   local state_file="$1"
   local mergeable="$2"
@@ -4662,7 +4594,10 @@ write_pull_request_state() {
       removedFromMergeQueueAt: (if $removed == "" then null else $removed end),
       reviews: (if $approval == "none" then []
                 else [{author: "fathom-reviewer[bot]",
-                       state: (if $approval == "commented" then "COMMENTED" else "APPROVED" end),
+                       state: (if $approval == "commented" or $approval == "no-findings" then "COMMENTED" else "APPROVED" end),
+                       body: (if $approval == "commented" then "# NEEDS CHANGES\n\nOne finding."
+                              elif $approval == "no-findings" then "# NO FINDINGS\n\nA maintainer still has to approve it."
+                              else "# APPROVED\n\nNothing above the bar." end),
                        submittedAt: "2026-10-17T10:00:00Z",
                        commit: (if $approval == "stale" then "older-commit" else "head-commit" end)}]
                 end),
@@ -4875,6 +4810,25 @@ select_board_status_earns_changes_requested_from_a_withheld_approval() {
 
   run_select_board_status 'MERGEABLE' "$output_file" 'commented' "$board_state_green_checks"
 
+  assert_file_content $'Changes requested\t\tDone,Blocked' "$output_file"
+}
+
+# A clean pass on a change whose author is not a maintainer is published as a `COMMENT` under
+# `NO FINDINGS`, and it is the same verdict an approval is: what it still waits on is a maintainer's
+# approval, a merge decision rather than an answer the agent owes. So it earns what an approval earns
+# — `Ready to merge` where the change merges, and `Changes requested` where it conflicts or the queue
+# removed it after the verdict.
+select_board_status_reads_a_no_findings_comment_as_a_clean_verdict() {
+  local output_file="$test_directory/select-board-status-no-findings"
+
+  run_select_board_status 'MERGEABLE' "$output_file" 'no-findings' "$board_state_green_checks"
+  assert_file_content $'Ready to merge\t\tDone,Blocked' "$output_file"
+
+  run_select_board_status 'CONFLICTING' "$output_file" 'no-findings' "$board_state_green_checks"
+  assert_file_content $'Changes requested\t\tDone,Blocked' "$output_file"
+
+  run_select_board_status 'MERGEABLE' "$output_file" 'no-findings' "$board_state_green_checks" 'false' 'false' \
+    '2026-10-17T11:00:00Z'
   assert_file_content $'Changes requested\t\tDone,Blocked' "$output_file"
 }
 
@@ -11767,7 +11721,6 @@ run_test fathom_review_reads_the_newest_comment_whatever_the_order
 run_test fathom_review_collects_the_labels_of_an_issue_the_change_closes
 run_test fathom_review_collects_only_what_members_and_the_reviewer_wrote
 run_test fathom_review_collects_where_the_head_lives_and_who_opened_it
-run_test fathom_review_collects_the_protected_paths_a_change_reaches
 run_test protected_paths_select_only_what_a_maintainer_must_change
 run_test fathom_review_reports_unknown_labels_for_an_issue_it_could_not_fetch
 run_test fathom_review_never_reads_the_design_runtime
@@ -11797,8 +11750,7 @@ run_test fathom_review_holds_a_pass_that_still_found_something_owed
 run_test fathom_review_holds_a_settling_pass_whatever_the_severity
 run_test fathom_review_moves_a_finding_with_no_line_into_the_body
 run_test fathom_review_approves_when_it_finds_nothing
-run_test fathom_review_approves_only_a_pull_request_from_this_repository_by_an_author_with_write_access
-run_test fathom_review_withholds_approval_from_a_contributor_changing_a_protected_path
+run_test fathom_review_approves_only_a_pull_request_from_this_repository_by_a_maintainer
 run_test fathom_review_reports_the_files_a_review_never_named
 run_test fathom_review_reports_no_gap_when_the_review_named_every_file
 run_test fathom_review_counts_a_named_path_the_change_does_not_contain
@@ -11832,6 +11784,7 @@ run_test select_board_status_earns_nothing_from_an_approval_of_an_older_head
 run_test select_board_status_earns_nothing_while_a_check_is_still_running
 run_test select_board_status_earns_changes_requested_from_a_failed_check
 run_test select_board_status_earns_changes_requested_from_a_withheld_approval
+run_test select_board_status_reads_a_no_findings_comment_as_a_clean_verdict
 run_test select_board_status_earns_nothing_from_a_withheld_approval_of_an_older_head
 run_test select_board_status_reads_neither_codeql_nor_its_own_checks
 run_test select_board_status_asks_a_draft_only_whether_it_still_merges

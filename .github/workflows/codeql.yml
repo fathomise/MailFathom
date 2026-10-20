@@ -66,8 +66,8 @@ name: CodeQL
 # query pack updates upstream, so a commit that was clean when it merged becomes a finding with
 # nothing in this repository having changed; making that block a merge lets somebody else's release
 # stop MailFathom's. The alert sits on the pull request for whoever approves it to read. The
-# reviewer's approval does not read it — the alerts are not among its inputs — so on a member's pull
-# request, which that approval can merge, reading the alert is the member's to do. Revisit once the
+# reviewer's approval does not read it — the alerts are not among its inputs — so on a maintainer's
+# pull request, which that approval can merge, reading the alert is the maintainer's to do. Revisit once the
 # pack's false-positive rate here has been observed rather than guessed at.
 on:
   pull_request:

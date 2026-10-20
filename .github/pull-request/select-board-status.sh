@@ -20,6 +20,12 @@
 # be empty: an empty required list means any status may be moved, and an empty preserved list means
 # none is refused.
 #
+# A *clean* head, below, is one the reviewer approved or one it found nothing on and published as a
+# `COMMENT` under `NO FINDINGS` because the author is not a maintainer. Both are the same verdict and
+# the rules read them alike: what the second still waits on is a maintainer's approval, which is a
+# merge decision rather than a change the agent owes, so it belongs in `Ready to merge` beside the
+# first.
+#
 # Six rules are implemented, in this order:
 #
 # - A pull request in the merge queue earns `In merge`, before anything else is asked of it. It is
@@ -31,21 +37,21 @@
 #   that whether the objection was written by a reader or produced by a build — so this rule names no
 #   required status and describes whatever item it finds, the way a review's verdict does.
 #
-# - A head the reviewer withheld approval on earns `Changes requested` as well. That verdict is
-#   published as a `COMMENT` review on purpose, so that it cannot block a merge, and GitHub's
-#   built-in `Code changes requested` workflow therefore never fires for it — the column that says a
-#   change is waiting on the agent has no other writer.
+# - A head the reviewer withheld approval on for a finding earns `Changes requested` as well. That
+#   verdict is published as a `COMMENT` review under `NEEDS CHANGES` on purpose, so that it cannot
+#   block a merge, and GitHub's built-in `Code changes requested` workflow therefore never fires for
+#   it — the column that says a change is waiting on the agent has no other writer.
 #
-# - An approved head the merge queue removed after the approval earns `Changes requested`. The queue
+# - A clean head the merge queue removed after the verdict earns `Changes requested`. The queue
 #   lets go of a pull request when the tree it combined failed a required check, and that is a change
 #   owed by the agent however green the head's own checks are; without this rule the next sweep would
-#   read the approval and the green head and put the item back in `Ready to merge`, a column claiming
-#   nothing is left but a merge the queue has just refused. A push and a new approval answer it, which
-#   is why the removal is compared with the approval rather than read on its own.
+#   read the verdict and the green head and put the item back in `Ready to merge`, a column claiming
+#   nothing is left but a merge the queue has just refused. A push and a new verdict answer it, which
+#   is why the removal is compared with the verdict rather than read on its own.
 #
-# - An approved head earns `Ready to merge` where it still merges and `Changes requested` where it
-#   does not. A conflict is a change owed by the agent like any other, so it takes the column that
-#   says so rather than one of its own. That is what moves an approval that met a conflict before its
+# - A clean head earns `Ready to merge` where it still merges and `Changes requested` where it does
+#   not. A conflict is a change owed by the agent like any other, so it takes the column that
+#   says so rather than one of its own. That is what moves a clean verdict that met a conflict before its
 #   pipelines finished, which never reached `Ready to merge` and would otherwise sit in `In review`.
 #
 # - A pull request that no longer merges and that none of the rules above describes moves the issues
@@ -80,7 +86,7 @@
 # The JSON file holds one object with the fields the collecting caller read from GitHub — `number`,
 # `mergeable`, `isDraft`, `state`, `labels`, `headRefOid`, `inMergeQueue`, `removedFromMergeQueueAt`,
 # `reviews`, and `checks` — which is what lets this be run by hand and tested against a fixture
-# without a token. A `review` is `{author, state, submittedAt, commit}` and a `check` is `{workflow, name, status, conclusion}`, both as GitHub
+# without a token. A `review` is `{author, state, body, submittedAt, commit}` and a `check` is `{workflow, name, status, conclusion}`, both as GitHub
 # spells them.
 
 set -euo pipefail
@@ -157,44 +163,49 @@ if [[ "$(jq -r '.isDraft // false' "$pull_request_file")" != 'true' ]]; then
     exit 0
   fi
 
-  # The reviewer's verdict on the head in front of us, as the one word it is published as: `COMMENTED`
-  # where approval was withheld and `APPROVED` where it was given. GitHub keeps a review against the
-  # commit it was written on, so a push that carries either forward without a re-review is a stale
-  # verdict, and the comparison against the head is the whole of what refuses one.
+  # The reviewer's verdict on the head in front of us: `clean` for an `APPROVED` review and for a
+  # `COMMENTED` one whose body opens with the `# NO FINDINGS` heading the submission step writes, and
+  # `withheld` for every other `COMMENTED` one, which carries findings. GitHub keeps a review against
+  # the commit it was written on, so a push that carries either forward without a re-review is a
+  # stale verdict, and the comparison against the head is the whole of what refuses one.
   #
   # `latestReviews` is what the state was read from, which is one review per author, so this is the
   # reviewer's current word rather than the first one it ever said.
   #
   # The verdict is printed with whether the merge queue removed the pull request after it, because a
-  # removal the approval predates is one nobody has answered yet. Both instants are ISO 8601 in UTC as
+  # removal the verdict predates is one nobody has answered yet. Both instants are ISO 8601 in UTC as
   # GitHub writes them, so comparing the strings compares the times.
   IFS=$'\t' read -r verdict removed_after_verdict <<< "$(
     jq -r --arg login "$REVIEWER_LOGIN" '
       . as $pull_request
       | ([.reviews[]? | select(.author == $login and .commit == $pull_request.headRefOid)] | last) as $review
-      | [($review.state // ""),
+      | [(if $review == null then ""
+          elif $review.state == "APPROVED" then "clean"
+          elif $review.state == "COMMENTED"
+            then (if (($review.body // "") | startswith("# NO FINDINGS")) then "clean" else "withheld" end)
+          else "" end),
          (($pull_request.removedFromMergeQueueAt // "") as $removed
           | if $review != null and $removed != "" and $removed > ($review.submittedAt // "") then "true" else "false" end)]
       | @tsv' \
       "$pull_request_file"
   )"
 
-  if [[ "$verdict" == 'COMMENTED' ]]; then
+  if [[ "$verdict" == 'withheld' ]]; then
     printf 'Changes requested\t\tDone,Blocked\n'
     exit 0
   fi
 
-  if [[ "$verdict" == 'APPROVED' && "$removed_after_verdict" == 'true' ]]; then
+  if [[ "$verdict" == 'clean' && "$removed_after_verdict" == 'true' ]]; then
     printf 'Changes requested\t\tDone,Blocked\n'
     exit 0
   fi
 
-  if [[ "$verdict" == 'APPROVED' && "$mergeable" == 'MERGEABLE' ]]; then
+  if [[ "$verdict" == 'clean' && "$mergeable" == 'MERGEABLE' ]]; then
     printf 'Ready to merge\t\tDone,Blocked\n'
     exit 0
   fi
 
-  if [[ "$verdict" == 'APPROVED' && "$mergeable" == 'CONFLICTING' ]]; then
+  if [[ "$verdict" == 'clean' && "$mergeable" == 'CONFLICTING' ]]; then
     printf 'Changes requested\t\tDone,Blocked\n'
     exit 0
   fi
