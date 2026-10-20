@@ -26,20 +26,146 @@ is computed once in `renderVals()`. So a state's name in this file **is** the fl
 source: `grep -n 'showThreadPane' design/prototype.dc.html design/logic/prototype/component.js` gives both
 the gate in the template and the one line that decides it. *Reveal* is what makes it true.
 
-Three things decide composition before any state does, and they are read from the width alone
-(`renderVals`):
+## How a window is composed
+
+**Width, height, and pointer are three independent axes, and every composition rule reads exactly one of them.**
+Width decides how many columns there are, height decides vertical density, and the pointer decides target sizes,
+gestures, and hover. No rule reads orientation or the window's aspect, so a device upright and the same device on its
+side need no rules of their own: each is one width band combined with one height band. All of it is decided once, in
+`renderVals`, before any state is.
+
+### Width — the columns
 
 | Name | Condition | What it changes |
 |---|---|---|
-| `isMobile` | `w < 700` | Bottom navigation, drawers, touch sizing |
-| `tablet` | `700 ≤ w < 1180` | Touch and drawers, toolbar controls without labels |
+| `isMobile` | `w < 700` | Bottom navigation instead of the rail, every form a full-screen surface, the folder list always a drawer |
 | `singlePane` | `w < 820` | One pane at a time — the list and the content never stand together |
-| `narrow` | `700 ≤ w < 1020` | The narrower desktop composition |
-| `touch` | `isMobile \|\| tablet` | Every `pointer: coarse` affordance |
-| `drawer` | `tablet \|\| isMobile` | The side list arrives as a drawer rather than a column |
+| `narrow` | `700 ≤ w < 1020` | Two panes in little room: while a thread is open the list folds to a strip of senders (`listStrip`) |
+| `compact` | `700 ≤ w < 1180` | The 66 px rail with a 30 px mark, the list at 284 px until a mouse drags it, toolbar controls without labels, and the folder list folded rather than standing as a column |
+| `wide` | `w ≥ 1920` | The folder column at 240 px and the list at 420 px |
 
-`FRAMES` is the design's own four sizes: `phone` 390 × 844, `fold` 884 × 832,
-`tablet` 1024 × 768, and the artboard's 1440 × 900. A `fold` is a *tablet-class* width with two panes.
+From 1180 to 1920 the rail is 96 px, the folder column 210 px (draggable to 420 under a mouse) and the list 340 px
+(draggable from 232 to 560). Past 1920 the window's extra width goes to the thread pane, whose reading column is
+capped — § *Width inside a pane* below — so a 2560 px window shows a 96 px rail, a 240 px folder column, a 420 px list,
+and the thread's 880 px column centred in what is left. Settings, which fills the window below that, stands past 1440 px as a 1440 px surface centred on `--bg` between two `--line` edges (`settingsCardStyle`).
+
+**The folder list has three forms, and each question about it reads one axis.** Width says whether it stands: as a
+column from 1180, folded below it, and in the phone's drawer under 700, where there is no rail to fold beside. The
+pointer says what *folded* is between 700 and 1180: a drawer under a finger (`drawer`), because a finger has no hover
+to tell a strip of glyphs apart by, and a 58 px strip of glyphs under a mouse (`sideCollapsed`), each named by its
+title, which the toolbar's `left_panel_open` widens to the column again. So `drawer` is
+`isMobile || (compact && touch)`, and `sideCollapsed` starts true wherever the column does not stand.
+
+### Height — vertical density
+
+| Name | Condition | What it changes |
+|---|---|---|
+| `low` | `h < 480` | Everything below folds to fit; the phone on its side is the case it is drawn for |
+| `tall` | `h ≥ 960` | Lists and threads take the height; dialogs, sheets and the composer stop growing |
+
+Between the two — 480 to 960, every framed preview included — the composition is the one drawn everywhere else in
+this file.
+
+**In a low window** (`low`):
+
+| What | The rule |
+|---|---|
+| The rail | Glyphs alone: each destination keeps its label as its accessible name but draws none, its target is 44 px under a finger and 36 px under a mouse, and the product mark and the *Prototype* caption go (`railLogoShown`, `railCaptionShown`). The destinations scroll between the top of the rail and its pinned foot — refresh, the bell, the avatar — so every one stays reachable |
+| The thread's head | Folded from the start: the subject on one line at 16 px, the address line gone, 8 px above and below (`thCollapsed`, `metaWrapStyle`). On one pane it stays folded whatever the scroll |
+| A sheet | Up to the whole height less 8 px (`threadSheetStyle`); it scrolls, and the grabber stays at its top |
+| A dialog | Up to the whole height less 16 px, standing 8 px off every edge rather than 22 (`dlgMaxH`, `ovStyle`); it scrolls as a whole |
+| The composer | Its head shrinks to the height of its close control (`composeHeadStyle`); the fields, the AI drafting and the editor scroll together (`composeScrollStyle`) above a foot that stays pinned, so *Send* is on screen however far the keyboard shortens the window; the editor's floor drops from 170 to 72 px (`composeEditorStyle`). Docked, the composer takes up to the whole height less 8 px |
+| The AI reading | Up to the whole height less 16 px |
+
+**A phone on its side is held to *usable* rather than to a composition** — its 390 px of height leave no room for one.
+It is the `compact`, `narrow`, two-pane width under a finger and in the low band, and it owes three things: nothing is
+cut off or overlaps, every action is reachable (the rail scrolls, a dialog scrolls, the folder drawer opens from the
+toolbar), and the composer can be written in and sent with the keyboard open. Nothing about it is drawn beyond what the
+three axes already give.
+
+**In a tall window** (`tall`):
+
+| What | The rule |
+|---|---|
+| Lists | Take the height and show more rows; a row keeps its height and nothing stretches to fill |
+| The thread | Takes the height; on one pane its head stays open as the thread scrolls instead of folding (`thCollapsed`), since there is room to keep it |
+| A dialog | At most 760 px tall (`dlgMaxH`, `min(calc(100dvh - 44px), 760px)`), centred |
+| A sheet | At most 640 px tall (`threadSheetStyle`, `min(82dvh, 640px)`) |
+| The composer, docked | At most 760 px tall (`min(86dvh, 760px)`) |
+| The AI reading | At most 860 px tall, as everywhere |
+| A message's original HTML | At most 1100 px tall (`htmlWindowStyle`, `min(90dvh, 1100px, 100%)`): a message is laid out for a mail client's window, not for a monitor on its side |
+| An opened document | Keeps `88dvh`: a page is tall, and the height is what it is read in |
+
+### Pointer — targets, gestures and hover
+
+`touch` is `pointer: coarse`, as the client asks it, and nothing else: a desktop window narrowed to the tablet band
+keeps a mouse's sizes and panels, and a 1366 px touch tablet keeps a finger's. The framed previews say which they are —
+the `layout` property's `phone`, `fold` and `tablet` frames are touch devices, `desktop` is a mouse, and `auto` asks
+the browser (`st.coarse`, kept current by a `matchMedia` listener). Under `touch`: every target meets § *What every
+touch composition holds to* below; sheets and drawers follow the finger; a row swipes and holds; and nothing exists
+only under a hover. Without it: the desktop's sizes, hover affordances, and the two resizers (`showResizer`,
+`showSideResizer`), which are drag handles and so a fine pointer's alone.
+
+### Width inside a pane
+
+What stands inside the thread pane responds to the width **that pane** was given (`paneW`), never to the window's,
+because the same window gives the pane more or less as the list folds to its strip, is dragged wider, or goes into a
+drawer. `paneW` is the window less the rail, the folder column or strip, and the list or its strip; on one pane it is
+the window less the rail.
+
+| Name | Condition | What it changes |
+|---|---|---|
+| `paneCompact` | `paneW < 760` | Off the phone (`stateCards`), the thread's state rides at the top of the thread as cards (`stateInBody`) rather than in a bar over it (`showThreadStateBar`); the composer's chips go (`showComposerChips`); the head's *Thread state* label goes |
+| `paneNarrow` | `paneW < 560` | The state cards stand in one column; the head's *Reply*, *Forward* and *Flag* become their glyphs in 34 px boxes (44 under a finger), named by title |
+| The reading column | `paneW > 924` | The head, the state bar and the thread stand in an 880 px column centred in the pane: their side padding is `max(22px, calc((100% - 880px) / 2))`. A table in a message keeps to the column at every pane width: its cells share the width and wrap, so the pane never scrolls sideways |
+
+The Agent's thread and field centre the same way on their own pane, at 1290 px — `max(26px, calc((100% - 1290px) / 2))` — and a person, a case, and the task list, whose columns and figures want more than a message does, at 1160 px — `max(24px, calc((100% - 1160px) / 2))` on their head and body (`personHeadStyle`, `personBodyStyle`, `caseHeadStyle`, `caseBodyStyle`, and `tasksMainStyle` at 26 px, whose percentage is the whole body's and so leaves out the 310 px side column beside it). None of the three reaches the 1440 px desktop, whose panes are narrower than the column.
+
+### The matrix read through the three axes
+
+Every size of the window-size matrix in `frontend/design-parity/screens.json`, with what the rules above give it at
+Mail with a thread open. Each was captured from the design and reads as intended. `paneW` is the thread pane's width.
+
+| Size | Window | Pointer | Height band | Rail | Folder list | List | `paneW` |
+|---|---|---|---|---|---|---|---|
+| `phone_360x780` | 360 × 780 | touch | regular | bottom bar | drawer | one pane | 360 |
+| `telefon` | 390 × 844 | touch | regular | bottom bar | drawer | one pane | 390 |
+| `phone_430x932` | 430 × 932 | touch | regular | bottom bar | drawer | one pane | 430 |
+| `phone_844x390` | 844 × 390 | touch | low | 66 | drawer | 76 strip | 702 |
+| `fold_832x884` | 832 × 884 | touch | regular | 66 | drawer | 76 strip | 690 |
+| `fold` | 884 × 832 | touch | regular | 66 | drawer | 76 strip | 742 |
+| `tablet_744x1133` | 744 × 1133 | touch | tall | 66 | drawer | one pane | 678 |
+| `tablet_1133x744` | 1133 × 744 | touch | regular | 66 | drawer | 284 | 783 |
+| `tablet_820x1180` | 820 × 1180 | touch | tall | 66 | drawer | 76 strip | 678 |
+| `tablet_1180x820` | 1180 × 820 | touch | regular | 96 | 210 column | 340 | 534 |
+| `tablet` | 1024 × 768 | touch | regular | 66 | drawer | 284 | 674 |
+| `tablet_1024x1366` | 1024 × 1366 | touch | tall | 66 | drawer | 284 | 674 |
+| `tablet_1366x1024` | 1366 × 1024 | touch | tall | 96 | 210 column | 340 | 720 |
+| `desktop_1280x720` | 1280 × 720 | mouse | regular | 96 | 210 column | 340 | 634 |
+| `desktop` | 1440 × 900 | mouse | regular | 96 | 210 column | 340 | 794 |
+| `desktop_1920x1080` | 1920 × 1080 | mouse | tall | 96 | 240 column | 420 | 1164 |
+| `desktop_2560x1440` | 2560 × 1440 | mouse | tall | 96 | 240 column | 420 | 1804 |
+| `desktop_960x1040` | 960 × 1040 | mouse | tall | 66 | 58 strip | 76 strip | 760 |
+| `desktop_1280x1400` | 1280 × 1400 | mouse | tall | 96 | 210 column | 340 | 634 |
+| `desktop_1080x1800` | 1080 × 1800 | mouse | tall | 66 | 58 strip | 284 | 672 |
+| `desktop_1440x2460` | 1440 × 2460 | mouse | tall | 96 | 210 column | 340 | 794 |
+
+What the upright tablets are, drawn rather than fallen into:
+
+- **744 × 1133** is one pane under a finger in a tall window: the rail beside the list, and the thread pushed over it
+  when opened, its head kept open as it scrolls, its state as cards at its top.
+- **820 × 1180** is the fold's composition in a tall window: two panes, the list folded to its strip of senders while a
+  thread is open, the thread 678 px wide.
+- **1024 × 1366** is the landscape tablet's composition in a tall window: the 284 px list beside a 674 px thread, the
+  folder list a drawer, and the height given to more rows and more thread rather than to taller dialogs.
+
+A mouse in the tablet band — **960 × 1040**, half a desktop screen, and **1080 × 1800**, a monitor on its side — gets
+the mouse's sizes and panels: the 58 px folder strip, the resizer between the list and the thread, and below 1020 the
+same strip of senders a finger gets. **1180 × 820** — the tablet on its side at the edge of the desktop band — is the
+tightest two-column composition, a 534 px thread, and its pane's own rules carry it.
+
+`FRAMES` is the design's own four sizes: `phone` 390 × 844, `fold` 884 × 832, `tablet` 1024 × 768, and the
+artboard's 1440 × 900. All four are in the regular height band, so none of the rules above changes them.
 
 ### What every touch composition holds to
 
@@ -58,7 +184,7 @@ composition keeps its own sizes.
 | One choice among several | A segmented control — `--rail` track, the chosen segment raised on `--panel` — rather than loose bordered buttons: People's *Own* and *Collected*, the calendar's four views |
 | Symbols alone | Where a glyph names the action beyond doubt — attach, archive, delete, close, back, and the thread's reply, forward and flag — the phone draws the symbol alone in its 44 box, and the name stays its title and its accessible name. An action no glyph names keeps its words |
 | A sheet | Whatever rises from the bottom under a finger — the *More* sheet, the thread state, the phone's dialogs, Settings on one pane — closes by being pulled down as well as by its *X*, and shows where to take hold: a 38 × 4 px `--border2` grabber centred in a 20 px band at its top (`sheetGrabber`, `settingsGrabber`). The pull takes over only once the sheet's content is scrolled to its top; let go past a third of its height, or flung down, and it closes as its *X* would, otherwise it springs back. A drawer closes the same way, pushed back toward the edge it came from |
-| The fold's split | Two panes under a finger in less than 1020 px leave the thread the width: while a thread is open the list folds to a strip of senders (`listStrip`), and the strip's head widens it again — § *The panes* under Mail. With nothing open the whole list stays |
+| The fold's split | Two panes in less than 1020 px leave the thread the width, under a finger and a mouse alike: while a thread is open the list folds to a strip of senders (`listStrip`), and the strip's head widens it again — § *The panes* under Mail. With nothing open the whole list stays |
 | Duplicated actions | A two-pane composition under a finger does not repeat in the thread head what the toolbar above it already carries: the head keeps *Ask*, and the subject the width |
 | Text | 12 px is the smallest size a reader is asked to read; 11 px is left to captions over something larger and to counts on a badge |
 
@@ -196,15 +322,15 @@ than the 3 px accent edge it used to carry.
 | Back to the list | `showMailBack` | `singlePane && mailPane === "thread"` — phone and fold only |
 | Toolbar | `showMailToolbar` | `!selectionOn && !singlePane` |
 | Primary actions in the bar | `tbPrimaryShown` | the toolbar has room for them |
-| Resizer between panes | `showResizer` | `!singlePane && !tablet` |
-| The list as a strip, on the fold | `listStrip` | `touch && !singlePane && narrow && !emptyMail && !st.listWide && !selectionOn && !stateBarOff` — while a thread is open the list folds to a 76 px `--sub` column of senders: per thread a 36 px avatar in a 52 px target, the open one on `--accent-soft` inside an `--accent-line` ring, an unread one with a 10 px `--accent` dot; picking one opens its thread. The strip's head is one 44 px `left_panel_open` button titled *Show the list* |
-| The list widened, on the fold | `st.listWide` / `listNarrowable` | *Show the list* — the list comes back at 284 px, the thread narrows beside it, and the list's head leads with a 44 px `left_panel_close` titled *Narrow the list*; picking a thread folds it to the strip again |
-| Side list expanded | `sideExpanded` | not collapsed; collapsed is 58 px, expanded is 210 px and draggable to 420 |
+| Resizer between panes | `showResizer` | `!singlePane && !touch && !listStrip` — a mouse drags the list between 232 and 560 px, double-click returns it to its band's width (`st.listW` back to `null`) |
+| The list as a strip, below 1020 | `listStrip` | `!singlePane && narrow && !emptyMail && !st.listWide && !selectionOn && !stateBarOff` — while a thread is open the list folds to a 76 px `--sub` column of senders: per thread a 36 px avatar in a 52 px target, the open one on `--accent-soft` inside an `--accent-line` ring, an unread one with a 10 px `--accent` dot; picking one opens its thread. The strip's head is one 44 px `left_panel_open` button titled *Show the list* |
+| The list widened, below 1020 | `st.listWide` / `listNarrowable` | *Show the list* — the list comes back at 284 px, the thread narrows beside it, and the list's head leads with a 44 px `left_panel_close` titled *Narrow the list*; picking a thread folds it to the strip again |
+| Side list expanded | `sideExpanded` | not collapsed; collapsed is 58 px, expanded is 210 px (240 under `wide`) and draggable to 420. It starts collapsed below 1180 (`compact`) and expanded above |
 | Side list show/hide | `sideToggleShown` / `toggleSide` | `!drawer` on Mail — the first control of the mail toolbar, a 32 px icon button (44 px on touch) reading `left_panel_close` while the list is open and `left_panel_open` while it is collapsed, titled *Hide folders and filters* and *Show folders and filters*, and set apart from *New message* by a 1 px rule with 6 px before it and 8 px after, so a press meant for one never lands on the other. It is never inside the list, so a long tree cannot scroll it away |
 | Side list scrolls | `sideScrollStyle` | the AI filters and every account scroll together inside the panel once they are taller than it, docked or as a drawer; the panel itself does not move |
 | AI filters | `aiFilters` | the first group in the side list, above every account, under an `auto_awesome` *AI filters* header — rows the same size as folder rows; a collapsed side list draws the glyph alone |
 | AI filters collapsed | `aiFiltersOpen` / `toggleAiFilters` | the header, exactly as an account header collapses its folders — `expand_more` against `chevron_right`, titled *Collapse AI filters* and *Show AI filters*; open by default (`st.aiFiltersOpen !== false`) |
-| Side list resizer | `showSideResizer` | `!drawer && !sideCollapsed && !isMobile` — drag widens the folder pane between 210 and 420 px, double-click returns it to 210 |
+| Side list resizer | `showSideResizer` | `!drawer && !sideCollapsed && !touch` — drag widens the folder pane between 210 and 420 px, double-click returns it to 210 |
 | Side list as a drawer | `showSide` / `sideScrim` | `drawer && drawerOpen` — its head reads *Folders and filters* beside a close control (`sideDrawerHead`) |
 | Folder button | `showFolderBtn` | `drawer` |
 | Account menu on a mailbox | `ctxMenu` through `g.ctxOpen` | right-click a mailbox header, or hold it for 460 ms — *New folder* and *Mark all as read*; **All accounts carries none** |
@@ -278,13 +404,13 @@ the passage it rests on.*, shortened to *Quoted from this message alone* on the 
 | Thread head | `showThreadHead` | `!st.stateBarOff \|\| singlePane` |
 | The subject on one pane | `threadHeadRowStyle` / `subjectStyle` | `singlePane` — the back button and the three actions share the first row, and the subject takes a row of its own under them at 18 px, two lines before it ends in an ellipsis; scrolled (`thCollapsed`) it folds to one line at 16 px |
 | The head's actions under a finger | `threadActions` | `!singlePane && touch` draws none — the toolbar above carries *Reply*, *Forward* and *Flag*, so the head keeps *Ask* (44 px) beside the subject |
-| State bar beside the thread | `showThreadStateBar` | `!singlePane && !tablet && !stateBarOff` |
+| State bar beside the thread | `showThreadStateBar` | `(!singlePane \|\| !thCollapsed) && !stateCards && !stateBarOff` — `stateCards` is `!isMobile && paneCompact`, a pane narrower than 760 px off the phone |
 | State cards | `showStateCards` | `!singlePane && !stateStale` |
-| State inside the body | `stateInBody` | `tablet && !stateBarOff && !stateStale` — the tablet's own answer to the same content |
+| State inside the body | `stateInBody` | `stateCards && !stateBarOff && !stateStale` — a pane under 760 px answers the same content at the top of the thread; under 560 px (`paneNarrow`) the cards stand in one column |
 | The AI line on one pane | `mobileStateLine` | `singlePane && !stateStale` — the state bar's one-line reading, on the phone |
 | Reading held back | `stateStale` / `stateFresh` | the thread carries `stateStale`: a message joined or left the conversation after its state was derived. The state cards, the in-body chips, the one-pane AI line and the thread sheet's state list stop drawing, and each place says instead *This conversation has changed since where it stands was last derived, so that reading is held back until it is derived again.* The prototype reaches it through *Refresh*, whose second step marks the thread it changes |
 | Four states or more | `stateRowStyle` / `stateBodyRowStyle` / `sc.valueStyle` | `thread.state.length >= 4` — the state cards beside the thread and the chips inside the body stand as a two-column grid, and each chip's value wraps (`text-wrap:pretty`, line height 1.35) rather than ending in an ellipsis on one line. The phone keeps its single column. `contoso` and `piotr` reach it, each carrying a fourth state, `Version difference`, that says what a later message corrected in an earlier one |
-| Held back, on the tablet | `staleInBody` | `tablet && !stateBarOff && stateStale` — the same sentence as a note at the top of the thread body, where `stateInBody` would have drawn the chips |
+| Held back, in a narrow pane | `staleInBody` | `stateCards && !stateBarOff && stateStale` — the same sentence as a note at the top of the thread body, where `stateInBody` would have drawn the chips |
 | Panels hidden | `st.stateBarOff` | the *fullscreen* toolbar control; nothing else sets it |
 | Jump to the agent | `showAgentJump` | `!isMobile && !stateBarOff` |
 | Arrived from a citation | `showCitationTag` / `cameFromResult` | reached from a Discover citation, and only for the `contoso` thread |
@@ -339,7 +465,7 @@ what a finger reaches.
 | Composer chrome | `composeChromeShown` | the composer is not the active tab |
 | The reply button | `replyFabShown` | a thread is open, the panels are not hidden, and the drafter is closed — **the drafter is closed by default**. A floating accent button at the thread's bottom-right, `auto_awesome` and *Draft a reply* (46 px tall, 22 px from the right and 20 from the bottom on two panes, 16 and 16 on one), the glyph alone in a 56 px square on the phone; it arrives with `pop`. The thread keeps its last line clear of it and of the drafter with its bottom padding: 84 px on one pane (96 with the drafter open) and 86 px on two panes (150 with the drafter open) |
 | The reply drafter | `replyDockOpen` / `mo.replyDock` | the reply button — a card hanging over the bottom of the thread, 18 px in from either side and 16 from the bottom on two panes (10, 10 on one pane), `--panel` on a 16 px radius with a lifted shadow, coming up with `rise` and leaving the same way. The input row: an `auto_awesome` glyph, *Describe the reply you want to send…* (*Describe the reply…* on one pane, `composerPlaceholder`) in a field with a 2 px accent edge (1 px on one pane), the accent *Draft a reply* (*Draft* on one pane), and a round close badge hanging off the card's top-right corner — 26 px, 11 px past either edge; on touch 32 px, 19 px above the card and 4 px past its side, the card keeping 16 px above its row so the badge clears *Draft* — titled *Close the reply drafter*, which puts the button back. *Draft a reply* writes the local draft into the thread and closes the card. It drafts a reply and nothing else — asking about the thread is *Ask* and the thread sheet. Back closes it like any surface over the screen, leaving the thread or opening another closes it too |
-| Scope chips | `showComposerChips` | `!singlePane && !tablet` — a second row in the drafter: *Scope: this thread*, *+ selected passage*, and *Draft stays local until confirmed* at the right |
+| Scope chips | `showComposerChips` | `!singlePane && !paneCompact` — a second row in the drafter: *Scope: this thread*, *+ selected passage*, and *Draft stays local until confirmed* at the right |
 | Cc/Bcc | `ccOpen` | the Cc control |
 | Formatting bar | `fmtBarShown` | `!touch`, or the touch toggle was pressed |
 | Formatting toggle | `fmtToggleShown` | `touch` |
@@ -469,9 +595,8 @@ phone. The line above a reply is `AI · <scope>` in 11 px semibold `--muted` wit
 
 **The column centres itself with padding rather than a width cap.** Off the phone, the scrolling
 thread (`agentScrollStyle`) and the field under it (`agentInputWrapStyle`) take the same
-side padding: 26 px under `narrow`, and otherwise `max(26px, calc((100% - 1290px) / 2))`, with 1170 px
-in place of 1290 under `compact` (`!isMobile && w < 1180`). So the field lines up with the
-thread at every width, and a wide window keeps both in the middle instead of stretching them. The
+side padding, `max(26px, calc((100% - 1290px) / 2))` — a rule on the pane's own width, so it reads no breakpoint
+of the window's. So the field lines up with the thread at every width, and a wide window keeps both in the middle instead of stretching them. The
 thread used to stop at a `max-width` of 1520 px, or 780 px under `compact`, and the framed box around
 the field (`agentBoxStyle`) carried the same cap; neither has one now.
 
@@ -891,9 +1016,13 @@ clicking a preview.
   `docs`, so both empty states are drawn by no preview at any click.
 - **No proposals left** (`calNoProposals`). Reachable only by dealing with every proposed slot first.
 - **A conversation archive** (`hasArchived`, `archiveSectionOpen`). Needs a conversation archived first.
-- **The `fold` composition's own case.** 884 px is `tablet` and `!singlePane`: touch, drawers, and two
-  panes at once. Neither the phone artboard nor the desktop artboard shows it, and no click produces
-  it — only a width does.
+- **The `fold` composition's own case.** 884 px is `compact`, `narrow` and `!singlePane`: two panes with the list
+  folded to its strip, and under a finger the folder drawer. Neither the phone artboard nor the desktop artboard
+  shows it, and no click produces it — only a width does.
+- **Every height band and every pointer a frame does not carry.** The four frames sit in the regular height band and
+  pair width with pointer the way their devices do, so the low band, the tall band, a mouse in the tablet band and a
+  finger on a desktop-wide window are reached only by a window of that size and pointer — § *How a window is
+  composed* lists the matrix sizes that reach each one.
 - **Pressed, keyboard focus, and reduced motion.** All three are rules in `styles/base.css` rather than regions of a
   template, so no artboard draws them at rest — *What every artboard shares* above states each one.
 - **Every arrival and departure.** A surface in motion lasts 120 to 240 ms and a capture is taken at rest, so no

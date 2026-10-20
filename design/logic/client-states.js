@@ -139,8 +139,9 @@ MailFathomDesign.artboards.clientStates = (DCLogic, React) => {
     state = {};
 
     frame(l, th, screen, multi) {
-      const w = W[l], phone = w < 700, touch = w < 1180, desk = !touch, narrow = !phone && w < 1020;
-      const railW = phone ? 0 : touch ? 66 : 96;
+      /* Each frame is its own device: the phone, the fold and the tablet are touched, the desktop is not. */
+      const w = W[l], phone = w < 700, touch = l !== "desktop", desk = w >= 1180, narrow = !phone && w < 1020;
+      const railW = phone ? 0 : desk ? 96 : 66;
       const inspW = desk ? 400 : narrow ? 320 : 340;
       const listW = desk ? 340 : 320;
       const btn = (p) => "display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap;flex:0 0 auto;box-sizing:border-box;" +
