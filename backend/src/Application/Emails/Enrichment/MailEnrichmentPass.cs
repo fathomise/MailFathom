@@ -64,13 +64,16 @@ public sealed class MailEnrichmentPass
 {
     /// <summary>How many messages one pass derives from.</summary>
     /// <remarks>
-    /// Small, because a derivation is a provider call rather than a local computation: this is what one account run is
-    /// allowed to hold its slot for, and every other account is waiting behind it. What it leaves behind is outstanding
-    /// work the next run resumes. It is a constant rather than a setting because it bounds this pass's latency rather
-    /// than describing a deployment — what a deployment declares about the spend is the answering period's own
-    /// ceilings, which every derivation is admitted against.
+    /// A derivation is a provider call rather than a local computation, so this is what one account run is allowed to
+    /// hold its slot for while every other account waits behind it. It is sized for the backfill rather than for
+    /// arriving mail, because the pass is the only way an existing mailbox is drained: at the default interval a pass of
+    /// this size takes a freshly connected mailbox of a thousand messages through within a few hours rather than
+    /// overnight. What it leaves behind is outstanding work the next run resumes. It is a constant rather than a
+    /// setting because it bounds this pass's latency rather than describing a deployment — what a deployment declares
+    /// about the spend is the answering period's own ceilings, which every derivation is admitted against.
     /// </remarks>
-    public const int MaximumEmailsPerPass = 8;
+    // ponytail: one fixed bound for live mail and backfill alike, sharing the answering ceilings with questions; #2550 decides the budgets that replace it.
+    public const int MaximumEmailsPerPass = 64;
 
     /// <summary>How many of a message's leading passages one derivation reads.</summary>
     /// <remarks>
