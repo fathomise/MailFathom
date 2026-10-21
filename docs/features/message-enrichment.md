@@ -74,11 +74,15 @@ It is a step of the account's synchronization run rather than a schedule of its 
 one: that run already has per-account isolation, a slot count, a jittered backoff, and a failure path that defers the
 account rather than the process.
 
-One pass derives from at most **eight messages**, reading at most **six leading passages** of each. Both bounds are
-constants rather than settings, because they bound the pass's latency rather than describing a deployment — a
-derivation is a provider call, and every other account is waiting behind the one holding the slot. The opening of a
-message is what says what it is about; a long thread's later passages are quoted history the cut kept because somebody
-wrote around it.
+One pass derives from at most **sixty-four messages**, reading at most **six leading passages** of each. Both bounds
+are constants rather than settings, because they bound the pass's latency rather than describing a deployment — a
+derivation is a provider call, and every other account is waiting behind the one holding the slot. The message bound is
+sized for the backfill, which this pass is the only way of draining: at the default synchronization interval a freshly
+connected mailbox of a thousand messages is derived within a few hours. What a larger pass costs is a longer hold on
+the account's slot and an allowance spent sooner, since every derivation is admitted against the same
+[period ceilings](mail-answering.md) a question is — so a mailbox being backfilled can reach them, and questions are
+refused until the period rolls over. The opening of a message is what says what it is about; a long thread's later
+passages are quoted history the cut kept because somebody wrote around it.
 
 *Leading* is read body first. An attachment's passages are numbered from zero alongside the body's rather than after
 them, so the number alone puts no order between a body passage and an attachment passage carrying the same one. The six
@@ -88,7 +92,7 @@ opposite of the opening it reads a message for.
 
 **No cursor exists and none is needed.** A message leaves the selection by being derived from, so an interrupted pass
 repeats nothing and skips nothing. That is also the whole of how an existing mailbox is backfilled: a deployment that
-turns enrichment on drains its stored mail over successive runs, eight messages at a time, and each run reports how far
+turns enrichment on drains its stored mail over successive runs, sixty-four messages at a time, and each run reports how far
 it got and whether more remains. There is no sweep of its own, because there is no mail the account run does not reach.
 
 **A second reading rides along where an operator turned it on.** A message this pass derives is also read into the

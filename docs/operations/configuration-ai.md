@@ -854,7 +854,7 @@ spending. A period a mailbox's arrivals exhausted is a period in which a questio
 this on over a large mailbox raises those ceilings or accepts that the backfill and the questions share them. A refused
 admission withholds the derivation and leaves the message outstanding for the next period rather than failing it.
 
-What one pass covers is not configurable: eight messages, six leading passages each, per account run. Those bound the
+What one pass covers is not configurable: sixty-four messages, six leading passages each, per account run. Those bound the
 pass's latency inside a run that other accounts are queued behind rather than describing a deployment, and what a pass
 leaves behind the next run takes. [Message enrichment](../features/message-enrichment.md) describes what a mark carries,
 what withholds a derivation, and what reaches the provider.

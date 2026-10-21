@@ -236,7 +236,7 @@ mail](../features/tasks-from-mail.md) is what a proposal is and what happens to 
 
 **Nothing re-derives a message this pass settled.** Being derived from is what takes a message out of the pass's own
 selection, which is what makes an interrupted pass repeat nothing and skip nothing — and it is also the whole of how a
-mailbox stored before the switch was turned on is backfilled: successive runs drain it, eight messages at a time, and
+mailbox stored before the switch was turned on is backfilled: successive runs drain it, sixty-four messages at a time, and
 each says how far it got. No sweep exists beside it, unlike the cut and the vectors, because nothing here can be made
 stale by a rebuild: what a mark rests on is a passage identifier, and a passage a re-cut replaced resolves to nothing
 rather than to the wrong text.
