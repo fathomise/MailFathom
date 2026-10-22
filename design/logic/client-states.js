@@ -58,7 +58,7 @@ MailFathomDesign.artboards.clientStates = (DCLogic, React) => {
   ];
 
   const LEDGER = [
-    ["1.1", "d_refusal", "Drawn", "Refusal before a run", "One line directly under the field, above the scope chips. Signed out and not permitted read neutral; unavailable and unreadable read as a warning with Try again. The question stays in the field."],
+    ["1.1", "d_refusal", "Drawn", "Refusal before a run", "One line directly under the field. Signed out and not permitted read neutral; unavailable and unreadable read as a warning with Try again. The question stays in the field."],
     ["1.2", "d_cancel", "Changed", "How a run ends", "The ending takes the running bar's slot at the top of the canvas, so blocks already shown never move. Eleven reasons fall into five tones (1.2b). “Completed” gets no card: “Answered by …” and what the run spent move into the existing run line beside the plan chip (1.2c)."],
     ["1.3", "d_coming", "Drawn", "Canvas in progress and empty", "Trailing dashed card after the last block; Retry only when offline, as the client does. Newer-version and unknown-block share one dashed neutral card (1.3b)."],
     ["1.4", "ev_opening", "Merged", "Evidence inspector", "Every state drawn in the inspector body (1.4a-e). The “not permitted” read failure is merged into Private source - same cause, same remedy, same lock badge - so the client should render it as 1.4c."],

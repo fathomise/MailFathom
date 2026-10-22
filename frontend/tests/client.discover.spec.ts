@@ -39,9 +39,10 @@ test('follows a question asked in Discover from its first block to the finished 
     await expect(page.getByRole('button', { name: 'Cancel run' })).toBeVisible();
     await expect(page.getByText('This run has finished.')).toHaveCount(0);
 
-    // Asked under what the screen holds, which on a first sign-in is the inbox of the one mailbox the corpus has.
+    // Asked about all mail, whatever the Mail space opened on: a first sign-in lands on the inbox of the one mailbox
+    // the corpus has, and none of that narrows the run.
     expect(deployment.requests('POST', '/discovery/runs').map(({ body }) => body)).toStrictEqual([
-        { question: 'How many bays were confirmed?', accounts: ['work'], folders: ['INBOX'], thread: null, emails: [] },
+        { question: 'How many bays were confirmed?', accounts: [], folders: [], thread: null, emails: [] },
     ]);
 
     await page.clock.runFor(silentAnswerInterval);
