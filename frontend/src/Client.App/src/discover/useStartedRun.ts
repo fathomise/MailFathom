@@ -9,11 +9,11 @@ import {
     type ClientSession,
     type MailFathomTransport,
 } from '@mailfathom/client-backend';
-import type { AskedQuestion } from '../workspace/askScope';
+import type { AskedQuestion } from '../workspace/askedQuestions';
 import { runAskedFor } from './runAsk';
 
 // How a question becomes a run. The intent field records what was asked and this is what asks the deployment, because
-// the field is drawn in every space and a run belongs to the one that answers.
+// the field is drawn only while Discover is in front and a run belongs to the screen that answers it.
 //
 // **What starts a run is the newest recorded question, by its identity rather than by its words.** Asking the same
 // sentence twice moves the entry the field already holds to the front of the list, so nothing about the value changes

@@ -803,7 +803,7 @@ export function App({
     }
 
     // Everything this session held goes with the credential, including what the person carried between the spaces:
-    // the question in the intent field and the mailbox it was scoped to are theirs rather than the machine's, and a
+    // the question in the intent field and the mailbox they were reading are theirs rather than the machine's, and a
     // client that kept them would show the next person what the last one was asking about.
     //
     // A store that would not delete is reported rather than swallowed. The screen has already said that the sign-in is
@@ -1104,7 +1104,6 @@ export function App({
                                                                                             <DiscoverSpace
                                                                                                 session={session}
                                                                                                 transport={readMail}
-                                                                                                accounts={mailAccounts}
                                                                                                 // Its field and the
                                                                                                 // connection only while
                                                                                                 // this is the space in

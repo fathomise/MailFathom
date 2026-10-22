@@ -16,7 +16,7 @@ import * as discovery from './fixtures/discovery';
 
 // Asking a question in Discover and following the run that answers it: the field that records the question, the run
 // the deployment starts for it, the reads that follow the run until it ends, and the way an answer is carried on into
-// the Agent space under the scope it was asked in.
+// the Agent space.
 
 const theAnswer = /The bays were confirmed at four/u;
 
@@ -57,10 +57,11 @@ test('follows a question asked in Discover from its first block to the finished 
     ).toStrictEqual([null, '6']);
 });
 
-// A passage is taken from the document's own selection when the gesture that made it ends, in the reading pane, and
-// is read by the field in another space. jsdom has a Selection API that answers whatever a test put in it; a browser
-// is the one place the selection is what a triple-click actually selected, and the run it starts is what was sent.
-test('asks Discover about the passage a reader selected in the message they were reading', async ({
+// A passage is taken from the document's own selection when the gesture that made it ends, in the reading pane. jsdom
+// has a Selection API that answers whatever a test put in it; a browser is the one place the selection is what a
+// triple-click actually selected — and what is asked of it here is that none of it reaches Discover: the words are not
+// quoted under its field, and the run it starts reads all mail rather than the message that was open.
+test('asks Discover about all mail while a passage of the message being read is selected', async ({
     page,
     deployment,
 }) => {
@@ -71,11 +72,9 @@ test('asks Discover about the passage a reader selected in the message they were
     await page.getByRole('article', messageRegion).getByText(passage).click({ clickCount: 3 });
     await page.getByRole('link', { name: 'Discover' }).click();
 
-    await expect(
-        page
-            .getByRole('status')
-            .filter({ hasText: `Asking about the part of this message you selected: “${passage}”` }),
-    ).toHaveCount(1);
+    const asking = page.getByRole('search', { name: 'Ask your mail' });
+    await expect(asking).toBeVisible();
+    await expect(asking.getByText(passage)).toHaveCount(0);
 
     const question = page.getByRole('searchbox', { name: 'Ask your mail' });
     await question.fill('Which list did they mean?');
@@ -83,35 +82,23 @@ test('asks Discover about the passage a reader selected in the message they were
 
     await expect(page.getByText(theAnswer)).toBeVisible();
 
-    const opened = deployment.issued.find(
-        ({ method, route }) => method === 'GET' && /^\/messages\/[^/]+$/u.test(route),
-    );
-
     expect(deployment.requests('POST', '/discovery/runs').map(({ body }) => body)).toStrictEqual([
-        {
-            question: 'Which list did they mean?',
-            accounts: [],
-            folders: [],
-            thread: null,
-            emails: [opened?.route.replace('/messages/', '')],
-        },
+        { question: 'Which list did they mean?', accounts: [], folders: [], thread: null, emails: [] },
     ]);
 });
 
-test('carries a question and its mailbox from Discover into the agent', async ({ page, deployment }) => {
+test('carries a question from Discover into the agent', async ({ page, deployment }) => {
     await openSignedIn(page, '/#/discover');
 
     const question = page.getByRole('searchbox', { name: 'Ask your mail' });
     await question.fill('How many bays were confirmed?');
-    await page.getByRole('combobox', { name: 'What the question is asked about' }).selectOption({ label: 'Work' });
     await question.press('Enter');
 
-    // Answered under the mailbox the question named.
     await expect(page.getByRole('heading', { name: 'Discover', level: 1 })).toBeVisible();
     await expect(page.getByText(theAnswer)).toBeVisible();
 
     expect(deployment.requests('POST', '/discovery/runs').map(({ body }) => body)).toStrictEqual([
-        { question: 'How many bays were confirmed?', accounts: ['work'], folders: [], thread: null, emails: [] },
+        { question: 'How many bays were confirmed?', accounts: [], folders: [], thread: null, emails: [] },
     ]);
 
     await page.getByRole('button', { name: 'Hand to the agent' }).click();

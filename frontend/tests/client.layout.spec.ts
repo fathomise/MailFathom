@@ -177,11 +177,10 @@ test('stays usable at the narrowest width a supported head presents', async ({ p
     await openSignedIn(page);
 
     // 320 CSS pixels is the bar `frontend/src/AGENTS.md` sets, and what is asked of it is that the frame still holds
-    // everything rather than that it looks the same: the space, the intent field, its scope, and every destination the
-    // design shows. Nothing is dropped by width, and the window it is measured in is the width alone.
+    // everything rather than that it looks the same: the space, the intent field, and every destination the design
+    // shows. Nothing is dropped by width, and the window it is measured in is the width alone.
     await expect(page.getByRole('heading', { name: 'Discover', level: 1 })).toBeVisible();
     await expect(page.getByRole('searchbox', { name: 'Ask your mail' })).toBeVisible();
-    await expect(page.getByRole('combobox', { name: 'What the question is asked about' })).toBeVisible();
 
     // Three stand in the bar itself and the rest behind its overflow, which is what makes five places enough for every
     // destination. Reached rather than dropped is the whole of the claim, so both halves are counted and the sheet is

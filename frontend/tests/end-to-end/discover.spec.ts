@@ -14,8 +14,8 @@ import { signIn } from './deployment';
 // which failure a deployment with no provider reports — a service decision this file is not the place to fix.
 //
 // What is worth holding is that landing reaches the screen rather than the note saying nothing is behind it, that the
-// questions it offers are there to press, and that the question field and its scope — the frame's rather than the
-// space's — stand on it, because a space in front is exactly where a frame regression shows.
+// questions it offers are there to press, and that the question field stands on it, because a space in front is exactly
+// where a frame regression shows.
 //
 // The answered canvas is the unit suite's claim, over a transport handed the run the corpus states, and the browser
 // suite's for what a built bundle draws. What would move here is a run this deployment can actually answer, which is a
@@ -35,10 +35,10 @@ test('opens in Discover, on the questions it offers', async ({ page }) => {
     // The note every unbuilt space carries is what this screen replaced, so its absence is part of the claim.
     await expect(discover.getByText('This space is not built yet.', { exact: false })).toHaveCount(0);
 
-    // The question and the scope it is asked under are this space's own field, which the design draws under its head
-    // rather than at its foot — and no other space draws a copy of it.
+    // The question is this space's own field, which the design draws under its head rather than at its foot — and no
+    // other space draws a copy of it. It offers no scope: Discover asks about all mail.
     await expect(page.getByRole('searchbox', { name: 'Ask your mail' })).toBeVisible();
-    await expect(page.getByRole('combobox', { name: 'What the question is asked about' })).toBeVisible();
+    await expect(page.getByRole('combobox')).toHaveCount(0);
 });
 
 test('reaches Discover again from another space, and keeps the question that was typed into it', async ({ page }) => {

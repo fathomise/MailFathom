@@ -284,6 +284,11 @@ A press closes a surface the way its own control would. The composer with anythi
 
 The run is a phase machine (`st.phase`), and the blocks arrive one at a time (`ready.<block>`).
 
+**The field carries no scope control.** Discover always asks about all of the reader's mail, and
+nothing the Mail space has open, picked out, or highlighted narrows it. A question about one
+correspondence is asked in that correspondence's own field, and a narrower follow-up is the Agent's.
+The row under the field stands only once a run exists, and holds the plan chip and the run line.
+
 | State | Flag | Reveal |
 |---|---|---|
 | Nothing asked yet | `showIdle` | `st.phase === "idle"` — the state the prototype opens in |
@@ -948,7 +953,7 @@ and *Nothing open* layout. **The one new component is the radio list in *Kind of
 
 | State | Gate | What it settles |
 |---|---|---|
-| `d_refusal` 1.1 | `show.d_refusal` | A question refused before a run is one line directly under the field, above the scope chips — never a toast, never a card, because no run exists. The question stays in the field. Signed out and not permitted read neutral; unavailable and unreadable read as a warning with *Try again*. On a phone the action drops under the text at 44 px |
+| `d_refusal` 1.1 | `show.d_refusal` | A question refused before a run is one line directly under the field — never a toast, never a card, because no run exists. The question stays in the field. Signed out and not permitted read neutral; unavailable and unreadable read as a warning with *Try again*. On a phone the action drops under the text at 44 px |
 | `d_cancel` 1.2a | `show.d_cancel` | The running bar keeps its slot through running → cancelling → ended. While cancelling, the pulse becomes a muted spinner and *Cancel run* becomes a disabled *Cancelling…*. A failed stop turns the bar into a warning with *Try stopping again*, while blocks keep arriving underneath |
 | `d_ended` 1.2b | `show.d_ended` | The ending card replaces the running bar in the same slot, above the blocks that arrived, and nothing below it moves. The answer that arrived gains a *cut short* chip. Eleven reasons fall into five tones (`ENDINGS`): *Stopped by you*, *Limit reached* (period and run allowance), *Try again* (timed out, temporarily unavailable), *Could not finish* (failed, gone, stopped) and *Not possible here* (unavailable, retrieval refused). Only the period allowance carries the when-line |
 | `d_finished` 1.2c | `show.d_finished` | A completed run gets **no card**. The bar leaves, and *Answered by {endpoint} ({model})* and what the run spent go into the run line beside the plan chip. The allowance count shows only where the deployment meters questions |
@@ -959,7 +964,7 @@ and *Nothing open* layout. **The one new component is the radio list in *Kind of
 | `ev_private` 1.4c | `show.ev_private` | The lock sits in the badge slot the inspector and evidence list already have, and the body names the mailbox and points to the administrator. **A "not permitted" read failure renders exactly this** — the ledger marks 1.4 *Merged* for that reason |
 | `ev_outdated` 1.4d | `show.ev_outdated` | The warning comes first. Below it is the quoted passage in a plain box, not the highlight, because it can no longer be pointed to. *Open in mail* stays |
 | `ev_kinds` 1.4e | `show.ev_kinds` | A whole-message citation shows the message unhighlighted, with one line saying so. An attachment file row, a source the client cannot open, and text recognised in an image each replace only the body; header and footer keep their places |
-| `d_asked` 1.5 | `show.d_asked` | *Asked before* is kept, **only while the field is idle**, under the scope chips. A chip carries the question and its scope, and tapping it asks again. The stored answer and its freshness are deliberately not shown, and the ledger says `savedAnswers.a` and `.fresh` can go. *Forget these* clears the row on this device without confirmation |
+| `d_asked` 1.5 | `show.d_asked` | *Asked before* is kept, **only while the field is idle**, under the field. A chip carries the question alone, and tapping it asks again. The stored answer and its freshness are deliberately not shown, and the ledger says `savedAnswers.a` and `.fresh` can go. *Forget these* clears the row on this device without confirmation |
 
 ### Mail
 

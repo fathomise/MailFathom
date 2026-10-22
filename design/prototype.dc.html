@@ -231,16 +231,12 @@ Project repository: https://github.com/fathomise/MailFathom
           <input value="{{ query }}" onChange="{{ onQuery }}" onKeyDown="{{ onKey }}" placeholder="{{ discoverPlaceholder }}" style="flex:1;min-width:0;border:none;outline:none;font-size:16px;color:var(--text);background:transparent;text-overflow:ellipsis" />
           <div onClick="{{ submit }}" style="{{ askBtnStyle }}" style-hover="opacity:0.88;cursor:pointer">{{ askLabel }}</div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <div style="font-size:13px;background:var(--rail);border:1px solid var(--line);border-radius:16px;padding:5px 12px">All mailboxes<span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;vertical-align:-3px;margin-left:3px">expand_more</span></div>
-          <div style="font-size:13px;background:var(--rail);border:1px solid var(--line);border-radius:16px;padding:5px 12px">{{ sample.scopeYears }}<span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;vertical-align:-3px;margin-left:3px">expand_more</span></div>
-          <sc-if value="{{ hasRun }}" hint-placeholder-val="{{ false }}">
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <div style="font-size:13px;background:var(--accent-soft);color:var(--accent-d);border-radius:16px;padding:5px 12px">plan: {{ planLabel }}</div>
-              <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint)">{{ runMeta }}</div>
-            </div>
-          </sc-if>
-        </div>
+        <sc-if value="{{ hasRun }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <div style="font-size:13px;background:var(--accent-soft);color:var(--accent-d);border-radius:16px;padding:5px 12px">plan: {{ planLabel }}</div>
+            <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint)">{{ runMeta }}</div>
+          </div>
+        </sc-if>
       </div>
 
       <sc-if value="{{ showIdle }}" hint-placeholder-val="{{ true }}">

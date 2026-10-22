@@ -9,7 +9,7 @@ import { Departing } from '../shell/Departing';
 import { DepartureContext } from '../shell/departure';
 import { useScreenLayer } from '../shell/screenLayers';
 import { useDesktopComposition, useTwoPanes } from '../shell/useWideWorkspace';
-import { fragmentBeingRead } from '../workspace/askScope';
+import { fragmentBeingRead } from '../workspace/selectedFragment';
 import { useWorkspace } from '../workspace/useWorkspace';
 import { useReplyDrafting } from './replyDrafting';
 
