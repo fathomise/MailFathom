@@ -67,9 +67,10 @@ async function instantTheReadingPaneDrew(head: DesktopHead): Promise<readonly st
     await head.click('button[type="submit"]');
 
     // Signing in lands on the client's default space, so the space holding mail is asked for afterwards — the same
-    // ordering `frontend/design-parity/capture.ts` follows, and for the same reason.
+    // ordering `frontend/design-parity/capture.ts` follows, and for the same reason. Every space stays mounted and the
+    // ones aside are inert, so the option is looked for outside them: the Agent's conversations stand before the mail.
     await head.evaluate('(document.location.hash = "#/mail", true)');
-    await head.click('[role="listbox"] [role="option"]');
+    await head.click('[role="listbox"]:not([inert] *) [role="option"]');
 
     return head.settled<readonly string[]>(`(() => {
         const drawn = [...document.querySelectorAll('time[datetime="${sentAt}"]')]
