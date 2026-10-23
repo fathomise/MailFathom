@@ -75,6 +75,7 @@ jobs:
   versions:
     name: Resolve the versions
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     outputs:
@@ -109,6 +110,7 @@ jobs:
     name: Build ${{ matrix.version }}
     needs: versions
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     strategy:
@@ -152,6 +154,9 @@ jobs:
     needs: build
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    # Above the thirty minutes the deploy step below gives a slow Pages queue, which a healthy run never
+    # comes near — it finishes in under two.
+    timeout-minutes: 45
     permissions:
       contents: read
       # What a Pages deployment takes and no more: the write scope that creates the deployment, and the OIDC token the

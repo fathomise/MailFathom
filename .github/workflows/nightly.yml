@@ -43,6 +43,7 @@ jobs:
   decide:
     name: Decide whether to publish
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       # Reading the published `nightly` image's labels is a registry read, and it is the whole reason this job
@@ -339,6 +340,7 @@ jobs:
     needs:
       - publish
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write

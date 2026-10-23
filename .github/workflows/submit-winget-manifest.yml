@@ -51,6 +51,7 @@ jobs:
   submit:
     name: Submit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check out the released commit
         uses: actions/checkout@v7

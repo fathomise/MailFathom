@@ -2104,6 +2104,7 @@ job of `repository-contracts.yml` and again locally in `scripts/verify-full.sh`,
 |---|---|
 | `every_external_action_names_an_approved_owner` | An action from an owner outside the reviewed set: `actions`, `github`, `Krzysztof318`, `dorny`, `anthropics`, `docker`, `crate-ci`, `aquasecurity`, `oras-project`, `peter-evans` |
 | `every_workflow_job_declares_its_permissions` | A job that inherits the repository default instead of declaring a `permissions:` block, at the workflow level or its own |
+| `every_workflow_job_declares_its_timeout` | A job that runs steps without declaring `timeout-minutes`, and so inherits GitHub's six-hour default |
 | `every_write_scope_is_one_the_policy_records` | A write scope appearing anywhere the list in that contract does not already name |
 | `every_checkout_refuses_to_persist_credentials` | An `actions/checkout` step that leaves the workflow token in `.git/config` for the steps after it |
 | `only_the_recorded_workflows_use_pull_request_target` | A third `pull_request_target` trigger beside the two `fathom-review.yml` and `contributor-licence.yml` hold, and a licence workflow that checks anything out, reaches an action beyond the token mint, or runs a command fetching the contribution directly |
@@ -2140,6 +2141,21 @@ path is two runs at all.
 Both are held by jobs reached from a pull request rather than from a publication — one from the
 change itself and one from a comment on it — and the contract above is what keeps the list honest, so
 adding a third such scope is an edit somebody argues rather than a line nobody notices.
+
+**Every job is bounded in time**, because the default is six hours and what stalls a job here is
+rarely the repository: an apt mirror, a container registry, a package feed, or a test that stopped
+answering. A bound turns that into a red check naming the job, after minutes rather than hours. A
+value sits at roughly four to five times the duration a healthy run of that job was measured at, and
+never below ten minutes. Too high a bound costs one stalled runner's time, while too low a bound
+fails healthy runs on every slow mirror and every suite that grew. Every job a merge-queue check
+waits on stays at or under the queue's own 30 minutes (see [Branch protection](#branch-protection)),
+so a stalled one fails under its own name before the queue gives up on the whole group without
+saying which job held it. A job that calls a reusable workflow cannot declare a bound, so the called
+workflow's jobs carry it, and the same value then holds in `CI`, `Nightly`, and `Release` alike. A
+bound set by some other reason states it beside the value, as the documentation deploy and the jobs
+in `fathom-review.yml`, `duplicate-definitions.yml`, `end-to-end-client.yml`, `mutation-score.yml`,
+and `ai-evaluations.yml` do. When a job's healthy runs start approaching their bound, the bound is
+raised in the same change that made the job slower.
 
 **What lives in the repository settings**, which no check here can read:
 

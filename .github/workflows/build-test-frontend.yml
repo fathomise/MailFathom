@@ -53,6 +53,7 @@ jobs:
   check-and-test-the-client:
     name: Check and test the client
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -115,6 +116,7 @@ jobs:
   build-and-drive-the-client-in-a-browser:
     name: Build the client and drive it in a browser
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       # A full checkout rather than a shallow one, because the client's build reads `Version.props` through
       # `scripts/read-declared-version.sh` and the browser suite asserts the number that reached the bundle.
@@ -185,6 +187,7 @@ jobs:
   drive-the-desktop-head:
     name: Drive the desktop head
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v7

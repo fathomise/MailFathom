@@ -87,6 +87,7 @@ jobs:
   publish:
     name: Publish ${{ inputs.channel }} ${{ inputs.version }}
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       contents: read
       # The registry write this whole workflow exists for, and the two an attestation needs: an OIDC token to prove the

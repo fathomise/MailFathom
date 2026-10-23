@@ -4705,9 +4705,10 @@ board_status_leaves_an_item_outside_the_required_statuses() {
 }
 
 # The walk over the closing issues is the third loop that calls once per record, and it spends two
-# retry budgets on each — the item read and the mutation — in two workflows that declare no
-# `timeout-minutes`. What the window buys is a board write that gives up rather than one that holds a
-# job open, and the issues it did not reach are named so a hand can move them.
+# retry budgets on each — the item read and the mutation — in two jobs whose `timeout-minutes` was
+# set for healthy walks rather than a whole budget on every issue. What the window buys is a board
+# write that gives up before that bound kills the job, and the issues it did not reach are named so a
+# hand can move them.
 board_status_stops_writing_when_its_window_is_gone() {
   local output_file="$test_directory/board-status-window-output"
 
@@ -8983,6 +8984,26 @@ every_workflow_job_declares_its_permissions() {
   fi
 }
 
+# A job with no `timeout-minutes` may run for six hours, and what stalls one here is usually outside
+# the repository — a mirror, a registry, a hung test. A job that calls a reusable workflow cannot
+# declare a bound, so the called workflow's own jobs carry it and that job is not asked for one.
+every_workflow_job_declares_its_timeout() {
+  python3 - "$source_repository_root"/.github/workflows/*.yml <<'PYTHON'
+import sys
+import yaml
+
+unbounded = [
+    f"{path.rsplit('/', 1)[-1]}:{job_id}"
+    for path in sys.argv[1:]
+    for job_id, job in yaml.safe_load(open(path, encoding="utf-8"))["jobs"].items()
+    if "uses" not in job and "timeout-minutes" not in job
+]
+if unbounded:
+    print(f"Workflow jobs run on GitHub's six-hour default: {' '.join(unbounded)}", file=sys.stderr)
+sys.exit(1 if unbounded else 0)
+PYTHON
+}
+
 # Every write scope in the repository, named here so a new one is a deliberate edit to this list
 # rather than a line nobody reviewed. The publishing jobs need a registry write and the two an
 # attestation takes; `announce` needs to write the release it announces. `release.yml` states them for
@@ -12117,6 +12138,7 @@ run_test quick_start_refuses_a_value_that_would_write_broken_configuration
 run_test quick_start_says_it_is_an_evaluation_rather_than_a_recommended_deployment
 run_test every_external_action_names_an_approved_owner
 run_test every_workflow_job_declares_its_permissions
+run_test every_workflow_job_declares_its_timeout
 run_test every_write_scope_is_one_the_policy_records
 run_test every_checkout_refuses_to_persist_credentials
 run_test the_release_restores_the_annotated_tag_before_asserting_it

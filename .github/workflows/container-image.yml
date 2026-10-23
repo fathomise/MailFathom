@@ -30,6 +30,7 @@ jobs:
   container-image:
     name: Container image
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
