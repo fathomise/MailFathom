@@ -589,15 +589,12 @@ describe('FolderMaintenanceProvider', () => {
         ['ServerRefused', 'Your mail server refused the change.'],
         ['ServerUnavailable', 'Your mail server did not answer. Nothing was changed, so try again.'],
         ['RoleAlreadyPlayed', 'This mailbox already has a folder for that.'],
-        [
-            'NotDeclaredByTheAccount',
-            'Whoever administers this deployment set that folder up, so it is theirs to change.',
-        ],
+        ['NotDeclaredByTheAccount', 'Your administrator set that folder up, so it is theirs to change.'],
         [
             'NotRecorded',
             'Your mail server made the change and MailFathom could not write it down. Open the mailboxes again before asking for anything else.',
         ],
-        ['SomethingThisClientHasNotHeardOf', 'The deployment refused it.'],
+        ['SomethingThisClientHasNotHeardOf', 'The server refused it.'],
     ])('says what the refusal %s means', async (refusal, said) => {
         const { held } = maintaining(deployment(() => refusing(refusal)).transport);
 

@@ -287,6 +287,12 @@ rule catches a string written into markup and nothing else, so everything below 
 - **A user-visible string is a catalogue entry, however it reaches the screen.** A default prop, a value a helper
   returns, a message assembled before it is rendered — each is a sentence somebody reads, and the lint rule sees none
   of them.
+- **Copy calls the service _the server_ and the person who looks after it _your administrator_.** "Deployment" is the
+  word of whoever operates MailFathom, and it stays in identifiers and under `docs/`; somebody reading their mail
+  understands a server. Pointing them at "whoever runs this deployment" reads as if nobody stands behind the product,
+  which is as wrong where MailFathom is provided to them as a service as where their own organisation runs it, while
+  _your administrator_ holds for both. A sentence that also names where the mail itself lives says _mail server_, so
+  the two never read as one. Polish says _serwer_, _serwer poczty_, and _administrator_ for the same three.
 - **A sentence is one entry with `{name}` holes, never fragments joined at the call site.** Word order, agreement, and
   where a value falls in a sentence all differ between languages, and a sentence assembled from pieces can be
   translated in only the order English happens to use.

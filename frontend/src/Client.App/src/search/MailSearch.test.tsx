@@ -386,7 +386,7 @@ describe('MailSearch', () => {
         render(searchUnder(transport));
         searchFor('x'.repeat(513));
 
-        expect(screen.getByRole('alert').textContent).toContain('longer than a search this deployment runs');
+        expect(screen.getByRole('alert').textContent).toContain('longer than a search this server runs');
         expect(searches(asked)).toStrictEqual([]);
     });
 

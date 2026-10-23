@@ -272,16 +272,16 @@ describe('AttachmentView', () => {
     it.each([
         [
             'unauthenticated',
-            'This deployment no longer accepts the credential, so the file was not downloaded. Sign in again.',
+            'This server no longer accepts the credential, so the file was not downloaded. Sign in again.',
         ],
-        ['unauthorized', 'This credential may not read mail on this deployment, so the file was not downloaded.'],
+        ['unauthorized', 'This credential may not read mail on this server, so the file was not downloaded.'],
         [
             'screened',
-            'This deployment screens the files it serves and does not serve this one, so it was not downloaded. Try again in case the read ran out of time or the screen was momentarily not answering.',
+            'This server screens the files it serves and does not serve this one, so it was not downloaded. Try again in case the read ran out of time or the screen was momentarily not answering.',
         ],
         [
             'largerThanDescribed',
-            'The deployment sent more than this message said the file holds, so nothing was saved. Report this as a defect.',
+            'The server sent more than this message said the file holds, so nothing was saved. Report this as a defect.',
         ],
     ] as const)('says what a download refused with %s did not do, and what to do about it', async (refusal, said) => {
         const held = delivering();
@@ -402,13 +402,13 @@ describe('AttachmentView', () => {
     it.each([
         [
             'unauthenticated',
-            'This deployment no longer accepts the credential, so the file could not be shown. Sign in again.',
+            'This server no longer accepts the credential, so the file could not be shown. Sign in again.',
         ],
-        ['unauthorized', 'This credential may not read mail on this deployment, so the file could not be shown.'],
-        ['unavailable', 'The deployment did not answer, so the file could not be shown. Try again.'],
+        ['unauthorized', 'This credential may not read mail on this server, so the file could not be shown.'],
+        ['unavailable', 'The server did not answer, so the file could not be shown. Try again.'],
         [
             'screened',
-            'This deployment screens the files it serves and does not serve this one, so it cannot be shown. Try again in case the read ran out of time or the screen was momentarily not answering.',
+            'This server screens the files it serves and does not serve this one, so it cannot be shown. Try again in case the read ran out of time or the screen was momentarily not answering.',
         ],
         [
             'largerThanDescribed',
@@ -469,9 +469,7 @@ describe('AttachmentView', () => {
     it('offers no second attempt at a refusal that would repeat identically', async () => {
         drawing(photograph, reading({ outcome: 'refused', refusal: 'unauthorized' }).exchange);
 
-        await screen.findByText(
-            'This credential may not read mail on this deployment, so the file could not be shown.',
-        );
+        await screen.findByText('This credential may not read mail on this server, so the file could not be shown.');
 
         expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     });

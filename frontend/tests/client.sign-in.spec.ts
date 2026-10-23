@@ -166,7 +166,7 @@ test('reads a refused password itself rather than letting the browser ask for on
 
     // The screen says what the deployment decided, which is the whole point of the client reading the challenge: a
     // dialog standing in front of this sentence is one nobody can get past to the form behind it.
-    await expect(page.getByText('The login or the password is not accepted by this deployment.')).toBeVisible();
+    await expect(page.getByText('The login or the password is not accepted by this server.')).toBeVisible();
 
     expect(asked.length).toBeGreaterThan(0);
     for (const request of asked) {
@@ -464,7 +464,7 @@ for (const refusal of [
         await refusal.meet(page);
 
         await expect(
-            page.getByText('This deployment has stopped accepting the sign-in that was kept. Sign in again.'),
+            page.getByText('This server has stopped accepting the sign-in that was kept. Sign in again.'),
         ).toBeVisible();
         await expect(page.getByRole('textbox', { name: 'Login' })).toBeVisible();
 

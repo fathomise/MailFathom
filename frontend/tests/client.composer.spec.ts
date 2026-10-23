@@ -566,7 +566,7 @@ async function turnedAwayWhileWriting(page: Page, deployment: FakeDeployment, lo
     await page.route('**/api/client/emails?*', (route) => route.fulfill({ status: 401 }), { times: 1 });
     await openDrafts(page);
     await expect(
-        page.getByText('This deployment has stopped accepting the sign-in that was kept. Sign in again.'),
+        page.getByText('This server has stopped accepting the sign-in that was kept. Sign in again.'),
     ).toBeVisible();
 
     await page.getByRole('textbox', { name: 'Login' }).fill(login);

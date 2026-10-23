@@ -729,7 +729,7 @@ describe('AgentSpace', () => {
         fireEvent.click(await screen.findByRole('menuitem', { name: 'Archive' }));
 
         expect((await screen.findByRole('alert')).textContent).toBe(
-            'The deployment could not be reached, so the archive did not change. Try again.',
+            'The server could not be reached, so the archive did not change. Try again.',
         );
     });
 

@@ -257,7 +257,7 @@ describe('NewEvent', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Read the description' }));
 
         expect(
-            await screen.findByText('This deployment has used up what it may spend on reading descriptions for now.'),
+            await screen.findByText('This server has used up what it may spend on reading descriptions for now.'),
         ).toBeDefined();
         expect(screen.getByLabelText('Title')).toBeDefined();
     });

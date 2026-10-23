@@ -72,7 +72,7 @@ describe('App', () => {
     it('says it is reaching the deployment while nothing has answered', () => {
         renderApp(servedFrom, heldSession, () => () => new Promise<ClientResponse>(() => undefined));
 
-        expect(screen.getByText('Reaching your deployment…')).toBeDefined();
+        expect(screen.getByText('Reaching the server…')).toBeDefined();
     });
 
     it('says it is reading the accounts once the deployment has said what the credential may do', async () => {
@@ -373,7 +373,7 @@ describe('App', () => {
         // sentence is asserted on the screen rather than the withholding being asserted on its own.
         expect(
             screen.getByText(
-                'This credential may not change a flag on your mail server, so opening a message leaves it unread there, flagging and marking unread are not offered, and this client shows what the server last reported. Whoever runs the deployment can grant that.',
+                'This credential may not change a flag on your mail server, so opening a message leaves it unread there, flagging and marking unread are not offered, and this client shows what the server last reported. Your administrator can grant that.',
             ),
         ).toBeDefined();
     });
@@ -482,7 +482,7 @@ describe('App', () => {
 
         expect(
             await screen.findByText(
-                'This deployment is not refreshing the local copy of these accounts, so what you see is as current as its last run left it. That is a setting on the deployment rather than a permission you are missing.',
+                'This server is not refreshing the local copy of these accounts, so what you see is as current as its last run left it. That is a setting on the server rather than a permission you are missing.',
             ),
         ).toBeDefined();
     });

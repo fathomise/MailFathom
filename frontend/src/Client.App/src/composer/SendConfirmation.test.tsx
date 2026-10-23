@@ -66,9 +66,7 @@ describe('SendConfirmation', () => {
         drawConfirmation();
         ask();
 
-        expect(screen.getByRole('dialog').textContent).toContain(
-            'until your deployment has handed it to the mail server',
-        );
+        expect(screen.getByRole('dialog').textContent).toContain('until it has been handed to the mail server');
     });
 
     it('names no header nobody is written in', () => {

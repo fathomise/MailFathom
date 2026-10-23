@@ -105,11 +105,8 @@ describe('MessageBody', () => {
     });
 
     it.each([
-        ['EncryptedNotReadableLocally', 'This message is encrypted and this deployment cannot read it.'],
-        [
-            'NotStoredExceededSizeLimit',
-            'This message was larger than this deployment keeps, so its body was not stored.',
-        ],
+        ['EncryptedNotReadableLocally', 'This message is encrypted and this server cannot read it.'],
+        ['NotStoredExceededSizeLimit', 'This message was larger than this server keeps, so its body was not stored.'],
         ['NotStoredAwaitingStorageHeadroom', 'This message is waiting for storage room before its body is kept.'],
     ] as const satisfies readonly (readonly [MailBody['availability'], string])[])(
         'says what state a body it cannot show is in, for %s',
@@ -128,7 +125,7 @@ describe('MessageBody', () => {
     it.each([
         [
             'ReductionFailed',
-            'This deployment could not read the formatted version of this message, so it is shown as words.',
+            'This server could not read the formatted version of this message, so it is shown as words.',
         ],
         ['NothingRenderable', 'The formatted version of this message held nothing to draw, so it is shown as words.'],
     ] as const satisfies readonly (readonly [MailDocument['refusal'], string])[])(
@@ -156,7 +153,7 @@ describe('MessageBody', () => {
         drawing({ ...readable, document: null });
 
         expect(
-            screen.getByText('This deployment sent no drawable version of this message, so it is shown as words.'),
+            screen.getByText('This server sent no drawable version of this message, so it is shown as words.'),
         ).toBeDefined();
         expect(screen.getByText('A message, as words.')).toBeDefined();
     });
@@ -169,7 +166,7 @@ describe('MessageBody', () => {
         });
 
         expect(
-            screen.getByText('The words of this message were cut short by a limit this deployment applies.'),
+            screen.getByText('The words of this message were cut short by a limit this server applies.'),
         ).toBeDefined();
     });
 

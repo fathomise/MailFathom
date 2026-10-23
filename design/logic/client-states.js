@@ -92,8 +92,8 @@ MailFathomDesign.artboards.clientStates = (DCLogic, React) => {
 
   const REFUSALS = cat([
     { label: "Not permitted", tone: "neutral", icon: "lock", title: "This account may not ask questions of its mail.", body: "Your administrator can change that." },
-    { label: "Deployment unavailable", tone: "warn", icon: "cloud_off", title: "The deployment is not answering, so no run started.", body: "Your question is kept.", action: "Try again" },
-    { label: "Answer the client could not read", tone: "warn", icon: "error", title: "The deployment replied in a way this app could not read, so no run started.", body: "Updating the app may help.", action: "Try again" },
+    { label: "Server unavailable", tone: "warn", icon: "cloud_off", title: "The server is not answering, so no run started.", body: "Your question is kept.", action: "Try again" },
+    { label: "Answer the client could not read", tone: "warn", icon: "error", title: "The server replied in a way this app could not read, so no run started.", body: "Updating the app may help.", action: "Try again" },
   ]);
 
   const ENDINGS = cat([
@@ -101,13 +101,13 @@ MailFathomDesign.artboards.clientStates = (DCLogic, React) => {
     { group: "Stopped by you", label: "cancelled", tone: "neutral", icon: "stop_circle", title: "You stopped this run.", body: "What arrived before you stopped stays below.", action: "Ask again", big: 1 },
     { group: "Limit reached", label: "period allowance spent", tone: "warn", icon: "hourglass_disabled", title: "This month's questions are used up.", body: "What arrived before the limit stays below.", when: "Questions become available again on Thursday 1 October at 00:00.", big: 1 },
     { group: "Limit reached", label: "run allowance spent", tone: "warn", icon: "data_usage", title: "This question reached the most one run may spend.", body: "Below is what it found before stopping. One mailbox or one year costs less.", action: "Ask again", big: 1 },
-    { group: "Try again", label: "timed out", tone: "warn", icon: "timer_off", title: "The run ran out of time.", body: "It took longer than this deployment allows for one question.", action: "Ask again", big: 1 },
-    { group: "Try again", label: "temporarily unavailable", tone: "warn", icon: "cloud_off", title: "Answering is paused for a moment.", body: "The deployment is busy or restarting. Nothing you asked is lost.", action: "Try again", big: 1 },
-    { group: "Could not finish", label: "failed", tone: "err", icon: "error", title: "The run failed.", body: "Something went wrong on the deployment while answering.", action: "Ask again", big: 1 },
-    { group: "Could not finish", label: "gone", tone: "err", icon: "link_off", title: "This run no longer exists.", body: "The deployment has no record of it - it was probably restarted.", action: "Ask again", big: 1 },
-    { group: "Could not finish", label: "stopped", tone: "err", icon: "block", title: "The deployment stopped this run.", body: "A deployment rule ended it before it finished.", action: "Ask again", big: 1 },
-    { group: "Not possible here", label: "unavailable", tone: "neutral", icon: "do_not_disturb_on", title: "This deployment does not answer questions.", body: "Questions are switched off here. Your administrator can turn them on.", big: 1 },
-    { group: "Not possible here", label: "retrieval refused", tone: "neutral", icon: "lock", title: "The mail this question needs could not be read.", body: "The deployment refused to read a mailbox in the scope. Narrow the scope, or ask your administrator for access.", big: 1 },
+    { group: "Try again", label: "timed out", tone: "warn", icon: "timer_off", title: "The run ran out of time.", body: "It took longer than this server allows for one question.", action: "Ask again", big: 1 },
+    { group: "Try again", label: "temporarily unavailable", tone: "warn", icon: "cloud_off", title: "Answering is paused for a moment.", body: "The server is busy or restarting. Nothing you asked is lost.", action: "Try again", big: 1 },
+    { group: "Could not finish", label: "failed", tone: "err", icon: "error", title: "The run failed.", body: "Something went wrong on the server while answering.", action: "Ask again", big: 1 },
+    { group: "Could not finish", label: "gone", tone: "err", icon: "link_off", title: "This run no longer exists.", body: "The server has no record of it - it was probably restarted.", action: "Ask again", big: 1 },
+    { group: "Could not finish", label: "stopped", tone: "err", icon: "block", title: "The server stopped this run.", body: "A server rule ended it before it finished.", action: "Ask again", big: 1 },
+    { group: "Not possible here", label: "unavailable", tone: "neutral", icon: "do_not_disturb_on", title: "This server does not answer questions.", body: "Questions are switched off here. Your administrator can turn them on.", big: 1 },
+    { group: "Not possible here", label: "retrieval refused", tone: "neutral", icon: "lock", title: "The mail this question needs could not be read.", body: "The server refused to read a mailbox in the scope. Narrow the scope, or ask your administrator for access.", big: 1 },
   ]);
 
   const EVFAIL = cat([
@@ -119,8 +119,8 @@ MailFathomDesign.artboards.clientStates = (DCLogic, React) => {
   const NOTSENT = cat([
     { label: "Signed out", tone: "err", icon: "error", title: "Not sent - you are signed out.", body: "Your message stays in the field.", action: "Sign in" },
     { label: "Not permitted", tone: "err", icon: "error", title: "Not sent - this account may not use the agent.", body: "Your administrator can change that." },
-    { label: "Deployment unavailable", tone: "err", icon: "error", title: "Not sent - the deployment is not answering.", action: "Send again" },
-    { label: "Answer unreadable", tone: "err", icon: "error", title: "Not sent - the deployment's reply could not be read.", action: "Send again" },
+    { label: "Server unavailable", tone: "err", icon: "error", title: "Not sent - the server is not answering.", action: "Send again" },
+    { label: "Answer unreadable", tone: "err", icon: "error", title: "Not sent - the server's reply could not be read.", action: "Send again" },
   ]);
 
   const CONVFAIL = cat([

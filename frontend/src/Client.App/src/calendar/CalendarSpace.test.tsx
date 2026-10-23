@@ -251,7 +251,7 @@ describe('CalendarSpace', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
-        expect(await screen.findByText('The deployment did not answer, so nothing was changed.')).toBeDefined();
+        expect(await screen.findByText('The server did not answer, so nothing was changed.')).toBeDefined();
         expect(screen.getByText('Lunch with Celina')).toBeDefined();
     });
 
@@ -464,7 +464,7 @@ describe('CalendarSpace', () => {
         drawSpace(failing);
 
         expect(
-            await screen.findByText('The deployment did not answer with the calendar. It may be offline or starting.'),
+            await screen.findByText('The server did not answer with the calendar. It may be offline or starting.'),
         ).toBeDefined();
         expect(screen.getByRole('button', { name: 'Try again' })).toBeDefined();
     });

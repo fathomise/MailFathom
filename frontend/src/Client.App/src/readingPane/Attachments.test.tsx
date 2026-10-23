@@ -265,7 +265,7 @@ describe('Attachments', () => {
         expect(toasts.settled[0]).toEqual({
             kind: 'error',
             title: 'File not downloaded',
-            body: 'The deployment did not answer, so the file was not downloaded. Try again.',
+            body: 'The server did not answer, so the file was not downloaded. Try again.',
         });
 
         await act(async () => {

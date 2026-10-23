@@ -18,7 +18,7 @@ test('opens in Discover, under the version it was built from and the one the dep
     // deployment's arrives over the wire beside it. Both are read at the foot of the settings screen, which is where
     // the design draws them.
     await openSettings(page);
-    await expect(page.getByText(`MailFathom v${declaredVersion} · deployment ${declaredVersion}`)).toBeVisible();
+    await expect(page.getByText(`MailFathom v${declaredVersion} · server ${declaredVersion}`)).toBeVisible();
     await page.getByRole('button', { name: 'Close settings' }).click();
 
     // A first load at the root is written back to the address the space is actually reached at, which is what makes

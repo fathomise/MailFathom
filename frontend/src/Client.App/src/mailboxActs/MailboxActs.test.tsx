@@ -670,7 +670,7 @@ describe('MailboxActsProvider', () => {
         await screen.findByText('Put back where it was');
         await screen.findByText('One message was not put back.');
 
-        expect(screen.getByText('That mail is no longer in the mailbox this deployment reads.')).toBeDefined();
+        expect(screen.getByText('That mail is no longer in the mailbox this server reads.')).toBeDefined();
         expect(screen.getByText('1 message')).toBeDefined();
         await waitFor(() => {
             expect(held().asked.get('message-2')?.act).toBe('archive');
@@ -884,7 +884,7 @@ describe('MailboxActsProvider', () => {
 
         perform(held, 'flag', [invoice]);
 
-        await screen.findByText('This change did not reach your deployment.');
+        await screen.findByText('This change did not reach the server.');
 
         await waitFor(() => {
             expect(held().asked.has('message-1')).toBe(false);
@@ -935,7 +935,7 @@ describe('MailboxActsProvider', () => {
 
         perform(held, 'flag', spread);
 
-        await screen.findByText('This change did not reach your deployment.');
+        await screen.findByText('This change did not reach the server.');
 
         await waitFor(() => {
             expect(held().asked.has(`message-${String(mostMessagesPerMutation)}`)).toBe(false);
@@ -973,7 +973,7 @@ describe('MailboxActsProvider', () => {
 
         perform(held, 'flag', [invoice]);
 
-        await screen.findByText('This change did not reach your deployment.');
+        await screen.findByText('This change did not reach the server.');
 
         expect(recordsOf(recording.recorded, 'act_asked')).toHaveLength(1);
         expect(recordsOf(recording.recorded, 'act_refused')).toStrictEqual([]);
@@ -1018,7 +1018,7 @@ describe('MailboxActsProvider', () => {
         perform(held, act, [invoice], destination);
 
         expect(await screen.findByText(said)).toBeDefined();
-        expect(screen.getByText('That mail is no longer in the mailbox this deployment reads.')).toBeDefined();
+        expect(screen.getByText('That mail is no longer in the mailbox this server reads.')).toBeDefined();
     });
 
     // Asking again is the act performed afresh, so a move names the folder it named the first time rather than

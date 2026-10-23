@@ -104,7 +104,7 @@ describe('AdvancedConnection', () => {
     it('reports the permission rather than deciding anything itself', () => {
         const { permitted } = drawing(secure);
 
-        fireEvent.click(screen.getByRole('checkbox', { name: 'Reach this deployment over plain HTTP' }));
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Reach this server over plain HTTP' }));
 
         expect(permitted).toEqual([true]);
     });
@@ -114,10 +114,10 @@ describe('AdvancedConnection', () => {
     it('states a configured permission and offers no control for it', () => {
         drawing({ secure: false, authority: 'mail.example.test', port: null }, true, true);
 
-        expect(screen.queryByRole('checkbox', { name: 'Reach this deployment over plain HTTP' })).toBeNull();
+        expect(screen.queryByRole('checkbox', { name: 'Reach this server over plain HTTP' })).toBeNull();
         expect(
             screen.getByText(
-                'This was set for you when the client was installed, so it is not yours to change here. Whoever configured it decides it.',
+                'This was set for you when the client was installed, so it is not yours to change here. Your administrator decides it.',
             ),
         ).toBeDefined();
     });

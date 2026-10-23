@@ -342,7 +342,7 @@ function submit(): void {
 }
 
 function permitClearText(): void {
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Reach this deployment over plain HTTP' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Reach this server over plain HTTP' }));
 }
 
 // The console spies one test below installs would otherwise survive into every test after it in this file, silencing
@@ -356,7 +356,7 @@ describe('SignIn', () => {
         renderScreen(signedIn);
 
         expect(screen.getByRole('textbox', { name: 'Server' })).toBeDefined();
-        expect(screen.getByRole('checkbox', { name: 'Reach this deployment over plain HTTP' })).toBeDefined();
+        expect(screen.getByRole('checkbox', { name: 'Reach this server over plain HTTP' })).toBeDefined();
         expect(screen.getByRole('textbox', { name: 'Login' })).toBeDefined();
         expect(screen.getByLabelText('Password')).toBeDefined();
     });
@@ -365,7 +365,7 @@ describe('SignIn', () => {
         renderScreen(signedIn, servingDeployment);
 
         expect(screen.queryByRole('textbox', { name: 'Server' })).toBeNull();
-        expect(screen.queryByRole('checkbox', { name: 'Reach this deployment over plain HTTP' })).toBeNull();
+        expect(screen.queryByRole('checkbox', { name: 'Reach this server over plain HTTP' })).toBeNull();
         expect(screen.getByRole('textbox', { name: 'Login' })).toBeDefined();
     });
 
@@ -380,7 +380,7 @@ describe('SignIn', () => {
 
         expect(
             screen.getByText(
-                'Your password is encoded rather than encrypted when you sign in, and every request afterwards carries the session it is exchanged for. Anybody between this client and the deployment can read either. Leave this off unless the network between them is yours.',
+                'Your password is encoded rather than encrypted when you sign in, and every request afterwards carries the session it is exchanged for. Anybody between this client and the server can read either. Leave this off unless the network between them is yours.',
             ),
         ).toBeDefined();
     });
@@ -390,7 +390,7 @@ describe('SignIn', () => {
 
         submit();
 
-        expect(screen.getByRole('alert').textContent).toBe('Name the deployment that holds your mail.');
+        expect(screen.getByRole('alert').textContent).toBe('Enter the address of your MailFathom server.');
         expect(presented).toEqual([]);
     });
 
@@ -434,7 +434,9 @@ describe('SignIn', () => {
         typeCredential('user', '');
         submit();
 
-        expect(screen.getByRole('alert').textContent).toBe('Type the login and the password your deployment gave you.');
+        expect(screen.getByRole('alert').textContent).toBe(
+            'Type the login and the password you were given for this server.',
+        );
         expect(presented).toEqual([]);
     });
 
@@ -504,7 +506,7 @@ describe('SignIn', () => {
         // The two-control shape has no address on it and nobody named one, so the sentence about checking an address
         // and checking that the deployment is running would point at something that is not theirs to act on.
         expect((await screen.findByRole('alert')).textContent).toBe(
-            'The deployment did not answer. Try again in a moment.',
+            'The server did not answer. Try again in a moment.',
         );
     });
 
@@ -680,7 +682,7 @@ describe('SignIn', () => {
         submit();
 
         expect((await screen.findByRole('alert')).textContent).toBe(
-            'This deployment does not accept a login and a password. Whoever runs it has to enable that before you can sign in here.',
+            'This server does not accept a login and a password. Your administrator has to enable that before you can sign in here.',
         );
         expect(credentialsSent(asked)).toEqual([undefined]);
         expect(presented).toEqual([]);
@@ -696,7 +698,7 @@ describe('SignIn', () => {
         // The four-control shape is the one where checking the address is something the person can act on, which is
         // what that sentence asks them to do.
         expect((await screen.findByRole('alert')).textContent).toBe(
-            'Nothing answered there. Check the address, and check that the deployment is running.',
+            'Nothing answered there. Check the address, and check that the server is running.',
         );
         expect(presented).toEqual([]);
     });
@@ -732,7 +734,7 @@ describe('SignIn', () => {
         renderScreen(signedIn, servingDeployment, 'inTheDeviceStore', ['credentialNoLongerAccepted']);
 
         expect(screen.getByRole('status').textContent).toBe(
-            'This deployment has stopped accepting the sign-in that was kept. Sign in again.',
+            'This server has stopped accepting the sign-in that was kept. Sign in again.',
         );
     });
 
@@ -753,7 +755,7 @@ describe('SignIn', () => {
         // Two facts rather than one told twice: a person is signed out for one reason and is still carrying a password
         // for another, and hearing only the first would leave them believing the machine holds nothing.
         expect(screen.getAllByRole('status').map((shown) => shown.textContent)).toEqual([
-            'This deployment has stopped accepting the sign-in that was kept. Sign in again.',
+            'This server has stopped accepting the sign-in that was kept. Sign in again.',
             'Signing out did not remove the sign-in from this machine’s credential store, so it is still kept there. MailFathom was asked to end the session, and it stops working on its own in any case. Remove the entry in the store itself if you would rather it were gone now.',
         ]);
     });
@@ -766,7 +768,7 @@ describe('SignIn', () => {
         // The one refusal that is not about what was typed: retyping the password would change nothing, so the
         // sentence says the credential was accepted rather than asking for it again.
         expect((await screen.findByRole('alert')).textContent).toBe(
-            'This deployment accepted the credential, but it is allowed to read no mail.',
+            'This server accepted the credential, but it is allowed to read no mail.',
         );
         expect(screen.getByLabelText('Password').getAttribute('aria-invalid')).toBe('false');
     });
@@ -930,7 +932,7 @@ describe('SignIn', () => {
         fireEvent.click(screen.getByText('Advanced'));
 
         expect(screen.getByText('mail.example.invalid', { selector: 'dd' })).toBeDefined();
-        expect(screen.queryByRole('checkbox', { name: 'Reach this deployment over plain HTTP' })).toBeNull();
+        expect(screen.queryByRole('checkbox', { name: 'Reach this server over plain HTTP' })).toBeNull();
         expect(screen.queryByRole('button', { name: 'Change the server' })).toBeNull();
     });
 
@@ -1001,7 +1003,7 @@ describe('SignIn', () => {
         renderScreen(published({ acceptsPassword: false, authorizationServers: [] }), servingDeployment);
 
         expect((await screen.findByRole('alert')).textContent).toBe(
-            'This deployment offers no sign-in method. Check the address, or ask whoever runs it to configure one.',
+            'This server offers no sign-in method. Check the address, or ask your administrator to configure one.',
         );
         expect(screen.queryByLabelText('Password')).toBeNull();
         expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull();
@@ -1114,7 +1116,7 @@ describe('SignIn', () => {
         renderScreen(bothProviders, servingDeployment);
 
         expect((await screen.findByRole('alert')).textContent).toBe(
-            'This deployment offers a provider, which this version of the client cannot open. Sign in with a password here, or use the desktop client or a browser.',
+            'This server offers a provider, which this version of the client cannot open. Sign in with a password here, or use the desktop client or a browser.',
         );
 
         // The password form is what is left, which is why this is not the deployment offering nothing.
@@ -1127,7 +1129,7 @@ describe('SignIn', () => {
         renderScreen(resourceWithheld, servingDeployment, 'inThisBrowser', [], null, redirectTo([]));
 
         expect((await screen.findByRole('alert')).textContent).toBe(
-            'This deployment offers a provider, and what a token has to be issued for could not be read just now.Ask again',
+            'This server offers a provider, and what a token has to be issued for could not be read just now.Ask again',
         );
     });
 
@@ -1203,7 +1205,7 @@ describe('SignIn', () => {
         renderScreen(providersOnly, servingDeployment);
 
         expect((await screen.findByRole('alert')).textContent).toBe(
-            'This deployment offers a provider, which this version of the client cannot open, and it takes no password. Sign in from the desktop client or from a browser.',
+            'This server offers a provider, which this version of the client cannot open, and it takes no password. Sign in from the desktop client or from a browser.',
         );
         expect(screen.queryByLabelText('Password')).toBeNull();
     });

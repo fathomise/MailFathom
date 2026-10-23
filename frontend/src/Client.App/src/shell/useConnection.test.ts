@@ -85,7 +85,7 @@ describe('useConnection', () => {
 
     // A renewal replaces the header value roughly once every eleven hours while somebody is reading. Nothing about the
     // deployment changed, so nothing may be re-read and nothing may leave the screen: a hook keyed on the value would
-    // empty the frame mid-morning and put the person back on 'Reaching your deployment…'.
+    // empty the frame mid-morning and put the person back on 'Reaching the server…'.
     it('keeps what it read when the session it presents is renewed under the same person', async () => {
         const presented: (string | undefined)[] = [];
         const recording: DeploymentTransport = () => (request) => {

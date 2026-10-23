@@ -159,7 +159,7 @@ describe('ContactBook', () => {
         const readAgain = vi.fn();
         drawBook({ reading: { ...nothingRead, failure: 'unavailable', readAgain } });
 
-        expect(screen.getByRole('alert').textContent).toContain('The deployment did not answer');
+        expect(screen.getByRole('alert').textContent).toContain('The server did not answer');
 
         fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
 

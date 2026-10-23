@@ -282,7 +282,7 @@ describe('PendingChangesProvider', () => {
         hand(submission([{ storedEmailId, outcome: 'message-not-found', changes: [] }]));
 
         expect(screen.getByText('One message was not marked read.')).toBeTruthy();
-        expect(screen.getByText('That mail is no longer in the mailbox this deployment reads.')).toBeTruthy();
+        expect(screen.getByText('That mail is no longer in the mailbox this server reads.')).toBeTruthy();
         expect(letGo).toStrictEqual([storedEmailId]);
     });
 
@@ -304,7 +304,7 @@ describe('PendingChangesProvider', () => {
 
         hand(submission(null));
 
-        expect(screen.getByText('This change did not reach your deployment.')).toBeTruthy();
+        expect(screen.getByText('This change did not reach the server.')).toBeTruthy();
         expect(letGo).toStrictEqual([storedEmailId]);
 
         fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
@@ -379,7 +379,7 @@ describe('PendingChangesProvider', () => {
 
         expect(
             screen.getByText(
-                'Your deployment answered, but this client could not act on the answer: unauthenticated. Nothing is being checked until you ask it to.',
+                'The server answered, but this client could not act on the answer: unauthenticated. Nothing is being checked until you ask it to.',
             ),
         ).toBeTruthy();
 
