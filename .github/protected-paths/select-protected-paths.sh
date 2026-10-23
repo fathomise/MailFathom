@@ -3,8 +3,9 @@
 # Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 # Project repository: https://github.com/fathomise/MailFathom
 
-# The paths only a maintainer of the repository may change, held once for the two places that read
-# them: `Protected paths`, which refuses such a change from anybody else, and `Fathom review`, which
+# The paths whose change waits for a maintainer of the repository, held once for the two places that
+# read them: `Protected paths`, which holds such a change from anybody else until a maintainer
+# approves its head, and `Fathom review`, which
 # names them in the notice telling a contributor why their pull request was not approved. Both read
 # this file from the base commit, so a pull request cannot shorten the list it is judged against.
 #

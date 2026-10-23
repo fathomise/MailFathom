@@ -640,8 +640,10 @@ offer to go deeper on any one of them instead of expanding all six.
 
    - the protected paths — `.github/`, `.config/`, `.agents/`, `.claude/`, `docs/decisions/`, an `.editorconfig`,
      `.gitattributes`, `.worktreeinclude`, `AGENTS.md`, `CLAUDE.md`, or `Directory.Build.props` at any depth, and the
-     repository-root `CHANGELOG.md`, `CLA.md`, `LICENSE`, `NOTICE`, `NuGet.config`, `Version.props`, and `global.json` — are refused from
-     any author but a maintainer, whatever the change says. Raise one as an issue;
+     repository-root `CHANGELOG.md`, `CLA.md`, `LICENSE`, `NOTICE`, `NuGet.config`, `Version.props`, and `global.json` — are open to you
+     as to anyone, and a change to one goes in the same pull request as the rest of the work. The `Protected paths`
+     check holds that pull request until a maintainer approves its current head, so it waits for their review
+     however good the change is, and a push after the approval waits for a fresh one;
    - **what the workflow does about the answers step 3 gave**, which is the half that page does not carry. Where the
      labels, the milestone, or the board came back refused, `start-task` opens the issue and stops there and
      `finish-change` reports the board write as `not applicable (no board write)` rather than leaving a report that

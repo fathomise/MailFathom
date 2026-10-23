@@ -77,8 +77,8 @@ name: Protected paths
 #   `global.json`             the SDK pin every build, every gate, and every CI run resolves against
 #
 # A pull request that edits any of them is editing the gate it has to pass, the terms the project is
-# published under, or the record a release stands on, so the maintainers are the only human authors
-# for whom that is ordinary work. A maintainer is an account holding the `maintain` or `admin` role on
+# published under, or the record a release stands on. Any author may propose that, an agent
+# included, and a maintainer reads it before it merges whoever wrote it. A maintainer is an account holding the `maintain` or `admin` role on
 # the repository, which is what the organization's `maintainers` team is given; the step below
 # carries why the role is read rather than the team. `CODEOWNERS` says this to the reviewer; this job
 # says it to the author, within seconds of the push and without a reviewer having to notice. One
@@ -404,8 +404,8 @@ jobs:
           # changed view, so the refusal is readable where the change is read rather than only in the
           # step log.
           for protected_change in "${protected_changes[@]}"; do
-            echo "::error file=${protected_change}::${protected_change} decides how other changes are judged, what the project is published under, or what a release claims it shipped, and only a maintainer of the repository may change it in a pull request or approve the change."
+            echo "::error file=${protected_change}::${protected_change} decides how other changes are judged, what the project is published under, or what a release claims it shipped, so a change to it waits for a maintainer of the repository to approve this pull request's current head."
           done
 
-          echo "::error::This pull request is authored by ${PULL_REQUEST_AUTHOR} and changes ${#protected_changes[@]} protected path(s): ${protected_changes[*]}. Open that change separately, ask a maintainer to make it, or ask one to approve this head, which clears this check."
+          echo "::error::This pull request is authored by ${PULL_REQUEST_AUTHOR} and changes ${#protected_changes[@]} protected path(s): ${protected_changes[*]}. The change may stay in this pull request: a maintainer's approval of this head clears this check, and a later push waits for a fresh one."
           exit 1
