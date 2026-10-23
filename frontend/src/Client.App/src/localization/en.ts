@@ -428,7 +428,6 @@ export const en = {
     'intent.placeholderShort': 'Ask your mail…',
     'intent.ask': 'Ask',
     'intent.askedBefore': 'Asked before',
-    'intent.askedUnder': '{question}, asking about {scope}',
     'intent.forgetAsked': 'Forget these',
 
     'threadAgent.label': 'Draft a reply to this correspondence',
@@ -446,18 +445,7 @@ export const en = {
     'threadAgent.openInComposer': 'Open in composer',
     'threadAgent.discard': 'Discard draft',
 
-    'scope.inScope': 'What the question is asked about',
-    'scope.asking': 'Asking about {scope}',
     'scope.allMailboxes': 'All mailboxes',
-    'scope.everyMailbox': '{folder}, every mailbox',
-    'scope.folderIn': '{folder} in {mailbox}',
-    'scope.selectedText': 'The part you selected',
-    'scope.message': 'This message',
-    'scope.thread': 'This correspondence',
-    'scope.selection.one': '{count} selected message',
-    'scope.selection.few': '{count} selected messages',
-    'scope.selection.many': '{count} selected messages',
-    'scope.selection.other': '{count} selected messages',
 
     'signIn.claim': 'Your mail stays on your own server.',
     'signIn.claimExplanation':

@@ -4,7 +4,6 @@
 
 // Text the template shows as written rather than computes: each `{{ sample.<name> }}` binding reads it from here.
 MailFathomDesign.data.sampleText = {
-  scopeYears: "2019-2026",
   today: "Thursday, 27 August",
   timelineMeta: "4 events · 2021-2026",
   attachmentsMeta: "4 files · sorted by version",

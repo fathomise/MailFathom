@@ -22,8 +22,6 @@ MailFathomDesign.data.clientStatesSample = {
   discover: {
     question: "What did we agree with Contoso about weekend cover?",
     questionNothingComposed: "Did Nordwind ever agree to penalty clauses?",
-    scopeAllMailboxes: "All mailboxes",
-    scopePeriod: "2019-2026",
     plan: "plan: contract terms",
     syncStatus: "Synced 2 min ago · 2 accounts",
     answerWeekendCover: "Weekend cover is a 4 h response on Saturdays and Sundays, 08:00-20:00",
@@ -67,9 +65,9 @@ MailFathomDesign.data.clientStatesSample = {
   },
 
   askedBefore: [
-    { question: "What SLA commitments do we have to clients?", scope: "All mailboxes" },
-    { question: "Who owns Q4 renewals?", scope: "Nordwind · work" },
-    { question: "Which invoices from August are unpaid?", scope: "Personal · 2026" },
+    { question: "What SLA commitments do we have to clients?" },
+    { question: "Who owns Q4 renewals?" },
+    { question: "Which invoices from August are unpaid?" },
   ],
 
   mail: {

@@ -3,10 +3,11 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { createContext, useContext } from 'react';
-import type { AskedQuestion, SelectedFragment } from './askScope';
+import type { AskedQuestion } from './askedQuestions';
 import type { MailScope } from './mailScope';
 import type { CitedAttachment, OpenedAttachment } from './openAttachment';
 import type { OpenConversation } from './openConversation';
+import type { SelectedFragment } from './selectedFragment';
 
 // What a person carries between the spaces. Discover, Mail, and Cases are one application rather than three, and this
 // is what makes them one: the frame owns it, so moving to another space re-renders what is under the frame and leaves
@@ -109,56 +110,41 @@ export interface Workspace {
     readonly citedMessage: string | null;
 
     /**
-     * The part of what is open that a question would be asked about, or `null` where the whole of it is.
+     * The part of what is open that the field under a correspondence would ask about, or `null` where the whole of it
+     * is.
      *
-     * It is the words a person selected rather than a position in anything, because what the intent field does with it
-     * is quote it: a range would have to be resolved against a document that is drawn again on every read, and against
+     * It is the words a person selected rather than a position in anything, because what that field does with it is
+     * quote it: a range would have to be resolved against a document that is drawn again on every read, and against
      * the same message read a second time under a different ask.
      *
-     * It names the message the words were taken from as well as the words, because a passage is a scope of its own and
-     * the message around it is the next one out — a fragment that could not say which message it belonged to could
-     * neither be widened to that message nor be told apart from one taken out of a different one.
+     * It names the message the words were taken from as well as the words, because a fragment that could not say which
+     * message it belonged to could not be told apart from one taken out of a different one.
      */
     readonly fragment: SelectedFragment | null;
 
     /**
      * The messages the person has picked out, in the order the list draws them.
      *
-     * Here rather than inside the list because *select and ask* is what it is for: the question asked of a selection is
-     * composed somewhere the list is not, so a selection the list kept to itself would be a visual state nothing else
-     * could read as scope.
+     * Here rather than inside the list because what is done with a selection is drawn somewhere the list is not — the
+     * selection bar and the row's menu — so a selection the list kept to itself would be one nothing else could act on.
      */
     readonly selected: readonly string[];
 
     /**
      * What has been typed into Discover's field, which the next question would be asked with.
      *
-     * Discover's alone: the field under a correspondence holds what is typed there itself, so the two never share a
-     * sentence — here, or through what is remembered of this workspace.
+     * Discover's alone: no other space's field reads or writes it, and the field under a correspondence holds what is
+     * typed there itself, so the two never share a sentence — here, or through what is remembered of this workspace.
      */
     readonly question: string;
 
     /**
-     * What the intent field was pointed at, by its key, or `null` where the field asks about what the mail space shows.
-     *
-     * Beside the scope the list is read under rather than instead of it, because the two answer different questions:
-     * one says what is drawn, and the other what the next question is about. Widening a question after an answer that
-     * was too narrow, and narrowing it to the paragraph in front of somebody, are both exactly the second changing
-     * while the first does not — so either keeps the folder they were reading and the messages they had picked out.
-     *
-     * A key rather than the scope, because it means nothing except against what the field is offering: `askScope.ts`
-     * resolves it there and falls back to the screen where the thing it named has gone.
-     */
-    readonly askScopeKey: string | null;
-
-    /**
-     * What was asked before, newest first, each with the scope it was asked under.
+     * What Discover was asked before, newest first.
      *
      * Here rather than in the space that answers, for the reason the searches are: it has to outlive the answer it was
      * asked for, and a list the answer held would be gone the moment somebody asked something else. It is a list of
-     * questions rather than a conversation — what somebody does with one is ask it again, usually wider —
-     * and it goes with the credential like everything else the workspace holds, because what a person asked their own
-     * mail is theirs.
+     * questions rather than a conversation — what somebody does with one is ask it again — and it goes with the
+     * credential like everything else the workspace holds, because what a person asked their own mail is theirs.
      */
     readonly askedBefore: readonly AskedQuestion[];
 
@@ -201,7 +187,6 @@ export const emptyWorkspace: Workspace = {
     fragment: null,
     selected: [],
     question: '',
-    askScopeKey: null,
     askedBefore: [],
     recentSearches: [],
 };

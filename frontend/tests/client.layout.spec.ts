@@ -142,10 +142,9 @@ test('moves a keyboard through a narrow window in the order the window shows', a
     await page.keyboard.press('Tab');
     await expect(page.getByRole('searchbox', { name: 'Ask your mail' })).toBeFocused();
 
-    // Past the question's own two controls, the questions Discover offers. They are the space's own contents rather
-    // than the frame's, and a keyboard meets them before the navigation for the reason this whole test exists: the
-    // document puts the space first whatever the narrow layout draws at the foot of the window.
-    await page.keyboard.press('Tab');
+    // Past the question's own *Ask*, the questions Discover offers. They are the space's own contents rather than the
+    // frame's, and a keyboard meets them before the navigation for the reason this whole test exists: the document puts
+    // the space first whatever the narrow layout draws at the foot of the window.
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
     await expect(page.getByRole('button', { name: 'What am I still owed an answer on?' })).toBeFocused();
@@ -177,11 +176,10 @@ test('stays usable at the narrowest width a supported head presents', async ({ p
     await openSignedIn(page);
 
     // 320 CSS pixels is the bar `frontend/src/AGENTS.md` sets, and what is asked of it is that the frame still holds
-    // everything rather than that it looks the same: the space, the intent field, its scope, and every destination the
-    // design shows. Nothing is dropped by width, and the window it is measured in is the width alone.
+    // everything rather than that it looks the same: the space, the intent field, and every destination the design
+    // shows. Nothing is dropped by width, and the window it is measured in is the width alone.
     await expect(page.getByRole('heading', { name: 'Discover', level: 1 })).toBeVisible();
     await expect(page.getByRole('searchbox', { name: 'Ask your mail' })).toBeVisible();
-    await expect(page.getByRole('combobox', { name: 'What the question is asked about' })).toBeVisible();
 
     // Three stand in the bar itself and the rest behind its overflow, which is what makes five places enough for every
     // destination. Reached rather than dropped is the whole of the claim, so both halves are counted and the sheet is

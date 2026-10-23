@@ -111,23 +111,27 @@ test('closes a dialog with the back gesture and leaves the screen it stood over 
     await expect(page).toHaveURL(/#\/people$/u);
 });
 
-// Discover's question is the only field that asks one, so what is carried is the sentence and its scope surviving a
-// visit elsewhere — and what is proven beside it is that the space visited drew no field of its own to type it into.
-test('keeps the question and the scope it is asked under across a visit to another space', async ({ page }) => {
+// Discover's field is Discover's alone, so what is carried is the sentence surviving a visit elsewhere — and what is
+// proven beside it is that no space visited shows it in a field of its own, nor puts its own text into Discover's.
+test('keeps the question in Discover alone across a visit to other spaces', async ({ page }) => {
     await openSignedIn(page);
 
     const question = page.getByRole('searchbox', { name: 'Ask your mail' });
     await question.fill('the renewal Nordwind sent');
-    await page.getByRole('combobox', { name: 'What the question is asked about' }).selectOption({ label: 'Work' });
 
     await page.getByRole('link', { name: 'Cases' }).click();
     await expect(page.getByRole('heading', { name: 'Cases', level: 1 })).toBeVisible();
     await expect(question).toBeHidden();
 
+    await page.getByRole('link', { name: 'Agent' }).click();
+
+    const instruction = page.getByRole('textbox', { name: 'Tell the agent what to do' });
+    await expect(instruction).toHaveValue('');
+    await instruction.fill('Plan my day');
+
     await page.getByRole('link', { name: 'Discover' }).click();
 
     await expect(question).toHaveValue('the renewal Nordwind sent');
-    await expect(page.getByRole('combobox', { name: 'What the question is asked about' })).toHaveValue('account:work');
 });
 
 test('keeps the folder tree as it was left, across a reload', async ({ page }) => {

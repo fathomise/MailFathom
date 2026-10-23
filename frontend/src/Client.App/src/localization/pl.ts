@@ -436,7 +436,6 @@ export const pl: Catalogue = {
     'intent.placeholderShort': 'Zapytaj swoją pocztę…',
     'intent.ask': 'Zapytaj',
     'intent.askedBefore': 'Wcześniejsze pytania',
-    'intent.askedUnder': '{question}, pytanie dotyczy: {scope}',
     'intent.forgetAsked': 'Wyczyść listę',
 
     'threadAgent.label': 'Przygotuj odpowiedź na tę korespondencję',
@@ -454,18 +453,7 @@ export const pl: Catalogue = {
     'threadAgent.openInComposer': 'Otwórz w edytorze',
     'threadAgent.discard': 'Odrzuć szkic',
 
-    'scope.inScope': 'Czego dotyczy pytanie',
-    'scope.asking': 'Pytanie dotyczy: {scope}',
     'scope.allMailboxes': 'Wszystkie skrzynki',
-    'scope.everyMailbox': '{folder} we wszystkich skrzynkach',
-    'scope.folderIn': '{folder} w skrzynce {mailbox}',
-    'scope.selectedText': 'Zaznaczony fragment',
-    'scope.message': 'Ta wiadomość',
-    'scope.thread': 'Ta korespondencja',
-    'scope.selection.one': '{count} zaznaczona wiadomość',
-    'scope.selection.few': '{count} zaznaczone wiadomości',
-    'scope.selection.many': '{count} zaznaczonych wiadomości',
-    'scope.selection.other': '{count} zaznaczonych wiadomości',
 
     'signIn.claim': 'Twoja poczta zostaje na Twoim serwerze.',
     'signIn.claimExplanation':

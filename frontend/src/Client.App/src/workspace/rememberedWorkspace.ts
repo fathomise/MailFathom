@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { longestSearchText } from '@mailfathom/client-backend';
-import { mostAskedQuestions, withoutFragmentText, type AskedQuestion, type AskScope } from './askScope';
+import { mostAskedQuestions, type AskedQuestion } from './askedQuestions';
 import { everything, isMailFolderRole, type MailScope } from './mailScope';
 import type { OpenConversation } from './openConversation';
 import { emptyWorkspace, type Workspace } from './useWorkspace';
@@ -84,10 +84,6 @@ export function rememberedWorkspace(): Workspace {
  * half finished. The message an answer's citation named is left out on that same reading: it is an act begun by
  * pressing a citation and finished by the pane that reads the message, so a reload carrying one would open a
  * conversation nobody asked for out of a result the reload has already dropped.
- *
- * A question asked about a passage is kept and the passage is not, for the same reason the selected fragment is left
- * out: the question is a sentence somebody typed, and the words they highlighted are a piece of somebody's mail. What
- * is stored beside the question is the message the passage came from, which is a name the service assigned.
  */
 export function rememberWorkspace(workspace: Workspace): void {
     try {
@@ -100,7 +96,6 @@ export function rememberWorkspace(workspace: Workspace): void {
                 attachment: null,
                 citedAttachment: null,
                 citedMessage: null,
-                askedBefore: workspace.askedBefore.map(withoutFragmentText),
             }),
         );
     } catch {
@@ -119,8 +114,6 @@ function workspaceIn(value: unknown): Workspace | null {
 
     const record = value as Record<string, unknown>;
     const scope = scopeIn(record['scope']);
-    const chosen = record['askScopeKey'] ?? null;
-    const askScopeKey = chosen === null ? null : namedScopeKeyIn(chosen);
     const askedBefore = askedBeforeIn(record['askedBefore'] ?? []);
     const foldsToggled = foldsToggledIn(record['foldsToggled'] ?? []);
     const mailboxesFolded = record['mailboxesFolded'] ?? false;
@@ -133,7 +126,6 @@ function workspaceIn(value: unknown): Workspace | null {
 
     if (
         scope === null ||
-        (chosen !== null && askScopeKey === null) ||
         askedBefore === null ||
         foldsToggled === null ||
         selected === null ||
@@ -172,7 +164,6 @@ function workspaceIn(value: unknown): Workspace | null {
         fragment: null,
         selected,
         question,
-        askScopeKey,
         askedBefore,
         recentSearches,
     };
@@ -180,7 +171,8 @@ function workspaceIn(value: unknown): Workspace | null {
 
 // The questions asked before, each held to the same bound the question being typed is held to: what a store carries
 // for them is read back into state and written out again on every revision, and neither the sentence nor the list is
-// something this client would have written past those numbers.
+// something this client would have written past those numbers. A scope an earlier version wrote beside a question is
+// not read: Discover asks about all mail, so there is nothing for it to narrow.
 function askedBeforeIn(value: unknown): readonly AskedQuestion[] | null {
     if (!Array.isArray(value) || value.length > mostAskedQuestions) {
         return null;
@@ -193,65 +185,15 @@ function askedBeforeIn(value: unknown): readonly AskedQuestion[] | null {
         }
 
         const question = (entry as Record<string, unknown>)['question'];
-        const scope = askScopeIn((entry as Record<string, unknown>)['scope']);
 
-        if (
-            typeof question !== 'string' ||
-            question.length === 0 ||
-            question.length > longestQuestion ||
-            scope === null
-        ) {
+        if (typeof question !== 'string' || question.length === 0 || question.length > longestQuestion) {
             return null;
         }
 
-        asked.push({ question, scope });
+        asked.push({ question });
     }
 
     return asked;
-}
-
-// What somebody pointed the field at, which is a key rather than a scope and is checked as one: it names a scope only
-// against the list the field is offering, and `askScope.ts` falls back to the screen for a key that names nothing there
-// now. So nothing here has to know which scopes a control can produce, and a key that has gone stale costs a fallback
-// rather than a question asked about a folder nobody has. The bound is a folded row's, that being the same shape — an
-// account and a folder's whole place on its mail server.
-function namedScopeKeyIn(value: unknown): string | null {
-    return typeof value === 'string' && value.length > 0 && value.length <= longestRow ? value : null;
-}
-
-// Read through the same checks the workspace's own values are read through, because that is exactly what these shapes
-// hold: a mail scope, a correspondence the deployment named, a list of messages it named, and one message.
-//
-// A passage is refused rather than read, because none was written: `rememberWorkspace` reduces a question asked about
-// one to the message it came from, so a fragment scope in a store is somebody's own writing and reading it back would
-// be this client putting a stranger's words into a question's scope.
-function askScopeIn(value: unknown): AskScope | null {
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-        return null;
-    }
-
-    const record = value as Record<string, unknown>;
-    const threadId = record['threadId'];
-    const messageId = record['messageId'];
-
-    switch (record['kind']) {
-        case 'mail': {
-            const scope = scopeIn(record['scope']);
-
-            return scope === null ? null : { kind: 'mail', scope };
-        }
-        case 'thread':
-            return isIdentifier(threadId) ? { kind: 'thread', threadId } : null;
-        case 'message':
-            return isIdentifier(messageId) ? { kind: 'message', messageId } : null;
-        case 'selection': {
-            const messages = selectedIn(record['messages']);
-
-            return messages === null || messages.length === 0 ? null : { kind: 'selection', messages };
-        }
-        default:
-            return null;
-    }
 }
 
 // The searches read back, each held to what this surface ranks against at all: text longer than that is not a search

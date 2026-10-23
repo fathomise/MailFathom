@@ -6,7 +6,6 @@ import { useState, type ReactNode } from 'react';
 import type {
     ClientFailureReason,
     ClientSession,
-    MailAccount,
     MailFathomTransport,
     RunFollowingSchedule,
 } from '@mailfathom/client-backend';
@@ -20,7 +19,7 @@ import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useAgentHandOver } from '../routing/agentHandOver';
-import { askScopeInForce, withAsked, type AskedQuestion } from '../workspace/askScope';
+import { withAsked, type AskedQuestion } from '../workspace/askedQuestions';
 import { useWorkspace } from '../workspace/useWorkspace';
 import { DiscoverIdle } from './DiscoverIdle';
 import { IntentField } from './IntentField';
@@ -73,7 +72,6 @@ const notAsked: Readonly<Record<ClientFailureReason, MessageKey>> = {
  *
  * @param session Who is asking, or `null` where nobody is signed in.
  * @param transport How every read and the question itself go out.
- * @param accounts The mailboxes this user holds, which is what a scope is resolved against.
  * @param asking Whether the question field is drawn, which it is only while this is the space in front.
  * @param status What the deployment is doing, which every space shows somewhere.
  * @param onOpenMessage Opens the message a citation names, which is the Mail space's to draw and the frame's to perform.
@@ -82,7 +80,6 @@ const notAsked: Readonly<Record<ClientFailureReason, MessageKey>> = {
 export function DiscoverSpace({
     session,
     transport,
-    accounts,
     asking,
     status,
     onOpenMessage,
@@ -90,7 +87,6 @@ export function DiscoverSpace({
 }: {
     readonly session: ClientSession | null;
     readonly transport: MailFathomTransport;
-    readonly accounts: readonly MailAccount[];
     readonly asking: boolean;
     readonly status: ReactNode;
     readonly onOpenMessage: (storedEmailId: string) => void;
@@ -127,10 +123,7 @@ export function DiscoverSpace({
     const answered = !answer.running && answer.failure === null && answer.blocks.length > 0;
 
     function ask(question: string): void {
-        revise({
-            question,
-            askedBefore: withAsked(workspace.askedBefore, question, askScopeInForce(workspace, accounts)),
-        });
+        revise({ question, askedBefore: withAsked(workspace.askedBefore, question) });
     }
 
     function askSomethingElse(): void {
@@ -164,7 +157,7 @@ export function DiscoverSpace({
                 )}
             </header>
 
-            {asking ? <IntentField accounts={accounts} recall={asked === null} /> : null}
+            {asking ? <IntentField recall={asked === null} /> : null}
 
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 workspace:px-5.5">
                 {asked === null ? (

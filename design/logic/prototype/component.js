@@ -44,7 +44,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        ev_private  1.4c private source - lock badge + administrator remedy. A “not permitted” read failure renders this.
        ev_outdated 1.4d outdated stored copy - warning, then the quoted passage in a plain box; Open in mail stays.
        ev_kinds    1.4e whole-message citation · attachment file row · not openable from the client · text in an image.
-       d_asked     1.5  “Asked before” chips (question + scope) under the scope chips, idle only; “Forget these”.
+       d_asked     1.5  “Asked before” chips (question alone) under the field, idle only; “Forget these”.
                         savedAnswers.a and .fresh are not drawn - recall re-asks instead of replaying.
      MAIL
        m_verdict   2.1  sender verdict under the sender line: warning box (authenticated by another domain / nothing

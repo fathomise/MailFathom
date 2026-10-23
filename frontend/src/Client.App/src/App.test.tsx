@@ -424,16 +424,13 @@ describe('App', () => {
     });
 
     // Discover's question is the one field that asks one, so the space moved to draws no copy of it — and coming back
-    // finds the sentence and its scope where they were left.
-    it('keeps the question and the mailbox in scope while the person moves between spaces', async () => {
+    // finds the sentence where it was left.
+    it('keeps the question in Discover while the person moves between spaces', async () => {
         renderApp();
         await framed();
 
         fireEvent.change(screen.getByRole('searchbox', { name: 'Ask your mail' }), {
             target: { value: 'the renewal Nordwind sent' },
-        });
-        fireEvent.change(screen.getByRole('combobox', { name: 'What the question is asked about' }), {
-            target: { value: 'account:work' },
         });
 
         await goTo('Mail');
@@ -445,10 +442,6 @@ describe('App', () => {
         expect(screen.getByRole('searchbox', { name: 'Ask your mail' })).toHaveProperty(
             'value',
             'the renewal Nordwind sent',
-        );
-        expect(screen.getByRole('combobox', { name: 'What the question is asked about' })).toHaveProperty(
-            'value',
-            'account:work',
         );
     });
 
@@ -483,22 +476,6 @@ describe('App', () => {
             expect(screen.queryByRole('searchbox', { name: 'Ask your mail' })).toBeNull();
         },
     );
-
-    it('offers every mailbox the user holds as a scope, beside all of them at once', async () => {
-        const twoMailboxes = directory(true, [workAccount, { ...workAccount, id: 'archive', displayName: 'Archive' }]);
-
-        renderApp(servedFrom, heldSession, deploymentAnswering(twoMailboxes));
-
-        const scope = await screen.findByRole('combobox', { name: 'What the question is asked about' });
-        await waitFor(() => {
-            expect([...scope.querySelectorAll('option')].map((option) => option.textContent)).toEqual([
-                'Inbox, every mailbox',
-                'All mailboxes',
-                'Work',
-                'Archive',
-            ]);
-        });
-    });
 
     it('says the deployment is not refreshing these accounts when it is not, as its setting rather than a grant', async () => {
         renderApp(servedFrom, heldSession, deploymentAnswering(directory(false, [workAccount])));

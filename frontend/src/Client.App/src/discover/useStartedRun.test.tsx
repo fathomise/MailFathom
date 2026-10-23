@@ -5,7 +5,7 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { ClientRequest, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
-import type { AskedQuestion } from '../workspace/askScope';
+import type { AskedQuestion } from '../workspace/askedQuestions';
 import { useStartedRun } from './useStartedRun';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
@@ -17,7 +17,7 @@ const runId = '6f1b0a8c-2d3e-4f50-9a1b-7c8d9e0f1a2b';
 // workspace holds it. One built inside the render callback would be a new question on every render, which is a run
 // started per render.
 function asked(question: string): AskedQuestion {
-    return { question, scope: { kind: 'mail', scope: { kind: 'everything' } } };
+    return { question };
 }
 
 function accepting(runs: readonly string[]): {

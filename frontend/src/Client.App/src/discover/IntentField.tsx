@@ -3,48 +3,28 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect, useRef } from 'react';
-import type { MailAccount } from '@mailfathom/client-backend';
 import { chip } from '../controls/chrome';
 import { SecondaryButton } from '../controls/SecondaryButton';
-import type { MessageKey } from '../localization/en';
-import type { Locale } from '../localization/locale';
-import { useLocalization, type Translate } from '../localization/useLocalization';
+import { useLocalization } from '../localization/useLocalization';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
-import {
-    askScopeInForce,
-    askScopeKey,
-    askScopeOnScreen,
-    askScopesOffered,
-    withAsked,
-    type AskedQuestion,
-    type AskScope,
-} from '../workspace/askScope';
-import { folderRoleLabels, type MailScope } from '../workspace/mailScope';
+import { withAsked, type AskedQuestion } from '../workspace/askedQuestions';
 import { useWorkspace } from '../workspace/useWorkspace';
 
 // Discover's question, drawn as the design draws it under that screen's head: a field with the product's mark
-// on it, and the scope the question would be asked under beneath it. Submitting records the question and its scope in
-// the workspace, which is what the screen starts a run from.
+// on it. Submitting records the question in the workspace, which is what the screen starts a run from.
 //
 // One field takes every kind of ask — a question, an instruction to search, a request to compare — because a mode
-// selector is an admission that the field does not understand what was typed. What it does insist on is the scope:
-// every question is asked *against* something, and what is in scope is what is read and sent, so it is named before
-// the question is submitted rather than discovered in the answer.
-//
-// It does not write the scope the mail space is read under: choosing a mailbox to ask about is not choosing a folder to
-// read, and somebody widening a question after too narrow an answer would otherwise lose the folder they were in and
-// the messages they had picked out.
+// selector is an admission that the field does not understand what was typed. It offers no scope either: Discover asks
+// about all of the reader's mail, so nothing the Mail space has open, picked out, or highlighted is read here, named
+// here, or quoted here.
 //
 // **It is Discover's alone.** The field under a correspondence is a different field with state of its own —
 // `threadAgent/ThreadAgentField.tsx` — so what somebody typed here never turns up under a message, and what they typed
 // there never follows them back.
 
 export function IntentField({
-    accounts,
     recall,
 }: {
-    readonly accounts: readonly MailAccount[];
-
     /**
      * Whether what was asked before is offered back under the field.
      *
@@ -53,14 +33,10 @@ export function IntentField({
      */
     readonly recall: boolean;
 }) {
-    const { locale, translate } = useLocalization();
+    const { translate } = useLocalization();
     const wideWorkspace = useWideWorkspace();
     const { workspace, revise } = useWorkspace();
     const question = useRef<HTMLInputElement>(null);
-
-    const onScreen = askScopeOnScreen(workspace);
-    const inForce = askScopeInForce(workspace, accounts);
-    const offered = askScopesOffered(workspace, accounts);
 
     // The front door is reachable without hunting for it: a reader somewhere in the answer would otherwise tab back
     // out of it to reach the field. An imperative browser API being subscribed to is what an effect is for, and the
@@ -81,13 +57,11 @@ export function IntentField({
         };
     }, []);
 
-    // Submitting records what was asked and what it was asked about, in that one act: the pair is what a run is
-    // started from, and a question kept apart from its scope is a run that reads something the person never saw.
     function ask(asked: string): void {
         const words = asked.trim();
 
         if (words.length > 0) {
-            revise({ question: asked, askedBefore: withAsked(workspace.askedBefore, words, inForce) });
+            revise({ question: asked, askedBefore: withAsked(workspace.askedBefore, words) });
         }
     }
 
@@ -138,61 +112,13 @@ export function IntentField({
                 </button>
             </div>
 
-            {/* Said as well as drawn: the scope changes because somebody opened a correspondence or ticked a row, which
-                is a change a reader who cannot see the chip would otherwise not be told about at all — and this is the
-                one place where not being told is a disclosure rather than a missed detail. A passage is said with its
-                words for that same reason: naming it as a passage would tell a reader who cannot see the quote beside
-                the control that something was narrowed to, and not what. */}
-            <p className="sr-only" role="status">
-                {inForce.kind === 'fragment'
-                    ? translate('scope.fragment', { fragment: inForce.text })
-                    : translate('scope.asking', { scope: scopeName(inForce, accounts, translate, locale) })}
-            </p>
-
-            <div className="flex flex-wrap items-center gap-2">
-                {/* Choosing what the screen is already showing is choosing to keep following it, which is why that
-                    option is kept as nothing named rather than pinned: somebody who picks the correspondence they are
-                    reading and then opens another one means the one in front of them. */}
-                <select
-                    aria-label={translate('scope.inScope')}
-                    value={askScopeKey(inForce)}
-                    onChange={(event) => {
-                        revise({
-                            askScopeKey: event.target.value === askScopeKey(onScreen) ? null : event.target.value,
-                        });
-                    }}
-                    className={`px-2.75 py-1.25 text-sm ${chip}`}
-                >
-                    {offered.map((one) => (
-                        <option key={askScopeKey(one)} value={askScopeKey(one)}>
-                            {scopeName(one, accounts, translate, locale)}
-                        </option>
-                    ))}
-                </select>
-
-                {/* The words themselves, beside the control that named them. The list above can only say that a
-                    passage is in scope; a question silently asked about words somebody highlighted minutes ago is a
-                    question answered about the wrong thing, so what is quoted here is what will be read. Widening away
-                    from it is the control beside this rather than a close button on the chip, because giving the scope
-                    back must not take the highlight off the message the reader is still looking at. */}
-                {inForce.kind !== 'fragment' ? null : (
-                    <span
-                        className={`flex min-w-0 max-w-full items-center gap-1.5 border-accent-line bg-accent-soft px-2.75 py-1.25 text-sm text-accent-deep ${chip}`}
-                        title={translate('scope.fragment', { fragment: inForce.text })}
-                    >
-                        <span className="truncate">{translate('scope.fragment', { fragment: inForce.text })}</span>
-                    </span>
-                )}
-            </div>
-
             {!recall || workspace.askedBefore.length === 0 ? null : (
                 <AskedBefore
                     asked={workspace.askedBefore}
-                    accounts={accounts}
                     onAskAgain={ask}
                     // Forgetting the list takes the list off the screen, and the control that was pressed with it, so
-                    // focus is placed rather than left to fall to the document — the same reason the fragment chip's
-                    // own close button places it, and the same place: the question, which is what the field is for.
+                    // focus is placed rather than left to fall to the document — on the question, which is what the
+                    // field is for.
                     onForget={() => {
                         revise({ askedBefore: [] });
                         question.current?.focus();
@@ -210,75 +136,19 @@ export function IntentField({
 const askShortcutKey = 'k';
 const askShortcut = `Control+${askShortcutKey.toUpperCase()} Meta+${askShortcutKey.toUpperCase()}`;
 
-// How many messages are picked out, in the forms a language has for the noun — selected rather than spelled, for the
-// reason `mailSpace/SelectionBar.tsx` gives: Polish needs three forms and English hides that it needs two.
-const selectionCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
-    zero: 'scope.selection.other',
-    one: 'scope.selection.one',
-    two: 'scope.selection.other',
-    few: 'scope.selection.few',
-    many: 'scope.selection.many',
-    other: 'scope.selection.other',
-};
-
-// What a scope is called on the screen, which is the whole of what the field promises: the words beside the question
-// are what the question will be asked about.
-function scopeName(scope: AskScope, accounts: readonly MailAccount[], translate: Translate, locale: Locale): string {
-    switch (scope.kind) {
-        case 'fragment':
-            return translate('scope.selectedText');
-        case 'message':
-            return translate('scope.message');
-        case 'thread':
-            return translate('scope.thread');
-        case 'selection':
-            return translate(selectionCounted[new Intl.PluralRules(locale).select(scope.messages.length)], {
-                count: new Intl.NumberFormat(locale).format(scope.messages.length),
-            });
-        case 'mail':
-            return mailScopeName(scope.scope, accounts, translate);
-    }
-}
-
-function mailScopeName(scope: MailScope, accounts: readonly MailAccount[], translate: Translate): string {
-    switch (scope.kind) {
-        case 'everything':
-            return translate('scope.allMailboxes');
-        case 'role':
-            return translate('scope.everyMailbox', { folder: translate(folderRoleLabels[scope.role]) });
-        case 'account':
-            return mailboxName(scope.accountId, accounts);
-        case 'folder':
-            return translate('scope.folderIn', {
-                folder: scope.alias,
-                mailbox: mailboxName(scope.accountId, accounts),
-            });
-    }
-}
-
-// A mailbox is called what the person calls it, and what the deployment assigned it where the declaration has gone
-// since the scope was chosen — which beats naming nothing at all on a line whose whole job is to say what is in scope.
-function mailboxName(accountId: string, accounts: readonly MailAccount[]): string {
-    return accounts.find((account) => account.id === accountId)?.displayName ?? accountId;
-}
-
-// What was asked before, offered back so that asking again under a wider scope is one press rather than retyping the
-// sentence — which is the commonest thing somebody does after an answer that was too narrow. Each carries the scope it
-// was asked under, and pressing it asks under the scope in force now rather than that one, because widening is the
-// point. Forgetting them is offered beside them: what somebody asked their own mail is theirs, and a list of it they
-// cannot clear is one they did not choose to keep.
+// What was asked before, offered back so that asking again is one press rather than retyping the sentence. Forgetting
+// them is offered beside them: what somebody asked their own mail is theirs, and a list of it they cannot clear is one
+// they did not choose to keep.
 function AskedBefore({
     asked,
-    accounts,
     onAskAgain,
     onForget,
 }: {
     readonly asked: readonly AskedQuestion[];
-    readonly accounts: readonly MailAccount[];
     readonly onAskAgain: (question: string) => void;
     readonly onForget: () => void;
 }) {
-    const { locale, translate } = useLocalization();
+    const { translate } = useLocalization();
 
     return (
         <div className="flex flex-col gap-1">
@@ -287,15 +157,8 @@ function AskedBefore({
             <ul aria-label={translate('intent.askedBefore')} className="flex flex-wrap items-center gap-2">
                 {asked.map((before) => (
                     <li key={before.question} className="min-w-0 max-w-full">
-                        {/* The name is a sentence rather than the two pieces the chip draws: the question and its
-                            scope sit in adjacent elements with no whitespace between them, so what a screen reader
-                            would otherwise read out is the two run together into one word at the join. */}
                         <button
                             type="button"
-                            aria-label={translate('intent.askedUnder', {
-                                question: before.question,
-                                scope: scopeName(before.scope, accounts, translate, locale),
-                            })}
                             title={before.question}
                             className={`flex min-w-0 max-w-full items-center gap-1.5 px-2.75 py-1.25 text-sm ${chip}`}
                             onClick={() => {
@@ -303,9 +166,6 @@ function AskedBefore({
                             }}
                         >
                             <span className="truncate">{before.question}</span>
-                            <span className="shrink-0 text-faint">
-                                {scopeName(before.scope, accounts, translate, locale)}
-                            </span>
                         </button>
                     </li>
                 ))}

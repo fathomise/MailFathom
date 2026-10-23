@@ -22,8 +22,7 @@ const kept: Workspace = {
     fragment: null,
     selected: ['AAMkAD-42', 'AAMkAD-43'],
     question: 'what did Nordwind send',
-    askScopeKey: 'account:work',
-    askedBefore: [{ question: 'what did they promise', scope: { kind: 'thread', threadId: 'thread-1' } }],
+    askedBefore: [{ question: 'what did they promise' }],
     recentSearches: ['quarterly figures'],
 };
 
@@ -54,23 +53,15 @@ describe('rememberWorkspace', () => {
         expect(rememberedWorkspace().fragment).toBeNull();
     });
 
-    // The same rule reaching the one other place a passage could get into the store. What somebody asked is theirs and
-    // is kept; the words they highlighted to ask it are somebody's mail and are not.
-    it('keeps a question asked about a passage under the message rather than under the words', () => {
-        rememberWorkspace({
+    // A list an earlier version wrote carried each question's scope, and Discover now asks about all mail: the
+    // questions are kept and the scope beside them is not read, so no passage or message travels back with them.
+    it('reads back questions an earlier version kept with a scope as the questions alone', () => {
+        stored({
             ...kept,
-            askedBefore: [
-                {
-                    question: 'when did they say it would arrive',
-                    scope: { kind: 'fragment', messageId: 'AAMkAD-42', text: 'by the end of the month' },
-                },
-            ],
+            askedBefore: [{ question: 'what did they promise', scope: { kind: 'thread', threadId: 'thread-1' } }],
         });
 
-        expect(window.sessionStorage.getItem(storageKey)).not.toContain('by the end of the month');
-        expect(rememberedWorkspace().askedBefore).toEqual([
-            { question: 'when did they say it would arrive', scope: { kind: 'message', messageId: 'AAMkAD-42' } },
-        ]);
+        expect(rememberedWorkspace().askedBefore).toEqual([{ question: 'what did they promise' }]);
     });
 
     // A consent given for one message after being told what a stranger's markup can carry, which is why a reload finds
@@ -229,26 +220,15 @@ describe('rememberedWorkspace', () => {
         expect(rememberedWorkspace()).toEqual(emptyWorkspace);
     });
 
-    // The same pair again for what the intent field holds, which is a workspace kept before the field had a scope of
-    // its own: it is one this client wrote, so it opens on what was kept, asking about whatever is on the screen and
-    // with nothing offered back.
-    it('reads a workspace kept before the field held a scope and a history as one holding neither', () => {
-        const { askScopeKey, askedBefore, ...before } = kept;
+    // The same pair again for what the intent field holds, which is a workspace kept before the field had a history:
+    // it is one this client wrote, so it opens on what was kept with nothing offered back.
+    it('reads a workspace kept before the field held a history as one holding none', () => {
+        const { askedBefore, ...before } = kept;
 
         stored(before);
 
-        expect(rememberedWorkspace()).toEqual({ ...kept, askScopeKey: null, askedBefore: [] });
-        expect(askScopeKey).not.toBeNull();
+        expect(rememberedWorkspace()).toEqual({ ...kept, askedBefore: [] });
         expect(askedBefore).toHaveLength(1);
-    });
-
-    it('opens on the mailbox the field was pointed at and the questions asked under it', () => {
-        stored(kept);
-
-        expect(rememberedWorkspace().askScopeKey).toBe('account:work');
-        expect(rememberedWorkspace().askedBefore).toEqual([
-            { question: 'what did they promise', scope: { kind: 'thread', threadId: 'thread-1' } },
-        ]);
     });
 
     it.each([
@@ -329,21 +309,6 @@ describe('rememberedWorkspace', () => {
             value: JSON.stringify({ ...emptyWorkspace, selected: ['a'.repeat(257)] }),
         },
         {
-            shape: 'a scope the field was pointed at that is not one',
-            value: JSON.stringify({ ...emptyWorkspace, askScope: { kind: 'somewhere' } }),
-        },
-        {
-            shape: 'a scope the field was pointed at naming a folder, which the field cannot offer',
-            value: JSON.stringify({
-                ...emptyWorkspace,
-                askScope: { kind: 'folder', accountId: 'work', alias: 'Invoices' },
-            }),
-        },
-        {
-            shape: 'a scope the field was pointed at naming a folder role, which the field cannot offer',
-            value: JSON.stringify({ ...emptyWorkspace, askScope: { kind: 'role', role: 'Inbox' } }),
-        },
-        {
             shape: 'questions asked before kept as something other than a list of them',
             value: JSON.stringify({ ...emptyWorkspace, askedBefore: 'what did they promise' }),
         },
@@ -351,28 +316,14 @@ describe('rememberedWorkspace', () => {
             shape: 'a question asked before that is not text',
             value: JSON.stringify({
                 ...emptyWorkspace,
-                askedBefore: [{ question: 42, scope: { kind: 'thread', threadId: 'thread-1' } }],
-            }),
-        },
-        {
-            shape: 'a question asked before about nothing at all',
-            value: JSON.stringify({ ...emptyWorkspace, askedBefore: [{ question: 'what did they promise' }] }),
-        },
-        {
-            shape: 'a question asked before about a selection holding no message',
-            value: JSON.stringify({
-                ...emptyWorkspace,
-                askedBefore: [{ question: 'what did they promise', scope: { kind: 'selection', messages: [] } }],
+                askedBefore: [{ question: 42 }],
             }),
         },
         {
             shape: 'more questions asked before than one tab keeps',
             value: JSON.stringify({
                 ...emptyWorkspace,
-                askedBefore: Array.from({ length: 9 }, () => ({
-                    question: 'what did they promise',
-                    scope: { kind: 'mail', scope: { kind: 'everything' } },
-                })),
+                askedBefore: Array.from({ length: 9 }, () => ({ question: 'what did they promise' })),
             }),
         },
         {
