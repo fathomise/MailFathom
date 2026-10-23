@@ -1946,7 +1946,8 @@ state will be reported.
 again. A move
 files into the local folder the destination's role names, or into the local folder the destination's source folder
 created; a destination with neither is `destination-not-found`, and a message already in that local folder is
-`already-in-destination`. A delete moves the message into the local trash, which a person can move it back out of. A
+`already-in-destination`. A delete moves the message into the local trash, which a person can move it back out of — though never into the drafts
+or the sent tree, so a deleted draft or sent copy leaves the trash only for a folder outside both. A
 delete of a message already in the trash is the one act still `recorded`: it erases the message and everything derived
 from it, so it is held for the same window as every other delete and can be withdrawn through the same route until the
 window passes. This surface names no copy at all, on a held account or any other: a rule is the only thing here that
