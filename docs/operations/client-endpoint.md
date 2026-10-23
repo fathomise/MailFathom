@@ -1924,11 +1924,11 @@ reported as a destination that is not there, on the same rule that makes mail in
 there: filing mail into a folder the caller cannot read would move it out of sight rather than be a capability of its
 own.
 
-**The drafts folder is kept to drafts.** A draft is a message standing in the folder the account's `Drafts` role names;
-nothing else identifies one, because a draft reaches the mailbox from other clients that set no flag MailFathom could
-rely on. A move of anything else into the drafts folder is `destination-not-allowed`, and so is a move of a draft into
-any folder that carries a role other than the trash: a draft is filed only into a folder with no role — one a person made
-— or into the trash, which is how it is deleted.
+**The drafts folder and the sent folder keep their own mail.** A draft is a message standing in the folder the
+account's `Drafts` role names, and a sent copy one standing in the folder its `Sent` role names; nothing else identifies
+either, because both reach the mailbox from other clients that set no flag MailFathom could rely on. A move into either
+folder is `destination-not-allowed`, whatever folder the message is in, and so is a move out of either into any folder
+but the one the `Trash` role names: what is in them leaves only for the trash, which is how it is deleted.
 
 **On an account whose mailbox MailFathom holds, a change is made rather than recorded.** There is no server to carry it
 to, so a flag, a keyword, a move, or a delete on a [held account](#the-folder-management-routes) is committed to the stored

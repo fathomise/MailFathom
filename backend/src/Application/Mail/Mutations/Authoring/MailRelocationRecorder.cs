@@ -39,10 +39,10 @@ namespace MailFathom.Application.Mail.Mutations.Authoring;
 /// way of moving mail out of sight rather than a capability of its own.
 /// </para>
 /// <para>
-/// The drafts folder is judged by what it holds as well as by who may see it. A draft is a message in the account's
-/// drafts folder, so a move into that folder is refused unless the message is already a draft, and a draft is refused a
-/// destination with any other role but the trash — the rule a client offers its folders by, held here as well because a
-/// client's offer is not a boundary.
+/// The drafts folder and the sent folder are judged by what they hold as well as by who may see them. Each holds one kind
+/// of mail — what the user is still writing, and what they have sent — so nothing is filed into either, and what is in
+/// either leaves only for the trash, which is how it is deleted. It is the rule a client offers its folders by, held here
+/// as well because a client's offer is not a boundary.
 /// </para>
 /// <para>
 /// Every refusal is a result rather than an exception, because a caller moving several messages at once acts on each
@@ -235,21 +235,20 @@ public sealed class MailRelocationRecorder
 
     /// <summary>Whether a message in the named folder may be filed into a folder playing that role.</summary>
     /// <remarks>
-    /// Whether the message is a draft is read off the folder it is in rather than off its <c>\Draft</c> flag, because the
-    /// folder is what a client opens a message in its composer by, and a mail server files a draft there whichever
-    /// client wrote it — a flag some clients never set would admit into the drafts folder mail that then reopened as a
-    /// draft all the same.
+    /// Where the message is is read off the role its folder plays rather than off its <c>\Draft</c> flag, because the
+    /// folder is what a client opens a message in its composer by, and a mail server files a draft or a sent copy there
+    /// whichever client wrote it — a flag some clients never set would admit into the drafts folder mail that then
+    /// reopened as a draft all the same.
     /// </remarks>
     private bool Admits(MailAccountId account, MailFolderAlias source, MailFolderSpecialUse? destinationRole)
     {
-        var isDraft = this.folderReferences.Resolve(account, MailFolderReference.ToAlias(source))?.SpecialUse
-            == MailFolderSpecialUse.Drafts;
+        var sourceRole = this.folderReferences.Resolve(account, MailFolderReference.ToAlias(source))?.SpecialUse;
 
-        return destinationRole switch
-        {
-            MailFolderSpecialUse.Drafts => isDraft,
-            null or MailFolderSpecialUse.Trash => true,
-            _ => !isDraft,
-        };
+        return !KeepsItsMail(destinationRole)
+            && (!KeepsItsMail(sourceRole) || destinationRole == MailFolderSpecialUse.Trash);
     }
+
+    /// <summary>Whether a folder playing that role holds only the mail its role names, which nothing is filed into or out of.</summary>
+    private static bool KeepsItsMail(MailFolderSpecialUse? role) =>
+        role is MailFolderSpecialUse.Drafts or MailFolderSpecialUse.Sent;
 }

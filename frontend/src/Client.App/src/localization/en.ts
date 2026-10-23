@@ -815,7 +815,7 @@ export const en = {
     'act.noTrashFolder': '{control} - this account names no trash folder, so there is nowhere to delete to.',
     'act.severalAccounts': '{control} - messages from several accounts cannot be filed into one folder.',
     'act.noOtherFolder': '{control} - this account has no other folder to file into.',
-    'act.draftsStayOut': '{control} - a draft can only be filed in a folder you made yourself.',
+    'act.draftsAndSentStay': '{control} - drafts and sent mail stay in their own folder; they can only be deleted.',
     'act.foldersUnknown': '{control} - MailFathom has not read your folders, so it cannot say where this would go.',
     'act.foldersNotRead': 'Your folders were not read: {reason}.',
     'act.readFoldersAgain': 'Try again',

@@ -831,7 +831,8 @@ export const pl: Catalogue = {
     'act.noTrashFolder': '{control} – to konto nie wskazuje kosza, więc nie ma dokąd usuwać.',
     'act.severalAccounts': '{control} – wiadomości z kilku kont nie przeniesiemy do jednego katalogu.',
     'act.noOtherFolder': '{control} – to konto nie ma innego katalogu, do którego można przenieść.',
-    'act.draftsStayOut': '{control} – wersję roboczą można przenieść tylko do katalogu utworzonego przez Ciebie.',
+    'act.draftsAndSentStay':
+        '{control} – wersje robocze i wysłane wiadomości zostają w swoich katalogach; można je tylko usunąć.',
     'act.foldersUnknown': '{control} – MailFathom nie odczytał Twoich katalogów, więc nie wie, dokąd to trafi.',
     'act.foldersNotRead': 'Nie odczytaliśmy Twoich katalogów: {reason}.',
     'act.readFoldersAgain': 'Spróbuj ponownie',

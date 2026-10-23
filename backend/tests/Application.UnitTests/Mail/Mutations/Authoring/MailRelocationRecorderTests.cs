@@ -45,6 +45,8 @@ public sealed class MailRelocationRecorderTests
 
     private static readonly MailFolderAlias Drafts = MailFolderAlias.Create("Drafts");
 
+    private static readonly MailFolderAlias Sent = MailFolderAlias.Create("Sent");
+
     private static readonly MailFolderAlias Trash = MailFolderAlias.Create("Trash");
 
     private static readonly MailFolderAlias Projects = MailFolderAlias.Create("Projects");
@@ -337,16 +339,25 @@ public sealed class MailRelocationRecorderTests
     }
 
     /// <summary>
-    /// The drafts folder holds drafts and nothing else, and a draft leaves it only for a folder the user made or for the
-    /// trash: each pair here is a message's folder and a destination, with the answer the service gives the move.
+    /// Nothing is filed into the drafts folder or the sent folder, and what is in either leaves it only for the trash,
+    /// which is how it is deleted: each pair here is a message's folder and a destination, with the answer the service
+    /// gives the move.
     /// </summary>
     [Theory]
     [InlineData("INBOX", "Drafts", MailRelocationOutcome.DestinationNotAllowed)]
+    [InlineData("INBOX", "Sent", MailRelocationOutcome.DestinationNotAllowed)]
+    [InlineData("Trash", "Drafts", MailRelocationOutcome.DestinationNotAllowed)]
+    [InlineData("Trash", "Sent", MailRelocationOutcome.DestinationNotAllowed)]
+    [InlineData("Drafts", "Sent", MailRelocationOutcome.DestinationNotAllowed)]
     [InlineData("Drafts", "Archive", MailRelocationOutcome.DestinationNotAllowed)]
-    [InlineData("Drafts", "Projects", MailRelocationOutcome.Recorded)]
+    [InlineData("Drafts", "Projects", MailRelocationOutcome.DestinationNotAllowed)]
+    [InlineData("Sent", "Archive", MailRelocationOutcome.DestinationNotAllowed)]
+    [InlineData("Sent", "Projects", MailRelocationOutcome.DestinationNotAllowed)]
     [InlineData("Drafts", "Trash", MailRelocationOutcome.Recorded)]
+    [InlineData("Sent", "Trash", MailRelocationOutcome.Recorded)]
     [InlineData("INBOX", "Archive", MailRelocationOutcome.Recorded)]
-    public async Task RecordAsync_AMoveInOrOutOfTheDraftsFolder_IsAdmittedOnlyForADraftIntoAFolderWithNoRoleOrTheTrash(
+    [InlineData("INBOX", "Projects", MailRelocationOutcome.Recorded)]
+    public async Task RecordAsync_AMoveInOrOutOfTheDraftsOrTheSentFolder_IsAdmittedOnlyOutOfOneIntoTheTrash(
         string from,
         string into,
         MailRelocationOutcome expected)
@@ -354,6 +365,7 @@ public sealed class MailRelocationRecorderTests
         // Arrange
         this.MapMirrored(Inbox, "INBOX", MailFolderSpecialUse.Inbox);
         this.MapMirrored(Drafts, "Drafts", MailFolderSpecialUse.Drafts);
+        this.MapMirrored(Sent, "Sent", MailFolderSpecialUse.Sent);
         this.MapMirrored(Archive, "Archive", MailFolderSpecialUse.Archive);
         this.MapMirrored(Trash, "Trash", MailFolderSpecialUse.Trash);
         this.MapMirrored(Projects, "Projects");
@@ -430,6 +442,7 @@ public sealed class MailRelocationRecorderTests
                 new MailFolderIdentity(Account, Inbox),
                 new MailFolderIdentity(Account, Archive),
                 new MailFolderIdentity(Account, Drafts),
+                new MailFolderIdentity(Account, Sent),
                 new MailFolderIdentity(Account, Trash),
                 new MailFolderIdentity(Account, Projects))
             .Hiding(new MailFolderIdentity(Account, Withheld));
