@@ -327,11 +327,18 @@ public sealed class LocalMailFolderTree
     private bool IsWithin(LocalMailFolderId candidate, LocalMailFolderId ancestor) =>
         this.AncestorsOf(candidate).Contains(ancestor);
 
-    /// <summary>Gets whether a move would carry a folder's mail across the edge of the drafts or the sent tree.</summary>
-    /// <remarks>The trash is the one destination either tree's mail may leave for, because that is how it is deleted.</remarks>
-    private bool CrossesDraftsOrSentTree(LocalMailFolderId id, LocalMailFolderId? parentId) =>
-        !this.AncestorsOf(parentId).Any(ancestor => this.folders.GetValueOrDefault(ancestor)?.Role == MailFolderSpecialUse.Trash)
-        && this.KeptTreeOf(id) != this.KeptTreeOf(parentId);
+    /// <summary>Gets whether filing mail from one folder into another would carry it across the edge of the drafts or the sent tree.</summary>
+    /// <param name="folder">The folder the mail is in now, or the folder being moved with its mail.</param>
+    /// <param name="into">The folder it would be filed into, or <see langword="null" /> for the top of the hierarchy.</param>
+    /// <returns><see langword="true" /> when the two lie in different trees and the destination is not in the trash.</returns>
+    /// <remarks>
+    /// Each of the two folders roots a tree that keeps one kind of mail, so mail moves freely inside either and never
+    /// across the edge of one — except into the trash, because that is how it is deleted. A message moved by itself and
+    /// a folder moved with its mail are the same question asked of the same two places.
+    /// </remarks>
+    public bool CrossesDraftsOrSentTree(LocalMailFolderId? folder, LocalMailFolderId? into) =>
+        !this.AncestorsOf(into).Any(ancestor => this.folders.GetValueOrDefault(ancestor)?.Role == MailFolderSpecialUse.Trash)
+        && this.KeptTreeOf(folder) != this.KeptTreeOf(into);
 
     private LocalMailFolderId? KeptTreeOf(LocalMailFolderId? folder) =>
         this.AncestorsOf(folder)

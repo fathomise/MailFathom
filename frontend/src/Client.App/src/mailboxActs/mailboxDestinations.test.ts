@@ -11,6 +11,7 @@ import {
     filesIntoTrash,
     filingFor,
     folderWithRole,
+    mayBeTakenBack,
     refusalFor,
 } from './mailboxDestinations';
 import type { ActedMessage } from './useMailboxActs';
@@ -192,6 +193,44 @@ describe('destinationsFor, around the drafts and the sent tree', () => {
         expect(dropping(draft, 'work-drafts-clients')?.alias).toBe('work-drafts-clients');
         expect(dropping(sent, 'work-sent-2026')?.alias).toBe('work-sent-2026');
         expect(dropping(sent, 'work-trash')?.alias).toBe('work-trash');
+    });
+});
+
+describe('mayBeTakenBack', () => {
+    const filed = (entries: Record<string, string>) => new Map(Object.entries(entries));
+
+    it('offers the way back from a move inside the drafts tree, which files back inside it', () => {
+        expect(
+            mayBeTakenBack(
+                withDraftsAndSent,
+                [inWorkDrafts('message-1')],
+                filed({ 'message-1': 'work-drafts-clients' }),
+            ),
+        ).toBe(true);
+    });
+
+    it('offers the way back from deleting ordinary mail', () => {
+        expect(mayBeTakenBack(withDraftsAndSent, [inWork('message-1')], filed({ 'message-1': 'work-trash' }))).toBe(
+            true,
+        );
+    });
+
+    it('withholds it from a deleted sent copy, which nothing files back into its tree', () => {
+        expect(mayBeTakenBack(withDraftsAndSent, [inWorkSent('message-1')], filed({ 'message-1': 'work-trash' }))).toBe(
+            false,
+        );
+    });
+
+    // The toast's way back takes the whole act back at once, so a selection holding one draft among ordinary mail has
+    // none: offering it would put back the rest and answer the draft with a refusal.
+    it('withholds it from a whole selection holding one message that could not go back', () => {
+        expect(
+            mayBeTakenBack(
+                withDraftsAndSent,
+                [inWork('message-1'), inWorkDrafts('message-2')],
+                filed({ 'message-1': 'work-trash', 'message-2': 'work-trash' }),
+            ),
+        ).toBe(false);
     });
 });
 

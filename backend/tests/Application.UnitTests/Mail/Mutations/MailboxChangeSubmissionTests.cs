@@ -103,7 +103,7 @@ public sealed class MailboxChangeSubmissionTests
         var destination = new MailboxDestination(Inbox, IsMirrored: true);
 
         // Act
-        var submitted = await submission.SubmitMoveAsync(this.session, MoveRequest(Inbox.RemotePath), destination, Token);
+        var submitted = await submission.SubmitMoveAsync(this.session, MoveRequest(Inbox.RemotePath), destination, false, Token);
 
         // Assert
         Assert.Equal(MailboxChangeSubmissionOutcome.AlreadyInDestination, submitted.Outcome);
@@ -208,6 +208,66 @@ public sealed class MailboxChangeSubmissionTests
 
         // Assert
         Assert.Equal(MailboxChangeSubmissionOutcome.Applied, submitted.Outcome);
+        Assert.Equal(archive.Id, this.states.States[Email].Folder);
+    }
+
+    /// <summary>A mirrored account takes the server's answer about the drafts and the sent tree, and records nothing it refuses.</summary>
+    [Fact]
+    public async Task SubmitMoveAsync_AMoveAcrossTheDraftsOrTheSentTreeOnTheServer_IsRefusedWithoutARecord()
+    {
+        // Arrange
+        var submission = MailboxChangeSubmissions.Over(this.records);
+        var destination = new MailboxDestination(
+            MailFolderResolution.FirstBindingOf(Archive, RemoteFolderPath.Create("Archive")),
+            IsMirrored: true);
+
+        // Act
+        var submitted = await submission.SubmitMoveAsync(this.session, MoveRequest(destination.Path), destination, true, Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.DestinationNotAllowed, submitted.Outcome);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>
+    /// On a held account the tree is read off the local folder the message is in now, not the folder it was stored under:
+    /// a draft deleted into the trash stays out of the drafts folder, and may still be filed anywhere outside both trees
+    /// however the server would have judged the folder it came from.
+    /// </summary>
+    [Fact]
+    public async Task SubmitMoveAsync_AHeldMessageInTheTrash_IsJudgedByTheLocalFolderItIsInNow()
+    {
+        // Arrange
+        this.Store();
+        var submission = this.Submission();
+        await submission.SubmitAsync(this.session, DeleteRequest(), null, null, Token);
+        var archive = new LocalMailFolder(
+            LocalMailFolderId.Create(Guid.CreateVersion7()),
+            ParentId: null,
+            LocalMailFolderName.Create("Archive"),
+            Role: null,
+            SourceFolderAlias: Archive);
+        await this.folders.SaveAsync(this.session, Account, [archive], [], Token);
+        var drafts = new MailboxDestination(
+            MailFolderResolution.FirstBindingOf(MailFolderAlias.Create("Drafts"), RemoteFolderPath.Create("Drafts")),
+            IsMirrored: true,
+            MailFolderSpecialUse.Drafts);
+        var archiveDestination = new MailboxDestination(
+            MailFolderResolution.FirstBindingOf(Archive, RemoteFolderPath.Create("Archive")),
+            IsMirrored: true);
+
+        // Act
+        var intoDrafts = await submission.SubmitMoveAsync(this.session, MoveRequest(drafts.Path), drafts, false, Token);
+        var intoArchive = await submission.SubmitMoveAsync(
+            this.session,
+            MoveRequest(archiveDestination.Path),
+            archiveDestination,
+            true,
+            Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.DestinationNotAllowed, intoDrafts.Outcome);
+        Assert.Equal(MailboxChangeSubmissionOutcome.Applied, intoArchive.Outcome);
         Assert.Equal(archive.Id, this.states.States[Email].Folder);
     }
 

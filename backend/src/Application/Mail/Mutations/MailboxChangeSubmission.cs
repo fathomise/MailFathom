@@ -148,7 +148,8 @@ public sealed class MailboxChangeSubmission
             request,
             destination,
             heldUntil,
-            refusesMoveIntoCurrentFolder: false,
+            personsMove: false,
+            crossesDraftsOrSentTreeOnTheServer: false,
             preparedCopy,
             cancellationToken);
 
@@ -205,26 +206,30 @@ public sealed class MailboxChangeSubmission
     /// <param name="session">The transaction the move commits in.</param>
     /// <param name="request">The move asked for.</param>
     /// <param name="destination">Where the move files the message, resolved before the transaction opened.</param>
+    /// <param name="crossesDraftsOrSentTreeOnTheServer">Whether the move would carry the message across the edge of the drafts or the sent tree, judged by the folder it was stored under on the mail server.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>The record written, the local move committed, or why neither happened.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="session" /> or <paramref name="request" /> is <see langword="null" />.</exception>
     /// <remarks>
     /// A rule's move into the folder a mirrored message is in is still recorded, as it always was, which is why the
-    /// refusal is asked for rather than applied to every requester. The question is answered here rather than by the
-    /// caller because it differs by phase: on a held account the folder a message is in is local, not the alias it was
-    /// stored under.
+    /// refusal is asked for rather than applied to every requester. Both refusals — a move into the folder the message is
+    /// in, and one across the edge of the drafts or the sent tree — are answered here rather than by the caller because
+    /// each differs by phase: on a held account the folder a message is in is local, not the alias it was stored under,
+    /// so a held account judges the tree against the local hierarchy and the server's answer is the mirrored account's.
     /// </remarks>
     public Task<SubmittedMailboxChange> SubmitMoveAsync(
         IPersistenceSession session,
         MailboxMutationRequest request,
         MailboxDestination destination,
+        bool crossesDraftsOrSentTreeOnTheServer,
         CancellationToken cancellationToken) =>
         this.SubmitAsync(
             session,
             request,
             destination,
             heldUntil: null,
-            refusesMoveIntoCurrentFolder: true,
+            personsMove: true,
+            crossesDraftsOrSentTreeOnTheServer,
             preparedCopy: null,
             cancellationToken);
 
@@ -233,7 +238,8 @@ public sealed class MailboxChangeSubmission
         MailboxMutationRequest request,
         MailboxDestination? destination,
         DateTimeOffset? heldUntil,
-        bool refusesMoveIntoCurrentFolder,
+        bool personsMove,
+        bool crossesDraftsOrSentTreeOnTheServer,
         PreparedLocalCopy? preparedCopy,
         CancellationToken cancellationToken)
     {
@@ -245,11 +251,16 @@ public sealed class MailboxChangeSubmission
 
         if (holding is not { Phase: MailAccountCustodyPhase.Held or MailAccountCustodyPhase.Restoring })
         {
-            if (refusesMoveIntoCurrentFolder
+            if (personsMove
                 && request.Mutation == MailboxMutation.Relocate
                 && destination?.Alias == request.Occurrence.FolderResolutionId.Alias)
             {
                 return SubmittedMailboxChange.NotSubmitted(MailboxChangeSubmissionOutcome.AlreadyInDestination);
+            }
+
+            if (personsMove && crossesDraftsOrSentTreeOnTheServer)
+            {
+                return SubmittedMailboxChange.NotSubmitted(MailboxChangeSubmissionOutcome.DestinationNotAllowed);
             }
 
             var record = await this.records.OpenAsync(
@@ -276,6 +287,7 @@ public sealed class MailboxChangeSubmission
             heldUntil,
             holding,
             state,
+            personsMove,
             preparedCopy,
             cancellationToken);
     }
@@ -389,6 +401,7 @@ public sealed class MailboxChangeSubmission
         DateTimeOffset? heldUntil,
         LocalMailFolderHolding holding,
         LocalEmailState state,
+        bool personsMove,
         PreparedLocalCopy? preparedCopy,
         CancellationToken cancellationToken)
     {
@@ -454,6 +467,11 @@ public sealed class MailboxChangeSubmission
         if (state.Folder == target.Id)
         {
             return SubmittedMailboxChange.NotSubmitted(MailboxChangeSubmissionOutcome.AlreadyInDestination);
+        }
+
+        if (personsMove && tree.CrossesDraftsOrSentTree(state.Folder, target.Id))
+        {
+            return SubmittedMailboxChange.NotSubmitted(MailboxChangeSubmissionOutcome.DestinationNotAllowed);
         }
 
         // A copy answers both refusals above exactly as a move does, which is why it is asked after them rather than
@@ -626,6 +644,9 @@ public enum MailboxChangeSubmissionOutcome
     /// one a storage ceiling's deferral or an unreadable payload can refuse while every other change still commits.
     /// </remarks>
     SourceContentMissing = 5,
+
+    /// <summary>A person's move would carry the message across the edge of the drafts or the sent tree into anything but the trash, so nothing was written.</summary>
+    DestinationNotAllowed = 6,
 }
 
 /// <summary>The answer one submitted change produced.</summary>

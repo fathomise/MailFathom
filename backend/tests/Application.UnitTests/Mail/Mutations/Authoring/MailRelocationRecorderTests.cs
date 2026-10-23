@@ -400,6 +400,38 @@ public sealed class MailRelocationRecorderTests
         Assert.Equal(expected == MailRelocationOutcome.Recorded ? 1 : 0, this.records.OpenedRecordCount);
     }
 
+    /// <summary>
+    /// Where the two folders are is read from what was recorded, so a move between two other folders asks the mail
+    /// server nothing about a drafts folder nobody has found yet — and that folder still keeps its own mail as itself.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_AnAccountWhoseDraftsFolderWasNeverFound_AsksTheServerNothingAboutIt()
+    {
+        // Arrange
+        this.MapMirrored(Inbox, "INBOX", MailFolderSpecialUse.Inbox);
+        this.MapMirrored(Archive, "Archive", MailFolderSpecialUse.Archive);
+        this.mappings.With(
+            Account,
+            MailFolderMapping.ToRemotePath(
+                Drafts,
+                RemoteFolderPath.Create("Drafts"),
+                MailFolderParticipation.MappedOnly,
+                specialUse: MailFolderSpecialUse.Drafts));
+        this.advertisedFolders.Add(new RemoteFolder(RemoteFolderPath.Create("Drafts", '/'), []));
+        var recorder = this.Recorder(TargetIn(Inbox));
+
+        // Act
+        var archived = await recorder.RecordAsync(LocalEmail, Archive, Requester, TestContext.Current.CancellationToken);
+        var draftsAfterArchiving =
+            await this.bindings.GetCurrentResolutionAsync(Account, Drafts, TestContext.Current.CancellationToken);
+        var intoDrafts = await recorder.RecordAsync(LocalEmail, Drafts, Requester, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRelocationOutcome.Recorded, archived.Outcome);
+        Assert.Null(draftsAfterArchiving);
+        Assert.Equal(MailRelocationOutcome.DestinationNotAllowed, intoDrafts.Outcome);
+    }
+
     /// <summary>Maps a folder the account mirrors, and records the binding its own synchronization run would have.</summary>
     private MailFolderResolution MapMirrored(MailFolderAlias alias, string remotePath, MailFolderSpecialUse? role = null)
     {
@@ -475,6 +507,8 @@ public sealed class MailRelocationRecorderTests
                 StubDeploymentMailFolders.Of(participation),
                 StubMailFolderMappings.ResolvingNothing),
             targets,
+            this.mappings.Resolver,
+            this.bindings,
             this.DestinationResolver(sessions),
             this.dispositions,
             MailboxChangeSubmissions.Over(this.records),

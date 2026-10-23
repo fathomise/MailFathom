@@ -96,11 +96,6 @@ public sealed class MailFolderTests
         Assert.Equal(["Archief", "2026", "Q3"], levels);
     }
 
-    /// <summary>
-    /// A record written before the server reported a delimiter and a resolution made after it are two values of one
-    /// folder. Naming the same folder is therefore the advertised text alone, while equality keeps the delimiter because
-    /// a rebinding is decided on both halves.
-    /// </summary>
     [Theory]
     [InlineData("Drafts", true)]
     [InlineData("Drafts/2026", true)]
@@ -130,6 +125,11 @@ public sealed class MailFolderTests
         Assert.False(RemoteFolderPath.Create("Drafts/2026", '/').IsWithin(drafts));
     }
 
+    /// <summary>
+    /// A record written before the server reported a delimiter and a resolution made after it are two values of one
+    /// folder. Naming the same folder is therefore the advertised text alone, while equality keeps the delimiter because
+    /// a rebinding is decided on both halves.
+    /// </summary>
     [Fact]
     public void NamesSameFolderAs_OnePathWithADelimiterAndOneWithout_NamesOneFolder()
     {

@@ -466,14 +466,15 @@ public sealed class MirroredMailFolderEditor
 
         var declared = await this.declarations.AliasesTheAccountDeclaresAsync(account, cancellationToken);
 
-        // A folder without a declared path is one found by the role it plays, which the refusal above has already
+        // A folder without a path is one found by the role it plays and never bound, which the refusal above has already
         // answered; reaching here without one therefore means the deployment's own configuration holds it.
         return declared.Contains(folderAlias) && folder.RemotePath is { } path
             ? new ActableFolder(folderAlias, path, folders, Refusal: null)
             : ActableFolder.Refused(MailFolderActRefusal.NotDeclaredByTheAccount);
     }
 
-    /// <summary>Refuses a parent the account does not declare, or one found by the role it plays and therefore having no path to create beneath.</summary>
+    /// <summary>Refuses a parent the account does not have, or one found by the role it plays and never bound, which has no path to create beneath.</summary>
+    /// <remarks>A folder found by its role and bound is a parent like any other, whichever role it plays.</remarks>
     private static MailFolderActRefusal? RefuseParent(
         IReadOnlyList<MailFolderMapping> folders,
         MailFolderAlias? parentAlias) => parentAlias is { } parent
@@ -495,7 +496,7 @@ public sealed class MirroredMailFolderEditor
     /// <remarks>
     /// The three acts that name a folder travel together, because every reason to refuse one refuses all three: a
     /// folder playing a role is the account's place to file something, a folder the deployment's own configuration
-    /// declares is the operator's, and a folder found by the role it plays has no path to act against.
+    /// declares is the operator's, and a folder found by the role it plays and never bound has no path to act against.
     /// </remarks>
     private static IReadOnlyList<MailFolderAct> AllowedActsOn(
         MailFolderMapping folder,
@@ -510,8 +511,9 @@ public sealed class MirroredMailFolderEditor
     /// <summary>Reads the account's folders, each at the place it currently is on the mail server.</summary>
     /// <remarks>
     /// A folder found by the role it plays names no path in its declaration, so its place is read from the binding its
-    /// synchronization run recorded. Without it the drafts folder or the sent folder found that way could take no
-    /// subfolder, and a subfolder made beneath one would be described as having no parent.
+    /// synchronization run recorded — whichever role it plays. Without it no folder found that way could take a
+    /// subfolder, the drafts folder and the sent folder among them, and a subfolder made beneath one would be described
+    /// as having no parent. One never bound keeps no path and so still takes none.
     /// </remarks>
     private async Task<IReadOnlyList<MailFolderMapping>> FoldersOfAsync(
         MailAccountId account,

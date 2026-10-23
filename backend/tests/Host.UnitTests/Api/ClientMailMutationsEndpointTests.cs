@@ -769,6 +769,8 @@ public sealed class ClientMailMutationsEndpointTests
         AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailMove),
         ScopeResolver(),
         Substitute.For<IAuthoredMailboxTargetReader>(),
+        StubMailFolderMappings.ResolvingNothing,
+        Substitute.For<IMailFolderResolutionStore>(),
         DestinationResolver(),
         Substitute.For<IAuthoredDeleteEmailDispositionReader>(),
         this.Submission(held: false),
