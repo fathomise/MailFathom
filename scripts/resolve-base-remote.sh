@@ -89,12 +89,15 @@ base_remote_resolution_hint() {
   printf '  git fetch upstream main\n'
 }
 
-# Prints the base remote once the branch has been proved to contain its current `main`, and returns
-# non-zero with the reason on stderr otherwise. Both gates ask this, and both ask it before anything
-# else costs anything, and lists what arrived so the answer is read rather than assumed: a rebase
-# when something in it conflicts with or relates to the change, and `VERIFY_IGNORE_BASE_DRIFT=1`
-# when nothing does, because a rebase nothing asked for rewrites every SHA a review reply quotes and
-# proves nothing the merge queue does not. The fetch is never skipped either way.
+# Prints the base remote once the branch contains its freshly fetched `main`, or once
+# `VERIFY_IGNORE_BASE_DRIFT=1` accepted that it does not, and returns non-zero with the reason on
+# stderr otherwise. Both gates ask this before anything else costs anything, because a branch that
+# has to be rebased learns it in a second rather than after a build.
+#
+# A branch behind `main` is told which commits arrived, so the answer is read rather than assumed:
+# a rebase when one of them conflicts with or relates to the change, and the variable when none
+# does, because a rebase nothing asked for rewrites every SHA a review reply quotes and proves
+# nothing the merge queue does not. The fetch is never skipped either way.
 #
 # The explicit destination refspec is what makes the ancestor test below meaningful. A bare
 # `git fetch <remote> main` only writes FETCH_HEAD, so a repository whose `remote.<remote>.fetch` is

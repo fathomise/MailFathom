@@ -521,23 +521,42 @@ verify_fast_stops_when_head_is_behind_origin_main() {
   assert_file_content '' "$invocation_log"
 }
 
+# The branch and `main` share a line carrying a whitespace error, and `main` then deletes it. Read
+# from the base's tip the branch appears to add that line; read from the merge base it adds nothing.
+# That difference is the one between two dots and three, and this fixture exists to tell them apart.
+leave_a_branch_behind_main_that_removed_a_whitespace_error() {
+  printf 'trailing \n' > "$remote_repository_root/whitespace.txt"
+  git -C "$remote_repository_root" add whitespace.txt
+  git -C "$remote_repository_root" commit --quiet -m 'main carries a whitespace error'
+  git -C "$repository_root" fetch --quiet origin main
+  git -C "$repository_root" checkout --quiet -b agent/behind-main origin/main
+  git -C "$remote_repository_root" rm --quiet whitespace.txt
+  git -C "$remote_repository_root" commit --quiet -m 'main removed the whitespace error'
+}
+
+restore_main_and_the_fixture_branch() {
+  git -C "$remote_repository_root" reset --quiet --hard HEAD~2
+  git -C "$repository_root" fetch --quiet --force origin main
+  git -C "$repository_root" checkout --quiet "$fixture_branch"
+  git -C "$repository_root" branch --quiet -D agent/behind-main
+}
+
 # The refusal is a question rather than a wall: once the author has read what arrived and found
 # nothing in it that conflicts with or relates to the change, a rebase buys nothing the merge queue
-# and `Coherence` do not already ask, so the variable carries the run on while still naming the drift.
+# and `Coherence` do not already ask, so the variable carries the run on while still naming the drift
+# — and judges the branch on its own merge base rather than on what `main` changed since.
 verify_fast_accepts_a_branch_behind_origin_main_when_told_to() {
   local accepted_output="$test_directory/verify-fast-accepted-drift-output"
   local script_status=0
 
-  : > "$invocation_log"
-  git -C "$remote_repository_root" commit --quiet --allow-empty -m 'remote main moved ahead'
+  leave_a_branch_behind_main_that_removed_a_whitespace_error
 
   (
     cd "$repository_root"
     VERIFY_IGNORE_BASE_DRIFT=1 "$scripts_directory/verify-fast.sh"
   ) > "$accepted_output" 2>&1 || script_status=$?
 
-  git -C "$remote_repository_root" reset --quiet --hard HEAD~1
-  git -C "$repository_root" fetch --quiet --force origin main
+  restore_main_and_the_fixture_branch
 
   if ((script_status != 0)); then
     printf 'verify-fast.sh refused a branch behind origin/main despite VERIFY_IGNORE_BASE_DRIFT=1\n' >&2
@@ -545,9 +564,31 @@ verify_fast_accepts_a_branch_behind_origin_main_when_told_to() {
     return 1
   fi
 
-  assert_contains 'HEAD does not contain the current origin/main.' "$accepted_output"
+  assert_contains 'main removed the whitespace error' "$accepted_output"
   assert_contains 'VERIFY_IGNORE_BASE_DRIFT=1 accepts that drift' "$accepted_output"
-  assert_contains 'restore backend/MailFathom.slnx --locked-mode' "$invocation_log"
+}
+
+verify_full_accepts_a_branch_behind_origin_main_when_told_to() {
+  local accepted_output="$test_directory/verify-full-accepted-drift-output"
+  local script_status=0
+
+  leave_a_branch_behind_main_that_removed_a_whitespace_error
+
+  (
+    cd "$repository_root"
+    VERIFY_IGNORE_BASE_DRIFT=1 "$scripts_directory/verify-full.sh"
+  ) > "$accepted_output" 2>&1 || script_status=$?
+
+  restore_main_and_the_fixture_branch
+
+  if ((script_status != 0)); then
+    printf 'verify-full.sh refused a branch behind origin/main despite VERIFY_IGNORE_BASE_DRIFT=1\n' >&2
+    cat "$accepted_output" >&2
+    return 1
+  fi
+
+  assert_contains 'main removed the whitespace error' "$accepted_output"
+  assert_contains 'VERIFY_IGNORE_BASE_DRIFT=1 accepts that drift' "$accepted_output"
 }
 
 verify_fast_stops_when_the_remote_is_unreachable() {
@@ -11833,6 +11874,7 @@ run_test verify_fast_names_the_suites_it_left_to_the_pipeline
 run_test verify_fast_runs_every_suite_when_a_shared_build_input_changed
 run_test verify_fast_stops_when_head_is_behind_origin_main
 run_test verify_fast_accepts_a_branch_behind_origin_main_when_told_to
+run_test verify_full_accepts_a_branch_behind_origin_main_when_told_to
 run_test verify_fast_stops_when_the_remote_is_unreachable
 run_test verify_fast_refuses_a_whitespace_error
 run_test verify_fast_fetches_the_remote_base_before_verifying
