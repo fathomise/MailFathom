@@ -11,9 +11,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     mailBodies, documentPreviews, composeDrafts: COMPOSE_DRAFTS, newMessageTo: NEW_MESSAGE_TO,
     accounts: ACCOUNTS, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, defaultReplyTo: DEFAULT_REPLY_TO, mailAccounts: MAIL_ACCOUNTS,
     home: HOME, savedAnswers: SAVED_ANSWERS, suggestedQuestions: SUGGESTED_QUESTIONS, sampleText: SAMPLE_TEXT,
-    calendarBriefing: CALENDAR_BRIEFING, eventFromThread: EVENT_FROM_THREAD, taskCapacity: TASK_CAPACITY, newCase: NEW_CASE,
+    calendarBriefing: CALENDAR_BRIEFING, eventFromThread: EVENT_FROM_THREAD, taskCapacity: TASK_CAPACITY,
     starterChips: STARTER_CHIPS, anotherTimeReply: ANOTHER_TIME, agentScheduledEvents: AGENT_SCHEDULED,
-    plans: PLANS, cases: CASES,
+    plans: PLANS,
     calendarDays: CAL_DAYS, proposedEvents: CAL_PROPOSED, focusBlocks: CAL_FOCUS, weekdayDates: DOW_DAY, tasks: TASKS,
     timelineToday: BK_TIMELINE_TODAY, draftContoso: BK_DRAFT_CONTOSO, demoConversationId: DEMO_CONV_ID, demoScript: DEMO_SCRIPT,
     nextDefault: NEXT_DEFAULT, seedConversations: SEED_CONVS, agentReplies: AGENT_REPLIES, agentFallback: AGENT_FALLBACK,
@@ -235,7 +235,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const when = meta.split(" · ")[1] || t.time;
       if (!map[t.from]) map[t.from] = {
         id: "auto-" + t.id, name: t.from, role: "Collected from mail", org: t.org || (mail ? mail.split("@")[1] : "-"),
-        mail: mail || "-", last: when, owed: "-", cases: "-", collected: true, msgs: 0,
+        mail: mail || "-", last: when, owed: "-", collected: true, msgs: 0,
         threads: [], docs: [],
       };
       const c = map[t.from];
@@ -327,7 +327,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   const NKIND = {
     mail: { icon: "mail", c: "var(--accent-2)", soft: "var(--accent-soft)", toast: "info" },
     cal: { icon: "event", c: "var(--ok-text)", soft: "var(--ok-soft)", toast: "info" },
-    case: { icon: "topic", c: "var(--warn-text)", soft: "var(--warn-soft)", toast: "warning" },
     task: { icon: "task_alt", c: "var(--text2)", soft: "var(--hover)", toast: "neutral" },
     system: { icon: "sync", c: "var(--muted)", soft: "var(--hover)", toast: "neutral" },
   };
@@ -620,15 +619,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        (`data-motion`) and their numbers; this holds when each plays.
        A surface is open while a state key below is truthy. When the key empties, the render keeps reading its last
        value for MOTION_EXIT_MS, so the surface stays mounted and drawn with its content, and `mo[<key>]` reads `out`
-       — its `data-phase` — until the timer unmounts it. A pane key (mailPane, casePane, peoplePane) records which way
+       — its `data-phase` — until the timer unmounts it. A pane key (mailPane, peoplePane) records which way
        it last moved instead, read by `paneMotion`, so one pane at a time pushes forward and comes back.
        ponytail: the held value is read by the whole render, so anything else gated on the same key (the FAB waits on
        `compose`) follows it 240 ms late; a per-surface snapshot is the upgrade if that ever shows. */
     static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "sideDrawer", "compose", "settings",
       "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock",
-      "newCase", "newTask", "newEvent", "newContact", "filtersOpen",
+      "newTask", "newEvent", "newContact", "filtersOpen",
       "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk"];
-    static MOTION_PANES = ["mailPane", "casePane", "peoplePane"];
+    static MOTION_PANES = ["mailPane", "peoplePane"];
     static MOTION_EXIT_MS = 240;
 
     motionHold = (state) => {
@@ -649,7 +648,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         if (held[k]) st[k] = held[k].v;
         mo[k] = held[k] ? "out" : "in";
       });
-      /* A pane reset in the same act that switches space (More → Cases, a notification opening a thread) is the
+      /* A pane reset in the same act that switches space (More → People, a notification opening a thread) is the
          space switch's, so only a move made with the screen unchanged pushes or comes back. */
       const sameScreen = prev.screen === state.screen;
       C.MOTION_PANES.forEach(k => {
@@ -683,7 +682,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const live = (v) => Array.isArray(v) ? v.length > 0 : !!v;
       const steps = [];
       if (state.screen === "mail" && w < 820 && (state.mailPane || "list") !== "list") steps.push("mailPane");
-      if (state.screen === "cases" && w < 700 && (state.casePane || "list") !== "list") steps.push("casePane");
       if (state.screen === "people" && w < 700 && (state.peoplePane || "list") !== "list") steps.push("peoplePane");
       /* The notification centre slides away before its key empties, so it stands for as long as it is shown. */
       this.constructor.BACK_LAYERS.forEach(k => { if (k === "notifCenter" ? state.notifCenter && state.notifShown : live(state[k])) steps.push(k); });
@@ -1182,10 +1180,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     tkTitleRef = React.createRef();
     tkDueRef = React.createRef();
     tkEstRef = React.createRef();
-    csPromptRef = React.createRef();
-    csTitleRef = React.createRef();
-    csPartiesRef = React.createRef();
-    csDueRef = React.createRef();
 
     onDocDown = (e) => {
       const el = this.userMenuRef.current;
@@ -1536,7 +1530,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.closeNotifCenter();
       if (!n.go) return;
       if (n.go.thread) this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: n.go.thread, cameFrom: false, sel: [] });
-      else this.goScreen(n.go.screen, n.go.screen === "mail" ? { mailPane: "list" } : n.go.screen === "cases" ? { casePane: "list" } : {});
+      else this.goScreen(n.go.screen, n.go.screen === "mail" ? { mailPane: "list" } : {});
     };
 
     pushNotif = (it) => {
@@ -2140,7 +2134,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       }]))), Math.max(400, (this.props.streamDelay ?? 550))));
     };
 
-    /* Going to look at a thread, a case or the calendar must not lose the place in the conversation. */
+    /* Going to look at a thread or the calendar must not lose the place in the conversation. */
     goLook = (a) => {
       this.setState({ agentReturn: this.state.convId || null });
       this.agentAction(a);
@@ -2160,7 +2154,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           calAdded: (s2.calAdded || []).concat(AGENT_SCHEDULED),
         }));
       } else if (a.kind === "gocal") this.setState({ screen: "cal", calView: "Day" });
-      else if (a.kind === "case") this.setState({ screen: "cases", caseId: "contoso27", casePane: "detail" });
       else if (a.kind === "thread") this.setState({ screen: "mail", threadId: a.tid, mailPane: "thread", threadOpen: true, cameFrom: false });
       else if (a.kind === "planday") this.agentAsk("Plan my day");
     };
@@ -2244,7 +2237,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
          composition - on a phone Tasks, Calendar and People sit behind More. */
       const space = this.props.space;
       if (space && space !== (prevProps || {}).space) {
-        this.goScreen(space === "calendar" ? "cal" : space, space === "people" ? { peoplePane: "list" } : space === "cases" ? { casePane: "list" } : space === "mail" ? { mailPane: "list" } : {});
+        this.goScreen(space === "calendar" ? "cal" : space, space === "people" ? { peoplePane: "list" } : space === "mail" ? { mailPane: "list" } : {});
       }
       this.backSync();
       this.tbMeasure();
@@ -2380,7 +2373,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const selMark = (kind, id) => (isSel(kind, id) ? "background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent);" : "");
       const plan = st.planKey ? PLANS[st.planKey] : null;
       const selBarKind = st.notifOpen ? "notifs"
-        : st.screen === "cases" ? "cases"
         : st.screen === "tasks" ? "tasks"
         : st.screen === "cal" ? "events"
         : st.screen === "people" ? "people"
@@ -2639,8 +2631,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       });
       const selectionOn = sel.length > 0;
       const aiHints = this.props.aiHints ?? true;
-      const allCases = CASES.concat(st.extraCases || []).filter(c => !hid("cases", c.id));
-      const kase = allCases.find(c => c.id === st.caseId) || allCases[0];
       const ownContacts = CONTACTS.concat(st.extraContacts || []);
       const hiddenCollected = st.hiddenCollected || [];
       const collectedContacts = collectFromMail(ownContacts.map(c => c.name)).filter(c => hiddenCollected.indexOf(c.name) < 0);
@@ -2787,8 +2777,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         moSide: drawer ? "drawer" : "none",
         moMailList: singlePane ? this.paneMotion("mailPane", "back") : "none",
         moMailDetail: singlePane ? this.paneMotion("mailPane", "push") : "none",
-        moCaseList: isMobile ? this.paneMotion("casePane", "back") : "none",
-        moCaseDetail: isMobile ? this.paneMotion("casePane", "push") : "none",
         moPeopleList: isMobile ? this.paneMotion("peoplePane", "back") : "none",
         moPeopleDetail: isMobile ? this.paneMotion("peoplePane", "push") : "none",
         rootRef: this.rootRef,
@@ -2849,7 +2837,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         closeMore: () => this.setState({ more: false }),
         moreItems: [
           { icon: "task_alt", label: "Tasks", go: { screen: "tasks" } },
-          { icon: "topic", label: "Cases", go: { screen: "cases", casePane: "list" } },
           { icon: "calendar_month", label: "Calendar", go: { screen: "cal" } },
           { icon: "group", label: "People", go: { screen: "people", peoplePane: "list" } },
         ].map(mi => ({
@@ -2865,7 +2852,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         moreRowStyle: "display:flex;align-items:center;gap:16px;box-sizing:border-box;min-height:52px;padding:0 14px;border-radius:12px;font-size:15px;color:var(--text)",
         railLabelDiscover: "Discover",
         railLabelMail: "Mail",
-        railLabelCases: "Cases",
         railLabelAgent: "Agent",
         railLabelTasks: "Tasks",
         railLabelCal: "Calendar",
@@ -2920,11 +2906,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             mk("mark_email_read", "Read", () => this.setNotifsRead(ids, true)),
             mk("mark_email_unread", "Unread", () => this.setNotifsRead(ids, false)),
             mk("delete", "Delete", () => this.askHide("notifs", ids, "Delete notifications?", ids.length + " notifications will disappear from the centre."), true),
-          ].map(st2);
-          if (kind === "cases") return [
-            mk("check_circle", "Close", () => { this.notify(ids.length + " cases", { kind: "success", title: "Cases closed" }); this.selClearKind(kind); }),
-            mk("download", "Export", () => { this.notifyTask({ title: "Exporting cases\u2026", body: ids.length + " cases", doneTitle: "Cases exported", ms: 2000 }); this.selClearKind(kind); }),
-            mk("delete", "Delete", () => this.askHide("cases", ids, "Delete cases?", ids.length + " cases will disappear from the list."), true),
           ].map(st2);
           if (kind === "people") return [
             mk("edit", "Write", () => { this.setState({ compose: true, composeMin: false, replyMode: null }); this.selClearKind(kind); }),
@@ -2982,9 +2963,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         railNavStyle: isMobile
           ? "flex:1;min-width:0;display:flex;flex-direction:row;align-items:stretch;justify-content:space-between;gap:3px"
           : "flex:1 1 auto;width:100%;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;align-items:center;gap:" + (narrow ? 2 : 4) + "px",
-        railCasesStyle: (isMobile ? "display:none;" : railBase + (st.screen === "cases" ? activeStyle : idleColor)),
-        goCases: () => this.goScreen("cases", { casePane: "list" }),
-        isCases: st.screen === "cases" && !emptyApp,
         isCal: st.screen === "cal" && !emptyApp,
         isTasks: st.screen === "tasks" && !emptyApp,
         goTasks: () => this.goScreen("tasks"),
@@ -3235,7 +3213,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
         agentMsgs: (convMsgs.length ? convMsgs : [{
           role: "bot",
-          scope: "3 accounts · mail, calendar, cases",
+          scope: "3 accounts · mail, calendar",
           text: "Hi. I can write a message, lay out your day or check what is stuck. I always show the result for approval - nothing goes out without you.",
           bullets: [],
           blocks: [],
@@ -3396,7 +3374,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               reason: "The result already carries the numbers and the sources the reply needs.",
               effect: "Writes a draft into this conversation - you approve it before anything is sent.",
               cta: "Write it", done: "Draft prepared",
-              nav: [{ label: "Open the case", icon: "folder_open", kind: "case" }],
             }] },
           ])));
           this.setState({ screen: "agent" });
@@ -3414,13 +3391,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             ? "background:var(--hl);color:var(--text);"
             : "background:var(--rail);color:var(--muted);border:1px solid var(--line);"),
         })),
-        homeCases: CASES.map(c => ({
-          title: c.title, status: c.status, scope: c.scope,
-          open: () => this.setState({ screen: "cases", caseId: c.id, casePane: "detail" }),
-          statusStyle: "font-size:11px;white-space:nowrap;border-radius:12px;padding:3px 8px;" + (c.statusKind === "urgent"
-            ? "background:var(--hl);color:var(--text);"
-            : "background:var(--rail);color:var(--muted);border:1px solid var(--line);"),
-        })),
         homeAgenda: HOME.agenda.map(a => ({
           when: a.when, t: a.t,
           dotStyle: "width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:" + (a.kind === "deadline" ? "var(--hl-line)" : "var(--accent)"),
@@ -3434,7 +3404,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         briefingStats: HOME.briefingStats,
         quickActions: [
           { icon: "event", label: "Plan the day", run: () => this.agentAsk("Plan my day") },
-          { icon: "topic", label: "Open cases", run: () => this.setState({ screen: "cases", casePane: "list" }) },
           { icon: "history", label: "What slipped?", run: () => this.agentAsk("What slipped this week?") },
           { icon: "auto_awesome", label: "Ask the agent", run: () => this.setState({ screen: "agent" }) },
         ].map(a => ({
@@ -3760,7 +3729,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             peoplePane: "detail",
             extraContacts: (s2.extraContacts || []).concat([{
               id, name, role: role || "-", org: org || "-", mail, last: "no correspondence yet",
-              owed: "-", cases: "-", note: "Contact added manually. After the first exchange of messages the relationship state appears here.",
+              owed: "-", note: "Contact added manually. After the first exchange of messages the relationship state appears here.",
               threads: [], docs: [],
             }]),
           }));
@@ -3790,7 +3759,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         eventHasSrc: !!(st.event && st.event.src),
         eventNote: st.event && st.event.kind === "deadline"
           ? "Deadline detected in the correspondence - changing the date in the thread updates this entry."
-          : "Event linked to a case; attendees come from the thread.",
+          : "Event linked to a thread; attendees come from the thread.",
         closeEvent: () => this.setState({ event: null }),
         eventOpenThread: () => this.setState({ event: null, screen: "mail", mailPane: "thread", threadOpen: true }),
         eventDelete: () => this.askDel({
@@ -4095,7 +4064,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         personStats: [
           { label: "Last contact", value: person.last },
           { label: "Open", value: person.owed },
-          { label: "Cases", value: person.cases },
         ],
         personColsStyle: isMobile || narrow ? "display:flex;flex-direction:column;gap:12px" : "display:flex;gap:12px",
         personThreads: person.threads.map(t3 => ({
@@ -4109,170 +4077,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             : this.openDocLoad({ doc: d, docZoom: 1 })),
         })),
         personNoDocs: person.docs.length === 0,
-
-        tbCaseLabel: tbFull ? "New case" : "",
-        caseActions: [
-          { icon: "summarize", label: "Summarise" },
-          { icon: "mail", label: "Add thread" },
-          { icon: "download", label: "Export" },
-          { icon: "check_circle", label: "Close case" },
-        ].map(a => ({ icon: a.icon, title: a.label, label: tbFull ? a.label : "", style: tbFull ? tbBtn : tbIcon + ";flex:0 0 auto" })),
-        newCaseOpen: !!st.newCase,
-        openNewCase: () => this.setState({ newCase: true, csFound: null }),
-        closeNewCase: () => this.setState({ newCase: false }),
-        csPromptRef: this.csPromptRef, csTitleRef: this.csTitleRef, csPartiesRef: this.csPartiesRef, csDueRef: this.csDueRef,
-        csFoundShown: !!st.csFound,
-        csFound: st.csFound || [],
-        csBuild: () => {
-          const raw = ((this.csPromptRef.current || {}).value || "").trim();
-          const title = raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : "New case";
-          const org = (raw.match(new RegExp("(" + NEW_CASE.counterparties.join("|") + ")", "i")) || [])[1] || "New counterparty";
-          if (this.csTitleRef.current) this.csTitleRef.current.value = title;
-          if (this.csPartiesRef.current) this.csPartiesRef.current.value = org + " · " + NEW_CASE.ourSide;
-          if (this.csDueRef.current) this.csDueRef.current.value = NEW_CASE.due;
-          this.setState({ csFound: NEW_CASE.found });
-        },
-        csFromThread: () => {
-          if (this.csTitleRef.current) this.csTitleRef.current.value = thread.subject;
-          if (this.csPartiesRef.current) this.csPartiesRef.current.value = (thread.org || thread.from) + " · " + NEW_CASE.ourSide;
-          if (this.csDueRef.current) this.csDueRef.current.value = NEW_CASE.fromThread.due;
-          this.setState({ csFound: [
-            { kind: "thread", label: thread.subject },
-            { kind: "person", label: thread.from },
-            { kind: "deadline", label: NEW_CASE.fromThread.deadline },
-          ] });
-        },
-        saveCase: () => {
-          const title = (this.csTitleRef.current || {}).value || "New case";
-          const parties = (this.csPartiesRef.current || {}).value || "-";
-          const due = (this.csDueRef.current || {}).value || "";
-          const id = "case" + Date.now();
-          this.setState(s2 => ({
-            newCase: false, caseId: id, casePane: "detail",
-            extraCases: (s2.extraCases || []).concat([{
-              id, title, parties, status: due ? "Due " + due : "No deadline", statusKind: "attention", owner: "KK",
-              summary: "Case created from a description. The agent attached threads and documents found in the mailbox; the state updates as new messages arrive.",
-              scope: (s2.csFound || []).length + " linked items",
-              agreed: [], openQ: [{ text: "To be agreed after the first exchange", src: "-" }],
-              dates: due ? [{ text: "Case deadline", when: due, src: "-" }] : [],
-              facts: [], timeline: [{ d: "today", t: "Case created" }],
-              threads: (s2.csFound || []).filter(f => f.kind === "thread").map(f => ({ id: "contoso", label: f.label, meta: "linked thread" })),
-              docs: (s2.csFound || []).filter(f => f.kind === "document").map(f => ({ type: "PDF", name: f.label, size: "-" })),
-              duties: [{ who: "Karolina", what: "First step in the case", when: due || "-", state: "open" }],
-            }]),
-          }));
-        },
-        showCaseList: !isMobile || st.casePane !== "detail",
-        showCaseDetail: !isMobile || st.casePane === "detail",
-        showCaseBack: isMobile && st.casePane === "detail",
-        backToCases: () => this.setState({ casePane: "list" }),
-        caseListStyle: isMobile
-          ? "flex:1;display:flex;flex-direction:column;min-height:0;min-width:0"
-          : "width:" + (narrow ? 240 : 296) + "px;flex:0 0 " + (narrow ? 240 : 296) + "px;display:flex;flex-direction:column;border-right:1px solid var(--line);min-height:0",
-        caseRows: allCases.map(c => ({
-          selected: isSel("cases", c.id),
-          press: this.pressFor("cases", c.id, c.title, [
-            { icon: "check_box", label: "Select cases", run: () => this.selStart("cases", c.id) },
-            { icon: "topic", label: "Open case", run: () => this.setState({ caseId: c.id, casePane: "detail" }) },
-            { icon: "auto_awesome", label: "Ask the agent", run: () => this.goAgentWith("case \u201C" + c.title + "\u201D") },
-            { icon: "download", label: "Export", run: () => this.notifyTask({ title: "Exporting case\u2026", body: c.title, doneTitle: "Case exported", doneBody: c.title, ms: 1800 }) },
-            { icon: "check_circle", label: "Close case", run: () => this.notify(c.title, { kind: "success", title: "Case closed" }) },
-            { icon: "delete", label: "Delete case", danger: true, run: () => this.askHide("cases", [c.id], "Delete case?", c.title + " will disappear from the case list.") },
-          ]),
-          title: c.title, parties: c.parties, scope: c.scope, status: c.status, owner: c.owner,
-          open: this.rowTap("cases", c.id, () => this.setState({ caseId: c.id, casePane: "detail" })),
-          style: "display:flex;flex-direction:column;gap:6px;padding:13px 15px;background:" + (c.id === kase.id ? "var(--accent-soft)" : "var(--panel)") +
-            ";box-shadow:inset 0 1px 0 var(--inset)," + (c.id === kase.id ? "inset 3px 0 0 var(--accent-2)," : "") + "0 1px 2px var(--sh-1);" + selMark("cases", c.id),
-          statusStyle: "font-size:11px;border-radius:12px;padding:3px 9px;" + (c.statusKind === "urgent"
-            ? "background:var(--hl);color:var(--text);"
-            : "background:var(--rail);color:var(--text2);border:1px solid var(--line);"),
-        })),
-        caseTitle: kase.title,
-        caseParties: kase.parties,
-        caseScope: kase.scope,
-        caseSummary: kase.summary,
-        caseStatus: kase.status,
-        caseStatusStyle: "font-size:12px;font-weight:600;border-radius:12px;padding:5px 11px;" + (kase.statusKind === "urgent"
-          ? "background:var(--hl);color:var(--text);border:1px solid var(--hl-line);"
-          : "background:var(--rail);color:var(--text2);border:1px solid var(--line);"),
-        caseTitleStyle: "font-weight:600;letter-spacing:-0.015em;text-wrap:pretty;font-size:" + (isMobile ? (st.caseScroll ? 15 : 18) : 20) + "px",
-        caseSummaryStyle: "line-height:1.55;color:var(--text2);text-wrap:pretty;font-size:" + (isMobile ? 14 : 15) + "px",
-        caseHeadActionsShown: !isMobile,
-        caseHeadFullShown: !isMobile || !st.caseScroll,
-        onCaseScroll: (e) => {
-          const c = e.target.scrollTop > 30;
-          if (c !== !!this.state.caseScroll) this.setState({ caseScroll: c });
-        },
-        caseAskExtrasShown: !isMobile,
-        caseAskPlaceholder: isMobile ? "Ask about this case\u2026" : "Ask about this case \u2014 e.g. \u201Cwhat did we promise on the SLA?\u201D",
-        caseAskRowStyle: "display:flex;align-items:center;gap:10px;border:2px solid var(--accent);border-radius:12px;" + (isMobile ? "padding:7px 9px" : "padding:10px 13px"),
-        caseAskBadgeStyle: "font-family:'Geist',system-ui,sans-serif;color:var(--onaccent);background:var(--accent);border-radius:6px;font-weight:600;" + (isMobile ? "font-size:11px;padding:3px 6px" : "font-size:11px;padding:4px 8px"),
-        caseAskTextStyle: "flex:1;min-width:0;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:" + (isMobile ? 13 : 15) + "px",
-        caseHeadStyle: isMobile
-          ? "flex:0 0 auto;display:flex;flex-direction:column;gap:6px;background:var(--sub);border-bottom:1px solid var(--line);padding:" + (st.caseScroll ? "9px 14px" : "12px 14px")
-          : "display:flex;flex-direction:column;gap:9px;background:var(--sub);border-bottom:1px solid var(--line);padding:16px max(24px, calc((100% - 1160px) / 2))",
-        caseBodyStyle: isMobile
-          ? "flex:1;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14px"
-          : "flex:1;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:14px;padding:18px max(24px, calc((100% - 1160px) / 2))",
-        caseStateGridStyle: isMobile || narrow
-          ? "display:flex;flex-direction:column;gap:12px"
-          : "display:grid;grid-template-columns:" + (touch ? "repeat(auto-fit,minmax(240px,1fr))" : "repeat(3,1fr)") + ";gap:12px;align-items:start",
-        caseColumns: [
-          { label: "Agreed", items: kase.agreed },
-          { label: "Open questions", items: kase.openQ },
-          { label: "Deadlines", items: kase.dates },
-        ].map(col => ({
-          label: col.label,
-          count: col.items.length,
-          countStyle: "font-size:11px;color:var(--muted);background:var(--rail);border:1px solid var(--line);border-radius:8px;padding:1px 7px",
-          items: col.items.map(it => ({
-            text: it.text, src: it.src, when: it.when || "",
-            whenStyle: it.when ? "margin-left:auto;font-size:12px;font-weight:600;color:var(--accent-d);white-space:nowrap" : "display:none",
-          })),
-        })),
-        caseFactHeadStyle: "display:flex;gap:12px;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);padding:0 0 8px 0;border-bottom:1px solid var(--line);font-weight:600",
-        caseFactHeadShown: !isMobile,
-        caseFacts: kase.facts.map((f, i) => ({
-          p: f.p, a: f.a, b: f.b, src: f.src,
-          arrowShown: isMobile,
-          pStyle: isMobile ? "font-size:13px;color:var(--muted)" : "flex:2;min-width:0;font-size:14px",
-          valWrapStyle: isMobile ? "display:flex;align-items:baseline;gap:8px;flex-wrap:wrap" : "display:contents",
-          aStyle: isMobile ? "font-size:14px;color:var(--muted)" : "flex:1;min-width:0;font-size:14px;color:var(--muted)",
-          bStyle: isMobile ? "font-size:14px;font-weight:600" : "flex:1;min-width:0;font-size:14px;font-weight:600",
-          srcStyle: isMobile ? "font-size:12px;color:var(--accent-d)" : "flex:1;min-width:0;font-size:12px;color:var(--accent-d)",
-          rowStyle: (isMobile
-            ? "display:flex;flex-direction:column;gap:4px;padding:10px 0;"
-            : "display:flex;gap:12px;align-items:baseline;padding:10px 0;") + (i ? "border-top:1px solid var(--line2);" : ""),
-        })),
-        caseTimelineStyle: isMobile ? "display:flex;flex-direction:column;gap:0" : "display:flex;gap:0",
-        caseTimeline: kase.timeline.map((tl, i) => ({
-          d: tl.d, t: tl.t,
-          style: isMobile
-            ? "display:flex;flex-direction:column;gap:3px;border-top:2px solid " + (i === kase.timeline.length - 1 ? "var(--accent)" : "var(--border2)") + ";padding:9px 0 11px 0"
-            : "flex:1;display:flex;flex-direction:column;gap:4px;border-top:2px solid " + (i === kase.timeline.length - 1 ? "var(--accent)" : "var(--border2)") + ";padding:10px 14px 4px 0",
-        })),
-        caseMaterialsStyle: isMobile || narrow ? "display:flex;flex-direction:column;gap:12px" : "display:flex;gap:12px",
-        caseThreads: kase.threads.map(t2 => ({
-          label: t2.label, meta: t2.meta,
-          open: () => this.setState({ screen: "mail", threadId: t2.id, mailPane: "thread", threadOpen: true, cameFrom: false }),
-        })),
-        caseDocs: kase.docs.map(d => ({
-          type: d.type, name: d.name, size: d.size,
-          open: () => (this.tabsMode()
-            ? this.openTab("doc:" + d.name, { doc: d, docZoom: 1, docLoading: true }, { att: d })
-            : this.openDocLoad({ doc: d, docZoom: 1 })),
-        })),
-        caseNoDocs: kase.docs.length === 0,
-        caseDuties: kase.duties.map((d, i) => ({
-          who: d.who, what: d.what, when: d.when, state: d.state,
-          rowStyle: "display:flex;gap:12px;align-items:baseline;padding:9px 0;" + (i ? "border-top:1px solid var(--line2);" : ""),
-          stateStyle: "flex:0 0 auto;font-size:11px;border-radius:12px;padding:3px 9px;" + (d.state === "open"
-            ? "background:var(--accent-soft);color:var(--accent-d);"
-            : "background:var(--rail);color:var(--muted);border:1px solid var(--line);"),
-        })),
-        caseAskStyle: isMobile
-          ? "flex:0 0 auto;display:flex;flex-direction:column;gap:7px;border-top:1px solid var(--line);background:var(--panel);padding:8px 12px 10px"
-          : "display:flex;flex-direction:column;gap:9px;border-top:1px solid var(--line);background:var(--panel);padding:14px 24px",
 
         /* On tablets and narrower screens "Hide panels" also removes the message list —
            the correspondence gets the full width (on desktop the list stays, there is room). */
@@ -4347,8 +4151,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         showMailToolbar: !selectionOn && !singlePane,
         undoShown: isMobile && !!st.lastArchived && (st.archived || []).indexOf(st.lastArchived) >= 0,
         undoDelete: this.undoArchive,
-        showScreenFab: (isMobile || tbFabForced) && !st.newTask && !st.newEvent && !st.newCase && !st.newContact && !st.settings &&
-          !(st.screen === "cases" && (st.casePane || "list") === "detail") &&
+        showScreenFab: (isMobile || tbFabForced) && !st.newTask && !st.newEvent && !st.newContact && !st.settings &&
           !(st.screen === "people" && (st.peoplePane || "list") === "detail"),
         tbPrimaryShown: tbPriInBar,
         showFab: !st.compose && !st.doc && !selectionOn && (singlePane ? mailPane === "list" : tbFabForced),
@@ -4630,8 +4433,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
            so we keep the scroll position ourselves and restore it on return. */
         listScrollRef: this.keepScroll("mail"),
         onListScroll: this.keepScrollOn("mail"),
-        caseListRef: this.keepScroll("cases"),
-        onCaseListScroll: this.keepScrollOn("cases"),
         peopleListRef: this.keepScroll("people"),
         onPeopleListScroll: this.keepScrollOn("people"),
         tasksBodyRef: this.keepScroll("tasks"),
@@ -4683,7 +4484,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         goAgentBtnStyle: "display:flex;align-items:center;justify-content:center;gap:9px;border:1px solid var(--accent-line);border-radius:12px;background:var(--accent-soft);color:var(--accent-d);font-weight:600;" +
           (touch ? "min-height:50px;padding:0 14px;font-size:14px" : "min-height:40px;padding:0 14px;font-size:13px"),
         askAgentThread: () => this.goAgentWith("thread “" + thread.subject + "”"),
-        askAgentCase: () => this.goAgentWith("case “" + kase.title + "”"),
         agentCtxShown: !!(st.agentCtx || (activeConv && activeConv.ctx && !st.agentCtxCleared)),
         agentInputRef: this.agentInputRef,
         agentCtxLabel: st.agentCtx || (activeConv ? activeConv.ctx : "") || "",

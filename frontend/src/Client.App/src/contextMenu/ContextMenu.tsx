@@ -10,8 +10,8 @@ import { useScreenLayer } from '../shell/screenLayers';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
 import { placedWithin, type MenuPoint } from './menuPlacement';
 
-// What a row answers a press with, which the design draws on seven of its lists: a header naming the row, then
-// the acts that row offers, the one that cannot be taken back drawn as what it is. It is one component for all seven
+// What a row answers a press with, which the design draws on six of its lists: a header naming the row, then
+// the acts that row offers, the one that cannot be taken back drawn as what it is. It is one component for all six
 // rather than a menu per screen, because a second arrangement of a header and a column of items is how a client comes
 // to have two menus that resemble each other — and because what a menu *is* has nothing to do with what a row holds.
 //

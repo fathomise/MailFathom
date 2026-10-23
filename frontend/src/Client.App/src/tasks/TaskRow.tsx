@@ -24,7 +24,7 @@ import { wordReminderCount } from '../reminders/reminderWords';
 //
 // **It answers a press exactly as every other list in this client does**, through `contextMenu/rowPress.ts` rather
 // than through a gesture of its own, and through `ContextMenu` above it rather than a second menu — the design gives
-// all seven of its lists one behaviour.
+// all six of its lists one behaviour.
 //
 // **The row is not an option, and that is a correctness decision rather than a preference.** Every other selectable
 // list here is a `listbox` of rows carrying no controls; a task row carries four, and ARIA refuses interactive content

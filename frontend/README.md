@@ -436,19 +436,15 @@ client's file types. Prettier reads it: its CLI respects `.editorconfig` by defa
 those values in a second file that would drift. Prettier's own configuration here is `.prettierignore` and nothing
 more.
 
-## Seven spaces, one frame, and no router
+## Six spaces, one frame, and no router
 
-The client is **Discover**, **Mail**, **Cases**, **Agent**, **Tasks**, **Calendar**, and **People**, and they are one
-application rather than seven: `src/App.tsx` is the frame that holds them, and it is what a person carries their
-question, their scope, and their selection across. **Discover**, **Mail**, **Agent**, **Tasks**, **Calendar**, and
-**People** are built — `src/routing/spaces.ts` names the six in `implementedSpaces` — and **Cases** is present, named as
-a placeholder, and says in a sentence that there is nothing behind it yet. They are drawn rather than hidden because the
-design is what the client is measured against and it shows all seven; a rail with six destinations would be a
-different product from the one that was designed. A built space is also the only kind that is reached under a grant:
-**People** is offered to a credential that may read the address book, **Calendar** and **Tasks** to one that may read
-mail — which is the grant the calendar and task routes themselves are published under — **Discover** and **Agent** to
-one that may ask questions of it, and a placeholder is reached by anybody, which is why a screen is not. **Tasks** asks a second question of its own rather than being reached under a
-second grant: arranging the day is a provider call, so the screen asks whether the credential may ask at all and
+The client is **Discover**, **Mail**, **Agent**, **Tasks**, **Calendar**, and **People**, and they are one application
+rather than six: `src/App.tsx` is the frame that holds them, and it is what a person carries their question, their
+scope, and their selection across. `src/routing/spaces.ts` names them in the order the design draws them. Each is
+reached under a grant: **People** is offered to a credential that may read the address book, **Calendar** and
+**Tasks** to one that may read mail — which is the grant the calendar and task routes themselves are published under —
+and **Discover** and **Agent** to one that may ask questions of it. **Tasks** asks a second question of its own rather
+than being reached under a second grant: arranging the day is a provider call, so the screen asks whether the credential may ask at all and
 whether this deployment arranges one, and draws that control only where both answer yes.
 The frame is one tree laid out by the width it is given, and nothing in it reads which head or which platform it is
 running on. Three `@theme` breakpoints decide it, and between them they give the four compositions the design
@@ -556,7 +552,7 @@ the client would stop looking like one product, and a second copy of the windowi
 on what a row measures.
 
 `src/contextMenu/` is what a row offers, and it is one component rather than a menu per list because the design draws
-the same one on seven of them. Two gestures open it and each is the platform's own: the second button under a fine
+the same one on six of them. Two gestures open it and each is the platform's own: the second button under a fine
 pointer, replacing the browser's own menu, and a press held under a coarse one, which cancels past a small drift rather
 than on any movement — a finger resting on glass reports jitter — and suppresses the tap it would otherwise have been,
 so a finger that meant to open a message does, and one that meant to ask what the row offers never does both. `rowPress.ts` is those two openers, and `menuPlacement.ts` keeps the panel inside the pane,

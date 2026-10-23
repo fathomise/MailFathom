@@ -8,7 +8,7 @@ import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { useLocalization } from '../localization/useLocalization';
 import { useAgentHandOver } from '../routing/agentHandOver';
 
-// What one event offers, which is this screen's own items handed to the one menu seven lists share: where the menu
+// What one event offers, which is this screen's own items handed to the one menu six lists share: where the menu
 // stands, how it is walked, and how it is left are `contextMenu/ContextMenu.tsx`'s.
 //
 // ***Ask the agent* hands this event over to the agent**, and is drawn only where this credential has an agent to

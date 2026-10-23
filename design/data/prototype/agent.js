@@ -43,7 +43,7 @@
     { d: 300, u: "Anna Kowalska is pressing on the addendum. Go through the thread and get me a reply." },
     { d: 450, s: "Reading your request" },
     { d: 950, s: "Searching 3 accounts for the thread" },
-    { d: 1150, b: { scope: "3 accounts · mail, calendar, cases", text: "Found it - “Contract addendum - signatures”. 6 messages since 18 August, 3 attachments." } },
+    { d: 1150, b: { scope: "3 accounts · mail, calendar", text: "Found it - “Contract addendum - signatures”. 6 messages since 18 August, 3 attachments." } },
     { d: 600, s: "Reading 6 messages" },
     {
       d: 1700, b: { scope: "thread · 6 messages", text: "Here is where the thread actually stands." },
@@ -57,7 +57,7 @@
       },
     },
     { d: 500, s: "Opening 3 attachments" },
-    { d: 1400, s: "Checking them against case CN-114" },
+    { d: 1400, s: "Checking them against the framework contract" },
     {
       d: 1500,
       k: {
@@ -65,7 +65,7 @@
         items: [
           { n: "1", source: "Contract addendum - signatures", badge: "mail", snippet: "“…indexation by the CPI published for the previous year…”", relevance: "94%", freshness: "yesterday · Anna Kowalska" },
           { n: "2", source: "CPI addendum 2023.pdf", badge: "attachment", snippet: "“Indexation shall not exceed 5% per year.”", relevance: "91%", freshness: "18 August · attachment" },
-          { n: "3", source: "Case CN-114 - framework contract", badge: "case", snippet: "“Response time 4 h, penalty 0.2% of the monthly fee.”", relevance: "86%", freshness: "March · case file" },
+          { n: "3", source: "Framework contract.pdf", badge: "attachment", snippet: "“Response time 4 h, penalty 0.2% of the monthly fee.”", relevance: "86%", freshness: "March · attachment" },
         ],
       },
     },
@@ -73,7 +73,7 @@
     { d: 1500, b: { scope: "reading · 3 sources", text: "" } },
     { d: 700, p: "**Short version:** the cap you already agreed has quietly disappeared. The 2023 addendum says:\n\n> Indexation shall not exceed 5% per year.\n\nThe new draft only points at *the CPI published for the previous year*, with no ceiling on it at all." },
     { d: 1500, p: "**That matters more than the 8% headline does.** At the 4.1% forecast the first year costs you roughly the same either way - but with no cap, a repeat of 2022 would push the fee up by a fifth in one step, and nothing in the framework contract stops it." },
-    { d: 800, s: "Checking the penalty in case CN-114" },
+    { d: 800, s: "Checking the penalty in the framework contract" },
     { d: 1700, p: "The response time is the smaller trade:\n\n- **Critical incidents:** response drops from 4 h to 2 h\n- **Penalty:** stays at `0.2%` of the monthly fee - the same figure as in the framework contract\n\nSo no new exposure there." },
     { d: 700, s: "Putting my reading together" },
     { d: 1600, p: "## My reading\n\n1. Take the **8%**.\n2. Insist the **5% cap** comes back in writing.\n3. Leave the penalty alone.\n\nThat keeps the whole thing closable by **28 August**, the date you already promised Anna." },
@@ -222,43 +222,6 @@
       ],
     },
     {
-      id: "c-cases", title: "Status of open cases", when: "14:15",
-      msgs: [
-        { role: "user", text: "Status of open cases", ts: atToday(14, 15) },
-        {
-          role: "bot", ts: atToday(14, 15), scope: "3 cases in progress",
-          text: "The Contoso 2027 renegotiation is the hot one - one open question, decision tomorrow. Here is where the versions differ.",
-          blocks: [
-            {
-              type: "facttable", meta: "Contoso renegotiation",
-              cols: ["Version", "Price", "SLA", "Indexation"],
-              rows: [
-                ["v2 · 12.04.2021", "€1,200 / mo", "4 h", "CPI, no cap"],
-                ["v3 · 18.11.2025", "€1,296 / mo", "2 h", "CPI, no cap"],
-                ["v4 · proposed", "€1,296 / mo", "2 h", "CPI, 5% cap"],
-              ],
-            },
-            {
-              type: "attachments", meta: "3 documents",
-              items: [
-                { name: "SLA addendum.pdf", icon: "picture_as_pdf", meta: "18.11.2025 · 240 kB" },
-                { name: "Calculation_2027.xlsx", icon: "table_chart", meta: "yesterday · Marta Nowak" },
-                { name: "Legal opinion - indexation.docx", icon: "description", meta: "05.09 · Wrona Law Office" },
-              ],
-            },
-            {
-              type: "action", meta: "one step", phase: "pending",
-              title: "Attach the legal opinion to the Contoso 2027 case",
-              reason: "The opinion answers the open question about the indexation cap and is not in the case file.",
-              effect: "Adds the document to the case - nothing is sent to anyone.",
-              cta: "Attach it", done: "Attached to Contoso 2027",
-              nav: [{ label: "Open the case", icon: "folder_open", kind: "case" }],
-            },
-          ],
-        },
-      ],
-    },
-    {
       id: "c-thread", title: "Contract addendum - what is agreed", when: "15:40",
       ctx: "thread “Contract addendum - signatures”",
       msgs: [
@@ -302,10 +265,10 @@
             },
             {
               type: "action", meta: "one step", phase: "accepted", failed: true,
-              title: "Add the 12.11 date to the Fabrikam case",
-              effect: "Writes the date into the case file.",
+              title: "Label the Fabrikam thread with the 12.11 date",
+              effect: "Adds a label to the thread.",
               cta: "Add it",
-              result: "Could not add it - the case server rejected the write · 07:31",
+              result: "Could not add it - the mail server rejected the write · 07:31",
             },
           ],
         },
@@ -382,36 +345,6 @@
         { n: "2", title: "CPI calculation 2027", snippet: "“A 4.1% CPI forecast adds €10,542…”", meta: "yesterday · Marta Nowak", tid: "marta" },
       ],
     },
-    {
-      match: /case|status|contoso 2027|in progress/i,
-      scope: "3 cases in progress",
-      text: "The hottest one is the Contoso 2027 renegotiation - one open question and a decision tomorrow. Fabrikam and the audit have deadlines next week.",
-      bullets: [],
-      blocks: [
-        {
-          type: "facttable", meta: "Contoso renegotiation",
-          cols: ["Version", "Price", "SLA", "Indexation"],
-          rows: [
-            ["v2 · 12.04.2021", "€1,200 / mo", "4 h", "CPI, no cap"],
-            ["v3 · 18.11.2025", "€1,296 / mo", "2 h", "CPI, no cap"],
-            ["v4 · proposed", "€1,296 / mo", "2 h", "CPI, 5% cap"],
-          ],
-        },
-        {
-          type: "action", meta: "one step", phase: "pending",
-          title: "Attach the legal opinion to the Contoso 2027 case",
-          reason: "The opinion answers the open question about the indexation cap and is not in the case file.",
-          effect: "Adds the document to the case - nothing is sent to anyone.",
-          cta: "Attach it", done: "Attached to Contoso 2027",
-          nav: [{ label: "Open the case", icon: "folder_open", kind: "case" }],
-        },
-      ],
-      sources: [
-        { n: "1", title: "Contract addendum - signatures", snippet: "“Response time drops from 4 to 2 hours, fee +8%…”", meta: "18.11.2025 · SLA addendum.pdf", tid: "contoso" },
-        { n: "2", title: "Q4 delivery dates", snippet: "“Delivery moved to 12.11…”", meta: "yesterday · Tomasz Bąk", tid: "fabrikam1" },
-        { n: "3", title: "Contract register request", snippet: "“Please send a complete list of IT contracts for 2024-2026…”", meta: "yesterday · Internal Audit", tid: "audyt1" },
-      ],
-    },
   ];
 
   const AGENT_FALLBACK = {
@@ -447,7 +380,6 @@ MailFathomDesign.data.starterChips = [
   { label: "Plan my day", id: "c-plan" },
   { label: "What slipped this week?", id: "c-slip" },
   { label: "Draft a reply to Contoso", id: "c-draft" },
-  { label: "Status of open cases", id: "c-cases" },
 ];
 
 // What the agent answers when a proposed time is turned down.

@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocalization } from '../localization/useLocalization';
 import { MailSpace } from '../mailSpace/MailSpace';
-import { implementedSpaces, spaceLabels, type Space as SpaceName } from '../routing/spaces';
+import { spaceLabels, type Space as SpaceName } from '../routing/spaces';
 import { SpaceInFrontContext } from './screenLayers';
 import { useWideWorkspace } from './useWideWorkspace';
 
@@ -140,17 +140,11 @@ export function Space({
                 const isMail = name === 'mail';
                 const isDiscover = name === 'discover';
                 const isAgent = name === 'agent';
-                const isTasks = name === 'tasks';
-                const isPeople = name === 'people';
 
                 // The three spaces that compose one shape: their own columns with the connection at the foot. Picking
                 // the node here rather than branching on the name three times in the markup is what
-                // keeps the choice below readable as three cases instead of five.
-                const ownColumns = isTasks ? tasks : isPeople ? people : name === 'calendar' ? calendar : null;
-
-                // Which spaces compose their own height rather than scrolling a column of prose. Every built space
-                // does, and a placeholder does not — what it holds is a title and a sentence.
-                const composed = isMail || isDiscover || isAgent || ownColumns !== null;
+                // keeps the choice below readable as four cases instead of six.
+                const ownColumns = name === 'tasks' ? tasks : name === 'people' ? people : calendar;
 
                 return (
                     <main
@@ -160,11 +154,9 @@ export function Space({
                         aria-label={translate(spaceLabels[name])}
                         aria-hidden={inFront ? undefined : true}
                         inert={!inFront}
-                        className={`${
-                            composed
-                                ? 'flex min-h-0 flex-col overflow-hidden'
-                                : 'overflow-y-auto px-4 py-6 workspace:px-8'
-                        } ${inFront ? `flex-1 ${moved ? 'animate-space-arrival' : ''}` : 'invisible absolute inset-0'}`}
+                        className={`flex min-h-0 flex-col overflow-hidden ${
+                            inFront ? `flex-1 ${moved ? 'animate-space-arrival' : ''}` : 'invisible absolute inset-0'
+                        }`}
                     >
                         <SpaceInFrontContext value={inFront}>
                             {/* A built space whose columns are what it is carries no title here, which is how the
@@ -193,20 +185,6 @@ export function Space({
                                     status={inFront ? status : null}
                                     person={person}
                                 />
-                            ) : ownColumns === null ? (
-                                <div className="flex max-w-3xl flex-col gap-3">
-                                    <h1 className="text-4xl font-semibold tracking-tighter">
-                                        {translate(spaceLabels[name])}
-                                    </h1>
-
-                                    {inFront ? status : null}
-
-                                    {/* The note belongs to a space that holds nothing, which is every space no issue
-                                        has built yet. */}
-                                    {implementedSpaces.includes(name) ? null : (
-                                        <p className="text-base text-muted">{translate('space.pending')}</p>
-                                    )}
-                                </div>
                             ) : (
                                 /* A space that composes its own columns, which is Tasks, People and Calendar. The
                                    connection stands at its foot and is handed to the one in front alone, exactly as it

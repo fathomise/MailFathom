@@ -14,7 +14,6 @@ import type { Space } from '../routing/spaces';
 export const spaceIcons: Readonly<Record<Space, IconName>> = {
     discover: 'explore',
     mail: 'mail',
-    cases: 'topic',
     agent: 'auto_awesome',
     tasks: 'task_alt',
     calendar: 'calendar_month',

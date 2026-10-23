@@ -4,7 +4,7 @@
 
 import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
-import { addressOf, implementedSpaces, spaceLabels, type Space } from '../routing/spaces';
+import { addressOf, spaceLabels, type Space } from '../routing/spaces';
 import { useTopLayerSurface } from './screenLayers';
 import { NavigationMark } from './NavigationMark';
 import { spaceIcons } from './spaceIcons';
@@ -52,7 +52,7 @@ export function SpaceOverflow({
     const { translate } = useLocalization();
 
     // Marked while what is on the screen is behind it, which is what keeps the bar honest about where the reader is:
-    // three of seven spaces are drawn in it, and without this the other four would leave the whole bar unmarked. It is
+    // three of six spaces are drawn in it, and without this the other three would leave the whole bar unmarked. It is
     // `aria-current="true"` rather than `page`, which is the row inside the sheet — this says *the current one of these
     // five places*, which is what it is.
     const holdsCurrent = current !== null && spaces.includes(current);
@@ -113,20 +113,14 @@ export function SpaceOverflow({
 
 function OverflowLink({ space, current }: { readonly space: Space; readonly current: boolean }) {
     const { translate } = useLocalization();
-    const built = implementedSpaces.includes(space);
     const name = translate(spaceLabels[space]);
 
     return (
         <a
             href={addressOf(space)}
             aria-current={current ? 'page' : undefined}
-            // A placeholder says what it is in its own name here too, for the reason the bar's links do: the sentence
-            // is read on the one link it is true of rather than beside every other item.
-            aria-label={built ? undefined : translate('space.notBuiltYet', { space: name })}
             className={`flex min-h-13 items-center gap-4 rounded-md px-3.5 transition ${
-                current
-                    ? 'bg-accent-soft font-semibold text-accent-deep'
-                    : `hover:bg-hover ${built ? 'text-text' : 'text-muted'}`
+                current ? 'bg-accent-soft font-semibold text-accent-deep' : 'text-text hover:bg-hover'
             }`}
         >
             <Icon name={spaceIcons[space]} className="size-icon-xl" />

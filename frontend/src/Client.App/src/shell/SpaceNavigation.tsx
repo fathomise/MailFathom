@@ -6,7 +6,7 @@ import type { PointerEvent, ReactNode } from 'react';
 import { BrandMark } from '../controls/BrandMark';
 import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
-import { addressOf, barSpaces, implementedSpaces, overflowSpaces, spaceLabels, type Space } from '../routing/spaces';
+import { addressOf, barSpaces, overflowSpaces, spaceLabels, type Space } from '../routing/spaces';
 import { spaceIcons } from './spaceIcons';
 import { NavigationMark } from './NavigationMark';
 import { SpaceOverflow } from './SpaceOverflow';
@@ -17,18 +17,13 @@ import { useWideWorkspace } from './useWideWorkspace';
 // width — everything the rail offers is reachable from the bar too, which is what makes the two shapes one navigation.
 //
 // **The two shapes hold a different number of things, and that is the one part CSS cannot lay out.** A rail has room
-// for all seven spaces, the bell, and the account down the side of the window. A bar has five places across the foot
+// for all six spaces, the bell, and the account down the side of the window. A bar has five places across the foot
 // of it, and the design spends them on three spaces, the bell, and an overflow — so what the bar has no room
 // for stands in a sheet behind that fifth item rather than being hidden by width, which is what the width question is
 // asked for. Which three the bar carries is `routing/spaces.ts`, beside the order they are drawn in.
 //
 // Which destinations there are at all is the session's answer rather than this component's: a space this credential
 // may not open is absent from both shapes, because offering it would offer an action the deployment is going to refuse.
-//
-// A space with nothing behind it yet is present and says so. The design shows seven, so drawing three would
-// make this a different product from the one that was designed; drawing all seven as though they worked would be
-// worse. What separates them is the name the link carries and the weight it is drawn at, and the screen it opens says
-// the same thing in a sentence.
 //
 // Links rather than buttons, because these navigate: the browser then supplies the keyboard path, the history entry,
 // and opening one in a window of its own, none of which a click handler would have.
@@ -131,16 +126,12 @@ export function SpaceNavigation({
 
 function SpaceLink({ space, current }: { readonly space: Space; readonly current: boolean }) {
     const { translate } = useLocalization();
-    const built = implementedSpaces.includes(space);
     const name = translate(spaceLabels[space]);
 
     return (
         <a
             href={addressOf(space)}
             aria-current={current ? 'page' : undefined}
-            // A placeholder says what it is in its own name rather than in a note beside it: the name is what a screen
-            // reader announces on the link, and it is the one place the sentence is not read on every other item too.
-            aria-label={built ? undefined : translate('space.notBuiltYet', { space: name })}
             // In the rail each destination is a tile inset from both edges, so two neighbours never meet across a
             // dark gap and the current one needs no edge bar to stand out — the tint and the weight carry it. The
             // bottom bar marks it with the pill behind the symbol instead.
@@ -150,7 +141,7 @@ function SpaceLink({ space, current }: { readonly space: Space; readonly current
             className={`group flex flex-1 flex-col items-center gap-1 rounded-xl px-0.5 py-1.5 text-sm transition workspace:mx-1.75 workspace:flex-none workspace:px-0 workspace:gap-1 workspace:rounded-lg workspace:py-2 desktop:py-2.25 workspace:low:min-h-9 workspace:low:justify-center workspace:low:py-1 workspace:low:pointer-coarse:min-h-11 workspace:low:pointer-coarse:py-0 ${
                 current
                     ? 'font-semibold text-accent-deep workspace:bg-accent-soft'
-                    : `hover:bg-hover hover:text-text ${built ? 'text-muted' : 'text-faint'}`
+                    : 'text-muted hover:bg-hover hover:text-text'
             }`}
         >
             <NavigationMark current={current}>

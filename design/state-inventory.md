@@ -11,7 +11,7 @@ state in an artboard changes this file in the same pull request. `design/README.
 
 | Artboard | What it settles |
 |---|---|
-| `prototype.dc.html` | The whole signed-in application: seven screens, every overlay, every composition, and the only artboard that carries navigation. Its logic is `logic/prototype/component.js` and its sample data `data/prototype/` |
+| `prototype.dc.html` | The whole signed-in application: six screens, every overlay, every composition, and the only artboard that carries navigation. Its logic is `logic/prototype/component.js` and its sample data `data/prototype/` |
 | `client-states.dc.html` | The error, empty, waiting, refusal and in-flight states the client renders and the prototype does not draw, one artboard per state at every composition |
 | `sign-in.dc.html` | Sign-in, and the server screen behind it |
 | `toasts.dc.html` | Toasts and the blocking overlay — the system's answer to what somebody just did |
@@ -120,7 +120,7 @@ the window less the rail.
 | `paneNarrow` | `paneW < 560` | The state cards stand in one column; the head's *Reply*, *Forward* and *Flag* become their glyphs in 34 px boxes (44 under a finger), named by title |
 | The reading column | `paneW > 924` | The head, the state bar and the thread stand in an 880 px column centred in the pane: their side padding is `max(22px, calc((100% - 880px) / 2))`. A table in a message keeps to the column at every pane width: its cells share the width and wrap, so the pane never scrolls sideways |
 
-The Agent's thread and field centre the same way on their own pane, at 1290 px — `max(26px, calc((100% - 1290px) / 2))` — and a person, a case, and the task list, whose columns and figures want more than a message does, at 1160 px — `max(24px, calc((100% - 1160px) / 2))` on their head and body (`personHeadStyle`, `personBodyStyle`, `caseHeadStyle`, `caseBodyStyle`, and `tasksMainStyle` at 26 px, whose percentage is the whole body's and so leaves out the 310 px side column beside it). None of the three reaches the 1440 px desktop, whose panes are narrower than the column.
+The Agent's thread and field centre the same way on their own pane, at 1290 px — `max(26px, calc((100% - 1290px) / 2))` — and a person and the task list, whose columns and figures want more than a message does, at 1160 px — `max(24px, calc((100% - 1160px) / 2))` on their head and body (`personHeadStyle`, `personBodyStyle`, and `tasksMainStyle` at 26 px, whose percentage is the whole body's and so leaves out the 310 px side column beside it). Neither reaches the 1440 px desktop, whose panes are narrower than the column.
 
 ### The matrix read through the three axes
 
@@ -236,12 +236,12 @@ screenshot shows none of this, so the numbers are the contract the client matche
 | `scrim` | the colour fades up from transparent, base, ease-out | fades back to transparent, base, ease-in | every backdrop: the drawer, both sheets, every dialog, the context menu, Settings on two panes |
 | `sheet` | from 100 % below its place, slow, ease-sheet | back down 100 %, slow, ease-in | the thread actions sheet (`threadSheetOpen`), the *More* sheet (`moreOpen`), and on the phone every full-screen surface: compose, the form dialogs, Settings on one pane; the AI reading wherever it fills the screen, the fold included |
 | `drawer` | from 100 % to the left, slow, ease-sheet | back out to the left, slow, ease-in | the folder list where it is a drawer (`showSide` under `drawer`) |
-| `pop` | from opacity 0 at 96 % scale, fast, ease-out | to opacity 0 at 96 %, fast, ease-in | the context menu (`ctxMenuOpen`), the user menu (`userMenuOpen`), the return pill (`convReturnShown`), every short question at every width — discarding a draft (`closeAskOpen`), the send warnings (`sendAskOpen`), deleting a folder, a conversation or an item (`delFolderOpen`, `deleteConvAskOpen`, `confirmDelOpen`), closing every tab (`closeAllAsk`), aborting a running operation (`cancelAskOpen`), showing the original message (`htmlAskOpen`) — and off the phone every dialog (new folder, new case, new task, new event, new contact, reminder, move, AI summary, event) and Settings on two panes |
+| `pop` | from opacity 0 at 96 % scale, fast, ease-out | to opacity 0 at 96 %, fast, ease-in | the context menu (`ctxMenuOpen`), the user menu (`userMenuOpen`), the return pill (`convReturnShown`), every short question at every width — discarding a draft (`closeAskOpen`), the send warnings (`sendAskOpen`), deleting a folder, a conversation or an item (`delFolderOpen`, `deleteConvAskOpen`, `confirmDelOpen`), closing every tab (`closeAllAsk`), aborting a running operation (`cancelAskOpen`), showing the original message (`htmlAskOpen`) — and off the phone every dialog (new folder, new task, new event, new contact, reminder, move, AI summary, event) and Settings on two panes |
 | `rise` | from opacity 0, 18 px below, base, ease-out | back down 18 px to opacity 0, base, ease-in | the composer where it docks over the screen rather than filling a pane, and the reply drafter hanging over a thread (`replyDockOpen`) |
 | `fade` | from opacity 0, base, ease-out | to opacity 0, base, ease-in | the composer in a pane, the list replacing its skeleton (`listReady`), the composer body on restore (`composeExpanded`) |
 | `veil` | at once | fades out, base, ease-out | the message skeleton (`msgLoading`) laid over a thread that is already there |
-| `push` | from opacity 0, 48 px to the right, slow, ease-sheet | — | one pane at a time: the thread (`showThreadPane` under `singlePane`), a case and a person (under `isMobile`) when it is opened from its list |
-| `back` | from opacity 0, 48 px to the left, slow, ease-sheet | — | the same three lists when *Back* returns to them |
+| `push` | from opacity 0, 48 px to the right, slow, ease-sheet | — | one pane at a time: the thread (`showThreadPane` under `singlePane`), a person (under `isMobile`) when it is opened from its list |
+| `back` | from opacity 0, 48 px to the left, slow, ease-sheet | — | the same two lists when *Back* returns to them |
 | `screen` | from opacity 0, 6 px below, base, ease-out | — | each space's root when the rail or the bottom navigation switches to it |
 | `disclose` | from no height and opacity 0, base, ease-out | back to no height, base, ease-in | the list's filters (`filtersOpen`), so the list under them moves with them; an engine that cannot interpolate a height to `auto` fades the band in place instead |
 | `unfold` | from opacity 0, 10 px above its place, base, ease-out | back up 10 px to opacity 0, base, ease-in | the earlier messages of a conversation shown by its pill (`histUnfolded`) and folded away by it (`histFolding`); the message being read stays still |
@@ -269,7 +269,7 @@ desktop composition steps back the same way a phone does, and what differs is on
 | Press | What it takes away |
 |---|---|
 | A surface stands over the screen | That surface: the drawer, a sheet, the composer, a dialog, Settings, a menu, the notification centre |
-| A view stands where another was | That view, as its own *Back* does: the thread in front of the list (`singlePane`), a case or a person in front of its list (`isMobile`) |
+| A view stands where another was | That view, as its own *Back* does: the thread in front of the list (`singlePane`), a person in front of its list (`isMobile`) |
 | Nothing stands in the space | The space, back to the one before it — closing every surface still open, as switching space does |
 
 Each thing standing records one history entry at the same address, and a press consumes one; a surface closed by its
@@ -312,8 +312,8 @@ the block set to build against; `ai-blocks.dc.html` is where the block types sta
 together. **Discover draws them read-only.** The same catalogue with controls on it is the Agent's,
 and the blocks screen carries both halves — see *Agent* below. Discover's blocks wear the Agent's chrome
 (`blk`, built from the same `BLK` as `bkView`): the card, the icon-tile header, the timeline's rail of dots, and
-for the proposed action a pending card with its *needs confirmation* chip in the header and *Save as Case* and
-*Dismiss* on an `--accent-soft` footer tray. The Answer keeps its prominence through an accent icon tile rather
+for the proposed action a pending card with its *needs confirmation* chip in the header and *Dismiss* on an
+`--accent-soft` footer tray. The Answer keeps its prominence through an accent icon tile rather
 than the 3 px accent edge it used to carry.
 
 ## Mail — `isMail`
@@ -444,7 +444,7 @@ Added to the prototype after this inventory was first written, and read against 
 | State | Flag | Reveal |
 |---|---|---|
 | Selection running | `selectionOn` | one or more rows selected; it *replaces* the toolbar |
-| Selection bar | `selBarShown` | the same, and it appears on five screens, not only mail |
+| Selection bar | `selBarShown` | the same, and it appears on five screens, not only mail — Mail, Tasks, Calendar, People, and the Agent's conversation list |
 | Search idle | `listSearchIdle` | `!st.listSearchOn` |
 | Search active | `listSearchActive` | the search control |
 | Filters open | `filtersOpen` | the filter control |
@@ -504,21 +504,6 @@ menu's *Tab mode* switch is turned on at a width of at least 1180 px**.
 | Close one | `closeAskOpen` | closing a tab with unsaved work |
 | Close all | `closeAllAsk` | the close-all control |
 | The row does not fit | `tabsRowNote` | `w < 1180`, and it says *available on a wider screen* |
-
-## Cases — `isCases`
-
-| State | Flag | Reveal |
-|---|---|---|
-| List | `showCaseList` | `!isMobile \|\| casePane !== "detail"` |
-| Detail | `showCaseDetail` | `!isMobile \|\| casePane === "detail"` |
-| Back | `showCaseBack` | `isMobile && casePane === "detail"` |
-| Full head | `caseHeadFullShown` | `!isMobile`, or the detail has not been scrolled |
-| Head actions | `caseHeadActionsShown` | `!isMobile` |
-| Fact head | `caseFactHeadShown` | `!isMobile` |
-| Extra asks | `caseAskExtrasShown` | `!isMobile` |
-| **No documents** | `caseNoDocs` | the case's `docs` is empty — true of no case in the mock data |
-| New case | `newCaseOpen` | the new-case control |
-| Its search results | `csFoundShown` | searching inside the new-case dialog |
 
 ## Tasks — `isTasks`
 
@@ -697,9 +682,9 @@ with its own `aria-label` naming the object, and on touch they stack full width 
 user's own line into the conversation, and comes back with the same proposal at a new hour, pending
 again.
 
-**The starter chips open a seeded conversation** rather than asking the question (`agentChips`). Seven conversations are seeded, and two exist for states nothing else reaches:
+**The starter chips open a seeded conversation** rather than asking the question (`agentChips`). Six conversations are seeded, and two exist for states nothing else reaches:
 `c-states`, whose blocks came back loading, error, empty, partial and failed, and `c-invoice`, which
-is archived. Four chips open one of them; the fifth is *Real example*, which carries `play_arrow` and
+is archived. Three chips open one of them; the fourth is *Real example*, which carries `play_arrow` and
 plays the script above instead of opening anything.
 
 ### States the blocks screen holds and the prototype does not
@@ -711,7 +696,7 @@ type and phase. Its `state` property — `ready`, `loading`, `partial`, `empty`,
 drives every card at once, so the empty and error wording of each type is reachable there and
 nowhere else. It also states the rule for which types earn a proposal block at all: `Event proposal` and
 `Task proposal` exist only because the object has to be seen and corrected before it is approved, and moving
-to a folder, marking as read, adding to a case and closing a case stay a one-line `Suggested action`.
+to a folder and marking as read stay a one-line `Suggested action`.
 
 ## Chrome that stands over every screen
 
@@ -736,8 +721,8 @@ to a folder, marking as read, adding to a case and closing a case stay a one-lin
 | Refresh | `refreshAll` / `refreshBusy` | the `refresh` control in the rail, titled *Refresh* (44 px under a finger), and on the phone the *Refresh* row of the *More* sheet (`moreRefresh`), which closes the sheet as it starts — it re-reads the mail in front of the reader and the notification centre, pulses its glyph (`mfpulse`, 1 s) rather than spinning while it waits, and refuses a second press until the re-read lands |
 | Move dialog | `moveOpen` | the move action on a selection — grouped by mailbox (`moveGroups`), each group ending in *New folder here*, and the toast it produces names the mailbox |
 | Permanent delete | `confirmDel` under `inTrash` | a delete action while the open folder is a Trash — *Delete permanently*, no undo offered, and the toast reads *Permanently deleted* rather than *Moved to trash* |
-| The rail's nav scrolls | `railNavStyle` | a viewport too short for the seven destinations — the nav scrolls and the bottom cluster stays pinned |
-| The *More* sheet | `moreOpen` / `moreItems` | the phone's *More* — *Tasks*, *Cases*, *Calendar* and *People*, the current one on `--accent-soft`, then under a rule *Refresh* (`moreRefresh`) and *Settings* (`moreSettings`); every row 52 px |
+| The rail's nav scrolls | `railNavStyle` | a viewport too short for the six destinations — the nav scrolls and the bottom cluster stays pinned |
+| The *More* sheet | `moreOpen` / `moreItems` | the phone's *More* — *Tasks*, *Calendar* and *People*, the current one on `--accent-soft`, then under a rule *Refresh* (`moreRefresh`) and *Settings* (`moreSettings`); every row 52 px |
 | A rail destination | `railBase` / `activeStyle` | on the phone a bottom-bar place whose glyph sits in a 56 × 32 px pill, filled `--accent-soft` on the current one (`--nav-mark`); on the rail a tile inset 7 px from either side of the rail on a 12 px radius, 4 px apart (2 px below 1020) — the current one on `--accent-soft` with an accent glyph and a semibold label, hover on `--hover`. No full-width slab and no edge bar, so neighbouring tiles never meet across a dark gap |
 | Cancel confirmation | `cancelAskOpen` | closing a toast that carries a running operation |
 | Toasts | `toasts` | any operation that reports; `toasts.dc.html` is the whole of it |
@@ -1006,7 +991,7 @@ This is the class the inventory exists for. Each is in the source, and none of t
 clicking a preview.
 
 - **The application with no mailbox at all.** `const emptyApp = false;` is a constant, and
-  every one of the seven screen gates is `st.screen === "…" && !emptyApp`. Nothing anywhere draws the
+  every one of the six screen gates is `st.screen === "…" && !emptyApp`. Nothing anywhere draws the
   true branch, so **the design does not cover a deployment with no mailbox** — a session that needs
   that screen is designing something the design has not settled, and it is drawn in `design/` first, in a
   change of its own, rather than invented in the client. The folder column alone has one: `m_folders` in the Client States file draws
@@ -1018,8 +1003,8 @@ clicking a preview.
   is `classic`, so a preview opened at any width shows none of it.
 - **The run trace** (`showTrace`). A component property, off unless the property is set.
 - **No sign-in method offered** (`noMethods`). Three properties turned off together — `ssoAvailable` joined `oauthAvailable` and `basicAvailable`.
-- **A case or a person with no documents** (`caseNoDocs`, `personNoDocs`). No mock record has an empty
-  `docs`, so both empty states are drawn by no preview at any click.
+- **A person with no documents** (`personNoDocs`). No mock record has an empty
+  `docs`, so the empty state is drawn by no preview at any click.
 - **No proposals left** (`calNoProposals`). Reachable only by dealing with every proposed slot first.
 - **A conversation archive** (`hasArchived`, `archiveSectionOpen`). Needs a conversation archived first.
 - **The `fold` composition's own case.** 884 px is `compact`, `narrow` and `!singlePane`: two panes with the list

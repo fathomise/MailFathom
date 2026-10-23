@@ -207,10 +207,10 @@ MailFathomDesign.artboards.toasts = (DCLogic, React) => {
           {
             name: "Notification", where: "Badge in the rail and the notification centre", icon: "notifications", c: "var(--warn-text)", soft: "var(--warn-soft)",
             points: [
-              "An event from outside - new mail, calendar, a change in a case.",
+              "An event from outside - new mail, calendar, a task.",
               "Stays until read and has an unread counter.",
               "Can be marked as read or unread.",
-              "A click leads to the thread, event or case.",
+              "A click leads to the thread, event or task.",
             ],
           },
         ].map(c => ({

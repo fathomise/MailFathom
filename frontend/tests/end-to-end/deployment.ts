@@ -63,8 +63,8 @@ export async function goToSpace(page: Page, space: string): Promise<void> {
     const navigation = page.getByRole('navigation', { name: 'Spaces' });
     const link = navigation.getByRole('link', { name: space });
 
-    // The narrow composition hides four of the seven spaces behind an overflow. This suite runs at 1280 by 720, where
-    // the rail carries all seven, so a link that is not there is a failure rather than a case to handle — asserted
+    // The narrow composition hides three of the six spaces behind an overflow. This suite runs at 1280 by 720, where
+    // the rail carries all six, so a link that is not there is a failure rather than a case to handle — asserted
     // here so that it reads as one instead of as a click that timed out.
     await expect(link).toBeVisible();
 

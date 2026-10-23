@@ -9,9 +9,9 @@ import type { CitedAttachment, OpenedAttachment } from './openAttachment';
 import type { OpenConversation } from './openConversation';
 import type { SelectedFragment } from './selectedFragment';
 
-// What a person carries between the spaces. Discover, Mail, and Cases are one application rather than three, and this
-// is what makes them one: the frame owns it, so moving to another space re-renders what is under the frame and leaves
-// every value below untouched.
+// What a person carries between the spaces. The spaces are one application rather than several, and this is what makes
+// them one: the frame owns it, so moving to another space re-renders what is under the frame and leaves every value
+// below untouched.
 //
 // The context and its hook sit apart from the provider that fills them for the reason `localization/useLocalization.ts`
 // gives: a module Vite hot-reloads may export components alone.

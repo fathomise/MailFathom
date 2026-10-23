@@ -382,7 +382,7 @@ MailFathomDesign.artboards.aiBlocks = (DCLogic, React) => {
         tableErrorText: "Could not assemble the table.",
         tableErrorReason: "Mismatched column count between source rows.",
 
-        peopleMeta: peopleItems.length + " people · role in the case",
+        peopleMeta: peopleItems.length + " people · role in the correspondence",
         peopleItems,
         peoplePartialNote: "1 person with an unconfirmed role is missing.",
         peopleEmptyText: "No people linked to this query were found.",

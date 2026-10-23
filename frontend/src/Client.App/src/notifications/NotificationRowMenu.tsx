@@ -8,7 +8,7 @@ import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { useLocalization } from '../localization/useLocalization';
 
 // What a notification row answers a press with. It is this row's items and nothing else: where the menu stands, how it
-// is walked, and how it is left are `contextMenu/ContextMenu.tsx`'s, which is the same component six other lists open.
+// is walked, and how it is left are `contextMenu/ContextMenu.tsx`'s, which is the same component five other lists open.
 //
 // **Picking the row out is first**, because it is the one act a finger has no other route to — there is no modifier
 // key to hold on a touch screen, so the menu is where a selection starts.

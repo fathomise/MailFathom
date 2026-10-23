@@ -29,7 +29,7 @@ import { Departing } from '../shell/Departing';
 // is asked to close instead, so leaving by the keyboard is the same act as leaving by the scrim or by the close
 // control — and travels the same way off the screen rather than vanishing.
 //
-// **The selection is this list's own**, which is what the design says of all seven of its lists: what is
+// **The selection is this list's own**, which is what the design says of all six of its lists: what is
 // picked out here is nothing to what is picked out in the mail list, and it goes when the panel does.
 //
 // **What is drawn is what the deployment answered**, less whatever the reader has marked since. Nothing here filters

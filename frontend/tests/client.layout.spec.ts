@@ -105,13 +105,13 @@ test('puts the navigation beside the workspace in a wide window and under it in 
     // Nothing is hidden by width alone. The bar has five places and spends them on three spaces, the bell, and an
     // overflow, so a space it has no room for is reached through that rather than dropped — which only a browser can
     // say, the platform's own popover being what opens and what closes it.
-    await expect(page.getByRole('link', { name: 'Cases' })).toBeHidden();
+    await expect(page.getByRole('link', { name: 'Tasks' })).toBeHidden();
 
     await page.getByRole('button', { name: 'More' }).click();
-    await expect(page.getByRole('link', { name: 'Cases' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Tasks' })).toBeVisible();
 
     await page.keyboard.press('Escape');
-    await expect(page.getByRole('link', { name: 'Cases' })).toBeHidden();
+    await expect(page.getByRole('link', { name: 'Tasks' })).toBeHidden();
 });
 
 test('moves a keyboard through a narrow window in the order the window shows', async ({ page }) => {
@@ -185,15 +185,15 @@ test('stays usable at the narrowest width a supported head presents', async ({ p
     // destination. Reached rather than dropped is the whole of the claim, so both halves are counted and the sheet is
     // opened to count the second.
     //
-    // Six rather than the seven the design draws, because this corpus states the two permissions the client
+    // Five rather than the six the design draws, because this corpus states the two permissions the client
     // needs to open a frame at all and no more: People is reached under the grant that reads the address book, so a
-    // credential without it meets six destinations at every width. What is being measured here is the width.
+    // credential without it meets five destinations at every width. What is being measured here is the width.
     const bar = page.getByRole('navigation', { name: 'Spaces' });
 
     await expect(bar.getByRole('link')).toHaveCount(3);
 
     await page.getByRole('button', { name: 'More' }).click();
-    await expect(bar.getByRole('link')).toHaveCount(6);
+    await expect(bar.getByRole('link')).toHaveCount(5);
     await expect(page.getByRole('button', { name: 'Account and preferences' })).toBeVisible();
 });
 

@@ -10,7 +10,7 @@ import { useLocalization } from '../localization/useLocalization';
 import type { FolderAct } from './folderActs';
 
 // What a row of the folder column answers a press with. It is this row's items and nothing else: where the menu
-// stands, how it is walked, and how it is left are `contextMenu/ContextMenu.tsx`'s, which is the same component six
+// stands, how it is walked, and how it is left are `contextMenu/ContextMenu.tsx`'s, which is the same component five
 // other lists open.
 //
 // Which items a row offers is `folderActs.ts` read against the grant, and both of those are the column's — a mailbox

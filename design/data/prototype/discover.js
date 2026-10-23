@@ -89,7 +89,7 @@ MailFathomDesign.data.plans = {
     gap: "no email confirmation from the board",
     meta: "run c220 · 18 messages, 3 people",
     trace: "retrieval by people and roles across threads\nrule: who replied in the decision thread\nmodel: summary + PresentationPlan choice",
-    action: "Add the approval to the “Contoso renegotiation” case?",
+    action: "Ask the board to confirm the approval in writing?",
     blocks: ["answer", "people", "action"],
     parts: [
       { text: "The 2023 indexation budget was approved by Marta Nowak in Finance, after Jacek Wrona's legal opinion", cite: "6" },

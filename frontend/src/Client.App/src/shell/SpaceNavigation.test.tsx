@@ -62,7 +62,6 @@ describe('SpaceNavigation', () => {
         expect(everyLink()).toEqual([
             ['Discover', '#/discover'],
             ['Mail', '#/mail'],
-            ['Cases', '#/cases'],
             ['Agent', '#/agent'],
             ['Tasks', '#/tasks'],
             ['Calendar', '#/calendar'],
@@ -70,14 +69,7 @@ describe('SpaceNavigation', () => {
         ]);
     });
 
-    it('says in a placeholder link’s own name that there is nothing behind it yet', () => {
-        atWorkspaceWidth(true);
-        renderNavigation();
-
-        expect(screen.getByRole('link', { name: 'Cases - not built yet' })).toBeDefined();
-    });
-
-    it('leaves a space that is built to be named by what it is, with nothing appended', () => {
+    it('names a space by what it is, with nothing appended', () => {
         renderNavigation();
 
         expect(screen.getByRole('link', { name: 'Mail' })).toBeDefined();
@@ -98,9 +90,9 @@ describe('SpaceNavigation', () => {
 
     it('offers only what it was given, so a space this credential may not open is absent from the rail', () => {
         atWorkspaceWidth(true);
-        renderNavigation(['mail', 'cases']);
+        renderNavigation(['mail', 'tasks']);
 
-        expect(everyLink().map(([name]) => name)).toEqual(['Mail', 'Cases']);
+        expect(everyLink().map(([name]) => name)).toEqual(['Mail', 'Tasks']);
     });
 
     it('places the account control after the spaces, so it is last in the rail', () => {
@@ -157,7 +149,7 @@ describe('SpaceNavigation', () => {
         const sheet = document.getElementById('space-overflow');
         const behindIt = screen.getAllByRole('link', { hidden: true }).filter((link) => sheet?.contains(link) === true);
 
-        expect(behindIt.map((link) => link.textContent)).toEqual(['Tasks', 'Cases', 'Calendar', 'People']);
+        expect(behindIt.map((link) => link.textContent)).toEqual(['Tasks', 'Calendar', 'People']);
         expect(sheet?.contains(screen.getByRole('button', { name: handedTheAccount, hidden: true }))).toBe(true);
     });
 

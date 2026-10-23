@@ -15,7 +15,7 @@ import { useAgentHandOver } from '../routing/agentHandOver';
 
 // What a message row offers, which is the design's own menu for it: picking messages out, answering the
 // message, and the five acts that change the mailbox it is in. It is this row's items and nothing else — where the
-// menu stands, how it is walked, and how it is left are `contextMenu/ContextMenu.tsx`'s, because six more lists draw
+// menu stands, how it is walked, and how it is left are `contextMenu/ContextMenu.tsx`'s, because five more lists draw
 // the same menu with items of their own.
 //
 // **Nothing here performs an act.** Every item routes through the same calls the toolbar presses and reports through
