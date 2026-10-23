@@ -44,7 +44,7 @@ jobs:
   benchmarks:
     name: Hot-path benchmarks
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     continue-on-error: true
     permissions:
       contents: read

@@ -2148,9 +2148,11 @@ answering. A bound turns that into a red check naming the job, after minutes rat
 value sits at roughly four to five times the duration a healthy run of that job was measured at, and
 never below ten minutes. Too high a bound costs one stalled runner's time, while too low a bound
 fails healthy runs on every slow mirror and every suite that grew. Every job a merge-queue check
-waits on stays at or under the queue's own 30 minutes (see [Branch protection](#branch-protection)),
-so a stalled one fails under its own name before the queue gives up on the whole group without
-saying which job held it. A job that calls a reusable workflow cannot declare a bound, so the called
+waits on is bounded at or under the queue's own 30 minutes (see [Branch protection](#branch-protection)),
+so no single job can hold a group past that limit. That is all the bound promises there: the check
+the queue waits on reports only after the jobs it needs, so a job that stalls all the way to its
+bound can still let the queue's timeout fire first, and the group is then removed without naming the
+job that held it. A job that calls a reusable workflow cannot declare a bound, so the called
 workflow's jobs carry it, and the same value then holds in `CI`, `Nightly`, and `Release` alike. A
 bound set by some other reason states it beside the value, as the documentation deploy and the jobs
 in `fathom-review.yml`, `duplicate-definitions.yml`, `end-to-end-client.yml`, `mutation-score.yml`,
