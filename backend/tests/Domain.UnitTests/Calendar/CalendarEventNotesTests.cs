@@ -78,10 +78,10 @@ public sealed class CalendarEventNotesTests
     [Theory]
     [InlineData("Bring\u0000the slides")]
     [InlineData("Bring\u001Bthe slides")]
-    [InlineData("Bring‮the slides")]
-    [InlineData("Bring​the slides")]
-    [InlineData("Bring the slides")]
-    [InlineData("Bring the slides")]
+    [InlineData("Bring\u202Ethe slides")]
+    [InlineData("Bring\u200Bthe slides")]
+    [InlineData("Bring\u2028the slides")]
+    [InlineData("Bring\u2029the slides")]
     public void Create_ACharacterThatCarriesNoGlyph_IsRefused(string value)
     {
         // Act, Assert
