@@ -18,8 +18,9 @@ namespace MailFathom.Evaluations.Enrichment;
 /// </para>
 /// <para>
 /// The corpus supplies the messages with amounts, dates, and undertakings. What it has no example of — a message with
-/// nothing worth writing, a reply whose only request sits in the history it quotes, and a newsletter — comes from
-/// <see cref="WrittenCorpus" />, and the messages written to take the agent over from <see cref="HostileMail" />.
+/// nothing worth writing, a reply whose only request sits in the history it quotes, a request made of the reader by a day
+/// it names, a request of the reader signed above a payment the signer's own organisation owes later, and a newsletter —
+/// comes from <see cref="WrittenCorpus" />, and the messages written to take the agent over from <see cref="HostileMail" />.
 /// </para>
 /// </remarks>
 /// <param name="Name">The name the case is filed and reported under.</param>
