@@ -3,14 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-    wordCalendarDay,
-    wordDueDay,
-    wordInstant,
-    wordInstantRange,
-    wordLasting,
-    wordRecentInstant,
-} from './instants';
+import { wordCalendarDay, wordDueDay, wordInstant, wordInstantRange, wordLasting, wordRecentInstant } from './instants';
 
 // The zone is pinned rather than compared against a formatter built the same way, which is the whole point of this
 // file: an assertion written as `expect(shown).toBe(new Intl.DateTimeFormat(locale, options).format(at))` passes for a

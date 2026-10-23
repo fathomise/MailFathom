@@ -45,8 +45,7 @@ export interface EventDraft {
 
 /** How long a draft lasts, in the unit it was stated in, which is what the form says under its fields. */
 export type DraftedLength =
-    | { readonly unit: 'day'; readonly count: number }
-    | { readonly unit: 'minute'; readonly count: number };
+    { readonly unit: 'day'; readonly count: number } | { readonly unit: 'minute'; readonly count: number };
 
 /** An event with nothing typed into it yet, which is what the new-event dialog opens on. */
 export const nothingDrafted: EventDraft = {

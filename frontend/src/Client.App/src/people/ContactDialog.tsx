@@ -65,8 +65,7 @@ export function ContactDialog({
     const named = draft.displayName.trim() !== '';
     const addressed = draft.address.trim() !== '';
     const usable = !addressed || looksLikeAnAddress(draft.address.trim());
-    const changed =
-        draft.displayName.trim() !== amending?.displayName || draft.address.trim() !== amending.address;
+    const changed = draft.displayName.trim() !== amending?.displayName || draft.address.trim() !== amending.address;
     const savable = named && addressed && usable && changed;
 
     return (

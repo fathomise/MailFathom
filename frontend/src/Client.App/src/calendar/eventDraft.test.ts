@@ -61,7 +61,12 @@ describe('draftOf', () => {
     });
 
     it('reads days that end where their last day closes back as the last day they cover', () => {
-        const days = { ...meeting, start: '2026-09-24T00:00:00+02:00', end: '2026-09-27T00:00:00+02:00', isAllDay: true };
+        const days = {
+            ...meeting,
+            start: '2026-09-24T00:00:00+02:00',
+            end: '2026-09-27T00:00:00+02:00',
+            isAllDay: true,
+        };
 
         expect(draftOf(days)).toMatchObject({ startDay: '2026-09-24', endDay: '2026-09-26' });
     });
@@ -132,9 +137,9 @@ describe('recordOf', () => {
     });
 
     it('takes the spaces off a title and the notes rather than writing them down', () => {
-        expect(recordOf({ ...filled, title: '  Review with Anna  ', notes: '  Room 4\nBring the copy  ' })).toMatchObject(
-            { title: 'Review with Anna', notes: 'Room 4\nBring the copy' },
-        );
+        expect(
+            recordOf({ ...filled, title: '  Review with Anna  ', notes: '  Room 4\nBring the copy  ' }),
+        ).toMatchObject({ title: 'Review with Anna', notes: 'Room 4\nBring the copy' });
     });
 
     it('states no notes where only spaces were typed', () => {
@@ -207,7 +212,10 @@ describe('lengthOf', () => {
     });
 
     it('counts the days a day-long event covers, its first and last included', () => {
-        expect(lengthOf({ ...filled, allDay: true, start: '', endDay: '2026-09-26' })).toEqual({ unit: 'day', count: 3 });
+        expect(lengthOf({ ...filled, allDay: true, start: '', endDay: '2026-09-26' })).toEqual({
+            unit: 'day',
+            count: 3,
+        });
     });
 
     it('states nothing for an event with no end or one that ends before it begins', () => {
