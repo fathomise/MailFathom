@@ -63,6 +63,18 @@ public sealed class ThreadStateInstructionsTests
         Assert.Contains("is a commitment even when it is written as a fact rather than as a promise", text, StringComparison.Ordinal);
     }
 
+    /// <summary>A signature names who wrote a message, and an owner read off it attributes a request to the one who made it.</summary>
+    [Fact]
+    public void Text_TheInstruction_NeverTakesWhoOwesACommitmentFromASignature()
+    {
+        // Act
+        var text = string.Join(' ', ThreadStateInstructions.TextFor(MailAccountLanguage.English).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains("so it never supplies \"owedBy\" on its own", text, StringComparison.Ordinal);
+        Assert.Contains("including one a message asks of the person it is written to", text, StringComparison.Ordinal);
+    }
+
     /// <summary>A citation is a position in the list this deployment composed, so the turn numbers the messages.</summary>
     [Fact]
     public void ComposeThreadTurn_SeveralMessages_NumbersThemInTheConversationsOwnOrder()

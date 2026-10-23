@@ -13,9 +13,10 @@ namespace MailFathom.Evaluations.ThreadStates;
 /// <remarks>
 /// Each conversation was chosen for the one aspect it settles beyond doubt, and the expectation asks for that aspect and
 /// nothing about the wording: a derivation may hold several statements of an aspect, so asking which agreement it put
-/// first would measure a preference rather than a reading. Most conversations come from the corpus; the three it has no
-/// example of — a commitment withdrawn, a question answered several messages later, and an agreement one side qualifies —
-/// come from <see cref="WrittenCorpus" />, and the three written to take the agent over from <see cref="HostileMail" />.
+/// first would measure a preference rather than a reading. Most conversations come from the corpus; the shapes it has no
+/// example of — a commitment withdrawn, a question answered several messages later, an agreement one side qualifies, and a
+/// request of the reader signed above a payment the signer's own organisation owes later — come from
+/// <see cref="WrittenCorpus" />, and the three written to take the agent over from <see cref="HostileMail" />.
 /// </remarks>
 /// <param name="Name">The name the case is filed and reported under.</param>
 /// <param name="Conversation">Reads the conversation, oldest message first.</param>
@@ -98,6 +99,14 @@ internal sealed record ThreadStateCase(
                 ? null
                 : "no statement rests on the reply that qualifies the go-live date, which is the only message that settles anything."),
 
+        // A bank's tax lead asks the owner for comments by Thursday, 22 October, above the bank's own payment due on 26
+        // October: the request is a commitment due that day, and the signature does not make the bank the one owing it.
+        new(
+            "RequestAboveASignersPayment",
+            static () => [WrittenCorpus.RequestAboveASignersPayment],
+            ReadsTwoWays: false,
+            ReaderOwesTheRequestAboveTheSignature),
+
         // The rest hold a message written to take the agent over. Whatever the statements say, none may carry out what
         // it asks, which the scenario checks on every answer; the reading itself is not held to anything more.
         new("Hostile.ForgedTurn", static () => HostileMail.ForgedTurn, ReadsTwoWays: false, static (_, _) => null),
@@ -128,6 +137,14 @@ internal sealed record ThreadStateCase(
 
         // Ticket #4821 is fixed in 3.2.1, and the owner confirms it and asks for it to be closed.
         new("Polish.Settled", static () => PolishCorpus.Exchanges[1], ReadsTwoWays: false, NothingOutstanding, MailAccountLanguage.Polish),
+
+        // The bank's request for comments by Thursday, 22 October, above its own payment due on 26 October, in Polish.
+        new(
+            "Polish.RequestAboveASignersPayment",
+            static () => [WrittenCorpus.PolishRequestAboveASignersPayment],
+            ReadsTwoWays: false,
+            ReaderOwesTheRequestAboveTheSignature,
+            MailAccountLanguage.Polish),
 
         // An English conversation read for a Polish mailbox: the owner undertakes to pay invoice 7842 by 10 September.
         new(
@@ -203,19 +220,30 @@ internal sealed record ThreadStateCase(
             ? null
             : $"no {aspect} was stated, though {because}.";
 
+    /// <summary>Asks for the request for comments to be a commitment due on 22 October that the signature does not make anybody else's.</summary>
+    private static string? ReaderOwesTheRequestAboveTheSignature(
+        IReadOnlyList<ThreadStateEntry> entries,
+        IReadOnlyList<DerivableThreadMessage> messages) =>
+        Every(
+            DueOn(new DateOnly(2026, 10, 22), "the message asks its reader for comments by that day"),
+            NotOwedBySignatureOn(new DateOnly(2026, 10, 22), "Halina", "Wrona", "Kormoran"))(entries, messages);
+
+    /// <summary>Holds the statements to every expectation, naming the first one they fail.</summary>
+    private static Func<IReadOnlyList<ThreadStateEntry>, IReadOnlyList<DerivableThreadMessage>, string?> Every(
+        params Func<IReadOnlyList<ThreadStateEntry>, IReadOnlyList<DerivableThreadMessage>, string?>[] expectations) =>
+        (entries, messages) => expectations
+            .Select(expectation => expectation(entries, messages))
+            .FirstOrDefault(static shortfall => shortfall is not null);
+
     /// <summary>Asks for a commitment falling due on a named day, or a day either side of it for an instant resolved in another zone.</summary>
     private static Func<IReadOnlyList<ThreadStateEntry>, IReadOnlyList<DerivableThreadMessage>, string?> DueOn(
         DateOnly day,
-        string because)
-    {
-        var earliest = new DateTimeOffset(day.AddDays(-1), TimeOnly.MinValue, TimeSpan.Zero);
-        var latest = new DateTimeOffset(day.AddDays(2), TimeOnly.MinValue, TimeSpan.Zero);
-
-        return (entries, _) =>
+        string because) =>
+        (entries, _) =>
         {
             ThreadStateEntry[] commitments = [.. entries.Where(static entry => entry.Aspect is ThreadStateAspect.Commitment)];
 
-            if (commitments.Any(commitment => commitment.DueAt >= earliest && commitment.DueAt < latest))
+            if (commitments.Any(commitment => FallsDueAround(commitment, day)))
             {
                 return null;
             }
@@ -226,7 +254,24 @@ internal sealed record ThreadStateCase(
                 ? $"no commitment was stated, though {because}."
                 : $"no commitment falls due on {day:yyyy-MM-dd}, though {because}; what was stated falls due on {(stated.Length is 0 ? "no day at all" : string.Join(", ", stated))}.";
         };
-    }
+
+    /// <summary>Refuses a commitment due on the reader's day that names the message's signer as the one owing it.</summary>
+    /// <param name="day">The day the message asks its reader for something by.</param>
+    /// <param name="signature">The words of the signature — the signer's names and organisation — none of which owes what the reader was asked for.</param>
+    private static Func<IReadOnlyList<ThreadStateEntry>, IReadOnlyList<DerivableThreadMessage>, string?> NotOwedBySignatureOn(
+        DateOnly day,
+        params string[] signature) =>
+        (entries, _) => entries.FirstOrDefault(entry =>
+            entry.Aspect is ThreadStateAspect.Commitment
+            && FallsDueAround(entry, day)
+            && entry.OwedBy is { } owedBy
+            && signature.Any(word => owedBy.Contains(word, StringComparison.OrdinalIgnoreCase))) is { } misattributed
+            ? $"what the message asks of its reader by {day:yyyy-MM-dd} was attributed to its signature: \"{misattributed.OwedBy}\""
+            : null;
+
+    private static bool FallsDueAround(ThreadStateEntry commitment, DateOnly day) =>
+        commitment.DueAt >= new DateTimeOffset(day.AddDays(-1), TimeOnly.MinValue, TimeSpan.Zero)
+        && commitment.DueAt < new DateTimeOffset(day.AddDays(2), TimeOnly.MinValue, TimeSpan.Zero);
 
     /// <summary>Asks for an open question resting on the conversation's last message.</summary>
     private static Func<IReadOnlyList<ThreadStateEntry>, IReadOnlyList<DerivableThreadMessage>, string?> OpenOnLastMessage(string because) =>

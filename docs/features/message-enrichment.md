@@ -29,7 +29,9 @@ A mark is never a sentence on its own. Each one carries:
 | **Due date** | When the commitment falls due. Only a commitment may carry one, and only where the message named one. |
 
 A message carries at most one mark of each aspect, so a row drawing the sense has one candidate rather than a choice
-between two answers to one question. A reading with no evidence is refused rather than stored: it would read on a
+between two answers to one question. Where the message asks its reader for something, its commitment is that request
+rather than whatever the sender or a third party owes, so the row a reader skims names their own deadline; and a
+signature names who wrote the message, never who owes what it describes. A reading with no evidence is refused rather than stored: it would read on a
 screen exactly like one a passage supports, and no reader could tell them apart.
 
 The evidence names passages in the same terms the Discover run's citations name them, so the same reader resolves both

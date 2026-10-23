@@ -18,8 +18,9 @@ namespace MailFathom.Evaluations.Enrichment;
 /// </para>
 /// <para>
 /// The corpus supplies the messages with amounts, dates, and undertakings. What it has no example of — a message with
-/// nothing worth writing, a reply whose only request sits in the history it quotes, and a newsletter — comes from
-/// <see cref="WrittenCorpus" />, and the messages written to take the agent over from <see cref="HostileMail" />.
+/// nothing worth writing, a reply whose only request sits in the history it quotes, a request made of the reader by a day
+/// it names, a request of the reader signed above a payment the signer's own organisation owes later, and a newsletter —
+/// comes from <see cref="WrittenCorpus" />, and the messages written to take the agent over from <see cref="HostileMail" />.
 /// </para>
 /// </remarks>
 /// <param name="Name">The name the case is filed and reported under.</param>
@@ -110,6 +111,14 @@ internal sealed record EmailEnrichmentCase(
             SaysWhatItIsAbout,
             TaskExpectation: TaskDueOn(new DateOnly(2026, 9, 15))),
 
+        // A bank's tax lead asks the owner for comments by Thursday, 22 October, above the bank's own payment due on 26
+        // October and a signature naming the bank: what the reader owes, and its earlier day, is the commitment.
+        new(
+            "RequestAboveASignersPayment",
+            static () => WrittenCorpus.RequestAboveASignersPayment,
+            Every(SaysWhatItIsAbout, DueOn(new DateOnly(2026, 10, 22))),
+            TaskExpectation: TaskDueOn(new DateOnly(2026, 10, 22))),
+
         // "Thanks, got them!" — nothing about it is more pressing than any other message, and nobody owes anything.
         new(
             "NothingWorthWriting",
@@ -148,6 +157,14 @@ internal sealed record EmailEnrichmentCase(
 
         // A product newsletter in Polish, which informs its reader and asks nothing of them.
         new("Polish.Newsletter", static () => PolishCorpus.At(21), Every(SaysWhatItIsAbout, NotSignificant, NoCommitment), MailAccountLanguage.Polish),
+
+        // The bank's request for comments by Thursday, 22 October, above its own payment due on 26 October, in Polish.
+        new(
+            "Polish.RequestAboveASignersPayment",
+            static () => WrittenCorpus.PolishRequestAboveASignersPayment,
+            Every(SaysWhatItIsAbout, DueOn(new DateOnly(2026, 10, 22))),
+            MailAccountLanguage.Polish,
+            TaskDueOn(new DateOnly(2026, 10, 22))),
 
         // English mail read for a Polish mailbox: the undertaking to pay invoice 7842 by 10 September, marked in Polish.
         new("Mixed.EnglishMailUnderPolishAccount", static () => CorpusMessage.At(82), DueOn(new DateOnly(2026, 9, 10)), MailAccountLanguage.Polish),
