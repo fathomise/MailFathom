@@ -620,7 +620,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     /* *Draft a reply* goes straight to the reply composer and writes the AI draft into its editor there. */
     draftReply = () => {
       this.pendingAiWrite = true;
-      this.startReply("reply");
+      this.startReply("reply", [this.state.threadId]);
     };
 
     archiveThreads = (ids) => {
@@ -1299,7 +1299,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const wasActive = s.activeTab === key;
         const nextTab = wasActive ? (tabs.length ? tabs[tabs.length - 1] : null) : null;
         const patch = { tabs, activeTab: wasActive ? (nextTab ? nextTab.key : null) : s.activeTab };
-        if (key === "compose") patch.compose = false;
+        if (key === "compose") Object.assign(patch, { compose: false, composeCtx: [], composeCtxBase: null, replyThreadId: null });
         if (key.indexOf("doc:") === 0) patch.doc = null;
         if (key.indexOf("html:") === 0) patch.htmlDoc = null;
         if (wasActive && nextTab) Object.assign(patch, this.tabPatch(nextTab));
@@ -5122,7 +5122,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         closeAllInfo: "Open tabs: " + (st.closeAllAsk ? st.closeAllAsk.count : 0) + ". An unsent draft will be discarded.",
         askCloseAll: () => this.setState({ closeAllAsk: { count: tabItems.length } }),
         cancelCloseAll: () => this.setState({ closeAllAsk: false }),
-        confirmCloseAll: () => this.setState({ tabs: [], activeTab: null, compose: false, closeAllAsk: false }),
+        confirmCloseAll: () => this.setState({ tabs: [], activeTab: null, compose: false, composeCtx: [], composeCtxBase: null, replyThreadId: null, closeAllAsk: false }),
         tabItems,
         workModeLabel: tabsMode ? "Mode: tabs" : "Mode: classic",
         toggleWorkMode: () => this.setState(s => ({
@@ -5175,7 +5175,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             (touch ? "width:32px;height:32px;font-size:18px" : "width:18px;height:18px;font-size:15px"),
         })),
         composeCtxEmpty: !composeCtx.length,
-        composeCtxHint: isMobile ? "none yet" : "none yet - click a message in the list to draft from it",
+        composeCtxHint: isMobile ? "none - the AI drafts from what you write above" : "none yet - click a message in the list to draft from it",
         composeCtxSteady: !composeCtxChanged,
         composeCtxChanged,
         composeCtxBaseLabel: composeCtxBase ? ctxSubject(composeCtxBase[0]) + (composeCtxBase.length > 1 ? " and " + (composeCtxBase.length - 1) + " more" : "") : "",
