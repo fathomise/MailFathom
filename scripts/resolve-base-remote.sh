@@ -89,11 +89,15 @@ base_remote_resolution_hint() {
   printf '  git fetch upstream main\n'
 }
 
-# Prints the base remote once the branch has been proved to contain its current `main`, and returns
-# non-zero with the reason on stderr otherwise. Both gates ask this, and both ask it before anything
-# else costs anything: a run against a base the branch no longer contains proves nothing about the
-# tree a merge would produce, and a rebase is cheapest at the moment the drift appears rather than
-# after the work is pushed.
+# Prints the base remote once the branch contains its freshly fetched `main`, or once
+# `VERIFY_IGNORE_BASE_DRIFT=1` accepted that it does not, and returns non-zero with the reason on
+# stderr otherwise. Both gates ask this before anything else costs anything, because a branch that
+# has to be rebased learns it in a second rather than after a build.
+#
+# A branch behind `main` is told which commits arrived, so the answer is read rather than assumed:
+# a rebase when one of them conflicts with or relates to the change, and the variable when none
+# does, because a rebase nothing asked for rewrites every SHA a review reply quotes and proves
+# nothing the merge queue does not. The fetch is never skipped either way.
 #
 # The explicit destination refspec is what makes the ancestor test below meaningful. A bare
 # `git fetch <remote> main` only writes FETCH_HEAD, so a repository whose `remote.<remote>.fetch` is
@@ -120,9 +124,13 @@ require_base_is_contained() {
   fi
 
   if ! git merge-base --is-ancestor "$base_remote/main" HEAD; then
-    printf 'HEAD does not contain the current %s/main. Rebase the branch onto the fetched base before verifying.\n' \
-      "$base_remote" >&2
-    return 1
+    printf 'HEAD does not contain the current %s/main. These commits arrived since the branch left it:\n' "$base_remote" >&2
+    git log --oneline "HEAD..$base_remote/main" | sed 's/^/  /' >&2
+    if [[ "${VERIFY_IGNORE_BASE_DRIFT:-}" != 1 ]]; then
+      printf 'Rebase onto the fetched base, or — once what arrived has been read and nothing in it conflicts with or relates to this change — run again with VERIFY_IGNORE_BASE_DRIFT=1.\n' >&2
+      return 1
+    fi
+    printf 'VERIFY_IGNORE_BASE_DRIFT=1 accepts that drift; verifying the branch on its own merge base.\n' >&2
   fi
 
   printf '%s\n' "$base_remote"

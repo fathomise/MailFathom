@@ -13,7 +13,7 @@ Closes #
 
 ## Checklist
 
-- [ ] `bash scripts/verify-fast.sh` passes on this branch, rebased onto current `main`. The full gate is the pipeline's: run it locally only where its answer was the one being waited on.
+- [ ] `bash scripts/verify-fast.sh` passes on this branch — rebased onto current `main`, or with what arrived there read, nothing in it conflicting with or relating to this change, and `VERIFY_IGNORE_BASE_DRIFT=1` set. The full gate is the pipeline's: run it locally only where its answer was the one being waited on.
 - [ ] Behavior changes are covered by unit tests, and the coverage gate passes on this pull request.
 - [ ] Affected documentation is updated in this change set.
 - [ ] `bash scripts/review-obligations.sh` was run, and every row it reported is answered — by a test, by a page, or by why nothing is owed there.
