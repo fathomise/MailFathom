@@ -63,6 +63,7 @@ function screenOf(
                     <DiscoverSpace
                         session={session}
                         transport={transport}
+                        accounts={[]}
                         asking={asking}
                         status={<p>{theConnection}</p>}
                         schedule={neverPolls}

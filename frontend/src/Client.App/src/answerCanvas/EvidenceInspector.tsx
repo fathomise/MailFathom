@@ -20,6 +20,7 @@ import { wordInstant } from '../localization/instants';
 import { sizeOf } from '../localization/octets';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
+import { useAccountName } from '../shell/accountNames';
 import { useScreenLayer, useScreenStep } from '../shell/screenLayers';
 import { useDesktopComposition } from '../shell/useWideWorkspace';
 import { sourceKinds } from './blocks/blockWording';
@@ -284,6 +285,7 @@ function CitedSource({
 function CitedMessageLine({ message }: { readonly message: CitedMessage }) {
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
+    const accountName = useAccountName(message.account);
 
     const at = wordInstant(message.receivedAt ?? message.sentAt, locale, 'full', timeZone);
 
@@ -292,7 +294,9 @@ function CitedMessageLine({ message }: { readonly message: CitedMessage }) {
             <p className="text-sm font-medium">{message.subject ?? translate('message.noSubject')}</p>
 
             <p className="text-xs text-faint">
-                {translate('evidence.standingIn', { account: message.account, folder: message.folder })}
+                {accountName === null
+                    ? message.folder
+                    : translate('evidence.standingIn', { account: accountName, folder: message.folder })}
             </p>
 
             {at === null ? null : <p className="text-xs text-faint">{at}</p>}

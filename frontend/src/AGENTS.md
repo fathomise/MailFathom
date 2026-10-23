@@ -333,6 +333,11 @@ not a preference about polish.
   message says so and keeps the control it was opened with, because closing itself would put somebody back on a screen
   still drawing the message with nothing having said why the surface went. "Something went wrong" is none of them, and
   neither is a status code on a screen.
+- **No identifier reaches a reader.** An account, a message, a run, or anything else the service names by an
+  identifier is shown by the name a person knows it by, and where the client holds no such name the thing is left
+  unnamed or described rather than shown as the identifier it arrived as. An identifier is how the service is asked,
+  and on a screen it reads as a fault. `shell/accountNames.ts` is the shape for an account, and the account list it
+  reads may not have answered yet, which is exactly the case a fallback to the identifier would have shown.
 - **No state is reachable that a person cannot leave.** Every dialog closes, every flow can be abandoned, and every
   error state offers something other than reloading the page.
 - **Every screen has its five states, and each is designed rather than defaulted**: loading, empty, partial (some of it

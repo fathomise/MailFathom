@@ -8,6 +8,7 @@ import type {
     ClientRequest,
     ClientResponse,
     ClientSession,
+    MailAccount,
     MailBody,
     MailFathomTransport,
     MailMessage,
@@ -15,6 +16,7 @@ import type {
 } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import { ReadMarkingContext, nothingMarkedRead, type ReadMarking } from '../readMarking/useReadMarking';
+import { MailAccountsContext } from '../shell/accountNames';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import { ThreadMessage, type HistoryMotion } from './ThreadMessage';
@@ -23,6 +25,15 @@ import type { ArrivalMark } from './threadOpening';
 const session: ClientSession = {
     baseAddress: 'https://mail.example.invalid',
     authorization: 'Basic dGVzdA==',
+};
+
+/** The account every message here is stored in, as the account list names it. */
+const work: MailAccount = {
+    id: 'work',
+    displayName: 'Work',
+    synchronizationState: 'Synchronized',
+    lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
+    behind: false,
 };
 
 const asked: ClientRequest[] = [];
@@ -118,24 +129,27 @@ function drawing(
     marking: ReadMarking = nothingMarkedRead,
     mark: ArrivalMark | null = null,
     motion: HistoryMotion | null = null,
+    accounts: readonly MailAccount[] = [work],
 ): void {
     render(
         <LocalizationProvider>
             <WorkspaceProvider>
                 <LinkOpenerContext value={() => Promise.resolve()}>
                     <ReadMarkingContext value={marking}>
-                        <ul>
-                            <ThreadMessage
-                                session={session}
-                                transport={answersNothing}
-                                message={held}
-                                mark={mark}
-                                motion={motion}
-                                online
-                                onShowFullHtml={handlers.onShowFullHtml ?? (() => undefined)}
-                                onRegion={handlers.onRegion ?? (() => undefined)}
-                            />
-                        </ul>
+                        <MailAccountsContext value={accounts}>
+                            <ul>
+                                <ThreadMessage
+                                    session={session}
+                                    transport={answersNothing}
+                                    message={held}
+                                    mark={mark}
+                                    motion={motion}
+                                    online
+                                    onShowFullHtml={handlers.onShowFullHtml ?? (() => undefined)}
+                                    onRegion={handlers.onRegion ?? (() => undefined)}
+                                />
+                            </ul>
+                        </MailAccountsContext>
                     </ReadMarkingContext>
                 </LinkOpenerContext>
             </WorkspaceProvider>
@@ -166,7 +180,16 @@ describe('ThreadMessage', () => {
 
         expect(screen.getByText('The auditor')).toBeDefined();
         expect(screen.getByText('The figures you asked for are attached.')).toBeDefined();
-        expect(screen.getByText('In work, Sent')).toBeDefined();
+        expect(screen.getByText('In Work, Sent')).toBeDefined();
+    });
+
+    // An identifier is how the deployment is asked, never what a reader knows a mailbox by — so an account the client
+    // holds no name for is left out of the line rather than shown as the identifier the message carries.
+    it('leaves out an account the client holds no name for, rather than showing its identifier', () => {
+        drawing(message(), {}, nothingMarkedRead, null, null, []);
+
+        expect(screen.getByText('In Sent')).toBeDefined();
+        expect(screen.queryByText(/work/)).toBeNull();
     });
 
     it('answers nothing while the history it belongs to folds away', () => {
