@@ -106,8 +106,8 @@
     /* The accent, and the three things it has to be able to be: the fill a primary control takes, the weight it becomes
        under a pointer, the weight it has to reach to be read as text on its own tint, and that tint with the line that
        bounds it. */
-    --color-accent: oklch(0.555 0.185 262);
-    --color-accent-strong: oklch(0.465 0.175 262);
+    --color-accent: oklch(0.48 0.185 262);
+    --color-accent-strong: oklch(0.41 0.17 262);
     --color-accent-deep: oklch(0.385 0.15 262);
     --color-accent-soft: oklch(0.945 0.038 258);
     --color-accent-line: oklch(0.87 0.062 258);
@@ -869,7 +869,7 @@
    hue this client invented rather than one it was given. Nothing is lost by that — each clears 4.9:1 against the dark
    panel and the dark rail, which is more than either clears against the light ones. */
 @theme static {
-    --color-mailbox-mark-1: oklch(0.555 0.185 262);
+    --color-mailbox-mark-1: oklch(0.48 0.185 262);
     --color-mailbox-mark-2: oklch(0.643 0.079 211);
     --color-mailbox-mark-3: oklch(0.648 0.107 81);
 }
