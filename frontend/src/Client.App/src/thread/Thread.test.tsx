@@ -16,6 +16,7 @@ import {
 } from '../readMarking/useReadMarking';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
 import { ReplyDraftingContext, type ReplyDrafting } from '../threadAgent/replyDrafting';
+import type { ReadingFoot } from '../threadAgent/ThreadAgentField';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import type { OpenConversation } from '../workspace/openConversation';
 import { useWorkspace } from '../workspace/useWorkspace';
@@ -252,6 +253,7 @@ function inTheFrame(
     expandWholeThread = false,
     panelsHidden = false,
     selection: string | null = null,
+    foot: ReadingFoot | null = null,
 ): ReactElement {
     return (
         <LocalizationProvider>
@@ -267,6 +269,7 @@ function inTheFrame(
                             online={online}
                             expandWholeThread={expandWholeThread}
                             onShowFullHtml={() => undefined}
+                            foot={foot}
                         />
                     </ReadMarkingContext>
                 </LinkOpenerContext>
@@ -282,8 +285,9 @@ function drawing(
     marking: ReadMarking = nothingMarkedRead,
     expandWholeThread = false,
     panelsHidden = false,
+    foot: ReadingFoot | null = null,
 ) {
-    return render(inTheFrame(transport, conversation, online, marking, expandWholeThread, panelsHidden));
+    return render(inTheFrame(transport, conversation, online, marking, expandWholeThread, panelsHidden, null, foot));
 }
 
 /** A client that would mark read, recording what each drawn body said was opened rather than submitting it. */
@@ -328,6 +332,28 @@ describe('Thread', () => {
 
         expect(await screen.findByText('The whole of what one says.')).toBeDefined();
         expect(screen.queryByRole('heading', { name: 'The quarterly figures' })).toBeNull();
+    });
+
+    // What the foot is handed is what *Ask* sends to the agent, so it is drawn here as words a test can read.
+    const footSaying: ReadingFoot = (thread) => (
+        <p>{thread === null ? 'Nothing to hand over' : `${thread.scope.subject ?? 'no subject'} · ${thread.title}`}</p>
+    );
+
+    it.each([
+        ['its subject', {}, `${threadId} · The quarterly figures`],
+        ['a title saying it has no subject', { one: { subject: null } }, `${threadId} · No subject`],
+    ])('hands the AI button at its foot the conversation and %s', async (_, rows, said) => {
+        drawing(
+            deploymentAnswering(pageOf(['one'], {}, rows)),
+            { threadId, openAt: null },
+            true,
+            nothingMarkedRead,
+            false,
+            false,
+            footSaying,
+        );
+
+        expect(await screen.findByText(said)).toBeDefined();
     });
 
     it('draws the latest message and hides every earlier one behind the control that names how many there are', async () => {

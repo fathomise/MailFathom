@@ -671,12 +671,23 @@ test('keeps the AI button at the foot of the reading column while a long convers
     expect(standingAbove(await boxOf(button), await boxOf(column))).toBeGreaterThanOrEqual(0);
     expect(standingAbove(await boxOf(button), await boxOf(column))).toBeLessThanOrEqual(32);
 
-    const scrolledDown = await boxOf(messagesDrawn.last());
+    // The scroller the conversation stands in is the nearest box around it taller inside than out, which is the one
+    // the wheel above moved, and a vertical scroller scrolls sideways as well wherever its content is wider than it by
+    // as much as a pixel.
+    const scroller = await messagesDrawn.last().evaluate((message: ScrollingBox): ScrollRegion | null => {
+        let around = message.parentElement;
 
-    await messagesDrawn.last().hover();
-    await page.mouse.wheel(400, 0);
+        while (around !== null && around.scrollHeight <= around.clientHeight) {
+            around = around.parentElement;
+        }
 
-    expect((await boxOf(messagesDrawn.last())).x).toBe(scrolledDown.x);
+        return around === null
+            ? null
+            : { scrollWidth: around.scrollWidth, clientWidth: around.clientWidth, scrollLeft: around.scrollLeft };
+    });
+
+    expect(scroller).not.toBeNull();
+    expect(scroller?.scrollWidth ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(scroller?.clientWidth ?? 0);
 });
 
 /** The two measurements a region scrolling sideways is read by, named so no DOM declaration has to be. */
@@ -684,6 +695,13 @@ interface ScrollRegion {
     readonly scrollWidth: number;
     readonly clientWidth: number;
     readonly scrollLeft: number;
+}
+
+/** A box walked outwards from by how far it scrolls each way, named for the reason the one above is. */
+interface ScrollingBox extends ScrollRegion {
+    readonly scrollHeight: number;
+    readonly clientHeight: number;
+    readonly parentElement: ScrollingBox | null;
 }
 
 // A table and a preformatted line are the two blocks a sender can make wider than any pane, and each is its own scroll

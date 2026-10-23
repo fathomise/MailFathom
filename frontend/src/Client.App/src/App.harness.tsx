@@ -473,8 +473,8 @@ const drawnConversation: Answer = {
 };
 
 /** A deployment whose one message belongs to a conversation, and which answers that conversation as well. */
-export function deploymentDrawingAConversation(): DeploymentTransport {
-    const otherwise = deploymentAnswering();
+export function deploymentDrawingAConversation(session: Answer = accepted): DeploymentTransport {
+    const otherwise = deploymentAnswering(directory(true, [workAccount]), session);
 
     return (signal) => (request) => {
         if (request.path.includes('/emails')) {

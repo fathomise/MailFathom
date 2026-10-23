@@ -44,13 +44,14 @@ resetsBetweenTests();
 const aiButton = 'Draft a reply or ask about this thread';
 
 /**
- * A deployment drawing one message to a credential that may write mail, and answering what it says about drafting.
+ * A deployment drawing one message of a conversation to a credential that may write mail and ask the agent, and
+ * answering what it says about drafting.
  *
  * @param draftsReplies What the deployment answers when asked whether it writes a reply.
  * @param drafting Set once that question was asked, so an absence is asserted only after the answer that decides it.
  */
 function deploymentAnsweringDrafting(draftsReplies: boolean, drafting: { read: boolean }): DeploymentTransport {
-    const otherwise = deploymentDrawingAMessage(
+    const otherwise = deploymentDrawingAConversation(
         sessionAnswering([
             'mailfathom.mail.read',
             'mailfathom.assistant.use',
@@ -68,6 +69,18 @@ function deploymentAnsweringDrafting(draftsReplies: boolean, drafting: { read: b
 
         return Promise.resolve(complete({ status: 200, body: JSON.stringify({ draftsReplies }) }));
     };
+}
+
+/** Moves to Mail and opens the corpus's invoice, answering once its body is drawn. */
+async function openTheInvoice(): Promise<void> {
+    await framed();
+    await goTo('Mail');
+
+    const list = await screen.findByRole('listbox', { name: 'Messages' });
+    fireEvent.pointerDown(within(list).getByRole('option', { name: /Quarterly invoice/ }));
+    fireEvent.pointerUp(within(list).getByRole('option', { name: /Quarterly invoice/ }));
+
+    await screen.findByText('A drawn message.');
 }
 
 describe('App', () => {
@@ -470,24 +483,60 @@ describe('App', () => {
             if (draftsReplies) {
                 fireEvent.click(await screen.findByRole('button', { name: aiButton }));
 
-                expect(screen.getByRole('button', { name: 'Draft a reply' })).toBeDefined();
+                expect(await screen.findByRole('button', { name: 'Draft a reply' })).toBeDefined();
             } else {
                 await waitFor(() => {
                     expect(drafting.read).toBe(true);
                 });
 
-                const unfolding = screen.queryByRole('button', { name: aiButton });
+                fireEvent.click(await screen.findByRole('button', { name: aiButton }));
 
-                if (unfolding !== null) {
-                    fireEvent.click(unfolding);
-                }
-
+                expect(screen.getByRole('button', { name: 'Ask' })).toBeDefined();
                 expect(screen.queryByRole('button', { name: 'Draft a reply' })).toBeNull();
             }
 
             expect(screen.queryByRole('searchbox', { name: 'Ask your mail' })).toBeNull();
         },
     );
+
+    // Each of these withholds the AI button from a message that would otherwise carry it, and each is asserted only
+    // once the message it would have stood under is drawn — beside the case above that finds it there.
+    it('takes the AI button away once a message is being written over the one that is open', async () => {
+        renderApp(servedFrom, heldSession, deploymentAnsweringDrafting(true, { read: false }));
+        await openTheInvoice();
+        expect(await screen.findByRole('button', { name: aiButton })).toBeDefined();
+
+        fireEvent.click(
+            within(screen.getByRole('toolbar', { name: 'Mail actions' })).getByRole('button', { name: 'New message' }),
+        );
+
+        await screen.findByLabelText('Message');
+        expect(screen.queryByRole('button', { name: aiButton })).toBeNull();
+    });
+
+    it('takes the AI button away with the rest of the panels', async () => {
+        renderApp(servedFrom, heldSession, deploymentAnsweringDrafting(true, { read: false }));
+        await openTheInvoice();
+        expect(await screen.findByRole('button', { name: aiButton })).toBeDefined();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Hide the panels - the correspondence alone' }));
+
+        await screen.findByRole('button', { name: "Show the thread's panels" });
+        expect(screen.queryByRole('button', { name: aiButton })).toBeNull();
+    });
+
+    it('draws no AI button under a message for a credential that may not ask the agent', async () => {
+        renderApp(
+            servedFrom,
+            heldSession,
+            deploymentDrawingAConversation(
+                sessionAnswering(['mailfathom.mail.read', 'mailfathom.mail.drafts.write', ...keptBesideTheMailbox]),
+            ),
+        );
+        await openTheInvoice();
+
+        expect(screen.queryByRole('button', { name: aiButton })).toBeNull();
+    });
 
     it('says the deployment is not refreshing these accounts when it is not, as its setting rather than a grant', async () => {
         renderApp(servedFrom, heldSession, deploymentAnswering(directory(false, [workAccount])));
