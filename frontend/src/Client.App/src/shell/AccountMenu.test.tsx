@@ -381,7 +381,7 @@ describe('AccountMenu', () => {
     it('says nothing here about what is running, that being drawn on the screen behind its own row', () => {
         renderMenu({ deploymentVersion: '0.9.0' });
 
-        expect(screen.queryByText(/deployment 0\.9\.0/u)).toBeNull();
+        expect(screen.queryByText(/server 0\.9\.0/u)).toBeNull();
         expect(screen.queryByText(/^MailFathom Client /u)).toBeNull();
     });
 
@@ -403,7 +403,7 @@ describe('AccountMenu', () => {
     it('says when a change did not reach the deployment', () => {
         renderMenu({ preferences: { ...settings, notStated: true } });
 
-        expect(screen.getByText(/was not saved to the deployment/u)).toBeDefined();
+        expect(screen.getByText(/was not saved to the server/u)).toBeDefined();
     });
 
     it('draws the tab mode from what is in force and hands a change to what holds it', () => {

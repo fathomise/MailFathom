@@ -265,7 +265,7 @@ describe('Settings', () => {
     it('says so where the zone that was chosen never reached the deployment', () => {
         renderSettings({ profile: { ...named, timeZoneNotStated: true } });
 
-        expect(screen.getByText(/was not saved to the deployment/u)).toBeDefined();
+        expect(screen.getByText(/was not saved to the server/u)).toBeDefined();
     });
 
     // The control is uncontrolled and remounted by the zone the deployment holds, so a re-render while the choice is
@@ -311,7 +311,7 @@ describe('Settings', () => {
         renderSettings({ profile: { ...named, changeable: false } });
 
         expect(screen.getByRole('textbox', { name: 'Full name' })).toHaveProperty('readOnly', true);
-        expect(screen.getByText(/keeps your name/u)).toBeDefined();
+        expect(screen.getByText(/Your name is managed by your administrator/u)).toBeDefined();
     });
 
     // Reading a profile and changing one are two grants, so a credential holding the first is shown everything and
@@ -326,8 +326,8 @@ describe('Settings', () => {
         expect(screen.getByRole('combobox', { name: /^Time zone/u })).toHaveProperty('disabled', true);
         expect(screen.queryByLabelText('Picture')).toBeNull();
         expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull();
-        expect(screen.getByText(/may read what the deployment holds about you/u)).toBeDefined();
-        expect(screen.queryByText(/keeps your name/u)).toBeNull();
+        expect(screen.getByText(/may read what the server holds about you/u)).toBeDefined();
+        expect(screen.queryByText(/Your name is managed by your administrator/u)).toBeNull();
     });
 
     // What follows the person is the deployment's to take a change of; the language is this machine's and is asked of
@@ -445,13 +445,13 @@ describe('Settings', () => {
     it('says when a change of the name did not reach the deployment at all', () => {
         renderSettings({ profile: { ...named, nameNotStated: true } });
 
-        expect(screen.getByText(/not saved to the deployment/u)).toBeDefined();
+        expect(screen.getByText(/not saved to the server/u)).toBeDefined();
     });
 
     it('says when a picture did not reach the deployment', () => {
         renderSettings({ profile: { ...named, pictureNotStated: true } });
 
-        expect(screen.getByText(/was not saved to the deployment/u)).toBeDefined();
+        expect(screen.getByText(/was not saved to the server/u)).toBeDefined();
     });
 
     it('says a typed notification time outside the bound was not taken, and sends nothing for it', () => {
@@ -548,7 +548,7 @@ describe('Settings', () => {
         renderSettings({ telemetryForwarding: { answered: false } });
         openApplication();
 
-        expect(screen.getByText(/Waiting for this deployment to say whether it forwards telemetry/u)).toBeDefined();
+        expect(screen.getByText(/Waiting for this server to say whether it forwards telemetry/u)).toBeDefined();
         expect(screen.queryByText(/takes no telemetry from this client/u)).toBeNull();
         expect(screen.queryByRole('switch', { name: /Do not send telemetry/u })).toBeNull();
     });
@@ -696,7 +696,7 @@ describe('Settings', () => {
             renderSettings({ deploymentVersion: '0.9.0' });
 
             expect(
-                within(screen.getByRole('navigation', { name: 'Settings sections' })).getByText(/deployment 0\.9\.0/u),
+                within(screen.getByRole('navigation', { name: 'Settings sections' })).getByText(/server 0\.9\.0/u),
             ).toBeDefined();
         });
     });
@@ -924,13 +924,13 @@ describe('Settings', () => {
     it('says what the client and the deployment are running, at its foot', () => {
         renderSettings({ deploymentVersion: '0.9.0' });
 
-        expect(screen.getByText(/deployment 0\.9\.0/u)).toBeDefined();
+        expect(screen.getByText(/server 0\.9\.0/u)).toBeDefined();
     });
 
     it('says what the client alone is running while the deployment has answered nothing', () => {
         renderSettings({ deploymentVersion: null });
 
-        expect(screen.queryByText(/ · deployment /u)).toBeNull();
+        expect(screen.queryByText(/ · server /u)).toBeNull();
         expect(screen.getByText(/^MailFathom v/u)).toBeDefined();
     });
 
@@ -938,6 +938,6 @@ describe('Settings', () => {
         renderSettings({ deploymentVersion: '0.9.0' });
         openApplication();
 
-        expect(screen.getByText(/deployment 0\.9\.0/u)).toBeDefined();
+        expect(screen.getByText(/server 0\.9\.0/u)).toBeDefined();
     });
 });

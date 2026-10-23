@@ -264,7 +264,7 @@ describe('App sign-in', () => {
         renderApp(servedFrom, null, refusing);
         signIn();
 
-        expect(await screen.findByText('The login or the password is not accepted by this deployment.')).toBeDefined();
+        expect(await screen.findByText('The login or the password is not accepted by this server.')).toBeDefined();
     });
 
     it('tells somebody whose deployment offers no passwords that, rather than refusing their credential', async () => {
@@ -275,7 +275,7 @@ describe('App sign-in', () => {
 
         expect(
             await screen.findByText(
-                'This deployment does not accept a login and a password. Whoever runs it has to enable that before you can sign in here.',
+                'This server does not accept a login and a password. Your administrator has to enable that before you can sign in here.',
             ),
         ).toBeDefined();
     });
@@ -298,7 +298,7 @@ describe('App sign-in', () => {
         renderApp(servedFrom, typedSession, deploymentAnswering({ status: 401, body: '' }), credentials);
 
         expect(
-            await screen.findByText('This deployment has stopped accepting the sign-in that was kept. Sign in again.'),
+            await screen.findByText('This server has stopped accepting the sign-in that was kept. Sign in again.'),
         ).toBeDefined();
         // Waited for rather than read once the screen above has settled: what the store was asked to do is a
         // promise the frame started, and the commit that put that screen up is not the one it resolves in.
@@ -331,7 +331,7 @@ describe('App sign-in', () => {
 
         accounts = { status: 401, body: '' };
         fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
-        await screen.findByText('This deployment has stopped accepting the sign-in that was kept. Sign in again.');
+        await screen.findByText('This server has stopped accepting the sign-in that was kept. Sign in again.');
 
         // Being turned away mid-session returns this person to the sign-in exactly as signing out does, so what they
         // were carrying goes with the credential there too rather than waiting for the next person to read.
@@ -348,7 +348,7 @@ describe('App sign-in', () => {
         // Two things went wrong at once and both are the person's to act on: the deployment no longer accepts what was
         // kept, and the store would not give it up — so it is read back on every later start until they remove it.
         expect(
-            await screen.findByText('This deployment has stopped accepting the sign-in that was kept. Sign in again.'),
+            await screen.findByText('This server has stopped accepting the sign-in that was kept. Sign in again.'),
         ).toBeDefined();
         expect(
             await screen.findByText(
@@ -531,7 +531,7 @@ describe('App sign-in', () => {
         renderApp(servedFrom, typedSession, deploymentAnswering({ status: 401, body: '' }), storeKeeping());
 
         const notice = await screen.findByText(
-            'This deployment has stopped accepting the sign-in that was kept. Sign in again.',
+            'This server has stopped accepting the sign-in that was kept. Sign in again.',
         );
 
         // Each of these sentences is inserted in the same commit as its own text, which a live region does not

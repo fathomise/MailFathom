@@ -102,7 +102,7 @@ describe('App session', () => {
 
         expect(
             screen.getByText(
-                'This credential may not ask questions of your mail on this deployment, so asking is not offered. Whoever runs the deployment can grant that.',
+                'This credential may not ask questions of your mail on this server, so asking is not offered. Your administrator can grant that.',
             ),
         ).toBeDefined();
     });
@@ -111,7 +111,7 @@ describe('App session', () => {
     // and the folder acts are refused under the first alone — so the client offers them under the second.
     it('offers the folder acts under the grant the deployment asks them of, rather than the one for the record', async () => {
         const folderSentence =
-            'This credential may not make, rename, move or delete the folders of your mailboxes, so none of that is offered. Whoever runs the deployment can grant that.';
+            'This credential may not make, rename, move or delete the folders of your mailboxes, so none of that is offered. Your administrator can grant that.';
 
         renderApp(servedFrom, heldSession, granting('mailfathom.mail.read', 'mailfathom.mail.accounts.write'));
         await framed();
@@ -189,7 +189,7 @@ describe('App session', () => {
     it('tells a credential granted nothing everything it may not do, rather than leaving it to guess', async () => {
         renderApp(servedFrom, heldSession, granting());
 
-        expect(await screen.findByText(/This credential may not read mail on this deployment/)).toBeDefined();
+        expect(await screen.findByText(/This credential may not read mail on this server/)).toBeDefined();
         expect(screen.getByText(/This credential may not ask questions of your mail/)).toBeDefined();
         expect(screen.getByText(/This credential may not change a flag on your mail server/)).toBeDefined();
         expect(screen.getByText(/This credential may not file mail in another folder/)).toBeDefined();
@@ -227,7 +227,7 @@ describe('App session', () => {
             });
         }
 
-        expect(await screen.findByText(/Your deployment has not answered after/)).toBeDefined();
+        expect(await screen.findByText(/The server has not answered after/)).toBeDefined();
         expect(screen.getByRole('button', { name: 'Try again' })).toBeDefined();
     });
 
@@ -304,7 +304,7 @@ describe('App session', () => {
         await framed();
         fireEvent.click(screen.getByRole('button', { name: 'Settings', hidden: true }));
 
-        expect(screen.getByText(`MailFathom v${__MAILFATHOM_VERSION__} · deployment 0.8.7`)).toBeDefined();
+        expect(screen.getByText(`MailFathom v${__MAILFATHOM_VERSION__} · server 0.8.7`)).toBeDefined();
     });
 
     it('names the client it is running on the sign-in screen, no deployment having answered yet', () => {
@@ -341,7 +341,7 @@ describe('App session', () => {
 
         expect(await within(opened).findByText(/No mail account is configured for this user yet\./)).toBeDefined();
         expect(
-            within(opened).getByText(/Whoever runs this deployment declares which mailboxes it reads for you/),
+            within(opened).getByText(/Your administrator declares which mailboxes the server reads for you/),
         ).toBeDefined();
     });
 });

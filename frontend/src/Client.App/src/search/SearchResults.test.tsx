@@ -384,7 +384,7 @@ describe('SearchResults', () => {
 
         render(resultsUnder(answering(lexical)));
 
-        expect(await screen.findByText(/is not working on this deployment/)).toBeTruthy();
+        expect(await screen.findByText(/is not working on this server/)).toBeTruthy();
     });
 
     it('says nothing about how the search was ranked where meaning took part', async () => {

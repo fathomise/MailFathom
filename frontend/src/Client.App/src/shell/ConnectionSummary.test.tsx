@@ -88,7 +88,7 @@ describe('ConnectionSummary', () => {
     it('says it is reaching the deployment before anything has answered', () => {
         renderSummary({ session: null });
 
-        expect(screen.getByText('Reaching your deployment…')).toBeDefined();
+        expect(screen.getByText('Reaching the server…')).toBeDefined();
     });
 
     it('says this machine is offline rather than blaming a deployment it never asked', () => {
@@ -104,7 +104,7 @@ describe('ConnectionSummary', () => {
 
         expect(
             screen.getByText(
-                `Your deployment did not answer. Trying again - attempt 2 of ${String(mostReconnectionAttempts)}.`,
+                `The server did not answer. Trying again - attempt 2 of ${String(mostReconnectionAttempts)}.`,
             ),
         ).toBeDefined();
     });
@@ -120,7 +120,7 @@ describe('ConnectionSummary', () => {
         renderSummary({ session: failing('unavailable'), attempts: mostReconnectionAttempts });
 
         expect(
-            screen.getByText(`Your deployment has not answered after ${String(mostReconnectionAttempts)} attempts.`),
+            screen.getByText(`The server has not answered after ${String(mostReconnectionAttempts)} attempts.`),
         ).toBeDefined();
         expect(screen.getByRole('button', { name: 'Try again' })).toBeDefined();
     });
@@ -129,7 +129,7 @@ describe('ConnectionSummary', () => {
         renderSummary({ session: failing('unreadable', 200) });
 
         expect(
-            screen.getByText('Your deployment answered, but this client could not act on the answer: unreadable.'),
+            screen.getByText('The server answered, but this client could not act on the answer: unreadable.'),
         ).toBeDefined();
         expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     });
@@ -184,7 +184,7 @@ describe('ConnectionSummary', () => {
 
         expect(
             screen.getByText(
-                'This deployment is not refreshing the local copy of these accounts, so what you see is as current as its last run left it. That is a setting on the deployment rather than a permission you are missing.',
+                'This server is not refreshing the local copy of these accounts, so what you see is as current as its last run left it. That is a setting on the server rather than a permission you are missing.',
             ),
         ).toBeDefined();
         expect(screen.queryByRole('group')).toBeNull();
@@ -194,9 +194,7 @@ describe('ConnectionSummary', () => {
         renderSummary(showing(directory(true, [])));
 
         expect(screen.getByText(/No mail account is configured for this user yet\./)).toBeDefined();
-        expect(
-            screen.getByText(/Whoever runs this deployment declares which mailboxes it reads for you/),
-        ).toBeDefined();
+        expect(screen.getByText(/Your administrator declares which mailboxes the server reads for you/)).toBeDefined();
     });
 
     it('offers nothing to open while every account is current, the green dot being the whole of it', () => {
@@ -285,7 +283,7 @@ describe('ConnectionSummary', () => {
             },
         );
 
-        expect(screen.getByText('Reaching your deployment…')).toBeDefined();
+        expect(screen.getByText('Reaching the server…')).toBeDefined();
         expect(screen.getByText('One change has not reached your mailbox yet.')).toBeDefined();
     });
 });

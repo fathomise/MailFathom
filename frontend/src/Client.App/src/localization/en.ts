@@ -18,7 +18,7 @@ export const en = {
     'shell.refresh': 'Refresh',
     'shell.signOut': 'Sign out',
     'shell.clientVersion': 'v{client}',
-    'shell.versions': 'v{client} · deployment {deployment}',
+    'shell.versions': 'v{client} · server {deployment}',
     'shell.account': 'Account and preferences',
     'shell.accountMenu': 'Account',
     'shell.more': 'More',
@@ -39,8 +39,8 @@ export const en = {
     'agent.historyEmpty': 'No conversations yet. Tell the agent what to do below and one starts here.',
     'agent.historyFailed.unauthenticated': 'The session ended, so the history could not be read. Sign in again.',
     'agent.historyFailed.unauthorized': 'This account is not allowed to talk to the agent.',
-    'agent.historyFailed.unavailable': 'The deployment could not be reached, so the history is not shown.',
-    'agent.historyFailed.unreadable': 'The deployment answered with a history this client cannot read.',
+    'agent.historyFailed.unavailable': 'The server could not be reached, so the history is not shown.',
+    'agent.historyFailed.unreadable': 'The server answered with a history this client cannot read.',
     'agent.readAgain': 'Read again',
     'agent.selectConversations': 'Select conversations',
     'agent.openConversation': 'Open conversation',
@@ -66,15 +66,14 @@ export const en = {
     'agent.notDeleted.unauthenticated':
         'The session ended before the conversation was deleted. Sign in again and delete it.',
     'agent.notDeleted.unauthorized': 'This account is not allowed to delete conversations with the agent.',
-    'agent.notDeleted.unavailable':
-        'The deployment could not be reached, so the conversation was not deleted. Try again.',
+    'agent.notDeleted.unavailable': 'The server could not be reached, so the conversation was not deleted. Try again.',
     'agent.notDeleted.unreadable':
-        'The deployment answered in a way this client cannot read, so it is not known whether the conversation was deleted.',
+        'The server answered in a way this client cannot read, so it is not known whether the conversation was deleted.',
     'agent.notArchived.unauthenticated': 'The session ended before the archive changed. Sign in again and try again.',
     'agent.notArchived.unauthorized': 'This account is not allowed to change what is archived with the agent.',
-    'agent.notArchived.unavailable': 'The deployment could not be reached, so the archive did not change. Try again.',
+    'agent.notArchived.unavailable': 'The server could not be reached, so the archive did not change. Try again.',
     'agent.notArchived.unreadable':
-        'The deployment answered in a way this client cannot read, so it is not known whether the archive changed.',
+        'The server answered in a way this client cannot read, so it is not known whether the archive changed.',
     'agent.tabs': 'Open conversations',
     'agent.closeTab': 'Close {title}',
     'agent.thread': 'Conversation with the agent',
@@ -101,8 +100,8 @@ export const en = {
     'agent.readFailed.unauthenticated': 'The session ended, so the conversation could not be read. Sign in again.',
     'agent.readFailed.unauthorized': 'This account is not allowed to read conversations with the agent.',
     'agent.readFailed.unavailable':
-        'The deployment could not be reached. The conversation is read again as soon as it answers.',
-    'agent.readFailed.unreadable': 'The deployment answered with a conversation this client cannot read.',
+        'The server could not be reached. The conversation is read again as soon as it answers.',
+    'agent.readFailed.unreadable': 'The server answered with a conversation this client cannot read.',
     'agent.readFailed.missing':
         'This conversation is no longer there. Start a new one or open another from the history.',
     'agent.starters': 'Start with',
@@ -123,9 +122,9 @@ export const en = {
     'agent.notSent.unauthenticated': 'The session ended before this was sent. Sign in again and send it.',
     'agent.notSent.unauthorized': 'This account is not allowed to talk to the agent.',
     'agent.notSent.unavailable':
-        'This was not sent - the deployment could not be reached, or the answer it was meant for has just ended. Send it again.',
+        'This was not sent - the server could not be reached, or the answer it was meant for has just ended. Send it again.',
     'agent.notSent.unreadable':
-        'The deployment accepted this in a way this client cannot read. Open the conversation from the history to see whether it arrived.',
+        'The server accepted this in a way this client cannot read. Open the conversation from the history to see whether it arrived.',
     'agent.notSent.missing': 'This conversation is no longer there, so nothing was sent. Start a new one.',
     'discover.newQuestion': 'New question',
     'discover.continueWithAgent': 'Continue with the agent',
@@ -138,9 +137,9 @@ export const en = {
     'discover.notAsked.unauthenticated': 'The session ended before this question was sent. Sign in again and ask it.',
     'discover.notAsked.unauthorized': 'This account is not allowed to ask questions about mail.',
     'discover.notAsked.unavailable':
-        'Your deployment did not start a run for this question - it may be offline, or it may have refused what was asked. Nothing was read either way, so asking again is safe.',
+        'The server did not start a run for this question - it may be offline, or it may have refused what was asked. Nothing was read either way, so asking again is safe.',
     'discover.notAsked.unreadable':
-        'The deployment took this question but answered with a run this client could not read. This is worth reporting as a defect.',
+        'The server took this question but answered with a run this client could not read. This is worth reporting as a defect.',
     'answerCanvas.blocks': 'Answer blocks',
     'answerCanvas.stillComing': 'More of this answer',
     'answerCanvas.nothing': 'This run produced nothing to show.',
@@ -184,7 +183,8 @@ export const en = {
         'This server answers questions and currently cannot. The same question is worth asking again.',
     'run.ended.retrievalRefused':
         'Your mail could not be searched the way this question asks, so there was nothing to answer from. Try rewording it or asking something narrower.',
-    'run.ended.failed': 'This run ended for a reason it does not publish. An operator can read why in the server logs.',
+    'run.ended.failed':
+        'This run ended for a reason it does not publish. Your administrator can read why in the server logs.',
     'answer.label': 'Answer',
     'answer.evidenceLabel': 'Evidence',
     'answer.tableRegion': 'A table in this answer, scrollable sideways',
@@ -270,15 +270,15 @@ export const en = {
     'evidence.unresolvable':
         'The passage this rests on has been cut again since the answer was composed, so it cannot be shown. The message it came from is above.',
     'evidence.unreadableCopy':
-        'This deployment could not read its own stored copy of the message behind this source. The fact rests on what was read when the answer was composed.',
-    'evidence.privateRemedy': 'Ask whoever administers this deployment for access to the account it was read from.',
+        'This server could not read its own stored copy of the message behind this source. The fact rests on what was read when the answer was composed.',
+    'evidence.privateRemedy': 'Ask your administrator for access to the account it was read from.',
     'evidence.unfollowable': 'This answer points at a kind of source this client cannot open.',
     'evidence.unauthenticated': 'The session ended while this source was being opened. Sign in again to see it.',
     'evidence.unauthorized': 'This account is not allowed to read this source.',
     'evidence.unavailable': 'No connection to the server - this source cannot be opened.',
     'evidence.unreadable':
         'The source arrived in a form this client could not read, which is a defect worth reporting.',
-    'evidence.missing': 'This deployment no longer holds the message behind this source.',
+    'evidence.missing': 'This server no longer holds the message behind this source.',
     'answer.peopleLabel': 'People',
     'answer.peopleCount.one': '{count} person · role read from the correspondence',
     'answer.peopleCount.few': '{count} people · roles read from the correspondence',
@@ -327,7 +327,7 @@ export const en = {
     'suggestedAction.createMailRule': 'Write a rule that files mail like this',
     'suggestedAction.readsOnly': 'nothing changes - it only shows you something',
     'suggestedAction.changesMailbox': 'something in your mailbox changes, and you can change it back',
-    'suggestedAction.sendsMail': 'mail leaves this deployment, which nothing here can undo',
+    'suggestedAction.sendsMail': 'mail leaves this server, which nothing here can undo',
     'suggestedAction.take': 'Do it',
     'suggestedAction.takeName': 'Do it: {title}',
     'suggestedAction.declineName': 'Decline: {title}',
@@ -457,13 +457,13 @@ export const en = {
         'Finish signing in in the browser window - this screen picks up the session when it returns.',
     'signIn.continueToProvider': 'Continue to {provider}',
     'signIn.noMethods':
-        'This deployment offers no sign-in method. Check the address, or ask whoever runs it to configure one.',
+        'This server offers no sign-in method. Check the address, or ask your administrator to configure one.',
     'signIn.providersNotOnThisHead':
-        'This deployment offers a provider, which this version of the client cannot open. Sign in with a password here, or use the desktop client or a browser.',
+        'This server offers a provider, which this version of the client cannot open. Sign in with a password here, or use the desktop client or a browser.',
     'signIn.providersOnAnotherHeadOnly':
-        'This deployment offers a provider, which this version of the client cannot open, and it takes no password. Sign in from the desktop client or from a browser.',
+        'This server offers a provider, which this version of the client cannot open, and it takes no password. Sign in from the desktop client or from a browser.',
     'signIn.providersUnread':
-        'This deployment offers a provider, and what a token has to be issued for could not be read just now.',
+        'This server offers a provider, and what a token has to be issued for could not be read just now.',
     'signIn.readAgain': 'Ask again',
     'signIn.returning': 'Finishing the sign-in with your provider…',
     'signIn.notAuthorized': 'The provider did not finish the sign-in, so nothing was signed in. Start it again.',
@@ -471,7 +471,7 @@ export const en = {
         'That answer belongs to no sign-in this client started. Start one from this screen rather than from a link.',
     'signIn.providerRefused': 'The provider refused this sign-in. Start it again.',
     'signIn.notAUser':
-        'The provider signed you in, but this deployment knows no user for that account. Ask whoever runs it to add one.',
+        'The provider signed you in, but this server knows no user for that account. Ask your administrator to add one.',
     'signIn.forgotPassword': 'Forgot your password?',
     'signIn.itHelp': 'IT help',
     'signIn.title': 'Connect your mailbox',
@@ -481,19 +481,19 @@ export const en = {
     'signIn.submit': 'Connect',
     'signIn.presenting': 'Connecting to {address}…',
     'signIn.abandon': 'Stop trying',
-    'signIn.incomplete': 'Type the login and the password your deployment gave you.',
+    'signIn.incomplete': 'Type the login and the password you were given for this server.',
     'signIn.userNameHasColon':
         'A login cannot contain a colon, which is what separates it from the password when it is sent.',
     'signIn.tooLong': 'That login or password is longer than this client will present. Check what was pasted in.',
-    'signIn.credentialRefused': 'The login or the password is not accepted by this deployment.',
+    'signIn.credentialRefused': 'The login or the password is not accepted by this server.',
     'signIn.basicNotOffered':
-        'This deployment does not accept a login and a password. Whoever runs it has to enable that before you can sign in here.',
-    'signIn.grantMissing': 'This deployment accepted the credential, but it is allowed to read no mail.',
-    'signIn.deploymentSilent': 'The deployment did not answer. Try again in a moment.',
+        'This server does not accept a login and a password. Your administrator has to enable that before you can sign in here.',
+    'signIn.grantMissing': 'This server accepted the credential, but it is allowed to read no mail.',
+    'signIn.deploymentSilent': 'The server did not answer. Try again in a moment.',
     'signIn.providerSilent': 'The provider did not answer, so nothing was signed in. Try again in a moment.',
     'signIn.providerEnded':
         'Your provider ended this sign-in, so it has been cleared from this machine. Sign in again to carry on.',
-    'signIn.noLongerAccepted': 'This deployment has stopped accepting the sign-in that was kept. Sign in again.',
+    'signIn.noLongerAccepted': 'This server has stopped accepting the sign-in that was kept. Sign in again.',
     'signIn.notRemoved':
         'Signing out did not remove the sign-in from this machine’s credential store, so it is still kept there. MailFathom was asked to end the session, and it stops working on its own in any case. Remove the entry in the store itself if you would rather it were gone now.',
     'signIn.notKept':
@@ -516,11 +516,11 @@ export const en = {
     'connect.address': 'Server',
     'connect.addressExample': 'mailfathom.example.com:8443',
     'connect.addressHint': 'The port is optional - without one this client reaches {port}.',
-    'connect.clearText': 'Reach this deployment over plain HTTP',
+    'connect.clearText': 'Reach this server over plain HTTP',
     'connect.clearTextConfigured':
-        'This was set for you when the client was installed, so it is not yours to change here. Whoever configured it decides it.',
+        'This was set for you when the client was installed, so it is not yours to change here. Your administrator decides it.',
     'connect.clearTextExplanation':
-        'Your password is encoded rather than encrypted when you sign in, and every request afterwards carries the session it is exchanged for. Anybody between this client and the deployment can read either. Leave this off unless the network between them is yours.',
+        'Your password is encoded rather than encrypted when you sign in, and every request afterwards carries the session it is exchanged for. Anybody between this client and the server can read either. Leave this off unless the network between them is yours.',
     'connect.clearTextInForce':
         'TLS is off. The login, the password, and every message read travel in the clear. Use this only inside a network you control or over a VPN.',
     'connect.portHint': 'port {port}',
@@ -537,16 +537,16 @@ export const en = {
     'connect.certificateChecked': 'Required',
     'connect.certificateNone': 'None - nothing is encrypted',
     'connect.nothingNamed': 'Nothing named yet',
-    'connect.blank': 'Name the deployment that holds your mail.',
+    'connect.blank': 'Enter the address of your MailFathom server.',
     'connect.malformed': 'That is not an address. Name the host it answers on, and a port where it uses one.',
     'connect.clearTextRefused':
         'That address is plain HTTP, which this client will not send a password over until you say it may.',
-    'connect.unavailable': 'Nothing answered there. Check the address, and check that the deployment is running.',
+    'connect.unavailable': 'Nothing answered there. Check the address, and check that the server is running.',
     'connect.unreadable': 'Something answered there, but not as MailFathom.',
 
     'configuration.refused': 'This client is configured wrongly',
     'configuration.addressMalformed':
-        'The server address it was given is not an address. It has to be the host the deployment answers on, and a port where it uses one.',
+        'The server address it was given is not an address. It has to be the host the server answers on, and a port where it uses one.',
     'configuration.addressNeedsClearTextPermission':
         'The server address it was given is plain HTTP, and nothing permitted an unsecured connection. Either name an https address or permit clear text beside it.',
     'configuration.clearTextContradictsAddress':
@@ -556,7 +556,7 @@ export const en = {
     'configuration.whereItIsStated':
         'Both settings are read from the arguments MailFathom was started with, from its environment, and from client.conf beside its own configuration, in that order.',
 
-    'preferences.notStated': 'That change was not saved to the deployment.',
+    'preferences.notStated': 'That change was not saved to the server.',
 
     'settings.title': 'Settings',
     'settings.close': 'Close settings',
@@ -574,29 +574,29 @@ export const en = {
     'settings.nothingFound': 'No section matches.',
     'settings.name': 'Full name',
     'settings.nameNotYours':
-        'Whoever runs this deployment keeps your name, so it is shown here rather than offered for you to change.',
+        'Your name is managed by your administrator, so it is shown here rather than offered for you to change.',
     'settings.profileNotYours':
-        'This sign-in may read what the deployment holds about you and may not change it, so your name, your picture, and your time zone are shown here rather than offered for you to change.',
+        'This sign-in may read what the server holds about you and may not change it, so your name, your picture, and your time zone are shown here rather than offered for you to change.',
     'settings.preferencesNotYours':
         'This sign-in may not change the settings that follow you between machines, so they are shown here as they stand. The language and what this machine does are still yours to set.',
     'settings.nameNotAcceptable':
-        'That name was not accepted. It cannot be blank or longer than 128 characters, and it cannot be one somebody else on this deployment already goes by.',
-    'settings.nameNotStored': 'That name was not saved to the deployment, so it still holds you under the old one.',
+        'That name was not accepted. It cannot be blank or longer than 128 characters, and it cannot be one somebody else on this server already goes by.',
+    'settings.nameNotStored': 'That name was not saved to the server, so it still holds you under the old one.',
     'settings.choosePicture': 'Picture',
     'settings.removePicture': 'Remove',
     'settings.pictureBounds': 'JPG/PNG, up to 1 MB',
     'settings.pictureNotAnImageKind': 'That file is neither a JPEG nor a PNG, so it was not sent.',
     'settings.pictureTooLarge': 'That picture is larger than 1 MB, so it was not sent.',
-    'settings.pictureNotStored': 'That picture was not saved to the deployment, so you are still drawn as you were.',
+    'settings.pictureNotStored': 'That picture was not saved to the server, so you are still drawn as you were.',
     'settings.profileHeld':
-        'Your name and picture are held by the deployment you signed in to, so they follow you between machines. Neither is sent to your mail server.',
+        'Your name and picture are held by the server you signed in to, so they follow you between machines. Neither is sent to your mail server.',
     'settings.timeZone': 'Time zone',
     'settings.timeZoneExplanation':
         'Every date you are shown is written in this zone, and it is what “this week” and “since Tuesday” mean when you ask about your mail.',
     'settings.timeZoneNotAcceptable':
         'That time zone was not accepted, so your dates are still written in the old one.',
     'settings.timeZoneNotStored':
-        'That time zone was not saved to the deployment, so your dates are still written in the old one.',
+        'That time zone was not saved to the server, so your dates are still written in the old one.',
     'settings.messageView': 'Message view',
     'settings.messageViewCleaned': 'AI simplified',
     'settings.messageViewReduced': 'Simplified',
@@ -634,16 +634,16 @@ export const en = {
     'settings.telemetryDestination':
         'Sent to {address}, which forwards it to whichever collector it is configured with. It carries which screens you opened and how long they took, never your mail, your addresses, your folders, or your password.',
     'settings.telemetryNotForwarded':
-        'This deployment takes no telemetry from this client, so it sends none and there is nothing to turn off.',
+        'This server takes no telemetry from this client, so it sends none and there is nothing to turn off.',
     'settings.telemetryUnanswered':
-        'Waiting for this deployment to say whether it forwards telemetry. Until it answers, your own decision is what holds.',
+        'Waiting for this server to say whether it forwards telemetry. Until it answers, your own decision is what holds.',
 
     'accounts.reading': 'Reading accounts…',
     'accounts.notRefreshing':
-        'This deployment is not refreshing the local copy of these accounts, so what you see is as current as its last run left it. That is a setting on the deployment rather than a permission you are missing.',
+        'This server is not refreshing the local copy of these accounts, so what you see is as current as its last run left it. That is a setting on the server rather than a permission you are missing.',
     'accounts.failed': 'The accounts could not be read: {reason}.',
     'accounts.noneDeclared':
-        'Whoever runs this deployment declares which mailboxes it reads for you, and none is declared yet.',
+        'Your administrator declares which mailboxes the server reads for you, and none is declared yet.',
 
     'account.synchronized': 'Up to date',
     'account.behind': 'Catching up',
@@ -703,10 +703,10 @@ export const en = {
     'folders.refusal.serverRefused': 'Your mail server refused the change.',
     'folders.refusal.serverUnavailable': 'Your mail server did not answer. Nothing was changed, so try again.',
     'folders.refusal.roleAlreadyPlayed': 'This mailbox already has a folder for that.',
-    'folders.refusal.notYours': 'Whoever administers this deployment set that folder up, so it is theirs to change.',
+    'folders.refusal.notYours': 'Your administrator set that folder up, so it is theirs to change.',
     'folders.refusal.notRecorded':
         'Your mail server made the change and MailFathom could not write it down. Open the mailboxes again before asking for anything else.',
-    'folders.refusal.another': 'The deployment refused it.',
+    'folders.refusal.another': 'The server refused it.',
 
     'folders.deleteQuestion': 'Delete {folder}?',
     'folders.deleteConsequence': '{folder} leaves {mailbox}.',
@@ -805,7 +805,7 @@ export const en = {
     'act.undone': 'Put back where it was',
     'act.failed': 'That change was not made: {reason}.',
     'act.someNotChanged':
-        'Some of those messages were not changed. Your deployment no longer serves them where the list drew them.',
+        'Some of those messages were not changed. The server no longer serves them where the list drew them.',
     'act.archiving': 'Archiving…',
     'act.deleting': 'Moving to the trash…',
     'act.filing': 'Filing…',
@@ -869,7 +869,7 @@ export const en = {
     'compose.tooManyAddresses': 'One header takes at most {count} addresses.',
     'compose.subject': 'Subject',
     'compose.subjectPlaceholder': 'Message subject',
-    'compose.subjectOfAnAnswer': 'Your deployment writes the subject of an answer, so it is not edited here.',
+    'compose.subjectOfAnAnswer': 'The server writes the subject of an answer, so it is not edited here.',
     'compose.aiPrompt': 'What the draft should say',
     'compose.aiPromptPlaceholder':
         'Write what this is about - e.g. \u201cwe accept the 2 h SLA but ask for a 5% CPI cap\u201d',
@@ -891,10 +891,10 @@ export const en = {
     'compose.aiAccept': 'Accept',
     'compose.notDraftedTitle': 'Nothing was drafted',
     'compose.notDrafted':
-        'Your deployment wrote no draft this time. What you have written is untouched, and writing it yourself is what is left.',
+        'The server wrote no draft this time. What you have written is untouched, and writing it yourself is what is left.',
     'compose.draftAllowanceSpent':
-        'Your deployment has spent what it allows its writer for now. Whoever runs it can raise that, and nothing you have written has been touched.',
-    'compose.cautionUnreadDraft': 'The words are a draft your deployment wrote and you have not accepted yet.',
+        'The server has spent what it allows its writer for now. Your administrator can raise that, and nothing you have written has been touched.',
+    'compose.cautionUnreadDraft': 'The words are a draft the server wrote and you have not accepted yet.',
     'compose.words': 'Message',
     'compose.wordsPlaceholder': 'Write your message',
     'compose.formatting': 'Text formatting',
@@ -927,13 +927,13 @@ export const en = {
     'compose.confirmNobody': 'It is addressed to nobody.',
     'compose.confirmSubject': 'Subject: {subject}',
     'compose.confirmNoSubject': 'none',
-    'compose.confirmRecallable': 'You can take it back until your deployment has handed it to the mail server.',
+    'compose.confirmRecallable': 'You can take it back until it has been handed to the mail server.',
     'compose.cautionNoRecipient': 'Nobody is addressed, so there is nowhere for it to go.',
     'compose.cautionNoSubject': 'It goes out without a subject.',
     'compose.cautionNoWords': 'It goes out with nothing written in it.',
     'compose.discardQuestion': 'Discard this message?',
     'compose.discardExplanation':
-        'What you have written goes, along with any draft your deployment is already holding for it.',
+        'What you have written goes, along with any draft the server is already holding for it.',
     'compose.discardIsFinal': 'Nothing files it first, so there is no way back to these words.',
     'compose.discard': 'Discard',
     'compose.saving': 'Filing the draft…',
@@ -947,7 +947,7 @@ export const en = {
     'compose.sendingTitle': 'Sending your message…',
     'compose.stoppingSendLeavesBehind':
         'The message is on its way. Stopping it takes it back and leaves it in your own drafts.',
-    'compose.stoppedSendLeftBehind': 'Your deployment was asked to take the message back into your own drafts.',
+    'compose.stoppedSendLeftBehind': 'The server was asked to take the message back into your own drafts.',
     'compose.sentTitle': 'Message sent',
     'compose.notSentTitle': 'Message not sent',
     'compose.queued': 'Queued to go out.',
@@ -957,14 +957,14 @@ export const en = {
     'compose.withdrawn': 'Taken back before it went out.',
     'compose.alreadyBeingSent': 'It is already being sent, so it could not be taken back.',
     'compose.pastRecall': 'It has gone out, so it cannot be taken back.',
-    'compose.noSuchSend': 'Your deployment no longer holds that send.',
+    'compose.noSuchSend': 'The server no longer holds that send.',
     'compose.offline':
         'This machine is offline. What you write is kept here, and it can be filed or sent once the network is back.',
-    'compose.refusedSendingNotEnabled': 'This deployment does not send mail. Whoever runs it can turn sending on.',
+    'compose.refusedSendingNotEnabled': 'This server does not send mail. Your administrator can turn sending on.',
     'compose.refusedRecipient':
-        'Your deployment refused one of the addresses. Whoever runs it decides which addresses mail may go to.',
+        'The server refused one of the addresses. Your administrator decides which addresses mail may go to.',
     'compose.refusedCeiling':
-        'A spending ceiling has been reached, so nothing goes out until the window it counts over turns over or whoever runs the deployment raises it.',
+        'A spending ceiling has been reached, so nothing goes out until the window it counts over turns over or your administrator raises it.',
     'compose.refusedContent':
         'Screening refused what this message carries. Changing what it says, or what it attaches, is what would change that.',
     'compose.refusedNotScanned':
@@ -982,17 +982,17 @@ export const en = {
     'compose.saveRefusedScreeningUnavailable':
         'Screening is not answering, so nothing is filed until it does. The message is still here.',
     'compose.saveRefusedForAnotherReason':
-        'Your deployment refused to file it. Whoever runs it can say why from its own log. Nothing you wrote has been lost.',
+        'The server refused to file it. Your administrator can see why in the server log. Nothing you wrote has been lost.',
     'compose.refusedForAnotherReason':
-        'Your deployment refused to send it. Whoever runs it can say why from its own log.',
+        'The server refused to send it. Your administrator can see why in the server log.',
     'compose.failedUnauthenticated':
         'This client is no longer signed in. Sign in again - what you wrote is still here.',
-    'compose.failedUnauthorized': 'This credential may not do that on this deployment. Whoever runs it can grant that.',
-    'compose.failedUnavailable': 'Your deployment did not answer. What you wrote is kept here; try again.',
+    'compose.failedUnauthorized': 'This credential may not do that on this server. Your administrator can grant that.',
+    'compose.failedUnavailable': 'The server did not answer. What you wrote is kept here; try again.',
     'compose.failedUnreadable':
-        'Your deployment answered, but this client could not act on the answer. That is a defect worth reporting.',
+        'The server answered, but this client could not act on the answer. That is a defect worth reporting.',
     'compose.failedMissing':
-        'Your deployment no longer holds the message this was answering, so there is nothing here to answer.',
+        'The server no longer holds the message this was answering, so there is nothing here to answer.',
 
     'tabs.strip': 'Open tabs',
     'tabs.close': 'Close {title}',
@@ -1035,7 +1035,7 @@ export const en = {
     'list.nothingRead':
         'No message in this folder carries the reading the list is narrowed to. Either none of them does, or MailFathom has not read this folder yet.',
     'list.notSynchronizedYet':
-        'Nothing has been taken into this deployment from this mailbox yet, so there is nothing to show. The folder is not empty - it has not been read.',
+        'Nothing has been taken into this server from this mailbox yet, so there is nothing to show. The folder is not empty - it has not been read.',
     'list.emptyWhileFailing':
         'This mailbox stopped synchronizing, so what is here may be less than the mail server holds.',
 
@@ -1110,7 +1110,7 @@ export const en = {
     'search.blank': 'Type something to look for.',
     'search.submit': 'Search',
     'search.stop': 'Stop searching',
-    'search.tooLong': 'That is longer than a search this deployment runs, which is {longest} characters.',
+    'search.tooLong': 'That is longer than a search this server runs, which is {longest} characters.',
     'search.recent': 'Searched for before',
     'search.forgetRecent': 'Forget these',
     'search.everywhere': 'Searching every mailbox and folder.',
@@ -1164,19 +1164,19 @@ export const en = {
     'search.inFileSheet': 'sheet {number}',
     'search.unnamedFile': 'a file the sender left unnamed',
     'search.wordsOnlyInactive':
-        'This deployment does not search by meaning, so these results carry the words you typed and nothing found by meaning alone.',
+        'This server does not search by meaning, so these results carry the words you typed and nothing found by meaning alone.',
     'search.wordsOnlyDegraded':
-        'Searching by meaning is not working on this deployment at the moment, so these results carry the words you typed only. Whoever runs it can look into that.',
+        'Searching by meaning is not working on this server at the moment, so these results carry the words you typed only. Your administrator can look into that.',
 
     'connection.current': 'Every account is up to date.',
     'connection.behind': 'Some accounts are behind.',
     'connection.failing': 'Some accounts stopped synchronizing.',
     'connection.noAccounts': 'No mail account is configured for this user yet.',
     'connection.retry': 'Try again',
-    'connection.connecting': 'Reaching your deployment…',
-    'connection.reconnecting': 'Your deployment did not answer. Trying again - attempt {attempt} of {total}.',
-    'connection.lost': 'Your deployment has not answered after {total} attempts.',
-    'connection.unreadable': 'Your deployment answered, but this client could not act on the answer: {reason}.',
+    'connection.connecting': 'Reaching the server…',
+    'connection.reconnecting': 'The server did not answer. Trying again - attempt {attempt} of {total}.',
+    'connection.lost': 'The server has not answered after {total} attempts.',
+    'connection.unreadable': 'The server answered, but this client could not act on the answer: {reason}.',
     'connection.offline': 'This machine is offline. The client reconnects on its own when the network comes back.',
 
     'containment.failed': 'This part of MailFathom stopped working. Everything around it is unaffected.',
@@ -1184,42 +1184,42 @@ export const en = {
 
     'grant.heading': 'What this credential may not do here',
     'grant.readMail':
-        'This credential may not read mail on this deployment, so no mailbox and no message is shown. Whoever runs the deployment can grant that.',
+        'This credential may not read mail on this server, so no mailbox and no message is shown. Your administrator can grant that.',
     'grant.askMail':
-        'This credential may not ask questions of your mail on this deployment, so asking is not offered. Whoever runs the deployment can grant that.',
+        'This credential may not ask questions of your mail on this server, so asking is not offered. Your administrator can grant that.',
     'grant.writeMailFlags':
-        'This credential may not change a flag on your mail server, so opening a message leaves it unread there, flagging and marking unread are not offered, and this client shows what the server last reported. Whoever runs the deployment can grant that.',
+        'This credential may not change a flag on your mail server, so opening a message leaves it unread there, flagging and marking unread are not offered, and this client shows what the server last reported. Your administrator can grant that.',
     'grant.fileMail':
-        'This credential may not file mail in another folder on this deployment, so archiving, deleting and moving are not offered. Whoever runs the deployment can grant that.',
+        'This credential may not file mail in another folder on this server, so archiving, deleting and moving are not offered. Your administrator can grant that.',
     'grant.deleteMail':
-        'This credential may not delete mail from your mail server, so a message already in the trash can only be left there. Whoever runs the deployment can grant that.',
+        'This credential may not delete mail from your mail server, so a message already in the trash can only be left there. Your administrator can grant that.',
 
     'grant.composeMail':
-        'This credential may not write a draft on this deployment, so writing a message is not offered. Whoever runs the deployment can grant that.',
+        'This credential may not write a draft on this server, so writing a message is not offered. Your administrator can grant that.',
     'grant.sendMail':
-        'This credential may not send mail from this deployment, so a message can be written and filed as a draft but not sent. Whoever runs the deployment can grant that.',
+        'This credential may not send mail from this server, so a message can be written and filed as a draft but not sent. Your administrator can grant that.',
     'grant.manageFolders':
-        'This credential may not make, rename, move or delete the folders of your mailboxes, so none of that is offered. Whoever runs the deployment can grant that.',
+        'This credential may not make, rename, move or delete the folders of your mailboxes, so none of that is offered. Your administrator can grant that.',
     'grant.readContacts':
-        'This credential may not read the address book on this deployment, so the People space is not offered. Whoever runs the deployment can grant that.',
+        'This credential may not read the address book on this server, so the People space is not offered. Your administrator can grant that.',
     'grant.writeContacts':
-        'This credential may not change the address book on this deployment, so adding a contact, taking a collected one on, and deleting one are not offered. Whoever runs the deployment can grant that.',
+        'This credential may not change the address book on this server, so adding a contact, taking a collected one on, and deleting one are not offered. Your administrator can grant that.',
     'grant.readTasks':
-        'This credential may not read your tasks on this deployment, so the Tasks space is not offered. Whoever runs the deployment can grant that.',
+        'This credential may not read your tasks on this server, so the Tasks space is not offered. Your administrator can grant that.',
     'grant.writeTasks':
-        'This credential may not change your tasks on this deployment, so the Tasks space is not offered. Whoever runs the deployment can grant that.',
+        'This credential may not change your tasks on this server, so the Tasks space is not offered. Your administrator can grant that.',
     'grant.readCalendar':
-        'This credential may not read your calendar on this deployment, so the Calendar space is not offered. Whoever runs the deployment can grant that.',
+        'This credential may not read your calendar on this server, so the Calendar space is not offered. Your administrator can grant that.',
     'grant.writeCalendar':
-        'This credential may not change your calendar on this deployment, so the Calendar space is not offered. Whoever runs the deployment can grant that.',
+        'This credential may not change your calendar on this server, so the Calendar space is not offered. Your administrator can grant that.',
     'grant.readNotifications':
-        'This credential may not read your notifications on this deployment, so the bell is not offered and this client learns what changed on its own interval rather than as it happens. Whoever runs the deployment can grant that.',
+        'This credential may not read your notifications on this server, so the bell is not offered and this client learns what changed on its own interval rather than as it happens. Your administrator can grant that.',
     'grant.writeNotifications':
-        'This credential may not mark or remove your notifications on this deployment, so the bell is not offered. Whoever runs the deployment can grant that.',
+        'This credential may not mark or remove your notifications on this server, so the bell is not offered. Your administrator can grant that.',
     'grant.readProfile':
-        'This credential may not read your profile on this deployment, so your name, picture, time zone and preferences are not shown and this client uses its own defaults. Whoever runs the deployment can grant that.',
+        'This credential may not read your profile on this server, so your name, picture, time zone and preferences are not shown and this client uses its own defaults. Your administrator can grant that.',
     'grant.writeProfile':
-        'This credential may not change your profile on this deployment, so a change to your name, picture, time zone or preferences is refused. Whoever runs the deployment can grant that.',
+        'This credential may not change your profile on this server, so a change to your name, picture, time zone or preferences is refused. Your administrator can grant that.',
     'failure.unauthenticated': 'unauthenticated',
     'failure.unauthorized': 'unauthorized',
     'failure.unavailable': 'unavailable',
@@ -1229,20 +1229,19 @@ export const en = {
     'body.reading': 'Opening the message…',
     'body.failed': 'The message could not be read: {reason}.',
 
-    'body.encryptedNotReadable': 'This message is encrypted and this deployment cannot read it.',
-    'body.notStoredExceededSizeLimit':
-        'This message was larger than this deployment keeps, so its body was not stored.',
+    'body.encryptedNotReadable': 'This message is encrypted and this server cannot read it.',
+    'body.notStoredExceededSizeLimit': 'This message was larger than this server keeps, so its body was not stored.',
     'body.notStoredAwaitingStorageHeadroom': 'This message is waiting for storage room before its body is kept.',
 
     'body.refusedNoHtmlPart': 'The sender wrote no formatted version of this message, so it is shown as words.',
     'body.refusedReductionFailed':
-        'This deployment could not read the formatted version of this message, so it is shown as words.',
+        'This server could not read the formatted version of this message, so it is shown as words.',
     'body.refusedNothingRenderable':
         'The formatted version of this message held nothing to draw, so it is shown as words.',
-    'body.notReduced': 'This deployment sent no drawable version of this message, so it is shown as words.',
+    'body.notReduced': 'This server sent no drawable version of this message, so it is shown as words.',
 
     'body.truncated': 'This message is longer than a reading pane draws, so it stops here.',
-    'body.textTruncated': 'The words of this message were cut short by a limit this deployment applies.',
+    'body.textTruncated': 'The words of this message were cut short by a limit this server applies.',
     'body.blockNotDrawn': 'A part of this message was written for a newer client than this one, so it is not drawn.',
     'body.tableRegion': 'A table in this message, scrollable sideways',
     'body.preformattedRegion': 'Preformatted text in this message, scrollable sideways',
@@ -1264,9 +1263,9 @@ export const en = {
     'body.markupNotMeasured': 'The height of this content could not be measured, so this one frame scrolls on its own',
     'body.cleaning': 'Deciding what of this message to keep…',
     'body.cleaningNotActivated':
-        'This deployment does not simplify messages with a model, so the simplified version is shown.',
+        'This server does not simplify messages with a model, so the simplified version is shown.',
     'body.cleaningAllowanceExhausted':
-        "This deployment's allowance for the period is spent, so the simplified version is shown.",
+        "This server's allowance for the period is spent, so the simplified version is shown.",
     'body.cleaningProviderUnavailable': 'The AI did not answer, so the simplified version is shown.',
     'body.cleaningAnswerRejected': 'The answer the model gave could not be used, so the simplified version is shown.',
     'body.cleaningNotRead': 'This message could not be simplified by a model, so the simplified version is shown.',
@@ -1377,7 +1376,7 @@ export const en = {
 
     'sender.failed':
         'A receiving mail server checked who actually sent this message and reported that the author it displays did not hold.',
-    'sender.recognized': 'This deployment recognizes the sender of this message.',
+    'sender.recognized': 'This server recognizes the sender of this message.',
     'sender.authenticatedBy': 'Authenticated by {domain}, which is who actually sent it rather than the name above.',
     'sender.authenticatedByNobody': 'Nothing authenticated a sender for this message.',
 
@@ -1388,7 +1387,7 @@ export const en = {
     'attachment.close': 'Close {name}',
     'attachment.download': 'Download {name}',
     'attachment.nameWasRewritten':
-        'The sender wrote a file name this deployment would not use, so what is shown is the name it was given instead.',
+        'The sender wrote a file name this server would not use, so what is shown is the name it was given instead.',
     'attachment.downloading': 'Downloading file…',
     'attachment.downloaded': 'File downloaded',
     'attachment.notDownloaded': 'File not downloaded',
@@ -1396,24 +1395,24 @@ export const en = {
         'Downloading “{name}” is in progress. Stopping it leaves nothing of the file on this machine.',
     'attachment.abandoned': 'The download was stopped, so nothing was saved.',
     'attachment.refusedUnauthenticated':
-        'This deployment no longer accepts the credential, so the file was not downloaded. Sign in again.',
+        'This server no longer accepts the credential, so the file was not downloaded. Sign in again.',
     'attachment.refusedUnauthorized':
-        'This credential may not read mail on this deployment, so the file was not downloaded.',
-    'attachment.refusedUnavailable': 'The deployment did not answer, so the file was not downloaded. Try again.',
+        'This credential may not read mail on this server, so the file was not downloaded.',
+    'attachment.refusedUnavailable': 'The server did not answer, so the file was not downloaded. Try again.',
     'attachment.refusedScreened':
-        'This deployment screens the files it serves and does not serve this one, so it was not downloaded. Try again in case the read ran out of time or the screen was momentarily not answering.',
+        'This server screens the files it serves and does not serve this one, so it was not downloaded. Try again in case the read ran out of time or the screen was momentarily not answering.',
     'attachment.refusedLargerThanDescribed':
-        'The deployment sent more than this message said the file holds, so nothing was saved. Report this as a defect.',
+        'The server sent more than this message said the file holds, so nothing was saved. Report this as a defect.',
     'attachment.reading': 'Reading {name}…',
     'attachment.offline':
         'This machine is offline, so this file cannot be opened. It opens on its own once the network comes back.',
     'attachment.notShownUnauthenticated':
-        'This deployment no longer accepts the credential, so the file could not be shown. Sign in again.',
+        'This server no longer accepts the credential, so the file could not be shown. Sign in again.',
     'attachment.notShownUnauthorized':
-        'This credential may not read mail on this deployment, so the file could not be shown.',
-    'attachment.notShownUnavailable': 'The deployment did not answer, so the file could not be shown. Try again.',
+        'This credential may not read mail on this server, so the file could not be shown.',
+    'attachment.notShownUnavailable': 'The server did not answer, so the file could not be shown. Try again.',
     'attachment.notShownScreened':
-        'This deployment screens the files it serves and does not serve this one, so it cannot be shown. Try again in case the read ran out of time or the screen was momentarily not answering.',
+        'This server screens the files it serves and does not serve this one, so it cannot be shown. Try again in case the read ran out of time or the screen was momentarily not answering.',
     'attachment.notShownUnreadable':
         'What arrived is not what this message said the file holds, so nothing is drawn from it. Download it, and report this as a defect.',
     'attachment.empty': 'This file holds nothing.',
@@ -1494,20 +1493,20 @@ export const en = {
     'pendingChange.notPutBack.few': '{count} messages were not put back.',
     'pendingChange.notPutBack.many': '{count} messages were not put back.',
     'pendingChange.notPutBack.other': '{count} messages were not put back.',
-    'pendingChange.messageNotFound': 'That mail is no longer in the mailbox this deployment reads.',
+    'pendingChange.messageNotFound': 'That mail is no longer in the mailbox this server reads.',
     'pendingChange.destinationNotFound': 'The folder it was to be filed into is no longer there.',
-    'pendingChange.accountNoLongerConfigured': 'This deployment no longer reads that mail account.',
+    'pendingChange.accountNoLongerConfigured': 'This server no longer reads that mail account.',
     'pendingChange.changeNotUsable': 'The change asked for is not one a single request can name - please report it.',
     'pendingChange.destinationNotAllowed':
         'That folder does not take it: drafts stay in the drafts folder or a folder you made, and nothing else goes there.',
-    'pendingChange.notDelivered': 'This change did not reach your deployment.',
+    'pendingChange.notDelivered': 'This change did not reach the server.',
     'pendingChange.notDeliveredBody': 'Nothing was written down, so your mailbox is unchanged.',
     'pendingChange.retry': 'Try again',
     'pendingChange.stoppedFollowing': 'This client stopped checking where your changes have got to.',
     'pendingChange.stoppedFollowingBody':
-        'Your deployment did not answer {total} times running. The changes themselves are written down and are still being made.',
+        'The server did not answer {total} times running. The changes themselves are written down and are still being made.',
     'pendingChange.stoppedFollowingReason':
-        'Your deployment answered, but this client could not act on the answer: {reason}. Nothing is being checked until you ask it to.',
+        'The server answered, but this client could not act on the answer: {reason}. Nothing is being checked until you ask it to.',
     'pendingChange.followAgain': 'Check again',
 
     'notifications.title': 'Notifications',
@@ -1674,10 +1673,10 @@ export const en = {
     'people.failedUnauthenticated':
         'Your session is no longer accepted, so the address book could not be read. Sign in again.',
     'people.failedUnauthorized':
-        'This credential may not read the address book on this deployment. Whoever runs the deployment can grant that.',
-    'people.failedUnavailable': 'The deployment did not answer with the address book. It may be offline or starting.',
+        'This credential may not read the address book on this server. Your administrator can grant that.',
+    'people.failedUnavailable': 'The server did not answer with the address book. It may be offline or starting.',
     'people.failedUnreadable':
-        'The deployment answered with an address book this client could not read. This is worth reporting as a defect.',
+        'The server answered with an address book this client could not read. This is worth reporting as a defect.',
 
     'people.newContact': 'New contact',
     'people.closeNewContact': 'Close',
@@ -1685,7 +1684,7 @@ export const en = {
     'people.contactAddress': 'Email address',
     'people.addressNotUsable': 'That does not look like an email address.',
     'people.newContactHint':
-        'A contact you write down is yours to amend and to remove. This deployment keeps a name and addresses, and nothing else about a person.',
+        'A contact you write down is yours to amend and to remove. This server keeps a name and addresses, and nothing else about a person.',
     'people.saveContact': 'Save contact',
 
     'people.write': 'Write',
@@ -1714,7 +1713,7 @@ export const en = {
     'people.addressHeld': 'Another contact already holds that address.',
     'people.originRefuses': 'That contact is not yours to change.',
     'people.alreadyAsserted': 'That contact is already one of your own.',
-    'people.writeFailed': 'The deployment did not answer, so nothing was changed.',
+    'people.writeFailed': 'The server did not answer, so nothing was changed.',
 
     'person.relationship': 'Relationship state',
     'person.authored': 'AI',
@@ -1731,9 +1730,9 @@ export const en = {
     'person.correspondenceUnauthenticated':
         'Your session is no longer accepted, so this could not be read. Sign in again.',
     'person.correspondenceUnauthorized': 'This credential may not read what this person is named in.',
-    'person.correspondenceUnavailable': 'The deployment did not answer.',
+    'person.correspondenceUnavailable': 'The server did not answer.',
     'person.correspondenceUnreadable':
-        'The deployment answered with something this client could not read. This is worth reporting as a defect.',
+        'The server answered with something this client could not read. This is worth reporting as a defect.',
     'person.correspondenceMissing': 'This person is no longer in the address book.',
 
     'calendar.day': 'Day',
@@ -1756,9 +1755,9 @@ export const en = {
     'calendar.failedUnauthenticated':
         'Your session is no longer accepted, so the calendar could not be read. Sign in again.',
     'calendar.failedUnauthorized': 'This credential may not read the calendar.',
-    'calendar.failedUnavailable': 'The deployment did not answer with the calendar. It may be offline or starting.',
+    'calendar.failedUnavailable': 'The server did not answer with the calendar. It may be offline or starting.',
     'calendar.failedUnreadable':
-        'The deployment answered with something this client could not read. This is worth reporting as a defect.',
+        'The server answered with something this client could not read. This is worth reporting as a defect.',
     'calendar.proposedHeading': 'Detected in mail',
     'calendar.authored': 'AI',
     'calendar.proposedExplained': 'Deadlines found in threads, not in the calendar yet.',
@@ -1776,8 +1775,8 @@ export const en = {
     'calendar.describing': 'Reading…',
     'calendar.describeDrafted': 'Filled in from your description. Check it before saving.',
     'calendar.describeNothing': 'No event could be read out of that. Try naming a day and a time.',
-    'calendar.describeSpent': 'This deployment has used up what it may spend on reading descriptions for now.',
-    'calendar.describeFailed': 'The deployment did not answer, so nothing was filled in.',
+    'calendar.describeSpent': 'This server has used up what it may spend on reading descriptions for now.',
+    'calendar.describeFailed': 'The server did not answer, so nothing was filled in.',
     'calendar.eventTitle': 'Title',
     'calendar.eventDay': 'Day',
     'calendar.eventStart': 'Starts',
@@ -1802,9 +1801,9 @@ export const en = {
     'calendar.deleteSomeRefused': 'Some of them were not deleted.',
     'calendar.written': 'Saved.',
     'calendar.writeNotFound': 'That event is no longer on the calendar.',
-    'calendar.writeRefused': 'The deployment would not take that event. Check the title and the times.',
+    'calendar.writeRefused': 'The server would not take that event. Check the title and the times.',
     'calendar.alreadyOnTheCalendar': 'That date is already on the calendar.',
-    'calendar.writeFailed': 'The deployment did not answer, so nothing was changed.',
+    'calendar.writeFailed': 'The server did not answer, so nothing was changed.',
     // The Tasks screen: the grouped list, what a row and its menu carry, the day beside it, and what each write says
     // afterwards. What the design draws and no route answers — a reminder on a task, an estimate of how long it takes,
     // finding it in mail, and exporting the list — is named by no key here, because it is drawn by nothing.
@@ -1821,9 +1820,9 @@ export const en = {
     'tasks.allDone': 'Everything on the list is done. Turn on “Show done” to see it.',
     'tasks.failedUnauthenticated': 'Your session is no longer accepted, so the list could not be read. Sign in again.',
     'tasks.failedUnauthorized': 'This credential may not read your tasks.',
-    'tasks.failedUnavailable': 'The deployment did not answer.',
+    'tasks.failedUnavailable': 'The server did not answer.',
     'tasks.failedUnreadable':
-        'The deployment answered with something this client could not read. This is worth reporting as a defect.',
+        'The server answered with something this client could not read. This is worth reporting as a defect.',
     'tasks.fromMail': 'from mail',
     'tasks.openSource': 'Open the message this came from',
     'tasks.noDay': 'No day',
@@ -1861,12 +1860,12 @@ export const en = {
     'tasks.written': 'Written down.',
     'tasks.remindersWritten': 'Reminders saved.',
     'tasks.nothingToSchedule': 'Nothing here names a day, so there is nothing to put in the calendar.',
-    'tasks.writeFailed': 'The deployment did not accept that. Nothing was changed.',
-    'tasks.writeFailedBecause': 'The deployment did not accept that: {reason}. Nothing was changed.',
-    'tasks.someRefused.one': 'The deployment refused one of these. The rest went through.',
-    'tasks.someRefused.few': 'The deployment refused {count} of these. The rest went through.',
-    'tasks.someRefused.many': 'The deployment refused {count} of these. The rest went through.',
-    'tasks.someRefused.other': 'The deployment refused {count} of these. The rest went through.',
+    'tasks.writeFailed': 'The server did not accept that. Nothing was changed.',
+    'tasks.writeFailedBecause': 'The server did not accept that: {reason}. Nothing was changed.',
+    'tasks.someRefused.one': 'The server refused one of these. The rest went through.',
+    'tasks.someRefused.few': 'The server refused {count} of these. The rest went through.',
+    'tasks.someRefused.many': 'The server refused {count} of these. The rest went through.',
+    'tasks.someRefused.other': 'The server refused {count} of these. The rest went through.',
     'tasks.todaysCalendar': "Today's calendar",
     'tasks.openCalendar': 'Open',
     'tasks.openTheCalendar': 'Open the calendar',
@@ -1875,9 +1874,9 @@ export const en = {
     'tasks.dayFailedUnauthenticated':
         'Your session is no longer accepted, so the day could not be read. Sign in again.',
     'tasks.dayFailedUnauthorized': 'This credential may not read your calendar.',
-    'tasks.dayFailedUnavailable': 'The deployment did not answer.',
+    'tasks.dayFailedUnavailable': 'The server did not answer.',
     'tasks.dayFailedUnreadable':
-        'The deployment answered with a day this client could not read. This is worth reporting as a defect.',
+        'The server answered with a day this client could not read. This is worth reporting as a defect.',
     'tasks.authored': 'AI',
     'tasks.dayCapacity': 'Day capacity',
     'tasks.capacityTasks.one': 'One task is due today.',
@@ -1891,7 +1890,7 @@ export const en = {
     'tasks.layOutToday': 'Lay out today',
     'tasks.arranging': 'Laying out the rest of the day…',
     'tasks.notArranged': 'There was nothing left to lay out in what remains of today.',
-    'tasks.allowanceSpent': 'This deployment has used up its AI allowance for today. Try again tomorrow.',
+    'tasks.allowanceSpent': 'This server has used up its AI allowance for today. Try again tomorrow.',
     'tasks.arrangeFailed': 'The day could not be laid out. Nothing was changed.',
     'tasks.unnamedPlacement': 'A task that is no longer on the list',
     'tasks.notToday.one': 'One task did not fit what is left of today.',

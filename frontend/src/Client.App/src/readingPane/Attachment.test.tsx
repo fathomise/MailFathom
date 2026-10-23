@@ -58,7 +58,7 @@ describe('Attachment', () => {
 
         expect(
             screen.getByText(
-                'The sender wrote a file name this deployment would not use, so what is shown is the name it was given instead.',
+                'The sender wrote a file name this server would not use, so what is shown is the name it was given instead.',
             ),
         ).toBeDefined();
     });

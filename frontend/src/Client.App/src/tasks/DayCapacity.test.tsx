@@ -204,7 +204,7 @@ describe('DayCapacity', () => {
         drawPanel({ layout: { outcome: 'AllowanceSpent', placements: [], notToday: [] } });
 
         expect(screen.getByRole('status').textContent).toBe(
-            'This deployment has used up its AI allowance for today. Try again tomorrow.',
+            'This server has used up its AI allowance for today. Try again tomorrow.',
         );
     });
 

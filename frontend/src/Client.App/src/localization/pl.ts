@@ -17,7 +17,7 @@ export const pl: Catalogue = {
     'shell.refresh': 'Odśwież',
     'shell.signOut': 'Wyloguj',
     'shell.clientVersion': 'v{client}',
-    'shell.versions': 'v{client} · wdrożenie {deployment}',
+    'shell.versions': 'v{client} · serwer {deployment}',
     'shell.account': 'Konto i ustawienia',
     'shell.accountMenu': 'Konto',
     'shell.more': 'Więcej',
@@ -38,8 +38,8 @@ export const pl: Catalogue = {
     'agent.historyEmpty': 'Nie ma jeszcze rozmów. Napisz agentowi poniżej, co ma zrobić, a rozmowa pojawi się tutaj.',
     'agent.historyFailed.unauthenticated': 'Sesja wygasła, więc nie udało się wczytać historii. Zaloguj się ponownie.',
     'agent.historyFailed.unauthorized': 'To konto nie ma uprawnień do rozmowy z agentem.',
-    'agent.historyFailed.unavailable': 'Nie udało się połączyć z wdrożeniem, więc historia nie jest wyświetlana.',
-    'agent.historyFailed.unreadable': 'Wdrożenie odpowiedziało historią, której ten klient nie potrafi odczytać.',
+    'agent.historyFailed.unavailable': 'Nie udało się połączyć z serwerem, więc historia nie jest wyświetlana.',
+    'agent.historyFailed.unreadable': 'Serwer odpowiedział historią, której ten klient nie potrafi odczytać.',
     'agent.readAgain': 'Wczytaj ponownie',
     'agent.selectConversations': 'Zaznacz rozmowy',
     'agent.openConversation': 'Otwórz rozmowę',
@@ -65,16 +65,16 @@ export const pl: Catalogue = {
     'agent.notDeleted.unauthenticated': 'Sesja wygasła przed usunięciem rozmowy. Zaloguj się ponownie i usuń ją.',
     'agent.notDeleted.unauthorized': 'To konto nie ma uprawnień do usuwania rozmów z agentem.',
     'agent.notDeleted.unavailable':
-        'Nie udało się połączyć z wdrożeniem, więc rozmowa nie została usunięta. Spróbuj ponownie.',
+        'Nie udało się połączyć z serwerem, więc rozmowa nie została usunięta. Spróbuj ponownie.',
     'agent.notDeleted.unreadable':
-        'Wdrożenie odpowiedziało w sposób, którego ten klient nie potrafi odczytać, więc nie wiadomo, czy rozmowa została usunięta.',
+        'Serwer odpowiedział w sposób, którego ten klient nie potrafi odczytać, więc nie wiadomo, czy rozmowa została usunięta.',
     'agent.notArchived.unauthenticated':
         'Sesja wygasła, zanim archiwum się zmieniło. Zaloguj się ponownie i spróbuj jeszcze raz.',
     'agent.notArchived.unauthorized': 'To konto nie ma uprawnień do zmieniania archiwum rozmów z agentem.',
     'agent.notArchived.unavailable':
-        'Nie udało się połączyć z wdrożeniem, więc archiwum się nie zmieniło. Spróbuj ponownie.',
+        'Nie udało się połączyć z serwerem, więc archiwum się nie zmieniło. Spróbuj ponownie.',
     'agent.notArchived.unreadable':
-        'Wdrożenie odpowiedziało w sposób, którego ten klient nie potrafi odczytać, więc nie wiadomo, czy archiwum się zmieniło.',
+        'Serwer odpowiedział w sposób, którego ten klient nie potrafi odczytać, więc nie wiadomo, czy archiwum się zmieniło.',
     'agent.tabs': 'Otwarte rozmowy',
     'agent.closeTab': 'Zamknij: {title}',
     'agent.thread': 'Rozmowa z agentem',
@@ -102,8 +102,8 @@ export const pl: Catalogue = {
     'agent.readFailed.unauthenticated': 'Sesja wygasła, więc nie udało się wczytać rozmowy. Zaloguj się ponownie.',
     'agent.readFailed.unauthorized': 'To konto nie ma uprawnień do czytania rozmów z agentem.',
     'agent.readFailed.unavailable':
-        'Nie udało się połączyć z wdrożeniem. Rozmowa zostanie wczytana ponownie, gdy tylko odpowie.',
-    'agent.readFailed.unreadable': 'Wdrożenie odpowiedziało rozmową, której ten klient nie potrafi odczytać.',
+        'Nie udało się połączyć z serwerem. Rozmowa zostanie wczytana ponownie, gdy tylko odpowie.',
+    'agent.readFailed.unreadable': 'Serwer odpowiedział rozmową, której ten klient nie potrafi odczytać.',
     'agent.readFailed.missing': 'Tej rozmowy już nie ma. Zacznij nową albo otwórz inną z historii.',
     'agent.starters': 'Zacznij od',
     'agent.askStarter': 'Zapytaj agenta: {question}',
@@ -123,9 +123,9 @@ export const pl: Catalogue = {
     'agent.notSent.unauthenticated': 'Sesja wygasła przed wysłaniem. Zaloguj się ponownie i wyślij to jeszcze raz.',
     'agent.notSent.unauthorized': 'To konto nie ma uprawnień do rozmowy z agentem.',
     'agent.notSent.unavailable':
-        'Nie wysłano – nie udało się połączyć z wdrożeniem albo odpowiedź, do której to było, właśnie się zakończyła. Wyślij ponownie.',
+        'Nie wysłano – nie udało się połączyć z serwerem albo odpowiedź, do której to było, właśnie się zakończyła. Wyślij ponownie.',
     'agent.notSent.unreadable':
-        'Wdrożenie przyjęło to w sposób, którego ten klient nie potrafi odczytać. Otwórz rozmowę z historii, aby sprawdzić, czy dotarło.',
+        'Serwer przyjął to w sposób, którego ten klient nie potrafi odczytać. Otwórz rozmowę z historii, aby sprawdzić, czy dotarło.',
     'agent.notSent.missing': 'Tej rozmowy już nie ma, więc nic nie zostało wysłane. Zacznij nową.',
     'discover.newQuestion': 'Nowe pytanie',
     'discover.continueWithAgent': 'Kontynuuj z agentem',
@@ -139,9 +139,9 @@ export const pl: Catalogue = {
         'Sesja skończyła się, zanim pytanie zostało wysłane. Zaloguj się i zapytaj ponownie.',
     'discover.notAsked.unauthorized': 'To konto nie może zadawać pytań o pocztę.',
     'discover.notAsked.unavailable':
-        'Wdrożenie nie rozpoczęło uruchomienia dla tego pytania – może być niedostępne albo mogło odmówić tego, o co pytasz. Tak czy inaczej nic nie zostało przeczytane, więc można zapytać ponownie.',
+        'Serwer nie rozpoczął uruchomienia dla tego pytania – może być niedostępny albo mógł odmówić tego, o co pytasz. Tak czy inaczej nic nie zostało przeczytane, więc można zapytać ponownie.',
     'discover.notAsked.unreadable':
-        'Wdrożenie przyjęło to pytanie, ale odpowiedziało uruchomieniem, którego ten klient nie potrafi odczytać. Warto zgłosić to jako usterkę.',
+        'Serwer przyjął to pytanie, ale odpowiedział uruchomieniem, którego ten klient nie potrafi odczytać. Warto zgłosić to jako usterkę.',
     'answerCanvas.blocks': 'Bloki odpowiedzi',
     'answerCanvas.stillComing': 'Dalsza część odpowiedzi',
     'answerCanvas.nothing': 'To uruchomienie nie dało nic do pokazania.',
@@ -189,7 +189,7 @@ export const pl: Catalogue = {
     'run.ended.retrievalRefused':
         'Nie udało się przeszukać poczty tak, jak wymaga tego to pytanie, więc nie było z czego odpowiedzieć. Spróbuj je przeformułować albo zapytać o coś węższego.',
     'run.ended.failed':
-        'To uruchomienie zakończyło się z powodu, którego nie ujawnia. Operator znajdzie przyczynę w logach serwera.',
+        'To uruchomienie zakończyło się z powodu, którego nie ujawnia. Administrator znajdzie przyczynę w logach serwera.',
     'answer.label': 'Odpowiedź',
     'answer.evidenceLabel': 'Dowody',
     'answer.tableRegion': 'Tabela w tej odpowiedzi, przewijana w poziomie',
@@ -278,15 +278,15 @@ export const pl: Catalogue = {
     'evidence.unresolvable':
         'Fragment, na którym się to opiera, został podzielony na nowo od czasu złożenia odpowiedzi, więc nie można go pokazać. Wiadomość, z której pochodzi, jest powyżej.',
     'evidence.unreadableCopy':
-        'To wdrożenie nie odczytało własnej kopii wiadomości stojącej za tym źródłem. Fakt opiera się na tym, co odczytano przy składaniu odpowiedzi.',
-    'evidence.privateRemedy': 'Poproś administratora tego wdrożenia o dostęp do konta, z którego je odczytano.',
+        'Ten serwer nie odczytał własnej kopii wiadomości stojącej za tym źródłem. Fakt opiera się na tym, co odczytano przy składaniu odpowiedzi.',
+    'evidence.privateRemedy': 'Poproś administratora o dostęp do konta, z którego je odczytano.',
     'evidence.unfollowable': 'Ta odpowiedź wskazuje źródło rodzaju, którego ten klient nie potrafi otworzyć.',
     'evidence.unauthenticated':
         'Sesja zakończyła się w trakcie otwierania tego źródła. Zaloguj się ponownie, aby je zobaczyć.',
     'evidence.unauthorized': 'To konto nie ma prawa czytać tego źródła.',
     'evidence.unavailable': 'Brak połączenia z serwerem – nie można otworzyć tego źródła.',
     'evidence.unreadable': 'Źródło dotarło w postaci, której ten klient nie odczytał; to usterka warta zgłoszenia.',
-    'evidence.missing': 'To wdrożenie nie przechowuje już wiadomości stojącej za tym źródłem.',
+    'evidence.missing': 'Ten serwer nie przechowuje już wiadomości stojącej za tym źródłem.',
     'answer.peopleLabel': 'Osoby',
     'answer.peopleCount.one': '{count} osoba · rola odczytana z korespondencji',
     'answer.peopleCount.few': '{count} osoby · role odczytane z korespondencji',
@@ -335,7 +335,7 @@ export const pl: Catalogue = {
     'suggestedAction.createMailRule': 'Utwórz regułę, która sama posegreguje taką pocztę',
     'suggestedAction.readsOnly': 'nic się nie zmienia – tylko coś Ci pokaże',
     'suggestedAction.changesMailbox': 'coś zmieni się w Twojej skrzynce i możesz to cofnąć',
-    'suggestedAction.sendsMail': 'poczta opuści to wdrożenie, czego nic tutaj nie odwróci',
+    'suggestedAction.sendsMail': 'poczta opuści ten serwer, czego nic tutaj nie odwróci',
     'suggestedAction.take': 'Zrób to',
     'suggestedAction.takeName': 'Zrób to: {title}',
     'suggestedAction.declineName': 'Odrzuć: {title}',
@@ -465,13 +465,13 @@ export const pl: Catalogue = {
     'signIn.finishInBrowser': 'Dokończ logowanie w oknie przeglądarki – ten ekran podejmie sesję, gdy wrócisz.',
     'signIn.continueToProvider': 'Przejdź do {provider}',
     'signIn.noMethods':
-        'To wdrożenie nie udostępnia żadnej metody logowania. Sprawdź adres albo poproś osobę, która je prowadzi, o skonfigurowanie jednej.',
+        'Ten serwer nie udostępnia żadnej metody logowania. Sprawdź adres albo poproś administratora o skonfigurowanie jednej.',
     'signIn.providersNotOnThisHead':
-        'To wdrożenie udostępnia dostawcę, którego ta wersja klienta nie potrafi otworzyć. Zaloguj się tutaj hasłem albo skorzystaj z klienta na komputer lub z przeglądarki.',
+        'Ten serwer udostępnia dostawcę, którego ta wersja klienta nie potrafi otworzyć. Zaloguj się tutaj hasłem albo skorzystaj z klienta na komputer lub z przeglądarki.',
     'signIn.providersOnAnotherHeadOnly':
-        'To wdrożenie udostępnia dostawcę, którego ta wersja klienta nie potrafi otworzyć, i nie przyjmuje hasła. Zaloguj się z klienta na komputer albo z przeglądarki.',
+        'Ten serwer udostępnia dostawcę, którego ta wersja klienta nie potrafi otworzyć, i nie przyjmuje hasła. Zaloguj się z klienta na komputer albo z przeglądarki.',
     'signIn.providersUnread':
-        'To wdrożenie udostępnia dostawcę, a informacji o tym, na co ma zostać wystawiony token, nie udało się teraz odczytać.',
+        'Ten serwer udostępnia dostawcę, a informacji o tym, na co ma zostać wystawiony token, nie udało się teraz odczytać.',
     'signIn.readAgain': 'Zapytaj ponownie',
     'signIn.returning': 'Kończę logowanie u Twojego dostawcy…',
     'signIn.notAuthorized':
@@ -480,7 +480,7 @@ export const pl: Catalogue = {
         'Ta odpowiedź nie należy do żadnego logowania rozpoczętego przez tego klienta. Zacznij je z tego ekranu, a nie z odnośnika.',
     'signIn.providerRefused': 'Dostawca odmówił temu logowaniu. Zacznij je jeszcze raz.',
     'signIn.notAUser':
-        'Dostawca Cię zalogował, ale to wdrożenie nie zna użytkownika dla tego konta. Poproś osobę, która je prowadzi, o dodanie go.',
+        'Dostawca Cię zalogował, ale ten serwer nie zna użytkownika dla tego konta. Poproś administratora o dodanie go.',
     'signIn.forgotPassword': 'Nie pamiętasz hasła?',
     'signIn.itHelp': 'Pomoc IT',
     'signIn.title': 'Połącz skrzynkę',
@@ -490,20 +490,20 @@ export const pl: Catalogue = {
     'signIn.submit': 'Połącz',
     'signIn.presenting': 'Łączenie z {address}…',
     'signIn.abandon': 'Przerwij próbę',
-    'signIn.incomplete': 'Wpisz login i hasło do swojego wdrożenia.',
+    'signIn.incomplete': 'Wpisz login i hasło otrzymane dla tego serwera.',
     'signIn.userNameHasColon':
         'Login nie może zawierać dwukropka, ponieważ to on oddziela go od hasła podczas wysyłania.',
     'signIn.tooLong':
         'Ten login lub to hasło są dłuższe, niż klient jest w stanie przedstawić. Sprawdź, co zostało wklejone.',
-    'signIn.credentialRefused': 'To wdrożenie nie akceptuje tego loginu lub tego hasła.',
+    'signIn.credentialRefused': 'Ten serwer nie akceptuje tego loginu lub tego hasła.',
     'signIn.basicNotOffered':
-        'To wdrożenie nie przyjmuje loginu i hasła. Osoba, która je prowadzi, musi najpierw włączyć taką możliwość.',
-    'signIn.grantMissing': 'Wdrożenie przyjęło poświadczenie, ale nie zezwala mu na odczyt żadnej poczty.',
-    'signIn.deploymentSilent': 'Wdrożenie nie odpowiedziało. Spróbuj ponownie za chwilę.',
+        'Ten serwer nie przyjmuje loginu i hasła. Administrator musi najpierw włączyć taką możliwość.',
+    'signIn.grantMissing': 'Serwer przyjął poświadczenie, ale nie zezwala mu na odczyt żadnej poczty.',
+    'signIn.deploymentSilent': 'Serwer nie odpowiedział. Spróbuj ponownie za chwilę.',
     'signIn.providerSilent': 'Dostawca nie odpowiedział, więc nikt nie został zalogowany. Spróbuj ponownie za chwilę.',
     'signIn.providerEnded':
         'Twój dostawca zakończył to logowanie, więc zostało usunięte z tego komputera. Zaloguj się ponownie, aby kontynuować.',
-    'signIn.noLongerAccepted': 'To wdrożenie przestało akceptować zapamiętane logowanie. Zaloguj się ponownie.',
+    'signIn.noLongerAccepted': 'Ten serwer przestał akceptować zapamiętane logowanie. Zaloguj się ponownie.',
     'signIn.notRemoved':
         'Wylogowanie nie usunęło zapamiętanego logowania z magazynu poświadczeń tej maszyny, więc nadal jest tam przechowywane. MailFathom został poproszony o zakończenie sesji, a ona i tak przestaje działać sama. Usuń wpis w samym magazynie, jeśli wolisz, żeby zniknął już teraz.',
     'signIn.notKept':
@@ -526,11 +526,11 @@ export const pl: Catalogue = {
     'connect.address': 'Serwer',
     'connect.addressExample': 'mailfathom.example.com:8443',
     'connect.addressHint': 'Port opcjonalny – bez niego ten klient łączy się na porcie {port}.',
-    'connect.clearText': 'Łącz się z tym wdrożeniem zwykłym protokołem HTTP',
+    'connect.clearText': 'Łącz się z tym serwerem zwykłym protokołem HTTP',
     'connect.clearTextConfigured':
-        'To ustawienie zostało określone przy instalacji klienta, więc nie zmienisz go tutaj. Decyduje o nim osoba, która go skonfigurowała.',
+        'To ustawienie zostało określone przy instalacji klienta, więc nie zmienisz go tutaj. Decyduje o nim administrator.',
     'connect.clearTextExplanation':
-        'Twoje hasło jest kodowane, a nie szyfrowane, przy logowaniu, a każde kolejne żądanie niesie sesję, na którą zostało wymienione. Każdy, kto znajduje się między tym klientem a wdrożeniem, może odczytać jedno i drugie. Zostaw tę opcję wyłączoną, chyba że sieć między nimi należy do Ciebie.',
+        'Twoje hasło jest kodowane, a nie szyfrowane, przy logowaniu, a każde kolejne żądanie niesie sesję, na którą zostało wymienione. Każdy, kto znajduje się między tym klientem a serwerem, może odczytać jedno i drugie. Zostaw tę opcję wyłączoną, chyba że sieć między nimi należy do Ciebie.',
     'connect.clearTextInForce':
         'TLS jest wyłączony. Login, hasło i każda odczytana wiadomość pójdą otwartym tekstem. Używaj tego tylko w sieci, którą kontrolujesz, albo przez VPN.',
     'connect.portHint': 'port {port}',
@@ -547,16 +547,16 @@ export const pl: Catalogue = {
     'connect.certificateChecked': 'Wymagana',
     'connect.certificateNone': 'Brak – nic nie jest szyfrowane',
     'connect.nothingNamed': 'Nic jeszcze nie podano',
-    'connect.blank': 'Podaj wdrożenie, które przechowuje Twoją pocztę.',
-    'connect.malformed': 'To nie jest adres. Podaj host, na którym wdrożenie odpowiada, oraz port, jeśli go używa.',
+    'connect.blank': 'Podaj adres swojego serwera MailFathom.',
+    'connect.malformed': 'To nie jest adres. Podaj host, na którym serwer odpowiada, oraz port, jeśli go używa.',
     'connect.clearTextRefused':
         'Ten adres używa zwykłego protokołu HTTP, a ten klient nie wyśle nim hasła, dopóki na to nie zezwolisz.',
-    'connect.unavailable': 'Nic tam nie odpowiedziało. Sprawdź adres oraz to, czy wdrożenie jest uruchomione.',
+    'connect.unavailable': 'Nic tam nie odpowiedziało. Sprawdź adres oraz to, czy serwer jest uruchomiony.',
     'connect.unreadable': 'Coś tam odpowiedziało, ale nie jako MailFathom.',
 
     'configuration.refused': 'Ten klient jest błędnie skonfigurowany',
     'configuration.addressMalformed':
-        'Podany adres serwera nie jest adresem. Musi to być host, na którym wdrożenie odpowiada, oraz port, jeśli go używa.',
+        'Podany adres serwera nie jest adresem. Musi to być host, na którym serwer odpowiada, oraz port, jeśli go używa.',
     'configuration.addressNeedsClearTextPermission':
         'Podany adres serwera używa zwykłego protokołu HTTP, a nic nie zezwoliło na niezabezpieczone połączenie. Podaj adres https albo zezwól obok niego na otwarty tekst.',
     'configuration.clearTextContradictsAddress':
@@ -566,7 +566,7 @@ export const pl: Catalogue = {
     'configuration.whereItIsStated':
         'Oba ustawienia są odczytywane z argumentów uruchomienia MailFathom, z jego środowiska oraz z pliku client.conf obok jego własnej konfiguracji – w tej kolejności.',
 
-    'preferences.notStated': 'Ta zmiana nie została zapisana na wdrożeniu.',
+    'preferences.notStated': 'Ta zmiana nie została zapisana na serwerze.',
 
     'settings.title': 'Ustawienia',
     'settings.close': 'Zamknij ustawienia',
@@ -585,31 +585,31 @@ export const pl: Catalogue = {
     'settings.nothingFound': 'Żadna sekcja nie pasuje.',
     'settings.name': 'Imię i nazwisko',
     'settings.nameNotYours':
-        'Twoje imię i nazwisko prowadzi ten, kto zarządza tym wdrożeniem, więc jest tu pokazane, a nie oddane do zmiany.',
+        'Twoim imieniem i nazwiskiem zarządza administrator, więc jest tu pokazane, a nie oddane do zmiany.',
     'settings.profileNotYours':
-        'To logowanie może odczytać to, co wdrożenie przechowuje o Tobie, ale nie może tego zmienić, więc imię i nazwisko, zdjęcie i strefa czasowa są tu pokazane, a nie oddane do zmiany.',
+        'To logowanie może odczytać to, co serwer przechowuje o Tobie, ale nie może tego zmienić, więc imię i nazwisko, zdjęcie i strefa czasowa są tu pokazane, a nie oddane do zmiany.',
     'settings.preferencesNotYours':
         'To logowanie nie może zmieniać ustawień, które idą za Tobą między maszynami, więc są tu pokazane w obecnym stanie. Język i to, co robi ta maszyna, nadal ustawiasz samodzielnie.',
     'settings.nameNotAcceptable':
-        'To imię i nazwisko nie zostało przyjęte. Nie może być puste ani dłuższe niż 128 znaków i nie może być takie, jakim posługuje się już ktoś inny na tym wdrożeniu.',
+        'To imię i nazwisko nie zostało przyjęte. Nie może być puste ani dłuższe niż 128 znaków i nie może być takie, jakim posługuje się już ktoś inny na tym serwerze.',
     'settings.nameNotStored':
-        'To imię i nazwisko nie zostało zapisane na wdrożeniu, więc nadal prowadzi Cię pod poprzednim.',
+        'To imię i nazwisko nie zostało zapisane na serwerze, więc serwer nadal zna Cię pod poprzednim.',
     'settings.choosePicture': 'Zdjęcie',
     'settings.removePicture': 'Usuń',
     'settings.pictureBounds': 'JPG/PNG, maks. 1 MB',
     'settings.pictureNotAnImageKind': 'Ten plik nie jest ani plikiem JPEG, ani PNG, więc nie został wysłany.',
     'settings.pictureTooLarge': 'To zdjęcie jest większe niż 1 MB, więc nie zostało wysłane.',
     'settings.pictureNotStored':
-        'To zdjęcie nie zostało zapisane na wdrożeniu, więc nadal jesteś rysowany tak jak wcześniej.',
+        'To zdjęcie nie zostało zapisane na serwerze, więc nadal jesteś rysowany tak jak wcześniej.',
     'settings.profileHeld':
-        'Imię, nazwisko i zdjęcie przechowuje wdrożenie, na które się logujesz, więc idą za Tobą między maszynami. Żadne z nich nie trafia na Twój serwer poczty.',
+        'Imię, nazwisko i zdjęcie przechowuje serwer, na który się logujesz, więc idą za Tobą między maszynami. Żadne z nich nie trafia na Twój serwer poczty.',
     'settings.timeZone': 'Strefa czasowa',
     'settings.timeZoneExplanation':
         'W tej strefie zapisywana jest każda pokazywana Ci data i to ona rozstrzyga, co znaczy „w tym tygodniu” i „od wtorku”, gdy pytasz o swoją pocztę.',
     'settings.timeZoneNotAcceptable':
         'Ta strefa czasowa nie została przyjęta, więc Twoje daty są nadal zapisywane w poprzedniej.',
     'settings.timeZoneNotStored':
-        'Ta strefa czasowa nie została zapisana na wdrożeniu, więc Twoje daty są nadal zapisywane w poprzedniej.',
+        'Ta strefa czasowa nie została zapisana na serwerze, więc Twoje daty są nadal zapisywane w poprzedniej.',
     'settings.messageView': 'Widok wiadomości',
     'settings.messageViewCleaned': 'Uproszczony przez AI',
     'settings.messageViewReduced': 'Uproszczony',
@@ -647,16 +647,16 @@ export const pl: Catalogue = {
     'settings.telemetryDestination':
         'Wysyłane do {address}, które przekazuje je dalej do skonfigurowanego kolektora. Zawierają to, które ekrany otwierasz i jak długo się otwierały – nigdy Twojej poczty, adresów, folderów ani hasła.',
     'settings.telemetryNotForwarded':
-        'To wdrożenie nie przyjmuje telemetrii od tego klienta, więc klient jej nie wysyła i nie ma czego wyłączać.',
+        'Ten serwer nie przyjmuje telemetrii od tego klienta, więc klient jej nie wysyła i nie ma czego wyłączać.',
     'settings.telemetryUnanswered':
-        'Czekamy, aż to wdrożenie powie, czy przekazuje telemetrię. Dopóki nie odpowie, obowiązuje Twoja własna decyzja.',
+        'Czekamy, aż ten serwer powie, czy przekazuje telemetrię. Dopóki nie odpowie, obowiązuje Twoja własna decyzja.',
 
     'accounts.reading': 'Odczytywanie kont…',
     'accounts.notRefreshing':
-        'To wdrożenie nie odświeża lokalnej kopii tych kont, więc widzisz je w takim stanie, w jakim zostawił je jego ostatni przebieg. To ustawienie wdrożenia, a nie brakujące Ci uprawnienie.',
+        'Ten serwer nie odświeża lokalnej kopii tych kont, więc widzisz je w takim stanie, w jakim zostawił je jego ostatni przebieg. To ustawienie serwera, a nie brakujące Ci uprawnienie.',
     'accounts.failed': 'Nie udało się odczytać kont: {reason}.',
     'accounts.noneDeclared':
-        'To osoba prowadząca to wdrożenie wskazuje skrzynki, które są dla Ciebie odczytywane, a nie wskazano jeszcze żadnej.',
+        'To administrator wskazuje skrzynki, które są dla Ciebie odczytywane, a nie wskazano jeszcze żadnej.',
 
     'account.synchronized': 'Aktualne',
     'account.behind': 'Nadrabia zaległości',
@@ -718,10 +718,10 @@ export const pl: Catalogue = {
     'folders.refusal.serverUnavailable':
         'Serwer pocztowy nie odpowiedział. Nic się nie zmieniło, więc spróbuj ponownie.',
     'folders.refusal.roleAlreadyPlayed': 'Ta skrzynka ma już taki folder.',
-    'folders.refusal.notYours': 'Ten folder ustawił administrator wdrożenia i to on go zmienia.',
+    'folders.refusal.notYours': 'Ten folder ustawił administrator i to on go zmienia.',
     'folders.refusal.notRecorded':
         'Serwer pocztowy wykonał zmianę, a MailFathom nie zdołał jej zapisać. Otwórz skrzynki ponownie, zanim poprosisz o cokolwiek innego.',
-    'folders.refusal.another': 'Wdrożenie ją odrzuciło.',
+    'folders.refusal.another': 'Serwer ją odrzucił.',
 
     'folders.deleteQuestion': 'Usunąć folder {folder}?',
     'folders.deleteConsequence': 'Folder {folder} zniknie ze skrzynki {mailbox}.',
@@ -821,7 +821,7 @@ export const pl: Catalogue = {
     'act.undone': 'Przywrócono na miejsce',
     'act.failed': 'Nie wprowadziliśmy tej zmiany: {reason}.',
     'act.someNotChanged':
-        'Części z tych wiadomości nie zmieniliśmy. Twoje wdrożenie nie udostępnia ich już tam, gdzie narysowała je lista.',
+        'Części z tych wiadomości nie zmieniliśmy. Serwer nie udostępnia ich już tam, gdzie narysowała je lista.',
     'act.archiving': 'Archiwizujemy…',
     'act.deleting': 'Przenosimy do kosza…',
     'act.filing': 'Przenosimy…',
@@ -884,7 +884,7 @@ export const pl: Catalogue = {
     'compose.tooManyAddresses': 'Jedno pole przyjmuje najwyżej {count} adresów.',
     'compose.subject': 'Temat',
     'compose.subjectPlaceholder': 'Temat wiadomości',
-    'compose.subjectOfAnAnswer': 'Temat odpowiedzi zapisuje Twoje wdrożenie, więc nie edytujemy go tutaj.',
+    'compose.subjectOfAnAnswer': 'Temat odpowiedzi zapisuje serwer, więc nie edytujemy go tutaj.',
     'compose.aiPrompt': 'Czego ma dotyczy\u0107 szkic',
     'compose.aiPromptPlaceholder':
         'Napisz, o co chodzi – np. \u201eprzyjmujemy SLA 2 h, ale prosimy o 5% czapki na indeksacj\u0119\u201d',
@@ -906,11 +906,10 @@ export const pl: Catalogue = {
     'compose.aiAccept': 'Przyjmij',
     'compose.notDraftedTitle': 'Nie powsta\u0142 \u017caden szkic',
     'compose.notDrafted':
-        'Twoje wdro\u017cenie tym razem nie napisa\u0142o szkicu. To, co napisane, zosta\u0142o nietkni\u0119te – zostaje napisa\u0107 to samemu.',
+        'Serwer tym razem nie napisał szkicu. To, co napisane, zostało nietknięte – zostaje napisać to samemu.',
     'compose.draftAllowanceSpent':
-        'Twoje wdro\u017cenie wyczerpa\u0142o na teraz to, na co pozwala swojemu autorowi. Osoba prowadz\u0105ca wdro\u017cenie mo\u017ce to podnie\u015b\u0107, a nic z napisanego nie zosta\u0142o tkni\u0119te.',
-    'compose.cautionUnreadDraft':
-        'To, co tu stoi, jest szkicem od wdro\u017cenia, kt\u00f3rego jeszcze nie przyj\u0119to.',
+        'Serwer wyczerpał na teraz to, na co pozwala swojemu autorowi. Administrator może to podnieść, a nic z napisanego nie zostało tknięte.',
+    'compose.cautionUnreadDraft': 'To, co tu stoi, jest szkicem od serwera, którego jeszcze nie przyjęto.',
     'compose.words': 'Treść',
     'compose.wordsPlaceholder': 'Napisz wiadomość',
     'compose.formatting': 'Formatowanie tekstu',
@@ -943,13 +942,13 @@ export const pl: Catalogue = {
     'compose.confirmNobody': 'Wiadomość nie ma adresata.',
     'compose.confirmSubject': 'Temat: {subject}',
     'compose.confirmNoSubject': 'brak',
-    'compose.confirmRecallable': 'Możesz ją wycofać, dopóki wdrożenie nie przekaże jej serwerowi poczty.',
+    'compose.confirmRecallable': 'Możesz ją wycofać, dopóki nie zostanie przekazana serwerowi poczty.',
     'compose.cautionNoRecipient': 'Nikt nie jest wpisany jako adresat, więc nie ma dokąd jej wysłać.',
     'compose.cautionNoSubject': 'Wiadomość pójdzie bez tematu.',
     'compose.cautionNoWords': 'Wiadomość pójdzie bez treści.',
     'compose.discardQuestion': 'Odrzucić tę wiadomość?',
     'compose.discardExplanation':
-        'To, co zostało napisane, przepadnie razem ze szkicem, który Twoje wdrożenie zdążyło już dla niej zapisać.',
+        'To, co zostało napisane, przepadnie razem ze szkicem, który serwer zdążył już dla niej zapisać.',
     'compose.discardIsFinal': 'Nic jej wcześniej nie zapisze, więc do tego tekstu nie ma powrotu.',
     'compose.discard': 'Odrzuć',
     'compose.saving': 'Zapisujemy szkic…',
@@ -962,7 +961,7 @@ export const pl: Catalogue = {
         'Nie udało się przenieść plików {names} z kopii roboczej, więc ta wiadomość ich nie zawiera. Załącz je ponownie, aby je wysłać.',
     'compose.sendingTitle': 'Wysyłamy wiadomość…',
     'compose.stoppingSendLeavesBehind': 'Wiadomość jest w drodze. Przerwanie wycofa ją i zostawi w Twoich szkicach.',
-    'compose.stoppedSendLeftBehind': 'Wdrożenie zostało poproszone o wycofanie wiadomości do Twoich szkiców.',
+    'compose.stoppedSendLeftBehind': 'Serwer został poproszony o wycofanie wiadomości do Twoich szkiców.',
     'compose.sentTitle': 'Wiadomość wysłana',
     'compose.notSentTitle': 'Wiadomość nie została wysłana',
     'compose.queued': 'Wiadomość czeka w kolejce do wysłania.',
@@ -972,15 +971,14 @@ export const pl: Catalogue = {
     'compose.withdrawn': 'Wycofana, zanim poszła dalej.',
     'compose.alreadyBeingSent': 'Wysyłka już trwa, więc nie dało się jej wycofać.',
     'compose.pastRecall': 'Wiadomość została wysłana, więc nie da się jej wycofać.',
-    'compose.noSuchSend': 'Twoje wdrożenie nie prowadzi już tej wysyłki.',
+    'compose.noSuchSend': 'Serwer nie prowadzi już tej wysyłki.',
     'compose.offline':
         'Ta maszyna jest bez sieci. To, co piszesz, zostaje tutaj, a zapisać lub wysłać można to, gdy sieć wróci.',
-    'compose.refusedSendingNotEnabled':
-        'To wdrożenie nie wysyła poczty. Osoba prowadząca wdrożenie może włączyć wysyłkę.',
+    'compose.refusedSendingNotEnabled': 'Ten serwer nie wysyła poczty. Administrator może włączyć wysyłkę.',
     'compose.refusedRecipient':
-        'Twoje wdrożenie odrzuciło jeden z adresów. Osoba prowadząca wdrożenie decyduje, na jakie adresy może iść poczta.',
+        'Serwer odrzucił jeden z adresów. Administrator decyduje, na jakie adresy może iść poczta.',
     'compose.refusedCeiling':
-        'Osiągnięto limit wydatków, więc nic nie wychodzi, dopóki okno, w którym jest liczony, się nie przewinie albo osoba prowadząca wdrożenie go nie podniesie.',
+        'Osiągnięto limit wydatków, więc nic nie wychodzi, dopóki okno, w którym jest liczony, się nie przewinie albo administrator go nie podniesie.',
     'compose.refusedContent':
         'Kontrola treści odrzuciła to, co niesie ta wiadomość. Zmiana treści albo załączników jest tym, co to zmieni.',
     'compose.refusedNotScanned':
@@ -998,19 +996,17 @@ export const pl: Catalogue = {
     'compose.saveRefusedScreeningUnavailable':
         'Kontrola treści nie odpowiada, więc nic nie jest zapisywane, dopóki nie odpowie. Wiadomość nadal tu jest.',
     'compose.saveRefusedForAnotherReason':
-        'Twoje wdrożenie odmówiło zapisania jej. Osoba, która je prowadzi, może powiedzieć dlaczego z jego dziennika. Nic z tego, co zostało napisane, nie zginęło.',
-    'compose.refusedForAnotherReason':
-        'Twoje wdrożenie odmówiło wysłania. Osoba prowadząca wdrożenie odczyta powód z jego dziennika.',
+        'Serwer odmówił zapisania jej. Administrator może sprawdzić przyczynę w dzienniku serwera. Nic z tego, co zostało napisane, nie zginęło.',
+    'compose.refusedForAnotherReason': 'Serwer odmówił wysłania. Administrator odczyta powód z dziennika serwera.',
     'compose.failedUnauthenticated':
         'Ten klient nie jest już zalogowany. Zaloguj się ponownie – to, co zostało napisane, nadal tu jest.',
     'compose.failedUnauthorized':
-        'To poświadczenie nie może tego zrobić w tym wdrożeniu. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
-    'compose.failedUnavailable':
-        'Twoje wdrożenie nie odpowiedziało. To, co zostało napisane, zostaje tutaj; spróbuj ponownie.',
+        'To poświadczenie nie może tego zrobić na tym serwerze. Administrator może nadać takie uprawnienie.',
+    'compose.failedUnavailable': 'Serwer nie odpowiedział. To, co zostało napisane, zostaje tutaj; spróbuj ponownie.',
     'compose.failedUnreadable':
-        'Twoje wdrożenie odpowiedziało, ale klient nie potrafił nic z tą odpowiedzią zrobić. To usterka warta zgłoszenia.',
+        'Serwer odpowiedział, ale klient nie potrafił nic z tą odpowiedzią zrobić. To usterka warta zgłoszenia.',
     'compose.failedMissing':
-        'Twoje wdrożenie nie ma już wiadomości, na którą to miała być odpowiedź, więc nie ma tu na co odpowiadać.',
+        'Serwer nie ma już wiadomości, na którą to miała być odpowiedź, więc nie ma tu na co odpowiadać.',
 
     'tabs.strip': 'Co jest otwarte',
     'tabs.close': 'Zamknij: {title}',
@@ -1053,7 +1049,7 @@ export const pl: Catalogue = {
     'list.nothingRead':
         'Żadna wiadomość w tym folderze nie ma odczytu, po którym zawężasz listę. Albo naprawdę żadna go nie ma, albo MailFathom jeszcze nie przeczytał tego folderu.',
     'list.notSynchronizedYet':
-        'Do tego wdrożenia nie pobrano jeszcze niczego z tej skrzynki, więc nie ma czego pokazać. Folder nie jest pusty – nie został odczytany.',
+        'Serwer nie pobrał jeszcze niczego z tej skrzynki, więc nie ma czego pokazać. Folder nie jest pusty – nie został odczytany.',
     'list.emptyWhileFailing':
         'Ta skrzynka przestała się synchronizować, więc może tu być mniej wiadomości, niż ma serwer pocztowy.',
 
@@ -1129,7 +1125,7 @@ export const pl: Catalogue = {
     'search.blank': 'Wpisz, czego szukasz.',
     'search.submit': 'Szukaj',
     'search.stop': 'Zakończ wyszukiwanie',
-    'search.tooLong': 'To jest dłuższe niż wyszukiwanie uruchamiane przez to wdrożenie, czyli {longest} znaków.',
+    'search.tooLong': 'To jest dłuższe niż wyszukiwanie uruchamiane przez ten serwer, czyli {longest} znaków.',
     'search.recent': 'Wcześniej wyszukiwane',
     'search.forgetRecent': 'Zapomnij je',
     'search.everywhere': 'Przeszukiwana jest każda skrzynka i każdy folder.',
@@ -1182,19 +1178,19 @@ export const pl: Catalogue = {
     'search.inFileSheet': 'arkusz {number}',
     'search.unnamedFile': 'plik bez nazwy nadanej przez nadawcę',
     'search.wordsOnlyInactive':
-        'To wdrożenie nie wyszukuje po znaczeniu, więc te wyniki zawierają wpisane przez ciebie słowa i nic, co zostałoby znalezione wyłącznie po znaczeniu.',
+        'Ten serwer nie wyszukuje po znaczeniu, więc te wyniki zawierają wpisane przez ciebie słowa i nic, co zostałoby znalezione wyłącznie po znaczeniu.',
     'search.wordsOnlyDegraded':
-        'Wyszukiwanie po znaczeniu w tej chwili nie działa na tym wdrożeniu, więc te wyniki zawierają wyłącznie wpisane przez ciebie słowa. Osoba, która je prowadzi, może się temu przyjrzeć.',
+        'Wyszukiwanie po znaczeniu w tej chwili nie działa na tym serwerze, więc te wyniki zawierają wyłącznie wpisane przez ciebie słowa. Administrator może się temu przyjrzeć.',
 
     'connection.current': 'Wszystkie konta są aktualne.',
     'connection.behind': 'Część kont ma zaległości.',
     'connection.failing': 'Część kont przestała się synchronizować.',
     'connection.noAccounts': 'Dla tego właściciela nie skonfigurowano jeszcze żadnego konta pocztowego.',
     'connection.retry': 'Spróbuj ponownie',
-    'connection.connecting': 'Łączenie z Twoim wdrożeniem…',
-    'connection.reconnecting': 'Twoje wdrożenie nie odpowiedziało. Próbujemy ponownie – próba {attempt} z {total}.',
-    'connection.lost': 'Twoje wdrożenie nie odpowiedziało po {total} próbach.',
-    'connection.unreadable': 'Twoje wdrożenie odpowiedziało, ale klient nie mógł wykorzystać tej odpowiedzi: {reason}.',
+    'connection.connecting': 'Łączenie z serwerem…',
+    'connection.reconnecting': 'Serwer nie odpowiedział. Próbujemy ponownie – próba {attempt} z {total}.',
+    'connection.lost': 'Serwer nie odpowiedział po {total} próbach.',
+    'connection.unreadable': 'Serwer odpowiedział, ale klient nie mógł wykorzystać tej odpowiedzi: {reason}.',
     'connection.offline': 'Ta maszyna nie ma połączenia z siecią. Klient połączy się ponownie sam, gdy sieć wróci.',
 
     'containment.failed': 'Ta część MailFathom przestała działać. Nie ma to wpływu na resztę ekranu.',
@@ -1202,42 +1198,42 @@ export const pl: Catalogue = {
 
     'grant.heading': 'Czego to poświadczenie nie może tutaj zrobić',
     'grant.readMail':
-        'To poświadczenie nie może odczytywać poczty w tym wdrożeniu, więc nie pokazujemy żadnej skrzynki ani wiadomości. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
+        'To poświadczenie nie może odczytywać poczty na tym serwerze, więc nie pokazujemy żadnej skrzynki ani wiadomości. Administrator może nadać takie uprawnienie.',
     'grant.askMail':
-        'To poświadczenie nie może zadawać pytań Twojej poczcie w tym wdrożeniu, więc nie oferujemy pytania. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
+        'To poświadczenie nie może zadawać pytań Twojej poczcie na tym serwerze, więc nie oferujemy pytania. Administrator może nadać takie uprawnienie.',
     'grant.writeMailFlags':
-        'To poświadczenie nie może zmieniać flag na Twoim serwerze poczty, więc otwarcie wiadomości pozostawia ją tam nieprzeczytaną, nie oferujemy flagowania ani oznaczania jako nieprzeczytanej, a klient pokazuje to, co serwer zgłosił ostatnio. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
+        'To poświadczenie nie może zmieniać flag na Twoim serwerze poczty, więc otwarcie wiadomości pozostawia ją tam nieprzeczytaną, nie oferujemy flagowania ani oznaczania jako nieprzeczytanej, a klient pokazuje to, co serwer zgłosił ostatnio. Administrator może nadać takie uprawnienie.',
     'grant.fileMail':
-        'To poświadczenie nie może przenosić poczty do innego katalogu w tym wdrożeniu, więc nie oferujemy archiwizowania, usuwania ani przenoszenia. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
+        'To poświadczenie nie może przenosić poczty do innego katalogu na tym serwerze, więc nie oferujemy archiwizowania, usuwania ani przenoszenia. Administrator może nadać takie uprawnienie.',
     'grant.deleteMail':
-        'To poświadczenie nie może usuwać poczty z Twojego serwera pocztowego, więc wiadomość, która jest już w koszu, można tam tylko zostawić. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
+        'To poświadczenie nie może usuwać poczty z Twojego serwera pocztowego, więc wiadomość, która jest już w koszu, można tam tylko zostawić. Administrator może nadać takie uprawnienie.',
 
     'grant.composeMail':
-        'To poświadczenie nie może zapisywać szkiców w tym wdrożeniu, więc nie oferujemy pisania wiadomości. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
+        'To poświadczenie nie może zapisywać szkiców na tym serwerze, więc nie oferujemy pisania wiadomości. Administrator może nadać takie uprawnienie.',
     'grant.sendMail':
-        'To poświadczenie nie może wysyłać poczty z tego wdrożenia, więc wiadomość można napisać i zapisać jako szkic, ale nie wysłać. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
+        'To poświadczenie nie może wysyłać poczty z tego serwera, więc wiadomość można napisać i zapisać jako szkic, ale nie wysłać. Administrator może nadać takie uprawnienie.',
     'grant.manageFolders':
-        'To poświadczenie nie może tworzyć, zmieniać nazwy, przenosić ani usuwać folderów Twoich skrzynek, więc nie oferujemy żadnej z tych czynności. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
+        'To poświadczenie nie może tworzyć, zmieniać nazwy, przenosić ani usuwać folderów Twoich skrzynek, więc nie oferujemy żadnej z tych czynności. Administrator może nadać takie uprawnienie.',
     'grant.readContacts':
-        'To poświadczenie nie może czytać książki adresowej w tym wdrożeniu, więc nie oferujemy przestrzeni Osoby. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
+        'To poświadczenie nie może czytać książki adresowej na tym serwerze, więc nie oferujemy przestrzeni Osoby. Administrator może nadać takie uprawnienie.',
     'grant.writeContacts':
-        'To poświadczenie nie może zmieniać książki adresowej w tym wdrożeniu, więc nie oferujemy dodawania kontaktu, przejmowania zebranego ani usuwania. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
+        'To poświadczenie nie może zmieniać książki adresowej na tym serwerze, więc nie oferujemy dodawania kontaktu, przejmowania zebranego ani usuwania. Administrator może nadać takie uprawnienie.',
     'grant.readTasks':
-        'To poświadczenie nie może czytać Twoich zadań w tym wdrożeniu, więc nie oferujemy przestrzeni Zadania. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
+        'To poświadczenie nie może czytać Twoich zadań na tym serwerze, więc nie oferujemy przestrzeni Zadania. Administrator może nadać takie uprawnienie.',
     'grant.writeTasks':
-        'To poświadczenie nie może zmieniać Twoich zadań w tym wdrożeniu, więc nie oferujemy przestrzeni Zadania. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
+        'To poświadczenie nie może zmieniać Twoich zadań na tym serwerze, więc nie oferujemy przestrzeni Zadania. Administrator może nadać takie uprawnienie.',
     'grant.readCalendar':
-        'To poświadczenie nie może czytać Twojego kalendarza w tym wdrożeniu, więc nie oferujemy przestrzeni Kalendarz. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
+        'To poświadczenie nie może czytać Twojego kalendarza na tym serwerze, więc nie oferujemy przestrzeni Kalendarz. Administrator może nadać takie uprawnienie.',
     'grant.writeCalendar':
-        'To poświadczenie nie może zmieniać Twojego kalendarza w tym wdrożeniu, więc nie oferujemy przestrzeni Kalendarz. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
+        'To poświadczenie nie może zmieniać Twojego kalendarza na tym serwerze, więc nie oferujemy przestrzeni Kalendarz. Administrator może nadać takie uprawnienie.',
     'grant.readNotifications':
-        'To poświadczenie nie może czytać Twoich powiadomień w tym wdrożeniu, więc nie oferujemy dzwonka, a klient dowiaduje się o zmianach w swoim własnym odstępie, a nie na bieżąco. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
+        'To poświadczenie nie może czytać Twoich powiadomień na tym serwerze, więc nie oferujemy dzwonka, a klient dowiaduje się o zmianach w swoim własnym odstępie, a nie na bieżąco. Administrator może nadać takie uprawnienie.',
     'grant.writeNotifications':
-        'To poświadczenie nie może oznaczać ani usuwać Twoich powiadomień w tym wdrożeniu, więc nie oferujemy dzwonka. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
+        'To poświadczenie nie może oznaczać ani usuwać Twoich powiadomień na tym serwerze, więc nie oferujemy dzwonka. Administrator może nadać takie uprawnienie.',
     'grant.readProfile':
-        'To poświadczenie nie może czytać Twojego profilu w tym wdrożeniu, więc nie pokazujemy Twojej nazwy, zdjęcia, strefy czasowej ani preferencji, a klient używa własnych ustawień domyślnych. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
+        'To poświadczenie nie może czytać Twojego profilu na tym serwerze, więc nie pokazujemy Twojej nazwy, zdjęcia, strefy czasowej ani preferencji, a klient używa własnych ustawień domyślnych. Administrator może nadać takie uprawnienie.',
     'grant.writeProfile':
-        'To poświadczenie nie może zmieniać Twojego profilu w tym wdrożeniu, więc zmiana nazwy, zdjęcia, strefy czasowej lub preferencji zostanie odrzucona. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
+        'To poświadczenie nie może zmieniać Twojego profilu na tym serwerze, więc zmiana nazwy, zdjęcia, strefy czasowej lub preferencji zostanie odrzucona. Administrator może nadać takie uprawnienie.',
     'failure.unauthenticated': 'brak uwierzytelnienia',
     'failure.unauthorized': 'brak uprawnień',
     'failure.unavailable': 'usługa niedostępna',
@@ -1247,23 +1243,23 @@ export const pl: Catalogue = {
     'body.reading': 'Otwieranie wiadomości…',
     'body.failed': 'Nie udało się odczytać wiadomości: {reason}.',
 
-    'body.encryptedNotReadable': 'Ta wiadomość jest zaszyfrowana i to wdrożenie nie potrafi jej odczytać.',
+    'body.encryptedNotReadable': 'Ta wiadomość jest zaszyfrowana i ten serwer nie potrafi jej odczytać.',
     'body.notStoredExceededSizeLimit':
-        'Ta wiadomość była większa, niż to wdrożenie przechowuje, więc jej treść nie została zapisana.',
+        'Ta wiadomość była większa, niż ten serwer przechowuje, więc jej treść nie została zapisana.',
     'body.notStoredAwaitingStorageHeadroom':
         'Ta wiadomość czeka na miejsce w magazynie, zanim jej treść zostanie zapisana.',
 
     'body.refusedNoHtmlPart':
         'Nadawca nie napisał sformatowanej wersji tej wiadomości, więc jest ona pokazana jako sam tekst.',
     'body.refusedReductionFailed':
-        'To wdrożenie nie potrafiło odczytać sformatowanej wersji tej wiadomości, więc jest ona pokazana jako sam tekst.',
+        'Ten serwer nie potrafił odczytać sformatowanej wersji tej wiadomości, więc jest ona pokazana jako sam tekst.',
     'body.refusedNothingRenderable':
         'Sformatowana wersja tej wiadomości nie zawierała niczego do narysowania, więc jest ona pokazana jako sam tekst.',
     'body.notReduced':
-        'To wdrożenie nie przysłało wersji tej wiadomości do narysowania, więc jest ona pokazana jako sam tekst.',
+        'Ten serwer nie przysłał wersji tej wiadomości do narysowania, więc jest ona pokazana jako sam tekst.',
 
     'body.truncated': 'Ta wiadomość jest dłuższa, niż okno czytania rysuje, więc kończy się w tym miejscu.',
-    'body.textTruncated': 'Tekst tej wiadomości został skrócony przez ograniczenie stosowane przez to wdrożenie.',
+    'body.textTruncated': 'Tekst tej wiadomości został skrócony przez ograniczenie stosowane przez ten serwer.',
     'body.blockNotDrawn': 'Fragment tej wiadomości powstał dla nowszego klienta niż ten, więc nie został narysowany.',
     'body.tableRegion': 'Tabela w tej wiadomości, przewijana w poziomie',
     'body.preformattedRegion': 'Tekst preformatowany w tej wiadomości, przewijany w poziomie',
@@ -1284,9 +1280,9 @@ export const pl: Catalogue = {
     'body.markupIsolated': 'Treść HTML nadawcy w izolacji – skrypty i zdalne zasoby zablokowane',
     'body.markupNotMeasured': 'Nie udało się zmierzyć wysokości treści – ta jedna ramka przewija się osobno',
     'body.cleaning': 'Ustalamy, co zostawić z tej wiadomości…',
-    'body.cleaningNotActivated': 'To wdrożenie nie upraszcza wiadomości modelem, więc pokazujemy wersję uproszczoną.',
+    'body.cleaningNotActivated': 'Ten serwer nie upraszcza wiadomości modelem, więc pokazujemy wersję uproszczoną.',
     'body.cleaningAllowanceExhausted':
-        'Limit tego wdrożenia na bieżący okres został wyczerpany, więc pokazujemy wersję uproszczoną.',
+        'Limit tego serwera na bieżący okres został wyczerpany, więc pokazujemy wersję uproszczoną.',
     'body.cleaningProviderUnavailable': 'AI nie odpowiedziała, więc pokazujemy wersję uproszczoną.',
     'body.cleaningAnswerRejected': 'Odpowiedź modelu nie dała się wykorzystać, więc pokazujemy wersję uproszczoną.',
     'body.cleaningNotRead': 'Nie udało się uprościć tej wiadomości, więc pokazujemy wersję uproszczoną.',
@@ -1395,7 +1391,7 @@ export const pl: Catalogue = {
 
     'sender.failed':
         'Odbierający serwer pocztowy sprawdził, kto naprawdę wysłał tę wiadomość, i stwierdził, że wskazany w niej autor się nie potwierdził.',
-    'sender.recognized': 'To wdrożenie rozpoznaje nadawcę tej wiadomości.',
+    'sender.recognized': 'Ten serwer rozpoznaje nadawcę tej wiadomości.',
     'sender.authenticatedBy':
         'Uwierzytelniona przez {domain} – to ona naprawdę ją wysłała, a nie nazwa widoczna powyżej.',
     'sender.authenticatedByNobody': 'Nic nie uwierzytelniło nadawcy tej wiadomości.',
@@ -1407,7 +1403,7 @@ export const pl: Catalogue = {
     'attachment.close': 'Zamknij {name}',
     'attachment.download': 'Pobierz {name}',
     'attachment.nameWasRewritten':
-        'Nadawca zapisał nazwę pliku, której to wdrożenie by nie użyło, więc widoczna jest nazwa nadana w jej miejsce.',
+        'Nadawca zapisał nazwę pliku, której ten serwer by nie użył, więc widoczna jest nazwa nadana w jej miejsce.',
     'attachment.downloading': 'Pobieranie pliku…',
     'attachment.downloaded': 'Plik pobrany',
     'attachment.notDownloaded': 'Nie pobrano pliku',
@@ -1415,25 +1411,24 @@ export const pl: Catalogue = {
         'Trwa pobieranie pliku „{name}”. Przerwanie nie zostawi na tym urządzeniu nic z tego pliku.',
     'attachment.abandoned': 'Pobieranie zostało przerwane, więc nic nie zostało zapisane.',
     'attachment.refusedUnauthenticated':
-        'To wdrożenie nie przyjmuje już tych danych logowania, więc plik nie został pobrany. Zaloguj się ponownie.',
+        'Ten serwer nie przyjmuje już tych danych logowania, więc plik nie został pobrany. Zaloguj się ponownie.',
     'attachment.refusedUnauthorized':
-        'Te dane logowania nie pozwalają czytać poczty w tym wdrożeniu, więc plik nie został pobrany.',
-    'attachment.refusedUnavailable': 'Wdrożenie nie odpowiedziało, więc plik nie został pobrany. Spróbuj ponownie.',
+        'Te dane logowania nie pozwalają czytać poczty na tym serwerze, więc plik nie został pobrany.',
+    'attachment.refusedUnavailable': 'Serwer nie odpowiedział, więc plik nie został pobrany. Spróbuj ponownie.',
     'attachment.refusedScreened':
-        'To wdrożenie sprawdza pliki, które udostępnia, i tego nie udostępnia, więc nie został pobrany. Spróbuj ponownie – odczyt mógł przekroczyć czas albo kontrola chwilowo nie odpowiadała.',
+        'Ten serwer sprawdza pliki, które udostępnia, i tego nie udostępnia, więc nie został pobrany. Spróbuj ponownie – odczyt mógł przekroczyć czas albo kontrola chwilowo nie odpowiadała.',
     'attachment.refusedLargerThanDescribed':
-        'Wdrożenie przysłało więcej, niż ta wiadomość deklaruje dla tego pliku, więc nic nie zostało zapisane. Zgłoś to jako usterkę.',
+        'Serwer przysłał więcej, niż ta wiadomość deklaruje dla tego pliku, więc nic nie zostało zapisane. Zgłoś to jako usterkę.',
     'attachment.reading': 'Trwa otwieranie pliku {name}…',
     'attachment.offline':
         'Ta maszyna jest bez sieci, więc nie można otworzyć tego pliku. Otworzy się sam, gdy sieć wróci.',
     'attachment.notShownUnauthenticated':
-        'To wdrożenie nie przyjmuje już tych poświadczeń, więc nie udało się pokazać pliku. Zaloguj się ponownie.',
+        'Ten serwer nie przyjmuje już tych poświadczeń, więc nie udało się pokazać pliku. Zaloguj się ponownie.',
     'attachment.notShownUnauthorized':
-        'Te poświadczenia nie mogą czytać poczty w tym wdrożeniu, więc nie udało się pokazać pliku.',
-    'attachment.notShownUnavailable':
-        'Wdrożenie nie odpowiedziało, więc nie udało się pokazać pliku. Spróbuj ponownie.',
+        'Te poświadczenia nie mogą czytać poczty na tym serwerze, więc nie udało się pokazać pliku.',
+    'attachment.notShownUnavailable': 'Serwer nie odpowiedział, więc nie udało się pokazać pliku. Spróbuj ponownie.',
     'attachment.notShownScreened':
-        'To wdrożenie sprawdza pliki, które udostępnia, i tego nie udostępnia, więc nie udało się go pokazać. Spróbuj ponownie – odczyt mógł przekroczyć czas albo kontrola chwilowo nie odpowiadała.',
+        'Ten serwer sprawdza pliki, które udostępnia, i tego nie udostępnia, więc nie udało się go pokazać. Spróbuj ponownie – odczyt mógł przekroczyć czas albo kontrola chwilowo nie odpowiadała.',
     'attachment.notShownUnreadable':
         'To, co dotarło, nie zgadza się z tym, co ta wiadomość mówi o pliku, więc nic z niego nie rysujemy. Pobierz go i zgłoś to jako usterkę.',
     'attachment.empty': 'Ten plik nic nie zawiera.',
@@ -1515,20 +1510,20 @@ export const pl: Catalogue = {
     'pendingChange.notPutBack.few': '{count} wiadomości nie zostały przywrócone na miejsce.',
     'pendingChange.notPutBack.many': '{count} wiadomości nie zostało przywróconych na miejsce.',
     'pendingChange.notPutBack.other': '{count} wiadomości nie zostało przywróconych na miejsce.',
-    'pendingChange.messageNotFound': 'Tej poczty nie ma już w skrzynce, którą czyta to wdrożenie.',
+    'pendingChange.messageNotFound': 'Tej poczty nie ma już w skrzynce, którą czyta ten serwer.',
     'pendingChange.destinationNotFound': 'Folderu, do którego miała trafić, już nie ma.',
-    'pendingChange.accountNoLongerConfigured': 'To wdrożenie nie czyta już tego konta pocztowego.',
+    'pendingChange.accountNoLongerConfigured': 'Ten serwer nie czyta już tego konta pocztowego.',
     'pendingChange.changeNotUsable': 'Wskazanej zmiany nie da się wyrazić w jednym żądaniu – zgłoś to jako usterkę.',
     'pendingChange.destinationNotAllowed':
         'Ten folder jej nie przyjmie: wersje robocze zostają w folderze wersji roboczych albo w folderze utworzonym przez Ciebie, a nic innego tam nie trafia.',
-    'pendingChange.notDelivered': 'Ta zmiana nie dotarła do Twojego wdrożenia.',
+    'pendingChange.notDelivered': 'Ta zmiana nie dotarła do serwera.',
     'pendingChange.notDeliveredBody': 'Nic nie zostało zapisane, więc skrzynka pozostaje bez zmian.',
     'pendingChange.retry': 'Spróbuj ponownie',
     'pendingChange.stoppedFollowing': 'Ten klient przestał sprawdzać, dokąd doszły Twoje zmiany.',
     'pendingChange.stoppedFollowingBody':
-        'Twoje wdrożenie nie odpowiedziało {total} razy z rzędu. Same zmiany są zapisane i nadal są wprowadzane.',
+        'Serwer nie odpowiedział {total} razy z rzędu. Same zmiany są zapisane i nadal są wprowadzane.',
     'pendingChange.stoppedFollowingReason':
-        'Twoje wdrożenie odpowiedziało, ale ten klient nie mógł nic z tą odpowiedzią zrobić: {reason}. Nic nie jest sprawdzane, dopóki o to nie poprosisz.',
+        'Serwer odpowiedział, ale ten klient nie mógł nic z tą odpowiedzią zrobić: {reason}. Nic nie jest sprawdzane, dopóki o to nie poprosisz.',
     'pendingChange.followAgain': 'Sprawdź ponownie',
 
     'notifications.title': 'Powiadomienia',
@@ -1694,11 +1689,11 @@ export const pl: Catalogue = {
     'people.failedUnauthenticated':
         'Twoja sesja nie jest już przyjmowana, więc nie udało się odczytać książki adresowej. Zaloguj się ponownie.',
     'people.failedUnauthorized':
-        'To poświadczenie nie może czytać książki adresowej w tym wdrożeniu. Osoba prowadząca wdrożenie może nadać takie uprawnienie.',
+        'To poświadczenie nie może czytać książki adresowej na tym serwerze. Administrator może nadać takie uprawnienie.',
     'people.failedUnavailable':
-        'Wdrożenie nie odpowiedziało książką adresową. Może być niedostępne albo dopiero się uruchamia.',
+        'Serwer nie odpowiedział książką adresową. Może być niedostępny albo dopiero się uruchamia.',
     'people.failedUnreadable':
-        'Wdrożenie odpowiedziało książką adresową, której ten klient nie potrafi odczytać. Warto zgłosić to jako usterkę.',
+        'Serwer odpowiedział książką adresową, której ten klient nie potrafi odczytać. Warto zgłosić to jako usterkę.',
 
     'people.newContact': 'Nowy kontakt',
     'people.closeNewContact': 'Zamknij',
@@ -1706,7 +1701,7 @@ export const pl: Catalogue = {
     'people.contactAddress': 'Adres e-mail',
     'people.addressNotUsable': 'To nie wygląda na adres e-mail.',
     'people.newContactHint':
-        'Kontakt, który zapiszesz, możesz zmieniać i usuwać. To wdrożenie przechowuje nazwę i adresy, i nic więcej o osobie.',
+        'Kontakt, który zapiszesz, możesz zmieniać i usuwać. Ten serwer przechowuje nazwę i adresy, i nic więcej o osobie.',
     'people.saveContact': 'Zapisz kontakt',
 
     'people.write': 'Napisz',
@@ -1735,7 +1730,7 @@ export const pl: Catalogue = {
     'people.addressHeld': 'Ten adres należy już do innego kontaktu.',
     'people.originRefuses': 'Tego kontaktu nie możesz zmieniać.',
     'people.alreadyAsserted': 'Ten kontakt jest już jednym z Twoich.',
-    'people.writeFailed': 'Wdrożenie nie odpowiedziało, więc nic nie zostało zmienione.',
+    'people.writeFailed': 'Serwer nie odpowiedział, więc nic nie zostało zmienione.',
 
     'person.relationship': 'Stan relacji',
     'person.authored': 'AI',
@@ -1752,9 +1747,9 @@ export const pl: Catalogue = {
     'person.correspondenceUnauthenticated':
         'Twoja sesja nie jest już przyjmowana, więc nie udało się tego odczytać. Zaloguj się ponownie.',
     'person.correspondenceUnauthorized': 'To poświadczenie nie może czytać tego, gdzie ta osoba jest wymieniona.',
-    'person.correspondenceUnavailable': 'Wdrożenie nie odpowiedziało.',
+    'person.correspondenceUnavailable': 'Serwer nie odpowiedział.',
     'person.correspondenceUnreadable':
-        'Wdrożenie odpowiedziało czymś, czego ten klient nie potrafi odczytać. Warto zgłosić to jako usterkę.',
+        'Serwer odpowiedział czymś, czego ten klient nie potrafi odczytać. Warto zgłosić to jako usterkę.',
     'person.correspondenceMissing': 'Tej osoby nie ma już w książce adresowej.',
 
     'calendar.day': 'Dzień',
@@ -1777,10 +1772,9 @@ export const pl: Catalogue = {
     'calendar.failedUnauthenticated':
         'Twoja sesja nie jest już przyjmowana, więc nie udało się odczytać kalendarza. Zaloguj się ponownie.',
     'calendar.failedUnauthorized': 'To poświadczenie nie może czytać kalendarza.',
-    'calendar.failedUnavailable':
-        'Wdrożenie nie odpowiedziało kalendarzem. Może być wyłączone albo dopiero się uruchamia.',
+    'calendar.failedUnavailable': 'Serwer nie odpowiedział kalendarzem. Może być wyłączony albo dopiero się uruchamia.',
     'calendar.failedUnreadable':
-        'Wdrożenie odpowiedziało czymś, czego ten klient nie potrafi odczytać. Warto zgłosić to jako usterkę.',
+        'Serwer odpowiedział czymś, czego ten klient nie potrafi odczytać. Warto zgłosić to jako usterkę.',
     'calendar.proposedHeading': 'Wykryte w poczcie',
     'calendar.authored': 'AI',
     'calendar.proposedExplained': 'Terminy znalezione w wątkach, jeszcze nieobecne w kalendarzu.',
@@ -1798,8 +1792,8 @@ export const pl: Catalogue = {
     'calendar.describing': 'Czytamy…',
     'calendar.describeDrafted': 'Wypełnione z Twojego opisu. Sprawdź, zanim zapiszesz.',
     'calendar.describeNothing': 'Nie udało się z tego odczytać wydarzenia. Spróbuj podać dzień i godzinę.',
-    'calendar.describeSpent': 'To wdrożenie zużyło na razie limit na czytanie opisów.',
-    'calendar.describeFailed': 'Wdrożenie nie odpowiedziało, więc nic nie zostało wypełnione.',
+    'calendar.describeSpent': 'Ten serwer zużył na razie limit na czytanie opisów.',
+    'calendar.describeFailed': 'Serwer nie odpowiedział, więc nic nie zostało wypełnione.',
     'calendar.eventTitle': 'Tytuł',
     'calendar.eventDay': 'Dzień',
     'calendar.eventStart': 'Początek',
@@ -1824,9 +1818,9 @@ export const pl: Catalogue = {
     'calendar.deleteSomeRefused': 'Części z nich nie udało się usunąć.',
     'calendar.written': 'Zapisane.',
     'calendar.writeNotFound': 'Tego wydarzenia nie ma już w kalendarzu.',
-    'calendar.writeRefused': 'Wdrożenie nie przyjęło tego wydarzenia. Sprawdź tytuł i godziny.',
+    'calendar.writeRefused': 'Serwer nie przyjął tego wydarzenia. Sprawdź tytuł i godziny.',
     'calendar.alreadyOnTheCalendar': 'Ten termin jest już w kalendarzu.',
-    'calendar.writeFailed': 'Wdrożenie nie odpowiedziało, więc nic nie zostało zmienione.',
+    'calendar.writeFailed': 'Serwer nie odpowiedział, więc nic nie zostało zmienione.',
     'tasks.newTask': 'Nowe zadanie',
     'tasks.showDone': 'Pokaż zrobione',
     'tasks.groupToday': 'Dziś',
@@ -1841,9 +1835,9 @@ export const pl: Catalogue = {
     'tasks.failedUnauthenticated':
         'Twoja sesja nie jest już przyjmowana, więc nie udało się wczytać listy. Zaloguj się ponownie.',
     'tasks.failedUnauthorized': 'To poświadczenie nie może czytać Twoich zadań.',
-    'tasks.failedUnavailable': 'Wdrożenie nie odpowiedziało.',
+    'tasks.failedUnavailable': 'Serwer nie odpowiedział.',
     'tasks.failedUnreadable':
-        'Wdrożenie odpowiedziało czymś, czego ten klient nie potrafi odczytać. Warto zgłosić to jako usterkę.',
+        'Serwer odpowiedział czymś, czego ten klient nie potrafi odczytać. Warto zgłosić to jako usterkę.',
     'tasks.fromMail': 'z poczty',
     'tasks.openSource': 'Otwórz wiadomość, z której to pochodzi',
     'tasks.noDay': 'Bez dnia',
@@ -1881,12 +1875,12 @@ export const pl: Catalogue = {
     'tasks.written': 'Zapisano.',
     'tasks.remindersWritten': 'Zapisano przypomnienia.',
     'tasks.nothingToSchedule': 'Nic tutaj nie wskazuje dnia, więc nie ma czego wpisać do kalendarza.',
-    'tasks.writeFailed': 'Wdrożenie tego nie przyjęło. Nic nie zostało zmienione.',
-    'tasks.writeFailedBecause': 'Wdrożenie tego nie przyjęło: {reason}. Nic nie zostało zmienione.',
-    'tasks.someRefused.one': 'Wdrożenie odrzuciło jedno z nich. Reszta przeszła.',
-    'tasks.someRefused.few': 'Wdrożenie odrzuciło {count} z nich. Reszta przeszła.',
-    'tasks.someRefused.many': 'Wdrożenie odrzuciło {count} z nich. Reszta przeszła.',
-    'tasks.someRefused.other': 'Wdrożenie odrzuciło {count} z nich. Reszta przeszła.',
+    'tasks.writeFailed': 'Serwer tego nie przyjął. Nic nie zostało zmienione.',
+    'tasks.writeFailedBecause': 'Serwer tego nie przyjął: {reason}. Nic nie zostało zmienione.',
+    'tasks.someRefused.one': 'Serwer odrzucił jedno z nich. Reszta przeszła.',
+    'tasks.someRefused.few': 'Serwer odrzucił {count} z nich. Reszta przeszła.',
+    'tasks.someRefused.many': 'Serwer odrzucił {count} z nich. Reszta przeszła.',
+    'tasks.someRefused.other': 'Serwer odrzucił {count} z nich. Reszta przeszła.',
     'tasks.todaysCalendar': 'Dzisiejszy kalendarz',
     'tasks.openCalendar': 'Otwórz',
     'tasks.openTheCalendar': 'Otwórz kalendarz',
@@ -1895,9 +1889,9 @@ export const pl: Catalogue = {
     'tasks.dayFailedUnauthenticated':
         'Twoja sesja nie jest już przyjmowana, więc nie udało się wczytać dnia. Zaloguj się ponownie.',
     'tasks.dayFailedUnauthorized': 'To poświadczenie nie może czytać Twojego kalendarza.',
-    'tasks.dayFailedUnavailable': 'Wdrożenie nie odpowiedziało.',
+    'tasks.dayFailedUnavailable': 'Serwer nie odpowiedział.',
     'tasks.dayFailedUnreadable':
-        'Wdrożenie odpowiedziało dniem, którego ten klient nie potrafi odczytać. Warto zgłosić to jako usterkę.',
+        'Serwer odpowiedział dniem, którego ten klient nie potrafi odczytać. Warto zgłosić to jako usterkę.',
     'tasks.authored': 'AI',
     'tasks.dayCapacity': 'Pojemność dnia',
     'tasks.capacityTasks.one': 'Na dziś przypada jedno zadanie.',
@@ -1911,7 +1905,7 @@ export const pl: Catalogue = {
     'tasks.layOutToday': 'Rozplanuj dziś',
     'tasks.arranging': 'Rozplanowywanie reszty dnia…',
     'tasks.notArranged': 'W tym, co zostało z dnia, nie było czego rozplanować.',
-    'tasks.allowanceSpent': 'To wdrożenie wyczerpało dzisiejszy limit AI. Spróbuj jutro.',
+    'tasks.allowanceSpent': 'Ten serwer wyczerpał dzisiejszy limit AI. Spróbuj jutro.',
     'tasks.arrangeFailed': 'Nie udało się rozplanować dnia. Nic nie zostało zmienione.',
     'tasks.unnamedPlacement': 'Zadanie, którego nie ma już na liście',
     'tasks.notToday.one': 'Jedno zadanie nie zmieściło się w tym, co zostało z dnia.',

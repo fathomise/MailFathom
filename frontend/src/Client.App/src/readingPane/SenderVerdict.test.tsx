@@ -23,7 +23,7 @@ function drawing(
 const failed =
     'A receiving mail server checked who actually sent this message and reported that the author it displays did not hold.';
 
-const recognized = 'This deployment recognizes the sender of this message.';
+const recognized = 'This server recognizes the sender of this message.';
 
 describe('SenderVerdict', () => {
     it.each([

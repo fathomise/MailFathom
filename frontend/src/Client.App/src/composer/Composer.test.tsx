@@ -791,14 +791,11 @@ describe('Composer, a message of its own', () => {
     });
 
     it.each([
-        [56_003, 'This deployment does not send mail. Whoever runs it can turn sending on.'],
-        [
-            53_006,
-            'Your deployment refused one of the addresses. Whoever runs it decides which addresses mail may go to.',
-        ],
+        [56_003, 'This server does not send mail. Your administrator can turn sending on.'],
+        [53_006, 'The server refused one of the addresses. Your administrator decides which addresses mail may go to.'],
         [
             57_002,
-            'A spending ceiling has been reached, so nothing goes out until the window it counts over turns over or whoever runs the deployment raises it.',
+            'A spending ceiling has been reached, so nothing goes out until the window it counts over turns over or your administrator raises it.',
         ],
         [
             59_001,
@@ -813,7 +810,7 @@ describe('Composer, a message of its own', () => {
             'One of the attached files could not be read, so nothing screened what would have gone out with it and the message was not sent. Try again in case the read ran out of time; if it is refused again, sending without that file, or attaching it in a form that can be read, is what would change that.',
         ],
         [81_001, 'Screening is not answering, so nothing goes out until it does. The message is still here.'],
-        [12, 'Your deployment refused to send it. Whoever runs it can say why from its own log.'],
+        [12, 'The server refused to send it. Your administrator can see why in the server log.'],
     ])('says what refused the send and what would change it: %i', async (code, said) => {
         drawComposer({ kind: 'new' }, { send: { status: 409, body: JSON.stringify({ errorCode: code }) } });
 
@@ -922,7 +919,7 @@ describe('Composer, a message of its own', () => {
         expect(await screen.findByText('Message not sent')).toBeDefined();
         expect(
             within(composerFrame()).getByText(
-                'This deployment does not send mail. Whoever runs it can turn sending on.',
+                'This server does not send mail. Your administrator can turn sending on.',
             ),
         ).toBeDefined();
         expect(wordsWritten()).toBe('They are attached.');
@@ -1796,17 +1793,13 @@ describe('Composer drafting', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
-        expect(
-            screen.getByText('The words are a draft your deployment wrote and you have not accepted yet.'),
-        ).toBeDefined();
+        expect(screen.getByText('The words are a draft the server wrote and you have not accepted yet.')).toBeDefined();
 
         fireEvent.click(screen.getByRole('button', { name: 'Back to writing' }));
         fireEvent.click(screen.getByRole('button', { name: 'Accept' }));
         fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
-        expect(
-            screen.queryByText('The words are a draft your deployment wrote and you have not accepted yet.'),
-        ).toBeNull();
+        expect(screen.queryByText('The words are a draft the server wrote and you have not accepted yet.')).toBeNull();
     });
 
     it('says a deployment that wrote nothing wrote nothing, and leaves the message as it was', async () => {
@@ -1837,7 +1830,7 @@ describe('Composer drafting', () => {
 
         expect(
             await screen.findByText(
-                'Your deployment has spent what it allows its writer for now. Whoever runs it can raise that, and nothing you have written has been touched.',
+                'The server has spent what it allows its writer for now. Your administrator can raise that, and nothing you have written has been touched.',
             ),
         ).toBeDefined();
     });

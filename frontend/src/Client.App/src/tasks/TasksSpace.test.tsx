@@ -420,7 +420,7 @@ describe('TasksSpace', () => {
 
         await waitFor(() => {
             expect(screen.getByRole('status').textContent).toBe(
-                'The deployment did not accept that: unavailable. Nothing was changed.',
+                'The server did not accept that: unavailable. Nothing was changed.',
             );
         });
     });
@@ -531,7 +531,7 @@ describe('TasksSpace', () => {
 
         await waitFor(() => {
             expect(
-                screen.getByText('This deployment has used up its AI allowance for today. Try again tomorrow.'),
+                screen.getByText('This server has used up its AI allowance for today. Try again tomorrow.'),
             ).toBeDefined();
         });
     });
@@ -586,7 +586,7 @@ describe('TasksSpace', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Mark as done' }));
 
         await waitFor(() => {
-            expect(screen.getByText('The deployment refused one of these. The rest went through.')).toBeDefined();
+            expect(screen.getByText('The server refused one of these. The rest went through.')).toBeDefined();
         });
     });
 

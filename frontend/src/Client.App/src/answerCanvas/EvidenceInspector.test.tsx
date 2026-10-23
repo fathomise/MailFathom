@@ -371,7 +371,7 @@ describe('EvidenceInspector', () => {
 
         expect(
             await screen.findByText(
-                'This deployment could not read its own stored copy of the message behind this source. The fact rests on what was read when the answer was composed.',
+                'This server could not read its own stored copy of the message behind this source. The fact rests on what was read when the answer was composed.',
             ),
         ).toBeDefined();
     });
@@ -382,9 +382,7 @@ describe('EvidenceInspector', () => {
         check();
 
         expect(
-            await screen.findByText(
-                'Ask whoever administers this deployment for access to the account it was read from.',
-            ),
+            await screen.findByText('Ask your administrator for access to the account it was read from.'),
         ).toBeDefined();
         expect(screen.getByText('private source')).toBeDefined();
         expect(screen.queryByText(passage.text)).toBeNull();

@@ -612,14 +612,8 @@ describe('Message and the cleaned rendering', () => {
     });
 
     it.each([
-        [
-            'NotActivated',
-            'This deployment does not simplify messages with a model, so the simplified version is shown.',
-        ],
-        [
-            'AllowanceExhausted',
-            "This deployment's allowance for the period is spent, so the simplified version is shown.",
-        ],
+        ['NotActivated', 'This server does not simplify messages with a model, so the simplified version is shown.'],
+        ['AllowanceExhausted', "This server's allowance for the period is spent, so the simplified version is shown."],
         ['ProviderUnavailable', 'The AI did not answer, so the simplified version is shown.'],
         ['AnswerRejected', 'The answer the model gave could not be used, so the simplified version is shown.'],
     ])('states %s over the reduced document rather than leaving the pane empty', async (cleaning, said) => {

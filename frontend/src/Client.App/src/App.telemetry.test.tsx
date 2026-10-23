@@ -75,7 +75,7 @@ describe('App telemetry', () => {
             credentials,
             recording.telemetry,
         );
-        await screen.findByText('This deployment has stopped accepting the sign-in that was kept. Sign in again.');
+        await screen.findByText('This server has stopped accepting the sign-in that was kept. Sign in again.');
 
         expect(recording.events).toContain('credential_no_longer_accepted');
     });

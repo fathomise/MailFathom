@@ -483,17 +483,17 @@ describe('ReplyDraftCard', () => {
         {
             case: 'a deployment that drafted nothing',
             answer: { status: 200, body: JSON.stringify({ drafted: false }) },
-            said: 'Your deployment wrote no draft this time.',
+            said: 'The server wrote no draft this time.',
         },
         {
             case: 'a message the deployment no longer holds',
             answer: { status: 404, body: '' },
-            said: 'Your deployment wrote no draft this time.',
+            said: 'The server wrote no draft this time.',
         },
         {
             case: 'a deployment that did not answer',
             answer: { status: 503, body: '' },
-            said: 'Your deployment did not answer.',
+            said: 'The server did not answer.',
         },
         {
             case: 'a refused credential',

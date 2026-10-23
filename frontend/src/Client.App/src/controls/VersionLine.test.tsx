@@ -25,7 +25,7 @@ describe('VersionLine', () => {
     it('says what the client and the deployment are running once the deployment has answered', () => {
         renderLine('0.9.0');
 
-        expect(screen.getByText(`MailFathom v${__MAILFATHOM_VERSION__} · deployment 0.9.0`)).toBeDefined();
+        expect(screen.getByText(`MailFathom v${__MAILFATHOM_VERSION__} · server 0.9.0`)).toBeDefined();
     });
 
     it('says what the client alone is running while nothing has answered, that being all this machine knows', () => {

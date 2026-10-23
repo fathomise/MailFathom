@@ -296,7 +296,7 @@ describe('DiscoverSpace', () => {
         [
             'a run that ended for a reason it does not publish',
             discovery.runFailed,
-            'This run ended for a reason it does not publish. An operator can read why in the server logs.',
+            'This run ended for a reason it does not publish. Your administrator can read why in the server logs.',
         ],
         [
             'a deployment whose allowance for the period is spent',
