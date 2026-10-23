@@ -226,11 +226,8 @@ Project repository: https://github.com/fathomise/MailFathom
           <input value="{{ query }}" onChange="{{ onQuery }}" onKeyDown="{{ onKey }}" placeholder="{{ discoverPlaceholder }}" style="flex:1;min-width:0;border:none;outline:none;font-size:16px;color:var(--text);background:transparent;text-overflow:ellipsis" />
           <div onClick="{{ submit }}" style="{{ askBtnStyle }}" style-hover="opacity:0.88;cursor:pointer">{{ askLabel }}</div>
         </div>
-        <sc-if value="{{ hasRun }}" hint-placeholder-val="{{ false }}">
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <div style="font-size:13px;background:var(--accent-soft);color:var(--accent-d);border-radius:16px;padding:5px 12px">plan: {{ planLabel }}</div>
-            <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint)">{{ runMeta }}</div>
-          </div>
+        <sc-if value="{{ runFinished }}" hint-placeholder-val="{{ false }}">
+          <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint)">{{ runMeta }}</div>
         </sc-if>
       </div>
 
@@ -277,7 +274,6 @@ Project repository: https://github.com/fathomise/MailFathom
               <sc-for list="{{ suggestions }}" as="s" hint-placeholder-count="3">
                 <div onClick="{{ s.pick }}" style="{{ sugRowStyle }}" style-hover="border-color:var(--accent);cursor:pointer">
                   <div style="font-size:15px;text-wrap:pretty">{{ s.text }}</div>
-                  <div style="{{ sugMetaStyle }}">{{ s.plan }}</div>
                 </div>
               </sc-for>
             </div>
@@ -390,13 +386,6 @@ Project repository: https://github.com/fathomise/MailFathom
                 <div style="{{ blk.pendingFoot }}">
                   <div style="{{ blk.quietBtn }}" style-hover="background:var(--rail);cursor:pointer">Dismiss</div>
                 </div>
-              </div>
-            </sc-if>
-
-            <sc-if value="{{ showTrace }}" hint-placeholder-val="{{ false }}">
-              <div style="{{ blk.card }}">
-                <div style="{{ blk.head }}"><span aria-hidden="true" style="{{ blk.tile }}"><span style="{{ blk.glyph }}">route</span></span><div style="{{ blk.title }}">Decision trail</div></div>
-                <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--text2);line-height:1.6">{{ traceText }}</div>
               </div>
             </sc-if>
           </div>
@@ -575,7 +564,7 @@ Project repository: https://github.com/fathomise/MailFathom
           <div style="{{ aiSumFootStyle }}">
             <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">format_quote</span>
             <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ aiSumFootText }}</span>
-            <span style="font-family:'Geist',system-ui,sans-serif;white-space:nowrap">{{ aiSumModel }}</span>
+            <span style="font-family:'Geist',system-ui,sans-serif;white-space:nowrap">{{ aiSumAuthor }}</span>
           </div>
         </div>
       </div>
@@ -859,7 +848,7 @@ Project repository: https://github.com/fathomise/MailFathom
           <sc-if value="{{ cameFromResult }}" hint-placeholder-val="{{ false }}">
             <div onClick="{{ backToResult }}" style="{{ backBannerStyle }}" style-hover="cursor:pointer">
               <div style="font-size:13px;color:var(--accent-d);font-weight:600;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;vertical-align:-3px;margin-right:5px">arrow_back</span>Back to result</div>
-              <div style="font-size:12px;color:var(--accent-d);text-wrap:pretty">opened from citation {{ fromCitation }} · the result stays computed</div>
+              <div style="font-size:12px;color:var(--accent-d);text-wrap:pretty">opened from citation {{ fromCitation }} · your answer is kept</div>
             </div>
           </sc-if>
           <sc-if value="{{ showThreadHead }}" hint-placeholder-val="{{ true }}">
@@ -1533,7 +1522,7 @@ Project repository: https://github.com/fathomise/MailFathom
                                   <sc-if value="{{ e.hasSnippet }}" hint-placeholder-val="{{ true }}">
                                     <div style="{{ e.snipStyle }}">{{ e.snippet }}</div>
                                   </sc-if>
-                                  <div style="{{ e.subStyle }}">relevance {{ e.relevance }} · {{ e.freshness }}</div>
+                                  <div style="{{ e.subStyle }}">{{ e.freshness }}</div>
                                 </div>
                               </sc-for>
                             </sc-if>
@@ -2934,7 +2923,7 @@ Project repository: https://github.com/fathomise/MailFathom
     <div data-motion="pop" data-phase="{{ mo.agentReturn }}" role="button" tabIndex="0" aria-label="Back to the agent conversation you came from" onClick="{{ backToConv }}" onKeyDown="{{ backToConvKey }}" style="{{ convReturnStyle }}" style-hover="cursor:pointer;opacity:0.92" style-focus="outline:2px solid var(--accent);outline-offset:3px"><span style="{{ convReturnIconStyle }}">arrow_back</span>{{ convReturnLabel }}</div>
   </sc-if>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;desktop&quot;,&quot;tablet&quot;,&quot;fold&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;space&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;discover&quot;,&quot;mail&quot;,&quot;agent&quot;,&quot;tasks&quot;,&quot;calendar&quot;,&quot;people&quot;],&quot;default&quot;:&quot;discover&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;aiHints&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;showTrace&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;streamDelay&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:550,&quot;min&quot;:120,&quot;max&quot;:1200,&quot;step&quot;:50,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;desktop&quot;,&quot;tablet&quot;,&quot;fold&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;space&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;discover&quot;,&quot;mail&quot;,&quot;agent&quot;,&quot;tasks&quot;,&quot;calendar&quot;,&quot;people&quot;],&quot;default&quot;:&quot;discover&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;aiHints&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;streamDelay&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:550,&quot;min&quot;:120,&quot;max&quot;:1200,&quot;step&quot;:50,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
 const Component = MailFathomDesign.artboards.prototype(DCLogic, React);
 </script>
 </body>

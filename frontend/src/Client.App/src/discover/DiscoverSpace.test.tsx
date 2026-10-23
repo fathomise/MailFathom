@@ -281,7 +281,7 @@ describe('DiscoverSpace', () => {
             expect(screen.getByText(theAnswer)).toBeDefined();
         });
 
-        expect(screen.getByText('type: riskScore')).toBeDefined();
+        expect(screen.getByText('Unknown block')).toBeDefined();
     });
 
     // The endings past the resting one, each of which is a screen somebody has to be able to read and none of which can
@@ -320,7 +320,7 @@ describe('DiscoverSpace', () => {
         askASuggestion();
 
         await waitFor(() => {
-            expect(screen.getByText(/newer plan schema version \(v9\)/)).toBeDefined();
+            expect(screen.getByText(/needs a newer version of the app/u)).toBeDefined();
         });
 
         expect(screen.getByText(theAnswer)).toBeDefined();

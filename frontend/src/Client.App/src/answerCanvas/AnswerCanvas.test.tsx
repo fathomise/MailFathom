@@ -149,10 +149,10 @@ describe('AnswerCanvas', () => {
         expect(screen.getAllByRole('listitem')).toHaveLength(2);
     });
 
-    it('names a block type this build has no renderer for, and draws the rest of the answer', () => {
+    it('draws a block type this build has no renderer for as unknown, and draws the rest of the answer', () => {
         renderCanvas([arrival(1, 'RiskScore', false), arrival(2, 'evidenceList')]);
 
-        expect(screen.getByText('type: RiskScore')).toBeDefined();
+        expect(screen.getByText('Unknown block')).toBeDefined();
         expect(screen.getByText('evidenceList')).toBeDefined();
     });
 
@@ -232,7 +232,7 @@ describe('AnswerCanvas', () => {
 
         expect(
             screen.getByText(
-                'This result uses a newer plan schema version (v4) than this app supports (v3). Some new block types may have been skipped.',
+                'Part of this answer needs a newer version of the app, so it was skipped. Update the app to see it.',
             ),
         ).toBeDefined();
         expect(screen.getByText('evidenceList')).toBeDefined();
@@ -241,7 +241,7 @@ describe('AnswerCanvas', () => {
     it.each([3, 2, 1, null])('says nothing about a plan at revision %s', (planSchemaVersion) => {
         renderCanvas([arrival(1, 'evidenceList')], { planSchemaVersion });
 
-        expect(screen.queryByText(/newer plan schema version/u)).toBeNull();
+        expect(screen.queryByText(/needs a newer version of the app/u)).toBeNull();
     });
 
     it('says a run that composed nothing produced nothing, rather than drawing a blank', () => {

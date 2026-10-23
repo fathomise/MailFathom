@@ -200,27 +200,21 @@ export function AnswerBlockCard({
  * A block whose type this build cannot draw, which is both a type the contract does not carry and one whose renderer
  * has not been written yet.
  *
- * It is a card rather than a gap, because what the reader is owed is that the answer is missing a part and which part:
- * a block silently dropped is an answer that looks complete and is not.
+ * It is a card rather than a gap, because what the reader is owed is that the answer is missing a part: a block silently
+ * dropped is an answer that looks complete and is not. It does not name the type it could not draw, which is the
+ * contract's word for the part rather than the reader's.
  */
-export function UnrecognisedAnswerBlock({ named }: { readonly named: string }) {
+export function UnrecognisedAnswerBlock() {
     const { translate } = useLocalization();
     const labelled = useId();
 
     return (
-        <BlockCard
-            icon="extension_off"
-            label={translate('answerBlock.unrecognised')}
-            labelId={labelled}
-            meta={translate('answerBlock.unrecognisedType', { named })}
-        >
+        <BlockCard icon="extension_off" label={translate('answerBlock.unrecognised')} labelId={labelled}>
             <div className="flex items-start gap-2.75">
                 <Icon className="mt-0.5 size-icon-2xl shrink-0 text-faint" name="extension_off" />
 
                 <div className="flex flex-col gap-1.25">
-                    <p className="text-sm text-text-soft text-pretty">
-                        {translate('answerBlock.unrecognisedBody', { named })}
-                    </p>
+                    <p className="text-sm text-text-soft text-pretty">{translate('answerBlock.unrecognisedBody')}</p>
 
                     <p className="text-xs text-faint">{translate('answerBlock.unrecognisedRemedy')}</p>
                 </div>

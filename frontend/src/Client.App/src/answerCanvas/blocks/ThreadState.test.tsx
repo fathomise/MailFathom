@@ -156,10 +156,10 @@ describe('ThreadState', () => {
         ).toBeDefined();
     });
 
-    it('names a block it is not the renderer for rather than drawing somebody else’s data as a standing', () => {
+    it('draws another renderer’s block as an unknown block rather than as a standing', () => {
         renderStanding({ type: null, named: 'RiskScore' });
 
-        expect(screen.getByText('type: RiskScore')).toBeDefined();
+        expect(screen.getByText('Unknown block')).toBeDefined();
     });
 
     it('draws the standing outside the card as well, which is what lets the mail space host it', () => {

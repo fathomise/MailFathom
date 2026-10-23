@@ -130,9 +130,9 @@ describe('SynthesizedAnswer', () => {
         expect(screen.getByText('2 citations')).toBeDefined();
     });
 
-    it('names a block it is not the renderer for rather than drawing somebody else’s data as an answer', () => {
+    it('draws another renderer’s block as an unknown block rather than as an answer', () => {
         renderAnswer({ type: null, named: 'RiskScore' });
 
-        expect(screen.getByText('type: RiskScore')).toBeDefined();
+        expect(screen.getByText('Unknown block')).toBeDefined();
     });
 });

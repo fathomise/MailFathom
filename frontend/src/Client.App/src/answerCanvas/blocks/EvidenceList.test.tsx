@@ -78,10 +78,10 @@ describe('EvidenceList', () => {
         expect(screen.getByText('2 items · sorted by relevance')).toBeDefined();
     });
 
-    it('says the relevance as a share rather than as a raw number', () => {
+    it('shows no relevance score beside an entry', () => {
         renderList(listing([quoted]));
 
-        expect(screen.getByText('relevance 94%')).toBeDefined();
+        expect(screen.queryByText(/\d\s?%/u)).toBeNull();
     });
 
     it.each([
@@ -133,7 +133,6 @@ describe('EvidenceList', () => {
                 'Content not available for review - the conclusion drawn from this source is kept in the result.',
             ),
         ).toBeDefined();
-        expect(screen.getByText('relevance 94%')).toBeDefined();
     });
 
     it('draws no way into a private source, there being nothing this client may open', () => {
@@ -161,12 +160,12 @@ describe('EvidenceList', () => {
     it('says a list that found nothing found nothing, rather than drawing an empty card', () => {
         renderList(listing([]));
 
-        expect(screen.getByText('No documents met the relevance threshold for this query.')).toBeDefined();
+        expect(screen.getByText('No messages matched this question closely enough.')).toBeDefined();
     });
 
-    it('names a block it is not the renderer for rather than drawing somebody else’s data as evidence', () => {
+    it('draws another renderer’s block as an unknown block rather than as evidence', () => {
         renderList({ type: null, named: 'RiskScore' });
 
-        expect(screen.getByText('type: RiskScore')).toBeDefined();
+        expect(screen.getByText('Unknown block')).toBeDefined();
     });
 });

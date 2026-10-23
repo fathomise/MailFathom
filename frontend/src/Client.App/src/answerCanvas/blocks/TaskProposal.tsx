@@ -19,7 +19,7 @@ export function TaskProposal({ block }: { readonly block: AnswerBlock }) {
     const answering = useProposalAnswering();
 
     if (block.type !== 'taskProposal') {
-        return <UnrecognisedAnswerBlock named={block.named} />;
+        return <UnrecognisedAnswerBlock />;
     }
 
     const { proposal, evidence } = block;

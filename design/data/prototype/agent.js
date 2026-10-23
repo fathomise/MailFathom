@@ -63,9 +63,9 @@
       k: {
         type: "evidence", meta: "3 sources",
         items: [
-          { n: "1", source: "Contract addendum - signatures", badge: "mail", snippet: "“…indexation by the CPI published for the previous year…”", relevance: "94%", freshness: "yesterday · Anna Kowalska" },
-          { n: "2", source: "CPI addendum 2023.pdf", badge: "attachment", snippet: "“Indexation shall not exceed 5% per year.”", relevance: "91%", freshness: "18 August · attachment" },
-          { n: "3", source: "Framework contract.pdf", badge: "attachment", snippet: "“Response time 4 h, penalty 0.2% of the monthly fee.”", relevance: "86%", freshness: "March · attachment" },
+          { n: "1", source: "Contract addendum - signatures", badge: "mail", snippet: "“…indexation by the CPI published for the previous year…”", freshness: "yesterday · Anna Kowalska" },
+          { n: "2", source: "CPI addendum 2023.pdf", badge: "attachment", snippet: "“Indexation shall not exceed 5% per year.”", freshness: "18 August · attachment" },
+          { n: "3", source: "Framework contract.pdf", badge: "attachment", snippet: "“Response time 4 h, penalty 0.2% of the monthly fee.”", freshness: "March · attachment" },
         ],
       },
     },
@@ -206,8 +206,8 @@
             {
               type: "evidence", meta: "2 sources",
               items: [
-                { n: "1", source: "SLA addendum.pdf", badge: "attachment", snippet: "“Response time drops from 4 to 2 hours, fee +8%…”", relevance: "94%", freshness: "current · 18.11.2025" },
-                { n: "2", source: "Private message - Marta Nowak", badge: "private source", private: true, relevance: "76%", freshness: "today" },
+                { n: "1", source: "SLA addendum.pdf", badge: "attachment", snippet: "“Response time drops from 4 to 2 hours, fee +8%…”", freshness: "current · 18.11.2025" },
+                { n: "2", source: "Private message - Marta Nowak", badge: "private source", private: true, freshness: "today" },
               ],
             },
             Object.assign({ phase: "pending" }, BK_DRAFT_CONTOSO),
@@ -260,7 +260,7 @@
             { type: "draft", state: "empty", meta: "reply", phase: "pending", to: "Tomasz Zieliński", title: "Reply to Fabrikam", emptyText: "Nothing to draft - the last message in the thread is yours." },
             {
               type: "evidence", state: "partial", meta: "1 of 3 sources",
-              items: [{ n: "1", source: "Q4 delivery dates", badge: "mail", snippet: "“Delivery moved to 12.11…”", relevance: "89%", freshness: "yesterday · Tomasz Zieliński" }],
+              items: [{ n: "1", source: "Q4 delivery dates", badge: "mail", snippet: "“Delivery moved to 12.11…”", freshness: "yesterday · Tomasz Zieliński" }],
               partialNote: "Fabrikam’s archive is still being read - more sources may appear.",
             },
             {
@@ -348,7 +348,7 @@
   ];
 
   const AGENT_FALLBACK = {
-    scope: "214,138 messages in scope",
+    scope: "all your mail",
     text: "I went through the correspondence in that scope. I can draft a reply, block time in the calendar or show the threads behind it - tell me what should happen next.",
     bullets: [],
     blocks: [{

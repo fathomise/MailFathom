@@ -24,9 +24,9 @@ import type { ArrivedAnswerBlock, RunReadFailure } from './followedRun';
 // **One block cannot cost the run.** Every block is drawn inside a boundary of its own, so a renderer that throws on
 // one block's data leaves that block saying so and the rest of the answer standing.
 //
-// **It names what it cannot draw.** The plan carries a revision of its own, ahead of this client's whenever a
-// deployment is updated first, so a block type with no renderer here is named to the reader rather than dropped and a
-// newer plan is drawn as far as it goes rather than refused. That is what makes a deployment updatable without
+// **It says what it cannot draw.** The plan carries a revision of its own, ahead of this client's whenever a
+// deployment is updated first, so a block type with no renderer here is drawn as a part this app cannot show yet rather
+// than dropped, and a newer plan is drawn as far as it goes rather than refused. That is what makes a deployment updatable without
 // breaking the clients in front of it, which is why it is drawn rather than assumed.
 
 // What each way of failing to read the run becomes at the end of the answer. A failure is drawn as the state it
@@ -97,10 +97,7 @@ export function AnswerCanvas({
                         >
                             <Icon className="mt-0.25 size-icon-sm" name="hourglass_top" />
 
-                            {translate('answerCanvas.planAhead', {
-                                plan: String(planSchemaVersion),
-                                client: String(understoodPlanSchemaVersion),
-                            })}
+                            {translate('answerCanvas.planAhead')}
                         </p>
                     ) : null}
 
@@ -165,9 +162,5 @@ export function DrawnBlock({
     // its identity is the same on every render and a block keeps whatever state its renderer holds.
     const Registered = block.block.type === null ? undefined : renderers[block.block.type];
 
-    return Registered === undefined ? (
-        <UnrecognisedAnswerBlock named={block.block.named} />
-    ) : (
-        <Registered block={block.block} />
-    );
+    return Registered === undefined ? <UnrecognisedAnswerBlock /> : <Registered block={block.block} />;
 }

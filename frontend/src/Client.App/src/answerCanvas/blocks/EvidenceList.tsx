@@ -24,8 +24,8 @@ import { evidenceCounts, freshnessWords, sourceKinds, sourceMediums, supportVerd
 // 0030, because a machine's account of a picture presented as a quotation is a guess promoted to evidence — and the
 // badge says that to somebody looking while the element says it to everything else.
 //
-// **A source the run never declared to this client is drawn as a private source**: the entry keeps its relevance and
-// its freshness, and what it rests on is stated as unavailable rather than left blank. An entry silently shorn of its
+// **A source the run never declared to this client is drawn as a private source**: the entry keeps its place and its
+// freshness, and what it rests on is stated as unavailable rather than left blank. An entry silently shorn of its
 // source would read as an answer resting on nothing, which is the one thing it is not.
 //
 // **The list is not windowed**, and that is the repository's own rule rather than an omission: the contract bounds one
@@ -40,7 +40,7 @@ export function EvidenceList({ block }: { readonly block: AnswerBlock }) {
     const [now] = useState(() => Date.now());
 
     if (block.type !== 'evidenceList') {
-        return <UnrecognisedAnswerBlock named={block.named} />;
+        return <UnrecognisedAnswerBlock />;
     }
 
     const { entries, evidence } = block;
@@ -83,7 +83,6 @@ function EvidenceItem({ entry, now }: { readonly entry: EvidenceEntry; readonly 
     const timeZone = useReadingZone();
 
     const declared = sources.get(entry.source);
-    const relevance = new Intl.NumberFormat(locale, { style: 'percent' }).format(entry.relevance);
     const freshness = wordFreshness(entry.freshness, locale, now, timeZone, translate);
     const name = declared?.label ?? translate('answer.sourcePrivateName');
 
@@ -108,10 +107,7 @@ function EvidenceItem({ entry, now }: { readonly entry: EvidenceEntry; readonly 
                 <MatchedFragment declared={declared} fragment={entry.fragment} />
             )}
 
-            <p className="flex flex-wrap gap-2.5 text-xs text-faint">
-                <span>{translate('answer.relevance', { share: relevance })}</span>
-                <span>{freshness}</span>
-            </p>
+            <p className="text-xs text-faint">{freshness}</p>
         </>
     );
 
@@ -126,7 +122,7 @@ function EvidenceItem({ entry, now }: { readonly entry: EvidenceEntry; readonly 
 
     return (
         <button
-            aria-label={translate('answer.evidenceItem', { source: name, relevance, freshness })}
+            aria-label={translate('answer.evidenceItem', { source: name, freshness })}
             className={`${rows} transition hover:bg-hover`}
             type="button"
             onClick={() => {

@@ -14,8 +14,8 @@ import { useReadingZone } from '../localization/useReadingZone';
 import type { FollowedAnswer, RunEnding } from './followedRun';
 import type { RunStopping } from './useRunStopping';
 
-// Everything around the blocks: that the run started, how far its retrieval has got, what it is spending, the control
-// that stops it, and — when it is over — which of the eleven ways it ended.
+// Everything around the blocks: that the run started, how far its search of the mail has got, the control that stops
+// it, and — when it is over — which of the eleven ways it ended and how many messages it read.
 //
 // **A run has one sentence at a time, and it stands in one place.** The working line and the ending notice are the same
 // region rather than two that replace each other, because it is a live region: a reader who cannot see the screen is
@@ -26,8 +26,9 @@ import type { RunStopping } from './useRunStopping';
 // its operator configured it, so both spend refusals read as states and neither offers a retry — the period one names
 // the instant its allowance returns, and the run one names the one thing the person can change.
 //
-// **Nothing here is money.** The counts are the three the run will actually be stopped by, each against its own
-// ceiling, and the token figure is what this deployment observed rather than what a provider will bill.
+// **Nothing here is machinery.** A person asking about their mail is told that it is being searched and how much of it
+// the answer was read from — never calls, tokens, characters, ceilings, or which endpoint and model answered, all of
+// which stay with the operator's meter and logs.
 
 /** How loudly the run's own state reads, which follows whether anything went wrong rather than whether it ended. */
 type RunTone = 'working' | 'noted' | 'warned';
@@ -125,7 +126,7 @@ export function RunStatus({
                 {offersStopping ? <SecondaryButton label={translate('run.stop')} onActivate={onStop} /> : null}
             </div>
 
-            <RunMeter answer={answer} />
+            <RunReach answer={answer} />
         </div>
     );
 }
@@ -147,67 +148,42 @@ function working(answer: FollowedAnswer, stopping: RunStopping, locale: Locale):
 
     return retrieval === null
         ? ['run.working']
-        : [
-              'run.retrieval',
-              {
-                  lookups: counted(locale, retrieval.lookupsRun),
-                  planned: counted(locale, retrieval.lookupsPlanned),
-                  passages: counted(locale, retrieval.passagesFound),
-              },
-          ];
+        : ['run.retrieval', { passages: counted(locale, retrieval.passagesFound) }];
 }
 
+/** The plural forms of what a finished run read, which Polish needs four of and English two. */
+const readCounts: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
+    zero: 'run.read.other',
+    one: 'run.read.one',
+    two: 'run.read.other',
+    few: 'run.read.few',
+    many: 'run.read.many',
+    other: 'run.read.other',
+};
+
 /**
- * What the run costs, against what one question may cost on this deployment, and what answered it.
+ * How many messages a run read, once it is over and only where it read any.
  *
- * It sits with the run rather than in the frame, which is the placement the cost decision settles: a figure in
- * permanent chrome teaches people to watch a meter while they work, and one on the answer is legible exactly when
- * somebody asks whether that answer was expensive.
+ * It sits with the run rather than in the frame: a figure in permanent chrome teaches people to watch a meter while
+ * they work, and one beside the answer is legible exactly when somebody asks what the answer rests on. While the run
+ * works the line above already says the search is moving, so a second moving count would only repeat it.
  */
-function RunMeter({ answer }: { readonly answer: FollowedAnswer }) {
+function RunReach({ answer }: { readonly answer: FollowedAnswer }) {
     const { locale, translate } = useLocalization();
 
-    const envelope = answer.envelope;
-    if (envelope === null) {
+    const messages = answer.spend?.messagesRetrieved ?? 0;
+
+    // A run that read nothing — refused before it searched, or stopped at once — has no reach worth a line.
+    if (answer.running || messages === 0) {
         return null;
     }
 
-    const spend = answer.spend;
-    const ceilings = envelope.ceilings;
-
     return (
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-1 text-sm text-faint">
-            {/* A deployment that answers no questions names no endpoint, and says so by ending the run rather than by
-                a line here with nothing in it. */}
-            {envelope.endpointAlias === '' ? null : (
-                <p>
-                    {envelope.publishedModel === ''
-                        ? translate('run.answeredBy', { endpoint: envelope.endpointAlias })
-                        : translate('run.answeredByModel', {
-                              endpoint: envelope.endpointAlias,
-                              model: envelope.publishedModel,
-                          })}
-                </p>
-            )}
-
-            {spend === null ? null : (
-                <p>
-                    {translate('run.spend', {
-                        calls: counted(locale, spend.providerCalls),
-                        mostCalls: counted(locale, ceilings.providerCalls),
-                        tokens: counted(locale, spend.tokens),
-                        mostTokens: counted(locale, ceilings.tokens),
-                        characters: counted(locale, spend.retrievedCharacters),
-                        mostCharacters: counted(locale, ceilings.retrievedCharacters),
-                        messages: counted(locale, spend.messagesRetrieved),
-                    })}
-                </p>
-            )}
-
-            {/* Said once the run is over rather than while it works: a count that is still moving is plainly partial,
-                and a final one is the one somebody would otherwise read as the whole of what was charged. */}
-            {answer.running || spend === null ? null : <p>{translate('run.spendFloor')}</p>}
-        </div>
+        <p className="px-1 text-sm text-faint">
+            {translate(readCounts[new Intl.PluralRules(locale).select(messages)], {
+                count: counted(locale, messages),
+            })}
+        </p>
     );
 }
 

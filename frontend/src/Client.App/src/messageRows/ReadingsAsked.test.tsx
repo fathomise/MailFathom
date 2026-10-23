@@ -131,20 +131,21 @@ describe('ReadingsAsked', () => {
         expect(screen.getByText('Contract annex — signatures')).toBeTruthy();
     });
 
-    it('says a model produced a reading in words rather than only in a colour', () => {
+    it('says AI or a fixed rule produced a reading in words, without naming the agent or the rule', () => {
         check(
             asking([commitment, sense]),
             answering(resolving([{ outcome: 'Unresolvable' }, { outcome: 'Unresolvable' }])),
         );
 
-        expect(screen.getByText('A model - agents/reader')).toBeTruthy();
-        expect(screen.getByText('A rule of this deployment - rules/invoice')).toBeTruthy();
+        expect(screen.getByText('Written by AI')).toBeTruthy();
+        expect(screen.getByText('Set by a fixed rule')).toBeTruthy();
+        expect(screen.queryByText(/agents\/reader|rules\/invoice/u)).toBeNull();
     });
 
     it('names each producer once however many of its readings the message carries', () => {
         check(asking([sense, { ...sense, aspect: 'Significance' }]), answering());
 
-        expect(screen.getAllByText('A rule of this deployment - rules/invoice')).toHaveLength(1);
+        expect(screen.getAllByText('Set by a fixed rule')).toHaveLength(1);
         expect(screen.getByText('Quoted from this message alone')).toBeTruthy();
     });
 

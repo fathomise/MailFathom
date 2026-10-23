@@ -88,16 +88,6 @@ describe('answerAfter', () => {
         expect(answer.planSchemaVersion).toBe(4);
     });
 
-    it('reads what the run may spend and what answers it off the run that started', () => {
-        const answer = answerAfter(nothingRead, answering([started]));
-
-        expect(answer.envelope).toEqual({
-            ceilings: { retrievedCharacters: 20_000, providerCalls: 8, tokens: 80_000 },
-            endpointAlias: 'house',
-            publishedModel: 'gpt-4o',
-        });
-    });
-
     it('takes whether more is coming from the run rather than from its events', () => {
         expect(answerAfter(nothingRead, answering([], true)).running).toBe(true);
         expect(answerAfter(nothingRead, answering([])).running).toBe(false);

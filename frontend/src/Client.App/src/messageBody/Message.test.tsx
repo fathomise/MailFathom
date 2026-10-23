@@ -620,7 +620,7 @@ describe('Message and the cleaned rendering', () => {
             'AllowanceExhausted',
             "This deployment's allowance for the period is spent, so the simplified version is shown.",
         ],
-        ['ProviderUnavailable', 'The model this deployment asks did not answer, so the simplified version is shown.'],
+        ['ProviderUnavailable', 'The AI did not answer, so the simplified version is shown.'],
         ['AnswerRejected', 'The answer the model gave could not be used, so the simplified version is shown.'],
     ])('states %s over the reduced document rather than leaving the pane empty', async (cleaning, said) => {
         answeringCleaning(cleaning, null);
@@ -638,9 +638,7 @@ describe('Message and the cleaned rendering', () => {
 
         render(readingUnder('cleaned'));
 
-        const said = await screen.findByText(
-            'The model this deployment asks did not answer, so the simplified version is shown.',
-        );
+        const said = await screen.findByText('The AI did not answer, so the simplified version is shown.');
 
         expect(said.getAttribute('role')).toBe('status');
     });

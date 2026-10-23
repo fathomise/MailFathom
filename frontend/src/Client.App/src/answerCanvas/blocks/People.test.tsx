@@ -136,9 +136,9 @@ describe('People', () => {
         expect(screen.getByText('No people could be linked to this question.')).toBeDefined();
     });
 
-    it('names a block it is not the renderer for rather than drawing somebody else’s data as people', () => {
+    it('draws another renderer’s block as an unknown block rather than as people', () => {
         renderPeople({ type: null, named: 'RiskScore' });
 
-        expect(screen.getByText('type: RiskScore')).toBeDefined();
+        expect(screen.getByText('Unknown block')).toBeDefined();
     });
 });

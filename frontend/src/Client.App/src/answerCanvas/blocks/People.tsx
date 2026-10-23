@@ -36,7 +36,7 @@ export function People({ block }: { readonly block: AnswerBlock }) {
     const [now] = useState(() => Date.now());
 
     if (block.type !== 'people') {
-        return <UnrecognisedAnswerBlock named={block.named} />;
+        return <UnrecognisedAnswerBlock />;
     }
 
     const { entries, evidence } = block;

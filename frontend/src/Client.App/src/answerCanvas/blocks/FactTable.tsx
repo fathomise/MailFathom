@@ -38,7 +38,7 @@ export function FactTable({ block }: { readonly block: AnswerBlock }) {
     const { locale, translate } = useLocalization();
 
     if (block.type !== 'factTable') {
-        return <UnrecognisedAnswerBlock named={block.named} />;
+        return <UnrecognisedAnswerBlock />;
     }
 
     const { columns, rows, evidence } = block;

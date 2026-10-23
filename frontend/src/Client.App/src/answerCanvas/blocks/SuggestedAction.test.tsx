@@ -133,10 +133,10 @@ describe('SuggestedAction', () => {
         expect(named).toEqual(['Citation 1: Contract addendum — signatures']);
     });
 
-    it('names a block it is not the renderer for rather than drawing somebody else’s data as a step', () => {
+    it('draws another renderer’s block as an unknown block rather than as a step', () => {
         renderSuggestion({ type: null, named: 'RiskScore' });
 
-        expect(screen.getByText('type: RiskScore')).toBeDefined();
+        expect(screen.getByText('Unknown block')).toBeDefined();
     });
 
     describe('in a conversation', () => {

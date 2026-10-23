@@ -140,38 +140,33 @@ describe('AnswerBlockCard', () => {
 });
 
 describe('UnrecognisedAnswerBlock', () => {
-    function renderUnrecognised(named: string) {
+    function renderUnrecognised() {
         return render(
             <LocalizationProvider>
-                <UnrecognisedAnswerBlock named={named} />
+                <UnrecognisedAnswerBlock />
             </LocalizationProvider>,
         );
     }
 
-    it('names the type it could not draw rather than dropping the block', () => {
-        renderUnrecognised('RiskScore');
+    it('says a part was skipped rather than dropping the block, without naming its type', () => {
+        renderUnrecognised();
 
         expect(
             screen.getByText(
-                'This client does not recognise the block type “RiskScore”. The block was skipped - the rest of the result rendered normally.',
+                'This app cannot show one part of this answer yet, so it was skipped - the rest is shown as usual.',
             ),
         ).toBeDefined();
-    });
-
-    it('says the type beside the block, so the name is readable without the sentence', () => {
-        renderUnrecognised('RiskScore');
-
-        expect(screen.getByText('type: RiskScore')).toBeDefined();
+        expect(screen.getByText('Unknown block')).toBeDefined();
     });
 
     it('says what would let this client draw it', () => {
-        renderUnrecognised('RiskScore');
+        renderUnrecognised();
 
-        expect(screen.getByText('Updating the app may unlock this block type.')).toBeDefined();
+        expect(screen.getByText('Updating the app may show it.')).toBeDefined();
     });
 
     it('is a block a reader lands on like any other', () => {
-        renderUnrecognised('RiskScore');
+        renderUnrecognised();
 
         expect(screen.getByRole('article', { name: 'Unknown block' }).tabIndex).toBe(0);
     });
