@@ -16,7 +16,7 @@ import { useWideWorkspace } from './useWideWorkspace';
 export function Space({
     offered,
     space,
-    threadField,
+    readingFooted,
     status,
     folders,
     list,
@@ -35,10 +35,10 @@ export function Space({
     readonly space: SpaceName;
 
     /**
-     * The field at the foot of a correspondence, which the Mail space draws under an open message and no other space
-     * draws at all — the design gives Discover a field of its own and the rest none.
+     * Whether what is open in the Mail space draws the AI button at its foot, which only the Mail space lays out for —
+     * the design gives Discover a field of its own and the rest none.
      */
-    readonly threadField: ReactNode;
+    readonly readingFooted: boolean;
 
     /** What the deployment says about the connection, which every space shows somewhere. */
     readonly status: ReactNode;
@@ -181,7 +181,7 @@ export function Space({
                                     list={list}
                                     mail={mail}
                                     tabs={tabs}
-                                    threadField={inFront ? threadField : null}
+                                    readingFooted={inFront && readingFooted}
                                     status={inFront ? status : null}
                                     person={person}
                                 />

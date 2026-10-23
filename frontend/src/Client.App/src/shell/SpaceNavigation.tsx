@@ -2,11 +2,11 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { PointerEvent, ReactNode } from 'react';
+import { Fragment, type PointerEvent, type ReactNode } from 'react';
 import { BrandMark } from '../controls/BrandMark';
 import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
-import { addressOf, barSpaces, overflowSpaces, spaceLabels, type Space } from '../routing/spaces';
+import { addressOf, askingSpaces, barSpaces, overflowSpaces, spaceLabels, type Space } from '../routing/spaces';
 import { spaceIcons } from './spaceIcons';
 import { NavigationMark } from './NavigationMark';
 import { SpaceOverflow } from './SpaceOverflow';
@@ -74,7 +74,18 @@ export function SpaceNavigation({
     // on the screen without either shape having to be told about it twice.
     const drawn = wide ? offered : offered.filter((space) => barSpaces.includes(space));
     const behindMore = wide ? [] : overflowSpaces.filter((space) => offered.includes(space));
-    const destinations = drawn.map((space) => <SpaceLink key={space} space={space} current={space === current} />);
+    const firstHolding = drawn.findIndex((space) => !askingSpaces.includes(space));
+    const destinations = drawn.map((space, index) => (
+        <Fragment key={space}>
+            {/* A hairline between the spaces that ask and the spaces that hold, drawn in the rail alone: the bar's places
+                are counted, and a rule there would read as one more. */}
+            {wide && index > 0 && index === firstHolding ? (
+                <hr aria-hidden="true" className="mx-4 my-1 border-line" />
+            ) : null}
+
+            <SpaceLink space={space} current={space === current} />
+        </Fragment>
+    ));
 
     return (
         <nav

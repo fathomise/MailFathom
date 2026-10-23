@@ -41,6 +41,8 @@ import {
 
 resetsBetweenTests();
 
+const aiButton = 'Draft a reply or ask about this thread';
+
 /**
  * A deployment drawing one message to a credential that may write mail, and answering what it says about drafting.
  *
@@ -408,7 +410,8 @@ describe('App', () => {
         const list = await screen.findByRole('listbox', { name: 'Messages' });
         fireEvent.pointerDown(within(list).getByRole('option', { name: /Quarterly invoice/ }));
         fireEvent.pointerUp(within(list).getByRole('option', { name: /Quarterly invoice/ }));
-        fireEvent.click(await screen.findByRole('button', { name: 'Ask' }));
+        fireEvent.click(await screen.findByRole('button', { name: aiButton }));
+        fireEvent.click(screen.getByRole('button', { name: 'Ask' }));
 
         expect(await screen.findByRole('main', { name: 'Agent' })).toBeDefined();
         expect(screen.getByText('Context: thread “Quarterly invoice”')).toBeDefined();
@@ -445,11 +448,11 @@ describe('App', () => {
         );
     });
 
-    // The field under a correspondence drafts a reply and does nothing else, so a deployment that writes none is shown
-    // no field at all rather than one whose press would have to go somewhere else. Both halves hold the grant to write,
+    // The AI button under a correspondence offers *Draft a reply* only where the deployment drafts, so a deployment that
+    // writes none is offered no choice whose press would have to go somewhere else. Both halves hold the grant to write,
     // so what decides between them is the deployment's own answer about drafting and nothing else.
     it.each([true, false])(
-        'draws the field under an open message only where the deployment answers that it drafts: %s',
+        'offers a drafted reply under an open message only where the deployment answers that it drafts: %s',
         async (draftsReplies) => {
             const drafting = { read: false };
 
@@ -465,11 +468,20 @@ describe('App', () => {
             expect(await screen.findByText('A drawn message.')).toBeDefined();
 
             if (draftsReplies) {
-                expect(await screen.findByRole('button', { name: 'Draft a reply' })).toBeDefined();
+                fireEvent.click(await screen.findByRole('button', { name: aiButton }));
+
+                expect(screen.getByRole('button', { name: 'Draft a reply' })).toBeDefined();
             } else {
                 await waitFor(() => {
                     expect(drafting.read).toBe(true);
                 });
+
+                const unfolding = screen.queryByRole('button', { name: aiButton });
+
+                if (unfolding !== null) {
+                    fireEvent.click(unfolding);
+                }
+
                 expect(screen.queryByRole('button', { name: 'Draft a reply' })).toBeNull();
             }
 

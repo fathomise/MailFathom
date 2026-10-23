@@ -77,12 +77,14 @@ describe('App deployment', () => {
             expect(routesAsked()).toEqual([
                 'https://elsewhere.example.invalid/api/client/session',
                 'https://elsewhere.example.invalid/api/client/accounts',
+
+                // The Agent space reads its history on landing for the reason the Mail space below it does, and reads first
+                // because it stands before Mail in the rail.
+                'https://elsewhere.example.invalid/api/client/agent/conversations',
+
                 'https://elsewhere.example.invalid/api/client/folders',
                 'https://elsewhere.example.invalid/api/client/emails?sort=receivedAt&order=newestFirst&direction=forward&pageSize=100&folder=role%3AInbox',
                 'https://elsewhere.example.invalid/api/client/emails/search/phrasing',
-
-                // The Agent space reads its history on landing, for the same reason.
-                'https://elsewhere.example.invalid/api/client/agent/conversations',
 
                 // The Tasks space reads on landing for the reason the Mail space does, and what it reads is the two halves of
                 // the list, the reader's own day, and whether this deployment arranges one at all. The day is two instants
@@ -181,10 +183,10 @@ describe('App deployment', () => {
                 'https://mail.example.test/api/client/session',
                 'https://mail.example.test/api/client/session/token',
                 'https://mail.example.test/api/client/accounts',
+                'https://mail.example.test/api/client/agent/conversations',
                 'https://mail.example.test/api/client/folders',
                 'https://mail.example.test/api/client/emails?sort=receivedAt&order=newestFirst&direction=forward&pageSize=100&folder=role%3AInbox',
                 'https://mail.example.test/api/client/emails/search/phrasing',
-                'https://mail.example.test/api/client/agent/conversations',
                 'https://mail.example.test/api/client/tasks?pageSize=50',
                 'https://mail.example.test/api/client/tasks/proposed?pageSize=50',
                 expect.stringMatching(
@@ -375,10 +377,10 @@ describe('App deployment', () => {
             expect(routesAsked()).toEqual([
                 'https://first.example.invalid/api/client/session',
                 'https://first.example.invalid/api/client/accounts',
+                'https://first.example.invalid/api/client/agent/conversations',
                 'https://first.example.invalid/api/client/folders',
                 'https://first.example.invalid/api/client/emails?sort=receivedAt&order=newestFirst&direction=forward&pageSize=100&folder=role%3AInbox',
                 'https://first.example.invalid/api/client/emails/search/phrasing',
-                'https://first.example.invalid/api/client/agent/conversations',
                 'https://first.example.invalid/api/client/tasks?pageSize=50',
                 'https://first.example.invalid/api/client/tasks/proposed?pageSize=50',
                 expect.stringMatching(
@@ -405,10 +407,10 @@ describe('App deployment', () => {
                 'https://second.example.invalid/api/client/session',
                 'https://second.example.invalid/api/client/session/token',
                 'https://second.example.invalid/api/client/accounts',
+                'https://second.example.invalid/api/client/agent/conversations',
                 'https://second.example.invalid/api/client/folders',
                 'https://second.example.invalid/api/client/emails?sort=receivedAt&order=newestFirst&direction=forward&pageSize=100&folder=role%3AInbox',
                 'https://second.example.invalid/api/client/emails/search/phrasing',
-                'https://second.example.invalid/api/client/agent/conversations',
                 'https://second.example.invalid/api/client/tasks?pageSize=50',
                 'https://second.example.invalid/api/client/tasks/proposed?pageSize=50',
                 expect.stringMatching(

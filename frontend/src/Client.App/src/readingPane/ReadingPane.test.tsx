@@ -18,6 +18,7 @@ import {
     type ReadMarking,
 } from '../readMarking/useReadMarking';
 import { ThreadAgentField } from '../threadAgent/ThreadAgentField';
+import { AgentHandOverContext } from '../routing/agentHandOver';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
 import { emptyWorkspace, useWorkspace, type Workspace } from '../workspace/useWorkspace';
 import { WorkspaceProvider } from '../workspace/Workspace';
@@ -1107,20 +1108,28 @@ describe('ReadingPane selection', () => {
                 <ToastsProvider>
                     <WorkspaceProvider>
                         <Opened />
-                        <LinkOpenerContext value={() => Promise.resolve()}>
-                            <AttachmentExchangeContext value={deliversNothing}>
-                                <OpenAttachmentContext value={() => undefined}>
-                                    <ThreadAgentField />
-                                    <ReadingPane
-                                        session={session}
-                                        transport={deploymentDescribing()}
-                                        storedEmailId={messageId}
-                                        online
-                                        onShowFullHtml={() => undefined}
-                                    />
-                                </OpenAttachmentContext>
-                            </AttachmentExchangeContext>
-                        </LinkOpenerContext>
+                        <AgentHandOverContext value={() => undefined}>
+                            <LinkOpenerContext value={() => Promise.resolve()}>
+                                <AttachmentExchangeContext value={deliversNothing}>
+                                    <OpenAttachmentContext value={() => undefined}>
+                                        <ThreadAgentField
+                                            thread={{
+                                                scope: { kind: 'thread', subject: 'thread-1' },
+                                                title: 'Quarterly invoice',
+                                            }}
+                                            drafts={false}
+                                        />
+                                        <ReadingPane
+                                            session={session}
+                                            transport={deploymentDescribing()}
+                                            storedEmailId={messageId}
+                                            online
+                                            onShowFullHtml={() => undefined}
+                                        />
+                                    </OpenAttachmentContext>
+                                </AttachmentExchangeContext>
+                            </LinkOpenerContext>
+                        </AgentHandOverContext>
                     </WorkspaceProvider>
                 </ToastsProvider>
             </LocalizationProvider>,

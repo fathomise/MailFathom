@@ -15,10 +15,14 @@ import type { MessageKey } from '../localization/en';
 // one. A fragment is never sent to a server at all, so every address below reloads on both heads with nothing
 // configured, and the desktop shell's WebView needs no rule of its own either.
 
-// The order is the design's, and it is the order the rail draws them in at either width.
-export const spaces = ['discover', 'mail', 'agent', 'tasks', 'calendar', 'people'] as const;
+// The order is the design's, and it is the order the rail draws them in at either width: the two places that ask
+// questions of the mail first, then the places that hold it.
+export const spaces = ['discover', 'agent', 'mail', 'tasks', 'calendar', 'people'] as const;
 
 export type Space = (typeof spaces)[number];
+
+/** The spaces that ask rather than hold, which the rail sets apart from the rest with a rule after the last of them. */
+export const askingSpaces: readonly Space[] = ['discover', 'agent'];
 
 // A rail down the side of a wide window has room for all six; the bottom bar of a narrow one has five places, and
 // the design spends them on three spaces, the bell, and an overflow holding everything else. So the bar is a
@@ -29,7 +33,7 @@ export type Space = (typeof spaces)[number];
 // on purpose lists is not the same reading as a rail somebody's eye travels down.
 
 /** The spaces the bottom bar carries itself. */
-export const barSpaces: readonly Space[] = ['discover', 'mail', 'agent'];
+export const barSpaces: readonly Space[] = ['discover', 'agent', 'mail'];
 
 /** The rest, which the bar reaches through its overflow, in the order the overflow lists them. */
 export const overflowSpaces: readonly Space[] = ['tasks', 'calendar', 'people'];

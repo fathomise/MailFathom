@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ComposingContext, type Composing } from '../composer/useComposing';
 import { LocalizationProvider } from '../localization/Localization';
 import { MailboxActsContext, nothingActed, type ActedMessage, type MailboxActs } from '../mailboxActs/useMailboxActs';
@@ -17,35 +17,6 @@ const message: ActedMessage = {
     unread: false,
     flagged: false,
 };
-
-const conversation: AgentHandOver = {
-    scope: { kind: 'thread', subject: '0198f4a1-0000-7000-8000-00000000b001' },
-    title: 'Hall lease',
-};
-
-// jsdom answers every media query `false`, which is the phone, so a test about the pill states a width above it.
-const declaredMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
-
-afterEach(() => {
-    if (declaredMatchMedia === undefined) {
-        Reflect.deleteProperty(window, 'matchMedia');
-    } else {
-        Object.defineProperty(window, 'matchMedia', declaredMatchMedia);
-    }
-});
-
-/** The window is wider than a phone and no wider than one pane, which is where the head is compact and the pill stays. */
-function aOnePaneWindowWiderThanAPhone(): void {
-    Object.defineProperty(window, 'matchMedia', {
-        configurable: true,
-        value: (query: string) => ({
-            media: query,
-            matches: query.includes('43.75rem'),
-            addEventListener: () => undefined,
-            removeEventListener: () => undefined,
-        }),
-    });
-}
 
 function drawHead({
     offered = true,
@@ -70,12 +41,7 @@ function drawHead({
             <AgentHandOverContext value={handToAgent}>
                 <MailboxActsContext value={acts}>
                     <ComposingContext value={composing}>
-                        <HeadActs
-                            compact={compact}
-                            toolbarCarriesActs={toolbarCarriesActs}
-                            message={acting}
-                            thread={conversation}
-                        />
+                        <HeadActs compact={compact} toolbarCarriesActs={toolbarCarriesActs} message={acting} />
                     </ComposingContext>
                 </MailboxActsContext>
             </AgentHandOverContext>
@@ -191,37 +157,10 @@ describe('HeadActs', () => {
         expect(screen.queryByRole('button', { name: 'Flag' })).toBeNull();
     });
 
-    it('hands the conversation it stands over to the agent', () => {
-        aOnePaneWindowWiderThanAPhone();
-        const handToAgent = vi.fn();
-        drawHead({ handToAgent });
-
-        fireEvent.click(screen.getByRole('button', { name: 'Ask' }));
-
-        expect(handToAgent).toHaveBeenCalledWith(conversation);
-    });
-
-    it('draws no way to the agent for a credential that has no agent to reach', () => {
-        aOnePaneWindowWiderThanAPhone();
-        drawHead();
-
-        expect(screen.queryByRole('button', { name: 'Ask' })).toBeNull();
-    });
-
-    // The compact bar and the phone are two widths apart: a one-pane window wider than a phone draws the acts as symbols
-    // and keeps the pill, because nothing else there would carry the conversation to the agent.
-    it('keeps the agent in the compact head of a one-pane window wider than a phone', () => {
-        aOnePaneWindowWiderThanAPhone();
-        const handToAgent = vi.fn();
-        drawHead({ compact: true, handToAgent });
-
-        fireEvent.click(screen.getByRole('button', { name: 'Ask' }));
-
-        expect(handToAgent).toHaveBeenCalledWith(conversation);
-    });
-
-    it('keeps the agent out of the head on a phone, where the design moves it into the thread state', () => {
-        drawHead({ compact: true, handToAgent: vi.fn() });
+    // The design gives the way to the agent to the AI button at the thread's foot, so a head carries no second entry to
+    // it even for a credential that has an agent to reach.
+    it.each([false, true])('draws no way to the agent, compact: %s', (compact) => {
+        drawHead({ compact, handToAgent: vi.fn() });
 
         expect(screen.queryByRole('button', { name: /Ask/u })).toBeNull();
         expect(screen.getByRole('button', { name: 'Reply' })).toBeDefined();

@@ -153,7 +153,7 @@ test('moves a keyboard through a narrow window in the order the window shows', a
     await page.keyboard.press('Tab');
     await expect(page.getByRole('link', { name: 'Discover' })).toBeFocused();
 
-    await page.getByRole('link', { name: /^Agent/u }).focus();
+    await page.getByRole('link', { name: /^Mail/u }).focus();
     await page.keyboard.press('Tab');
     await expect(page.getByRole('button', { name: 'Notifications' })).toBeFocused();
 
@@ -429,7 +429,8 @@ test.describe('driven by a finger', () => {
 
         await opened.click();
         await expect(page.getByRole('article').first()).toBeVisible();
-        await page.getByRole('button', { name: 'Draft a reply' }).click();
+        await page.getByRole('button', { name: 'Draft a reply or ask about this thread' }).click();
+        await page.getByRole('button', { name: 'Draft a reply', exact: true }).click();
         await drafter.fill(words);
 
         async function holdsTheMessage(): Promise<void> {
@@ -590,6 +591,92 @@ test('stops a message’s own content at the reading ceiling and leaves everythi
     // binding: a head laid out to a measure meant for paragraphs is the defect this asserts against.
     const region = await boxOf(page.getByRole('article', messageRegion));
     expect(region.width).toBeGreaterThan(content.width);
+});
+
+// The defect this replaced: a space arriving rises from a few pixels below its place, which lengthened the document
+// for as long as the motion lasted, and the focus placed in the arriving space scrolled the whole page — the navigation
+// with it — up by that much and back. Only a browser answers it, and only on every frame of the arrival: by its end
+// the page stood still again, so a reading taken once it has settled measures nothing.
+test('holds the page still while each space the navigation reaches arrives', async ({ page }) => {
+    await page.setViewportSize(desktopWindow);
+    await openSignedIn(page, '/#/mail');
+    await expect(page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first()).toBeVisible();
+
+    const navigation = page.getByRole('navigation', { name: 'Spaces' });
+
+    for (const space of ['Tasks', 'Calendar', 'Agent', 'Discover', 'Mail']) {
+        const offsets = page.evaluate<number[]>(pageOffsetsOverTheArrival);
+
+        await navigation.getByRole('link', { name: space, exact: true }).click();
+
+        expect(new Set(await offsets)).toStrictEqual(new Set([0]));
+    }
+});
+
+// How far the page is scrolled on each frame for most of a second, which outlasts any arrival the theme declares.
+// Written as an expression for the reason the overflow readings in this file are: no DOM declaration here.
+const pageOffsetsOverTheArrival = `new Promise((resolve) => {
+    const offsets = [];
+    const started = performance.now();
+    const sample = () => {
+        offsets.push(document.scrollingElement.scrollTop);
+        if (performance.now() - started < 900) {
+            requestAnimationFrame(sample);
+        } else {
+            resolve(offsets);
+        }
+    };
+    requestAnimationFrame(sample);
+})`;
+
+/** How far a box stands above the foot of another, which is the gap the AI button keeps to its column's bottom. */
+function standingAbove(inner: Box, outer: Box): number {
+    return outer.y + outer.height - (inner.y + inner.height);
+}
+
+// The AI button is the last thing in what is open and is stuck to the foot of the column's scroller, so it stands at
+// the bottom of the column however far a long conversation is scrolled rather than part-way through it — and the
+// column scrolls up and down and never sideways, a scroller that held a stray pixel too wide being what drew a
+// horizontal bar under content that fitted.
+test('keeps the AI button at the foot of the reading column while a long conversation scrolls, and nothing sideways', async ({
+    page,
+    deployment,
+}) => {
+    deployment.grant('mailfathom.mail.drafts.write');
+
+    await page.setViewportSize({ width: 1440, height: 600 });
+    await openSignedIn(page, '/#/mail');
+    await page
+        .getByRole('listbox', { name: 'Messages' })
+        .getByRole('option', { name: /The racking quote/u })
+        .click();
+
+    const conversation = page.getByRole('region', { name: 'Conversation' });
+    const messagesDrawn = conversation.getByRole('article', { name: /^Message from/u });
+
+    await conversation.getByRole('button', { name: 'Show all the messages' }).click();
+    await expect(messagesDrawn).toHaveCount(5);
+
+    const column = page.getByRole('region', { name: 'What is open' });
+    const button = page.getByRole('button', { name: 'Draft a reply or ask about this thread' });
+    const firstMessage = await boxOf(messagesDrawn.first());
+
+    expect(standingAbove(await boxOf(button), await boxOf(column))).toBeGreaterThanOrEqual(0);
+    expect(standingAbove(await boxOf(button), await boxOf(column))).toBeLessThanOrEqual(32);
+
+    await messagesDrawn.first().hover();
+    await page.mouse.wheel(0, 2000);
+
+    await expect.poll(async () => (await boxOf(messagesDrawn.first())).y).toBeLessThan(firstMessage.y);
+    expect(standingAbove(await boxOf(button), await boxOf(column))).toBeGreaterThanOrEqual(0);
+    expect(standingAbove(await boxOf(button), await boxOf(column))).toBeLessThanOrEqual(32);
+
+    const scrolledDown = await boxOf(messagesDrawn.last());
+
+    await messagesDrawn.last().hover();
+    await page.mouse.wheel(400, 0);
+
+    expect((await boxOf(messagesDrawn.last())).x).toBe(scrolledDown.x);
 });
 
 /** The two measurements a region scrolling sideways is read by, named so no DOM declaration has to be. */

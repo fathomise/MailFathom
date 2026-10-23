@@ -11,21 +11,16 @@ import { PlannedControl } from '../controls/PlannedControl';
 import { useLocalization } from '../localization/useLocalization';
 import { flagActFor, refusalSaid, standsInTheWay } from '../mailboxActs/drawnActs';
 import { useMailboxActs, type ActedMessage } from '../mailboxActs/useMailboxActs';
-import { useAgentHandOver, type AgentHandOver } from '../routing/agentHandOver';
-import { useWideWorkspace } from '../shell/useWideWorkspace';
 
-// What stands at the end of the head of a message or a conversation, beside its subject: handing the thread to the
-// agent, and the three things the design offers to do with it from there. One component because two heads
-// draw it — a message opened from the list and the conversation it belongs to — and the acts have to be the same acts
-// from both.
+// What stands at the end of the head of a message or a conversation, beside its subject: the three things the design
+// offers to do with it from there. One component because two heads draw it — a message opened from the list and the
+// conversation it belongs to — and the acts have to be the same acts from both. Asking the agent about the thread is not
+// one of them: the design gives that to the AI button at the thread's foot, so the head carries no second entry to it.
 //
 // The design draws the three as words alone where the head has a column to itself and no toolbar above it offers them
 // already, and as symbols alone where the column is the whole screen and the head is one compact bar over the message.
 // So two panes narrower than the desktop leave the three to the toolbar, and draw them again while a selection has
-// taken the toolbar's place. Asking the agent is drawn on the accent as a pill everywhere but on a
-// phone, the compact bar of a one-pane window wider than one included: on a phone the design moves it into the row of
-// the thread's own state, and a width between the two would otherwise have neither. It is drawn only where there is an
-// agent to reach and a conversation to hand over, which a message the deployment has not placed in one does not have.
+// taken the toolbar's place.
 //
 // The other three act on the message the head is about, and each goes the way every other surface already goes: an
 // answer is `useComposing`'s, exactly as the toolbar's three answers and a row's own menu are, and the flag is a
@@ -44,13 +39,12 @@ export function HeadActs({
     compact,
     toolbarCarriesActs = false,
     message,
-    thread,
 }: {
     readonly compact: boolean;
 
     /**
      * Whether the toolbar standing above the head already offers the three acts, which is where the head leaves them
-     * to it and keeps asking the agent alone: the subject keeps the width a second copy would take from it.
+     * to it: the subject keeps the width a second copy would take from it.
      */
     readonly toolbarCarriesActs?: boolean;
 
@@ -62,14 +56,9 @@ export function HeadActs({
      * the same one. An act over a whole conversation is a screen of its own and is not what this draws.
      */
     readonly message: ActedMessage | null;
-
-    /** The conversation the head stands over, as it is handed to the agent, or `null` where there is none to hand. */
-    readonly thread: AgentHandOver | null;
 }) {
     const { translate } = useLocalization();
-    const wideWorkspace = useWideWorkspace();
     const acts = useMailboxActs();
-    const handToAgent = useAgentHandOver();
 
     // Read rather than required, for the reason `mailSpace/NothingOpen.tsx` reads it that way: a head is drawn in
     // surfaces a test mounts on their own, and writing is offered by a deployment rather than by this component.
@@ -119,18 +108,6 @@ export function HeadActs({
 
     return (
         <div className="ms-auto flex shrink-0 items-center gap-2">
-            {!wideWorkspace || handToAgent === null || thread === null ? null : (
-                <Control
-                    label={translate('message.ask')}
-                    hint={translate('message.askTitle')}
-                    icon="auto_awesome"
-                    shape="accentPill"
-                    onPress={() => {
-                        handToAgent(thread);
-                    }}
-                />
-            )}
-
             {toolbarCarriesActs ? null : (
                 <div className="flex items-center gap-0.75">
                     {answer === null ? (

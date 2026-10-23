@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MailMessageHeaders, MailParticipant } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
@@ -78,14 +78,11 @@ function Selects({ selected }: { readonly selected: readonly string[] }) {
 
 const author: MailParticipant = { role: 'From', address: 'billing@example.invalid', displayName: 'Billing' };
 
-const conversation = '0198f4a1-0000-7000-8000-00000000b001';
-
 function drawing(
     written: Partial<MailMessageHeaders> = {},
     panelsHidden = false,
-    handToAgent: (handOver: AgentHandOver) => void = vi.fn(),
-    thread: string | null = conversation,
     messagesInThread: number | null = null,
+    handToAgent: ((handOver: AgentHandOver) => void) | null = null,
     selected: readonly string[] = [],
 ): void {
     render(
@@ -97,7 +94,6 @@ function drawing(
                     <MessageHeaders
                         headers={{ ...headers, ...written }}
                         message={message}
-                        thread={thread}
                         messagesInThread={messagesInThread}
                     />
                 </WorkspaceProvider>
@@ -298,13 +294,13 @@ describe('MessageHeaders', () => {
     });
 
     it('counts the messages the conversation holds at the end of the author line', () => {
-        drawing({}, false, vi.fn(), conversation, 3);
+        drawing({}, false, 3);
 
         expect(screen.getByText('thread: 3 messages')).toBeDefined();
     });
 
     it('counts nothing where the conversation holds the message alone', () => {
-        drawing({}, false, vi.fn(), conversation, 1);
+        drawing({}, false, 1);
 
         expect(screen.getByText('Billing <billing@example.invalid>')).toBeDefined();
         expect(screen.queryByText(/^thread: /u)).toBeNull();
@@ -320,7 +316,7 @@ describe('MessageHeaders', () => {
     ] as const)('counts a conversation of %i messages in the form Polish takes at that number', (held, form) => {
         storeLocale('pl');
 
-        drawing({}, false, vi.fn(), conversation, held);
+        drawing({}, false, held);
 
         expect(screen.getByText(pl[form].replace('{count}', new Intl.NumberFormat('pl').format(held)))).toBeDefined();
     });
@@ -359,7 +355,7 @@ describe('MessageHeaders at the width its column has', () => {
 
     it('draws the three acts again there while a selection has taken the toolbar’s place', () => {
         atTwoPanesNarrowerThanTheDesktop();
-        drawing({}, false, vi.fn(), conversation, null, ['AAMkAD-7']);
+        drawing({}, false, null, null, ['AAMkAD-7']);
 
         expect(screen.getByText('Reply')).toBeDefined();
         expect(screen.getByText('Forward')).toBeDefined();
@@ -403,34 +399,14 @@ describe('MessageHeaders at the width its column has', () => {
         expect(screen.getByRole('button', { name: 'Back to the list' })).toBeDefined();
     });
 
-    it('offers handing the conversation to the agent everywhere but on a phone', () => {
-        const handToAgent = vi.fn();
-        atWorkspaceWidth(true);
-        drawing({}, false, handToAgent);
+    // The design gives the way to the agent to the AI button at the thread's foot, so the head carries no second entry
+    // to it at any width, even for a credential that has an agent to reach.
+    it.each([true, false])('draws no way to the agent in the head, wide: %s', (wide) => {
+        atWorkspaceWidth(wide);
+        drawing({}, false, null, vi.fn());
 
-        fireEvent.click(screen.getByRole('button', { name: 'Ask' }));
-
-        expect(handToAgent).toHaveBeenCalledWith({
-            scope: { kind: 'thread', subject: conversation },
-            title: 'Quarterly invoice',
-        });
-
-        cleanup();
-        atWorkspaceWidth(false);
-        drawing();
-
-        expect(screen.queryByText('Ask')).toBeNull();
-    });
-
-    // A message the deployment placed in no conversation has nothing the conversation routes accept as a subject, so
-    // the head offers no way to the agent rather than a hand-over naming nothing.
-    it('offers no way to the agent for a message that belongs to no conversation', () => {
-        const handToAgent = vi.fn();
-        atWorkspaceWidth(true);
-        drawing({}, false, handToAgent, null);
-
+        expect(screen.getByRole('heading', { name: 'Quarterly invoice' })).toBeDefined();
         expect(screen.queryByRole('button', { name: 'Ask' })).toBeNull();
-        expect(handToAgent).not.toHaveBeenCalled();
     });
 
     it('offers the address details from the sender line itself, and names what pressing it does either way', () => {

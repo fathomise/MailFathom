@@ -24,6 +24,7 @@ import { BackToList } from '../mailSpace/BackToList';
 import { NothingOpen } from '../mailSpace/NothingOpen';
 import { useTwoPanes } from '../shell/useWideWorkspace';
 import { ReplyDraftCard } from '../threadAgent/ReplyDraftCard';
+import type { ReadingFoot } from '../threadAgent/ThreadAgentField';
 import { MessageHeaders } from './MessageHeaders';
 import { OpenedMessage } from './OpenedMessage';
 
@@ -108,6 +109,7 @@ export function ReadingPane({
     online,
     onShowFullHtml,
     arriving = false,
+    foot = null,
 }: {
     readonly session: ClientSession;
     readonly transport: MailFathomTransport;
@@ -131,9 +133,12 @@ export function ReadingPane({
      * tells them apart — so what does is the one component that watched the conversation go.
      */
     readonly arriving?: boolean;
+
+    /** The AI button the message draws at its foot, or `null` where none stands under it. */
+    readonly foot?: ReadingFoot | null;
 }) {
     return (
-        <section className="flex min-h-full flex-col">
+        <section className="flex min-h-full grow flex-col">
             {storedEmailId === null ? (
                 <NothingOpen arriving={false} onReopenLastRead={null} />
             ) : (
@@ -144,6 +149,7 @@ export function ReadingPane({
                     online={online}
                     onShowFullHtml={onShowFullHtml}
                     arriving={arriving}
+                    foot={foot}
                 />
             )}
         </section>
@@ -160,6 +166,7 @@ function OpenMessage({
     online,
     onShowFullHtml,
     arriving,
+    foot,
 }: {
     readonly session: ClientSession;
     readonly transport: MailFathomTransport;
@@ -167,6 +174,7 @@ function OpenMessage({
     readonly online: boolean;
     readonly onShowFullHtml: (storedEmailId: string, subject: string | null) => void;
     readonly arriving: boolean;
+    readonly foot: ReadingFoot | null;
 }) {
     const { translate } = useLocalization();
     const twoPanes = useTwoPanes();
@@ -447,9 +455,9 @@ function OpenMessage({
             ref={opened}
             tabIndex={-1}
             aria-label={message.headers.subject ?? translate('message.noSubject')}
-            className="flex animate-content-arrival flex-col"
+            className="flex grow animate-content-arrival flex-col"
         >
-            <MessageHeaders headers={message.headers} message={message} thread={message.threadId} />
+            <MessageHeaders headers={message.headers} message={message} />
 
             <div className="flex flex-col gap-3 px-5.5 py-4.5">
                 <OpenedMessage
@@ -463,6 +471,15 @@ function OpenMessage({
 
                 <ReplyDraftCard under={storedEmailId} />
             </div>
+
+            {foot?.(
+                message.threadId === null
+                    ? null
+                    : {
+                          scope: { kind: 'thread', subject: message.threadId },
+                          title: message.headers.subject ?? translate('message.noSubject'),
+                      },
+            )}
         </article>
     );
 }

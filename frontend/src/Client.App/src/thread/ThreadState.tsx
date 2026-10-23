@@ -4,7 +4,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { MailThreadMessage, MailThreadState, MailThreadStateAspect } from '@mailfathom/client-backend';
-import { Control } from '../controls/Control';
 import { Icon } from '../controls/Icon';
 import { Skeleton } from '../controls/Skeleton';
 import type { MessageKey } from '../localization/en';
@@ -26,9 +25,8 @@ import { sourceOf, type ThreadStateSource } from './threadStateSources';
 // - **Desktop** — a row of cards above the conversation, each carrying its label, what it says, and its source.
 // - **Tablet and the fold** — the same statements as chips inside the body, tighter and without the source link,
 //   because a card that has to hold a link as well stops fitting at that width.
-// - **A phone** — one line saying the first of them, and a control opening the whole block as a sheet. The same row
-//   carries *Ask*, which hands the conversation to the agent: on a phone the design moves it here from the head, and
-//   the sheet ends with the same way to the agent, worded for somebody who has read the block and wants to go on.
+// - **A phone** — one line saying the first of them, and a control opening the whole block as a sheet. The sheet ends
+//   with a way to the agent, worded for somebody who has read the block and wants to go on.
 //
 // Absence is a state rather than a failure, and it is the common one: a deployment that never turned the derivation
 // on and one that has not reached this conversation yet both answer with nothing at all. So a conversation with no
@@ -119,8 +117,6 @@ export function ThreadState({
                 </p>
 
                 {waiting ? <Skeleton className="h-2.5 flex-1" fills={58} /> : null}
-
-                {wideWorkspace ? null : <AskAboutThread thread={thread} />}
             </section>
         );
     }
@@ -230,8 +226,6 @@ function StateLine({
                 >
                     <Icon name="insights" className="size-icon-md" />
                 </button>
-
-                <AskAboutThread thread={thread} />
             </div>
 
             <StateSheet
@@ -362,24 +356,6 @@ function StateSheet({
                 {translate('threadState.close')}
             </button>
         </dialog>
-    );
-}
-
-// *Ask*, the accent pill that hands the conversation to the agent, drawn only where there is an agent to reach.
-function AskAboutThread({ thread }: { readonly thread: AgentHandOver }) {
-    const { translate } = useLocalization();
-    const handToAgent = useAgentHandOver();
-
-    return handToAgent === null ? null : (
-        <Control
-            label={translate('message.ask')}
-            hint={translate('message.askTitle')}
-            icon="auto_awesome"
-            shape="accentPill"
-            onPress={() => {
-                handToAgent(thread);
-            }}
-        />
     );
 }
 

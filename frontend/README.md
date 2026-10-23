@@ -438,7 +438,7 @@ more.
 
 ## Six spaces, one frame, and no router
 
-The client is **Discover**, **Mail**, **Agent**, **Tasks**, **Calendar**, and **People**, and they are one application
+The client is **Discover**, **Agent**, **Mail**, **Tasks**, **Calendar**, and **People**, and they are one application
 rather than six: `src/App.tsx` is the frame that holds them, and it is what a person carries their question, their
 scope, and their selection across. `src/routing/spaces.ts` names them in the order the design draws them. Each is
 reached under a grant: **People** is offered to a credential that may read the address book, **Calendar** and

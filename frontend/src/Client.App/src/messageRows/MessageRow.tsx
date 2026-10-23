@@ -54,7 +54,7 @@ import { useRowSwipe, type RowSwipeAct } from './rowSwipe';
 // somebody pressing archive twice; the sentence goes on its own once the change has arrived.
 //
 // **Only the acts that file a message elsewhere say anything.** What a flag act does is a mark this row draws from the
-// press — the flag, or the unread dot — so the outcome is already on the screen, and a sentence beside it saying the
+// press — the flag, or the unread weight — so the outcome is already on the screen, and a sentence beside it saying the
 // mark is on its way would be the row narrating a mechanism instead of showing a state. The design draws the mark and
 // no sentence, which is also why nothing reports one in the corner: `mailboxActs/MailboxActs.tsx` says that half.
 const actPendingSaid: Readonly<Record<FilingAct, MessageKey>> = {
@@ -452,7 +452,9 @@ export function MessageRow({
                     {/* Who wrote is read before where they wrote from, so the name keeps up to half the line and the
                         host is what gives way. Half rather than more because the marks and the time hold their own
                         width: a name allowed past it would push the time out of a row that clips rather than wraps. */}
-                    <span className="max-w-1/2 shrink-0 truncate text-lg font-semibold workspace:text-md">
+                    <span
+                        className={`max-w-1/2 shrink-0 truncate text-lg workspace:text-md ${unread ? 'font-semibold' : 'font-normal'}`}
+                    >
                         {correspondent(email) ?? translate('list.senderUnknown')}
                     </span>
 
@@ -460,21 +462,13 @@ export function MessageRow({
 
                     <MessageMarkers email={email} flagged={flagged} />
 
-                    {/* Unread, and the whole of what says so. The design draws the mark here — at the end of
-                        the marks, between the flag and the time, rather than ahead of the avatar, where it would inset
-                        every unread row a little further than every read one, which is the one thing a column that has
-                        to scan cannot afford — and draws the name and the subject of a read row in the same weight and
-                        the same colour as an unread one. So the dot is the mark rather than a second statement beside
-                        a typographic one, and the words beside it are for a reader who is not looking at it. */}
-                    {unread ? (
-                        <span className="shrink-0">
-                            <span aria-hidden="true" className="block size-2 rounded-full bg-accent" />
-                            <span className="sr-only">{translate('list.unread')}</span>
-                        </span>
-                    ) : null}
+                    {/* Unread is drawn as the weight of the sender and the subject, as the design draws it and as
+                        every mail client has taught its readers to scan for, so no mark of its own stands among the
+                        others. These words are what says so to a reader who is not looking at the weight. */}
+                    {unread ? <span className="sr-only">{translate('list.unread')}</span> : null}
 
                     {/* How long the correspondence is, drawn where it is longer than the one message. The design
-                        puts it between the unread mark and the time and draws nothing at all for a message
+                        puts it between the flag and the time and draws nothing at all for a message
                         standing alone, so the pill says this row stands for an exchange rather than repeating what
                         every row already is. The number is the deployment's count over the whole conversation — a
                         client counting the rows it holds would answer differently depending on where the page was
@@ -522,7 +516,9 @@ export function MessageRow({
                     <ReceivedAt at={email.receivedAt} />
                 </div>
 
-                <div className="truncate text-md text-text-soft workspace:text-text">
+                <div
+                    className={`truncate text-md text-text-soft workspace:text-text ${unread ? 'font-semibold' : 'font-normal'}`}
+                >
                     {email.subject ?? translate('list.noSubject')}
                 </div>
 
