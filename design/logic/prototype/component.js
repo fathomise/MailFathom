@@ -1202,6 +1202,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     onDocDown = (e) => {
       const el = this.userMenuRef.current;
       if (this.state.userMenu && el && !el.contains(e.target)) this.setState({ userMenu: false });
+      /* On the phone the filters band stands over the list rather than beside it, so a press anywhere outside the band
+         and its control folds it away as its control would. */
+      if (this.state.filtersOpen && this._isMobile && !e.target.closest?.("[data-filters-band],[data-filters-toggle]")) this.setState({ filtersOpen: false });
     };
 
     tabsMode = () => {
@@ -2422,6 +2425,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const touch = FR ? true : mode === "desktop" ? false : !!st.coarse;
       const railW = compact ? 66 : 96;
       this._low = low;
+      this._isMobile = isMobile;
       /* A dialog takes what a low window has and stops growing in a tall one. */
       const dlgMaxH = low ? "calc(100dvh - 16px)" : tall ? "min(calc(100dvh - 44px), 760px)" : "calc(100dvh - 44px)";
       const toastCompact = w < 900;

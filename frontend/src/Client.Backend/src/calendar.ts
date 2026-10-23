@@ -173,12 +173,20 @@ export const mostCalendarEventsPerWindow = 1000;
 /** How many a screen asks for where it states no bound of its own, which is what the service serves by default. */
 export const calendarEventsPerWindow = 200;
 
-// An event is a title, two instants, an identity and three short fields. Generous against that arithmetic over a full
-// window and well under the transport's own backstop.
-const longestCalendarWindow = 512 * 1024;
-
-// One event, one write answer, and one draft are each a single record of the same shape.
+// One event, one write answer, and one draft are each a single record of the same shape. What sizes it is the notes: up
+// to the deployment's 4000 characters, each up to six bytes once escaped, beside a title of at most 200 and a handful
+// of short fields — 32 KiB holds the longest such record with room to spare.
 const longestCalendarAnswer = 32 * 1024;
+
+/** The longest notes the deployment keeps, which an answer carrying more describes no event it could have stored. */
+const longestCalendarNotes = 4000;
+
+// A window is as many of those records as it asked for, so its bound follows the count rather than a figure that holds
+// only while nobody writes long notes. A full window of the longest notes is what this admits, and the transport's own
+// backstop gives way to it because the count is the caller's own.
+function longestCalendarWindow(count: number): number {
+    return count * longestCalendarAnswer + 1024;
+}
 
 const calendarEventOrigins: readonly CalendarEventOrigin[] = ['Asserted', 'Proposed'];
 
@@ -204,7 +212,7 @@ export function readCalendarWindow(
             method: 'GET',
             path: `${routeFor(session, calendarRoute)}?${windowArguments(span.from, span.until, span.origin ?? null, count)}`,
             headers: headersFor(session),
-            longestAnswer: longestCalendarWindow,
+            longestAnswer: longestCalendarWindow(count),
         });
 
         if (response === null) {
@@ -566,7 +574,7 @@ export function parseCalendarEvent(value: unknown): CalendarEvent | null {
         return null;
     }
 
-    if (notes !== null && typeof notes !== 'string') {
+    if (notes !== null && (typeof notes !== 'string' || notes.length > longestCalendarNotes)) {
         return null;
     }
 

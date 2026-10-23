@@ -83,6 +83,17 @@ describe('readCalendarWindow', () => {
         );
     });
 
+    it('reads a window as large as the events it asked for, each carrying the longest notes', async () => {
+        const longest = { ...asserted, notes: 'ł'.repeat(4000) };
+        const full = JSON.stringify({ events: Array.from({ length: 1000 }, () => longest) }).replace(/ł/gu, '\\u0142');
+        const { transport, requests } = recording({ status: 200, body: full });
+
+        const answer = await readCalendarWindow(session, transport, { ...aWindow, count: 1000 });
+
+        expect(full.length).toBeLessThanOrEqual(requests[0]?.longestAnswer ?? 0);
+        expect(answer.outcome).toBe('read');
+    });
+
     it('names no half where the caller asked for both', async () => {
         const { transport, requests } = recording({ status: 200, body: JSON.stringify({ events: [] }) });
 
@@ -395,8 +406,9 @@ describe('parseCalendarEvent', () => {
         expect(parseCalendarEvent({ ...asserted, notes: null })?.notes).toBeNull();
     });
 
-    it('refuses notes that are not text', () => {
+    it('refuses notes that are not text, or longer than the deployment keeps', () => {
         expect(parseCalendarEvent({ ...asserted, notes: 42 })).toBeNull();
+        expect(parseCalendarEvent({ ...asserted, notes: 'a'.repeat(4001) })).toBeNull();
     });
 
     it('reads an event that names the message it came out of', () => {

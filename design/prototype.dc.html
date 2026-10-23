@@ -727,10 +727,10 @@ Project repository: https://github.com/fathomise/MailFathom
               <div onClick="{{ openListSearch }}" style="{{ searchFieldStyle }}" style-hover="cursor:pointer;border-color:var(--border2)">{{ listSearchPlaceholder }}</div>
             </sc-if>
             <sc-if value="{{ notTouch }}" hint-placeholder-val="{{ true }}"><div onClick="{{ openListSearch }}" title="Search" style="{{ listIconBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">search</span></div></sc-if>
-            <div onClick="{{ toggleFilters }}" title="{{ filtersTitle }}" style="{{ filtersBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">{{ filtersIcon }}</span><sc-if value="{{ filtersActive }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;font-weight:600">{{ filtersCount }}</span></sc-if></div>
+            <div data-filters-toggle onClick="{{ toggleFilters }}" title="{{ filtersTitle }}" style="{{ filtersBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">{{ filtersIcon }}</span><sc-if value="{{ filtersActive }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;font-weight:600">{{ filtersCount }}</span></sc-if></div>
           </div>
           <sc-if value="{{ filtersOpen }}" hint-placeholder-val="{{ false }}">
-            <div data-motion="disclose" data-phase="{{ mo.filtersOpen }}" style="flex:0 0 auto;display:flex;flex-direction:column;gap:11px;padding:11px 12px;border-bottom:1px solid var(--line);background:var(--sub)">
+            <div data-filters-band data-motion="disclose" data-phase="{{ mo.filtersOpen }}" style="flex:0 0 auto;display:flex;flex-direction:column;gap:11px;padding:11px 12px;border-bottom:1px solid var(--line);background:var(--sub)">
               <div style="display:flex;gap:7px;flex-wrap:wrap">
                 <sc-for list="{{ filterToggles }}" as="ft" hint-placeholder-count="3">
                   <div onClick="{{ ft.toggle }}" style="{{ ft.style }}" style-hover="cursor:pointer;border-color:var(--accent)"><span style="{{ ft.iconStyle }}">{{ ft.icon }}</span>{{ ft.label }}</div>
