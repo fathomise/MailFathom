@@ -187,6 +187,7 @@ describe('ConnectionSummary', () => {
                 'This deployment is not refreshing the local copy of these accounts, so what you see is as current as its last run left it. That is a setting on the deployment rather than a permission you are missing.',
             ),
         ).toBeDefined();
+        expect(screen.queryByRole('group')).toBeNull();
     });
 
     it('tells a user holding no account that, and what would fill it, rather than showing a failure', () => {

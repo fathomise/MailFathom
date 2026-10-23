@@ -153,9 +153,10 @@ function Freshness({ connection }: { readonly connection: Connection }) {
     }
 
     // Every account current is said by the green dot and nothing more, as the design draws it: a disclosure there
-    // would open onto a list of accounts each saying the same thing. Only an account that needs a look earns one.
-    if (freshness.tone === 'healthy') {
-        return <Line tone="healthy">{translate(freshness.message)}</Line>;
+    // would open onto a list of accounts each saying the same thing. A deployment not refreshing them is one sentence
+    // about the deployment rather than about any account. Only an account that needs a look earns the list.
+    if (freshness.tone !== 'attention') {
+        return <Line tone={freshness.tone}>{translate(freshness.message)}</Line>;
     }
 
     return (
