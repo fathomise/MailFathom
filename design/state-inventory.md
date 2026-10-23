@@ -540,7 +540,7 @@ what a finger reaches.
 | Cc/Bcc | `ccOpen` | the Cc control |
 | Formatting bar | `fmtBarShown` | `!touch`, or the touch toggle was pressed |
 | Formatting toggle | `fmtToggleShown` | `touch` |
-| Formatting hint | `fmtHintShown` | `!touch` |
+| Formatting hint | `fmtHintShown` | `!touch` — *select any part and the agent rewrites just that* |
 | AI drafting | `aiBusy` / `aiBusyLabel` | an AI action or *Draft a reply*, while it streams — a band right above the editor on `--accent-soft` with an `--accent-line` rule: the `auto_awesome` glyph pulsing, *Generating a reply* for a reply, a reply to all or a forward and *Drafting* for a new message, at 13 px semibold in `--accent-d`, and three 4 px dots rising in turn in place of an ellipsis. Under reduced motion the glyph and the dots stand still. The draft's paragraphs arrive in the editor below it, under the accent edge that marks an AI draft |
 | AI draft standing | `aiDraftShown` | the same, once it finishes |
 | The AI's context | `composeCtxChips` | always, as the last rows of the composer's AI section: *Context* at 12 px semibold, then one chip per message — `--panel` on a 6 px radius with an `--accent-line` border, a `mail` glyph, the subject ending in an ellipsis at 260 px (220 on the phone) and titled with the whole of it, and a `close` titled *Remove from the context*; under `touch` the chip is 36 px tall and its `close` a 32 px box. A reply starts with the conversation it answers; a new message starts with none. Every way the composer closes — its own close, its tab's close, closing every tab — empties the context, its starting point and the reply's conversation, so the next composition starts clean |
@@ -548,6 +548,10 @@ what a finger reaches.
 | The list sets the context | `composeCtxPatch` | while the composer is open, a plain click on a row in the list makes that message the context (and opens it, as a click always does), and a selection — a modified click, the row's *Select messages*, any row while a selection runs — makes the whole selection the context. Emptying the selection leaves the context as it stood. The first context a composition takes is its starting point (`composeCtxBase`) |
 | Context steady | `composeCtxSteady` | the context is its starting point, or has none yet — the row ends in *the draft stays local until you send it* |
 | Context changed | `composeCtxChanged` | the context differs from its starting point as a set: another message clicked, several selected, a chip removed. Two marks, never colour alone: a 22 px disc on `--warn-soft` with a 1 px `--warn` ring holding `priority_high` in `--warn-text` at the end of the AI prompt field, arriving with `pop` and named *The context changed since you started* — and, under the context row with `disclose`, *This message started from “…” - the context has changed since. Check it before the AI drafts.* in `--warn-text`, naming the starting message (and *and N more* for a selection), beside *Restore* (`undo`, 44 px tall under `touch`), which puts the starting context back. Arriving back at the starting set by any route takes both marks away |
+| Part of the message selected | `passageBarIsDraft` (`selBar.kind === "compose"`) | text selected in the editor of a new message, a reply or a forward, whoever wrote it — the Agent's rewrite bar (*Working on one part of an answer* below): *Shorter*, *More formal*, *Softer*, *Firmer* and a field for saying how, with no *Ask about this*, because the composer has no conversation to quote into. It floats over the passage on a fine pointer and docks on the composer's foot, across its width, on touch; scrolling the editor closes the floating one |
+| Being rewritten | `composeChangeBusy` | a preset or a said instruction — the whole sentences the selection touches pulse in the editor, the editor stops taking input (`composeEditable`), and the foot reads *Rewriting N passage(s)* with a turning glyph and no controls |
+| A rewrite to review | `composeHasChange` | the old sentences struck in the editor and the new ones beside them on `--accent-soft` with an accent underline; the foot holds *Keep the change*, *Try again* and *Undo* **in place of *Send*, *Attach* and *Save draft***, and Ctrl+Enter sends nothing while it waits. Under touch the three are 44 px |
+| A rewrite kept | `cChange` cleared | *Keep the change* — the new text stands as plain text and the editor takes input again; the toast carries *Undo* back to the message as it was. *Undo* in the foot leaves the message as it was, and *Try again* rewrites the same sentences under the next preset (*· another version*). Every sentence coming back the same is a toast, *The agent found nothing to change there*, and no diff |
 | The composer's foot | `composeSendStyle`, `composeAttachStyle`, `composeSaveStyle` | always; under `touch` one 44 px row — *Send* filled, *Attach* bordered and on the phone the `attach_file` symbol alone (`composeAttachLabel` is `!isMobile`), *Save draft* a text action as tall as the row |
 | A focused field | `data-compose-fields` | a field with keyboard focus — the composer's rows are one sheet rather than boxes, so the ring every other borderless field takes is not drawn: a row holding the focused field turns its bottom edge `--accent`, and the editor turns a 2 px start edge, transparent until then, `--accent` |
 | Send confirmation | `sendAskOpen` | pressing send with something to warn about |
@@ -808,6 +812,12 @@ asked about.
 rewrites every sentence the selection touches and says so in the bar. The prototype's versions are seeded per
 sentence of the seeded draft (`draftRewrites`); a typed instruction picks the preset whose words it uses, and falls
 back to *More formal*.
+
+**The composer takes the same rewrite.** A draft is not the Agent's alone: the same bar opens on text selected in
+the composer's editor — a new message, a reply, a forward, or a draft opened there from the Agent or Discover — and
+the rewrite is reviewed in the editor itself, with the foot standing in for *Send* until it is kept or undone
+(*Composing*, under *Mail*). The composer's own drafts and Discover's draft are seeded in `draftRewrites` beside the
+Agent's; text the reader typed has no seeded version, so the prototype answers it with *nothing to change*.
 
 **Every read-only block can be asked about one item at a time.** The answer comes under the item it is about, not
 at the bottom of the conversation (`noteBk`, keyed `<block>#<item>` in `bkNote`), with a shimmer while it comes and
@@ -1134,6 +1144,8 @@ and *Nothing open* layout. **The one new component is the radio list in *Kind of
 This is the class the inventory exists for. Each is in the source, and none of them can be reached by
 clicking a preview.
 
+- **A rewrite in the composer** (`composeHasChange`, `composeChangeBusy`). Reached only by opening a message,
+  writing or drafting into it, selecting a sentence the prototype has a version of, and pressing a preset.
 - **The application with no mailbox at all.** `const emptyApp = false;` is a constant, and
   every one of the six screen gates is `st.screen === "…" && !emptyApp`. Nothing anywhere draws the
   true branch, so **the design does not cover a deployment with no mailbox** — a session that needs
