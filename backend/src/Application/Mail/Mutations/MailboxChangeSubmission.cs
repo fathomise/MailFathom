@@ -474,9 +474,10 @@ public sealed class MailboxChangeSubmission
             return SubmittedMailboxChange.NotSubmitted(MailboxChangeSubmissionOutcome.DestinationNotAllowed);
         }
 
-        // A copy answers both refusals above exactly as a move does, which is why it is asked after them rather than
-        // before: filing a second message into the folder it is already in, or into a folder the account does not
-        // have, is the same nothing either way.
+        // A copy answers the missing destination and the folder the message is already in exactly as a move does,
+        // which is why it is asked after them rather than before: filing a second message into the folder it is
+        // already in, or into a folder the account does not have, is the same nothing either way. The edge of the
+        // drafts or the sent tree is a person's move alone, and no copy is one, so a copy never meets that refusal.
         if (mutation == MailboxMutation.Copy)
         {
             return preparedCopy is null
