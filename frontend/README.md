@@ -552,7 +552,7 @@ the client would stop looking like one product, and a second copy of the windowi
 on what a row measures.
 
 `src/contextMenu/` is what a row offers, and it is one component rather than a menu per list because the design draws
-the same one on seven of them. Two gestures open it and each is the platform's own: the second button under a fine
+the same one on six of them. Two gestures open it and each is the platform's own: the second button under a fine
 pointer, replacing the browser's own menu, and a press held under a coarse one, which cancels past a small drift rather
 than on any movement — a finger resting on glass reports jitter — and suppresses the tap it would otherwise have been,
 so a finger that meant to open a message does, and one that meant to ask what the row offers never does both. `rowPress.ts` is those two openers, and `menuPlacement.ts` keeps the panel inside the pane,

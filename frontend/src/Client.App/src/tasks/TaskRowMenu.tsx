@@ -7,7 +7,7 @@ import { ContextMenu, type ContextMenuItem } from '../contextMenu/ContextMenu';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { useLocalization } from '../localization/useLocalization';
 
-// What a task's row offers, which is this list's own items handed to the one menu seven lists share: where the menu
+// What a task's row offers, which is this list's own items handed to the one menu six lists share: where the menu
 // stands, how it is walked, and how it is left are `contextMenu/ContextMenu.tsx`'s.
 //
 // **An item the client cannot yet perform is left out rather than drawn inert**, which is the rule

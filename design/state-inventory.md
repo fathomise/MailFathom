@@ -241,7 +241,7 @@ screenshot shows none of this, so the numbers are the contract the client matche
 | `fade` | from opacity 0, base, ease-out | to opacity 0, base, ease-in | the composer in a pane, the list replacing its skeleton (`listReady`), the composer body on restore (`composeExpanded`) |
 | `veil` | at once | fades out, base, ease-out | the message skeleton (`msgLoading`) laid over a thread that is already there |
 | `push` | from opacity 0, 48 px to the right, slow, ease-sheet | — | one pane at a time: the thread (`showThreadPane` under `singlePane`), a person (under `isMobile`) when it is opened from its list |
-| `back` | from opacity 0, 48 px to the left, slow, ease-sheet | — | the same three lists when *Back* returns to them |
+| `back` | from opacity 0, 48 px to the left, slow, ease-sheet | — | the same two lists when *Back* returns to them |
 | `screen` | from opacity 0, 6 px below, base, ease-out | — | each space's root when the rail or the bottom navigation switches to it |
 | `disclose` | from no height and opacity 0, base, ease-out | back to no height, base, ease-in | the list's filters (`filtersOpen`), so the list under them moves with them; an engine that cannot interpolate a height to `auto` fades the band in place instead |
 | `unfold` | from opacity 0, 10 px above its place, base, ease-out | back up 10 px to opacity 0, base, ease-in | the earlier messages of a conversation shown by its pill (`histUnfolded`) and folded away by it (`histFolding`); the message being read stays still |
