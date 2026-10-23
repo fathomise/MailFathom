@@ -38,9 +38,6 @@ export interface Connection {
     /** The user's accounts, or `null` where they have not been read — which includes a credential not allowed to. */
     readonly accounts: ClientResult<MailAccountDirectory> | null;
 
-    /** When the accounts on the screen were read, which is what every age beside one is measured from. */
-    readonly readAt: Date | null;
-
     /** Whether this machine has a network at all, which is a different sentence from a deployment that is not answering. */
     readonly online: boolean;
 
@@ -92,7 +89,6 @@ export interface SignedInCaller {
 interface Answered {
     readonly session: ClientResult<DeploymentSession> | null;
     readonly accounts: ClientResult<MailAccountDirectory> | null;
-    readonly readAt: Date | null;
     readonly presentedAt: string | null;
     readonly presenting: string | null;
 }
@@ -101,7 +97,6 @@ interface Answered {
 const nothingRead: Answered = {
     session: null,
     accounts: null,
-    readAt: null,
     presentedAt: null,
     presenting: null,
 };
@@ -122,10 +117,10 @@ function accountsStillStanding(
     baseAddress: string,
     presenting: string,
     readsMail: boolean,
-): Pick<Answered, 'accounts' | 'readAt'> {
+): ClientResult<MailAccountDirectory> | null {
     return readsMail && previous.presentedAt === baseAddress && previous.presenting === presenting
-        ? { accounts: previous.accounts, readAt: previous.readAt }
-        : { accounts: null, readAt: null };
+        ? previous.accounts
+        : null;
 }
 
 /** Whether what stands was read, and for this same address and identity, which is what a refresh that failed leaves up. */
@@ -154,11 +149,6 @@ interface Reaching {
 // Nothing spent, against an identity no credential will ever match, which is also what a person asking again resets to.
 const noneMade: Reaching = { made: 0, presentedAt: null, presenting: null };
 
-// Reading the clock is the caller's, so a screen measuring an age against this instant is measured against one a test
-// decided rather than against the day the suite ran on. Declared once rather than defaulted inline: a new function on
-// every render is a new dependency on every render, and the read effect below would restart forever.
-const systemClock = (): Date => new Date();
-
 function subscribeToConnectivity(changed: () => void): () => void {
     window.addEventListener('online', changed);
     window.addEventListener('offline', changed);
@@ -182,7 +172,6 @@ function isOnline(): boolean {
  * @param onCredentialRefused What to do about a credential the deployment has stopped accepting, which is the one
  * answer this hook reports rather than renders: it is acted on once, by whatever owns signing in, instead of producing
  * the same refusal on every later read.
- * @param now What the current instant is, which is what every age beside an account is measured from.
  * @returns Everything a screen needs to say what it is looking at and how current it is.
  */
 export function useConnection(
@@ -190,7 +179,6 @@ export function useConnection(
     signedIn: SignedInCaller | null,
     send: DeploymentTransport,
     onCredentialRefused: () => void,
-    now: () => Date = systemClock,
 ): Connection {
     const online = useSyncExternalStore(subscribeToConnectivity, isOnline);
 
@@ -289,7 +277,6 @@ export function useConnection(
                 const unanswered: Answered = {
                     session,
                     accounts: null,
-                    readAt: null,
                     presentedAt: baseAddress,
                     presenting,
                 };
@@ -311,10 +298,10 @@ export function useConnection(
             //
             // The accounts a previous attempt answered with stand until this attempt's replace them, which is what
             // makes a re-read invisible to whoever is reading: the folder tree keeps its folders and their counts, and
-            // the freshness line keeps the instant those were read at rather than blanking twice per run.
+            // the freshness line keeps what those said rather than blanking twice per run.
             setAnswered((previous) => ({
                 session,
-                ...accountsStillStanding(previous, baseAddress, presenting, readsMail),
+                accounts: accountsStillStanding(previous, baseAddress, presenting, readsMail),
                 presentedAt: baseAddress,
                 presenting,
             }));
@@ -348,7 +335,6 @@ export function useConnection(
             setAnswered({
                 session,
                 accounts,
-                readAt: now(),
                 presentedAt: baseAddress,
                 presenting,
             });
@@ -357,7 +343,7 @@ export function useConnection(
         return () => {
             attempted.abort();
         };
-    }, [baseAddress, presenting, online, read, send, onCredentialRefused, now]);
+    }, [baseAddress, presenting, online, read, send, onCredentialRefused]);
 
     // An answer given for another address, or for a credential this client is no longer signed in with, is nobody's to
     // draw: what a person is looking at then is a read in flight, which is what the frame says while it waits. An
@@ -395,7 +381,6 @@ export function useConnection(
     return {
         session: connection.session,
         accounts: connection.accounts,
-        readAt: connection.readAt,
         online,
         attempts,
         reread: () => {

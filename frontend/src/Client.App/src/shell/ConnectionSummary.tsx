@@ -4,6 +4,7 @@
 
 import type { ReactNode } from 'react';
 import type { ClientFailureReason, MailAccountDirectory } from '@mailfathom/client-backend';
+import { Icon } from '../controls/Icon';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
@@ -11,13 +12,12 @@ import { PendingChangeLines } from '../pendingChanges/PendingChangeLines';
 import { needsAttention } from '../synchronization/synchronizationState';
 import { AccountLine } from './AccountLine';
 import { offers } from './capabilities';
-import { ageOf } from './synchronizationAge';
 import { mostReconnectionAttempts, type Connection } from './useConnection';
 
-// The line above every space saying what the client is looking at and how current it is, and the short panel behind it
-// naming each account. Three different things blur into one spinner unless they are kept apart, so each has its own
+// The line in every space saying what the client is looking at and how current it is, and the short panel behind it
+// naming each account once one of them needs a look. Three different things blur into one spinner unless they are kept apart, so each has its own
 // sentence: whether this client can reach its deployment at all, whether that deployment is refreshing these accounts,
-// and when each of them last took mail in.
+// and which of them is not current.
 //
 // A credential that may not read mail says nothing here. There is no freshness to report and the reason is not about
 // this line, so it is said once, where everything this credential may not do is said.
@@ -66,19 +66,6 @@ function freshnessOf(directory: MailAccountDirectory): Freshness {
         : { message: 'connection.behind', tone: 'attention' };
 }
 
-/** The instant the least recently refreshed account last took mail in, or `null` where none of them ever has. */
-function oldestSynchronization(directory: MailAccountDirectory): string | null {
-    return directory.accounts.reduce<string | null>((oldest, account) => {
-        const at = account.lastSynchronizedAt;
-
-        if (at === null) {
-            return oldest;
-        }
-
-        return oldest === null || Date.parse(at) < Date.parse(oldest) ? at : oldest;
-    }, null);
-}
-
 // What this client has asked its mailbox for stands above what the deployment last answered, and outside every branch
 // below it: a change waiting on a person is true whether or not the accounts were readable, and it would otherwise be
 // invisible in exactly the states — offline, unreachable — that produced it.
@@ -93,7 +80,7 @@ export function ConnectionSummary({ connection }: { readonly connection: Connect
 
 function Freshness({ connection }: { readonly connection: Connection }) {
     const { locale, translate } = useLocalization();
-    const { session, accounts, readAt, online, attempts, reread } = connection;
+    const { session, accounts, online, attempts, reread } = connection;
 
     // Nothing is being read and nothing will be until the network comes back, which is a different sentence from a
     // deployment that is not answering: one of them is this machine's to fix and the other is not.
@@ -126,7 +113,7 @@ function Freshness({ connection }: { readonly connection: Connection }) {
         return null;
     }
 
-    if (accounts === null || readAt === null) {
+    if (accounts === null) {
         return (
             <Line tone="quiet" announced>
                 {translate('accounts.reading')}
@@ -156,7 +143,7 @@ function Freshness({ connection }: { readonly connection: Connection }) {
     const freshness = freshnessOf(directory);
 
     // A user holding no account is told so and told what would fill it, rather than being handed a disclosure with
-    // nothing behind it. Everything else opens onto the account-by-account reading of the same sentence.
+    // nothing behind it.
     if (directory.accounts.length === 0) {
         return (
             <Line tone={freshness.tone}>
@@ -165,24 +152,25 @@ function Freshness({ connection }: { readonly connection: Connection }) {
         );
     }
 
-    const oldest = ageOf(oldestSynchronization(directory), readAt, locale);
+    // Every account current is said by the green dot and nothing more, as the design draws it: a disclosure there
+    // would open onto a list of accounts each saying the same thing. Only an account that needs a look earns one.
+    if (freshness.tone === 'healthy') {
+        return <Line tone="healthy">{translate(freshness.message)}</Line>;
+    }
 
     return (
-        <details className="text-sm text-muted">
+        <details className="group text-sm text-muted">
             <summary className="flex cursor-pointer items-center gap-2">
                 <Dot tone={freshness.tone} />
                 {translate(freshness.message)}
+                <Icon name="expand_more" className="size-icon-sm transition group-open:rotate-180" />
             </summary>
 
-            <div className="mt-2 flex flex-col gap-2 rounded-md bg-sunken px-3 py-2">
-                {oldest === null ? null : <p>{translate('accounts.oldest', { age: oldest })}</p>}
-
-                <ul className="flex flex-col gap-1">
-                    {directory.accounts.map((account) => (
-                        <AccountLine key={account.id} account={account} readAt={readAt} />
-                    ))}
-                </ul>
-            </div>
+            <ul className="mt-2 flex flex-col gap-1.75 rounded-md bg-sunken px-3 py-2.25">
+                {directory.accounts.map((account) => (
+                    <AccountLine key={account.id} account={account} />
+                ))}
+            </ul>
         </details>
     );
 }
@@ -235,7 +223,7 @@ function formatCount(locale: string, count: number): string {
 }
 
 function Dot({ tone }: { readonly tone: Tone }) {
-    return <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${toneColours[tone]}`} />;
+    return <span aria-hidden="true" className={`size-1.75 shrink-0 rounded-full ${toneColours[tone]}`} />;
 }
 
 function Line({

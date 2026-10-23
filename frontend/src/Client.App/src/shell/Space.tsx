@@ -200,7 +200,13 @@ export function Space({
                                     )}
 
                                     {ownColumns}
-                                    {inFront ? status : null}
+                                    {/* A strip of its own, ruled off from the columns above it as the design draws it,
+                                        and gone with the summary when there is nothing for it to say. */}
+                                    {inFront ? (
+                                        <div className="shrink-0 border-t border-line px-4 py-2.5 has-[>div:empty]:hidden">
+                                            {status}
+                                        </div>
+                                    ) : null}
                                 </div>
                             )}
                         </SpaceInFrontContext>

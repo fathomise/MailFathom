@@ -655,7 +655,6 @@ export const pl: Catalogue = {
     'accounts.notRefreshing':
         'To wdrożenie nie odświeża lokalnej kopii tych kont, więc widzisz je w takim stanie, w jakim zostawił je jego ostatni przebieg. To ustawienie wdrożenia, a nie brakujące Ci uprawnienie.',
     'accounts.failed': 'Nie udało się odczytać kont: {reason}.',
-    'accounts.oldest': 'Najstarsze z nich odświeżono {age}.',
     'accounts.noneDeclared':
         'To osoba prowadząca to wdrożenie wskazuje skrzynki, które są dla Ciebie odczytywane, a nie wskazano jeszcze żadnej.',
 
@@ -664,8 +663,6 @@ export const pl: Catalogue = {
     'account.failing': 'Przestało się synchronizować',
     'account.unreachable': 'Serwer pocztowy nie odpowiedział',
     'account.neverSynchronized': 'Nic jeszcze nie pobrano',
-    'account.lastRefreshed': 'Ostatnio odświeżono {age}',
-    'account.neverRefreshed': 'Nigdy nie odświeżono',
 
     'folders.label': 'Skrzynki i foldery',
     'folders.reading': 'Odczytywanie skrzynek i folderów…',

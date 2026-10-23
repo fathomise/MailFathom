@@ -7,8 +7,6 @@ MailFathomDesign.data.clientStatesSample = {
     work: "Nordwind · work",
     workHeading: "Nordwind · work",
     personal: "Personal mail",
-    workSynced: "synced 2 min ago",
-    personalSynced: "synced 5 min ago",
   },
 
   people: {
@@ -22,7 +20,7 @@ MailFathomDesign.data.clientStatesSample = {
   discover: {
     question: "What did we agree with Contoso about weekend cover?",
     questionNothingComposed: "Did Nordwind ever agree to penalty clauses?",
-    syncStatus: "Synced 2 min ago · 2 accounts",
+    syncStatus: "Every account is up to date.",
     answerWeekendCover: "Weekend cover is a 4 h response on Saturdays and Sundays, 08:00-20:00",
     answerWeekendCoverShort: "Weekend cover is a 4 h response on Saturdays and Sundays",
     answerAddendum: ", added by addendum 3 on 14 March",
