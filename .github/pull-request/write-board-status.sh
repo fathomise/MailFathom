@@ -130,7 +130,7 @@ unmoved=''
 # started stalling turns a walk over five issues into minutes rather than the second it takes when
 # the API answers. `Apply pull request rules` calls it once per open pull request, so the
 # degradation multiplies there, and the `timeout-minutes` on each calling job is an outer bound
-# that would cut the walk short silently rather than a budget the walk is meant to spend.
+# that would cut the walk short by failing the job rather than a budget the walk is meant to spend.
 #
 # The bound is therefore the window plus one issue's calls: the check is made before an issue is
 # read, so an issue already in flight finishes, and what a caller can predict is that the walk stops

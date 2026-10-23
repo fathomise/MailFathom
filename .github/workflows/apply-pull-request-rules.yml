@@ -310,8 +310,10 @@ jobs:
     name: Apply the board statuses the open pull requests earn
     if: github.event_name != 'pull_request' || github.event.action == 'enqueued' || github.event.action == 'dequeued'
     runs-on: ubuntu-latest
-    # Well above a healthy run's half minute, because the board write below runs once per open pull
-    # request and each run may spend its two-minute window before it gives up.
+    # A ceiling well above a healthy run's half minute rather than room for every pull request to spend
+    # its window: the board write below runs once per open pull request and may spend two minutes on
+    # each, so a stalled project endpoint can still reach this bound, which then fails the job instead
+    # of holding a runner for hours.
     timeout-minutes: 30
     permissions:
       contents: read
