@@ -7,7 +7,7 @@ For background on ADRs, see <https://adr.github.io/>.
 ## How MailFathom uses ADRs
 
 1. Create or modify an ADR only after explicit owner approval for that documentation change. The `Protected paths` check is the mechanical half of this rule rather than all of it: `docs/decisions/` is a protected directory, so a pull request touching this directory fails that check unless a maintainer authored it or approved its current head, and the owner's approval is what a reviewer then looks for. Propose a decision in an issue and let the approving change carry the record.
-2. Copy `docs/decisions/adr-template.md` to `docs/decisions/NNNN-title-with-dashes.md`, where `NNNN` is the next sequence number. The next one is `0038`. `0018`, `0019`, and `0020` were withdrawn with the Uno Platform client they decided about, and a number that has been used once is never reused, so the sequence continued past that gap rather than filling it.
+2. Copy `docs/decisions/adr-template.md` to `docs/decisions/NNNN-title-with-dashes.md`, where `NNNN` is the next sequence number. The next one is `0040`. `0018`, `0019`, and `0020` were withdrawn with the Uno Platform client they decided about, and a number that has been used once is never reused, so the sequence continued past that gap rather than filling it.
    1. Check existing branches and pull requests when possible so the sequence number does not collide.
    2. Use `docs/decisions/adr-short-template.md` only for small decisions whose trade-offs are already clear.
 3. Edit the new ADR.
@@ -56,3 +56,4 @@ For background on ADRs, see <https://adr.github.io/>.
 - [0036: Mint every identifier MailFathom creates as a version 7 UUID in both stacks, never let an identifier stand in for a secret, and make the move forward-only](0036-minting-every-identifier-as-a-version-7-uuid-and-never-treating-one-as-a-secret.md)
 - [0037: Hold a settings policy at the deployment and at each organization, read a user's record and a mail account through it in one fixed order, keep a forced value off the record it overrides, and store both policies as rows rather than as configuration](0037-a-settings-policy-at-the-deployment-and-at-each-organization.md)
 - [0038: Merge through a queue that tests the tree a merge produces, stop a pull request only for a related change that landed, and reuse a verdict wherever the tree is one a run already tested](0038-merging-through-a-queue-that-tests-the-tree-a-merge-produces.md)
+- [0039: Give every mail account one folder model under an identifier MailFathom issues, keep the source binding as an attribute of a folder, and carry every act on a mailbox through one implementation per custody phase that one resolver chooses](0039-one-folder-model-and-one-implementation-per-custody-phase.md)
