@@ -183,7 +183,7 @@ export const en = {
     'run.ended.temporarilyUnavailable':
         'This server answers questions and currently cannot. The same question is worth asking again.',
     'run.ended.retrievalRefused':
-        'The mail this question needs could not be read, so there was nothing to answer from. Whoever runs this deployment can grant access.',
+        'Your mail could not be searched the way this question asks, so there was nothing to answer from. Try rewording it or asking something narrower.',
     'run.ended.failed': 'This run ended for a reason it does not publish. An operator can read why in the server logs.',
     'answer.label': 'Answer',
     'answer.evidenceLabel': 'Evidence',

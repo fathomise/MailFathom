@@ -187,7 +187,7 @@ export const pl: Catalogue = {
     'run.ended.temporarilyUnavailable':
         'Ten serwer odpowiada na pytania, ale w tej chwili nie może. Warto zadać to samo pytanie ponownie.',
     'run.ended.retrievalRefused':
-        'Nie udało się odczytać poczty potrzebnej do tego pytania, więc nie było z czego odpowiedzieć. Dostęp może przyznać osoba, która prowadzi to wdrożenie.',
+        'Nie udało się przeszukać poczty tak, jak wymaga tego to pytanie, więc nie było z czego odpowiedzieć. Spróbuj je przeformułować albo zapytać o coś węższego.',
     'run.ended.failed':
         'To uruchomienie zakończyło się z powodu, którego nie ujawnia. Operator znajdzie przyczynę w logach serwera.',
     'answer.label': 'Odpowiedź',
