@@ -157,13 +157,18 @@ export async function openSettings(page: Page): Promise<void> {
 
 // Every surface the client opens travels onto the screen, so a box read while it is still travelling measures a
 // frame of the motion rather than the surface. Asked again until it holds rather than waited out for a duration, and
-// blind to what never stops moving — a spinner — which nothing arriving waits on either. An expression rather than a
+// blind to what never stops moving — a spinner — which nothing arriving waits on either. Blind as well to a toast's
+// lifetime running out along its edge, which moves nothing and lasts as long as this wait may: a read taken just after
+// an act that raised a toast would otherwise wait out the toast rather than the screen. An expression rather than a
 // closure for the reason the motion suite gives: this suite compiles without a DOM declaration. `evaluate` rather than
 // `waitForFunction`, because the second compiles its expression inside the page, which the client's own policy refuses.
 const everythingArrived = `
     document
         .getAnimations()
-        .every((animation) => animation.playState !== 'running' || animation.effect.getComputedTiming().endTime === Infinity)
+        .every((animation) =>
+            animation.playState !== 'running' ||
+            animation.animationName === 'toast-lifetime' ||
+            animation.effect.getComputedTiming().endTime === Infinity)
 `;
 
 /** Waits until nothing on the page is still travelling to where it is going, which a geometry read stands on. */

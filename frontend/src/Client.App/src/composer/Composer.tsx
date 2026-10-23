@@ -550,7 +550,9 @@ export function Composer({
             role={wide ? undefined : 'dialog'}
             aria-modal={wide ? undefined : true}
             onKeyDown={holdTheKeyboard}
-            className={`flex flex-col overflow-y-auto bg-panel text-text ${
+            // The scroll padding is the foot's height, and the head's where a low window pins it too: without it the
+            // browser counts a field standing under either as on the screen, and focusing it scrolls nothing.
+            className={`flex scroll-pb-18 flex-col overflow-y-auto bg-panel text-text low:scroll-pt-12 ${
                 wide
                     ? 'h-full min-h-0 animate-rise-in'
                     : 'fixed inset-0 z-50 pt-safe-top pb-safe-bottom animate-sheet-in'
