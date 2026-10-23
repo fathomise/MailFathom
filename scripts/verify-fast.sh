@@ -205,7 +205,7 @@ fi
 # rather than the tree. The committed range needs the base, so it is asked only where the base
 # resolved; the other two are about this working tree and are always asked.
 if [[ -n "$base_remote" ]]; then
-  git diff --check "$base_remote/main..HEAD"
+  git diff --check "$base_remote/main...HEAD"
 fi
 
 git diff --cached --check

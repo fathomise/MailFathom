@@ -250,10 +250,10 @@ else
   fi
 fi
 
-# Two dots, not three. The ancestor check above already proves the base is reachable from HEAD, so
-# the two forms agree today; three dots would diff from the merge base and silently keep agreeing
-# if that check were ever relaxed, which is exactly the drift this gate exists to catch.
-git diff --check "$base_remote/main..HEAD"
+# Three dots, so the range starts at the merge base. On a branch that contains the base the two forms
+# agree; on one accepted behind it with VERIFY_IGNORE_BASE_DRIFT, two dots would read every line `main`
+# removed since as one this branch added, and judge the branch on somebody else's change.
+git diff --check "$base_remote/main...HEAD"
 git diff --cached --check
 git diff --check
 

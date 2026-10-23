@@ -516,7 +516,38 @@ verify_fast_stops_when_head_is_behind_origin_main() {
   fi
 
   assert_contains 'HEAD does not contain the current origin/main.' "$behind_output"
+  assert_contains 'remote main moved ahead' "$behind_output"
+  assert_contains 'VERIFY_IGNORE_BASE_DRIFT=1' "$behind_output"
   assert_file_content '' "$invocation_log"
+}
+
+# The refusal is a question rather than a wall: once the author has read what arrived and found
+# nothing in it that conflicts with or relates to the change, a rebase buys nothing the merge queue
+# and `Coherence` do not already ask, so the variable carries the run on while still naming the drift.
+verify_fast_accepts_a_branch_behind_origin_main_when_told_to() {
+  local accepted_output="$test_directory/verify-fast-accepted-drift-output"
+  local script_status=0
+
+  : > "$invocation_log"
+  git -C "$remote_repository_root" commit --quiet --allow-empty -m 'remote main moved ahead'
+
+  (
+    cd "$repository_root"
+    VERIFY_IGNORE_BASE_DRIFT=1 "$scripts_directory/verify-fast.sh"
+  ) > "$accepted_output" 2>&1 || script_status=$?
+
+  git -C "$remote_repository_root" reset --quiet --hard HEAD~1
+  git -C "$repository_root" fetch --quiet --force origin main
+
+  if ((script_status != 0)); then
+    printf 'verify-fast.sh refused a branch behind origin/main despite VERIFY_IGNORE_BASE_DRIFT=1\n' >&2
+    cat "$accepted_output" >&2
+    return 1
+  fi
+
+  assert_contains 'HEAD does not contain the current origin/main.' "$accepted_output"
+  assert_contains 'VERIFY_IGNORE_BASE_DRIFT=1 accepts that drift' "$accepted_output"
+  assert_contains 'restore backend/MailFathom.slnx --locked-mode' "$invocation_log"
 }
 
 verify_fast_stops_when_the_remote_is_unreachable() {
@@ -11801,6 +11832,7 @@ run_test verify_fast_runs_restore_build_tests_and_formatting
 run_test verify_fast_names_the_suites_it_left_to_the_pipeline
 run_test verify_fast_runs_every_suite_when_a_shared_build_input_changed
 run_test verify_fast_stops_when_head_is_behind_origin_main
+run_test verify_fast_accepts_a_branch_behind_origin_main_when_told_to
 run_test verify_fast_stops_when_the_remote_is_unreachable
 run_test verify_fast_refuses_a_whitespace_error
 run_test verify_fast_fetches_the_remote_base_before_verifying

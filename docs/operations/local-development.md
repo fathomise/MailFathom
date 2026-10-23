@@ -148,8 +148,11 @@ one was removed or moved. `CI` asks both questions unconditionally, so the local
 narrowing withholds an earlier verdict rather than the verdict.
 
 Both scripts fetch the base branch and refuse to continue when the branch does not
-contain it, so both need access to the remote and neither runs offline. Rebase onto
-the fetched base when either reports the branch is behind. The one checkout that
+contain it, so both need access to the remote and neither runs offline. When either
+reports the branch is behind, it lists what arrived: rebase onto the fetched base
+when something there conflicts with or relates to the change, and otherwise run it
+again with `VERIFY_IGNORE_BASE_DRIFT=1`, which reports the same drift and carries
+on. The one checkout that
 carries on regardless is one whose remotes name no MailFathom at all: there is no
 base for it to be behind, so the fast script prints the hint and continues while
 the full one refuses.

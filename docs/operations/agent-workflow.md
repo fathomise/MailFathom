@@ -23,7 +23,7 @@ bash scripts/verify-fast.sh
 
 It refuses a branch that does not contain the base it will merge into, before it
 spends anything: it resolves the base remote, fetches `main` with an explicit
-destination refspec, and names the rebase when the branch has fallen behind.
+destination refspec, and lists what arrived when the branch has fallen behind.
 [The base is asked twice locally and never in the pipeline](#the-base-is-asked-twice-locally-and-never-in-the-pipeline)
 is why that check is here rather than only in the full gate, and why no workflow
 has one.
@@ -388,9 +388,20 @@ open beside it, none of which says anything about the change under review. Nor
 does the `main` ruleset ask it any more. What being current was standing in for —
 that the tree a merge produces was built and tested — is what [the merge
 queue](#the-merge-queue) answers directly, on that tree, and what it cannot judge
-is [`Coherence`](#coherence)'s question. Locally the rebase is still asked for,
-because before a pull request exists it costs nothing and saves a queue entry
-that would otherwise be built in full rather than reused.
+is [`Coherence`](#coherence)'s question.
+
+Locally the refusal is a question rather than a wall. It lists the commits that
+arrived since the branch left `main`, and the answer depends on what they are:
+a rebase when one of them conflicts with the change or touches something it
+relies on — a file, a name, a contract, a rule — and otherwise
+`VERIFY_IGNORE_BASE_DRIFT=1`, which prints the same drift and carries on. A
+rebase nothing asked for is not free once a pull request exists: it rewrites
+every SHA a review reply already quotes and forces a lease push, while proving
+nothing the merge queue does not prove on the combined tree anyway. The fetch is
+never skipped, with or without the variable, because a drift nobody fetched is a
+drift nobody read. An accepted branch is verified on its own merge base, which
+is why the committed-range whitespace check reads `origin/main...HEAD`: two dots
+would count every line `main` removed since as one the branch added.
 
 One checkout carries on regardless, in the fast loop only: one whose remotes name
 no MailFathom at all. There is no base for it to be behind, so there is nothing

@@ -142,7 +142,7 @@ git add <your files>
 bash scripts/verify-fast.sh
 ```
 
-It fetches `origin main` — or your `upstream`, whichever remote points at MailFathom — and refuses a branch that does not contain that freshly fetched base, so rebase when it complains; verifying against a stale base proves nothing about the branch that will actually merge. Nothing in the pipeline asks that question, which is why the loop does. In the server stack it runs the unit suites your change can have broken rather than the solution's whole suite, and it prints which ones those were and how many there are, because the rest is the pull request's answer rather than one you have.
+It fetches `origin main` — or your `upstream`, whichever remote points at MailFathom — and refuses a branch that does not contain that freshly fetched base, listing what arrived. Rebase when one of those commits conflicts with your change or touches something it relies on; when none does, run it again with `VERIFY_IGNORE_BASE_DRIFT=1`, which reports the same drift and verifies the branch on its own merge base. Nothing in the pipeline asks that question, which is why the loop does. In the server stack it runs the unit suites your change can have broken rather than the solution's whole suite, and it prints which ones those were and how many there are, because the rest is the pull request's answer rather than one you have.
 
 The full gate is available and is not a step of every change:
 
