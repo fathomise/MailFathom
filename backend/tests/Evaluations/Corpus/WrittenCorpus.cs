@@ -166,6 +166,23 @@ internal static class WrittenCorpus
     /// </remarks>
     public static CorpusMessage RequestAboveASignersPayment { get; } = Exchange(
         1080,
+        Mail("halina.wrona@kormoran-bank.test", "Halina Wrona", [Owner], [], At(10, 16, 8, 20), "Asset tax – September 2026 return", """
+            Dear Mara,
+
+            Attached is the calculation for September – the tax comes to 1,918,300. This time I reconciled total assets
+            with the month-end balance sheet. Payment is due on 26 October, as 25 October falls on a Sunday.
+
+            I would be grateful for any comments by Thursday, 22 October.
+
+            Kind regards
+            Halina Wrona
+            Head of Tax
+            Kormoran Investment Bank plc
+            """))[0];
+
+    /// <summary>Gets the same request written in Polish, for a mailbox read in Polish.</summary>
+    public static CorpusMessage PolishRequestAboveASignersPayment { get; } = Exchange(
+        1090,
         Mail("halina.wrona@kormoran-bank.test", "Halina Wrona", [Owner], [], At(10, 16, 8, 20), "Podatek od aktywów – deklaracja za wrzesień 2026", """
             Pani Mecenas,
 
@@ -208,6 +225,7 @@ internal static class WrittenCorpus
         [RequestInQuotedHistory],
         [DatedRequestOfTheReader],
         [RequestAboveASignersPayment],
+        [PolishRequestAboveASignersPayment],
 
         // Three issues of one newsletter, whose sender has a correspondence of nothing but them.
         Exchange(1060, Mail("digest@harbourline.test", "Harbourline Digest", [Owner], [], At(7, 1, 6, 0), "Harbourline Monthly — July 2026", "The July product notes: faster search and a new dark theme.")),

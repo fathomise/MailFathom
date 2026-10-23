@@ -116,8 +116,7 @@ internal sealed record EmailEnrichmentCase(
             "RequestAboveASignersPayment",
             static () => WrittenCorpus.RequestAboveASignersPayment,
             Every(SaysWhatItIsAbout, DueOn(new DateOnly(2026, 10, 22))),
-            MailAccountLanguage.Polish,
-            TaskDueOn(new DateOnly(2026, 10, 22))),
+            TaskExpectation: TaskDueOn(new DateOnly(2026, 10, 22))),
 
         // "Thanks, got them!" — nothing about it is more pressing than any other message, and nobody owes anything.
         new(
@@ -157,6 +156,14 @@ internal sealed record EmailEnrichmentCase(
 
         // A product newsletter in Polish, which informs its reader and asks nothing of them.
         new("Polish.Newsletter", static () => PolishCorpus.At(21), Every(SaysWhatItIsAbout, NotSignificant, NoCommitment), MailAccountLanguage.Polish),
+
+        // The bank's request for comments by Thursday, 22 October, above its own payment due on 26 October, in Polish.
+        new(
+            "Polish.RequestAboveASignersPayment",
+            static () => WrittenCorpus.PolishRequestAboveASignersPayment,
+            Every(SaysWhatItIsAbout, DueOn(new DateOnly(2026, 10, 22))),
+            MailAccountLanguage.Polish,
+            TaskDueOn(new DateOnly(2026, 10, 22))),
 
         // English mail read for a Polish mailbox: the undertaking to pay invoice 7842 by 10 September, marked in Polish.
         new("Mixed.EnglishMailUnderPolishAccount", static () => CorpusMessage.At(82), DueOn(new DateOnly(2026, 9, 10)), MailAccountLanguage.Polish),

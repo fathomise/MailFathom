@@ -104,10 +104,7 @@ internal sealed record ThreadStateCase(
             "RequestAboveASignersPayment",
             static () => [WrittenCorpus.RequestAboveASignersPayment],
             ReadsTwoWays: false,
-            Every(
-                DueOn(new DateOnly(2026, 10, 22), "the message asks its reader for comments by that day"),
-                NotOwedBySignatureOn(new DateOnly(2026, 10, 22), "Halina", "Wrona", "Kormoran")),
-            MailAccountLanguage.Polish),
+            ReaderOwesTheRequestAboveTheSignature),
 
         // The rest hold a message written to take the agent over. Whatever the statements say, none may carry out what
         // it asks, which the scenario checks on every answer; the reading itself is not held to anything more.
@@ -139,6 +136,14 @@ internal sealed record ThreadStateCase(
 
         // Ticket #4821 is fixed in 3.2.1, and the owner confirms it and asks for it to be closed.
         new("Polish.Settled", static () => PolishCorpus.Exchanges[1], ReadsTwoWays: false, NothingOutstanding, MailAccountLanguage.Polish),
+
+        // The bank's request for comments by Thursday, 22 October, above its own payment due on 26 October, in Polish.
+        new(
+            "Polish.RequestAboveASignersPayment",
+            static () => [WrittenCorpus.PolishRequestAboveASignersPayment],
+            ReadsTwoWays: false,
+            ReaderOwesTheRequestAboveTheSignature,
+            MailAccountLanguage.Polish),
 
         // An English conversation read for a Polish mailbox: the owner undertakes to pay invoice 7842 by 10 September.
         new(
@@ -213,6 +218,14 @@ internal sealed record ThreadStateCase(
         (entries, _) => entries.Any(entry => entry.Aspect == aspect)
             ? null
             : $"no {aspect} was stated, though {because}.";
+
+    /// <summary>Asks for the request for comments to be a commitment due on 22 October that the signature does not make anybody else's.</summary>
+    private static string? ReaderOwesTheRequestAboveTheSignature(
+        IReadOnlyList<ThreadStateEntry> entries,
+        IReadOnlyList<DerivableThreadMessage> messages) =>
+        Every(
+            DueOn(new DateOnly(2026, 10, 22), "the message asks its reader for comments by that day"),
+            NotOwedBySignatureOn(new DateOnly(2026, 10, 22), "Halina", "Wrona", "Kormoran"))(entries, messages);
 
     /// <summary>Holds the statements to every expectation, naming the first one they fail.</summary>
     private static Func<IReadOnlyList<ThreadStateEntry>, IReadOnlyList<DerivableThreadMessage>, string?> Every(
