@@ -5,9 +5,9 @@
 
 # The paths whose change waits for a maintainer of the repository, held once for the two places that
 # read them: `Protected paths`, which holds such a change from anybody else until a maintainer
-# approves its head, and `Fathom review`, which
-# names them in the notice telling a contributor why their pull request was not approved. Both read
-# this file from the base commit, so a pull request cannot shorten the list it is judged against.
+# approves its head, and `Fathom review`, which names them in the notice telling a contributor why
+# their pull request was not approved. Both read this file from the base commit, so a pull request
+# cannot shorten the list it is judged against.
 #
 # Reads one changed path per line on standard input and prints each protected one, sorted and
 # deduplicated. `--describe` prints the whole set on one line instead, for a message naming it.

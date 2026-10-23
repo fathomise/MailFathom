@@ -1106,8 +1106,8 @@ jobs:
             | jq -s '.' > "$all_files"
           jq --argjson limit "$file_limit" '.[0:$limit]' "$all_files" > "$REVIEW_DIRECTORY/files.json"
 
-          # Which changed paths only a maintainer may change, read with the selection `Protected
-          # paths` refuses them by, from the base commit this job checked out — so the change under
+          # Which changed paths wait for a maintainer, read with the selection `Protected
+          # paths` holds them by, from the base commit this job checked out — so the change under
           # review cannot shorten the list. A rename counts on both sides. The listing is complete
           # only when it holds as many files as the pull request reports: the endpoint stops at 3000,
           # and a protected path past that point cannot be shown to be absent. The submission step
@@ -1507,7 +1507,7 @@ jobs:
       # settle loop today.
       #
       # The script lives under `.github/` rather than in `scripts/` because `Protected paths`
-      # refuses a change from anyone but a maintainer there, and this decides what a reviewer is told
+      # holds a change from anyone but a maintainer there, and this decides what a reviewer is told
       # to look for. It is read from the workspace, which holds the base commit, so a pull request
       # cannot supply the index that judges it — the same reason the prompt is read from there.
       - name: Index the obligations the change triggers

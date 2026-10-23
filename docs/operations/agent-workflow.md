@@ -1451,8 +1451,8 @@ merges onto.
    subdirectory so no `CLAUDE.md` of the combined tree is on its path. The prefilter, the prompt,
    and the schema are read from the combined tree, the same trust a `merge_group` run gives that
    tree's copy of the workflow itself; all of them are under `.github/`, which
-   [`Protected paths`](local-development.md#pull-request-checks) holds a change to them from any
-   other author until a maintainer approves its head.
+   [`Protected paths`](local-development.md#pull-request-checks) holds a change to them from an
+   author who is not a maintainer until a maintainer approves its head.
 3. `.github/duplicate-definitions/report-verdict.sh` shows a pair only when both of its sides are
    definitions step 1 listed, copied exactly, and drops and counts any other as one the model
    invented. Each pair it keeps is a warning annotation — *Duplicate definition* or *Overlapping
@@ -2448,7 +2448,8 @@ moved pin with no row in `THIRD_PARTY_LICENSES.md`. Each is a rule in
 It runs from the workspace, which holds the base commit, so a pull request cannot
 supply the index that judges it — the same reason the prompt is read from there —
 and it lives under `.github/` rather than in `scripts/` so that `Protected paths`
-holds a change to it from anyone else until a maintainer approves it. Calling no API is what lets
+holds a change to it from an author who is not a maintainer until a maintainer
+approves it. Calling no API is what lets
 `scripts/test-agent-workflow.sh` run the real script against a fixture tree with
 no `gh` stub at all.
 
