@@ -61,6 +61,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
                         “Reading what you wrote…”, words-only placeholder.
        m_pending   2.6  pending changes in the connection summary: indicator states, panel (sheet on phone) with
                         needs-decision, failed, did not reach deployment, pending count; tracking stopped; late toast.
+       m_sync      2.7  how current the accounts are: green with nothing to open, or amber opening onto name + state.
      TASKS · CALENDAR · PEOPLE
        c_edit      3.1  event edited in place: All day, Starts / Ends, Save disabled with reason.
        t_layout    3.2  Lay out today: waiting, offer (Add to calendar / Leave it), nothing left, allowance spent,

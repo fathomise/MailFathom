@@ -642,7 +642,6 @@ export const en = {
     'accounts.notRefreshing':
         'This deployment is not refreshing the local copy of these accounts, so what you see is as current as its last run left it. That is a setting on the deployment rather than a permission you are missing.',
     'accounts.failed': 'The accounts could not be read: {reason}.',
-    'accounts.oldest': 'The oldest of these was last refreshed {age}.',
     'accounts.noneDeclared':
         'Whoever runs this deployment declares which mailboxes it reads for you, and none is declared yet.',
 
@@ -651,8 +650,6 @@ export const en = {
     'account.failing': 'Stopped synchronizing',
     'account.unreachable': 'The mail server did not answer',
     'account.neverSynchronized': 'Nothing taken in yet',
-    'account.lastRefreshed': 'Last refreshed {age}',
-    'account.neverRefreshed': 'Never refreshed',
 
     'folders.label': 'Mailboxes and folders',
     'folders.reading': 'Reading mailboxes and folders…',

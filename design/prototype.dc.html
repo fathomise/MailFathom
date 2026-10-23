@@ -207,9 +207,7 @@ Project repository: https://github.com/fathomise/MailFathom
     <div data-motion="screen" style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0">
       <div style="{{ headerStyle }}">
         <div style="{{ screenTitleStyle }}">Discover</div>
-        <sc-if value="{{ notMobile }}" hint-placeholder-val="{{ true }}">
-          <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)"><span style="width:7px;height:7px;border-radius:50%;background:var(--ok)"></span>Synced 2 min ago · {{ acctCount }}</div>
-        </sc-if>
+        <div role="status" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)"><span style="width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:var(--ok)"></span>Every account is up to date.</div>
         <div style="margin-left:auto;display:flex;gap:10px;align-items:center">
           <sc-if value="{{ hasRun }}" hint-placeholder-val="{{ false }}">
             <div style="display:flex;gap:9px;align-items:center">
@@ -686,6 +684,9 @@ Project repository: https://github.com/fathomise/MailFathom
             </div>
           </sc-for>
           </div>
+          <sc-if value="{{ sideExpanded }}" hint-placeholder-val="{{ true }}">
+            <div style="flex:0 0 auto;border-top:1px solid var(--line);padding:10px 14px"><div role="status" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)"><span style="width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:var(--ok)"></span>Every account is up to date.</div></div>
+          </sc-if>
         </div>
       </sc-if>
       <sc-if value="{{ showSideResizer }}" hint-placeholder-val="{{ false }}">
@@ -1317,8 +1318,12 @@ Project repository: https://github.com/fathomise/MailFathom
         <div style="{{ agentTitleStyle }}">{{ convTitle }}</div>
         <sc-if value="{{ notMobile }}" hint-placeholder-val="{{ true }}">
           <div style="margin-left:auto;font-size:13px;color:var(--muted)">works across your mail and calendar</div>
+          <div role="status" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)"><span style="width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:var(--ok)"></span>Every account is up to date.</div>
         </sc-if>
       </div>
+      <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:0 0 auto;border-bottom:1px solid var(--line);padding:8px 16px"><div role="status" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)"><span style="width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:var(--ok)"></span>Every account is up to date.</div></div>
+      </sc-if>
 
       <div style="flex:1;display:flex;min-height:0;min-width:0;position:relative">
       <sc-if value="{{ historyOpen }}" hint-placeholder-val="{{ false }}">
@@ -1753,6 +1758,7 @@ Project repository: https://github.com/fathomise/MailFathom
           </div>
         </div>
       </div>
+      <div style="flex:0 0 auto;border-top:1px solid var(--line);padding:10px 16px"><div role="status" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)"><span style="width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:var(--ok)"></span>Every account is up to date.</div></div>
     </div>
   </sc-if>
 
@@ -2122,6 +2128,7 @@ Project repository: https://github.com/fathomise/MailFathom
           </sc-if>
         </div>
       </div>
+      <div style="flex:0 0 auto;border-top:1px solid var(--line);padding:10px 16px"><div role="status" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)"><span style="width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:var(--ok)"></span>Every account is up to date.</div></div>
     </div>
   </sc-if>
 
@@ -2281,6 +2288,7 @@ Project repository: https://github.com/fathomise/MailFathom
         </div>
       </sc-if>
     </div>
+      <div style="flex:0 0 auto;border-top:1px solid var(--line);padding:10px 16px"><div role="status" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)"><span style="width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:var(--ok)"></span>Every account is up to date.</div></div>
     </div>
   </sc-if>
 

@@ -46,11 +46,6 @@ const baseAddress = 'https://mail.example.invalid';
 const firstPerson = { identity: 'karolina', authorization: 'Bearer mfs_first.c2Vzc2lvbg' };
 const secondPerson = { identity: 'somebody', authorization: 'Bearer mfs_second.c2Vzc2lvbg' };
 
-// The instant this suite decided, which is what an answer is stamped with when the hook is handed it — never a system
-// clock, so nothing here depends on the day it ran.
-const readAt = new Date('2026-08-31T12:41:00Z');
-const clock = (): Date => readAt;
-
 // Stable across renders, all four of them: a new function each render is a new dependency each render, and the read
 // effect would restart forever rather than answering once.
 const nothingToDo = (): void => undefined;
@@ -88,18 +83,6 @@ describe('useConnection', () => {
         vi.useRealTimers();
     });
 
-    it('stamps what it read with the instant its caller decided rather than with a clock of its own', async () => {
-        const { result } = renderHook(() =>
-            useConnection(baseAddress, firstPerson, deploymentAnswering, nothingToDo, clock),
-        );
-
-        await waitFor(() => {
-            expect(result.current.accounts?.outcome).toBe('read');
-        });
-
-        expect(result.current.readAt).toEqual(readAt);
-    });
-
     // A renewal replaces the header value roughly once every eleven hours while somebody is reading. Nothing about the
     // deployment changed, so nothing may be re-read and nothing may leave the screen: a hook keyed on the value would
     // empty the frame mid-morning and put the person back on 'Reaching your deployment…'.
@@ -113,7 +96,7 @@ describe('useConnection', () => {
 
         const { result, rerender } = renderHook(
             ({ signedIn }: { signedIn: SignedInCaller }) =>
-                useConnection(baseAddress, signedIn, recording, nothingToDo, clock),
+                useConnection(baseAddress, signedIn, recording, nothingToDo),
             { initialProps: { signedIn: firstPerson } },
         );
 
@@ -160,9 +143,7 @@ describe('useConnection', () => {
             }).then(() => response);
         };
 
-        const { result } = renderHook(() =>
-            useConnection(baseAddress, firstPerson, holdingTheSecondRead, nothingToDo, clock),
-        );
+        const { result } = renderHook(() => useConnection(baseAddress, firstPerson, holdingTheSecondRead, nothingToDo));
 
         await waitFor(() => {
             expect(result.current.accounts?.outcome).toBe('read');
@@ -177,7 +158,6 @@ describe('useConnection', () => {
 
         expect(result.current.session?.outcome).toBe('read');
         expect(result.current.accounts?.outcome).toBe('read');
-        expect(result.current.readAt).toEqual(readAt);
     });
 
     it('reads the session and the accounts again on a refresh', async () => {
@@ -188,7 +168,7 @@ describe('useConnection', () => {
             return Promise.resolve(request.path.endsWith('/session') ? readsMail : oneAccount);
         };
 
-        const { result } = renderHook(() => useConnection(baseAddress, firstPerson, recording, nothingToDo, clock));
+        const { result } = renderHook(() => useConnection(baseAddress, firstPerson, recording, nothingToDo));
 
         await waitFor(() => {
             expect(result.current.accounts?.outcome).toBe('read');
@@ -215,7 +195,7 @@ describe('useConnection', () => {
                 ? Promise.resolve({ status: 503, body: '', headers: {} })
                 : Promise.resolve(request.path.endsWith('/session') ? readsMail : oneAccount);
 
-        const { result } = renderHook(() => useConnection(baseAddress, firstPerson, failingLater, nothingToDo, clock));
+        const { result } = renderHook(() => useConnection(baseAddress, firstPerson, failingLater, nothingToDo));
 
         await waitFor(() => {
             expect(result.current.accounts?.outcome).toBe('read');
@@ -255,9 +235,7 @@ describe('useConnection', () => {
             return Promise.resolve(oneAccount);
         };
 
-        const { result } = renderHook(() =>
-            useConnection(baseAddress, firstPerson, narrowingTheGrant, nothingToDo, clock),
-        );
+        const { result } = renderHook(() => useConnection(baseAddress, firstPerson, narrowingTheGrant, nothingToDo));
 
         await waitFor(() => {
             expect(result.current.accounts?.outcome).toBe('read');
@@ -273,7 +251,6 @@ describe('useConnection', () => {
             expect(result.current.accounts).toBeNull();
         });
 
-        expect(result.current.readAt).toBeNull();
         expect(result.current.session?.outcome).toBe('read');
     });
 
@@ -282,7 +259,7 @@ describe('useConnection', () => {
     it('draws nothing of the last person once somebody else signs in', async () => {
         const { result, rerender } = renderHook(
             ({ signedIn }: { signedIn: SignedInCaller }) =>
-                useConnection(baseAddress, signedIn, deploymentAnswering, nothingToDo, clock),
+                useConnection(baseAddress, signedIn, deploymentAnswering, nothingToDo),
             { initialProps: { signedIn: firstPerson } },
         );
 
@@ -318,7 +295,7 @@ describe('useConnection', () => {
 
         const { result, rerender } = renderHook(
             ({ signedIn }: { signedIn: SignedInCaller }) =>
-                useConnection(baseAddress, signedIn, refusing, countRefusal, clock),
+                useConnection(baseAddress, signedIn, refusing, countRefusal),
             { initialProps: { signedIn: firstPerson } },
         );
 
@@ -345,9 +322,7 @@ describe('useConnection', () => {
             return Promise.resolve({ status: 503, body: '', headers: {} });
         };
 
-        const { result } = renderHook(() =>
-            useConnection(baseAddress, firstPerson, recordingFailures, nothingToDo, clock),
-        );
+        const { result } = renderHook(() => useConnection(baseAddress, firstPerson, recordingFailures, nothingToDo));
 
         await act(async () => {
             await vi.advanceTimersByTimeAsync(0);
@@ -376,7 +351,7 @@ describe('useConnection', () => {
 
         const { result, rerender } = renderHook(
             ({ signedIn }: { signedIn: SignedInCaller }) =>
-                useConnection(baseAddress, signedIn, deploymentFailing, nothingToDo, clock),
+                useConnection(baseAddress, signedIn, deploymentFailing, nothingToDo),
             { initialProps: { signedIn: firstPerson } },
         );
 

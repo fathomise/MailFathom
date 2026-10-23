@@ -16,10 +16,6 @@ import { PendingChangesContext, nothingPending, type PendingChanges } from '../p
 import { ConnectionSummary } from './ConnectionSummary';
 import { mostReconnectionAttempts, type Connection } from './useConnection';
 
-// When the answers on the screen were read, which every age beside an account is measured from. Handed in rather than
-// taken off a clock, so what a test asserts is what a person reads rather than what day the suite ran on.
-const readAt = new Date('2026-08-31T12:41:00Z');
-
 const workAccount: MailAccount = {
     id: 'work',
     displayName: 'Work',
@@ -63,7 +59,6 @@ function renderSummary(connection: Partial<Connection>, pending: PendingChanges 
                     connection={{
                         session: reading,
                         accounts: null,
-                        readAt: null,
                         online: true,
                         attempts: 0,
                         reread: () => undefined,
@@ -78,7 +73,7 @@ function renderSummary(connection: Partial<Connection>, pending: PendingChanges 
 
 /** The accounts read and on the screen, which is the shape every freshness assertion below is made against. */
 function showing(accounts: ClientResult<MailAccountDirectory>): Partial<Connection> {
-    return { session: reading, accounts, readAt };
+    return { session: reading, accounts };
 }
 
 /**
@@ -87,11 +82,6 @@ function showing(accounts: ClientResult<MailAccountDirectory>): Partial<Connecti
  */
 function reveal(freshness: string): void {
     fireEvent.click(screen.getByText(freshness));
-}
-
-/** The age a person reads, asked of `Intl` the way the screen asks it rather than spelled out here. */
-function ageIn(value: number, unit: Intl.RelativeTimeFormatUnit): string {
-    return new Intl.RelativeTimeFormat('en', { numeric: 'auto' }).format(value, unit);
 }
 
 describe('ConnectionSummary', () => {
@@ -197,6 +187,7 @@ describe('ConnectionSummary', () => {
                 'This deployment is not refreshing the local copy of these accounts, so what you see is as current as its last run left it. That is a setting on the deployment rather than a permission you are missing.',
             ),
         ).toBeDefined();
+        expect(screen.queryByRole('group')).toBeNull();
     });
 
     it('tells a user holding no account that, and what would fill it, rather than showing a failure', () => {
@@ -208,17 +199,25 @@ describe('ConnectionSummary', () => {
         ).toBeDefined();
     });
 
-    it('keeps the account-by-account reading behind the line that summarizes them until it is asked for', () => {
+    it('offers nothing to open while every account is current, the green dot being the whole of it', () => {
         renderSummary(showing(directory(true, [workAccount])));
+
+        expect(screen.getByText('Every account is up to date.')).toBeDefined();
+        expect(screen.queryByRole('group')).toBeNull();
+        expect(screen.queryByText('Work')).toBeNull();
+    });
+
+    it('keeps the account-by-account reading behind the line that summarizes them until it is asked for', () => {
+        renderSummary(showing(directory(true, [workAccount, archiveAccount])));
 
         expect(screen.getByRole('group')).not.toHaveProperty('open', true);
 
-        reveal('Every account is up to date.');
+        reveal('Some accounts are behind.');
 
         expect(screen.getByRole('group')).toHaveProperty('open', true);
     });
 
-    it('names each account and when it was last refreshed, behind the line that summarizes them', () => {
+    it('names each account and its state behind the line that summarizes them, and no time', () => {
         renderSummary(showing(directory(true, [workAccount, unreachableAccount])));
 
         reveal('Some accounts stopped synchronizing.');
@@ -227,10 +226,10 @@ describe('ConnectionSummary', () => {
         expect(screen.getByText('Up to date')).toBeDefined();
         expect(screen.getByText('Newsletters')).toBeDefined();
         expect(screen.getByText('The mail server did not answer')).toBeDefined();
-        expect(screen.getAllByText(`Last refreshed ${ageIn(-3, 'hour')}`)).toHaveLength(2);
+        expect(screen.queryByText(/refreshed/)).toBeNull();
     });
 
-    it('reads an account that has never synchronized as one with no time on it', () => {
+    it('reads an account that has never synchronized as one with nothing taken in', () => {
         const fresh: MailAccount = {
             ...workAccount,
             synchronizationState: 'NeverSynchronized',
@@ -242,7 +241,6 @@ describe('ConnectionSummary', () => {
         reveal('Some accounts are behind.');
 
         expect(screen.getByText('Nothing taken in yet')).toBeDefined();
-        expect(screen.getByText('Never refreshed')).toBeDefined();
     });
 
     it('reads an account that is merely catching up as that rather than as one that stopped', () => {
@@ -253,18 +251,8 @@ describe('ConnectionSummary', () => {
         expect(screen.getByText('Catching up')).toBeDefined();
     });
 
-    it('says how long ago the least recently refreshed of them took anything in', () => {
-        const older: MailAccount = { ...archiveAccount, lastSynchronizedAt: '2026-08-29T12:41:00+00:00' };
-
-        renderSummary(showing(directory(true, [workAccount, older])));
-
-        reveal('Some accounts are behind.');
-
-        expect(screen.getByText(`The oldest of these was last refreshed ${ageIn(-2, 'day')}.`)).toBeDefined();
-    });
-
     it('names why the accounts could not be read, and offers the way out', () => {
-        renderSummary({ session: reading, accounts: failing('unavailable'), readAt });
+        renderSummary({ session: reading, accounts: failing('unavailable') });
 
         expect(screen.getByText(/The accounts could not be read: unavailable\./)).toBeDefined();
         expect(screen.getByRole('button', { name: 'Try again' })).toBeDefined();
@@ -273,7 +261,7 @@ describe('ConnectionSummary', () => {
     it.each(['unauthenticated', 'unauthorized', 'unreadable'] as const)(
         'still says what failed at a %s failure, and offers no second attempt that would repeat it',
         (reason) => {
-            renderSummary({ session: reading, accounts: failing(reason, 401), readAt });
+            renderSummary({ session: reading, accounts: failing(reason, 401) });
 
             expect(screen.getByText(/The accounts could not be read:/)).toBeDefined();
             expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
@@ -281,7 +269,7 @@ describe('ConnectionSummary', () => {
     );
 
     it('puts no status code on the screen', () => {
-        renderSummary({ session: reading, accounts: failing('unavailable'), readAt });
+        renderSummary({ session: reading, accounts: failing('unavailable') });
 
         expect(screen.queryByText(/503/)).toBeNull();
     });
