@@ -106,6 +106,18 @@ public readonly record struct RemoteFolderPath
     public bool NamesSameFolderAs(RemoteFolderPath other) =>
         string.Equals(this.Value, other.Value, StringComparison.Ordinal);
 
+    /// <summary>Answers whether this path names the other folder or one anywhere beneath it.</summary>
+    /// <param name="ancestor">The folder whose subtree is asked about.</param>
+    /// <returns><see langword="true" /> when this is <paramref name="ancestor" /> or a folder nested inside it.</returns>
+    /// <remarks>
+    /// Nesting is read through the delimiter <paramref name="ancestor" /> carries, so a folder whose server reported none
+    /// has no subtree and contains only itself — and <c>Drafts2</c> is never read as beneath <c>Drafts</c>.
+    /// </remarks>
+    public bool IsWithin(RemoteFolderPath ancestor) =>
+        this.NamesSameFolderAs(ancestor)
+        || (ancestor.HierarchyDelimiter is { } delimiter
+            && this.Value.StartsWith(ancestor.Value + delimiter, StringComparison.Ordinal));
+
     /// <summary>Splits the path into its hierarchy levels.</summary>
     /// <returns>Every level in order, or the whole path as a single level when the server reported no delimiter.</returns>
     public IReadOnlyList<string> ToHierarchyLevels() =>

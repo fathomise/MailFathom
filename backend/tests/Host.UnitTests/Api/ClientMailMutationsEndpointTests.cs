@@ -770,6 +770,7 @@ public sealed class ClientMailMutationsEndpointTests
         ScopeResolver(),
         Substitute.For<IAuthoredMailboxTargetReader>(),
         StubMailFolderMappings.ResolvingNothing,
+        Substitute.For<IMailFolderResolutionStore>(),
         DestinationResolver(),
         Substitute.For<IAuthoredDeleteEmailDispositionReader>(),
         this.Submission(held: false),

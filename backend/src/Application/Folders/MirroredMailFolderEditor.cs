@@ -43,6 +43,7 @@ namespace MailFathom.Application.Folders;
 public sealed class MirroredMailFolderEditor
 {
     private readonly IMailFolderMappingReader mappings;
+    private readonly IMailFolderResolutionStore bindings;
     private readonly IMailFolderDeclarationWriter declarations;
     private readonly IRemoteFolderCreator creator;
     private readonly IRemoteFolderEditor editor;
@@ -54,6 +55,7 @@ public sealed class MirroredMailFolderEditor
 
     /// <summary>Initializes a new instance of the <see cref="MirroredMailFolderEditor" /> class.</summary>
     /// <param name="mappings">Reads every folder the whole of configuration declares for the account.</param>
+    /// <param name="bindings">Answers where a folder found by the role it plays currently is, which its declaration does not say.</param>
     /// <param name="declarations">Reads and writes the folders the account's own record declares.</param>
     /// <param name="creator">Creates a folder on the mail server.</param>
     /// <param name="editor">Renames and deletes a folder on the mail server.</param>
@@ -65,6 +67,7 @@ public sealed class MirroredMailFolderEditor
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public MirroredMailFolderEditor(
         IMailFolderMappingReader mappings,
+        IMailFolderResolutionStore bindings,
         IMailFolderDeclarationWriter declarations,
         IRemoteFolderCreator creator,
         IRemoteFolderEditor editor,
@@ -75,6 +78,7 @@ public sealed class MirroredMailFolderEditor
         AccessAuthorization authorization)
     {
         ArgumentNullException.ThrowIfNull(mappings);
+        ArgumentNullException.ThrowIfNull(bindings);
         ArgumentNullException.ThrowIfNull(declarations);
         ArgumentNullException.ThrowIfNull(creator);
         ArgumentNullException.ThrowIfNull(editor);
@@ -85,6 +89,7 @@ public sealed class MirroredMailFolderEditor
         ArgumentNullException.ThrowIfNull(authorization);
 
         this.mappings = mappings;
+        this.bindings = bindings;
         this.declarations = declarations;
         this.creator = creator;
         this.editor = editor;
@@ -107,7 +112,7 @@ public sealed class MirroredMailFolderEditor
 
         var declared = await this.declarations.AliasesTheAccountDeclaresAsync(account, cancellationToken);
         var takesAFolder = await this.declarations.FindDeclarationRefusalAsync(account, cancellationToken) is null;
-        var folders = this.mappings.FoldersOf(account);
+        var folders = await this.FoldersOfAsync(account, cancellationToken);
 
         return new MailFolderManagement(
             takesAFolder ? [MailFolderAct.Create] : [],
@@ -140,7 +145,7 @@ public sealed class MirroredMailFolderEditor
             return MailFolderActOutcome.Refused(undeclarable);
         }
 
-        var folders = this.mappings.FoldersOf(account);
+        var folders = await this.FoldersOfAsync(account, cancellationToken);
 
         if (role is { } named && !IsCreatable(folders, named))
         {
@@ -268,9 +273,14 @@ public sealed class MirroredMailFolderEditor
             return MailFolderActOutcome.Refused(MailFolderActRefusal.NameInvalid);
         }
 
-        if (parentPath is { } destination && IsWithin(destination, acting.Path))
+        if (parentPath is { } destination && destination.IsWithin(acting.Path))
         {
             return MailFolderActOutcome.Refused(MailFolderActRefusal.NestedInItself);
+        }
+
+        if (CrossesDraftsOrSentTree(acting.Folders, acting.Path, parentPath))
+        {
+            return MailFolderActOutcome.Refused(MailFolderActRefusal.CrossesDraftsOrSentTree);
         }
 
         return RefusePlacement(acting.Folders, parentPath, folderName, folderAlias) is { } placementRefusal
@@ -442,7 +452,7 @@ public sealed class MirroredMailFolderEditor
         MailFolderAlias folderAlias,
         CancellationToken cancellationToken)
     {
-        var folders = this.mappings.FoldersOf(account);
+        var folders = await this.FoldersOfAsync(account, cancellationToken);
 
         if (folders.FirstOrDefault(folder => folder.Alias == folderAlias) is not { } folder)
         {
@@ -456,14 +466,15 @@ public sealed class MirroredMailFolderEditor
 
         var declared = await this.declarations.AliasesTheAccountDeclaresAsync(account, cancellationToken);
 
-        // A folder without a declared path is one found by the role it plays, which the refusal above has already
+        // A folder without a path is one found by the role it plays and never bound, which the refusal above has already
         // answered; reaching here without one therefore means the deployment's own configuration holds it.
         return declared.Contains(folderAlias) && folder.RemotePath is { } path
             ? new ActableFolder(folderAlias, path, folders, Refusal: null)
             : ActableFolder.Refused(MailFolderActRefusal.NotDeclaredByTheAccount);
     }
 
-    /// <summary>Refuses a parent the account does not declare, or one found by the role it plays and therefore having no path to create beneath.</summary>
+    /// <summary>Refuses a parent the account does not have, or one found by the role it plays and never bound, which has no path to create beneath.</summary>
+    /// <remarks>A folder found by its role and bound is a parent like any other, whichever role it plays.</remarks>
     private static MailFolderActRefusal? RefuseParent(
         IReadOnlyList<MailFolderMapping> folders,
         MailFolderAlias? parentAlias) => parentAlias is { } parent
@@ -485,7 +496,7 @@ public sealed class MirroredMailFolderEditor
     /// <remarks>
     /// The three acts that name a folder travel together, because every reason to refuse one refuses all three: a
     /// folder playing a role is the account's place to file something, a folder the deployment's own configuration
-    /// declares is the operator's, and a folder found by the role it plays has no path to act against.
+    /// declares is the operator's, and a folder found by the role it plays and never bound has no path to act against.
     /// </remarks>
     private static IReadOnlyList<MailFolderAct> AllowedActsOn(
         MailFolderMapping folder,
@@ -496,6 +507,61 @@ public sealed class MirroredMailFolderEditor
 
     private static RemoteFolderPath? PathOf(IReadOnlyList<MailFolderMapping> folders, MailFolderAlias alias) =>
         folders.FirstOrDefault(folder => folder.Alias == alias)?.RemotePath;
+
+    /// <summary>Reads the account's folders, each at the place it currently is on the mail server.</summary>
+    /// <remarks>
+    /// A folder found by the role it plays names no path in its declaration, so its place is read from the binding its
+    /// synchronization run recorded — whichever role it plays. Without it no folder found that way could take a
+    /// subfolder, the drafts folder and the sent folder among them, and a subfolder made beneath one would be described
+    /// as having no parent. One never bound keeps no path and so still takes none.
+    /// </remarks>
+    private async Task<IReadOnlyList<MailFolderMapping>> FoldersOfAsync(
+        MailAccountId account,
+        CancellationToken cancellationToken)
+    {
+        var folders = this.mappings.FoldersOf(account);
+        var placed = new List<MailFolderMapping>(folders.Count);
+
+        foreach (var folder in folders)
+        {
+            placed.Add(folder.RemotePath is null
+                && await this.bindings.GetCurrentResolutionAsync(account, folder.Alias, cancellationToken) is { } binding
+                    ? MailFolderMapping.ToRemotePath(
+                        folder.Alias,
+                        binding.RemotePath,
+                        folder.Participation,
+                        specialUse: folder.SpecialUse)
+                    : folder);
+        }
+
+        return placed;
+    }
+
+    /// <summary>Whether moving a folder beneath that parent would take it across the edge of the drafts or the sent folder's tree.</summary>
+    /// <remarks>
+    /// The top of the hierarchy lies in neither tree, and the trash's own tree is admitted from anywhere, because a folder
+    /// filed there is on its way to being deleted rather than filed among mail it is not.
+    /// </remarks>
+    private static bool CrossesDraftsOrSentTree(
+        IReadOnlyList<MailFolderMapping> folders,
+        RemoteFolderPath moving,
+        RemoteFolderPath? parentPath)
+    {
+        RemoteFolderPath[] RootsPlaying(params MailFolderSpecialUse[] roles) =>
+            [.. folders
+                .Where(folder => folder.SpecialUse is { } role && roles.Contains(role))
+                .Select(static folder => folder.RemotePath)
+                .OfType<RemoteFolderPath>()];
+
+        var keptTrees = RootsPlaying(MailFolderSpecialUse.Drafts, MailFolderSpecialUse.Sent);
+
+        string? TreeOf(RemoteFolderPath? path) =>
+            path is { } placed ? keptTrees.Where(placed.IsWithin).Select(static root => root.Value).FirstOrDefault() : null;
+
+        var intoTrash = parentPath is { } parent && RootsPlaying(MailFolderSpecialUse.Trash).Any(parent.IsWithin);
+
+        return !intoTrash && !string.Equals(TreeOf(moving), TreeOf(parentPath), StringComparison.Ordinal);
+    }
 
     /// <summary>Reads the path of the folder one level above another, and nothing where that folder is at the top.</summary>
     private static RemoteFolderPath? ParentPathOf(IReadOnlyList<MailFolderMapping> folders, RemoteFolderPath? path)
@@ -547,11 +613,6 @@ public sealed class MirroredMailFolderEditor
             ? MailFolderActRefusal.NameTaken
             : null;
     }
-
-    private static bool IsWithin(RemoteFolderPath candidate, RemoteFolderPath ancestor) =>
-        candidate.Value.Equals(ancestor.Value, StringComparison.Ordinal)
-        || (ancestor.HierarchyDelimiter is { } delimiter
-            && candidate.Value.StartsWith(ancestor.Value + delimiter, StringComparison.Ordinal));
 
     /// <summary>Chooses the alias a created folder is declared under, which nothing afterwards changes.</summary>
     /// <remarks>

@@ -375,6 +375,7 @@ describe('a refused act', () => {
         [400, 'InboxNameAtTopLevel', 'inboxNameAtTopLevel'],
         [400, 'NameTaken', 'nameTaken'],
         [400, 'NestedInItself', 'nestedInItself'],
+        [409, 'CrossesDraftsOrSentTree', 'crossesDraftsOrSentTree'],
         [400, 'TooDeep', 'tooDeep'],
         [404, 'AccountMissing', 'accountMissing'],
         [404, 'FolderMissing', 'folderMissing'],

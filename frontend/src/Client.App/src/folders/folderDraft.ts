@@ -121,11 +121,12 @@ export function withRole(draft: FolderDraft, role: MailFolderRole | null): Folde
  *
  * A reason rather than a boolean, because each is a different sentence the dialog owes somebody: an empty name is the
  * state the design draws the button flat for, a folder that would nest past the ceiling is the rule the tree is built
- * on, a name a sibling already carries is what the service refuses as `NameTaken`, and a folder moved inside itself
- * is the one shape of move that cannot mean anything. Each is said here so it is said before the request rather than
- * as a failure after it.
+ * on, a name a sibling already carries is what the service refuses as `NameTaken`, a folder moved inside itself
+ * is the one shape of move that cannot mean anything, and a folder moved across the edge of the drafts or the sent
+ * tree would carry its mail across it. Each is said here so it is said before the request rather than as a failure
+ * after it.
  */
-export type FolderDraftRefusal = 'nameEmpty' | 'tooDeep' | 'nameTaken' | 'nestedInItself';
+export type FolderDraftRefusal = 'nameEmpty' | 'tooDeep' | 'nameTaken' | 'nestedInItself' | 'crossesDraftsOrSentTree';
 
 /**
  * Whether the draft may be saved, given the account's folders as the service last reported them.
@@ -149,6 +150,10 @@ export function refusalOf(draft: FolderDraft, folders: readonly ManagedMailFolde
 
     if (draft.standingId !== null && beneath(draft.standingId, draft.parentId, folders)) {
         return 'nestedInItself';
+    }
+
+    if (draft.standingId !== null && crossesDraftsOrSentTree(draft.standingId, draft.parentId, folders)) {
+        return 'crossesDraftsOrSentTree';
     }
 
     // The ceiling is the tree's rather than a second decision: a draft that may be saved is one the column can draw.
@@ -208,9 +213,10 @@ export function namePathOf(folderId: string, folders: readonly ManagedMailFolder
 /**
  * The folders the draft may be placed beneath, which is what the parent field offers beside the top of the mailbox.
  *
- * Three are left out, and each of them is a refusal that would otherwise be spent on a round trip: the folder itself
+ * Four are left out, and each of them is a refusal that would otherwise be spent on a round trip: the folder itself
  * and everything under it, which is a hierarchy eating itself; anything that would leave the folder and its own
- * subfolders past the column's ceiling; and anything the service reported as taking no new folder inside it.
+ * subfolders past the column's ceiling; anything across the edge of the drafts or the sent tree from where the folder
+ * stands, which would carry its mail across it; and anything the service reported as taking no new folder inside it.
  */
 export function admissibleParents(
     draft: FolderDraft,
@@ -221,7 +227,9 @@ export function admissibleParents(
     return folders.filter(
         (folder) =>
             folder.id !== draft.standingId &&
-            (draft.standingId === null || !beneath(draft.standingId, folder.id, folders)) &&
+            (draft.standingId === null ||
+                (!beneath(draft.standingId, folder.id, folders) &&
+                    !crossesDraftsOrSentTree(draft.standingId, folder.id, folders))) &&
             depthOf(folder.id, folders) + 1 + height <= deepestFolder,
     );
 }
@@ -260,6 +268,45 @@ function heightOf(folderId: string | null, folders: readonly ManagedMailFolder[]
     return children.length === 0
         ? 0
         : 1 + Math.max(...children.map((child) => heightOf(child.id, folders, levelsLeft - 1)));
+}
+
+// Whether moving a folder beneath a parent would take it, with its mail, into the drafts or the sent tree from outside
+// it or out of either. Each of the two folders keeps one kind of mail together with everything made beneath it, which
+// is the service's rule for a message moved by itself as much as for a folder moved with its mail. The trash is the
+// one way out, because that is how either tree's mail is deleted.
+function crossesDraftsOrSentTree(
+    folderId: string,
+    parentId: string | null,
+    folders: readonly ManagedMailFolder[],
+): boolean {
+    return (
+        ancestorPlaying(parentId, ['Trash'], folders) === null &&
+        ancestorPlaying(folderId, keptTreeRoles, folders) !== ancestorPlaying(parentId, keptTreeRoles, folders)
+    );
+}
+
+const keptTreeRoles: readonly MailFolderRole[] = ['Drafts', 'Sent'];
+
+// The nearest folder at or above this one that plays one of the roles, or `null` where none does. Bounded by the list
+// for the reason `depthOf` is.
+function ancestorPlaying(
+    folderId: string | null,
+    roles: readonly MailFolderRole[],
+    folders: readonly ManagedMailFolder[],
+): string | null {
+    let walking = folderId;
+
+    for (let step = 0; walking !== null && step <= folders.length; step += 1) {
+        const folder: ManagedMailFolder | undefined = folders.find((entry) => entry.id === walking);
+
+        if (folder?.role != null && roles.includes(folder.role)) {
+            return folder.id;
+        }
+
+        walking = folder?.parentId ?? null;
+    }
+
+    return null;
 }
 
 // Whether one folder sits under another, itself included, which is the move a hierarchy cannot take.

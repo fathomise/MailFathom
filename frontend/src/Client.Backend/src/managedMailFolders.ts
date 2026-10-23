@@ -68,6 +68,7 @@ export type ManagedMailFolderRefusal =
     | 'inboxNameAtTopLevel'
     | 'nameTaken'
     | 'nestedInItself'
+    | 'crossesDraftsOrSentTree'
     | 'tooDeep'
     | 'tooManyFolders'
     | 'serverRefused'
@@ -137,6 +138,7 @@ const refusalsByName: Readonly<Record<string, ManagedMailFolderRefusal>> = {
     InboxNameAtTopLevel: 'inboxNameAtTopLevel',
     NameTaken: 'nameTaken',
     NestedInItself: 'nestedInItself',
+    CrossesDraftsOrSentTree: 'crossesDraftsOrSentTree',
     TooDeep: 'tooDeep',
     TooManyFolders: 'tooManyFolders',
     ServerRefused: 'serverRefused',

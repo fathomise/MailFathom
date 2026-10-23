@@ -32,6 +32,7 @@ import {
     destinationsFor,
     filesIntoTrash,
     filingFor,
+    mayBeTakenBack,
     refusalFor,
     type MoveDestination,
 } from './mailboxDestinations';
@@ -540,13 +541,17 @@ export function MailboxActsProvider({
                       }),
                       body: counted(recorded.length),
 
-                      // The way back is the toast's single action, which is the design's own.
-                      action: {
-                          label: translate('act.undo'),
-                          take: () => {
-                              takeBack(act, recorded, filedIn);
+                      // The way back is the toast's single action, which is the design's own — and it is left off
+                      // where it would be a move the deployment refuses, which is a draft or a sent copy deleted out
+                      // of its tree.
+                      ...(mayBeTakenBack(held.directory, recorded, filedIn) && {
+                          action: {
+                              label: translate('act.undo'),
+                              take: () => {
+                                  takeBack(act, recorded, filedIn);
+                              },
                           },
-                      },
+                      }),
                   },
         );
     }

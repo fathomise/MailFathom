@@ -701,6 +701,8 @@ export const pl: Catalogue = {
     'folders.tooDeep': 'Folder zagnieżdża się najwyżej na trzech poziomach, a ten byłby głębiej.',
     'folders.nameTaken': 'Ta skrzynka ma już folder o tej nazwie w tym samym miejscu.',
     'folders.nestedInItself': 'Folderu nie można umieścić w nim samym.',
+    'folders.crossesDraftsOrSentTree':
+        'Folderu nie można przenieść do szkiców ani wysłanych z innego miejsca ani wynieść z nich – chyba że do kosza.',
     'folders.actFailed': 'Nie udało się zmienić folderu: {reason}.',
     'folders.actRefused': 'Zmiana została odrzucona. {reason}',
     'folders.actStopped': 'Zmiana jest już w drodze i zamknięcie tego jej nie cofnie.',
@@ -831,7 +833,8 @@ export const pl: Catalogue = {
     'act.noTrashFolder': '{control} – to konto nie wskazuje kosza, więc nie ma dokąd usuwać.',
     'act.severalAccounts': '{control} – wiadomości z kilku kont nie przeniesiemy do jednego katalogu.',
     'act.noOtherFolder': '{control} – to konto nie ma innego katalogu, do którego można przenieść.',
-    'act.draftsStayOut': '{control} – wersję roboczą można przenieść tylko do katalogu utworzonego przez Ciebie.',
+    'act.draftsAndSentStay':
+        '{control} – szkice i wysłane wiadomości zostają w swoich katalogach i ich podkatalogach; można je tylko tam porządkować albo usunąć.',
     'act.foldersUnknown': '{control} – MailFathom nie odczytał Twoich katalogów, więc nie wie, dokąd to trafi.',
     'act.foldersNotRead': 'Nie odczytaliśmy Twoich katalogów: {reason}.',
     'act.readFoldersAgain': 'Spróbuj ponownie',

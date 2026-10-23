@@ -96,6 +96,35 @@ public sealed class MailFolderTests
         Assert.Equal(["Archief", "2026", "Q3"], levels);
     }
 
+    [Theory]
+    [InlineData("Drafts", true)]
+    [InlineData("Drafts/2026", true)]
+    [InlineData("Drafts/2026/Q3", true)]
+    [InlineData("Drafts2", false)]
+    [InlineData("Sent/Drafts", false)]
+    public void IsWithin_APathAgainstAFolderWithADelimiter_IsWithinItOnlyAsItselfOrBeneathIt(string written, bool within)
+    {
+        // Arrange
+        var drafts = RemoteFolderPath.Create("Drafts", '/');
+
+        // Act
+        var answer = RemoteFolderPath.Create(written, '/').IsWithin(drafts);
+
+        // Assert
+        Assert.Equal(within, answer);
+    }
+
+    [Fact]
+    public void IsWithin_AFolderWhoseServerReportedNoDelimiter_ContainsOnlyItself()
+    {
+        // Arrange
+        var drafts = RemoteFolderPath.Create("Drafts");
+
+        // Act, Assert
+        Assert.True(RemoteFolderPath.Create("Drafts", '/').IsWithin(drafts));
+        Assert.False(RemoteFolderPath.Create("Drafts/2026", '/').IsWithin(drafts));
+    }
+
     /// <summary>
     /// A record written before the server reported a delimiter and a resolution made after it are two values of one
     /// folder. Naming the same folder is therefore the advertised text alone, while equality keeps the delimiter because

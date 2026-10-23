@@ -11,6 +11,7 @@ import {
     filesIntoTrash,
     filingFor,
     folderWithRole,
+    mayBeTakenBack,
     refusalFor,
 } from './mailboxDestinations';
 import type { ActedMessage } from './useMailboxActs';
@@ -115,11 +116,17 @@ describe('destinationsFor', () => {
     });
 });
 
-// The drafts folder beside the rest, which is what makes a message a draft: nothing but the folder it sits in says so.
-const withDrafts = directoryOf({
+// The drafts folder and the sent folder beside the rest, each with a subfolder of its own, which is what makes a message
+// a draft or a sent copy: nothing but the tree of the folder it sits in says so. *Drafts2* sits beside the drafts
+// folder rather than beneath it, which is a name rather than a place.
+const withDraftsAndSent = directoryOf({
     work: [
         folder('work-inbox', 'Inbox', ['INBOX']),
         folder('work-drafts', 'Drafts', ['Drafts']),
+        folder('work-drafts-clients', null, ['Drafts', 'Clients']),
+        folder('work-drafts2', null, ['Drafts2']),
+        folder('work-sent', 'Sent', ['Sent']),
+        folder('work-sent-2026', null, ['Sent', '2026']),
         folder('work-archive', 'Archive', ['Archive']),
         folder('work-trash', 'Trash', ['Trash']),
         folder('work-clients', null, ['Projects', 'Clients']),
@@ -130,41 +137,100 @@ function inWorkDrafts(storedEmailId: string): ActedMessage {
     return { storedEmailId, account: 'work', folder: 'work-drafts', unread: false, flagged: false };
 }
 
-function offeredAliases(messages: readonly ActedMessage[]): readonly string[] {
-    return destinationsFor(withDrafts, messages).flatMap((group) => group.destinations.map(({ alias }) => alias));
+function inWorkSent(storedEmailId: string): ActedMessage {
+    return { storedEmailId, account: 'work', folder: 'work-sent', unread: false, flagged: false };
 }
 
-describe('destinationsFor, around the drafts folder', () => {
-    it('offers a message that is not a draft every folder but the drafts folder', () => {
+function offeredAliases(messages: readonly ActedMessage[]): readonly string[] {
+    return destinationsFor(withDraftsAndSent, messages).flatMap((group) =>
+        group.destinations.map(({ alias }) => alias),
+    );
+}
+
+describe('destinationsFor, around the drafts and the sent tree', () => {
+    it('offers ordinary mail every folder outside the drafts and the sent tree', () => {
         expect(offeredAliases([inWork('message-1')])).toStrictEqual([
             'work-inbox',
             'work-archive',
             'work-trash',
+            'work-drafts2',
             'work-clients',
         ]);
     });
 
-    it('offers a draft the drafts folder, the trash, and the folders somebody made, and no other folder with a role', () => {
+    it('offers a draft its own tree and the trash, wherever in the tree it sits', () => {
+        const inDraftsClients: ActedMessage = { ...inWorkDrafts('message-2'), folder: 'work-drafts-clients' };
+
         expect(offeredAliases([inWorkDrafts('message-1')])).toStrictEqual([
             'work-drafts',
             'work-trash',
-            'work-clients',
+            'work-drafts-clients',
         ]);
+        expect(offeredAliases([inDraftsClients])).toStrictEqual(offeredAliases([inWorkDrafts('message-1')]));
     });
 
-    it('offers a selection holding a draft among other mail only what the draft may go to, less the drafts folder', () => {
-        expect(offeredAliases([inWorkDrafts('message-1'), inWork('message-2')])).toStrictEqual([
-            'work-trash',
-            'work-clients',
-        ]);
+    it('offers a sent message its own tree and the trash', () => {
+        expect(offeredAliases([inWorkSent('message-1')])).toStrictEqual(['work-sent', 'work-trash', 'work-sent-2026']);
     });
 
-    it('files nothing dropped on the drafts folder that is not a draft, nor a draft dropped on the archive', () => {
+    it('offers a selection reaching into two trees the trash and nothing else', () => {
+        expect(offeredAliases([inWorkDrafts('message-1'), inWork('message-2')])).toStrictEqual(['work-trash']);
+        expect(offeredAliases([inWorkDrafts('message-1'), inWorkSent('message-2')])).toStrictEqual(['work-trash']);
+    });
+
+    it('files a drop inside a tree, and nothing dropped across the edge of one', () => {
         const ordinary = [inWork('message-1')];
         const draft = [inWorkDrafts('message-2')];
+        const sent = [inWorkSent('message-3')];
+        const dropping = (messages: readonly ActedMessage[], alias: string) =>
+            dropDestination(destinationsFor(withDraftsAndSent, messages), messages, 'work', alias);
 
-        expect(dropDestination(destinationsFor(withDrafts, ordinary), ordinary, 'work', 'work-drafts')).toBeNull();
-        expect(dropDestination(destinationsFor(withDrafts, draft), draft, 'work', 'work-archive')).toBeNull();
+        expect(dropping(ordinary, 'work-drafts')).toBeNull();
+        expect(dropping(ordinary, 'work-sent-2026')).toBeNull();
+        expect(dropping(draft, 'work-clients')).toBeNull();
+        expect(dropping(draft, 'work-drafts2')).toBeNull();
+        expect(dropping(sent, 'work-archive')).toBeNull();
+        expect(dropping(draft, 'work-drafts-clients')?.alias).toBe('work-drafts-clients');
+        expect(dropping(sent, 'work-sent-2026')?.alias).toBe('work-sent-2026');
+        expect(dropping(sent, 'work-trash')?.alias).toBe('work-trash');
+    });
+});
+
+describe('mayBeTakenBack', () => {
+    const filed = (entries: Record<string, string>) => new Map(Object.entries(entries));
+
+    it('offers the way back from a move inside the drafts tree, which files back inside it', () => {
+        expect(
+            mayBeTakenBack(
+                withDraftsAndSent,
+                [inWorkDrafts('message-1')],
+                filed({ 'message-1': 'work-drafts-clients' }),
+            ),
+        ).toBe(true);
+    });
+
+    it('offers the way back from deleting ordinary mail', () => {
+        expect(mayBeTakenBack(withDraftsAndSent, [inWork('message-1')], filed({ 'message-1': 'work-trash' }))).toBe(
+            true,
+        );
+    });
+
+    it('withholds it from a deleted sent copy, which nothing files back into its tree', () => {
+        expect(mayBeTakenBack(withDraftsAndSent, [inWorkSent('message-1')], filed({ 'message-1': 'work-trash' }))).toBe(
+            false,
+        );
+    });
+
+    // The toast's way back takes the whole act back at once, so a selection holding one draft among ordinary mail has
+    // none: offering it would put back the rest and answer the draft with a refusal.
+    it('withholds it from a whole selection holding one message that could not go back', () => {
+        expect(
+            mayBeTakenBack(
+                withDraftsAndSent,
+                [inWork('message-1'), inWorkDrafts('message-2')],
+                filed({ 'message-1': 'work-trash', 'message-2': 'work-trash' }),
+            ),
+        ).toBe(false);
     });
 });
 
@@ -242,9 +308,15 @@ describe('refusalFor', () => {
         expect(refusalFor(act, [inWork('message-1')], wholeMailbox, everythingOffered)).toBeNull();
     });
 
-    it('refuses to archive a draft, the archive being a folder with a role a draft may not be filed into', () => {
-        expect(refusalFor('archive', [inWorkDrafts('message-1')], withDrafts, everythingOffered)).toBe('draftsStayOut');
-        expect(refusalFor('delete', [inWorkDrafts('message-1')], withDrafts, everythingOffered)).toBeNull();
+    it.each([
+        ['a draft', inWorkDrafts('message-1')],
+        ['a sent message', inWorkSent('message-1')],
+    ])('refuses to archive %s, and still lets it be moved within its tree or deleted', (_, message) => {
+        const selection = [inWork('message-2'), message];
+
+        expect(refusalFor('archive', selection, withDraftsAndSent, everythingOffered)).toBe('draftsAndSentStay');
+        expect(refusalFor('move', [message], withDraftsAndSent, everythingOffered)).toBeNull();
+        expect(refusalFor('delete', selection, withDraftsAndSent, everythingOffered)).toBeNull();
     });
 
     it('refuses a move across two accounts, and one with nowhere to file into', () => {

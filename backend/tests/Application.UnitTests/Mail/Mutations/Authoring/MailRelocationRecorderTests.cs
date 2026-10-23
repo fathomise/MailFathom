@@ -45,6 +45,12 @@ public sealed class MailRelocationRecorderTests
 
     private static readonly MailFolderAlias Drafts = MailFolderAlias.Create("Drafts");
 
+    private static readonly MailFolderAlias Sent = MailFolderAlias.Create("Sent");
+
+    private static readonly MailFolderAlias DraftsClients = MailFolderAlias.Create("DraftsClients");
+
+    private static readonly MailFolderAlias SentClients = MailFolderAlias.Create("SentClients");
+
     private static readonly MailFolderAlias Trash = MailFolderAlias.Create("Trash");
 
     private static readonly MailFolderAlias Projects = MailFolderAlias.Create("Projects");
@@ -105,7 +111,7 @@ public sealed class MailRelocationRecorderTests
 
         Assert.Equal(MailboxMutation.Relocate, request.Mutation);
         Assert.Equal(target.Occurrence, request.Occurrence);
-        Assert.Equal(RemoteFolderPath.Create("Archive/2026"), request.DestinationPath);
+        Assert.Equal(RemoteFolderPath.Create("Archive/2026", '/'), request.DestinationPath);
     }
 
     /// <summary>A mirrored destination keeps the local copy the mirror already carries, so the record names no disposition.</summary>
@@ -337,32 +343,55 @@ public sealed class MailRelocationRecorderTests
     }
 
     /// <summary>
-    /// The drafts folder holds drafts and nothing else, and a draft leaves it only for a folder the user made or for the
-    /// trash: each pair here is a message's folder and a destination, with the answer the service gives the move.
+    /// The drafts folder and the sent folder each stand for their whole subtree: mail moves freely inside one, nothing is
+    /// filed into either from outside it, and what is in either leaves only for the trash, which is how it is deleted.
+    /// Each pair here is a message's folder and a destination, with the answer the service gives the move.
     /// </summary>
     [Theory]
     [InlineData("INBOX", "Drafts", MailRelocationOutcome.DestinationNotAllowed)]
+    [InlineData("INBOX", "DraftsClients", MailRelocationOutcome.DestinationNotAllowed)]
+    [InlineData("INBOX", "Sent", MailRelocationOutcome.DestinationNotAllowed)]
+    [InlineData("Projects", "SentClients", MailRelocationOutcome.DestinationNotAllowed)]
+    [InlineData("Trash", "Drafts", MailRelocationOutcome.DestinationNotAllowed)]
+    [InlineData("Trash", "Sent", MailRelocationOutcome.DestinationNotAllowed)]
+    [InlineData("Drafts", "Sent", MailRelocationOutcome.DestinationNotAllowed)]
+    [InlineData("DraftsClients", "SentClients", MailRelocationOutcome.DestinationNotAllowed)]
     [InlineData("Drafts", "Archive", MailRelocationOutcome.DestinationNotAllowed)]
-    [InlineData("Drafts", "Projects", MailRelocationOutcome.Recorded)]
-    [InlineData("Drafts", "Trash", MailRelocationOutcome.Recorded)]
+    [InlineData("DraftsClients", "Projects", MailRelocationOutcome.DestinationNotAllowed)]
+    [InlineData("Sent", "Archive", MailRelocationOutcome.DestinationNotAllowed)]
+    [InlineData("SentClients", "INBOX", MailRelocationOutcome.DestinationNotAllowed)]
+    [InlineData("Drafts", "DraftsClients", MailRelocationOutcome.Recorded)]
+    [InlineData("DraftsClients", "Drafts", MailRelocationOutcome.Recorded)]
+    [InlineData("Sent", "SentClients", MailRelocationOutcome.Recorded)]
+    [InlineData("SentClients", "Sent", MailRelocationOutcome.Recorded)]
+    [InlineData("DraftsClients", "Trash", MailRelocationOutcome.Recorded)]
+    [InlineData("Sent", "Trash", MailRelocationOutcome.Recorded)]
     [InlineData("INBOX", "Archive", MailRelocationOutcome.Recorded)]
-    public async Task RecordAsync_AMoveInOrOutOfTheDraftsFolder_IsAdmittedOnlyForADraftIntoAFolderWithNoRoleOrTheTrash(
+    [InlineData("INBOX", "Projects", MailRelocationOutcome.Recorded)]
+    public async Task RecordAsync_AMoveAcrossTheEdgeOfTheDraftsOrTheSentTree_IsAdmittedOnlyIntoTheTrash(
         string from,
         string into,
         MailRelocationOutcome expected)
     {
         // Arrange
-        this.MapMirrored(Inbox, "INBOX", MailFolderSpecialUse.Inbox);
-        this.MapMirrored(Drafts, "Drafts", MailFolderSpecialUse.Drafts);
-        this.MapMirrored(Archive, "Archive", MailFolderSpecialUse.Archive);
-        this.MapMirrored(Trash, "Trash", MailFolderSpecialUse.Trash);
-        this.MapMirrored(Projects, "Projects");
-        var recorder = this.Recorder(TargetIn(MailFolderAlias.Create(from)));
+        Dictionary<string, MailFolderResolution> bound = new()
+        {
+            ["INBOX"] = this.MapMirrored(Inbox, "INBOX", MailFolderSpecialUse.Inbox),
+            ["Drafts"] = this.MapMirrored(Drafts, "Drafts", MailFolderSpecialUse.Drafts),
+            ["DraftsClients"] = this.MapMirrored(DraftsClients, "Drafts/Clients"),
+            ["Sent"] = this.MapMirrored(Sent, "Sent", MailFolderSpecialUse.Sent),
+            ["SentClients"] = this.MapMirrored(SentClients, "Sent/Clients"),
+            ["Archive"] = this.MapMirrored(Archive, "Archive", MailFolderSpecialUse.Archive),
+            ["Trash"] = this.MapMirrored(Trash, "Trash", MailFolderSpecialUse.Trash),
+            ["Projects"] = this.MapMirrored(Projects, "Projects"),
+        };
+        var source = bound[from];
+        var recorder = this.Recorder(TargetIn(source.Alias, source.RemotePath.Value));
 
         // Act
         var result = await recorder.RecordAsync(
             LocalEmail,
-            MailFolderAlias.Create(into),
+            bound[into].Alias,
             Requester,
             TestContext.Current.CancellationToken);
 
@@ -371,13 +400,46 @@ public sealed class MailRelocationRecorderTests
         Assert.Equal(expected == MailRelocationOutcome.Recorded ? 1 : 0, this.records.OpenedRecordCount);
     }
 
+    /// <summary>
+    /// Where the two folders are is read from what was recorded, so a move between two other folders asks the mail
+    /// server nothing about a drafts folder nobody has found yet — and that folder still keeps its own mail as itself.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_AnAccountWhoseDraftsFolderWasNeverFound_AsksTheServerNothingAboutIt()
+    {
+        // Arrange
+        this.MapMirrored(Inbox, "INBOX", MailFolderSpecialUse.Inbox);
+        this.MapMirrored(Archive, "Archive", MailFolderSpecialUse.Archive);
+        this.mappings.With(
+            Account,
+            MailFolderMapping.ToRemotePath(
+                Drafts,
+                RemoteFolderPath.Create("Drafts"),
+                MailFolderParticipation.MappedOnly,
+                specialUse: MailFolderSpecialUse.Drafts));
+        this.advertisedFolders.Add(new RemoteFolder(RemoteFolderPath.Create("Drafts", '/'), []));
+        var recorder = this.Recorder(TargetIn(Inbox));
+
+        // Act
+        var archived = await recorder.RecordAsync(LocalEmail, Archive, Requester, TestContext.Current.CancellationToken);
+        var draftsAfterArchiving =
+            await this.bindings.GetCurrentResolutionAsync(Account, Drafts, TestContext.Current.CancellationToken);
+        var intoDrafts = await recorder.RecordAsync(LocalEmail, Drafts, Requester, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRelocationOutcome.Recorded, archived.Outcome);
+        Assert.Null(draftsAfterArchiving);
+        Assert.Equal(MailRelocationOutcome.DestinationNotAllowed, intoDrafts.Outcome);
+    }
+
     /// <summary>Maps a folder the account mirrors, and records the binding its own synchronization run would have.</summary>
-    private void MapMirrored(MailFolderAlias alias, string remotePath, MailFolderSpecialUse? role = null)
+    private MailFolderResolution MapMirrored(MailFolderAlias alias, string remotePath, MailFolderSpecialUse? role = null)
     {
         this.mappings.With(
             Account,
             MailFolderMapping.ToRemotePath(alias, RemoteFolderPath.Create(remotePath), specialUse: role));
-        this.bindings.Bind(Account, alias, remotePath);
+
+        return this.bindings.Bind(Account, alias, remotePath, hierarchyDelimiter: '/');
     }
 
     /// <summary>A move a person watched themselves ask for must not sit under <i>moving to trash</i> until the interval is out.</summary>
@@ -430,6 +492,9 @@ public sealed class MailRelocationRecorderTests
                 new MailFolderIdentity(Account, Inbox),
                 new MailFolderIdentity(Account, Archive),
                 new MailFolderIdentity(Account, Drafts),
+                new MailFolderIdentity(Account, Sent),
+                new MailFolderIdentity(Account, DraftsClients),
+                new MailFolderIdentity(Account, SentClients),
                 new MailFolderIdentity(Account, Trash),
                 new MailFolderIdentity(Account, Projects))
             .Hiding(new MailFolderIdentity(Account, Withheld));
@@ -443,6 +508,7 @@ public sealed class MailRelocationRecorderTests
                 StubMailFolderMappings.ResolvingNothing),
             targets,
             this.mappings.Resolver,
+            this.bindings,
             this.DestinationResolver(sessions),
             this.dispositions,
             MailboxChangeSubmissions.Over(this.records),
@@ -481,9 +547,11 @@ public sealed class MailRelocationRecorderTests
             Substitute.For<ILocalMailFolderStore>());
     }
 
-    private static AuthoredMailboxTarget TargetIn(MailFolderAlias folderAlias)
+    private static AuthoredMailboxTarget TargetIn(MailFolderAlias folderAlias, string? remotePath = null)
     {
-        var folder = MailFolderResolution.FirstBindingOf(folderAlias, RemoteFolderPath.Create(folderAlias.Value));
+        var folder = MailFolderResolution.FirstBindingOf(
+            folderAlias,
+            RemoteFolderPath.Create(remotePath ?? folderAlias.Value));
 
         return new AuthoredMailboxTarget(
             EmailOccurrenceId.Create(Account, folder.Id, ImapUidValidity.Create(42), ImapUid.Create(7)),

@@ -320,6 +320,10 @@ test.describe('driven by a finger', () => {
                 await expect(toolbar).toHaveCount(0);
             }
 
+            // The single pane reads no box of its own above, so nothing has yet waited out the message's arrival, and a
+            // control measured while it travels is a frame of the motion rather than the control.
+            await settled(page);
+
             for (const control of await page.getByRole('main').getByRole('button').all()) {
                 const box = await control.boundingBox();
 
@@ -357,6 +361,11 @@ test.describe('driven by a finger', () => {
 
         await expect(message).toBeVisible();
         await page.setViewportSize({ width: phoneWindow.width, height: 480 });
+
+        // Focused once the composer has arrived, so the field is scrolled into view by what the composer leaves it
+        // rather than by focus landing on a frame of the arrival, which is how this check used to pass on a composer
+        // that left the field under its foot.
+        await settled(page);
         await message.focus();
         await page.keyboard.type('The racking arrives on the ninth.');
 

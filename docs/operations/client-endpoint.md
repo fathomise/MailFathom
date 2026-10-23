@@ -704,6 +704,11 @@ zero-width space or a bidirectional override, and no `/`, is unique among its si
 not `INBOX` at the top of the hierarchy. A held account's hierarchy is at most 16 levels deep and holds at most 1000
 live folders.
 
+**A folder is moved only within the tree it stands in.** The folder the `Drafts` role names and the one the `Sent` role
+names each root a tree of their own subfolders, and a folder carries its mail with it, so moving one into either tree
+from outside it, or out of either tree, is `CrossesDraftsOrSentTree` — except a move beneath the trash, which is how a
+folder is deleted. A subfolder is created beneath either folder, and moved around inside its tree, like any other.
+
 **What mail synchronization brings into a held account lands by correspondence.** A message arriving from a source
 folder playing one of the five roles lands in that protected folder. A message from any other source folder lands in
 the local folder created for that folder the first time one arrived — named after the source folder's own name or,
@@ -720,7 +725,7 @@ A refusal is a problem response whose `refusal` member names it, so a client bra
 | --- | --- |
 | `404` | `AccountMissing`, `FolderMissing`, `ParentMissing` |
 | `400` | `NameInvalid`, `InboxNameAtTopLevel` |
-| `409` | `AccountNotHeld`, `ProtectedRole`, `NameTaken`, `NestedInItself`, `TooDeep`, `TooManyFolders`, `RoleAlreadyPlayed`, `NotDeclaredByTheAccount`, `FoldersHeldByPolicy` |
+| `409` | `AccountNotHeld`, `ProtectedRole`, `NameTaken`, `NestedInItself`, `CrossesDraftsOrSentTree`, `TooDeep`, `TooManyFolders`, `RoleAlreadyPlayed`, `NotDeclaredByTheAccount`, `FoldersHeldByPolicy` |
 | `502` | `ServerRefused` |
 | `503` | `ServerUnavailable` |
 | `500` | `NotRecorded` |
@@ -1924,11 +1929,13 @@ reported as a destination that is not there, on the same rule that makes mail in
 there: filing mail into a folder the caller cannot read would move it out of sight rather than be a capability of its
 own.
 
-**The drafts folder is kept to drafts.** A draft is a message standing in the folder the account's `Drafts` role names;
-nothing else identifies one, because a draft reaches the mailbox from other clients that set no flag MailFathom could
-rely on. A move of anything else into the drafts folder is `destination-not-allowed`, and so is a move of a draft into
-any folder that carries a role other than the trash: a draft is filed only into a folder with no role — one a person made
-— or into the trash, which is how it is deleted.
+**The drafts folder and the sent folder keep their own mail, each together with the subfolders beneath it.** A draft
+is a message standing in the folder the account's `Drafts` role names, and a sent copy one standing in the folder its
+`Sent` role names; nothing else identifies either, because both reach the mailbox from other clients that set no flag
+MailFathom could rely on. Each folder roots a tree — itself and every folder whose path lies beneath it — and a move is
+`destination-not-allowed` where the message and the destination lie in different trees, counting everything outside
+both as a third, unless the destination is the folder the `Trash` role names: what is in either tree leaves only for
+the trash, which is how it is deleted, and moves freely between the tree's root and its subfolders.
 
 **On an account whose mailbox MailFathom holds, a change is made rather than recorded.** There is no server to carry it
 to, so a flag, a keyword, a move, or a delete on a [held account](#the-folder-management-routes) is committed to the stored
@@ -1939,7 +1946,8 @@ state will be reported.
 again. A move
 files into the local folder the destination's role names, or into the local folder the destination's source folder
 created; a destination with neither is `destination-not-found`, and a message already in that local folder is
-`already-in-destination`. A delete moves the message into the local trash, which a person can move it back out of. A
+`already-in-destination`. A delete moves the message into the local trash, which a person can move it back out of — though never into the drafts
+or the sent tree, so a deleted draft or sent copy leaves the trash only for a folder outside both. A
 delete of a message already in the trash is the one act still `recorded`: it erases the message and everything derived
 from it, so it is held for the same window as every other delete and can be withdrawn through the same route until the
 window passes. This surface names no copy at all, on a held account or any other: a rule is the only thing here that
