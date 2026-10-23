@@ -21,7 +21,6 @@ const handedToPeople = 'The address book this space was handed.';
 const handedTheList = 'The message list this space was handed.';
 const handedToDiscover = 'The answer this space was handed.';
 const handedToTheAgent = 'The conversation this space was handed.';
-const handedTheThreadField = 'The field under a correspondence this space was handed.';
 const handedTheStatus = 'The connection this space was handed.';
 
 // Every case here renders under `StrictMode`, which is what `main.tsx` mounts and what makes React invoke an effect
@@ -46,7 +45,7 @@ function inStrictMode(space: SpaceName, offered: readonly SpaceName[] = spaces):
                         <Space
                             offered={offered}
                             space={space}
-                            threadField={<p>{handedTheThreadField}</p>}
+                            readingFooted={false}
                             status={<p>{handedTheStatus}</p>}
                             folders={<p>{handedTheFolders}</p>}
                             list={<p>{handedTheList}</p>}
@@ -130,17 +129,14 @@ describe('Space', () => {
         const agent = screen.getByRole('main', { name: 'Agent' });
 
         expect(within(agent).getByText(handedToTheAgent)).toBeDefined();
-        expect(within(agent).queryByText(handedTheThreadField)).toBeNull();
         expect(within(agent).queryByText(handedTheStatus)).toBeNull();
     });
 
-    // The one space the two regions are not stood beneath: the design draws the question field under this
-    // screen's own head, so the space is handed them where it is built rather than given them here as well — and a
-    // second copy of the field is exactly what this asserts is absent.
-    it('stands neither region beneath Discover, which is handed them instead', () => {
+    // The one space the connection is not stood beneath: the design draws the question field under this screen's own
+    // head, so the space is handed the connection where it is built rather than given it here as well.
+    it('stands no connection beneath Discover, which is handed it instead', () => {
         render(inStrictMode('discover'));
 
-        expect(screen.queryByText(handedTheThreadField)).toBeNull();
         expect(screen.queryByText(handedTheStatus)).toBeNull();
     });
 
@@ -149,22 +145,6 @@ describe('Space', () => {
             const { unmount } = render(inStrictMode(space));
 
             expect(screen.getByText(handedTheStatus)).toBeDefined();
-            unmount();
-        }
-    });
-
-    // The design draws the field under a correspondence in the Mail space and nowhere else: Discover draws a field of
-    // its own, and every other space draws none at all.
-    it('draws the field under a correspondence in Mail and in no other space', () => {
-        for (const space of spaces) {
-            const { unmount } = render(inStrictMode(space));
-
-            if (space === 'mail') {
-                expect(screen.getByText(handedTheThreadField)).toBeDefined();
-            } else {
-                expect(screen.queryByText(handedTheThreadField)).toBeNull();
-            }
-
             unmount();
         }
     });
@@ -208,7 +188,6 @@ describe('Space', () => {
         const { rerender } = render(inStrictMode('tasks'));
 
         expect(within(screen.getByRole('main', { name: 'Tasks' })).getByText(handedTheStatus)).toBeDefined();
-        expect(screen.queryByText(handedTheThreadField)).toBeNull();
 
         rerender(inStrictMode('mail'));
 
@@ -226,7 +205,6 @@ describe('Space', () => {
         const { rerender } = render(inStrictMode('people'));
 
         expect(within(screen.getByRole('main', { name: 'People' })).getByText(handedTheStatus)).toBeDefined();
-        expect(screen.queryByText(handedTheThreadField)).toBeNull();
 
         rerender(inStrictMode('mail'));
 
@@ -251,7 +229,6 @@ describe('Space', () => {
         const { rerender } = render(inStrictMode('calendar'));
 
         expect(within(screen.getByRole('main', { name: 'Calendar' })).getByText(handedTheStatus)).toBeDefined();
-        expect(screen.queryByText(handedTheThreadField)).toBeNull();
 
         rerender(inStrictMode('mail'));
 
@@ -350,22 +327,20 @@ describe('Space', () => {
         expect(region.scrollTop).toBe(120);
     });
 
-    // What the frame composes for the space in front is handed to that one and to nothing else: a second live copy of
-    // the field would be a second place a reply could be asked for, and a second connection a second live region.
-    it('hands the field and the connection to Mail in front and to nothing behind it', () => {
+    // What the frame composes for the space in front is handed to that one and to nothing else: a second connection
+    // would be a second live region.
+    it('hands the connection to Mail in front and to nothing behind it', () => {
         render(inStrictMode('mail'));
 
-        expect(screen.getAllByText(handedTheThreadField)).toHaveLength(1);
         expect(screen.getAllByText(handedTheStatus)).toHaveLength(1);
-        expect(within(screen.getByRole('main', { name: 'Mail' })).getByText(handedTheThreadField)).toBeDefined();
+        expect(within(screen.getByRole('main', { name: 'Mail' })).getByText(handedTheStatus)).toBeDefined();
     });
 
-    it('takes the field away with Mail and moves the connection to the space arrived at', () => {
+    it('moves the connection to the space arrived at', () => {
         const { rerender } = render(inStrictMode('mail'));
 
         rerender(inStrictMode('tasks'));
 
-        expect(screen.queryByText(handedTheThreadField)).toBeNull();
         expect(screen.getAllByText(handedTheStatus)).toHaveLength(1);
         expect(within(screen.getByRole('main', { name: 'Tasks' })).getByText(handedTheStatus)).toBeDefined();
     });

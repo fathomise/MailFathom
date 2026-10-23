@@ -104,7 +104,7 @@ import { useTelemetry } from './telemetry/clientTelemetry';
 import { useNavigationTelemetry } from './telemetry/navigationTelemetry';
 import { Thread } from './thread/Thread';
 import { ReplyDraftingContext } from './threadAgent/replyDrafting';
-import { ThreadAgentField } from './threadAgent/ThreadAgentField';
+import { ThreadAgentField, type ReadingFoot } from './threadAgent/ThreadAgentField';
 import { useReplyDraftingState } from './threadAgent/useReplyDraftingState';
 import { ToastLifetimeContext } from './toasts/useToasts';
 import { attachmentKey, OpenAttachmentContext, type OpenedAttachment } from './workspace/openAttachment';
@@ -856,6 +856,19 @@ export function App({
         });
     }
 
+    // The AI button at the foot of a correspondence, which the design draws in the Mail space under an open message and
+    // nowhere else. What it offers is drafting a reply and asking the agent, so a deployment that asks nothing is not
+    // shown one, and one that writes no reply is offered only *Ask*. Not while a message is being written either — what
+    // stands at the foot of that column then is the composer's own footer, and two rows of controls under one column
+    // are two answers to what the primary act is — and not with the panels hidden, since the *fullscreen* control takes
+    // away everything standing around the message. Drawn by the message or the conversation itself, which is what knows
+    // the thread an *Ask* hands over; a fresh one per message opened, so what was typed under one does not stand under
+    // the next.
+    const readingFoot: ReadingFoot | null =
+        written === null && asksMail && !workspace.panelsHidden && readingACorrespondence(workspace, inTabs)
+            ? (thread) => <ThreadAgentField key={workspace.selection} thread={thread} drafts={drafts} />
+            : null;
+
     // What the reading column holds: the empty state where somebody working in tabs has closed all of them, and what
     // they have open otherwise. A function rather than a chain inside the markup, for the reason `frontend/src`'s
     // instructions give about where markup ends.
@@ -890,6 +903,7 @@ export function App({
                             onShowFullHtml={openTabs.openFullHtml}
                             onCloseFullHtml={openTabs.closeFullHtml}
                             onCloseAttachment={openTabs.closeAttachment}
+                            foot={readingFoot}
                         />
                     </MailAccountsContext>
                 </ReplyDraftingContext>
@@ -920,19 +934,6 @@ export function App({
             />
         );
     }
-
-    // The field at the foot of a correspondence, which the design draws in the Mail space under an open message and
-    // nowhere else. What it does is draft a reply, so a deployment that writes none is not shown one: absent rather than
-    // disabled, and never a press that sends somebody to another space instead. Not while a message is being written
-    // either — what stands at the foot of that column then is the composer's own footer, and two rows of controls under
-    // one column are two answers to what the primary act is. A fresh one per message opened, so what was typed under
-    // one message does not stand under the next.
-    const threadField =
-        written === null && drafts && readingACorrespondence(workspace, inTabs) ? (
-            <ReplyDraftingContext value={replyDrafting}>
-                <ThreadAgentField key={workspace.selection} />
-            </ReplyDraftingContext>
-        ) : null;
 
     const connectionSummary = <ConnectionSummary connection={connection} />;
 
@@ -1029,7 +1030,12 @@ export function App({
                                                                             : handToAgent
                                                                     }
                                                                 >
-                                                                    <div className="flex h-dvh flex-col bg-rail pt-safe-top pr-safe-right pb-safe-bottom pl-safe-left workspace:flex-row">
+                                                                    {/* Clipped rather than left to overflow: a space arriving rises
+                        from a few pixels below its place, and that offset would otherwise lengthen the document for the
+                        length of the motion, so the focus placed in the arriving space would scroll the whole frame —
+                        the navigation with it — up by that much and back. `clip` rather than `hidden`, so nothing can
+                        scroll the frame itself either. */}
+                                                                    <div className="flex h-dvh flex-col overflow-clip bg-rail pt-safe-top pr-safe-right pb-safe-bottom pl-safe-left workspace:flex-row">
                                                                         {/* Positioned because every space stays on the screen while
                         one of them is in front, each aside one laid out over this region rather than beside it —
                         `shell/Space.tsx` holds why a space is stood aside instead of taken down. */}
@@ -1081,9 +1087,9 @@ export function App({
                                                                                     // A screen never sees the credential; what it is handed is the name the deployment knows the
                                                                                     // person by, which is what a preference kept per person on this machine is written under.
                                                                                     person={person}
-                                                                                    // Where the field stands is the space's decision, which is why it is handed in rather than
-                                                                                    // drawn here.
-                                                                                    threadField={threadField}
+                                                                                    // How the reading column is laid out under the AI button is the space's decision, which is
+                                                                                    // why it is told rather than handed the button.
+                                                                                    readingFooted={readingFoot !== null}
                                                                                     status={connectionSummary}
                                                                                     agent={
                                                                                         session === null ||
@@ -1596,6 +1602,7 @@ function OpenMail({
     onShowFullHtml,
     onCloseFullHtml,
     onCloseAttachment,
+    foot,
 }: {
     readonly session: ClientSession;
     readonly transport: MailFathomTransport;
@@ -1607,6 +1614,9 @@ function OpenMail({
     readonly onShowFullHtml: (storedEmailId: string, subject: string | null) => void;
     readonly onCloseFullHtml: () => void;
     readonly onCloseAttachment: () => void;
+
+    /** The AI button the message or conversation draws at its foot, or `null` where none stands under it. */
+    readonly foot: ReadingFoot | null;
 
     /**
      * Whether the person is working in tabs, which is what decides the shape either surface is drawn in rather than
@@ -1697,6 +1707,7 @@ function OpenMail({
                     online={online}
                     onShowFullHtml={onShowFullHtml}
                     arriving={arriving}
+                    foot={foot}
                 />
             ) : (
                 <Thread
@@ -1707,6 +1718,7 @@ function OpenMail({
                     online={online}
                     expandWholeThread={expandWholeThread}
                     onShowFullHtml={onShowFullHtml}
+                    foot={foot}
                 />
             )}
 

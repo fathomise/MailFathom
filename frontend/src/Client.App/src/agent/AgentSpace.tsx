@@ -420,7 +420,7 @@ export function AgentSpace({
 
     const title = (
         <h1
-            className={`min-w-0 truncate font-semibold ${wide ? 'text-xl' : 'flex-1 text-3xl leading-tight tracking-tight'}`}
+            className={`min-w-0 flex-1 truncate font-semibold ${wide ? 'text-xl' : 'text-3xl leading-tight tracking-tight'}`}
         >
             {conversationTitle ?? translate('space.agent')}
         </h1>
@@ -458,8 +458,6 @@ export function AgentSpace({
                     history and the way to a new conversation; the wider compositions keep it after both. */}
                 {wide ? newConversation : title}
                 {wide ? title : newConversation}
-
-                {wide ? <p className="ms-auto shrink-0 text-base text-muted">{translate('agent.reach')}</p> : null}
 
                 {/* The phone gives the connection a line of its own under the bar, where it would otherwise take the
                     title's width; it draws nothing at all while the connection is fine. */}

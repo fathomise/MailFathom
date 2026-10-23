@@ -61,12 +61,35 @@ describe('SpaceNavigation', () => {
 
         expect(everyLink()).toEqual([
             ['Discover', '#/discover'],
-            ['Mail', '#/mail'],
             ['Agent', '#/agent'],
+            ['Mail', '#/mail'],
             ['Tasks', '#/tasks'],
             ['Calendar', '#/calendar'],
             ['People', '#/people'],
         ]);
+    });
+
+    // The design separates the two spaces that ask from the four that hold, with a hairline in the rail and nothing in
+    // the bar, whose places are counted; a reader hears no separator, which is decoration rather than structure.
+    it('rules the spaces that ask off from the spaces that hold in the rail, and hides the rule from the tree', () => {
+        atWorkspaceWidth(true);
+        renderNavigation();
+
+        const rule = screen.getByRole('separator', { hidden: true });
+
+        expect(screen.queryByRole('separator')).toBeNull();
+        expect(screen.getByRole('link', { name: 'Agent' }).compareDocumentPosition(rule)).toBe(
+            Node.DOCUMENT_POSITION_FOLLOWING,
+        );
+        expect(rule.compareDocumentPosition(screen.getByRole('link', { name: 'Mail' }))).toBe(
+            Node.DOCUMENT_POSITION_FOLLOWING,
+        );
+    });
+
+    it('draws no rule in the bar', () => {
+        renderNavigation();
+
+        expect(screen.queryByRole('separator', { hidden: true })).toBeNull();
     });
 
     it('names a space by what it is, with nothing appended', () => {
@@ -140,7 +163,7 @@ describe('SpaceNavigation', () => {
             (place) => place.closest('[popover]') === null,
         );
 
-        expect(places.map((place) => place.textContent)).toEqual(['Discover', 'Mail', 'Agent', handedTheBell, 'More']);
+        expect(places.map((place) => place.textContent)).toEqual(['Discover', 'Agent', 'Mail', handedTheBell, 'More']);
     });
 
     it('hands the bar’s overflow every space it had no place for, and the account after them', () => {

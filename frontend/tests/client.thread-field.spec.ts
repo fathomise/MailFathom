@@ -11,6 +11,13 @@ import * as deployment from './fixtures/deployment';
 // the frame composes around it — the list that opens a message, the card in the thread, and the composer.
 
 const drafterName = 'Draft a reply to this correspondence';
+const aiButton = 'Draft a reply or ask about this thread';
+
+/** Unfolds the AI button at the foot of what is open and takes its *Draft a reply* choice. */
+async function openTheDrafter(page: Page): Promise<void> {
+    await page.getByRole('button', { name: aiButton }).click();
+    await page.getByRole('button', { name: 'Draft a reply', exact: true }).click();
+}
 
 /**
  * Signs in to Mail as a credential that may write mail, which is what the field under a message is drawn for.
@@ -43,7 +50,7 @@ test('drafts a reply under the message it answers, and opens the composer holdin
     await openMailWritingDrafts(page);
     await page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first().click();
 
-    await page.getByRole('button', { name: 'Draft a reply' }).click();
+    await openTheDrafter(page);
     await page.getByRole('textbox', { name: drafterName }).fill('confirm the price');
     await page.getByRole('form', { name: drafterName }).getByRole('button', { name: 'Draft a reply' }).click();
 
@@ -71,28 +78,44 @@ test('closes the drafter on the next message opened, and opens it there empty', 
     const field = page.getByRole('textbox', { name: drafterName });
 
     await rows.first().click();
-    await page.getByRole('button', { name: 'Draft a reply' }).click();
+    await openTheDrafter(page);
     await field.fill('confirm the price');
     await rows.nth(1).click();
 
     await expect(page.getByRole('form', { name: drafterName })).toBeHidden();
 
-    await page.getByRole('button', { name: 'Draft a reply' }).click();
+    await openTheDrafter(page);
 
     await expect(field).toHaveValue('');
 });
 
-// The drafter stands over the thread like any surface over the screen, so the back gesture folds it into its button
+// The two choices are a layer of their own, so the back gesture folds them into the button before it reaches the
+// message they stand under — and the keyboard goes back to the button that unfolded them.
+test('folds the two choices on the back gesture before it leaves the message', async ({ page }) => {
+    await openMailWritingDrafts(page);
+    await page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first().click();
+    await page.getByRole('button', { name: aiButton }).click();
+
+    await expect(page.getByRole('button', { name: 'Draft a reply', exact: true })).toBeVisible();
+
+    await page.goBack();
+
+    await expect(page.getByRole('button', { name: 'Draft a reply', exact: true })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Ask', exact: true })).toBeHidden();
+    await expect(page.getByRole('button', { name: aiButton })).toBeFocused();
+});
+
+// The drafter stands over the thread like any surface over the screen, so the back gesture folds it into the AI button
 // before it leaves the message.
 test('folds the drafter on the back gesture before it leaves the message', async ({ page }) => {
     await openMailWritingDrafts(page);
     await page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first().click();
-    await page.getByRole('button', { name: 'Draft a reply' }).click();
+    await openTheDrafter(page);
 
     await expect(page.getByRole('form', { name: drafterName })).toBeVisible();
 
     await page.goBack();
 
     await expect(page.getByRole('form', { name: drafterName })).toBeHidden();
-    await expect(page.getByRole('button', { name: 'Draft a reply' })).toBeVisible();
+    await expect(page.getByRole('button', { name: aiButton })).toBeVisible();
 });

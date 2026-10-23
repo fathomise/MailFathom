@@ -33,7 +33,6 @@ function listStandsAside(): boolean {
 }
 const handedTheDrawer = 'Folders and filters';
 const handedToMail = 'The mail this space was handed.';
-const handedTheThreadField = 'The field under a correspondence this space was handed.';
 const handedTheStatus = 'The connection this space was handed.';
 const chooseAFolder = 'Choose a folder, as the folder tree would.';
 
@@ -255,7 +254,7 @@ function renderSpace(
                             list={<HandedList />}
                             mail={<HandedMessage />}
                             tabs={<p>{handedTheTabs}</p>}
-                            threadField={<p>{handedTheThreadField}</p>}
+                            readingFooted={false}
                             status={<p>{handedTheStatus}</p>}
                             person={person}
                         />
@@ -376,13 +375,10 @@ describe('MailSpace, wide', () => {
         expect(screen.getByText(handedToMail)).toBeDefined();
     });
 
-    it('puts the connection at the foot of the mailbox column and the field under a correspondence at the foot of the reading column', () => {
+    it('puts the connection at the foot of the mailbox column', () => {
         renderSpace(desktop);
 
         expect(screen.getByRole('complementary').contains(screen.getByText(handedTheStatus))).toBe(true);
-        expect(
-            screen.getByRole('region', { name: 'What is open' }).contains(screen.getByText(handedTheThreadField)),
-        ).toBe(true);
     });
 
     it('folds the mailbox column to a rail and opens it again, from a control named for each', () => {
@@ -622,7 +618,6 @@ describe('MailSpace, narrow', () => {
 
         expect(screen.getByText(handedToMail)).toBeDefined();
         expect(listStandsAside()).toBe(true);
-        expect(screen.getByText(handedTheThreadField)).toBeDefined();
 
         fireEvent.click(screen.getByRole('button', { name: 'Back to the list' }));
 
@@ -703,15 +698,6 @@ describe('MailSpace, in the four compositions', () => {
 
         expect(screen.getByText(handedTheList)).toBeDefined();
         expect(screen.getByText(handedToMail)).toBeDefined();
-    });
-
-    // What the control hides is everything the client says *about* the mail, which is what the design draws it taking
-    // away: the block over the correspondence and the field under it are the two halves of that, and a control that
-    // left the field standing would be one that hid half of what its name promises.
-    it('takes the field the client is asked questions in away with the rest of the panels', () => {
-        renderSpace(desktop, { selection: 'stored-1', panelsHidden: true });
-
-        expect(screen.queryByText(handedTheThreadField)).toBeNull();
     });
 
     it('keeps the list at a tablet width while nothing is open, the correspondence having nothing to stand alone with', () => {

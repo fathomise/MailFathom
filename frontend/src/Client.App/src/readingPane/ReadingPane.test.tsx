@@ -17,7 +17,8 @@ import {
     type MessageOpened,
     type ReadMarking,
 } from '../readMarking/useReadMarking';
-import { ThreadAgentField } from '../threadAgent/ThreadAgentField';
+import { ThreadAgentField, type ReadingFoot } from '../threadAgent/ThreadAgentField';
+import { AgentHandOverContext } from '../routing/agentHandOver';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
 import { emptyWorkspace, useWorkspace, type Workspace } from '../workspace/useWorkspace';
 import { WorkspaceProvider } from '../workspace/Workspace';
@@ -45,6 +46,10 @@ const deliversNothing: AttachmentExchange = {
     read: () => Promise.resolve({ outcome: 'shown', content: '' }),
     take: () => Promise.resolve({ outcome: 'taken', octets: new Blob() }),
 };
+
+function headersOf(): Readonly<Record<string, unknown>> {
+    return (JSON.parse(description()) as { headers: Readonly<Record<string, unknown>> }).headers;
+}
 
 function description(overrides: Readonly<Record<string, unknown>> = {}): string {
     return JSON.stringify({
@@ -158,6 +163,7 @@ function drawing(
     deliver: AttachmentExchange = deliversNothing,
     marking: ReadMarking = nothingMarkedRead,
     signalled: SignalledChanges = nothingSignalled,
+    foot: ReadingFoot | null = null,
 ): void {
     render(
         <SignalledChangesContext value={signalled}>
@@ -174,6 +180,7 @@ function drawing(
                                             storedEmailId={storedEmailId}
                                             online={online}
                                             onShowFullHtml={() => undefined}
+                                            foot={foot}
                                         />
                                     </ReadMarkingContext>
                                 </OpenAttachmentContext>
@@ -310,6 +317,37 @@ describe('ReadingPane', () => {
         rerender(paneReading(transport, true));
 
         expect(await screen.findByText('The invoice is attached.')).toBeDefined();
+    });
+
+    // What the foot is handed is what *Ask* sends to the agent, so it is drawn here as words a test can read.
+    const footSaying: ReadingFoot = (thread) => (
+        <p>{thread === null ? 'Nothing to hand over' : `${thread.scope.subject ?? 'no subject'} · ${thread.title}`}</p>
+    );
+
+    it.each([
+        [
+            'the conversation and its subject',
+            { threadId: '00000000-0000-4000-8000-000000000007' },
+            '00000000-0000-4000-8000-000000000007 · Quarterly invoice',
+        ],
+        [
+            'the conversation and a title saying it has no subject',
+            { threadId: '00000000-0000-4000-8000-000000000007', headers: { ...headersOf(), subject: null } },
+            '00000000-0000-4000-8000-000000000007 · No subject',
+        ],
+        ['nothing where the message belongs to no conversation', {}, 'Nothing to hand over'],
+    ])('hands the AI button at its foot %s', async (_, overrides, said) => {
+        drawing(
+            deploymentDescribing(description(overrides)),
+            messageId,
+            true,
+            deliversNothing,
+            nothingMarkedRead,
+            nothingSignalled,
+            footSaying,
+        );
+
+        expect(await screen.findByText(said)).toBeDefined();
     });
 
     it('draws the headers and the body of the message it read', async () => {
@@ -1107,20 +1145,28 @@ describe('ReadingPane selection', () => {
                 <ToastsProvider>
                     <WorkspaceProvider>
                         <Opened />
-                        <LinkOpenerContext value={() => Promise.resolve()}>
-                            <AttachmentExchangeContext value={deliversNothing}>
-                                <OpenAttachmentContext value={() => undefined}>
-                                    <ThreadAgentField />
-                                    <ReadingPane
-                                        session={session}
-                                        transport={deploymentDescribing()}
-                                        storedEmailId={messageId}
-                                        online
-                                        onShowFullHtml={() => undefined}
-                                    />
-                                </OpenAttachmentContext>
-                            </AttachmentExchangeContext>
-                        </LinkOpenerContext>
+                        <AgentHandOverContext value={() => undefined}>
+                            <LinkOpenerContext value={() => Promise.resolve()}>
+                                <AttachmentExchangeContext value={deliversNothing}>
+                                    <OpenAttachmentContext value={() => undefined}>
+                                        <ThreadAgentField
+                                            thread={{
+                                                scope: { kind: 'thread', subject: 'thread-1' },
+                                                title: 'Quarterly invoice',
+                                            }}
+                                            drafts={false}
+                                        />
+                                        <ReadingPane
+                                            session={session}
+                                            transport={deploymentDescribing()}
+                                            storedEmailId={messageId}
+                                            online
+                                            onShowFullHtml={() => undefined}
+                                        />
+                                    </OpenAttachmentContext>
+                                </AttachmentExchangeContext>
+                            </LinkOpenerContext>
+                        </AgentHandOverContext>
                     </WorkspaceProvider>
                 </ToastsProvider>
             </LocalizationProvider>,

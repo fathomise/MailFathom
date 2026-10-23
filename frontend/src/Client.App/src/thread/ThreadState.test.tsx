@@ -270,32 +270,22 @@ describe('ThreadState', () => {
         expect(sheet.open).toBe(true);
     });
 
-    it('hands the conversation to the agent from the line a phone draws, and from the foot of its sheet', () => {
+    it('hands the conversation to the agent from the foot of the sheet a phone opens', () => {
         const handToAgent = vi.fn();
         render(drawing(stateOf([entry()]), false, undefined, true, handToAgent));
 
-        fireEvent.click(screen.getByRole('button', { name: 'Ask' }));
         fireEvent.click(screen.getByRole('button', { name: 'Where this conversation stands' }));
         fireEvent.click(screen.getByRole('button', { name: 'Go to the agent - I’ll ask in my own words' }));
 
-        expect(handToAgent).toHaveBeenNthCalledWith(1, conversation);
-        expect(handToAgent).toHaveBeenNthCalledWith(2, conversation);
+        expect(handToAgent).toHaveBeenCalledExactlyOnceWith(conversation);
         expect(screen.getByRole<HTMLDialogElement>('dialog', { hidden: true }).open).toBe(false);
     });
 
-    // Absence is the common state, and a phone still owes the way to the agent there: the head has given it up.
-    it('hands the conversation to the agent from a phone band with nothing derived to say', () => {
-        const handToAgent = vi.fn();
-        render(drawing(null, false, undefined, true, handToAgent));
+    // The design gives *Ask* to the AI button at the thread's foot, so the line a phone draws carries no second one.
+    it('draws no *Ask* on the line a phone draws', () => {
+        render(drawing(stateOf([entry()]), false, undefined, true, vi.fn()));
 
-        fireEvent.click(screen.getByRole('button', { name: 'Ask' }));
-
-        expect(handToAgent).toHaveBeenCalledWith(conversation);
-    });
-
-    it('draws no way to the agent on a phone for a credential that has no agent to reach', () => {
-        render(drawing(stateOf([entry()])));
-
+        expect(screen.getByRole('button', { name: 'Where this conversation stands' })).toBeDefined();
         expect(screen.queryByRole('button', { name: 'Ask' })).toBeNull();
     });
 

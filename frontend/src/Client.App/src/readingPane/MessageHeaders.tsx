@@ -68,7 +68,6 @@ export function MessageHeaders({
     message,
     subject: subjectOfTheWhole,
     messagesInThread,
-    thread = null,
     children,
 }: {
     readonly headers: MailMessageHeaders;
@@ -88,9 +87,6 @@ export function MessageHeaders({
      * rather than as a sentence of its own.
      */
     readonly messagesInThread?: number | null;
-
-    /** The conversation the message belongs to, which is what the head hands to the agent, or `null` where none is known. */
-    readonly thread?: string | null;
 
     /** What the head says under that line, which is whatever the surface owes about what it could not assemble. */
     readonly children?: ReactNode;
@@ -161,12 +157,7 @@ export function MessageHeaders({
                     {subject}
                 </h2>
 
-                <HeadActs
-                    compact={!twoPanes}
-                    toolbarCarriesActs={toolbarCarriesActs}
-                    message={message}
-                    thread={thread === null ? null : { scope: { kind: 'thread', subject: thread }, title: subject }}
-                />
+                <HeadActs compact={!twoPanes} toolbarCarriesActs={toolbarCarriesActs} message={message} />
             </div>
 
             {/* A line with nobody behind it is a line rather than a control: a disclosure that unfolds nothing would

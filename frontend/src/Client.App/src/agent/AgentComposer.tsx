@@ -93,118 +93,122 @@ export function AgentComposer({
     }
 
     return (
-        <div className="flex shrink-0 flex-col gap-2.25 border-t border-line bg-panel px-3.5 py-3 workspace:gap-2.5 workspace:px-6.5 workspace:pt-3.5 workspace:pb-4">
-            {context === null ? null : (
-                <p className="flex max-w-full items-center gap-2.25 self-start rounded-lg border border-accent-line bg-accent-soft py-2 ps-3 pe-2.5 text-accent-deep">
-                    <Icon name="attach_file" className="size-icon-md shrink-0" />
-                    <span className="min-w-0 flex-1 truncate text-base">{context}</span>
+        // The band runs the whole width of the space, and what stands in it is the conversation's own column: the same
+        // measure, centring and inset as `ConversationThread.tsx`, so the field lines up under the turns it answers.
+        <div className="shrink-0 border-t border-line bg-panel py-3 workspace:pt-3.5 workspace:pb-4">
+            <div className="mx-auto flex w-full max-w-agent-thread flex-col gap-2.25 px-3.5 workspace:gap-2.5 workspace:px-6.5">
+                {context === null ? null : (
+                    <p className="flex max-w-full items-center gap-2.25 self-start rounded-lg border border-accent-line bg-accent-soft py-2 ps-3 pe-2.5 text-accent-deep">
+                        <Icon name="attach_file" className="size-icon-md shrink-0" />
+                        <span className="min-w-0 flex-1 truncate text-base">{context}</span>
+                        <button
+                            type="button"
+                            aria-label={translate('agent.clearContext')}
+                            title={translate('agent.clearContext')}
+                            className="flex shrink-0 items-center justify-center rounded-xs transition hover:text-text"
+                            onClick={() => {
+                                onClearContext();
+                                input.current?.focus();
+                            }}
+                        >
+                            <Icon name="close" className="size-icon-md" />
+                        </button>
+                    </p>
+                )}
+
+                {offersStarters ? (
+                    <ul aria-label={translate('agent.starters')} className="flex flex-wrap gap-2">
+                        {starters.map((starter) => (
+                            <li key={starter}>
+                                <button
+                                    type="button"
+                                    aria-label={translate('agent.askStarter', { question: translate(starter) })}
+                                    className="rounded-xl border border-line-strong bg-panel px-3.25 py-1.75 text-base text-text-soft transition hover:border-accent hover:text-accent-deep"
+                                    onClick={() => {
+                                        void send(translate(starter));
+                                    }}
+                                >
+                                    {translate(starter)}
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                ) : null}
+
+                <form
+                    className="flex w-full items-center gap-2 rounded-lg border-2 border-accent bg-panel py-1.5 ps-3.5 pe-1.5 transition focus-within:ring-3 focus-within:ring-accent-soft workspace:gap-3 desktop:px-3.25 desktop:py-2.5"
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        void send(text);
+                    }}
+                >
+                    <label htmlFor={field} className="sr-only">
+                        {translate('agent.composerLabel')}
+                    </label>
+
+                    <input
+                        ref={input}
+                        id={field}
+                        value={text}
+                        autoComplete="off"
+                        placeholder={translate(wide ? 'agent.composerPlaceholder' : 'agent.composerPlaceholderShort')}
+                        className="min-w-0 flex-1 bg-transparent text-lg text-text outline-none placeholder:text-faint"
+                        onChange={(event) => {
+                            setText(event.target.value);
+                        }}
+                    />
+
+                    {/* The phone draws both buttons as their symbols, so the field keeps the width its prompt needs; and no
+                    button names a key where a finger drives the client, since there is no keyboard to press it on. */}
+                    <button
+                        type="submit"
+                        disabled={sending}
+                        aria-label={wide ? undefined : translate('agent.send')}
+                        title={wide ? undefined : translate('agent.send')}
+                        className="flex size-11 shrink-0 items-center justify-center rounded-md bg-accent text-base whitespace-nowrap text-on-accent transition hover:opacity-90 disabled:opacity-60 workspace:size-auto workspace:px-4.5 workspace:py-2 desktop:px-4"
+                    >
+                        {wide ? (
+                            <>
+                                {translate('agent.send')}
+                                <span aria-hidden="true" className="ms-1 pointer-coarse:hidden">
+                                    {translate('agent.sendKey')}
+                                </span>
+                            </>
+                        ) : (
+                            <Icon name="send" className="size-icon-xl" />
+                        )}
+                    </button>
+
                     <button
                         type="button"
-                        aria-label={translate('agent.clearContext')}
-                        title={translate('agent.clearContext')}
-                        className="flex shrink-0 items-center justify-center rounded-xs transition hover:text-text"
+                        aria-disabled={!running}
+                        aria-label={translate(running ? 'agent.cancelRunning' : 'agent.cancelIdle')}
+                        title={wide ? undefined : translate(running ? 'agent.cancelRunning' : 'agent.cancelIdle')}
+                        tabIndex={running ? 0 : -1}
+                        className={`flex size-11 shrink-0 items-center justify-center rounded-md border text-base whitespace-nowrap transition workspace:size-auto workspace:px-4 workspace:py-2 desktop:px-3.5 ${
+                            running
+                                ? 'border-error bg-error font-semibold text-on-accent hover:opacity-90'
+                                : 'cursor-default border-line text-faint'
+                        }`}
                         onClick={() => {
-                            onClearContext();
-                            input.current?.focus();
+                            if (running) {
+                                onCancel();
+                            }
                         }}
                     >
-                        <Icon name="close" className="size-icon-md" />
+                        {wide ? translate('agent.cancel') : <Icon name="cancel" className="size-icon-xl" />}
                     </button>
-                </p>
-            )}
+                </form>
 
-            {offersStarters ? (
-                <ul aria-label={translate('agent.starters')} className="flex flex-wrap gap-2">
-                    {starters.map((starter) => (
-                        <li key={starter}>
-                            <button
-                                type="button"
-                                aria-label={translate('agent.askStarter', { question: translate(starter) })}
-                                className="rounded-xl border border-line-strong bg-panel px-3.25 py-1.75 text-base text-text-soft transition hover:border-accent hover:text-accent-deep"
-                                onClick={() => {
-                                    void send(translate(starter));
-                                }}
-                            >
-                                {translate(starter)}
-                            </button>
-                        </li>
-                    ))}
-                </ul>
-            ) : null}
+                {notSent === null ? null : (
+                    <p role="alert" className="flex items-start gap-1.75 text-sm text-warning-text text-pretty">
+                        <Icon name="error" className="mt-0.25 size-icon-sm shrink-0" />
+                        {notSent}
+                    </p>
+                )}
 
-            <form
-                className="flex w-full max-w-agent-thread items-center gap-2 rounded-lg border-2 border-accent bg-panel py-1.5 ps-3.5 pe-1.5 transition focus-within:ring-3 focus-within:ring-accent-soft workspace:gap-3 desktop:px-3.25 desktop:py-2.5"
-                onSubmit={(event) => {
-                    event.preventDefault();
-                    void send(text);
-                }}
-            >
-                <label htmlFor={field} className="sr-only">
-                    {translate('agent.composerLabel')}
-                </label>
-
-                <input
-                    ref={input}
-                    id={field}
-                    value={text}
-                    autoComplete="off"
-                    placeholder={translate(wide ? 'agent.composerPlaceholder' : 'agent.composerPlaceholderShort')}
-                    className="min-w-0 flex-1 bg-transparent text-lg text-text outline-none placeholder:text-faint"
-                    onChange={(event) => {
-                        setText(event.target.value);
-                    }}
-                />
-
-                {/* The phone draws both buttons as their symbols, so the field keeps the width its prompt needs; and no
-                    button names a key where a finger drives the client, since there is no keyboard to press it on. */}
-                <button
-                    type="submit"
-                    disabled={sending}
-                    aria-label={wide ? undefined : translate('agent.send')}
-                    title={wide ? undefined : translate('agent.send')}
-                    className="flex size-11 shrink-0 items-center justify-center rounded-md bg-accent text-base whitespace-nowrap text-on-accent transition hover:opacity-90 disabled:opacity-60 workspace:size-auto workspace:px-4.5 workspace:py-2 desktop:px-4"
-                >
-                    {wide ? (
-                        <>
-                            {translate('agent.send')}
-                            <span aria-hidden="true" className="ms-1 pointer-coarse:hidden">
-                                {translate('agent.sendKey')}
-                            </span>
-                        </>
-                    ) : (
-                        <Icon name="send" className="size-icon-xl" />
-                    )}
-                </button>
-
-                <button
-                    type="button"
-                    aria-disabled={!running}
-                    aria-label={translate(running ? 'agent.cancelRunning' : 'agent.cancelIdle')}
-                    title={wide ? undefined : translate(running ? 'agent.cancelRunning' : 'agent.cancelIdle')}
-                    tabIndex={running ? 0 : -1}
-                    className={`flex size-11 shrink-0 items-center justify-center rounded-md border text-base whitespace-nowrap transition workspace:size-auto workspace:px-4 workspace:py-2 desktop:px-3.5 ${
-                        running
-                            ? 'border-error bg-error font-semibold text-on-accent hover:opacity-90'
-                            : 'cursor-default border-line text-faint'
-                    }`}
-                    onClick={() => {
-                        if (running) {
-                            onCancel();
-                        }
-                    }}
-                >
-                    {wide ? translate('agent.cancel') : <Icon name="cancel" className="size-icon-xl" />}
-                </button>
-            </form>
-
-            {notSent === null ? null : (
-                <p role="alert" className="flex items-start gap-1.75 text-sm text-warning-text text-pretty">
-                    <Icon name="error" className="mt-0.25 size-icon-sm shrink-0" />
-                    {notSent}
-                </p>
-            )}
-
-            <p className="text-xs text-faint">{translate('agent.footer')}</p>
+                <p className="text-xs text-faint">{translate('agent.footer')}</p>
+            </div>
         </div>
     );
 }

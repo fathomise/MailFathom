@@ -9,6 +9,7 @@ import type { ClientRequest, ClientSession, MailFathomTransport } from '@mailfat
 import type { ComposerOpening } from '../composer/composition';
 import { ComposingContext } from '../composer/useComposing';
 import { LocalizationProvider } from '../localization/Localization';
+import { AgentHandOverContext, type AgentHandOver } from '../routing/agentHandOver';
 import { ToastsProvider } from '../toasts/Toasts';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import { useWorkspace, type Workspace } from '../workspace/useWorkspace';
@@ -19,7 +20,8 @@ import { useReplyDraftingState } from './useReplyDraftingState';
 
 // The field and the card are drawn a scroller apart and share one draft, so they are driven together here, through the
 // state the frame holds for them and a transport answering the one route they reach. What is asserted is what a reader
-// meets: the wording at each composition, the card that appears, and where focus goes when it leaves.
+// meets: the two choices the AI button unfolds, the wording at each composition, the card that appears, and where focus
+// goes when it leaves.
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
 
@@ -103,21 +105,28 @@ function Reporting({ onWorkspace }: { readonly onWorkspace: (workspace: Workspac
 
 const signedInAs = 'https://mail.example.invalid\nagata';
 
+const thread: AgentHandOver = {
+    scope: { kind: 'thread', subject: '00000000-0000-4000-8000-000000000099' },
+    title: 'Service level agreement',
+};
+
 function Frame({
     person,
     presented,
     transport,
+    drafts,
 }: {
     readonly person: string;
     readonly presented: ClientSession;
     readonly transport: MailFathomTransport;
+    readonly drafts: boolean;
 }) {
     const drafting = useReplyDraftingState(person, presented, transport);
 
     return (
         <ReplyDraftingContext value={drafting}>
             <ReplyDraftCard under={answering} />
-            <ThreadAgentField />
+            <ThreadAgentField thread={thread} drafts={drafts} />
         </ReplyDraftingContext>
     );
 }
@@ -126,6 +135,10 @@ function drawing(
     transport: MailFathomTransport,
     as: Partial<Workspace> = {},
     offered = true,
+    {
+        handToAgent = null,
+        drafts = true,
+    }: { handToAgent?: ((handOver: AgentHandOver) => void) | null; drafts?: boolean } = {},
 ): {
     composed: ReturnType<typeof vi.fn<(opening: ComposerOpening) => void>>;
     workspace: () => Workspace;
@@ -143,13 +156,15 @@ function drawing(
                     <ComposingContext
                         value={{ offered, drafts: true, opening: null, compose: composed, close: () => undefined }}
                     >
-                        <Standing as={standing} />
-                        <Frame person={person} presented={presented} transport={transport} />
-                        <Reporting
-                            onWorkspace={(workspace) => {
-                                last = workspace;
-                            }}
-                        />
+                        <AgentHandOverContext value={handToAgent}>
+                            <Standing as={standing} />
+                            <Frame person={person} presented={presented} transport={transport} drafts={drafts} />
+                            <Reporting
+                                onWorkspace={(workspace) => {
+                                    last = workspace;
+                                }}
+                            />
+                        </AgentHandOverContext>
                     </ComposingContext>
                 </WorkspaceProvider>
             </ToastsProvider>
@@ -182,10 +197,12 @@ function drawing(
 }
 
 const drafterName = 'Draft a reply to this correspondence';
+const aiButton = 'Draft a reply or ask about this thread';
 
-/** Opens the drafter where it is folded into its button, which is how it stands until somebody asks for it. */
+/** Opens the drafter where it is folded into the AI button, which is how it stands until somebody asks for it. */
 function openingTheDrafter(): void {
     if (screen.queryByRole('form', { name: drafterName }) === null) {
+        fireEvent.click(screen.getByRole('button', { name: aiButton }));
         fireEvent.click(screen.getByRole('button', { name: 'Draft a reply' }));
     }
 }
@@ -202,21 +219,93 @@ function draftingAReply(): void {
 }
 
 describe('ThreadAgentField', () => {
-    it('stands folded into its button until somebody asks for it', () => {
+    it('stands folded into the AI button until somebody asks for it', () => {
         drawing(answeringDrafts().transport);
 
-        expect(screen.getByRole('button', { name: 'Draft a reply' })).toBeDefined();
+        expect(screen.getByRole('button', { name: aiButton }).getAttribute('aria-expanded')).toBe('false');
+        expect(screen.queryByRole('button', { name: 'Draft a reply' })).toBeNull();
         expect(screen.queryByRole('form', { name: drafterName })).toBeNull();
     });
 
-    it('opens the drafter from its button, with the keyboard in the field', () => {
+    it('unfolds its two choices from the AI button, with the keyboard on the first', () => {
+        drawing(answeringDrafts().transport, {}, true, { handToAgent: () => undefined });
+
+        fireEvent.click(screen.getByRole('button', { name: aiButton }));
+
+        const choices = screen.getByRole('group', { name: aiButton });
+
+        expect(screen.getByRole('button', { name: aiButton }).getAttribute('aria-expanded')).toBe('true');
+        expect(
+            within(choices)
+                .getAllByRole('button')
+                .map((choice) => choice.textContent),
+        ).toEqual(['Draft a reply', 'Ask']);
+        expect(document.activeElement).toBe(within(choices).getByRole('button', { name: 'Draft a reply' }));
+    });
+
+    it('folds the choices again on Escape, and puts the keyboard back on the AI button', () => {
+        drawing(answeringDrafts().transport, {}, true, { handToAgent: () => undefined });
+
+        fireEvent.click(screen.getByRole('button', { name: aiButton }));
+        fireEvent.keyDown(screen.getByRole('button', { name: 'Draft a reply' }), { key: 'Escape' });
+
+        expect(screen.queryByRole('group', { name: aiButton })).toBeNull();
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: aiButton }));
+    });
+
+    it('folds the choices when somebody presses anywhere else', () => {
+        drawing(answeringDrafts().transport, {}, true, { handToAgent: () => undefined });
+
+        fireEvent.click(screen.getByRole('button', { name: aiButton }));
+        fireEvent.pointerDown(document.body);
+
+        expect(screen.queryByRole('group', { name: aiButton })).toBeNull();
+    });
+
+    it('hands the conversation to the agent from *Ask*', () => {
+        const handToAgent = vi.fn<(handOver: AgentHandOver) => void>();
+
+        drawing(answeringDrafts().transport, {}, true, { handToAgent });
+
+        fireEvent.click(screen.getByRole('button', { name: aiButton }));
+        fireEvent.click(screen.getByRole('button', { name: 'Ask' }));
+
+        expect(handToAgent).toHaveBeenCalledExactlyOnceWith(thread);
+        expect(screen.queryByRole('group', { name: aiButton })).toBeNull();
+    });
+
+    it('offers *Ask* alone where the deployment drafts no replies', () => {
+        drawing(answeringDrafts().transport, {}, true, { handToAgent: () => undefined, drafts: false });
+
+        fireEvent.click(screen.getByRole('button', { name: aiButton }));
+
+        expect(screen.queryByRole('button', { name: 'Draft a reply' })).toBeNull();
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Ask' }));
+    });
+
+    it('offers *Draft a reply* alone where this credential has no agent to ask', () => {
         drawing(answeringDrafts().transport);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Draft a reply' }));
+        fireEvent.click(screen.getByRole('button', { name: aiButton }));
+
+        expect(screen.getByRole('button', { name: 'Draft a reply' })).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Ask' })).toBeNull();
+    });
+
+    it('draws nothing where neither choice is offered', () => {
+        drawing(answeringDrafts().transport, {}, true, { drafts: false });
+
+        expect(screen.queryByRole('button', { name: aiButton })).toBeNull();
+    });
+
+    it('opens the drafter from its choice, with the keyboard in the field', () => {
+        drawing(answeringDrafts().transport);
+
+        openingTheDrafter();
 
         expect(screen.getByRole('form', { name: drafterName })).toBeDefined();
         expect(document.activeElement).toBe(screen.getByRole('textbox', { name: drafterName }));
-        expect(screen.queryByRole('button', { name: 'Draft a reply' })).toBeNull();
+        expect(screen.queryByRole('button', { name: aiButton })).toBeNull();
     });
 
     it('folds the drafter back into its button from the close badge, and puts the keyboard on the button', () => {
@@ -226,7 +315,7 @@ describe('ThreadAgentField', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Close the reply drafter' }));
 
         expect(screen.queryByRole('form', { name: drafterName })).toBeNull();
-        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Draft a reply' }));
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: aiButton }));
     });
 
     it('puts the keyboard on the drafter’s field when a draft is discarded with the drafter open', async () => {
@@ -255,7 +344,7 @@ describe('ThreadAgentField', () => {
         draftingAReply();
 
         expect(screen.queryByRole('form', { name: drafterName })).toBeNull();
-        expect(screen.getByRole('button', { name: 'Draft a reply' })).toBeDefined();
+        expect(screen.getByRole('button', { name: aiButton })).toBeDefined();
     });
 
     it('keeps what was typed while it is folded, so reopening it is not starting again', () => {
@@ -411,14 +500,14 @@ describe('ReplyDraftCard', () => {
         expect(screen.queryByRole('region', { name: 'Draft · local' })).toBeNull();
     });
 
-    it('discards the draft and puts the keyboard back on the button it was asked for from', async () => {
+    it('discards the draft and puts the keyboard back on the AI button it was asked for from', async () => {
         drawing(answeringDrafts().transport);
 
         draftingAReply();
         fireEvent.click(await screen.findByRole('button', { name: 'Discard draft' }));
 
         expect(screen.queryByRole('region', { name: 'Draft · local' })).toBeNull();
-        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Draft a reply' }));
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: aiButton }));
     });
 
     it('offers no composer where the deployment offers none, and still lets the draft go', async () => {

@@ -24,6 +24,7 @@ import { MessageWaiting } from '../messageBody/Message';
 import { MessageHeaders } from '../readingPane/MessageHeaders';
 import { animationsReported, departureFinished } from '../shell/departure';
 import { useTwoPanes } from '../shell/useWideWorkspace';
+import type { ReadingFoot } from '../threadAgent/ThreadAgentField';
 import type { OpenConversation } from '../workspace/openConversation';
 import { useWorkspace } from '../workspace/useWorkspace';
 import { arrivalMark, arrivesAt, holdsMessage, messagesOf, type Arrival } from './threadOpening';
@@ -102,6 +103,7 @@ export function Thread({
     online,
     expandWholeThread,
     onShowFullHtml,
+    foot = null,
 }: {
     readonly session: ClientSession;
     readonly transport: MailFathomTransport;
@@ -113,6 +115,9 @@ export function Thread({
 
     /** Opens the surface drawing one message's own markup, which each message of the conversation offers. */
     readonly onShowFullHtml: (storedEmailId: string, subject: string | null) => void;
+
+    /** The AI button the conversation draws at its foot, or `null` where none stands under it. */
+    readonly foot?: ReadingFoot | null;
 }) {
     const { locale, translate } = useLocalization();
     const { workspace } = useWorkspace();
@@ -414,6 +419,7 @@ export function Thread({
     // a state the block says in a sentence.
     const derived = derivation?.outcome === 'read' ? derivation.value : null;
     const subject = held[0]?.email.subject ?? translate('message.noSubject');
+    const handOver = { scope: { kind: 'thread', subject: conversation.threadId }, title: subject } as const;
     const stateBlock =
         derivation?.outcome === 'failed' || (panelsHidden && twoPanes) ? undefined : (
             <ThreadState
@@ -421,7 +427,7 @@ export function Thread({
                 reading={derivation === null}
                 online={online}
                 messages={held}
-                thread={{ scope: { kind: 'thread', subject: conversation.threadId }, title: subject }}
+                thread={handOver}
                 onFollowSource={followSource}
             />
         );
@@ -429,6 +435,7 @@ export function Thread({
     return (
         <Conversation
             state={stateBlock}
+            foot={foot?.(handOver)}
             header={
                 // One head rather than a second arrangement of the same three things. The design draws a conversation's
                 // head and a message's head identically — the subject with the acts beside it, and under it the one
@@ -441,7 +448,6 @@ export function Thread({
                         message={actedOn(opened)}
                         subject={subject}
                         messagesInThread={latest.messageCount}
-                        thread={conversation.threadId}
                     >
                         {latest.moreParticipantsNotNamed ? (
                             <p className="text-base text-muted">{translate('thread.moreParticipants')}</p>
@@ -678,9 +684,13 @@ function actedOn(message: MailThreadMessage): ActedMessage {
 function Conversation({
     header,
     state,
+    foot,
     children,
 }: {
     readonly header?: ReactNode;
+
+    /** The AI button the conversation draws as the last thing in it, which stays at the column's foot as it scrolls. */
+    readonly foot?: ReactNode;
 
     /** Where the conversation stands, which stands across the column between its head and its messages. */
     readonly state?: ReactNode;
@@ -690,12 +700,14 @@ function Conversation({
     const { translate } = useLocalization();
 
     return (
-        <section aria-label={translate('thread.label')} className="flex flex-col">
+        <section aria-label={translate('thread.label')} className="flex grow flex-col">
             {header}
 
             {state}
 
             <div className="flex flex-col gap-3 px-5.5 py-4.5">{children}</div>
+
+            {foot}
         </section>
     );
 }
