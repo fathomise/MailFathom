@@ -77,23 +77,25 @@ name: Protected paths
 #   `global.json`             the SDK pin every build, every gate, and every CI run resolves against
 #
 # A pull request that edits any of them is editing the gate it has to pass, the terms the project is
-# published under, or the record a release stands on, so the maintainers are the only human authors
-# for whom that is ordinary work. A maintainer is an account holding the `maintain` or `admin` role on
-# the repository, which is what the organization's `maintainers` team is given; the step below
-# carries why the role is read rather than the team. `CODEOWNERS` says this to the reviewer; this job
+# published under, or the record a release stands on. Any author may propose that, an agent
+# included; a pull request doing it from an author who is not a maintainer is held until a
+# maintainer approves its head, and a maintainer's own passes this check on authorship. A
+# maintainer is an account holding the `maintain` or `admin` role on the repository, which is what
+# the organization's `maintainers` team is given; the step below carries why the role is read
+# rather than the team. `CODEOWNERS` says this to the reviewer; this job
 # says it to the author, within seconds of the push and without a reviewer having to notice. One
 # automated author is recognised beside the maintainers, for `.github/workflows/` alone; the step
 # below carries the exception and the argument for why it removes a signal rather than an approval.
 #
-# The refusal is a first answer rather than a last one. Once a maintainer has read such a change and
+# The hold is a first answer rather than a last one. Once a maintainer has read such a change and
 # wants it, their approving review of the pull request's current head clears the check, which is why
 # the job also runs when a review is submitted or dismissed. The approval names a commit, so the next
-# push leaves it naming an older one and the check refuses again until a maintainer approves what
+# push leaves it naming an older one and the check holds again until a maintainer approves what
 # arrived. That is the review the `main` ruleset already asks for, so accepting a change costs the
 # maintainer no second step, and it keeps the merge inside the queue rather than bypassing the ruleset.
 #
 # Whichever way it decides, the job names the protected files the pull request touched, in the step
-# log and in the job summary. The refusal needs that list to be actionable, and the pass needs it
+# log and in the job summary. The hold needs that list to be actionable, and the pass needs it
 # just as much: a maintainer is allowed to change these paths, not expected to have meant to, and an
 # `.editorconfig` that arrived with a rebase is only visible if something says so.
 #
@@ -401,11 +403,11 @@ jobs:
           fi
 
           # A `file=` annotation attaches each path to its own entry in the pull request's Files
-          # changed view, so the refusal is readable where the change is read rather than only in the
+          # changed view, so the hold is readable where the change is read rather than only in the
           # step log.
           for protected_change in "${protected_changes[@]}"; do
-            echo "::error file=${protected_change}::${protected_change} decides how other changes are judged, what the project is published under, or what a release claims it shipped, and only a maintainer of the repository may change it in a pull request or approve the change."
+            echo "::error file=${protected_change}::${protected_change} decides how other changes are judged, what the project is published under, or what a release claims it shipped, so a change to it waits for a maintainer of the repository to approve this pull request's current head."
           done
 
-          echo "::error::This pull request is authored by ${PULL_REQUEST_AUTHOR} and changes ${#protected_changes[@]} protected path(s): ${protected_changes[*]}. Open that change separately, ask a maintainer to make it, or ask one to approve this head, which clears this check."
+          echo "::error::This pull request is authored by ${PULL_REQUEST_AUTHOR} and changes ${#protected_changes[@]} protected path(s): ${protected_changes[*]}. The change may stay in this pull request: a maintainer's approval of this head clears this check, and a later push waits for a fresh one."
           exit 1

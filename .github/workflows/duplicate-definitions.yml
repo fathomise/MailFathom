@@ -154,9 +154,9 @@ jobs:
       #
       # The prefilter and the schema above are read from the combined tree, which is the trust a
       # `merge_group` run already gives that tree's copy of this file: GitHub runs the workflow as
-      # the group's head commit defines it. Both sit under `.github/`, which `Protected paths` refuses
-      # from any author but a maintainer, so a queued change to either is a maintainer's — as it
-      # would be to this step.
+      # the group's head commit defines it. Both sit under `.github/`, which `Protected paths` holds
+      # from any author but a maintainer until one approves it, so a queued change to either is one a
+      # maintainer wrote or approved — as it would be to this step.
       - name: Judge the candidates
         id: judge
         if: steps.candidates.outputs.judge == 'true'

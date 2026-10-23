@@ -98,13 +98,17 @@ them if that access were ever removed.
    to supply the classification — say that nothing governs it and let the issue body carry the scope
    instead.
 6. Read whatever step 5 named, plus affected implemented-behavior documentation and relevant ADRs.
-7. Check the task against the protected paths before planning the work, not after the check refuses
-   it. `.github/`, `.config/`, `.agents/`, `.claude/`, and `docs/decisions/`, an `.editorconfig`,
+7. Name the protected paths the task reaches, so the brief says whether the pull request will wait
+   on a maintainer's approval. `.github/`, `.config/`, `.agents/`, `.claude/`, and `docs/decisions/`, an `.editorconfig`,
    `.gitattributes`, `.worktreeinclude`, `AGENTS.md`, `CLAUDE.md`, or `Directory.Build.props` at any
    depth, and the repository-root `CHANGELOG.md`, `CLA.md`, `LICENSE`, `NOTICE`, `NuGet.config`,
-   `Version.props`, and `global.json` are refused from any author but a maintainer. In the fork role, a task that needs one
-   of them is a task to raise in an issue instead of to implement; say so now rather than after a
-   session spent on a diff that cannot merge.
+   `Version.props`, and `global.json` are open to every author in either role: the `Protected paths`
+   check holds a pull request that changes one from an author who is not a maintainer until a
+   maintainer approves its current head, passes a maintainer's own on authorship, and does nothing
+   more. Reaching one is never a reason to stop, to split the change out, or to raise an
+   issue instead of implementing it — make the change in the same pull request. A rule a path
+   carries on its own grounds still holds: an ADR needs the owner's explicit approval, and
+   `CHANGELOG.md` is written only by the release pull request.
 8. Identify the GitHub issue that governs the task, reading
    `docs/operations/issue-tracking.md` first. Create it when none exists; its body draws on what
    step 6 read. Then read what it waits on, before it is placed and before it is claimed:
@@ -192,7 +196,7 @@ Return:
 Role: <owner's checkout or fork, what resolved it — the base branch and, for origin/main, the push probe — and what the board probe returned>
 Workspace: <safe or blocked, branch, base branch>
 Scope: <what governs the task, or that nothing does>
-Protected paths: <none reached, or which and what that means for this role>
+Protected paths: <none reached, or which — and whether the pull request waits for a maintainer's approval of its head, which it does unless its author is a maintainer>
 Issue: <number and title, or created with reason>
 Blocked by: <the open blockers refusing the work, or none — and any relation written>
 Placement: <type label, stack label or neither, Area, Queue, Size placeholder, milestone or none — or what the board probe left to triage>

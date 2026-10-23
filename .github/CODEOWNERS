@@ -13,7 +13,7 @@
 
 *       @Krzysztof318
 
-# The `Protected paths` workflow refuses a change from anyone but a maintainer, until a maintainer
+# The `Protected paths` workflow holds a change from anyone but a maintainer, until a maintainer
 # approves the pull request's current head, to the five protected directories, to the
 # configuration and build-contract files matched at any depth, and to the repository-root version,
 # package-source, SDK, license, and changelog files; `protected-paths.yml` lists them with the
