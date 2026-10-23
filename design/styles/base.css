@@ -30,8 +30,8 @@
   --faint: light-dark(oklch(0.515 0.014 262), oklch(0.700 0.014 262));
 
   /* The one accent. */
-  --accent: light-dark(oklch(0.555 0.185 262), oklch(0.615 0.175 262));
-  --accent-2: light-dark(oklch(0.465 0.175 262), oklch(0.735 0.150 262));
+  --accent: light-dark(oklch(0.480 0.185 262), oklch(0.615 0.175 262));
+  --accent-2: light-dark(oklch(0.410 0.170 262), oklch(0.735 0.150 262));
   --accent-d: light-dark(oklch(0.385 0.150 262), oklch(0.865 0.085 262));
   --accent-soft: light-dark(oklch(0.945 0.038 258), oklch(0.320 0.070 262));
   --accent-line: light-dark(oklch(0.870 0.062 258), oklch(0.430 0.095 262));
