@@ -173,9 +173,9 @@ export function Space({
                             ) : isAgent ? (
                                 agent
                             ) : isMail ? (
-                                /* The field and the connection are handed to the space in front and to nothing else:
-                                   two of either would be two live copies of one control — a second field a reply could
-                                   be asked for in, and a second region saying what the deployment is doing. */
+                                /* The footed layout and the connection go to the space in front and to nothing else:
+                                   the AI button is only pressed in the space in front, and two connections would be two
+                                   live copies of one region saying what the deployment is doing. */
                                 <MailSpace
                                     folders={folders}
                                     list={list}

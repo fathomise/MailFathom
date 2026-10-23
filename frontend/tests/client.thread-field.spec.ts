@@ -91,6 +91,22 @@ test('closes the drafter on the next message opened, and opens it there empty', 
 
 // The drafter stands over the thread like any surface over the screen, so the back gesture folds it into the AI button
 // before it leaves the message.
+// The two choices are a layer of their own, so the back gesture folds them into the button before it reaches the
+// message they stand under — and the keyboard goes back to the button that unfolded them.
+test('folds the two choices on the back gesture before it leaves the message', async ({ page }) => {
+    await openMailWritingDrafts(page);
+    await page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first().click();
+    await page.getByRole('button', { name: aiButton }).click();
+
+    await expect(page.getByRole('button', { name: 'Draft a reply', exact: true })).toBeVisible();
+
+    await page.goBack();
+
+    await expect(page.getByRole('button', { name: 'Draft a reply', exact: true })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Ask', exact: true })).toBeHidden();
+    await expect(page.getByRole('button', { name: aiButton })).toBeFocused();
+});
+
 test('folds the drafter on the back gesture before it leaves the message', async ({ page }) => {
     await openMailWritingDrafts(page);
     await page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first().click();
