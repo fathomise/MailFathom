@@ -1060,23 +1060,6 @@ Project repository: https://github.com/fathomise/MailFathom
               <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:22px;line-height:1">{{ replyFabIcon }}</span>
             </div>
           </sc-if>
-          <sc-if value="{{ replyDockOpen }}" hint-placeholder-val="{{ false }}">
-            <div data-motion="rise" data-phase="{{ mo.replyDock }}" style="{{ composerStyle }}">
-              <div onClick="{{ closeReplyDock }}" title="Close the reply drafter" aria-label="Close the reply drafter" style="{{ replyDockCloseStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">close</div>
-              <div style="{{ composerBarStyle }}">
-                <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--accent-d);flex:0 0 auto">auto_awesome</span>
-                <div style="{{ composerPhStyle }}">{{ composerPlaceholder }}</div>
-                <div onClick="{{ askThread }}" style="{{ askThreadBtnStyle }}" style-hover="opacity:0.88;cursor:pointer">{{ askThreadLabel }}</div>
-              </div>
-              <sc-if value="{{ showComposerChips }}" hint-placeholder-val="{{ true }}">
-                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:0 2px">
-                  <div style="font-size:12px;background:var(--accent-soft);color:var(--accent-d);border-radius:16px;padding:5px 11px">Scope: this thread</div>
-                  <div style="font-size:12px;background:var(--rail);border:1px solid var(--line);border-radius:16px;padding:5px 11px">+ selected passage</div>
-                  <div style="margin-left:auto;font-size:12px;color:var(--muted)">Draft stays local until confirmed</div>
-                </div>
-              </sc-if>
-            </div>
-          </sc-if>
         </div>
       </sc-if>
 
@@ -1169,7 +1152,10 @@ Project repository: https://github.com/fathomise/MailFathom
               <div style="display:flex;flex-direction:column;gap:9px;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);padding:11px 15px">
                 <div style="display:flex;align-items:center;gap:11px;background:var(--panel);border:2px solid var(--accent);border-radius:8px;padding:8px 11px">
                   <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:3px 7px;font-weight:600">AI</span>
-                  <span style="flex:1;min-width:0;font-size:14px;color:var(--faint)">{{ composeAiPlaceholder }}</span>
+                  <span style="flex:1;min-width:0;font-size:14px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ composeAiPlaceholder }}</span>
+                  <sc-if value="{{ composeCtxChanged }}" hint-placeholder-val="{{ false }}">
+                    <span data-motion="pop" role="img" aria-label="The context changed since you started" title="The context changed since you started" style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--warn-soft);color:var(--warn-text);box-shadow:inset 0 0 0 1px var(--warn);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 600;font-size:15px;line-height:1">priority_high</span>
+                  </sc-if>
                 </div>
                 <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
                   <sc-for list="{{ aiActions }}" as="aa" hint-placeholder-count="4">
@@ -1180,10 +1166,24 @@ Project repository: https://github.com/fathomise/MailFathom
                     <div onClick="{{ tn.pick }}" style="{{ tn.style }}" style-hover="cursor:pointer">{{ tn.label }}</div>
                   </sc-for>
                 </div>
-                <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:11px;color:var(--accent-d)">
-                  <span style="background:var(--panel);border-radius:6px;padding:3px 8px">Context: {{ composeContext }}</span>
-                  <span>the draft stays local until you send it</span>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--accent-d)">
+                  <span style="font-weight:600">Context</span>
+                  <sc-for list="{{ composeCtxChips }}" as="cx" hint-placeholder-count="1">
+                    <span title="{{ cx.subject }}" style="{{ cx.style }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:15px;line-height:1;color:var(--accent-d)">mail</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ cx.subject }}</span><span role="button" tabIndex="0" onClick="{{ cx.remove }}" title="Remove from the context" aria-label="Remove from the context" style="{{ cx.removeStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">close</span></span>
+                  </sc-for>
+                  <sc-if value="{{ composeCtxEmpty }}" hint-placeholder-val="{{ false }}">
+                    <span style="color:var(--muted)">{{ composeCtxHint }}</span>
+                  </sc-if>
+                  <sc-if value="{{ composeCtxSteady }}" hint-placeholder-val="{{ true }}">
+                    <span style="color:var(--muted)">the draft stays local until you send it</span>
+                  </sc-if>
                 </div>
+                <sc-if value="{{ composeCtxChanged }}" hint-placeholder-val="{{ false }}">
+                  <div data-motion="disclose" role="status" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;line-height:1.45;color:var(--warn-text)">
+                    <span style="flex:1;min-width:0;text-wrap:pretty">This message started from “{{ composeCtxBaseLabel }}” - the context has changed since. Check it before the AI drafts.</span>
+                    <span role="button" tabIndex="0" onClick="{{ restoreComposeCtx }}" style="{{ ctxRestoreStyle }}" style-hover="cursor:pointer;background:var(--warn-soft)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1">undo</span>Restore</span>
+                  </div>
+                </sc-if>
               </div>
               <sc-if value="{{ fmtBarShown }}" hint-placeholder-val="{{ true }}">
                 <div style="{{ fmtBarStyle }}">
@@ -1203,7 +1203,11 @@ Project repository: https://github.com/fathomise/MailFathom
                 </div>
               </sc-if>
               <sc-if value="{{ aiBusy }}" hint-placeholder-val="{{ false }}">
-                <div style="padding:7px 15px;background:var(--sub);border-bottom:1px solid var(--line2);font-size:12px;color:var(--muted)">AI is drafting…</div>
+                <div role="status" style="display:flex;align-items:center;gap:10px;padding:10px 15px;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);font-size:13px;color:var(--accent-d)">
+                  <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:18px;line-height:1;animation:mfpulse 1.4s ease-in-out infinite">auto_awesome</span>
+                  <span style="font-weight:600">{{ aiBusyLabel }}</span>
+                  <span aria-hidden="true" style="display:flex;align-items:center;gap:3px;margin-left:-6px;padding-top:4px"><span style="width:4px;height:4px;border-radius:50%;background:currentColor;animation:mfdot 1.2s ease-in-out infinite"></span><span style="width:4px;height:4px;border-radius:50%;background:currentColor;animation:mfdot 1.2s ease-in-out 0.15s infinite"></span><span style="width:4px;height:4px;border-radius:50%;background:currentColor;animation:mfdot 1.2s ease-in-out 0.3s infinite"></span></span>
+                </div>
               </sc-if>
               <sc-if value="{{ aiDraftShown }}" hint-placeholder-val="{{ false }}">
                 <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 15px;background:var(--sub);border-bottom:1px solid var(--line2)">
