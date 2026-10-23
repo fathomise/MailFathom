@@ -16,7 +16,7 @@ state in an artboard changes this file in the same pull request. `design/README.
 | `sign-in.dc.html` | Sign-in, and the server screen behind it |
 | `toasts.dc.html` | Toasts and the blocking overlay — the system's answer to what somebody just did |
 | `notification-gesture.dc.html` | The phone's notification-panel gesture, as four frames plus the numbers behind them |
-| `ai-blocks.dc.html` | The block catalogue both AI surfaces draw: the result types Discover renders read-only, and the four proposal types both surfaces render with controls, each in its three phases |
+| `ai-blocks.dc.html` | The block catalogue both AI surfaces draw: the result types the Agent renders read-only, and the four proposal types the Agent and Home's steps render with controls, each in its three phases |
 | `mail-search.html` | Mail search: results, empty, waiting, lexical-only, failure |
 
 ## How a state is named here
@@ -288,96 +288,81 @@ add no step, because opening a thread there replaced nothing. `backSteps` in the
 A press closes a surface the way its own control would. The composer with anything written in it asks first
 (`closeAsk`) and stays until that question is answered, and a surface standing in a tab closes its tab.
 
-## Discover — `isDiscover`
+## Home — `isHome`
 
-**Discover works on one result: it can be reworked in place, and one step can be taken on it. The Agent holds a
-conversation and plans.** That boundary decides every control below. Discover changes the question or what the answer shows
-and redraws the same result as a new revision — never a transcript — and takes **one verb** on an object or a set the
-result itself shows, each pressed and each undoable. Anything with more than one step, different decisions for
-different objects, text that leaves the deployment, or memory across questions is the Agent's, reached through
-*Continue with the agent* or *Hand to the agent*, which carry the revision on screen (`continueInAgent`).
+**Home is the reader's day, and it stores nothing of its own.** It gathers from Mail, Calendar, Tasks and People what
+the day holds — what is next, what needs the reader, one step each, how the day runs, who is waiting — and every item
+opens where it lives. It is the first space, above the hairline with the Agent, because both look across everything
+rather than holding one kind of thing.
 
-The run is a phase machine (`st.phase`: `idle`, `clarify`, `running`, `done`), and the blocks arrive one at a time
-(`ready.<block>`). What a run draws is the plan seen through the revision on screen: `discoverView(st)` lays the
-revision's patch over `PLANS[planKey]`, so every flag below reads the revision rather than the plan.
+**Rules read the day, and the model writes only on request.** Everything on Home by default is derived by rules from
+data the deployment already holds — counts, calendar facts, open questions in a thread, a question asked and not
+answered — so opening Home runs no model and spends no allowance. What the model writes is asked for: the written
+briefing (off by default) and a meeting's prep (*Prepare me*). Each says it is AI and what it was written from.
 
-### The start screen
+**Ask or find is short, and the Agent is where it goes long.** The field answers in one card with its citations and
+lists the messages the answer came from; it has no revisions, no refinements, and no clarifying step, because
+reworking an answer is a conversation. *Continue with the agent* carries the question and the answer there
+(`continueInAgent`). Home always asks about all of the reader's mail: the field carries no scope control, nothing the
+Mail space has open narrows it, and a question about one correspondence is asked in that correspondence's own field.
 
-**The field carries no scope control.** Discover always asks about all of the reader's mail, and
-nothing the Mail space has open, picked out, or highlighted narrows it. A question about one
-correspondence is asked in that correspondence's own field, and a narrower follow-up is the Agent's.
-The line under the field stands only once a run is over (`runFinished`), and says what the run read, in plain counts (*41 messages read*, *6 files found*). It names no run identifier, no plan, no model, and no spend, and no card traces how the answer was reached — a person asking about their mail is told what was read, not how the pipeline ran. An evidence entry likewise shows its source, the passage, and how current it is, and no relevance score. Beside the count the line carries what acts on the result as a whole: the revision stepper once the result has been refined (`hasRevs`) and *Watch* (`isWatching`).
+The ask is a phase machine (`st.phase`: `idle`, `running`, `done`). The plan behind an answer is `askPlan(st)`, one of
+`PLANS`, and only its answer streams (`ready.answer`). The line under the field stands once a run is over
+(`runFinished`) and says what was read in plain counts (*41 messages read*), with *Watch* beside it; it names no run
+identifier, plan, model or spend, and an evidence entry carries no relevance score.
+
+### The day
 
 | State | Flag | Reveal |
 |---|---|---|
-| Nothing asked yet | `showIdle` | `st.phase === "idle"` — the state the prototype opens in |
-| Today's counts | `todayCounts` | always; one line under the greeting. Counts, not prose — nothing reads the mail to produce them |
+| The day | `showIdle` | `st.phase === "idle"` — the state the prototype opens in. Two columns from 1020 px (`dayMainStyle`, and `dayAsideStyle` 340 px wide, 300 below 1180); one column below, the aside's sections after the main ones |
+| Ask chips | `showAskChips`, `suggestions` | idle only — three questions as chips under the field, one row that scrolls sideways on a phone; a chip asks at once |
+| The day's counts | `dayCounts` | always, under the greeting — *new messages*, *meetings today*, *due today*, *waiting on you*. Each is a chip that opens what it counts: Mail, Calendar, Tasks, or Mail filtered to the threads waiting on the reader (`resultFilter.why`, *waiting on your reply*). Counts, not prose — nothing reads the mail to produce them |
 | Written briefing offered | `briefOffer` | `!briefOn && !briefOfferHidden` — a dashed card saying what the briefing reads and that it counts against the allowance, with *Turn on* and *Not now*. **It is off by default** |
-| Written briefing on | `briefOn` | *Turn on* — the model-written card with its counters, *Not useful* and *Turn off*; turning it off hides the offer too (Settings turns it back on) |
-| Needs you today | `todayItems` | always. Rule-derived, and labelled *raised by rules, not written by a model*: each item names its rule (`ti.rule`, the `rule` chip), why, and the message it came from |
+| Written briefing on | `briefOn` | *Turn on* — the model-written card with its counters, *Not useful* and *Turn off*; turning it off hides the offer too (Settings › Home turns it back on) |
+| Up next | `nextUp` | always — the next meeting on an accent-edged card: its title, time, place and the thread behind it, the attendees as initials, and up to three facts rules read off the thread (`nextFacts`, each with the `rule` glyph). *Prepare me*, *Open the thread*, *Open in Calendar*, and *Plan it with the agent*, which opens the Agent with the meeting as its context |
+| Being prepared | `prepBusy` | *Prepare me* — an `AI · preparing you for this meeting` well with three shimmer lines; *Prepare me* leaves the foot |
+| Prepared | `prepReady` | the prep arrives in the well: three sentences, headed `AI · what to know going in · from 6 messages and 1 attachment`, with an × that drops it (`dropPrep`) |
+| Needs you today | `todayItems` | always. Rule-derived, and labelled *raised by rules, not written by a model*: each item names its rule (`ti.rule`), why, and the message it came from |
 | An item dismissed | `st.todayHidden` | × on an item — *Marked not important*, with *Undo* on the toast |
 | Nothing left today | `todayEmpty` | every item dismissed — one quiet line, *Nothing waiting on you today* |
-| Watched questions | `hasWatched`, `watched` | at least one question is watched. Each row is the question and a state line, and names no scope, because Discover always asks about all mail; opening it runs the question again, × stops watching (`w.stop`) |
+| One step each | `homeSteps` | always — `HOME.steps`, each drawn by `bkView(…, "home")`: a focus block in the calendar, a task, and a draft. Keyed `home#<n>` |
+| A step taken | `bk.hasResult` | its primary control — *done* chip and result line, and a toast carrying *Undo*, which puts the step back to pending. A taken focus block reads *booked from Home* on *Your day* instead of *proposed below* |
+| A step declined | `bk.isDeclined` | *Decline* or *Discard* |
+| Your day | `dayPlan` | always — the calendar and the tasks on one card, in time order: a past item struck and dimmed, a line marking *now*, the next meeting on `--accent-soft`, a task as a square dot, and a proposed slot as a dashed dot in italics. Each row opens Calendar or Tasks |
+| Waiting on you | `waiting` | always — one row per person who asked the reader something not yet answered: initials, name, organisation, what they wait for, and since when. A row opens the thread |
+| Watched questions | `hasWatched`, `watched` | at least one question is watched. Each row is the question and a state line, and names no scope; opening it asks the question again, × stops watching (`w.stop`) |
 | A watched answer moved | `w.isChanged` | the seeded `changed` row — an accent edge, an accent dot, and a bold line naming what arrived; opening it settles it to *opened just now* |
 | A watched refresh paused | `w.isPaused` | the seeded `paused` row — a warning line naming when it resumes, because the allowance is spent |
 | Nothing watched | `noWatched` | every row stopped — a dashed hint, *Press Watch on an answer to keep its question here* |
-| Suggestions | `suggestions` | always; the fourth is ambiguous on purpose and reaches *Which one do you mean?* |
 
-### Before and during a run
+**Home's steps act, and only one step at a time.** They are the proposal blocks the Agent draws, with Home's controls:
+an event takes *Add to calendar* and *Decline* — no *Another time*, which is a conversation — a task *Add* and
+*Decline*, and a draft **opens in the composer** (*Open in composer*, *Discard*) as an AI draft still to be accepted
+there; it is never sent or edited from Home. Each is pressed, and its toast carries *Undo* (`acceptHomeStep`).
+
+### Asking
 
 | State | Flag | Reveal |
 |---|---|---|
-| Which one do you mean? | `showClarify` | `st.phase === "clarify"` — a question matching `CLARIFY` (*What did we agree with Contoso?*). Two or three readings as rows; **nothing runs until one is chosen** or the question is edited. Not `hasRun`, so no run chrome stands beside it |
-| Running | `running` | `st.phase === "running"`, entered by submitting a question, choosing a reading, or any refinement |
-| A run has happened | `hasRun` | `st.phase` is `running` or `done`; gates the run's own chrome |
-| A run is over | `runFinished` | `hasRun && st.phase === "done"`; gates the run line under the field |
-| Revisions | `hasRevs` | more than one revision — `‹ n / m ›` and the revision's label in the run line; `revPrev` and `revNext` step between them without re-running, each 44 px under a finger |
+| Running | `running` | `st.phase === "running"`, entered by submitting a question or pressing a chip or a watched question — a pulsing bar with *Cancel run* |
+| A run has happened | `hasRun` | `st.phase` is `running` or `done`; the header carries *Continue with the agent* and *Back to your day* |
+| A run is over | `runFinished` | `hasRun && st.phase === "done"`; gates the run line, *Found in your mail* and the hand-off |
 | Watching this question | `isWatching` | *Watch* in the run line — it turns to *Watching*, and the toast says each refresh counts against the allowance. Pressed again, it stops |
-
-### The result
-
-| State | Flag | Reveal |
-|---|---|---|
-| Answer block | `answerReady` | `ready.answer`, set as the stream reaches it |
-| What the sources do **not** settle | `gapNote` | the revision carries a `gap` — `contract` and `people` do as asked; *Only 2025-2026* clears it |
+| Answer | `answerReady` | `ready.answer` — the answer with its citations, its confidence, and *Show the N messages in Mail* |
+| What the sources do **not** settle | `gapNote` | the plan carries a `gap` — `contract` and `people` do |
+| Found in your mail | `foundRows` | the run is over — the messages the answer came from, one row each (sender, subject, time); a row opens the thread with *Back to Home* over it (`cameFromNote`) |
+| Hand-off | `continueInAgent` | the run is over — a dashed card, *Want to go further - compare, plan, or write back?*, and *Continue with the agent* |
 | A claim reported | `p.disputed` | *This is wrong* in the inspector for that citation — the claim gets a wavy warning underline and its citation turns warning; nothing else changes |
-| Show in Mail | `sourcesLabel` | every answer — *Show the N messages in Mail* opens the sources as a filtered Mail list (`resultFilterOn`, under *Mail*) |
-| Timeline block | `timelineReady` | `ready.timeline`; its meta counts the revision's events (`timelineMeta`) |
-| Fact table | `tableReady` | `ready.table` |
-| Attachment gallery | `galleryReady` | `ready.gallery` |
-| People block | `peopleReady` | `ready.people` |
-| One step from here | `stepsReady`, `dSteps` | `ready.action` — the plan's `steps`, each drawn by `bkView(…, "discover")` with its controls and phases |
-| A step taken | `bk.hasResult` | its primary control — *done* chip and result line, and a toast carrying *Undo*, which puts the step back to pending |
-| A step declined | `bk.isDeclined` | *Decline* or *Discard* |
-| Hand-off | `handOffStyle` | with the steps — *More than one step, or something to write and send?* and *Hand to the agent* |
-| Refine this answer | `refineShown` | `hasRun && phase === "done"` — the plan's refinements as chips and a *Refine* field; each is a new revision |
 | Evidence inspector open | `inspectorOpen` | a citation is pressed |
 | The confidence explained | `confidenceTip` | the answer's confidence chip — tinted by its band (`confidenceChipStyle`: high `--ok-soft`, moderate `--rail`, low `--warn-soft`) — hovered, focused or tapped; see `[data-tip]` under § *What every artboard shares* |
 | A claim not yet reported | `inspectorNotReported` | the inspector's footer carries *This is wrong* |
 | The claim reported | `inspectorReported` | after *This is wrong* — *Reported · marked as disputed* in its place |
 | Evidence inspector closed | `inspectorClosed` | nothing selected — the resting state |
 
-Which blocks a run produces is the plan, and there are three (`PLANS`): `contract`
-(answer + timeline + table, a task and a draft), `files` (answer + gallery, a task), `people`
-(answer + people, an event and a suggested action). **No single run draws every block**, so a screenshot of one plan
-is not the block set to build against; `ai-blocks.dc.html` is where the block types stand together.
-
-**The result reads, and its steps act.** The answer, timeline, table, gallery and people are read-only. The steps
-are the same proposal blocks the Agent draws, with Discover's controls: an event takes *Add to calendar* and
-*Decline* — no *Another time*, which is a conversation — a task *Add* and *Decline*, a suggested action its own `cta`
-and *Decline*, and a draft **opens in the composer** (*Open in composer*, *Discard*) as an AI draft still to be
-accepted there; it is never sent or edited from Discover. Each step is pressed, and its toast carries *Undo*
-(`acceptDiscoverStep`). A step's phase is keyed `discover#<plan>#<n>`, not by revision, so a step taken stays taken
-while the result is refined.
-
-**A revision is a patch, not a copy.** `refine` lays the new patch over the revision on screen, appends it, and
-re-streams the blocks. A refinement reworks what the answer shows, never the mail it reads: Discover always asks
-about all of it. The seeded refinements are in `data/prototype/discover.js` — *Only 2025-2026* narrows the answer,
-the timeline and the evidence to those years, *Just the price* reshapes the answer alone.
-
-Discover's blocks wear the Agent's chrome (`blk`, built from the same `BLK` as `bkView`): the card, the icon-tile
-header, the timeline's rail of dots. The Answer keeps its prominence through an accent icon tile rather than an
-accent edge.
+The answer wears the Agent's chrome (`blk`, built from the same `BLK` as `bkView`). The other blocks a plan names —
+timeline, fact table, gallery, people — are the Agent's to draw now; `ai-blocks.dc.html` is still where every block
+type stands together.
 
 ## Mail — `isMail`
 
@@ -482,7 +467,7 @@ the passage it rests on.*, shortened to *Quoted from this message alone* on the 
 | Four states or more | `stateRowStyle` / `stateBodyRowStyle` / `sc.valueStyle` | `thread.state.length >= 4` — the state cards beside the thread and the chips inside the body stand as a two-column grid, and each chip's value wraps (`text-wrap:pretty`, line height 1.35) rather than ending in an ellipsis on one line. The phone keeps its single column. `contoso` and `piotr` reach it, each carrying a fourth state, `Version difference`, that says what a later message corrected in an earlier one |
 | Held back, in a narrow pane | `staleInBody` | `stateCards && !stateBarOff && stateStale` — the same sentence as a note at the top of the thread body, where `stateInBody` would have drawn the chips |
 | Panels hidden | `st.stateBarOff` | the *fullscreen* toolbar control; nothing else sets it |
-| Arrived from a citation | `showCitationTag` / `cameFromResult` | reached from a Discover citation, and only for the `contoso` thread |
+| Arrived from a citation | `showCitationTag` / `cameFromResult` | reached from a citation or a *Found in your mail* row on Home; a citation arrives only for the `contoso` thread |
 | Answer drawn in mail | `mailAnswer` | `st.mailAnswer` and the `contoso` thread — reached by the thread sheet's *Summarise where this stands* and *What the other side expects from me*; a drafted reply never lands here, it opens in the composer |
 | Thread actions sheet | `threadSheetOpen` | the sheet control, phone-shaped |
 | Remote content removed | `m.remoteBlocked` | a message that is not the user's own and carries remote references, until they are loaded. A card at the top of the body says *This message asked to fetch content from another server. That was removed, so opening it told the sender nothing.*, then *Removed references: N*, then *Loading them tells the sender that this message was opened. This choice applies to this message only and is not remembered anywhere.*, over one accent button, *Load images from the sender*, 44 px tall on touch. The count comes from `m.remoteRefs` where a message sets one, and none does; otherwise a hash of sender and time gives about a third of the messages none and the rest between 3 and 18. *Images loaded automatically* in the settings does not reach it |
@@ -512,7 +497,7 @@ Added to the prototype after this inventory was first written, and read against 
 | Search active | `listSearchActive` | the search control |
 | Filters open | `filtersOpen` | the filter control |
 | Filters in force | `filtersActive` | `filterCount > 0` over unread, flagged, attachment, date range and sort |
-| Opened from a Discover answer | `resultFilterOn` | *Show the N messages in Mail* on a Discover result — the list holds only that answer's sources, under an accent band naming how many and the question, with *Back to result* and *Show the whole folder*. It is an ordinary list in every other respect, and leaving Mail clears it (`goScreen`) |
+| Opened from Home | `resultFilterOn` | *Show the N messages in Mail* on an answer, or the *waiting on you* count — the list holds only those threads, under an accent band naming how many and why (`resultFilterWhy`: the question, or *waiting on your reply*), with *Back to Home* and *Show the whole folder*. It is an ordinary list in every other respect, and leaving Mail clears it (`goScreen`) |
 | Undo after archiving | `undoShown` | `isMobile` and the last archived thread is still archived — **phone only** |
 | A thread being dragged | `st.dragIds` (`dragThreadsStart`) | a row is `draggable` and starts a drag; the dragged rows go to `opacity:0.45` while it lasts, and a drag started on a row inside a selection of more than one carries **the whole selection** rather than that row |
 | A folder under the drag | `st.dragOverKey` (`dragOverFolder`) | the pointer over a folder row in the side list while `dragIds` is set — that row draws the accent-soft background, the accent text and an `inset 0 0 0 2px var(--accent)` ring, which is the only affordance saying a drop lands here |
@@ -636,7 +621,7 @@ menu's *Tab mode* switch is turned on at a width of at least 1180 px**.
 | An answer with prose | `m.hasMd`, drawing `m.md` | the bot message carries `text`, `paras`, or both — each is read as Markdown and drawn as one list of blocks, a paragraph's blocks animating in together as it lands. `m.hasText`, `m.hasParas` and `m.paras` are still computed beside it and nothing reads them |
 | An answer still being worked | `m.working` | the message carries `working` — it draws an `autorenew` glyph and *The agent is going through your mail…* instead of prose |
 | An answer carrying blocks | `m.hasBlocks` | the message carries `blocks` |
-| An answer carrying an Answer block | `bk.isAnswer` | a block of type `answer` — seeded in *Summarise the addendum thread* (`c-summary`), a thread-scoped *Summarise*. The same chrome as Discover's answer: the `auto_awesome` accent tile, *Answer*, and *N citations*; then two chips that explain themselves (`[data-tip]`) — the confidence the run reported (`answerConfLabel`, moderate on `--rail`) and *cited* (`citedLabel`); then the prose with its citation numbers at the end of it (`answerCites`), each opening the evidence inspector (`openAgentEv`); then the verdict's sentence under it in `--muted` (`citedTip`). The Agent's answer is never *supported* |
+| An answer carrying an Answer block | `bk.isAnswer` | a block of type `answer` — seeded in *Summarise the addendum thread* (`c-summary`), a thread-scoped *Summarise*. The same chrome as Home's answer: the `auto_awesome` accent tile, *Answer*, and *N citations*; then two chips that explain themselves (`[data-tip]`) — the confidence the run reported (`answerConfLabel`, moderate on `--rail`) and *cited* (`citedLabel`); then the prose with its citation numbers at the end of it (`answerCites`), each opening the evidence inspector (`openAgentEv`); then the verdict's sentence under it in `--muted` (`citedTip`). The Agent's answer is never *supported* |
 | Back to the conversation | `convReturnShown` | a block's `nav` row was pressed, which is what `goLook` records in `agentReturn`; the pill stands fixed over whatever screen was opened until `backToConv` is pressed |
 | History open | `historyOpen` | `!isMobile` by default, and the history control otherwise. On the phone it is a drawer from the start edge over the conversation, so **picking a conversation, *Open conversation* in its menu, or *New conversation* closes it** |
 | History close | `historyCloseShown` | `isMobile` |
@@ -733,11 +718,11 @@ Space bound and a focus outline.
 ### The answer is blocks, and three of them are actionable
 
 An answer is not prose with buttons under it. `bkView(b, key, isMobile, surface)` draws one block,
-and the catalogue is the Discover one: `Answer`, `Timeline`, `Evidence`, `Thread state`, `Fact table`,
+and the catalogue is one for both surfaces: `Answer`, `Timeline`, `Evidence`, `Thread state`, `Fact table`,
 `Attachments`, `People`, `How I got here` (the run's trace), `Draft`, `Event proposal`, `Task proposal`,
 `Suggested action`. The last four carry controls, and
-therefore a phase, on both surfaces; what a conversation adds over Discover's steps is *Another time* on an event and
-sending or editing a draft in place, which Discover leaves to the Agent (`surface === "discover"`).
+therefore a phase, on both surfaces; what a conversation adds over Home's steps is *Another time* on an event and
+sending or editing a draft in place, which Home leaves to the Agent (`surface === "home"`).
 
 | State | Flag | Reveal |
 |---|---|---|
@@ -752,7 +737,7 @@ sending or editing a draft in place, which Discover leaves to the Agent (`surfac
 | Editing a draft | `editing` | *Edit here* — `editBk` swaps the paragraphs for a `textarea` inside the conversation, and the controls become *Send* and *Stop editing* |
 | Cited | `citedLabel` | every `Evidence` block the Agent writes carries a *cited* chip (`format_quote`, `--rail` ground, `--muted` text) above its sources, never *supported*: the Agent names what it read, and nothing checked that it backs the answer. The chip explains itself (`citedTip`, `[data-tip]`) |
 | A source pressed | `e.open` | each source's number in an Agent `Evidence` block is a citation — a `role="button"` named *Citation n: source* — and opens the evidence inspector (`openAgentEv`); 36 px under a finger |
-| Evidence inspector open | `agentEvOpen` | a citation was pressed in the conversation in front (`agentEv` names that conversation, so opening another one leaves the source behind). From 1180 px it stands **beside** the conversation as a 380 px column with a `--line` start border, scrolling on its own (`agentEvBeside`); below that it stands **over** the conversation as the phone's full sheet Discover uses (`agentEvOver`). Header *Evidence* with a back control and *Source n*, the source's name and kind, when it was read, the passage on `--hl`, and *Open in mail*, which goes to the thread with the *Back to the conversation* pill (`goLook`). Back (`closeAgentEv`) returns the keyboard to the citation that opened it |
+| Evidence inspector open | `agentEvOpen` | a citation was pressed in the conversation in front (`agentEv` names that conversation, so opening another one leaves the source behind). From 1180 px it stands **beside** the conversation as a 380 px column with a `--line` start border, scrolling on its own (`agentEvBeside`); below that it stands **over** the conversation as the phone's full sheet Home uses (`agentEvOver`). Header *Evidence* with a back control and *Source n*, the source's name and kind, when it was read, the passage on `--hl`, and *Open in mail*, which goes to the thread with the *Back to the conversation* pill (`goLook`). Back (`closeAgentEv`) returns the keyboard to the citation that opened it |
 | Evidence inspector closed | `!agentEvOpen` | the resting state — the Agent draws no empty evidence column |
 
 **The controls are the type's.** `Event proposal` takes *Add to calendar*, *Another time* and
@@ -814,15 +799,15 @@ sentence of the seeded draft (`draftRewrites`); a typed instruction picks the pr
 back to *More formal*.
 
 **The composer takes the same rewrite.** A draft is not the Agent's alone: the same bar opens on text selected in
-the composer's editor — a new message, a reply, a forward, or a draft opened there from the Agent or Discover — and
+the composer's editor — a new message, a reply, a forward, or a draft opened there from the Agent or Home — and
 the rewrite is reviewed in the editor itself, with the foot standing in for *Send* until it is kept or undone
-(*Composing*, under *Mail*). The composer's own drafts and Discover's draft are seeded in `draftRewrites` beside the
+(*Composing*, under *Mail*). The composer's own drafts and the draft Home proposes are seeded in `draftRewrites` beside the
 Agent's; text the reader typed has no seeded version, so the prototype answers it with *nothing to change*.
 
 **Every read-only block can be asked about one item at a time.** The answer comes under the item it is about, not
 at the bottom of the conversation (`noteBk`, keyed `<block>#<item>` in `bkNote`), with a shimmer while it comes and
 an × that closes it; what changes the result is written as a new turn instead (`agentTurn`). None of it reaches
-Discover's blocks. Under a finger every ask, a field's value, an alternative, the tray's actions and the answer's × are
+Home's steps. Under a finger every ask, a field's value, an alternative, the tray's actions and the answer's × are
 44 px, and `bkView` takes `touch` so the fold and the tablet get them as the phone does.
 
 | State | Flag | Reveal |
@@ -869,11 +854,11 @@ to a folder and marking as read stay a one-line `Suggested action`.
 | Unread notifications | `notifHasUnread` | the unread count; it gates three regions including the rail badge. The panel's own badge is one composed string, `notifNewLabel`, reading *1 new* or *N new* |
 | The centre's filter | `notifFilter` / `notifTabs` | **it opens on *Unread*** — the first of the two, *Unread* then *All*; `st.notifFilter` falls back to `"unread"` |
 | **No notifications** | `notifEmpty` | the shown list is empty — *Nothing new. All read.*, reached by opening the centre with nothing unread |
-| Connection summary | — | a green dot and *Every account is up to date.* at the foot of the folder column while it is expanded (`sideExpanded`; a collapsed column draws none), and always in the Discover head, in the Agent head (its own row under the head on a phone), and at the foot of Tasks, Calendar and People. **When every account is current it is green and nothing more** — no disclosure, no per-account rows, no times. The prototype draws only that state; an account behind or stopped is `m_sync` in the Client States file, and changes on their way are `m_pending` |
+| Connection summary | — | a green dot and *Every account is up to date.* at the foot of the folder column while it is expanded (`sideExpanded`; a collapsed column draws none), and always in the Home head, in the Agent head (its own row under the head on a phone), and at the foot of Tasks, Calendar and People. **When every account is current it is green and nothing more** — no disclosure, no per-account rows, no times. The prototype draws only that state; an account behind or stopped is `m_sync` in the Client States file, and changes on their way are `m_pending` |
 | Refresh | `refreshAll` / `refreshBusy` | the `refresh` control in the rail, titled *Refresh* (44 px under a finger), and on the phone the *Refresh* row of the *More* sheet (`moreRefresh`), which closes the sheet as it starts — it re-reads the mail in front of the reader and the notification centre, pulses its glyph (`mfpulse`, 1 s) rather than spinning while it waits, and refuses a second press until the re-read lands |
 | Move dialog | `moveOpen` | the move action on a selection — grouped by mailbox (`moveGroups`), each group ending in *New folder here*, and the toast it produces names the mailbox |
 | Permanent delete | `confirmDel` under `inTrash` | a delete action while the open folder is a Trash — *Delete permanently*, no undo offered, and the toast reads *Permanently deleted* rather than *Moved to trash* |
-| The order of the spaces | `railSepStyle` | *Discover* and *Agent* first — the two places that ask questions of the mail — then a 1 px `--line` hairline inset 16 px from either side of the rail, then *Mail*, *Tasks*, *Calendar* and *People*. The bottom bar carries *Discover*, *Agent* and *Mail* in that order and draws no hairline: its five places are counted |
+| The order of the spaces | `railSepStyle` | *Home* and *Agent* first — the two places that look across everything rather than holding one kind of thing — then a 1 px `--line` hairline inset 16 px from either side of the rail, then *Mail*, *Tasks*, *Calendar* and *People*. The bottom bar carries *Home*, *Agent* and *Mail* in that order and draws no hairline: its five places are counted |
 | The rail's nav scrolls | `railNavStyle` | a viewport too short for the six destinations — the nav scrolls and the bottom cluster stays pinned |
 | The *More* sheet | `moreOpen` / `moreItems` | the phone's *More* — *Tasks*, *Calendar* and *People*, the current one on `--accent-soft`, then under a rule *Refresh* (`moreRefresh`) and *Settings* (`moreSettings`); every row 52 px |
 | A rail destination | `railBase` / `activeStyle` | on the phone a bottom-bar place whose glyph sits in a 56 × 32 px pill, filled `--accent-soft` on the current one (`--nav-mark`); on the rail a tile inset 7 px from either side of the rail on a 12 px radius, 4 px apart (2 px below 1020) — the current one on `--accent-soft` with an accent glyph and a semibold label, hover on `--hover`. No full-width slab and no edge bar, so neighbouring tiles never meet across a dark gap |
@@ -1089,6 +1074,8 @@ and *Nothing open* layout. **The one new component is the radio list in *Kind of
 
 ### Discover
 
+The Client States file still names this space *Discover*; its states are Home's ask and its watched questions.
+
 | State | Gate | What it settles |
 |---|---|---|
 | `d_refusal` 1.1 | `show.d_refusal` | A question refused before a run is one line directly under the field — never a toast, never a card, because no run exists. The question stays in the field. Signed out and not permitted read neutral; unavailable and unreadable read as a warning with *Try again*. On a phone the action drops under the text at 44 px |
@@ -1160,10 +1147,12 @@ clicking a preview.
 - **No sign-in method offered** (`noMethods`). Three properties turned off together — `ssoAvailable` joined `oauthAvailable` and `basicAvailable`.
 - **A person with no documents** (`personNoDocs`). No mock record has an empty
   `docs`, so the empty state is drawn by no preview at any click.
-- **Discover with nothing left on its start screen** (`todayEmpty`, `noWatched`). Reached only by dismissing every
+- **Home with nothing left on it** (`todayEmpty`, `noWatched`). Reached only by dismissing every
   *Needs you today* item and stopping every watched question first. A watched question that **could not refresh**
   has no seeded row in the prototype; `d_watched` in the Client States file draws it.
 - **The written briefing** (`briefOn`). Off by default, so the model-written card appears only after *Turn on*.
+- **A meeting's prep** (`prepBusy`, `prepReady`). Written only after *Prepare me* on *Up next*.
+- **A booked focus block** (*booked from Home* on *Your day*). Reached only by taking the first of Home's steps.
 - **No proposals left** (`calNoProposals`). Reachable only by dealing with every proposed slot first.
 - **A conversation archive** (`hasArchived`, `archiveSectionOpen`). Needs a conversation archived first.
 - **The `fold` composition's own case.** 884 px is `compact`, `narrow` and `!singlePane`: two panes with the list

@@ -4,7 +4,7 @@
 
 {
   /* ——— Agent answer blocks ———
-     The agent renders the SAME catalogue as Discover (see “MailFathom Result Blocks”):
+     The agent renders the SAME block catalogue as Home's answer and steps (see “MailFathom Result Blocks”):
      ANSWER, EVIDENCE, TIMELINE, FACT TABLE, PEOPLE, THREAD STATE, ATTACHMENTS, DRAFT, SUGGESTED ACTION.
      What differs in a conversation is that an actionable block carries real controls and therefore
      three phases: pending (proposal + controls), accepted (result line), declined (one quiet struck line). */
@@ -241,7 +241,7 @@
           text: "",
           blocks: [
             {
-              /* The Agent's answer: the same block as Discover's, with a confidence the run reported and a verdict
+              /* The Agent's answer: the same block as Home's, with a confidence the run reported and a verdict
                  that is always *cited* — the Agent names what it read, and nothing checked it. */
               type: "answer", confidence: "moderate",
               text: "Anna Kowalska accepts the 2 h response time for critical incidents and the 8% fee rise from January. She asks for your counter-proposal on the indexation cap by 28 August - the new draft names the CPI with no ceiling, so the cap is the one point still open.",
@@ -463,7 +463,7 @@ MailFathomDesign.data.draftRewrites = {
 };
 
 // The composer takes the same rewrite: these are the sentences of the drafts that land there - the writing
-// assistant's own (`composeDrafts`) and the draft Discover opens in it.
+// assistant's own (`composeDrafts`) and the draft Home proposes.
 Object.assign(MailFathomDesign.data.draftRewrites, {
   "thank you for the addendum.": {
     shorter: "thanks for the addendum.",

@@ -2,7 +2,9 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-// The Today screen: what needs doing, what is on the calendar, the morning briefing, and the inbox digest.
+// Home: the reader's day - what is next, what needs them, one step each, and how the day runs - gathered from
+// Mail, Calendar, Tasks and People. Home stores none of it; every item opens where it lives. The day is
+// Thursday 27 August, and it is 13:40.
 MailFathomDesign.data.home = {
   // Derived by rules rather than written by a model: `rule` names the rule that raised the item, and is what the
   // reader is shown as the reason it is here.
@@ -35,3 +37,53 @@ MailFathomDesign.data.home = {
     { n: 2, label: "FYI", note: "nothing needs a reply", tid: "hr1" },
   ],
 };
+
+// The counts under the greeting. Each one opens the space it counts, filtered to what it counted.
+MailFathomDesign.data.home.dayCounts = [
+  { key: "mail", icon: "mail", n: 14, label: "new messages" },
+  { key: "cal", icon: "event", n: 2, label: "meetings today" },
+  { key: "tasks", icon: "task_alt", n: 2, label: "due today" },
+  { key: "waiting", icon: "hourglass_top", n: 3, label: "waiting on you" },
+];
+
+// The next meeting. What stands by default is what rules read off the calendar and the thread behind it; the
+// prepared briefing is the model's, written only when the reader asks for it.
+MailFathomDesign.data.home.nextUp = {
+  title: "Rollout status with Piotr",
+  when: "15:00-15:30", inText: "in 1 h 20 min", where: "Teams",
+  people: [{ initials: "PZ", name: "Piotr Zieliński" }, { initials: "TB", name: "Tomasz Bąk" }],
+  tid: "piotr", thread: "Re: rollout schedule",
+  facts: ["2 open questions in the thread", "Fabrikam's date is still unconfirmed", "1 attachment changed since Monday"],
+  prep: [
+    "Phase two is confirmed for 12 November; Piotr wants a go or no-go on phase three.",
+    "Fabrikam still has no date from us - Tomasz asked yesterday, and phase three depends on it.",
+    "The updated plan (rollout_v3.xlsx) moves the pilot by one week; nothing else changed.",
+  ],
+  prepSources: "from 6 messages and 1 attachment",
+};
+
+// The day as it runs, from the calendar and the tasks. `state` is past, now, next or later; a `proposed` item is a
+// step below (`step` is its index) that has not been taken yet; taking it books the slot.
+MailFathomDesign.data.home.dayPlan = [
+  { time: "10:00", end: "", title: "Reply to Marta - calculation", kind: "task", state: "past", note: "done 10:12", go: "tasks" },
+  { time: "13:40", end: "", title: "Now", kind: "now", state: "now" },
+  { time: "13:45", end: "14:30", title: "Focus: Contoso counter-proposal", kind: "focus", state: "later", note: "proposed below", proposed: true, step: 0, go: "cal" },
+  { time: "15:00", end: "15:30", title: "Rollout status with Piotr", kind: "meeting", state: "next", note: "Teams · 2 people", go: "cal" },
+  { time: "16:30", end: "", title: "Confirm the Q4 date to Fabrikam", kind: "task", state: "later", note: "due today", go: "tasks" },
+  { time: "17:00", end: "", title: "Approve invoice 08/2026", kind: "task", state: "later", note: "due today", go: "tasks" },
+];
+
+// Who is waiting on the reader, longest first. Rule-derived: a question asked of them and not yet answered.
+MailFathomDesign.data.home.waiting = [
+  { initials: "AK", name: "Anna Kowalska", org: "Contoso", what: "the counter-proposal", since: "2 days", tid: "contoso" },
+  { initials: "TB", name: "Tomasz Bąk", org: "Fabrikam", what: "a Q4 date", since: "yesterday", tid: "fabrikam1" },
+  { initials: "MN", name: "Marta Nowak", org: "Finance", what: "a look at the calculation", since: "today", tid: "marta" },
+];
+
+// One step each, drawn with the Agent's proposal blocks and taken with one press that can be undone.
+MailFathomDesign.data.home.steps = [
+  { type: "event", phase: "pending", title: "Focus: Contoso counter-proposal", when: "today 13:45-14:30", duration: "45 min", attendees: "just you", from: "Contract addendum - signatures", done: "Blocked in the calendar" },
+  { type: "task", phase: "pending", title: "Confirm the Q4 date to Fabrikam", due: "today 16:30", from: "Q4 delivery dates", reminder: "16:00", done: "Task added" },
+  { type: "draft", phase: "pending", meta: "opens in the composer", to: "Anna Kowalska", subject: "Re: Proposed terms 2027",
+    paras: ["Thank you for the proposal. We can accept the 2-hour response time, but not indexation without a cap.", "We propose CPI indexation capped at 5% a year, and would like to settle it before 28 August."] },
+];
