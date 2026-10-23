@@ -44,6 +44,7 @@ jobs:
   build:
     name: Build the schema artifact
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     outputs:

@@ -1882,8 +1882,8 @@ there — which the reviewer reads as content too large to collect.
 
 **Three loops call once per record, and a retry budget is per call**, so each
 carries a wall-clock window: the head content, the issues the change closes, and
-the board write, which spends two budgets per issue and runs in two workflows that
-declare no `timeout-minutes` of their own. Without one, an endpoint that has
+the board write, which spends two budgets per issue and runs in two jobs whose
+`timeout-minutes` was set for healthy walks, not for a whole budget spent on every issue. Without one, an endpoint that has
 started failing costs every remaining record a whole budget — minutes of a job
 whose thirty are mostly meant for the model, and a run killed before it starts is
 the failure the retries exist to remove. Each window is tested before a call rather

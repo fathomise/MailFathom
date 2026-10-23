@@ -30,6 +30,9 @@ jobs:
   container-image:
     name: Container image
     runs-on: ubuntu-latest
+    # Sized from the publishing workflow's build of this same two-architecture image, which has taken up
+    # to fourteen minutes on a cold cache, rather than from the single three-minute dispatch on record.
+    timeout-minutes: 45
     steps:
       - name: Check out repository
         uses: actions/checkout@v7

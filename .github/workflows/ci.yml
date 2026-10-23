@@ -79,6 +79,7 @@ jobs:
   detect-changes:
     name: Detect changes
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # The changed-file query reads a pull request through the REST API, which needs the read below and
     # nothing else: no working copy is checked out here, because the one event this job answers is the
     # one the action can answer without one.
@@ -377,6 +378,7 @@ jobs:
     # below is about.
     if: always() && github.event_name != 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       # The name of this check is the only thing the branch ruleset knows about this workflow, so it
       # must not depend on the event, the changed files, the source branch, or a matrix dimension.

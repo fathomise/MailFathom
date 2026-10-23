@@ -126,6 +126,7 @@ jobs:
     # reader as a labelling run that failed to label anything.
     if: github.event_name == 'pull_request' && github.event.action != 'enqueued' && github.event.action != 'dequeued'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       # The labels on the issues the body closes. `pull-requests` reaches the pull request and not
@@ -232,6 +233,7 @@ jobs:
     name: Assign the issues the change closes to its author
     if: github.event_name == 'pull_request' && github.event.action != 'enqueued' && github.event.action != 'dequeued'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: read
@@ -308,6 +310,11 @@ jobs:
     name: Apply the board statuses the open pull requests earn
     if: github.event_name != 'pull_request' || github.event.action == 'enqueued' || github.event.action == 'dequeued'
     runs-on: ubuntu-latest
+    # A ceiling well above a healthy run's half minute rather than room for every pull request to spend
+    # its window: the board write below runs once per open pull request and may spend two minutes on
+    # each, so a stalled project endpoint can still reach this bound, which then fails the job instead
+    # of holding a runner for hours.
+    timeout-minutes: 30
     permissions:
       contents: read
       # The open pull requests and whether each still merges. Writing the board is not a repository

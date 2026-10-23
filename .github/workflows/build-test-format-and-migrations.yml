@@ -52,6 +52,7 @@ jobs:
     name: Build and unit test the service
     if: inputs.run-build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       DOTNET_NOLOGO: '1'
@@ -122,6 +123,7 @@ jobs:
     name: dotnet format
     if: inputs.run-format
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       DOTNET_NOLOGO: '1'
@@ -155,6 +157,7 @@ jobs:
     name: Pending model changes
     if: inputs.run-model
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       DOTNET_NOLOGO: '1'

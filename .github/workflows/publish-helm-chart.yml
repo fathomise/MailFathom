@@ -54,6 +54,7 @@ jobs:
   publish:
     name: Publish chart ${{ inputs.version }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write

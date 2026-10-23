@@ -39,6 +39,7 @@ jobs:
   workflow-contracts:
     name: Workflow contracts
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       # The default shallow fetch is enough. Every contract that reads this repository rather than a
       # fixture reads its index through `git ls-files` or the file mode git recorded, never its history;
@@ -73,6 +74,7 @@ jobs:
     name: Helm chart
     if: inputs.run-helm
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Check out repository
         uses: actions/checkout@v7

@@ -226,6 +226,7 @@ jobs:
   decide:
     name: Decide whether to review
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: read
@@ -719,6 +720,7 @@ jobs:
       - decide
     if: needs.decide.outputs.dispatch == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       # `POST /repos/{owner}/{repo}/dispatches` is a write to the repository, and `contents: write`
       # is the narrowest permission that reaches it. It is the only write in this file not minted
@@ -774,6 +776,7 @@ jobs:
       - decide
     if: needs.decide.outputs.review == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: read

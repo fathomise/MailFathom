@@ -68,6 +68,7 @@ jobs:
     # deliberate act that opts every later push in.
     if: github.event_name == 'merge_group' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       # The changed-file query reads the pull request through the REST API. The checkout below reads

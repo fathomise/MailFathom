@@ -112,6 +112,7 @@ jobs:
     # every analysis, which reads it.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: read
@@ -205,6 +206,7 @@ jobs:
       - detect-changes
     if: needs.detect-changes.outputs.languages != '[]'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       # Each language is a separate answer about a separate stack, so one failing must not cancel the
       # others.

@@ -50,6 +50,7 @@ jobs:
     # request is still being written.
     name: Coherence
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:

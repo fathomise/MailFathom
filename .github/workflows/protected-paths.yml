@@ -169,6 +169,7 @@ jobs:
     # marked ready withholds the one fact it exists to surface early.
     name: Protected paths
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       # The changed-file query reads the pull request through the REST API and never checks the

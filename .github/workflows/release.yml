@@ -43,6 +43,7 @@ jobs:
   assert:
     name: Assert the release tag
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       version: ${{ steps.assert.outputs.version }}
       revision: ${{ steps.assert.outputs.revision }}
@@ -306,6 +307,7 @@ jobs:
         && needs.publish.result == 'success'
         && needs.publish-chart.result == 'success' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
