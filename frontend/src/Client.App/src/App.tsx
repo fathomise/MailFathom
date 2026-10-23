@@ -79,6 +79,7 @@ import { ConnectionSummary } from './shell/ConnectionSummary';
 import { Departing } from './shell/Departing';
 import { GrantNotice } from './shell/GrantNotice';
 import { AccountMenu } from './shell/AccountMenu';
+import { MailAccountsContext } from './shell/accountNames';
 import { LanguageChoice, ThemeChoice } from './shell/Preferences';
 import { Space } from './shell/Space';
 import { Refresh } from './shell/Refresh';
@@ -875,20 +876,22 @@ export function App({
         return (
             <Containment drawing={whatTheColumnDraws(workspace)} region="reading_pane">
                 <ReplyDraftingContext value={replyDrafting}>
-                    <OpenMail
-                        session={session}
-                        transport={readMail}
-                        conversation={workspace.conversation}
-                        fullHtml={workspace.fullHtml}
-                        attachment={workspace.attachment}
-                        storedEmailId={workspace.selection}
-                        online={connection.online}
-                        inTabs={inTabs}
-                        expandWholeThread={preferences.expandWholeThread}
-                        onShowFullHtml={openTabs.openFullHtml}
-                        onCloseFullHtml={openTabs.closeFullHtml}
-                        onCloseAttachment={openTabs.closeAttachment}
-                    />
+                    <MailAccountsContext value={mailAccounts}>
+                        <OpenMail
+                            session={session}
+                            transport={readMail}
+                            conversation={workspace.conversation}
+                            fullHtml={workspace.fullHtml}
+                            attachment={workspace.attachment}
+                            storedEmailId={workspace.selection}
+                            online={connection.online}
+                            inTabs={inTabs}
+                            expandWholeThread={preferences.expandWholeThread}
+                            onShowFullHtml={openTabs.openFullHtml}
+                            onCloseFullHtml={openTabs.closeFullHtml}
+                            onCloseAttachment={openTabs.closeAttachment}
+                        />
+                    </MailAccountsContext>
                 </ReplyDraftingContext>
             </Containment>
         );
@@ -1104,6 +1107,7 @@ export function App({
                                                                                             <DiscoverSpace
                                                                                                 session={session}
                                                                                                 transport={readMail}
+                                                                                                accounts={mailAccounts}
                                                                                                 // Its field and the
                                                                                                 // connection only while
                                                                                                 // this is the space in

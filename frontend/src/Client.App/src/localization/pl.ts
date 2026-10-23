@@ -1143,6 +1143,7 @@ export const pl: Catalogue = {
     'search.rangeSelectsNothing': 'Ostatni dzień wypada przed pierwszym, więc nic nie mogło przyjść pomiędzy nimi.',
 
     'search.narrowing.account': 'Skrzynka: {value}',
+    'search.narrowing.accountUnnamed': 'Jedna skrzynka',
     'search.narrowing.folder': 'Folder: {value}',
     'search.narrowing.sender': 'Od {value}',
     'search.narrowing.recipient': 'Do {value}',
@@ -1330,6 +1331,7 @@ export const pl: Catalogue = {
     'thread.moreParticipants': 'W tej rozmowie pisało więcej osób, niż wymieniono tutaj.',
     'thread.moreNotAssembled': 'Ta rozmowa jest dłuższa, niż obejmuje jeden odczyt, więc pokazany jest jej początek.',
     'thread.storedIn': 'W koncie {account}, folder {folder}',
+    'thread.storedInFolder': 'Folder {folder}',
     'thread.messageBy': 'Wiadomość od: {sender}',
     'thread.held.one': 'rozmowa: {count} wiadomość',
     'thread.held.few': 'rozmowa: {count} wiadomości',

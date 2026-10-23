@@ -1125,6 +1125,7 @@ export const en = {
         'The last day falls before the first one, so nothing could have arrived between them.',
 
     'search.narrowing.account': 'Mailbox: {value}',
+    'search.narrowing.accountUnnamed': 'One mailbox',
     'search.narrowing.folder': 'Folder: {value}',
     'search.narrowing.sender': 'From {value}',
     'search.narrowing.recipient': 'To {value}',
@@ -1312,6 +1313,7 @@ export const en = {
     'thread.moreNotAssembled':
         'This conversation is longer than one read assembles, so what is shown is the beginning of it.',
     'thread.storedIn': 'In {account}, {folder}',
+    'thread.storedInFolder': 'In {folder}',
     'thread.messageBy': 'Message from {sender}',
     'thread.held.one': 'thread: {count} message',
     'thread.held.few': 'thread: {count} messages',

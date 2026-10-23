@@ -8,6 +8,7 @@ import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useMessageBody } from '../messageBody/useMessageBody';
 import { OpenedMessage } from '../readingPane/OpenedMessage';
+import { useAccountName } from '../shell/accountNames';
 import { ReplyDraftCard } from '../threadAgent/ReplyDraftCard';
 import type { ArrivalMark } from './threadOpening';
 
@@ -79,6 +80,7 @@ export function ThreadMessage({
 }) {
     const { translate } = useLocalization();
     const email = message.email;
+    const accountName = useAccountName(email.account);
     const sender = email.senderDisplayName ?? email.senderAddress ?? translate('list.senderUnknown');
 
     // The body the conversation already answered with, which is what makes revealing the history cost no request. The
@@ -133,7 +135,9 @@ export function ThreadMessage({
                     )}
 
                     <p className="text-sm text-muted">
-                        {translate('thread.storedIn', { account: email.account, folder: email.folder })}
+                        {accountName === null
+                            ? translate('thread.storedInFolder', { folder: email.folder })
+                            : translate('thread.storedIn', { account: accountName, folder: email.folder })}
                     </p>
                 </div>
             </article>

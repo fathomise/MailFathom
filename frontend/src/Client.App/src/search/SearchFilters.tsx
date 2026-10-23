@@ -11,6 +11,7 @@ import type { MessageKey } from '../localization/en';
 import { wordCalendarDay } from '../localization/instants';
 import type { Locale } from '../localization/locale';
 import { useLocalization } from '../localization/useLocalization';
+import { accountNameIn } from '../shell/accountNames';
 import { folderRoleLabels, folderRoles, isMailFolderRole } from '../workspace/mailScope';
 import {
     addressFilter,
@@ -403,7 +404,7 @@ function AddressFilter({ label, onAdd }: { readonly label: string; readonly onAd
 }
 
 // What a chip says. A filter holding a value says which one, and the account says the name the reader knows it by
-// rather than the identifier the route is asked with.
+// rather than the identifier the route is asked with — or, with no account of that identifier read yet, no name at all.
 function labelOf(
     narrowing: MailSearchNarrowing,
     value: string | null,
@@ -416,9 +417,19 @@ function labelOf(
         return translate(narrowingLabels[narrowing]);
     }
 
-    const named = accounts.find((account) => account.id === value)?.displayName ?? value;
+    if (isDay) {
+        return translate(narrowingLabels[narrowing], { value: wordCalendarDay(value, locale) });
+    }
 
-    return translate(narrowingLabels[narrowing], { value: isDay ? wordCalendarDay(value, locale) : named });
+    if (narrowing === 'account') {
+        const named = accountNameIn(accounts, value);
+
+        return named === null
+            ? translate('search.narrowing.accountUnnamed')
+            : translate(narrowingLabels[narrowing], { value: named });
+    }
+
+    return translate(narrowingLabels[narrowing], { value });
 }
 
 // The role a folder filter stands for, or `null` where it names a folder of one account instead.

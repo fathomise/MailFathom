@@ -55,6 +55,15 @@ describe('SearchFilters', () => {
         expect(filtersInForce()[0]?.textContent).toContain('Mailbox: Work');
     });
 
+    // Before the account list has answered, the mailbox is known only by the identifier the search is asked with —
+    // which is never something a reader is shown.
+    it('names no mailbox at all rather than its identifier where the account is not among those read', () => {
+        renderFilters(askIn({ kind: 'account', accountId: 'elsewhere' }, 'invoice'));
+
+        expect(filtersInForce()[0]?.textContent).toContain('One mailbox');
+        expect(filtersInForce()[0]?.textContent).not.toContain('elsewhere');
+    });
+
     it('draws every filter in force as an object of its own', () => {
         renderFilters({ ...anywhere, sender: 'somebody@example.invalid', unread: true });
 

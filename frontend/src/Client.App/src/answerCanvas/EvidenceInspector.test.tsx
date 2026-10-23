@@ -11,10 +11,12 @@ import type {
     ClientRequest,
     ClientSession,
     DeclaredSource,
+    MailAccount,
     MailFathomTransport,
 } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import { ReadingZoneContext } from '../localization/useReadingZone';
+import { MailAccountsContext } from '../shell/accountNames';
 import { AnswerCanvas } from './AnswerCanvas';
 import { EvidenceInspector } from './EvidenceInspector';
 import type { ArrivedAnswerBlock } from './followedRun';
@@ -43,6 +45,15 @@ const standingIn = {
     subject: 'Renewal terms',
     sentAt: '2026-07-01T12:00:00+00:00',
     receivedAt: '2026-08-26T09:00:00+00:00',
+};
+
+/** The account the message is stored in, as the account list names it. */
+const work: MailAccount = {
+    id: 'work',
+    displayName: 'Work',
+    synchronizationState: 'Synchronized',
+    lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
+    behind: false,
 };
 
 const passage = { fragmentId: 'f-4', ordinal: 3, text: 'Monthly remuneration is EUR 1,200 net' };
@@ -116,11 +127,13 @@ function Checking({
     transport,
     sources = [agreement],
     signedIn = session,
+    accounts = [work],
     onOpenMessage,
 }: {
     readonly transport: MailFathomTransport;
     readonly sources?: readonly DeclaredSource[];
     readonly signedIn?: ClientSession | null;
+    readonly accounts?: readonly MailAccount[];
     readonly onOpenMessage?: ((storedEmailId: string) => void) | undefined;
 }) {
     const [followed, setFollowed] = useState<DeclaredSource | null>(null);
@@ -141,15 +154,17 @@ function Checking({
                 </button>
             ))}
 
-            <EvidenceInspector
-                session={signedIn}
-                source={followed}
-                transport={transport}
-                onDismiss={() => {
-                    setFollowed(null);
-                }}
-                onOpenMessage={onOpenMessage}
-            />
+            <MailAccountsContext value={accounts}>
+                <EvidenceInspector
+                    session={signedIn}
+                    source={followed}
+                    transport={transport}
+                    onDismiss={() => {
+                        setFollowed(null);
+                    }}
+                    onOpenMessage={onOpenMessage}
+                />
+            </MailAccountsContext>
         </LocalizationProvider>
     );
 }
@@ -240,7 +255,19 @@ describe('EvidenceInspector', () => {
         expect(await screen.findByText(passage.text)).toBeDefined();
         expect(screen.getByText(passage.text).tagName).toBe('Q');
         expect(screen.getByText('Renewal terms')).toBeDefined();
-        expect(screen.getByText('work · Archive')).toBeDefined();
+        expect(screen.getByText('Work · Archive')).toBeDefined();
+    });
+
+    // The message carries its account as the identifier the deployment is asked with, which is nothing a reader knows a
+    // mailbox by — so an account the client holds no name for leaves the folder standing on its own.
+    it('names only the folder where the client holds no name for the account, never its identifier', async () => {
+        checking(answering(quotedPassage).transport, { accounts: [] });
+
+        check();
+
+        expect(await screen.findByText('Renewal terms')).toBeDefined();
+        expect(screen.getByText('Archive')).toBeDefined();
+        expect(screen.queryByText(/work/)).toBeNull();
     });
 
     it.each([
@@ -622,6 +649,6 @@ describe('reaching evidence from a block', () => {
         fireEvent.click(screen.getByRole('button', { name: pressed }));
 
         expect(await screen.findByText('Renewal terms')).toBeDefined();
-        expect(screen.getByText('work · Archive')).toBeDefined();
+        expect(screen.getByText('Archive')).toBeDefined();
     });
 });
