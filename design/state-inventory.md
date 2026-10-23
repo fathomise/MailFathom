@@ -16,7 +16,7 @@ state in an artboard changes this file in the same pull request. `design/README.
 | `sign-in.dc.html` | Sign-in, and the server screen behind it |
 | `toasts.dc.html` | Toasts and the blocking overlay — the system's answer to what somebody just did |
 | `notification-gesture.dc.html` | The phone's notification-panel gesture, as four frames plus the numbers behind them |
-| `ai-blocks.dc.html` | The block catalogue both AI surfaces draw: the result types the Agent renders read-only, and the four proposal types the Agent and Home's steps render with controls, each in its three phases |
+| `ai-blocks.dc.html` | The block catalogue both AI surfaces draw: the result types the Agent renders read-only, and the four proposal types the Agent and Start's steps render with controls, each in its three phases |
 | `mail-search.html` | Mail search: results, empty, waiting, lexical-only, failure |
 
 ## How a state is named here
@@ -288,22 +288,22 @@ add no step, because opening a thread there replaced nothing. `backSteps` in the
 A press closes a surface the way its own control would. The composer with anything written in it asks first
 (`closeAsk`) and stays until that question is answered, and a surface standing in a tab closes its tab.
 
-## Home — `isHome`
+## Start — `isStart`
 
-**Home is the reader's day, and it stores nothing of its own.** It gathers from Mail, Calendar, Tasks and People what
+**Start is the reader's day, and it stores nothing of its own.** It gathers from Mail, Calendar, Tasks and People what
 the day holds — what is next, what needs the reader, one step each, how the day runs, who is waiting — and every item
 opens where it lives. It is the first space, above the hairline with the Agent, because both look across everything
 rather than holding one kind of thing.
 
-**Rules read the day, and the model writes only on request.** Everything on Home by default is derived by rules from
+**Rules read the day, and the model writes only on request.** Everything on Start by default is derived by rules from
 data the deployment already holds — counts, calendar facts, open questions in a thread, a question asked and not
-answered — so opening Home runs no model and spends no allowance. What the model writes is asked for: the written
+answered — so opening Start runs no model and spends no allowance. What the model writes is asked for: the written
 briefing (off by default) and a meeting's prep (*Prepare me*). Each says it is AI and what it was written from.
 
 **Ask or find is short, and the Agent is where it goes long.** The field answers in one card with its citations and
 lists the messages the answer came from; it has no revisions, no refinements, and no clarifying step, because
 reworking an answer is a conversation. *Continue with the agent* carries the question and the answer there
-(`continueInAgent`). Home always asks about all of the reader's mail: the field carries no scope control, nothing the
+(`continueInAgent`). Start always asks about all of the reader's mail: the field carries no scope control, nothing the
 Mail space has open narrows it, and a question about one correspondence is asked in that correspondence's own field.
 
 The ask is a phase machine (`st.phase`: `idle`, `running`, `done`). The plan behind an answer is `askPlan(st)`, one of
@@ -319,15 +319,15 @@ identifier, plan, model or spend, and an evidence entry carries no relevance sco
 | Ask chips | `showAskChips`, `suggestions` | idle only — three questions as chips under the field, one row that scrolls sideways on a phone; a chip asks at once |
 | The day's counts | `dayCounts` | always, under the greeting — *new messages*, *meetings today*, *due today*, *waiting on you*. Each is a chip that opens what it counts: Mail, Calendar, Tasks, or Mail filtered to the threads waiting on the reader (`resultFilter.why`, *waiting on your reply*). Counts, not prose — nothing reads the mail to produce them |
 | Written briefing offered | `briefOffer` | `!briefOn && !briefOfferHidden` — a dashed card saying what the briefing reads and that it counts against the allowance, with *Turn on* and *Not now*. **It is off by default** |
-| Written briefing on | `briefOn` | *Turn on* — the model-written card with its counters, *Not useful* and *Turn off*; turning it off hides the offer too (Settings › Home turns it back on) |
+| Written briefing on | `briefOn` | *Turn on* — the model-written card with its counters, *Not useful* and *Turn off*; turning it off hides the offer too (Settings › Start turns it back on) |
 | Up next | `nextUp` | always — the next meeting on an accent-edged card: its title, time, place and the thread behind it, the attendees as initials, and up to three facts rules read off the thread (`nextFacts`, each with the `rule` glyph). *Prepare me*, *Open the thread*, *Open in Calendar*, and *Plan it with the agent*, which opens the Agent with the meeting as its context |
 | Being prepared | `prepBusy` | *Prepare me* — an `AI · preparing you for this meeting` well with three shimmer lines; *Prepare me* leaves the foot |
 | Prepared | `prepReady` | the prep arrives in the well: three sentences, headed `AI · what to know going in · from 6 messages and 1 attachment`, with an × that drops it (`dropPrep`) |
 | Needs you today | `todayItems` | always. Rule-derived, and labelled *raised by rules, not written by a model*: each item names its rule (`ti.rule`), why, and the message it came from |
 | An item dismissed | `st.todayHidden` | × on an item — *Marked not important*, with *Undo* on the toast |
 | Nothing left today | `todayEmpty` | every item dismissed — one quiet line, *Nothing waiting on you today* |
-| One step each | `homeSteps` | always — `HOME.steps`, each drawn by `bkView(…, "home")`: a focus block in the calendar, a task, and a draft. Keyed `home#<n>` |
-| A step taken | `bk.hasResult` | its primary control — *done* chip and result line, and a toast carrying *Undo*, which puts the step back to pending. A taken focus block reads *booked from Home* on *Your day* instead of *proposed below* |
+| One step each | `startSteps` | always — `HOME.steps`, each drawn by `bkView(…, "start")`: a focus block in the calendar, a task, and a draft. Keyed `start#<n>` |
+| A step taken | `bk.hasResult` | its primary control — *done* chip and result line, and a toast carrying *Undo*, which puts the step back to pending. A taken focus block reads *booked from Start* on *Your day* instead of *proposed below* |
 | A step declined | `bk.isDeclined` | *Decline* or *Discard* |
 | Your day | `dayPlan` | always — the calendar and the tasks on one card, in time order: a past item struck and dimmed, a line marking *now*, the next meeting on `--accent-soft`, a task as a square dot, and a proposed slot as a dashed dot in italics. Each row opens Calendar or Tasks |
 | Waiting on you | `waiting` | always — one row per person who asked the reader something not yet answered: initials, name, organisation, what they wait for, and since when. A row opens the thread |
@@ -336,10 +336,19 @@ identifier, plan, model or spend, and an evidence entry carries no relevance sco
 | A watched refresh paused | `w.isPaused` | the seeded `paused` row — a warning line naming when it resumes, because the allowance is spent |
 | Nothing watched | `noWatched` | every row stopped — a dashed hint, *Press Watch on an answer to keep its question here* |
 
-**Home's steps act, and only one step at a time.** They are the proposal blocks the Agent draws, with Home's controls:
+**Start's steps act, and only one step at a time.** They are the proposal blocks the Agent draws, with Start's controls:
 an event takes *Add to calendar* and *Decline* — no *Another time*, which is a conversation — a task *Add* and
 *Decline*, and a draft **opens in the composer** (*Open in composer*, *Discard*) as an AI draft still to be accepted
-there; it is never sent or edited from Home. Each is pressed, and its toast carries *Undo* (`acceptHomeStep`).
+there; it is never sent from Start. Each is pressed, and its toast carries *Undo* (`acceptStartStep`).
+
+**A step is changed before it is pressed, exactly as in the Agent.** A pending event's *When* and *Duration* and a
+pending task's *Due* and *Reminder* are controls (`f.canChange`) that open *The agent suggests* with a field for the
+reader's own words, and a changed value is tagged and is what *Add* takes (*Working on one part of an answer*). A step
+offers alternatives fitted to the day (`alts` on the step) before the Agent's own. Selecting part of the pending draft
+opens the rewrite bar with the presets and a field for saying how — no *Ask about this*, since Start has no
+conversation to quote into — and the rewrite is struck and replaced in the letter until *Keep the change*, *Try
+again* or *Undo*; *Open in composer* carries the kept text. A focus block booked at a changed time reads *booked from
+Start for* that time on *Your day*.
 
 ### Asking
 
@@ -351,7 +360,7 @@ there; it is never sent or edited from Home. Each is pressed, and its toast carr
 | Watching this question | `isWatching` | *Watch* in the run line — it turns to *Watching*, and the toast says each refresh counts against the allowance. Pressed again, it stops |
 | Answer | `answerReady` | `ready.answer` — the answer with its citations, its confidence, and *Show the N messages in Mail* |
 | What the sources do **not** settle | `gapNote` | the plan carries a `gap` — `contract` and `people` do |
-| Found in your mail | `foundRows` | the run is over — the messages the answer came from, one row each (sender, subject, time); a row opens the thread with *Back to Home* over it (`cameFromNote`) |
+| Found in your mail | `foundRows` | the run is over — the messages the answer came from, one row each (sender, subject, time); a row opens the thread with *Back to Start* over it (`cameFromNote`) |
 | Hand-off | `continueInAgent` | the run is over — a dashed card, *Want to go further - compare, plan, or write back?*, and *Continue with the agent* |
 | A claim reported | `p.disputed` | *This is wrong* in the inspector for that citation — the claim gets a wavy warning underline and its citation turns warning; nothing else changes |
 | Evidence inspector open | `inspectorOpen` | a citation is pressed |
@@ -467,7 +476,7 @@ the passage it rests on.*, shortened to *Quoted from this message alone* on the 
 | Four states or more | `stateRowStyle` / `stateBodyRowStyle` / `sc.valueStyle` | `thread.state.length >= 4` — the state cards beside the thread and the chips inside the body stand as a two-column grid, and each chip's value wraps (`text-wrap:pretty`, line height 1.35) rather than ending in an ellipsis on one line. The phone keeps its single column. `contoso` and `piotr` reach it, each carrying a fourth state, `Version difference`, that says what a later message corrected in an earlier one |
 | Held back, in a narrow pane | `staleInBody` | `stateCards && !stateBarOff && stateStale` — the same sentence as a note at the top of the thread body, where `stateInBody` would have drawn the chips |
 | Panels hidden | `st.stateBarOff` | the *fullscreen* toolbar control; nothing else sets it |
-| Arrived from a citation | `showCitationTag` / `cameFromResult` | reached from a citation or a *Found in your mail* row on Home; a citation arrives only for the `contoso` thread |
+| Arrived from a citation | `showCitationTag` / `cameFromResult` | reached from a citation or a *Found in your mail* row on Start; a citation arrives only for the `contoso` thread |
 | Answer drawn in mail | `mailAnswer` | `st.mailAnswer` and the `contoso` thread — reached by the thread sheet's *Summarise where this stands* and *What the other side expects from me*; a drafted reply never lands here, it opens in the composer |
 | Thread actions sheet | `threadSheetOpen` | the sheet control, phone-shaped |
 | Remote content removed | `m.remoteBlocked` | a message that is not the user's own and carries remote references, until they are loaded. A card at the top of the body says *This message asked to fetch content from another server. That was removed, so opening it told the sender nothing.*, then *Removed references: N*, then *Loading them tells the sender that this message was opened. This choice applies to this message only and is not remembered anywhere.*, over one accent button, *Load images from the sender*, 44 px tall on touch. The count comes from `m.remoteRefs` where a message sets one, and none does; otherwise a hash of sender and time gives about a third of the messages none and the rest between 3 and 18. *Images loaded automatically* in the settings does not reach it |
@@ -497,7 +506,7 @@ Added to the prototype after this inventory was first written, and read against 
 | Search active | `listSearchActive` | the search control |
 | Filters open | `filtersOpen` | the filter control |
 | Filters in force | `filtersActive` | `filterCount > 0` over unread, flagged, attachment, date range and sort |
-| Opened from Home | `resultFilterOn` | *Show the N messages in Mail* on an answer, or the *waiting on you* count — the list holds only those threads, under an accent band naming how many and why (`resultFilterWhy`: the question, or *waiting on your reply*), with *Back to Home* and *Show the whole folder*. It is an ordinary list in every other respect, and leaving Mail clears it (`goScreen`) |
+| Opened from Start | `resultFilterOn` | *Show the N messages in Mail* on an answer, or the *waiting on you* count — the list holds only those threads, under an accent band naming how many and why (`resultFilterWhy`: the question, or *waiting on your reply*), with *Back to Start* and *Show the whole folder*. It is an ordinary list in every other respect, and leaving Mail clears it (`goScreen`) |
 | Undo after archiving | `undoShown` | `isMobile` and the last archived thread is still archived — **phone only** |
 | A thread being dragged | `st.dragIds` (`dragThreadsStart`) | a row is `draggable` and starts a drag; the dragged rows go to `opacity:0.45` while it lasts, and a drag started on a row inside a selection of more than one carries **the whole selection** rather than that row |
 | A folder under the drag | `st.dragOverKey` (`dragOverFolder`) | the pointer over a folder row in the side list while `dragIds` is set — that row draws the accent-soft background, the accent text and an `inset 0 0 0 2px var(--accent)` ring, which is the only affordance saying a drop lands here |
@@ -621,7 +630,7 @@ menu's *Tab mode* switch is turned on at a width of at least 1180 px**.
 | An answer with prose | `m.hasMd`, drawing `m.md` | the bot message carries `text`, `paras`, or both — each is read as Markdown and drawn as one list of blocks, a paragraph's blocks animating in together as it lands. `m.hasText`, `m.hasParas` and `m.paras` are still computed beside it and nothing reads them |
 | An answer still being worked | `m.working` | the message carries `working` — it draws an `autorenew` glyph and *The agent is going through your mail…* instead of prose |
 | An answer carrying blocks | `m.hasBlocks` | the message carries `blocks` |
-| An answer carrying an Answer block | `bk.isAnswer` | a block of type `answer` — seeded in *Summarise the addendum thread* (`c-summary`), a thread-scoped *Summarise*. The same chrome as Home's answer: the `auto_awesome` accent tile, *Answer*, and *N citations*; then two chips that explain themselves (`[data-tip]`) — the confidence the run reported (`answerConfLabel`, moderate on `--rail`) and *cited* (`citedLabel`); then the prose with its citation numbers at the end of it (`answerCites`), each opening the evidence inspector (`openAgentEv`); then the verdict's sentence under it in `--muted` (`citedTip`). The Agent's answer is never *supported* |
+| An answer carrying an Answer block | `bk.isAnswer` | a block of type `answer` — seeded in *Summarise the addendum thread* (`c-summary`), a thread-scoped *Summarise*. The same chrome as Start's answer: the `auto_awesome` accent tile, *Answer*, and *N citations*; then two chips that explain themselves (`[data-tip]`) — the confidence the run reported (`answerConfLabel`, moderate on `--rail`) and *cited* (`citedLabel`); then the prose with its citation numbers at the end of it (`answerCites`), each opening the evidence inspector (`openAgentEv`); then the verdict's sentence under it in `--muted` (`citedTip`). The Agent's answer is never *supported* |
 | Back to the conversation | `convReturnShown` | a block's `nav` row was pressed, which is what `goLook` records in `agentReturn`; the pill stands fixed over whatever screen was opened until `backToConv` is pressed |
 | History open | `historyOpen` | `!isMobile` by default, and the history control otherwise. On the phone it is a drawer from the start edge over the conversation, so **picking a conversation, *Open conversation* in its menu, or *New conversation* closes it** |
 | History close | `historyCloseShown` | `isMobile` |
@@ -721,8 +730,9 @@ An answer is not prose with buttons under it. `bkView(b, key, isMobile, surface)
 and the catalogue is one for both surfaces: `Answer`, `Timeline`, `Evidence`, `Thread state`, `Fact table`,
 `Attachments`, `People`, `How I got here` (the run's trace), `Draft`, `Event proposal`, `Task proposal`,
 `Suggested action`. The last four carry controls, and
-therefore a phase, on both surfaces; what a conversation adds over Home's steps is *Another time* on an event and
-sending or editing a draft in place, which Home leaves to the Agent (`surface === "home"`).
+therefore a phase, on both surfaces; what a conversation adds over Start's steps is *Another time* on an event and
+sending a draft or editing it by hand in place, which Start leaves to the composer and the Agent (`surface === "start"`).
+A field's alternatives and a draft's selection rewrite are the same on both.
 
 | State | Flag | Reveal |
 |---|---|---|
@@ -737,7 +747,7 @@ sending or editing a draft in place, which Home leaves to the Agent (`surface ==
 | Editing a draft | `editing` | *Edit here* — `editBk` swaps the paragraphs for a `textarea` inside the conversation, and the controls become *Send* and *Stop editing* |
 | Cited | `citedLabel` | every `Evidence` block the Agent writes carries a *cited* chip (`format_quote`, `--rail` ground, `--muted` text) above its sources, never *supported*: the Agent names what it read, and nothing checked that it backs the answer. The chip explains itself (`citedTip`, `[data-tip]`) |
 | A source pressed | `e.open` | each source's number in an Agent `Evidence` block is a citation — a `role="button"` named *Citation n: source* — and opens the evidence inspector (`openAgentEv`); 36 px under a finger |
-| Evidence inspector open | `agentEvOpen` | a citation was pressed in the conversation in front (`agentEv` names that conversation, so opening another one leaves the source behind). From 1180 px it stands **beside** the conversation as a 380 px column with a `--line` start border, scrolling on its own (`agentEvBeside`); below that it stands **over** the conversation as the phone's full sheet Home uses (`agentEvOver`). Header *Evidence* with a back control and *Source n*, the source's name and kind, when it was read, the passage on `--hl`, and *Open in mail*, which goes to the thread with the *Back to the conversation* pill (`goLook`). Back (`closeAgentEv`) returns the keyboard to the citation that opened it |
+| Evidence inspector open | `agentEvOpen` | a citation was pressed in the conversation in front (`agentEv` names that conversation, so opening another one leaves the source behind). From 1180 px it stands **beside** the conversation as a 380 px column with a `--line` start border, scrolling on its own (`agentEvBeside`); below that it stands **over** the conversation as the phone's full sheet Start uses (`agentEvOver`). Header *Evidence* with a back control and *Source n*, the source's name and kind, when it was read, the passage on `--hl`, and *Open in mail*, which goes to the thread with the *Back to the conversation* pill (`goLook`). Back (`closeAgentEv`) returns the keyboard to the citation that opened it |
 | Evidence inspector closed | `!agentEvOpen` | the resting state — the Agent draws no empty evidence column |
 
 **The controls are the type's.** `Event proposal` takes *Add to calendar*, *Another time* and
@@ -782,14 +792,14 @@ asked about.
 | Answered in place | `passageHasAnswer` | *Explain* or *Check against the sources* — the answer arrives inside the bar (`passageAnswerBusy` shimmers first) rather than at the bottom of the conversation, and *Keep in the conversation* writes the question with its quote and the answer into it |
 | A passage quoted | `agentQuoteShown` | *Ask about this* — the passage stands over the field with where it came from and an ×, the placeholder reads *Ask about the quoted passage*, and the reader's turn carries the quote above its text (`m.hasQuote`) |
 | A passage made a task | `selToTask` | *Make it a task* — the reader's turn with the quote, then a pending `Task proposal` titled from the passage |
-| Part of a draft selected | `passageBarIsDraft` | text selected in a pending draft that is not being edited by hand — the presets *Shorter*, *More formal*, *Softer* and *Firmer*, a field for saying how, and *Ask about this* |
+| Part of a draft selected | `passageBarIsDraft` | text selected in a pending draft that is not being edited by hand — the presets *Shorter*, *More formal*, *Softer* and *Firmer*, a field for saying how, and *Ask about this* (not on Start, `passageQuoteShown`) |
 | How to rewrite a part | `draftHint` | a pending draft with nothing being rewritten — *Select any part and the agent rewrites just that* under the letter |
 | Being rewritten | `changeBusy` | a preset or a said instruction — the selection widens to the whole sentences it touches, they pulse, and the tray reads *Rewriting N passage(s)* with a turning glyph and no controls |
 | A rewrite to review | `hasChange` | the rewrite came back — the old sentences struck, the new ones beside them on `--accent-soft` with an accent underline, and the tray holds *Keep the change*, *Try again* and *Undo* instead of *Send*: **nothing is sent while a rewrite waits** |
 | Nothing to change | — | every sentence came back the same — no diff, and a toast says the agent found nothing to change |
 | A rewrite kept | `bkText[key]` | *Keep the change* — the letter takes the new text, the meta reads *reply · rewritten with the agent*, and the toast carries *Undo* back to the version before. *Edit here* opens the kept text |
 | Another version | *Try again* | the same sentences rewritten under the next preset, labelled *· another version* |
-| A field to change | `f.canChange` | *When* and *Duration* on a pending event, *Due* and *Reminder* on a pending task, in the Agent — the value is a control with an `edit` glyph |
+| A field to change | `f.canChange` | *When* and *Duration* on a pending event, *Due* and *Reminder* on a pending task, in the Agent and on Start's steps — the value is a control with an `edit` glyph |
 | The agent's alternatives | `f.open` | the value pressed — *The agent suggests*, each alternative with its reason, and a field taking the value in the reader's own words (*Set*) |
 | A field changed | `f.changed` | an alternative or a typed value — the value takes a *changed* tag, a changed *When* drops the conflict note, and accepting takes the changed values |
 
@@ -799,15 +809,15 @@ sentence of the seeded draft (`draftRewrites`); a typed instruction picks the pr
 back to *More formal*.
 
 **The composer takes the same rewrite.** A draft is not the Agent's alone: the same bar opens on text selected in
-the composer's editor — a new message, a reply, a forward, or a draft opened there from the Agent or Home — and
+the composer's editor — a new message, a reply, a forward, or a draft opened there from the Agent or Start — and
 the rewrite is reviewed in the editor itself, with the foot standing in for *Send* until it is kept or undone
-(*Composing*, under *Mail*). The composer's own drafts and the draft Home proposes are seeded in `draftRewrites` beside the
+(*Composing*, under *Mail*). The composer's own drafts and the draft Start proposes are seeded in `draftRewrites` beside the
 Agent's; text the reader typed has no seeded version, so the prototype answers it with *nothing to change*.
 
 **Every read-only block can be asked about one item at a time.** The answer comes under the item it is about, not
 at the bottom of the conversation (`noteBk`, keyed `<block>#<item>` in `bkNote`), with a shimmer while it comes and
 an × that closes it; what changes the result is written as a new turn instead (`agentTurn`). None of it reaches
-Home's steps. Under a finger every ask, a field's value, an alternative, the tray's actions and the answer's × are
+Start's steps, which take the field alternatives and the draft rewrite alone. Under a finger every ask, a field's value, an alternative, the tray's actions and the answer's × are
 44 px, and `bkView` takes `touch` so the fold and the tablet get them as the phone does.
 
 | State | Flag | Reveal |
@@ -854,11 +864,11 @@ to a folder and marking as read stay a one-line `Suggested action`.
 | Unread notifications | `notifHasUnread` | the unread count; it gates three regions including the rail badge. The panel's own badge is one composed string, `notifNewLabel`, reading *1 new* or *N new* |
 | The centre's filter | `notifFilter` / `notifTabs` | **it opens on *Unread*** — the first of the two, *Unread* then *All*; `st.notifFilter` falls back to `"unread"` |
 | **No notifications** | `notifEmpty` | the shown list is empty — *Nothing new. All read.*, reached by opening the centre with nothing unread |
-| Connection summary | — | a green dot and *Every account is up to date.* at the foot of the folder column while it is expanded (`sideExpanded`; a collapsed column draws none), and always in the Home head, in the Agent head (its own row under the head on a phone), and at the foot of Tasks, Calendar and People. **When every account is current it is green and nothing more** — no disclosure, no per-account rows, no times. The prototype draws only that state; an account behind or stopped is `m_sync` in the Client States file, and changes on their way are `m_pending` |
+| Connection summary | — | a green dot and *Every account is up to date.* at the foot of the folder column while it is expanded (`sideExpanded`; a collapsed column draws none), and always in the Start head, in the Agent head (its own row under the head on a phone), and at the foot of Tasks, Calendar and People. **When every account is current it is green and nothing more** — no disclosure, no per-account rows, no times. The prototype draws only that state; an account behind or stopped is `m_sync` in the Client States file, and changes on their way are `m_pending` |
 | Refresh | `refreshAll` / `refreshBusy` | the `refresh` control in the rail, titled *Refresh* (44 px under a finger), and on the phone the *Refresh* row of the *More* sheet (`moreRefresh`), which closes the sheet as it starts — it re-reads the mail in front of the reader and the notification centre, pulses its glyph (`mfpulse`, 1 s) rather than spinning while it waits, and refuses a second press until the re-read lands |
 | Move dialog | `moveOpen` | the move action on a selection — grouped by mailbox (`moveGroups`), each group ending in *New folder here*, and the toast it produces names the mailbox |
 | Permanent delete | `confirmDel` under `inTrash` | a delete action while the open folder is a Trash — *Delete permanently*, no undo offered, and the toast reads *Permanently deleted* rather than *Moved to trash* |
-| The order of the spaces | `railSepStyle` | *Home* and *Agent* first — the two places that look across everything rather than holding one kind of thing — then a 1 px `--line` hairline inset 16 px from either side of the rail, then *Mail*, *Tasks*, *Calendar* and *People*. The bottom bar carries *Home*, *Agent* and *Mail* in that order and draws no hairline: its five places are counted |
+| The order of the spaces | `railSepStyle` | *Start* and *Agent* first — the two places that look across everything rather than holding one kind of thing — then a 1 px `--line` hairline inset 16 px from either side of the rail, then *Mail*, *Tasks*, *Calendar* and *People*. The bottom bar carries *Start*, *Agent* and *Mail* in that order and draws no hairline: its five places are counted |
 | The rail's nav scrolls | `railNavStyle` | a viewport too short for the six destinations — the nav scrolls and the bottom cluster stays pinned |
 | The *More* sheet | `moreOpen` / `moreItems` | the phone's *More* — *Tasks*, *Calendar* and *People*, the current one on `--accent-soft`, then under a rule *Refresh* (`moreRefresh`) and *Settings* (`moreSettings`); every row 52 px |
 | A rail destination | `railBase` / `activeStyle` | on the phone a bottom-bar place whose glyph sits in a 56 × 32 px pill, filled `--accent-soft` on the current one (`--nav-mark`); on the rail a tile inset 7 px from either side of the rail on a 12 px radius, 4 px apart (2 px below 1020) — the current one on `--accent-soft` with an accent glyph and a semibold label, hover on `--hover`. No full-width slab and no edge bar, so neighbouring tiles never meet across a dark gap |
@@ -1074,7 +1084,7 @@ and *Nothing open* layout. **The one new component is the radio list in *Kind of
 
 ### Discover
 
-The Client States file still names this space *Discover*; its states are Home's ask and its watched questions.
+The Client States file still names this space *Discover*; its states are Start's ask and its watched questions.
 
 | State | Gate | What it settles |
 |---|---|---|
@@ -1147,12 +1157,12 @@ clicking a preview.
 - **No sign-in method offered** (`noMethods`). Three properties turned off together — `ssoAvailable` joined `oauthAvailable` and `basicAvailable`.
 - **A person with no documents** (`personNoDocs`). No mock record has an empty
   `docs`, so the empty state is drawn by no preview at any click.
-- **Home with nothing left on it** (`todayEmpty`, `noWatched`). Reached only by dismissing every
+- **Start with nothing left on it** (`todayEmpty`, `noWatched`). Reached only by dismissing every
   *Needs you today* item and stopping every watched question first. A watched question that **could not refresh**
   has no seeded row in the prototype; `d_watched` in the Client States file draws it.
 - **The written briefing** (`briefOn`). Off by default, so the model-written card appears only after *Turn on*.
 - **A meeting's prep** (`prepBusy`, `prepReady`). Written only after *Prepare me* on *Up next*.
-- **A booked focus block** (*booked from Home* on *Your day*). Reached only by taking the first of Home's steps.
+- **A booked focus block** (*booked from Start* on *Your day*). Reached only by taking the first of Start's steps.
 - **No proposals left** (`calNoProposals`). Reachable only by dealing with every proposed slot first.
 - **A conversation archive** (`hasArchived`, `archiveSectionOpen`). Needs a conversation archived first.
 - **The `fold` composition's own case.** 884 px is `compact`, `narrow` and `!singlePane`: two panes with the list

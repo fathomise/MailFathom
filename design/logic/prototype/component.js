@@ -80,7 +80,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   /* Shared shimmer for every loading skeleton. */
   const SHIM = "border-radius:6px;background:linear-gradient(90deg,var(--line) 0%,var(--line2) 42%,var(--line) 78%);background-size:260% 100%;animation:mfshim 1.05s linear infinite;";
 
-  /* The AI block chrome, one family wherever a block stands — the Agent's (`bkView`) and Home's answer and steps.
+  /* The AI block chrome, one family wherever a block stands — the Agent's (`bkView`) and Start's answer and steps.
      A card at radius 12, a header of icon tile + title + meta with the phase chip on the right, and a footer
      tray, flush with the card's edges, that holds the controls and the way out. `tone` is `settled`,
      `pending` (the accent edge, tile and tray) or `declined` (a dashed outline and nothing else).
@@ -348,7 +348,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   };
 
   class Component extends DCLogic {
-    state = { workMode: "classic", tabs: [{ key: "thread:contoso", kind: "thread", id: "contoso" }], activeTab: "thread:contoso", screen: "home", phase: "idle", query: "", planKey: null, ready: {}, ev: null, threadId: "contoso", fromCite: null, cameFrom: false, mailAnswer: false, mailPane: "list", themeOverride: null, stateOpen: false, vw: typeof window !== "undefined" ? window.innerWidth : 1440, coarse: typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches, listW: null, remMap: { t1: [15], t3: [1440, 60] }, remUnit: "min", convs: SEED_CONVS(), bkPhase: {}, bkState: {}, bkResult: {}, bkEdit: {}, revs: [], rev: 0, clarify: null, refineText: "", watched: WATCHED.map(w => Object.assign({}, w)), reported: {}, todayHidden: [], briefOn: false, briefOfferHidden: false, resultFilter: null, selBar: null, selAsk: "", bkText: {}, bkChange: {}, bkVals: {}, bkField: null, fieldAsk: "", agentQuote: null, bkPick: {}, bkNote: {}, bkExcl: {}, bkOpen: {} };
+    state = { workMode: "classic", tabs: [{ key: "thread:contoso", kind: "thread", id: "contoso" }], activeTab: "thread:contoso", screen: "start", phase: "idle", query: "", planKey: null, ready: {}, ev: null, threadId: "contoso", fromCite: null, cameFrom: false, mailAnswer: false, mailPane: "list", themeOverride: null, stateOpen: false, vw: typeof window !== "undefined" ? window.innerWidth : 1440, coarse: typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches, listW: null, remMap: { t1: [15], t3: [1440, 60] }, remUnit: "min", convs: SEED_CONVS(), bkPhase: {}, bkState: {}, bkResult: {}, bkEdit: {}, revs: [], rev: 0, clarify: null, refineText: "", watched: WATCHED.map(w => Object.assign({}, w)), reported: {}, todayHidden: [], briefOn: false, briefOfferHidden: false, resultFilter: null, selBar: null, selAsk: "", bkText: {}, bkChange: {}, bkVals: {}, bkField: null, fieldAsk: "", agentQuote: null, bkPick: {}, bkNote: {}, bkExcl: {}, bkOpen: {} };
     timers = [];
     rootRef = React.createRef();
     agentScrollRef = React.createRef();
@@ -1878,10 +1878,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this._agAway = el.scrollHeight - el.clientHeight - el.scrollTop > 40;
     };
 
+    /* A bar standing over a passage would be left behind by the scroll; one docked above the field is not. */
+    closeFloatingSelBar = () => { if (this.state.selBar && !this.state.selBar.answer && !this._passageDocked) { this.dropSelection(); this.setState({ selBar: null }); } };
+    onStartScroll = () => this.closeFloatingSelBar();
     onAgentScroll = (e) => {
       const el = e.target;
-      /* A bar standing over a passage would be left behind by the scroll; one docked above the field is not. */
-      if (this.state.selBar && !this.state.selBar.answer && !this._passageDocked) { this.dropSelection(); this.setState({ selBar: null }); }
+      this.closeFloatingSelBar();
       if (el.scrollHeight - el.clientHeight - el.scrollTop < 40) this._agAway = false;
     };
 
@@ -1910,15 +1912,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        where the system's own selection menu already sits over the passage. */
     selBarView = (st, touch, convMsgs) => {
       const sb = st.selBar;
-      const bar = sb && (sb.kind === "compose" ? st.compose && !st.composeMin : st.screen === "agent") ? sb : null;
+      /* A step on Start keys its draft as `start#<step>`; the Agent's as `<conversation>#<message>#<block>`. */
+      const startDraft = !!sb && sb.kind === "draft" && sb.key.indexOf("start#") === 0;
+      const bar = sb && (sb.kind === "compose" ? st.compose && !st.composeMin : st.screen === (startDraft ? "start" : "agent")) ? sb : null;
       this._passageDocked = touch;
       if (!bar || !bar.rect) return { passageBarShown: false };
       /* The composer's selection is a draft too, rewritten in the editor rather than in a block. */
       const inCompose = bar.kind === "compose";
       const isDraft = bar.kind === "draft" || inCompose;
       const parts = bar.kind === "draft" ? bar.key.split("#") : [];
-      const msg = bar.kind === "draft" ? convMsgs[+parts[1]] : null;
-      const blk = msg && (msg.blocks || [])[+parts[2]];
+      const msg = bar.kind === "draft" && !startDraft ? convMsgs[+parts[1]] : null;
+      const blk = startDraft ? HOME.steps[+parts[1]] : msg && (msg.blocks || [])[+parts[2]];
       if (bar.kind === "draft" && !blk) return { passageBarShown: false };
       const r = bar.rect, W = isDraft ? 440 : 400;
       const above = r.top > 300;
@@ -1944,8 +1948,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         passageBarKey: (e) => { if (e.key === "Escape") this.closeSelBar(); },
         passageCloseBar: this.closeSelBar,
         passagePresets: isDraft ? REWRITE_PRESETS.map(pr => act(pr.label, pr.icon, () => (inCompose ? this.rewriteCompose(pr.key, pr.label) : this.rewriteSel(blk, pr.key, pr.label)), "Rewrite the selection: " + pr.label.toLowerCase())) : [],
-        /* The composer has no conversation to quote a passage into, so it offers the rewrite alone. */
-        passageQuoteShown: !inCompose,
+        /* The composer and Start have no conversation to quote a passage into, so they offer the rewrite alone. */
+        passageQuoteShown: !inCompose && !startDraft,
         passageAskValue: st.selAsk || "",
         passageOnAsk: (e) => this.setState({ selAsk: e.target.value }),
         passageAskKey: (e) => { if (e.key === "Enter") ask(); if (e.key === "Escape") this.closeSelBar(); },
@@ -1979,14 +1983,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        and the pending / accepted / declined phase. */
     bkView = (b, key, isMobile, surface, touch) => {
       const st = this.state;
-      /* Home takes one step and never writes outgoing text: no *Another time*, which is a conversation, and a
-         draft opens in the composer instead of being sent or edited here. */
-      const onHome = surface === "home";
+      /* Start takes one step and never sends: no *Another time*, which is a conversation, and a draft opens in the
+         composer instead of being sent from here. Its fields and a draft's sentences change exactly as the Agent's do. */
+      const onStart = surface === "start";
       /* A field changed on its own is laid over the proposal, and accepting takes the changed values. */
       const vals = (st.bkVals || {})[key] || {};
       const FIELD_KEY = { When: "when", Duration: "duration", Due: "due", Reminder: "reminder" };
       const bv = Object.keys(vals).length ? Object.assign({}, b, ...Object.keys(vals).map(k => ({ [FIELD_KEY[k]]: vals[k] })), vals.When ? { conflict: "" } : {}) : b;
-      const accept = () => (onHome ? this.acceptHomeStep(key, bv) : this.acceptBk(key, bv));
+      const accept = () => (onStart ? this.acceptStartStep(key, bv) : this.acceptBk(key, bv));
       const change = (st.bkChange || {})[key] || null;
       const dParas = b.type === "draft" ? this.draftParas(key, b) : [];
       const phase = (st.bkPhase || {})[key] || b.phase || null;
@@ -2006,8 +2010,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const btn = (variant) => BLK.btn(isMobile, variant === "primary") + (touch ? "min-height:44px;" : "");
       const iconTile = (bg, color) => "display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:" + bg + ";font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:" + color;
       const keyer = (run) => (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); run(); } };
-      /* What the reader can ask of one item. Home's steps do not take these. */
-      const live = !onHome && ready;
+      /* What the reader can ask of one item. Start's steps do not take these. */
+      const live = !onStart && ready;
       const itemAct = (label, ic, run, aria) => ({ label, icon: ic, run, key: keyer(run), aria: aria || label,
         style: "display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--accent-d);border-radius:7px;white-space:nowrap;" + (touch ? "min-height:44px;box-sizing:border-box;padding:0 10px" : "padding:3px 7px") + ";margin-left:" + (touch ? -10 : -7) + "px",
         iconStyle: icon(15, "var(--accent-d)") });
@@ -2038,7 +2042,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (phase === "pending" && ready) {
         if (b.type === "event") raw = [
           { label: "Add to calendar", aria: "Add “" + b.title + "” to the calendar, " + (b.when || ""), primary: true, run: accept },
-        ].concat(onHome ? [] : [
+        ].concat(onStart ? [] : [
           { label: "Another time", aria: "Ask for another time for “" + b.title + "”", run: () => this.anotherTimeBk(key, b) },
         ]).concat([
           { label: "Decline", aria: "Decline putting “" + b.title + "” in the calendar", run: () => this.declineBk(key) },
@@ -2047,14 +2051,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           { label: "Add", aria: "Add the task “" + b.title + "”, due " + (b.due || ""), primary: true, run: accept },
           { label: "Decline", aria: "Decline the task “" + b.title + "”", run: () => this.declineBk(key) },
         ];
-        else if (b.type === "draft" && onHome) raw = [
-          { label: "Open in composer", aria: "Open the draft to " + b.to + " in the composer - nothing is sent from here", primary: true, run: accept },
-          { label: "Discard", aria: "Discard the draft to " + b.to, run: () => this.declineBk(key) },
-        ];
         else if (b.type === "draft" && change) raw = change.busy ? [] : [
           { label: "Keep the change", aria: "Keep the rewritten text in the draft to " + b.to, primary: true, run: () => this.keepChange(key, b) },
           { label: "Try again", aria: "Ask the agent for another version of the same sentences", run: () => this.retryChange(key, b) },
           { label: "Undo", aria: "Leave the draft as it was", run: () => this.dropChange(key) },
+        ];
+        else if (b.type === "draft" && onStart) raw = [
+          { label: "Open in composer", aria: "Open the draft to " + b.to + " in the composer - nothing is sent from here", primary: true, run: accept },
+          { label: "Discard", aria: "Discard the draft to " + b.to, run: () => this.declineBk(key) },
         ];
         else if (b.type === "draft") raw = editing
           ? [{ label: "Send", aria: "Send the edited draft to " + b.to, primary: true, run: () => this.acceptBk(key, b) },
@@ -2314,7 +2318,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         cells: cells,
 
         fields: fields.filter(f => !!f.v).map(f => {
-          const canChange = !onHome && phase === "pending" && ready && !!FIELD_ALTS[f.k];
+          const fieldAlts = (b.alts || FIELD_ALTS)[f.k];
+          const canChange = phase === "pending" && ready && !!fieldAlts;
           const fid = key + "|" + f.k;
           const open = canChange && st.bkField === fid;
           const toggle = () => this.setState(s2 => ({ bkField: s2.bkField === fid ? null : fid, fieldAsk: "" }));
@@ -2331,7 +2336,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           tagStyle: "font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--accent-d);background:var(--accent-soft);border-radius:999px;padding:1px 7px",
           panelStyle: "display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:10px;background:var(--sub);border:1px solid var(--line2)",
           panelLabelStyle: BLK.label,
-          alts: (FIELD_ALTS[f.k] || []).filter(a => a.v !== f.v).map(a => ({
+          alts: (fieldAlts || []).filter(a => a.v !== f.v).map(a => ({
             v: a.v, why: a.why, hasWhy: !!a.why,
             pick: () => this.setFieldVal(key, f.k, a.v), pickKey: keyer(() => this.setFieldVal(key, f.k, a.v)),
             aria: "Set " + f.k.toLowerCase() + " to " + a.v + (a.why ? " - " + a.why : ""),
@@ -2387,11 +2392,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               .concat([{ t: t.slice(piece.e), style: plain }]);
           return {
             t, segs: segs.filter(x => x.t),
-            sel: !onHome && phase === "pending" && !editing && !change ? "draft|" + key + "|" + pi : "text|the draft",
+            sel: phase === "pending" && !editing && !change ? "draft|" + key + "|" + pi : onStart ? "" : "text|the draft",
             style: "font-size:14px;line-height:1.6;color:var(--text);text-wrap:pretty",
           };
         }),
-        draftHint: !onHome && phase === "pending" && ready && !editing && !change,
+        draftHint: phase === "pending" && ready && !editing && !change,
         draftHintStyle: "display:flex;align-items:center;gap:7px;font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--muted)",
         draftHintIconStyle: icon(15, "var(--faint)"),
         hasChange: !!change,
@@ -2458,10 +2463,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     onSelPointer = (e) => {
       if (e.pointerType !== "mouse") return;
       this._mouseHeld = e.type === "pointerdown";
-      if (!this._mouseHeld && (this.state.screen === "agent" || this.state.compose)) this.onAgentSelect(null, true);
+      if (!this._mouseHeld && (this.state.screen === "agent" || this.state.screen === "start" || this.state.compose)) this.onAgentSelect(null, true);
     };
     onSelChange = () => {
-      if (this._mouseHeld || (this.state.screen !== "agent" && !this.state.compose)) return;
+      if (this._mouseHeld || (this.state.screen !== "agent" && this.state.screen !== "start" && !this.state.compose)) return;
       this.onAgentSelect(null, true, 350);
     };
 
@@ -3080,7 +3085,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.timers = [];
       const key = this.planFor(q);
       this.setState({ query: q, planKey: key, phase: "running", ready: {}, ev: null, cameFrom: false, mailAnswer: false, resultFilter: null });
-      /* Home answers short: the answer and the messages it came from. Anything longer is the Agent's. */
+      /* Start answers short: the answer and the messages it came from. Anything longer is the Agent's. */
       this.streamBlocks(["answer"]);
     }
 
@@ -3099,12 +3104,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       return st.planKey ? PLANS[st.planKey] : null;
     }
 
-    /* Home's one step is pressed and can be taken back: the toast carries the undo. */
-    acceptHomeStep = (key, b) => {
+    /* Start's one step is pressed and can be taken back: the toast carries the undo. */
+    acceptStartStep = (key, b) => {
       if (b.type === "draft") {
         this.setBk(key, { phase: "accepted", result: "Opened in the composer · " + this.hm() });
         /* It lands as an AI draft still to be accepted there, exactly as one written in the composer would. */
-        this.pendingDraft = (b.paras || []).map(t => "<p>" + t + "</p>").join("");
+        this.pendingDraft = this.draftParas(key, b).map(t => "<p>" + t + "</p>").join("");
         this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: "contoso", compose: true, composeMin: false, replyMode: "reply", composeSubjEdit: b.subject, closeAsk: false, sendAsk: null });
         this.notify("Nothing is sent until you send it from there.", { kind: "success", title: "Draft opened in the composer" });
         return;
@@ -3614,7 +3619,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         moreRefresh: () => { this.setState({ more: false }); this.refreshAll(); },
         moreSettings: () => this.setState({ more: false, settings: true }),
         moreRowStyle: "display:flex;align-items:center;gap:16px;box-sizing:border-box;min-height:52px;padding:0 14px;border-radius:12px;font-size:15px;color:var(--text)",
-        railLabelHome: "Home",
+        railLabelStart: "Start",
         railLabelMail: "Mail",
         railLabelAgent: "Agent",
         railLabelTasks: "Tasks",
@@ -3863,7 +3868,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         isAgent: st.screen === "agent" && !emptyApp,
         goAgent: () => this.goScreen("agent"),
         railAgentStyle: railBase + (st.screen === "agent" ? activeStyle : idleColor),
-        /* The hairline after Home and Agent: the spaces that look across everything stand above it, the spaces that hold below. */
+        /* The hairline after Start and Agent: the spaces that look across everything stand above it, the spaces that hold below. */
         railSepStyle: "flex:0 0 auto;align-self:stretch;height:1px;margin:4px 16px;background:var(--line)",
         agentScrollStyle: isMobile
           ? "flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:14px;padding:16px 14px"
@@ -3985,6 +3990,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         }))),
         agentInput: st.agentInput || "",
         onAgentSelect: this.onAgentSelect,
+        onStartScroll: this.onStartScroll,
         agentPlaceholder: st.agentQuote ? (isMobile ? "Ask about this…" : "Ask about the quoted passage") : isMobile ? "Tell me what to do…" : "Tell me what to do - write, schedule, check",
         agentQuoteShown: !!st.agentQuote,
         agentQuoteText: st.agentQuote ? st.agentQuote.text : "",
@@ -4042,11 +4048,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         railCalStyle: (isMobile ? "display:none;" : railBase + (st.screen === "cal" ? activeStyle : idleColor)),
         railPeopleStyle: (isMobile ? "display:none;" : railBase + (st.screen === "people" ? activeStyle : idleColor)),
 
-        isHome: st.screen === "home" && !emptyApp,
+        isStart: st.screen === "start" && !emptyApp,
         isMail: st.screen === "mail" && !emptyApp,
-        goHome: () => this.goScreen("home"),
+        goStart: () => this.goScreen("start"),
         goMail: () => this.goScreen("mail", { cameFrom: false, mailPane: "list" }),
-        railHomeStyle: railBase + (st.screen === "home" ? activeStyle : idleColor),
+        railStartStyle: railBase + (st.screen === "start" ? activeStyle : idleColor),
         railMailStyle: railBase + (st.screen === "mail" ? activeStyle : idleColor),
 
         headerStyle: isMobile
@@ -4098,7 +4104,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "display:flex;flex-direction:column;gap:12px;padding:14px;min-width:0"
           : "flex:1;display:flex;flex-direction:column;gap:14px;padding:20px 24px;overflow:auto;min-width:0",
         timelineRowStyle: isMobile ? "display:flex;flex-direction:column;gap:0;padding-top:2px" : "display:flex;gap:0;overflow-x:auto;padding-top:2px",
-        /* Home's answer and steps wear the same chrome as the Agent's (`BLK`). */
+        /* Start's answer and steps wear the same chrome as the Agent's (`BLK`). */
         blk: {
           card: BLK.card(isMobile, "settled"),
           pendingCard: BLK.card(isMobile, "pending"),
@@ -4146,7 +4152,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           /* The hand-off carries the answer on screen, not just the question. */
           this.setState(s2 => Object.assign({ convId: null }, this.pushMsg(Object.assign({}, s2, { convId: null }), [
             { role: "user", text: q },
-            { role: "bot", scope: "continuing from Home", text: "I have the context of that result: " + q + ". Here is the one step I would take next.", bullets: [], blocks: [{
+            { role: "bot", scope: "continuing from Start", text: "I have the context of that result: " + q + ". Here is the one step I would take next.", bullets: [], blocks: [{
               type: "action", meta: "one step", phase: "pending",
               title: "Draft a reply from this result",
               reason: "The result already carries the numbers and the sources the reply needs.",
@@ -4202,7 +4208,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           countStyle: "flex:0 0 30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:14px;font-weight:600;background:" +
             (d.n > 3 ? "var(--accent-soft);color:var(--accent-d);" : "var(--rail);color:var(--text2);border:1px solid var(--line);"),
         })),
-        /* Home's day. Everything here is read off Mail, Calendar, Tasks and People by rules, and every item opens
+        /* Start's day. Everything here is read off Mail, Calendar, Tasks and People by rules, and every item opens
            where it lives; the model writes only what the reader asks it to - the briefing and a meeting's prep. */
         dayCounts: HOME.dayCounts.map(c => {
           const open = c.key === "cal" ? () => this.goScreen("cal")
@@ -4226,16 +4232,16 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         nextUp: HOME.nextUp,
         nextPeople: HOME.nextUp.people.map(pp => ({ initials: pp.initials, name: pp.name })),
         nextFacts: HOME.nextUp.facts.map(f => ({ text: f })),
-        prepIdle: !st.homePrep,
-        prepBusy: st.homePrep === "busy",
-        prepReady: st.homePrep === "ready",
+        prepIdle: !st.startPrep,
+        prepBusy: st.startPrep === "busy",
+        prepReady: st.startPrep === "ready",
         prepLines: HOME.nextUp.prep.map(t2 => ({ text: t2 })),
         prepSkel: [92, 78, 64].map(w => ({ style: SHIM + "height:10px;border-radius:5px;width:" + w + "%" })),
         runPrep: () => {
-          this.setState({ homePrep: "busy" });
-          this.timers.push(setTimeout(() => this.setState({ homePrep: "ready" }), Math.max(600, (this.props.streamDelay ?? 550) * 1.6)));
+          this.setState({ startPrep: "busy" });
+          this.timers.push(setTimeout(() => this.setState({ startPrep: "ready" }), Math.max(600, (this.props.streamDelay ?? 550) * 1.6)));
         },
-        dropPrep: () => this.setState({ homePrep: null }),
+        dropPrep: () => this.setState({ startPrep: null }),
         openNextCal: () => this.goScreen("cal"),
         openNextThread: () => this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: HOME.nextUp.tid, cameFrom: false }),
         prepareWithAgent: () => this.goAgentWith("meeting “" + HOME.nextUp.title + "”"),
@@ -4248,8 +4254,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* The day as it runs: the calendar and the tasks on one line, with a mark for now. */
         dayPlan: HOME.dayPlan.map(d => {
           const isNow = d.kind === "now";
-          const booked = d.proposed && (st.bkPhase || {})["home#" + d.step] === "accepted";
-          if (booked) d = Object.assign({}, d, { proposed: false, note: "booked from Home" });
+          const booked = d.proposed && (st.bkPhase || {})["start#" + d.step] === "accepted";
+          const movedTo = ((st.bkVals || {})["start#" + d.step] || {}).When;
+          if (booked) d = Object.assign({}, d, { proposed: false, note: movedTo ? "booked from Start for " + movedTo : "booked from Start" });
           const past = d.state === "past";
           const dot = d.kind === "meeting" ? "var(--accent)" : d.kind === "focus" ? "transparent" : d.kind === "task" ? "var(--hl-line)" : "var(--accent)";
           return {
@@ -4272,8 +4279,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           rowStyle: "display:flex;align-items:center;gap:11px;border-radius:10px;padding:" + (touch ? "10px" : "8px 10px") + ";" + (touch ? "min-height:44px;box-sizing:border-box;" : ""),
         })),
 
-        /* One step each: the Agent's proposal blocks with Home's controls - pressed, and undone from the toast. */
-        homeSteps: HOME.steps.map((b, i) => this.bkView(b, "home#" + i, isMobile, "home", touch)),
+        /* One step each: the Agent's proposal blocks with Start's controls - pressed, and undone from the toast. */
+        startSteps: HOME.steps.map((b, i) => this.bkView(b, "start#" + i, isMobile, "start", touch)),
 
         /* Under the answer, the messages it came from - the find half of *Ask or find*. */
         foundRows: plan && plan.sources ? plan.sources.map(id => THREADS.find(t2 => t2.id === id)).filter(Boolean).map(t2 => ({
@@ -4291,7 +4298,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         briefOfferText: HOME.briefingOffer,
         turnBriefOn: () => { this.setState({ briefOn: true }); this.notify("It appears here each morning. Turn it off from the card.", { kind: "success", title: "Written briefing on" }); },
         hideBriefOffer: () => this.setState({ briefOfferHidden: true }),
-        turnBriefOff: () => { this.setState({ briefOn: false, briefOfferHidden: true }); this.notify("Settings › Home turns it back on.", { title: "Written briefing off" }); },
+        turnBriefOff: () => { this.setState({ briefOn: false, briefOfferHidden: true }); this.notify("Settings › Start turns it back on.", { title: "Written briefing off" }); },
         briefNotUseful: () => this.notify("Thanks - tomorrow's briefing weighs that.", { title: "Marked not useful" }),
 
         hasWatched: (st.watched || []).length > 0,
@@ -5513,14 +5520,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         cameFromResult: st.cameFrom,
         fromCitation: st.fromCite || "",
         cameFromNote: st.fromCite ? "opened from citation " + st.fromCite + " · your answer is kept" : "opened from the answer · your answer is kept",
-        backToResult: () => this.setState({ screen: "home", cameFrom: false }),
-        /* Mail opened from Home - an answer's sources, or who is waiting on the reader - is an ordinary filtered
-           list, with the way back to Home on it. */
+        backToResult: () => this.setState({ screen: "start", cameFrom: false }),
+        /* Mail opened from Start - an answer's sources, or who is waiting on the reader - is an ordinary filtered
+           list, with the way back to Start on it. */
         resultFilterOn: !!st.resultFilter,
         resultFilterCount: st.resultFilter ? st.resultFilter.ids.length + " messages" : "",
         resultFilterWhy: st.resultFilter ? (st.resultFilter.why || "behind the answer to “" + st.resultFilter.q + "”") : "",
         clearResultFilter: () => this.setState({ resultFilter: null }),
-        backToResultFromList: () => this.setState({ screen: "home", resultFilter: null }),
+        backToResultFromList: () => this.setState({ screen: "start", resultFilter: null }),
         resultFilterStyle: "flex:0 0 auto;display:flex;flex-direction:column;gap:4px;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);padding:" + (isMobile ? "10px 12px 6px" : "9px 12px 5px"),
         threads: THREADS.filter(t => (st.archived || []).indexOf(t.id) < 0 && (st.deleted || []).indexOf(t.id) < 0 && (!st.resultFilter || st.resultFilter.ids.indexOf(t.id) >= 0)).map(t => ({
           flagged: !!flags[t.id],

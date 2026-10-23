@@ -2,8 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-// Home: the reader's day - what is next, what needs them, one step each, and how the day runs - gathered from
-// Mail, Calendar, Tasks and People. Home stores none of it; every item opens where it lives. The day is
+// Start: the reader's day - what is next, what needs them, one step each, and how the day runs - gathered from
+// Mail, Calendar, Tasks and People. Start stores none of it; every item opens where it lives. The day is
 // Thursday 27 August, and it is 13:40.
 MailFathomDesign.data.home = {
   // Derived by rules rather than written by a model: `rule` names the rule that raised the item, and is what the
@@ -81,9 +81,32 @@ MailFathomDesign.data.home.waiting = [
 ];
 
 // One step each, drawn with the Agent's proposal blocks and taken with one press that can be undone.
+// One step each, as the Agent proposes them. `alts` are the alternatives a field offers here; a step without them
+// takes the Agent's own (`fieldAlternatives`).
 MailFathomDesign.data.home.steps = [
-  { type: "event", phase: "pending", title: "Focus: Contoso counter-proposal", when: "today 13:45-14:30", duration: "45 min", attendees: "just you", from: "Contract addendum - signatures", done: "Blocked in the calendar" },
-  { type: "task", phase: "pending", title: "Confirm the Q4 date to Fabrikam", due: "today 16:30", from: "Q4 delivery dates", reminder: "16:00", done: "Task added" },
+  { type: "event", phase: "pending", title: "Focus: Contoso counter-proposal", when: "today 13:45-14:30", duration: "45 min", attendees: "just you", from: "Contract addendum - signatures", done: "Blocked in the calendar",
+    alts: {
+      When: [
+        { v: "today 15:30-16:15", why: "right after the rollout call" },
+        { v: "today 16:30-17:15", why: "the rest of the afternoon is free" },
+        { v: "tomorrow 09:00-09:45", why: "first free block tomorrow" },
+      ],
+      Duration: [
+        { v: "30 min", why: "enough to mark up the addendum" },
+        { v: "1 h 30 min", why: "room to write the reply too" },
+      ],
+    } },
+  { type: "task", phase: "pending", title: "Confirm the Q4 date to Fabrikam", due: "today 16:30", from: "Q4 delivery dates", reminder: "16:00", done: "Task added",
+    alts: {
+      Due: [
+        { v: "today 15:00", why: "before the call with Piotr" },
+        { v: "tomorrow 10:00", why: "Fabrikam answers in the morning" },
+      ],
+      Reminder: [
+        { v: "14:30", why: "half an hour ahead" },
+        { v: "none", why: "" },
+      ],
+    } },
   { type: "draft", phase: "pending", meta: "opens in the composer", to: "Anna Kowalska", subject: "Re: Proposed terms 2027",
     paras: ["Thank you for the proposal. We can accept the 2-hour response time, but not indexation without a cap.", "We propose CPI indexation capped at 5% a year, and would like to settle it before 28 August."] },
 ];
