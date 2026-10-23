@@ -2788,6 +2788,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const paneNarrow = paneW < 560;
       const stateCards = !isMobile && paneCompact;
       const readPad = (min) => "max(" + min + "px, calc((100% - 880px) / 2))";
+      /* Past the column the pane has spare width, and a tinted band across it would run empty on both sides of
+         the cards. So there the state stands as a box in the column itself, its cards on the head's edge. */
+      const readingColumn = !singlePane && paneW > 924;
 
       const vals = {
         mo,
@@ -4533,7 +4536,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         },
         threadStateStyle: singlePane
           ? "flex:0 0 auto;display:flex;align-items:center;gap:9px;background:var(--sub);border-bottom:1px solid var(--line);padding:9px 12px"
-          : "display:flex;flex-direction:column;gap:6px;background:var(--sub);border-bottom:1px solid var(--line);padding:9px " + readPad(22),
+          : readingColumn
+            ? "flex:0 0 auto;display:flex;flex-direction:column;gap:6px;background:var(--sub);border:1px solid var(--line);border-radius:8px;margin:14px max(9px, calc((100% - 906px) / 2)) 0;padding:9px 12px"
+            : "display:flex;flex-direction:column;gap:6px;background:var(--sub);border-bottom:1px solid var(--line);padding:9px " + readPad(22),
         stateRowStyle: isMobile || paneNarrow ? "display:flex;flex-direction:column;gap:6px;padding-top:1px"
           : thread.state.length >= 4 ? "display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 20px" : "display:flex;gap:12px 20px;flex-wrap:wrap",
         stateBodyRowStyle: thread.state.length >= 4
