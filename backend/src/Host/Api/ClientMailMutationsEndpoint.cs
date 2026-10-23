@@ -683,7 +683,7 @@ internal static class ClientMailChangeOutcomes
     /// <summary>The destination is a folder this deployment does not mirror, and the account no longer declares what it keeps of mail that leaves it.</summary>
     internal const string AccountNoLongerConfigured = "account-no-longer-configured";
 
-    /// <summary>The move would file mail into the drafts folder or the sent folder, or out of either into anything but the trash.</summary>
+    /// <summary>The move would file mail into the drafts or the sent folder's tree from outside it, or out of either tree into anything but the trash.</summary>
     internal const string DestinationNotAllowed = "destination-not-allowed";
 }
 

@@ -115,13 +115,17 @@ describe('destinationsFor', () => {
     });
 });
 
-// The drafts folder and the sent folder beside the rest, which is what makes a message a draft or a sent copy: nothing
-// but the folder it sits in says so.
+// The drafts folder and the sent folder beside the rest, each with a subfolder of its own, which is what makes a message
+// a draft or a sent copy: nothing but the tree of the folder it sits in says so. *Drafts2* sits beside the drafts
+// folder rather than beneath it, which is a name rather than a place.
 const withDraftsAndSent = directoryOf({
     work: [
         folder('work-inbox', 'Inbox', ['INBOX']),
         folder('work-drafts', 'Drafts', ['Drafts']),
+        folder('work-drafts-clients', null, ['Drafts', 'Clients']),
+        folder('work-drafts2', null, ['Drafts2']),
         folder('work-sent', 'Sent', ['Sent']),
+        folder('work-sent-2026', null, ['Sent', '2026']),
         folder('work-archive', 'Archive', ['Archive']),
         folder('work-trash', 'Trash', ['Trash']),
         folder('work-clients', null, ['Projects', 'Clients']),
@@ -142,25 +146,38 @@ function offeredAliases(messages: readonly ActedMessage[]): readonly string[] {
     );
 }
 
-describe('destinationsFor, around the drafts and the sent folder', () => {
-    it('offers ordinary mail every folder but the drafts folder and the sent folder', () => {
+describe('destinationsFor, around the drafts and the sent tree', () => {
+    it('offers ordinary mail every folder outside the drafts and the sent tree', () => {
         expect(offeredAliases([inWork('message-1')])).toStrictEqual([
             'work-inbox',
             'work-archive',
             'work-trash',
+            'work-drafts2',
             'work-clients',
         ]);
     });
 
-    it.each([
-        ['a draft', inWorkDrafts('message-1')],
-        ['a sent message', inWorkSent('message-1')],
-    ])('offers %s the trash and nothing else, deleting being the one way out of its folder', (_, message) => {
-        expect(offeredAliases([message])).toStrictEqual(['work-trash']);
-        expect(offeredAliases([message, inWork('message-2')])).toStrictEqual(['work-trash']);
+    it('offers a draft its own tree and the trash, wherever in the tree it sits', () => {
+        const inDraftsClients: ActedMessage = { ...inWorkDrafts('message-2'), folder: 'work-drafts-clients' };
+
+        expect(offeredAliases([inWorkDrafts('message-1')])).toStrictEqual([
+            'work-drafts',
+            'work-trash',
+            'work-drafts-clients',
+        ]);
+        expect(offeredAliases([inDraftsClients])).toStrictEqual(offeredAliases([inWorkDrafts('message-1')]));
     });
 
-    it('files nothing dropped on the drafts or the sent folder, nor a draft or a sent message dropped on a folder', () => {
+    it('offers a sent message its own tree and the trash', () => {
+        expect(offeredAliases([inWorkSent('message-1')])).toStrictEqual(['work-sent', 'work-trash', 'work-sent-2026']);
+    });
+
+    it('offers a selection reaching into two trees the trash and nothing else', () => {
+        expect(offeredAliases([inWorkDrafts('message-1'), inWork('message-2')])).toStrictEqual(['work-trash']);
+        expect(offeredAliases([inWorkDrafts('message-1'), inWorkSent('message-2')])).toStrictEqual(['work-trash']);
+    });
+
+    it('files a drop inside a tree, and nothing dropped across the edge of one', () => {
         const ordinary = [inWork('message-1')];
         const draft = [inWorkDrafts('message-2')];
         const sent = [inWorkSent('message-3')];
@@ -168,9 +185,12 @@ describe('destinationsFor, around the drafts and the sent folder', () => {
             dropDestination(destinationsFor(withDraftsAndSent, messages), messages, 'work', alias);
 
         expect(dropping(ordinary, 'work-drafts')).toBeNull();
-        expect(dropping(ordinary, 'work-sent')).toBeNull();
+        expect(dropping(ordinary, 'work-sent-2026')).toBeNull();
         expect(dropping(draft, 'work-clients')).toBeNull();
+        expect(dropping(draft, 'work-drafts2')).toBeNull();
         expect(dropping(sent, 'work-archive')).toBeNull();
+        expect(dropping(draft, 'work-drafts-clients')?.alias).toBe('work-drafts-clients');
+        expect(dropping(sent, 'work-sent-2026')?.alias).toBe('work-sent-2026');
         expect(dropping(sent, 'work-trash')?.alias).toBe('work-trash');
     });
 });
@@ -252,11 +272,11 @@ describe('refusalFor', () => {
     it.each([
         ['a draft', inWorkDrafts('message-1')],
         ['a sent message', inWorkSent('message-1')],
-    ])('refuses to archive or move %s, and still lets it be deleted', (_, message) => {
+    ])('refuses to archive %s, and still lets it be moved within its tree or deleted', (_, message) => {
         const selection = [inWork('message-2'), message];
 
         expect(refusalFor('archive', selection, withDraftsAndSent, everythingOffered)).toBe('draftsAndSentStay');
-        expect(refusalFor('move', selection, withDraftsAndSent, everythingOffered)).toBe('draftsAndSentStay');
+        expect(refusalFor('move', [message], withDraftsAndSent, everythingOffered)).toBeNull();
         expect(refusalFor('delete', selection, withDraftsAndSent, everythingOffered)).toBeNull();
     });
 

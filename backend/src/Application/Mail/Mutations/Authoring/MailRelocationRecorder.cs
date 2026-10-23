@@ -4,12 +4,10 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Emails.Mailboxes;
-using MailFathom.Application.Folders;
 using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Access;
-using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
@@ -40,9 +38,10 @@ namespace MailFathom.Application.Mail.Mutations.Authoring;
 /// </para>
 /// <para>
 /// The drafts folder and the sent folder are judged by what they hold as well as by who may see them. Each holds one kind
-/// of mail — what the user is still writing, and what they have sent — so nothing is filed into either, and what is in
-/// either leaves only for the trash, which is how it is deleted. It is the rule a client offers its folders by, held here
-/// as well because a client's offer is not a boundary.
+/// of mail — what the user is still writing, and what they have sent — together with every subfolder made beneath it, so
+/// mail moves freely inside either tree, nothing is filed into either from outside it, and what is in either leaves it
+/// only for the trash, which is how it is deleted. It is the rule a client offers its folders by, held here as well
+/// because a client's offer is not a boundary.
 /// </para>
 /// <para>
 /// Every refusal is a result rather than an exception, because a caller moving several messages at once acts on each
@@ -55,7 +54,6 @@ public sealed class MailRelocationRecorder
     private readonly AccessAuthorization authorization;
     private readonly MailboxScopeResolver scopeResolver;
     private readonly IAuthoredMailboxTargetReader targets;
-    private readonly MailFolderReferenceResolver folderReferences;
     private readonly MailboxDestinationResolver destinations;
     private readonly IAuthoredDeleteEmailDispositionReader deleteDispositions;
     private readonly MailboxChangeSubmission submission;
@@ -66,8 +64,7 @@ public sealed class MailRelocationRecorder
     /// <param name="authorization">Answers which principal reached this use case.</param>
     /// <param name="scopeResolver">Answers whether a caller may reach the folder an email is in and the folder it is going to.</param>
     /// <param name="targets">Answers where the named email currently is.</param>
-    /// <param name="folderReferences">Answers which role the folder the email is in plays.</param>
-    /// <param name="destinations">Turns the folder a caller named into the folder on the server it currently means.</param>
+    /// <param name="destinations">Turns the folder a caller named, and the two folders whose trees mail does not cross, into the folders on the server they currently mean.</param>
     /// <param name="deleteDispositions">Answers what the account keeps locally of mail that leaves the mirror for good.</param>
     /// <param name="submission">Records the move, or commits it where the account is held.</param>
     /// <param name="commitPolicy">Commits the change, retrying an optimistic conflict.</param>
@@ -77,7 +74,6 @@ public sealed class MailRelocationRecorder
         AccessAuthorization authorization,
         MailboxScopeResolver scopeResolver,
         IAuthoredMailboxTargetReader targets,
-        MailFolderReferenceResolver folderReferences,
         MailboxDestinationResolver destinations,
         IAuthoredDeleteEmailDispositionReader deleteDispositions,
         MailboxChangeSubmission submission,
@@ -87,7 +83,6 @@ public sealed class MailRelocationRecorder
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(scopeResolver);
         ArgumentNullException.ThrowIfNull(targets);
-        ArgumentNullException.ThrowIfNull(folderReferences);
         ArgumentNullException.ThrowIfNull(destinations);
         ArgumentNullException.ThrowIfNull(deleteDispositions);
         ArgumentNullException.ThrowIfNull(submission);
@@ -97,7 +92,6 @@ public sealed class MailRelocationRecorder
         this.authorization = authorization;
         this.scopeResolver = scopeResolver;
         this.targets = targets;
-        this.folderReferences = folderReferences;
         this.destinations = destinations;
         this.deleteDispositions = deleteDispositions;
         this.submission = submission;
@@ -161,14 +155,14 @@ public sealed class MailRelocationRecorder
 
         var account = target.Occurrence.AccountId;
         var reference = MailFolderReference.ToAlias(destination);
-        var resolved = await this.destinations.ResolveAsync(account, [reference], cancellationToken);
+        var resolved = await this.destinations.ResolveAsync(account, [reference, .. KeptTreeRoots], cancellationToken);
 
         if (resolved.Find(reference).Destination is not { } folder)
         {
             return AuthoredMailRelocationResult.NotRecorded(MailRelocationOutcome.DestinationNotFound);
         }
 
-        if (!this.Admits(account, target.Folder.Alias, folder.Role))
+        if (!Admits(target.Folder.RemotePath, folder, KeptTreesOf(resolved)))
         {
             return AuthoredMailRelocationResult.NotRecorded(MailRelocationOutcome.DestinationNotAllowed);
         }
@@ -233,22 +227,33 @@ public sealed class MailRelocationRecorder
         }
     }
 
-    /// <summary>Whether a message in the named folder may be filed into a folder playing that role.</summary>
+    /// <summary>The roles whose folders are each the root of a tree that mail is filed neither into nor out of.</summary>
+    private static MailFolderReference[] KeptTreeRoots { get; } =
+        [MailFolderReference.ToRole(MailFolderSpecialUse.Drafts), MailFolderReference.ToRole(MailFolderSpecialUse.Sent)];
+
+    /// <summary>Reads where the account's drafts folder and sent folder are, leaving out either the account has nowhere.</summary>
+    private static RemoteFolderPath[] KeptTreesOf(MailboxDestinations resolved) =>
+        [.. KeptTreeRoots
+            .Select(root => resolved.Find(root).Destination)
+            .OfType<MailboxDestination>()
+            .Select(static root => root.Path)];
+
+    /// <summary>Whether a message in the source folder may be filed into the destination.</summary>
     /// <remarks>
-    /// Where the message is is read off the role its folder plays rather than off its <c>\Draft</c> flag, because the
-    /// folder is what a client opens a message in its composer by, and a mail server files a draft or a sent copy there
-    /// whichever client wrote it — a flag some clients never set would admit into the drafts folder mail that then
-    /// reopened as a draft all the same.
+    /// Where a message is is read off the folder it is in rather than off its <c>\Draft</c> flag, because the folder is
+    /// what a client opens a message in its composer by, and a mail server files a draft or a sent copy there whichever
+    /// client wrote it. The drafts folder and the sent folder each stand for their whole subtree, so mail moves freely
+    /// between such a folder and the subfolders somebody made beneath it, and never across the edge of either — except
+    /// into the trash, which is how it is deleted.
     /// </remarks>
-    private bool Admits(MailAccountId account, MailFolderAlias source, MailFolderSpecialUse? destinationRole)
-    {
-        var sourceRole = this.folderReferences.Resolve(account, MailFolderReference.ToAlias(source))?.SpecialUse;
+    private static bool Admits(
+        RemoteFolderPath source,
+        MailboxDestination destination,
+        IReadOnlyList<RemoteFolderPath> keptTrees) =>
+        destination.Role == MailFolderSpecialUse.Trash
+        || string.Equals(TreeOf(source, keptTrees), TreeOf(destination.Path, keptTrees), StringComparison.Ordinal);
 
-        return !KeepsItsMail(destinationRole)
-            && (!KeepsItsMail(sourceRole) || destinationRole == MailFolderSpecialUse.Trash);
-    }
-
-    /// <summary>Whether a folder playing that role holds only the mail its role names, which nothing is filed into or out of.</summary>
-    private static bool KeepsItsMail(MailFolderSpecialUse? role) =>
-        role is MailFolderSpecialUse.Drafts or MailFolderSpecialUse.Sent;
+    /// <summary>Names the kept tree a folder lies in, or nothing where it lies in neither.</summary>
+    private static string? TreeOf(RemoteFolderPath folder, IReadOnlyList<RemoteFolderPath> keptTrees) =>
+        keptTrees.Where(folder.IsWithin).Select(static root => root.Value).FirstOrDefault();
 }

@@ -26,12 +26,17 @@ internal sealed class InMemoryMailFolderResolutionStore : IMailFolderResolutionS
     /// <param name="accountId">The account the binding belongs to.</param>
     /// <param name="alias">The alias being bound.</param>
     /// <param name="remotePath">The remote folder it names, which defaults to the alias itself.</param>
+    /// <param name="hierarchyDelimiter">The delimiter the server reported for it, or <see langword="null" /> for none.</param>
     /// <returns>The binding, so a test can name the path it arranged.</returns>
-    internal MailFolderResolution Bind(MailAccountId accountId, MailFolderAlias alias, string? remotePath = null)
+    internal MailFolderResolution Bind(
+        MailAccountId accountId,
+        MailFolderAlias alias,
+        string? remotePath = null,
+        char? hierarchyDelimiter = null)
     {
         var resolution = MailFolderResolution.FirstBindingOf(
             alias,
-            RemoteFolderPath.Create(remotePath ?? alias.Value));
+            RemoteFolderPath.Create(remotePath ?? alias.Value, hierarchyDelimiter));
 
         this.bindings[(accountId.Value, alias)] = resolution;
 

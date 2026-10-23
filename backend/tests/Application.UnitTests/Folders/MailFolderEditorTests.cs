@@ -317,6 +317,7 @@ public sealed class MailFolderEditorTests
                     this.Clock),
                 new MirroredMailFolderEditor(
                     this.mappings,
+                    Substitute.For<IMailFolderResolutionStore>(),
                     this.declarations,
                     this.creator,
                     Substitute.For<IRemoteFolderEditor>(),

@@ -200,6 +200,11 @@ public sealed class LocalMailFolderTree
             }
         }
 
+        if (this.CrossesDraftsOrSentTree(id, parentId))
+        {
+            return LocalMailFolderEdit.Refused(MailFolderActRefusal.CrossesDraftsOrSentTree);
+        }
+
         if (this.RefusePlacement(folder.Name, parentId, folder.Id) is { } placementRefusal)
         {
             return LocalMailFolderEdit.Refused(placementRefusal);
@@ -321,6 +326,18 @@ public sealed class LocalMailFolderTree
 
     private bool IsWithin(LocalMailFolderId candidate, LocalMailFolderId ancestor) =>
         this.AncestorsOf(candidate).Contains(ancestor);
+
+    /// <summary>Gets whether a move would carry a folder's mail across the edge of the drafts or the sent tree.</summary>
+    /// <remarks>The trash is the one destination either tree's mail may leave for, because that is how it is deleted.</remarks>
+    private bool CrossesDraftsOrSentTree(LocalMailFolderId id, LocalMailFolderId? parentId) =>
+        !this.AncestorsOf(parentId).Any(ancestor => this.folders.GetValueOrDefault(ancestor)?.Role == MailFolderSpecialUse.Trash)
+        && this.KeptTreeOf(id) != this.KeptTreeOf(parentId);
+
+    private LocalMailFolderId? KeptTreeOf(LocalMailFolderId? folder) =>
+        this.AncestorsOf(folder)
+            .Where(ancestor => this.folders.GetValueOrDefault(ancestor)?.Role is MailFolderSpecialUse.Drafts or MailFolderSpecialUse.Sent)
+            .Select(static ancestor => (LocalMailFolderId?)ancestor)
+            .FirstOrDefault();
 
     /// <summary>Walks from a folder to the top, the folder itself first.</summary>
     /// <remarks>Bounded by the folder count, so rows that were ever written in a cycle end the walk rather than the process.</remarks>

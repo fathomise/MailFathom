@@ -52,6 +52,7 @@ public sealed class ClientManagedMailFoldersEndpointTests
     [InlineData(MailFolderActRefusal.ProtectedRole, StatusCodes.Status409Conflict)]
     [InlineData(MailFolderActRefusal.NameTaken, StatusCodes.Status409Conflict)]
     [InlineData(MailFolderActRefusal.NestedInItself, StatusCodes.Status409Conflict)]
+    [InlineData(MailFolderActRefusal.CrossesDraftsOrSentTree, StatusCodes.Status409Conflict)]
     [InlineData(MailFolderActRefusal.TooDeep, StatusCodes.Status409Conflict)]
     [InlineData(MailFolderActRefusal.TooManyFolders, StatusCodes.Status409Conflict)]
     [InlineData(MailFolderActRefusal.RoleAlreadyPlayed, StatusCodes.Status409Conflict)]
@@ -266,6 +267,7 @@ public sealed class ClientManagedMailFoldersEndpointTests
                     clock),
                 new MirroredMailFolderEditor(
                     Substitute.For<IMailFolderMappingReader>(),
+                    Substitute.For<IMailFolderResolutionStore>(),
                     declarations,
                     Substitute.For<IRemoteFolderCreator>(),
                     Substitute.For<IRemoteFolderEditor>(),

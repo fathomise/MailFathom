@@ -688,6 +688,8 @@ export const en = {
     'folders.tooDeep': 'A folder nests three levels deep at most, and this one would be deeper.',
     'folders.nameTaken': 'This mailbox already has a folder of that name in the same place.',
     'folders.nestedInItself': 'A folder cannot be put inside itself.',
+    'folders.crossesDraftsOrSentTree':
+        'A folder cannot be moved into Drafts or Sent from elsewhere, or out of either except into the trash.',
     'folders.actFailed': 'The folder could not be changed: {reason}.',
     'folders.actRefused': 'The change was refused. {reason}',
     'folders.actStopped': 'The change is already on its way and closing this does not take it back.',
@@ -815,7 +817,8 @@ export const en = {
     'act.noTrashFolder': '{control} - this account names no trash folder, so there is nowhere to delete to.',
     'act.severalAccounts': '{control} - messages from several accounts cannot be filed into one folder.',
     'act.noOtherFolder': '{control} - this account has no other folder to file into.',
-    'act.draftsAndSentStay': '{control} - drafts and sent mail stay in their own folder; they can only be deleted.',
+    'act.draftsAndSentStay':
+        '{control} - drafts and sent mail stay in their own folder and its subfolders; they can only be sorted there or deleted.',
     'act.foldersUnknown': '{control} - MailFathom has not read your folders, so it cannot say where this would go.',
     'act.foldersNotRead': 'Your folders were not read: {reason}.',
     'act.readFoldersAgain': 'Try again',

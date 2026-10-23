@@ -50,6 +50,14 @@ const receipt: ActedMessage = {
     unread: false,
     flagged: false,
 };
+const unsent: ActedMessage = {
+    storedEmailId: 'message-4',
+    account: 'work',
+    folder: 'work-drafts',
+    unread: false,
+    flagged: false,
+};
+
 const discarded: ActedMessage = {
     storedEmailId: 'message-3',
     account: 'work',
@@ -84,6 +92,16 @@ const folders = JSON.stringify({
                     alias: 'work-archive',
                     role: 'Archive',
                     path: ['Archive'],
+                    storedEmailCount: 0,
+                    unreadEmailCount: 0,
+                    synchronizationState: 'Synchronized',
+                    lastSynchronizedAt: null,
+                    behind: false,
+                },
+                {
+                    alias: 'work-drafts',
+                    role: 'Drafts',
+                    path: ['Drafts'],
                     storedEmailCount: 0,
                     unreadEmailCount: 0,
                     synchronizationState: 'Synchronized',
@@ -506,6 +524,27 @@ describe('MailboxActsProvider', () => {
             body: { moves: [{ storedEmailId: 'message-1', destinationFolder: 'work-trash' }] },
         });
         expect(screen.getByRole('button', { name: 'Undo' })).toBeDefined();
+    });
+
+    // The way back from deleting a draft would file it out of the trash into the drafts folder, which the deployment
+    // refuses, so the toast offers none rather than a control that can only fail.
+    it('files a deleted draft in the trash and offers no way back', async () => {
+        const deployment = deploymentAnswering();
+        const { held } = acting(deployment);
+
+        await waitFor(() => {
+            expect(held().refusalOf('delete', [unsent])).toBeNull();
+        });
+
+        perform(held, 'delete', [unsent]);
+
+        await screen.findByText('Moved to the trash');
+
+        expect(submitted(deployment)[0]).toStrictEqual({
+            path: 'https://mail.example.invalid/api/client/mutations/moves',
+            body: { moves: [{ storedEmailId: 'message-4', destinationFolder: 'work-trash' }] },
+        });
+        expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
     });
 
     // Deleting from the trash is said plainly and offered no way back, because the question before it already said

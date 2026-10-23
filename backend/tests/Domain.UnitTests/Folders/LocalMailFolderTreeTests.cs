@@ -230,6 +230,44 @@ public sealed class LocalMailFolderTreeTests
         Assert.Equal([projects with { ParentId = archive.Id }], edit.Saved);
     }
 
+    /// <summary>
+    /// A folder carries its mail with it, so it may move anywhere inside the tree it is in and into the trash, and is
+    /// refused anywhere across the edge of the drafts or the sent tree.
+    /// </summary>
+    [Fact]
+    public void Move_AFolderAcrossTheEdgeOfTheDraftsOrTheSentTree_IsRefusedAndWithinOneOrIntoTheTrashIsSaved()
+    {
+        // Arrange
+        var drafts = Protected(MailFolderSpecialUse.Drafts);
+        var sent = Protected(MailFolderSpecialUse.Sent);
+        var trash = Protected(MailFolderSpecialUse.Trash);
+        var projects = Ordinary("Projects");
+        var draftsClients = Ordinary("Clients") with { ParentId = drafts.Id };
+        var draftsOld = Ordinary("Old") with { ParentId = drafts.Id };
+        var sentClients = Ordinary("Clients") with { ParentId = sent.Id };
+        var tree = new LocalMailFolderTree([.. ProtectedFolders(drafts, sent, trash), projects, draftsClients, draftsOld, sentClients], []);
+
+        // Act
+        var refusals = new[]
+        {
+            tree.Move(projects.Id, drafts.Id),
+            tree.Move(projects.Id, sentClients.Id),
+            tree.Move(draftsClients.Id, parentId: null),
+            tree.Move(draftsClients.Id, projects.Id),
+            tree.Move(draftsClients.Id, sent.Id),
+        }.Select(static edit => edit.Refusal);
+        var admitted = new[]
+        {
+            tree.Move(draftsClients.Id, draftsOld.Id),
+            tree.Move(sentClients.Id, trash.Id),
+            tree.Move(projects.Id, parentId: null),
+        }.Select(static edit => edit.Refusal);
+
+        // Assert
+        Assert.All(refusals, refusal => Assert.Equal(MailFolderActRefusal.CrossesDraftsOrSentTree, refusal));
+        Assert.All(admitted, refusal => Assert.Null(refusal));
+    }
+
     [Fact]
     public void Move_AFolderBeneathItselfOrItsOwnDescendant_IsRefused()
     {

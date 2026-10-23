@@ -340,6 +340,7 @@ public sealed class ConfiguredMailFolderDeclarationWriterTests
 
             this.Editor = new MirroredMailFolderEditor(
                 mappings,
+                Substitute.For<IMailFolderResolutionStore>(),
                 writer,
                 this.MailServer,
                 Substitute.For<IRemoteFolderEditor>(),

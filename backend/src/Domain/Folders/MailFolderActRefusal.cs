@@ -76,4 +76,8 @@ public enum MailFolderActRefusal
     /// whoever administers the organization or the deployment.
     /// </remarks>
     FoldersHeldByPolicy = 16,
+
+    /// <summary>The move would take the folder, with the mail in it, into the drafts or the sent folder's tree from outside it, or out of either tree.</summary>
+    /// <remarks>Each of the two folders holds one kind of mail together with every subfolder made beneath it, and moving a folder across that edge would carry its mail across it as surely as moving the messages one by one.</remarks>
+    CrossesDraftsOrSentTree = 17,
 }

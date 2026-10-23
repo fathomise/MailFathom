@@ -198,6 +198,33 @@ describe('admissibleParents', () => {
         expect(admissibleParents(deep, folders).map((entry) => entry.id)).toEqual(['p', 'p26', 'in', 'a', 'o']);
     });
 
+    it('keeps a folder inside the drafts or the sent tree it stands in, or outside both, the trash aside', () => {
+        const drafts = folder({ id: 'd', name: 'Drafts', role: 'Drafts', allowedActs: [] });
+        const draftsClients = folder({ id: 'dc', name: 'Clients', parentId: 'd' });
+        const sent = folder({ id: 's', name: 'Sent', role: 'Sent', allowedActs: [] });
+        const trash = folder({ id: 't', name: 'Trash', role: 'Trash', allowedActs: [] });
+        const mailbox = [projects, clients, drafts, draftsClients, sent, trash];
+        const offered = (moving: ManagedMailFolder) =>
+            admissibleParents(draftForEditedFolder('work', 'Work', moving), mailbox).map((entry) => entry.id);
+
+        expect(offered(projects)).toEqual(['c', 't']);
+        expect(offered(draftsClients)).toEqual(['d', 't']);
+        expect(refusalOf(withParent(draftForEditedFolder('work', 'Work', draftsClients), null), mailbox)).toBe(
+            'crossesDraftsOrSentTree',
+        );
+        expect(refusalOf(withParent(draftForEditedFolder('work', 'Work', projects), 'd'), mailbox)).toBe(
+            'crossesDraftsOrSentTree',
+        );
+        expect(admissibleParents(draftForNewFolder('work', 'Work', null), mailbox).map((entry) => entry.id)).toEqual([
+            'p',
+            'c',
+            'd',
+            'dc',
+            's',
+            't',
+        ]);
+    });
+
     it('stops rather than walking forever where a report’s parents form a cycle', () => {
         const left = folder({ id: 'l', name: 'Left', parentId: 'r' });
         const right = folder({ id: 'r', name: 'Right', parentId: 'l' });

@@ -75,6 +75,7 @@ const refusalSaid: Readonly<Record<ManagedMailFolderRefusal, MessageKey>> = {
     inboxNameAtTopLevel: 'folders.refusal.inboxName',
     nameTaken: 'folders.nameTaken',
     nestedInItself: 'folders.nestedInItself',
+    crossesDraftsOrSentTree: 'folders.crossesDraftsOrSentTree',
     tooDeep: 'folders.tooDeep',
     tooManyFolders: 'folders.refusal.tooManyFolders',
     serverRefused: 'folders.refusal.serverRefused',

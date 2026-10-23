@@ -246,6 +246,7 @@ internal static class ClientManagedMailFoldersEndpoint
             MailFolderActRefusal.ProtectedRole => (StatusCodes.Status409Conflict, "The inbox, drafts, sent, junk, and trash folders cannot be renamed, moved, or deleted."),
             MailFolderActRefusal.NameTaken => (StatusCodes.Status409Conflict, "A folder beside it already has that name."),
             MailFolderActRefusal.NestedInItself => (StatusCodes.Status409Conflict, "A folder cannot be moved beneath itself."),
+            MailFolderActRefusal.CrossesDraftsOrSentTree => (StatusCodes.Status409Conflict, "A folder cannot be moved into the drafts or the sent folder's tree from outside it, or out of either except into the trash, because it would carry its mail across."),
             MailFolderActRefusal.TooDeep => (StatusCodes.Status409Conflict, $"A hierarchy is at most {LocalMailFolderTree.MaximumDepth} levels deep."),
             MailFolderActRefusal.TooManyFolders => (StatusCodes.Status409Conflict, $"An account holds at most {LocalMailFolderTree.MaximumFolders} folders."),
             MailFolderActRefusal.RoleAlreadyPlayed => (StatusCodes.Status409Conflict, "The account already has a folder for that role, and one account has at most one folder per role."),

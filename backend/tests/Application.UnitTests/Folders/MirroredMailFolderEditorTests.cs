@@ -8,6 +8,7 @@ using MailFathom.Application.Jobs;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Synchronization.Sessions;
+using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Folders;
@@ -311,6 +312,84 @@ public sealed class MirroredMailFolderEditorTests
     }
 
     /// <summary>
+    /// A drafts folder found by its role is declared by no path, so the path it is bound to is what a subfolder is made
+    /// beneath — which is how mail is sorted inside the drafts tree without ever leaving it.
+    /// </summary>
+    [Fact]
+    public async Task CreateAsync_BeneathADraftsFolderFoundByItsRole_CreatesItBeneathThePathTheFolderIsBoundTo()
+    {
+        // Arrange
+        var drafts = MailFolderAlias.Create("drafts");
+        await using var deployment = new EditorDeployment();
+        deployment.Declares(MailFolderMapping.ToSpecialUse(drafts, MailFolderSpecialUse.Drafts));
+        deployment.Bindings.Bind(Account, drafts, "Drafts", '/');
+        deployment.CreatesAt("Drafts/Clients");
+
+        // Act
+        var outcome = await deployment.Editor.CreateAsync(Account, drafts, "Clients", role: null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailFolderChangeKind.Created, outcome.Change);
+        Assert.Equal(drafts.Value, outcome.Folder!.ParentId);
+        await deployment.RemoteCreator.Received(1).CreateFolderBeneathAsync(
+            Account,
+            Arg.Any<MailFolderAlias>(),
+            RemoteFolderPath.Create("Drafts", '/'),
+            "Clients",
+            null,
+            Arg.Any<MailTransportSecurityPolicy>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// A folder carries its mail with it, so a move that would take one across the edge of the drafts or the sent tree is
+    /// refused before the server is asked, while a move inside a tree, outside both, or into the trash goes ahead.
+    /// </summary>
+    [Theory]
+    [InlineData("projects", "drafts", true)]
+    [InlineData("projects", "sent-clients", true)]
+    [InlineData("drafts-clients", "archive", true)]
+    [InlineData("drafts-clients", "sent", true)]
+    [InlineData("drafts-clients", null, true)]
+    [InlineData("sent-clients", "drafts-old", true)]
+    [InlineData("drafts-clients", "drafts-old", false)]
+    [InlineData("sent-clients", "sent", false)]
+    [InlineData("drafts-clients", "trash", false)]
+    [InlineData("projects", "archive", false)]
+    public async Task MoveAsync_AFolderAcrossTheEdgeOfTheDraftsOrTheSentTree_IsRefusedAndReachesNoServer(
+        string moving,
+        string? parent,
+        bool refused)
+    {
+        // Arrange
+        var drafts = MailFolderAlias.Create("drafts");
+        await using var deployment = new EditorDeployment();
+        deployment.Declares(
+            MailFolderMapping.ToSpecialUse(drafts, MailFolderSpecialUse.Drafts),
+            MailFolderMapping.ToRemotePath(MailFolderAlias.Create("sent"), RemoteFolderPath.Create("Sent", '/'), specialUse: MailFolderSpecialUse.Sent),
+            MailFolderMapping.ToRemotePath(MailFolderAlias.Create("trash"), RemoteFolderPath.Create("Trash", '/'), specialUse: MailFolderSpecialUse.Trash),
+            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')),
+            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Archive", '/')),
+            MailFolderMapping.ToRemotePath(MailFolderAlias.Create("drafts-clients"), RemoteFolderPath.Create("Drafts/Clients", '/')),
+            MailFolderMapping.ToRemotePath(MailFolderAlias.Create("drafts-old"), RemoteFolderPath.Create("Drafts/Old", '/')),
+            MailFolderMapping.ToRemotePath(MailFolderAlias.Create("sent-clients"), RemoteFolderPath.Create("Sent/Clients", '/')));
+        deployment.Bindings.Bind(Account, drafts, "Drafts", '/');
+        deployment.Declarations.Declared.Add(MailFolderAlias.Create(moving));
+        deployment.RenamesTo("Moved");
+
+        // Act
+        var outcome = await deployment.Editor.MoveAsync(
+            Account,
+            MailFolderAlias.Create(moving),
+            parent is null ? null : MailFolderAlias.Create(parent),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(refused ? MailFolderActRefusal.CrossesDraftsOrSentTree : null, outcome.Refusal);
+        Assert.Equal(refused, deployment.Log.Count == 0);
+    }
+
+    /// <summary>
     /// A server delimited by something other than a slash may advertise a folder whose own name carries one, and a move
     /// keeps that name. It is refused as the invalid name it is rather than thrown out of the act.
     /// </summary>
@@ -510,6 +589,7 @@ public sealed class MirroredMailFolderEditorTests
 
             this.Editor = new MirroredMailFolderEditor(
                 this.mappings,
+                this.Bindings,
                 this.Declarations,
                 this.RemoteCreator,
                 this.RemoteEditor,
@@ -523,6 +603,8 @@ public sealed class MirroredMailFolderEditorTests
         }
 
         internal List<string> Log { get; } = [];
+
+        internal InMemoryMailFolderResolutionStore Bindings { get; } = new();
 
         internal RecordingDeclarationWriter Declarations { get; }
 

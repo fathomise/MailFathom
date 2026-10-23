@@ -53,6 +53,7 @@ const refusalSaid: Readonly<Record<FolderDraftRefusal, MessageKey>> = {
     tooDeep: 'folders.tooDeep',
     nameTaken: 'folders.nameTaken',
     nestedInItself: 'folders.nestedInItself',
+    crossesDraftsOrSentTree: 'folders.crossesDraftsOrSentTree',
 };
 
 /** What each role is called where somebody is choosing one to create, which is the folder's own standing name. */
