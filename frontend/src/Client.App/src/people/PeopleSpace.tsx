@@ -417,11 +417,11 @@ export function PeopleSpace({
 
             {writable ? <ContactDialog asked={asking} onSave={record} /> : null}
 
-            {/* Keyed by the person, so the form opens on whoever is open now rather than on whoever it was first
-                drawn for. */}
+            {/* Keyed by the person and by what their record says, so the form opens on whoever is open now as their
+                record now stands — a correction just saved included — rather than on whatever it was first drawn for. */}
             {writable && opened !== null && opened.origin === 'Asserted' ? (
                 <ContactDialog
-                    key={opened.id}
+                    key={`${opened.id} ${opened.displayName} ${opened.preferredAddress}`}
                     asked={amending}
                     amending={{ displayName: opened.displayName, address: opened.preferredAddress }}
                     onSave={(draft) => {

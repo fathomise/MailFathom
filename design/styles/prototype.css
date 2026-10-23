@@ -16,6 +16,10 @@ input { font-family: inherit; }
    Matched on the style the runtime writes out, which spells a `border:none` as its longhands.
    Inset, because several of those boxes are rows of a clipped pane. */
 :where(:has(> input[style*="border-style: none"]:focus-visible)) { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* The composer's fields are rows of one sheet rather than boxes, so a focused row marks its bottom edge instead, and the
+   body the edge it starts on. Important, because each edge is the element's own inline border. */
+[data-compose-fields] :has(> input[style*="border-style: none"]:focus-visible) { outline: none; border-bottom-color: var(--accent) !important; }
+[data-compose-fields] [contenteditable]:focus-visible { border-left-color: var(--accent) !important; }
 
 @keyframes mfmsgin { from { opacity: 0; transform: translateY(6px) } }
 @keyframes mfblkin { from { opacity: 0; transform: translateY(7px) } }

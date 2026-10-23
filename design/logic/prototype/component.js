@@ -4732,7 +4732,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* The phone's field labels take the width of the longest of them rather than a desktop column, so a recipient
            chip keeps one line beside its label. */
         /* A low window lowers the editor's floor so the foot with *Send* stays on screen; the editor scrolls itself. */
-        composeEditorStyle: "flex:1;min-height:" + (low ? 72 : 170) + "px;overflow:auto;padding:16px 17px;font-size:15px;line-height:1.65;color:var(--text2);outline:none",
+        composeEditorStyle: "flex:1;min-height:" + (low ? 72 : 170) + "px;overflow:auto;padding:16px 17px;border-left:2px solid transparent;font-size:15px;line-height:1.65;color:var(--text2);outline:none",
         composeHeadStyle: "display:flex;align-items:center;gap:12px;padding:" + (low ? "0 6px 0 15px" : "11px 15px") + ";background:var(--sub);border-bottom:1px solid var(--line);border-radius:12px 12px 0 0",
         /* In a low window the fields, the AI drafting and the editor scroll together and the foot with *Send* stays
            pinned under them; anywhere else the wrapper is not a box at all. */

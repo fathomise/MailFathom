@@ -1789,6 +1789,7 @@ export const en = {
     'calendar.eventEnd': 'Ends',
     'calendar.eventEndTime': 'End time',
     'calendar.endsBeforeStart': 'The event ends before it starts.',
+    'calendar.endTimeNeeded': 'An event ending on a later day needs a time to end at.',
     'calendar.saveEvent': 'Save',
     'calendar.amendEvent': 'Edit',
     'calendar.closeEvent': 'Close',

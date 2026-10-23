@@ -13,6 +13,10 @@ import { drawnAsSheet } from './useSurfacePull';
 // itself, which is why the press is held against the surface's own box rather than read off its target alone: a press
 // in the dialog's own padding is a press inside it. A surface that is a centred dialog at the width it stands at is
 // not one of them, for the reason the pull leaves it alone, and a popover marked the same way dismisses itself already.
+//
+// **The press has to begin beside the surface as well as end there.** A drag that starts inside — selecting the text
+// in a field — and is let go over the backdrop is delivered as a click on the dialog outside its box, and putting the
+// surface away under it would take what was being selected or typed with it.
 
 /** Whether a press at that point fell outside the surface it was delivered to. */
 export function pressedOutside(surface: Element, x: number, y: number): boolean {
@@ -24,10 +28,22 @@ export function pressedOutside(surface: Element, x: number, y: number): boolean 
 /** Closes every open `data-pull` dialog pressed beside rather than inside. */
 export function usePressOutsideSurface(): void {
     useEffect(() => {
+        let begunBeside: EventTarget | null = null;
+
+        function begun(event: PointerEvent): void {
+            const surface = event.target;
+
+            begunBeside =
+                surface instanceof HTMLDialogElement && pressedOutside(surface, event.clientX, event.clientY)
+                    ? surface
+                    : null;
+        }
+
         function pressed(event: MouseEvent): void {
             const surface = event.target;
 
             if (
+                surface === begunBeside &&
                 surface instanceof HTMLDialogElement &&
                 surface.open &&
                 surface.hasAttribute('data-pull') &&
@@ -38,9 +54,11 @@ export function usePressOutsideSurface(): void {
             }
         }
 
+        document.addEventListener('pointerdown', begun);
         document.addEventListener('click', pressed);
 
         return () => {
+            document.removeEventListener('pointerdown', begun);
             document.removeEventListener('click', pressed);
         };
     }, []);

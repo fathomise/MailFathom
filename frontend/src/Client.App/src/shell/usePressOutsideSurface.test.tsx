@@ -38,6 +38,7 @@ describe('usePressOutsideSurface', () => {
         });
         const { drawer, closed } = anOpenDrawer();
 
+        fireEvent.pointerDown(drawer, { clientX: 340, clientY: 200 });
         fireEvent.click(drawer, { clientX: 340, clientY: 200 });
 
         expect(closed).toHaveBeenCalledOnce();
@@ -49,7 +50,21 @@ describe('usePressOutsideSurface', () => {
         });
         const { drawer, closed } = anOpenDrawer();
 
+        fireEvent.pointerDown(drawer, { clientX: 280, clientY: 200 });
         fireEvent.click(drawer, { clientX: 280, clientY: 200 });
+
+        expect(closed).not.toHaveBeenCalled();
+    });
+
+    // Selecting the text in a field and letting go over the backdrop is not a press beside the drawer.
+    it('stays open for a drag begun inside it and let go beside it', () => {
+        renderHook(() => {
+            usePressOutsideSurface();
+        });
+        const { drawer, closed } = anOpenDrawer();
+
+        fireEvent.pointerDown(drawer, { clientX: 280, clientY: 200 });
+        fireEvent.click(drawer, { clientX: 340, clientY: 200 });
 
         expect(closed).not.toHaveBeenCalled();
     });
@@ -60,6 +75,7 @@ describe('usePressOutsideSurface', () => {
         });
         const { drawer, closed } = anOpenDrawer('opacity, scale, display, overlay');
 
+        fireEvent.pointerDown(drawer, { clientX: 340, clientY: 200 });
         fireEvent.click(drawer, { clientX: 340, clientY: 200 });
 
         expect(closed).not.toHaveBeenCalled();

@@ -107,8 +107,8 @@ export function draftOn(day: Date): EventDraft {
 /**
  * The record a write would state, or `null` where the draft is not one yet.
  *
- * Three things make it `null`, and each is something the screen can see for itself: a title nobody typed, a day or a
- * beginning nobody picked, and an end that is not after the beginning. Everything else the deployment judges is
+ * Four things make it `null`, and each is something the screen can see for itself: a title nobody typed, a day or a
+ * beginning nobody picked, an end that is not after the beginning, and a later last day with no time to end on it. Everything else the deployment judges is
  * reported as an outcome rather than refused here, because a second copy of a rule is how two of them come to
  * disagree.
  */
@@ -117,7 +117,7 @@ export function recordOf(draft: EventDraft): CalendarEventAmendment | null {
     const notes = draft.notes.trim() === '' ? null : draft.notes.trim();
     const stated = { title, isAllDay: draft.allDay, reminders: draft.reminders, notes };
 
-    if (title === '' || draft.startDay === '' || endsBeforeItBegins(draft)) {
+    if (title === '' || draft.startDay === '' || endsBeforeItBegins(draft) || wantsAnEndTime(draft)) {
         return null;
     }
 
@@ -162,6 +162,14 @@ export function endsBeforeItBegins(draft: EventDraft): boolean {
     const ends = endingOf(draft);
 
     return begins !== null && ends !== null && ends.getTime() <= begins.getTime();
+}
+
+/**
+ * Whether a timed draft ends on a later day with no time to end at, which the form says rather than saving the event as
+ * a moment and dropping the day somebody picked.
+ */
+export function wantsAnEndTime(draft: EventDraft): boolean {
+    return !draft.allDay && draft.end === '' && draft.endDay !== '' && draft.endDay !== draft.startDay;
 }
 
 /** How long the draft lasts, or `null` where it states no length the form could word. */

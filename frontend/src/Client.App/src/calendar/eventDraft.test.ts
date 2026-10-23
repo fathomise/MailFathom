@@ -130,6 +130,14 @@ describe('recordOf', () => {
         });
     });
 
+    it('saves nothing for a later last day with no time to end on it, rather than a moment on the first', () => {
+        expect(recordOf({ ...filled, endDay: '2026-09-26', end: '' })).toBeNull();
+    });
+
+    it('takes no end time to mean a moment where the event stays on its one day', () => {
+        expect(recordOf({ ...filled, end: '' })?.end).toBeNull();
+    });
+
     it('ends on the day the end was picked on, so an event can run across days', () => {
         expect(recordOf({ ...filled, endDay: '2026-09-26', end: '08:00' })?.end).toBe(
             new Date(2026, 8, 26, 8).toISOString(),

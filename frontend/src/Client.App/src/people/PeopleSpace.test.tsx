@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
 import { ComposingContext, type Composing } from '../composer/useComposing';
@@ -112,7 +112,7 @@ function deployment({
                           ...answered,
                           body: JSON.stringify({ contact: 'anna', wasHeld: true, addressesErased: 1 }),
                       };
-            } else if (method === 'POST') {
+            } else if (method === 'POST' || method === 'PUT') {
                 answer = { ...answered, body: JSON.stringify(write) };
 
                 if (holdsWrites) {
@@ -233,6 +233,27 @@ describe('PeopleSpace', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Save contact' }));
 
         expect(await screen.findByText('Another contact already holds that address.')).toBeDefined();
+    });
+
+    // A correction asked for again opens on what it wrote, so saving the form untouched cannot put the old name back.
+    it('opens a correction asked for again on the record as the last one left it', async () => {
+        const { transport } = deployment({
+            write: { outcome: 'Written', contact: personCalled('anna', 'Anna Marlow'), addressHolder: null },
+        });
+        drawSpace(transport);
+        const correction = () => screen.getByRole('dialog', { name: 'Edit contact' });
+
+        fireEvent.click(await screen.findByRole('option', { name: /Anna Kowalska/u }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Edit contact' }));
+        fireEvent.change(within(correction()).getByLabelText('Name'), { target: { value: 'Anna Marlow' } });
+        fireEvent.click(within(correction()).getByRole('button', { name: 'Save changes' }));
+
+        expect(await screen.findByText('Contact saved.')).toBeDefined();
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Edit contact' }));
+
+        expect(within(correction()).getByLabelText<HTMLInputElement>('Name').value).toBe('Anna Marlow');
+        expect(within(correction()).getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(true);
     });
 
     // A person taken on moves between the two books entirely, so the screen follows them to the one that now holds

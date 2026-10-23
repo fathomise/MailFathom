@@ -1806,6 +1806,7 @@ export const pl: Catalogue = {
     'calendar.eventEnd': 'Koniec',
     'calendar.eventEndTime': 'Godzina zakończenia',
     'calendar.endsBeforeStart': 'Wydarzenie kończy się, zanim się zacznie.',
+    'calendar.endTimeNeeded': 'Wydarzenie kończące się innego dnia potrzebuje godziny zakończenia.',
     'calendar.saveEvent': 'Zapisz',
     'calendar.amendEvent': 'Edytuj',
     'calendar.closeEvent': 'Zamknij',

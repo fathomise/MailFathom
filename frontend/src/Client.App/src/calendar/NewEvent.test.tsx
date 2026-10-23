@@ -210,6 +210,17 @@ describe('NewEvent', () => {
         expect(screen.getByRole('button', { name: 'Save' }).hasAttribute('disabled')).toBe(true);
     });
 
+    it('asks for a time to end at where the event ends on a later day', () => {
+        drawDialog(deployment(drafted({ drafted: false, spent: false })).transport);
+
+        fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Offsite' } });
+        fireEvent.change(screen.getByLabelText('Start time'), { target: { value: '09:00' } });
+        fireEvent.change(screen.getByLabelText('Ends'), { target: { value: '2026-09-26' } });
+
+        expect(screen.getByRole('alert').textContent).toBe('An event ending on a later day needs a time to end at.');
+        expect(screen.getByRole('button', { name: 'Save' }).hasAttribute('disabled')).toBe(true);
+    });
+
     it('sets reminders before the event is written down', () => {
         const { onSave } = drawDialog(deployment(drafted({ drafted: false, spent: false })).transport);
 

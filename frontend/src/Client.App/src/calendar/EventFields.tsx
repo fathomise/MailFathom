@@ -6,7 +6,7 @@ import { useId } from 'react';
 import { dialogField, dialogFieldLabel } from '../controls/chrome';
 import { wordLasting } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
-import { endsBeforeItBegins, lengthOf, type EventDraft } from './eventDraft';
+import { endsBeforeItBegins, lengthOf, wantsAnEndTime, type EventDraft } from './eventDraft';
 
 // The fields an event is, drawn once for the two dialogs that hold them: writing one down and amending one are the
 // same values, and two arrangements of them is how one form comes to accept what the other refuses. The design's
@@ -35,6 +35,7 @@ export function EventFields({
     const allDay = useId();
 
     const conflicting = endsBeforeItBegins(draft);
+    const unended = wantsAnEndTime(draft);
     const length = lengthOf(draft);
 
     function startOn(day: string): void {
@@ -195,7 +196,7 @@ export function EventFields({
                                 <input
                                     type="time"
                                     aria-label={translate('calendar.eventEndTime')}
-                                    aria-invalid={conflicting}
+                                    aria-invalid={conflicting || unended}
                                     value={draft.end}
                                     className={`${dialogField} aria-invalid:border-error`}
                                     onChange={(typing) => {
@@ -208,9 +209,9 @@ export function EventFields({
                 </>
             )}
 
-            {conflicting ? (
+            {conflicting || unended ? (
                 <p role="alert" className="text-sm text-error-text text-pretty">
-                    {translate('calendar.endsBeforeStart')}
+                    {translate(conflicting ? 'calendar.endsBeforeStart' : 'calendar.endTimeNeeded')}
                 </p>
             ) : length === null ? null : (
                 <p className="text-sm text-muted">{wordLasting(length, locale, 'short')}</p>
