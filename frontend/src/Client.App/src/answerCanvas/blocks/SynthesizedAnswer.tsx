@@ -31,7 +31,7 @@ export function SynthesizedAnswer({ block }: { readonly block: AnswerBlock }) {
     const { locale, translate } = useLocalization();
 
     if (block.type !== 'answer') {
-        return <UnrecognisedAnswerBlock named={block.named} />;
+        return <UnrecognisedAnswerBlock />;
     }
 
     const { answer, evidence } = block;

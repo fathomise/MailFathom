@@ -287,13 +287,14 @@ The run is a phase machine (`st.phase`), and the blocks arrive one at a time (`r
 **The field carries no scope control.** Discover always asks about all of the reader's mail, and
 nothing the Mail space has open, picked out, or highlighted narrows it. A question about one
 correspondence is asked in that correspondence's own field, and a narrower follow-up is the Agent's.
-The row under the field stands only once a run exists, and holds the plan chip and the run line.
+The line under the field stands only once a run is over (`runFinished`), and says what the run read, in plain counts (*41 messages read*, *6 files found*). It names no run identifier, no plan, no model, and no spend, and no card traces how the answer was reached — a person asking about their mail is told what was read, not how the pipeline ran. An evidence entry likewise shows its source, the passage, and how current it is, and no relevance score.
 
 | State | Flag | Reveal |
 |---|---|---|
 | Nothing asked yet | `showIdle` | `st.phase === "idle"` — the state the prototype opens in |
 | Running | `running` | `st.phase === "running"`, entered by submitting a question |
 | A run has happened | `hasRun` | `st.phase !== "idle"`; gates the run's own chrome |
+| A run is over | `runFinished` | `hasRun && st.phase === "done"`; gates the run line under the field |
 | Answer block | `answerReady` | `ready.answer`, set as the stream reaches it |
 | Timeline block | `timelineReady` | `ready.timeline` |
 | Fact table | `tableReady` | `ready.table` |
@@ -301,7 +302,6 @@ The row under the field stands only once a run exists, and holds the plan chip a
 | People block | `peopleReady` | `ready.people` |
 | Proposed action | `actionReady` | `ready.action` |
 | What the sources do **not** settle | `gapNote` | the chosen plan carries a `gap` string — `PLANS.contract` and `PLANS.people` do, `PLANS.files` does not |
-| The run's own trace | `showTrace` | `hasRun && props.showTrace && phase === "done"` — a **prop**, so a preview shows it only when the property is on |
 | Evidence inspector open | `inspectorOpen` | a citation is pressed |
 | Evidence inspector closed | `inspectorClosed` | nothing selected — the resting state |
 
@@ -391,7 +391,7 @@ and deleting it cannot be undone.*
 | State | Flag | Reveal |
 |---|---|---|
 | AI summary | `aiSumOpen` | the `auto_awesome` control on a message row, or *AI summary* at the top of that row's context menu |
-| Its readings | `aiSumCards` | **three at most**, each a small heading, the claim, the reason in a muted line, and the fragment of the message it rests on — no card around a reading, a hairline between readings, and the model named once in the footer (`aiSumModel`) rather than on every reading |
+| Its readings | `aiSumCards` | **three at most**, each a small heading, the claim, the reason in a muted line, and the fragment of the message it rests on — no card around a reading, a hairline between readings, and the footer saying once that AI wrote them (`aiSumAuthor`, *Written by AI*) rather than on every reading, naming no model or agent |
 | Which headings exist | — | *What is settled*, *What is still open*, *What is the commitment*, *What the deadline is*, *What changed between versions* for a `Version difference` state, and *What this is about* where the list's own reading fills a card out. The cards follow the thread's state list and stop at three, so a fourth state never reaches the dialog — which is where both seeded `Version difference` states sit |
 | Jump to the source | `ac.showSrc` | only where the thread holds more than one message — *Open message N in the thread* |
 
@@ -941,9 +941,9 @@ and *Nothing open* layout. **The one new component is the radio list in *Kind of
 | `d_refusal` 1.1 | `show.d_refusal` | A question refused before a run is one line directly under the field — never a toast, never a card, because no run exists. The question stays in the field. Signed out and not permitted read neutral; unavailable and unreadable read as a warning with *Try again*. On a phone the action drops under the text at 44 px |
 | `d_cancel` 1.2a | `show.d_cancel` | The running bar keeps its slot through running → cancelling → ended. While cancelling, the pulse becomes a muted spinner and *Cancel run* becomes a disabled *Cancelling…*. A failed stop turns the bar into a warning with *Try stopping again*, while blocks keep arriving underneath |
 | `d_ended` 1.2b | `show.d_ended` | The ending card replaces the running bar in the same slot, above the blocks that arrived, and nothing below it moves. The answer that arrived gains a *cut short* chip. Eleven reasons fall into five tones (`ENDINGS`): *Stopped by you*, *Limit reached* (period and run allowance), *Try again* (timed out, temporarily unavailable), *Could not finish* (failed, gone, stopped) and *Not possible here* (unavailable, retrieval refused). Only the period allowance carries the when-line |
-| `d_finished` 1.2c | `show.d_finished` | A completed run gets **no card**. The bar leaves, and *Answered by {endpoint} ({model})* and what the run spent go into the run line beside the plan chip. The allowance count shows only where the deployment meters questions |
+| `d_finished` 1.2c | `show.d_finished` | A completed run gets **no card**. The bar leaves, and how many messages the answer was read from goes into the run line (*Read 214 messages*). The allowance count shows only where the deployment meters questions. No endpoint, model, duration, or spend is shown |
 | `d_coming` 1.3a | `show.d_coming` | One dashed card trails the last arrived block. Loading is the prototype shimmer. Error and offline keep the dashed outline and swap the shimmer for a sentence, and **only offline offers Retry** |
-| `d_empty` 1.3b | `show.d_empty` | *Nothing composed* is a plain card with no button, because asking again gives the same result. A newer-version answer (the whole answer) and an unknown block (one block among others) share one dashed neutral card |
+| `d_empty` 1.3b | `show.d_empty` | *Nothing composed* is a plain card with no button, because asking again gives the same result. A newer-version answer (the whole answer) and an unknown block (one block among others) share one dashed neutral card, and neither names a version number or the block's type |
 | `ev_opening` 1.4a | `show.ev_opening` | The inspector header paints at once from what the citation knows. Only the body waits, as shimmer with *Opening the source…*, and the footer appears once the source opens. On a phone the inspector covers the screen |
 | `ev_failed` 1.4b | `show.ev_failed` | The failure takes the quote's place under the header. Unavailable and unreadable are faults (warning, *Try again*); signed out and missing are conditions (neutral). There is no footer |
 | `ev_private` 1.4c | `show.ev_private` | The lock sits in the badge slot the inspector and evidence list already have, and the body names the mailbox and points to the administrator. **A "not permitted" read failure renders exactly this** — the ledger marks 1.4 *Merged* for that reason |
@@ -1001,7 +1001,6 @@ clicking a preview.
 - **Every tab state** (`tabsBarShown`, `noTabsOpen`, `convBarShown`, `closeAllAsk`). Two conditions at
   once: the user menu's *Tab mode* switch turned on and a width of at least 1180 px. The initial state
   is `classic`, so a preview opened at any width shows none of it.
-- **The run trace** (`showTrace`). A component property, off unless the property is set.
 - **No sign-in method offered** (`noMethods`). Three properties turned off together — `ssoAvailable` joined `oauthAvailable` and `basicAvailable`.
 - **A person with no documents** (`personNoDocs`). No mock record has an empty
   `docs`, so the empty state is drawn by no preview at any click.

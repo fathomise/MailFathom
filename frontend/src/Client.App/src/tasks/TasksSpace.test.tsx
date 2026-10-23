@@ -531,7 +531,7 @@ describe('TasksSpace', () => {
 
         await waitFor(() => {
             expect(
-                screen.getByText('This deployment has spent what it may ask a provider for today. Try again tomorrow.'),
+                screen.getByText('This deployment has used up its AI allowance for today. Try again tomorrow.'),
             ).toBeDefined();
         });
     });

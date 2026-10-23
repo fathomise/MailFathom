@@ -59,7 +59,7 @@ MailFathomDesign.artboards.clientStates = (DCLogic, React) => {
 
   const LEDGER = [
     ["1.1", "d_refusal", "Drawn", "Refusal before a run", "One line directly under the field. Signed out and not permitted read neutral; unavailable and unreadable read as a warning with Try again. The question stays in the field."],
-    ["1.2", "d_cancel", "Changed", "How a run ends", "The ending takes the running bar's slot at the top of the canvas, so blocks already shown never move. Eleven reasons fall into five tones (1.2b). “Completed” gets no card: “Answered by …” and what the run spent move into the existing run line beside the plan chip (1.2c)."],
+    ["1.2", "d_cancel", "Changed", "How a run ends", "The ending takes the running bar's slot at the top of the canvas, so blocks already shown never move. Eleven reasons fall into five tones (1.2b). “Completed” gets no card: how many messages were read moves into the existing run line (1.2c)."],
     ["1.3", "d_coming", "Drawn", "Canvas in progress and empty", "Trailing dashed card after the last block; Retry only when offline, as the client does. Newer-version and unknown-block share one dashed neutral card (1.3b)."],
     ["1.4", "ev_opening", "Merged", "Evidence inspector", "Every state drawn in the inspector body (1.4a-e). The “not permitted” read failure is merged into Private source - same cause, same remedy, same lock badge - so the client should render it as 1.4c."],
     ["1.5", "d_asked", "Changed", "Asked before", "Kept in Discover, idle only, under the field. Chips carry the question alone and re-ask it, because Discover always asks about all mail; the stored short answer and freshness are not shown - recall should start a fresh run, not replay a possibly stale answer. savedAnswers.a and .fresh can go."],
@@ -95,7 +95,7 @@ MailFathomDesign.artboards.clientStates = (DCLogic, React) => {
   ]);
 
   const ENDINGS = cat([
-    { group: "Finished", label: "completed", tone: "quiet", icon: "check_circle", title: "No card.", body: "The running bar gives way to the “Answered by …” line in the run row (1.2c)." },
+    { group: "Finished", label: "completed", tone: "quiet", icon: "check_circle", title: "No card.", body: "The running bar gives way to the “Read … messages” line in the run row (1.2c)." },
     { group: "Stopped by you", label: "cancelled", tone: "neutral", icon: "stop_circle", title: "You stopped this run.", body: "What arrived before you stopped stays below.", action: "Ask again", big: 1 },
     { group: "Limit reached", label: "period allowance spent", tone: "warn", icon: "hourglass_disabled", title: "This month's questions are used up.", body: "What arrived before the limit stays below.", when: "Questions become available again on Thursday 1 October at 00:00.", big: 1 },
     { group: "Limit reached", label: "run allowance spent", tone: "warn", icon: "data_usage", title: "This question reached the most one run may spend.", body: "Below is what it found before stopping. One mailbox or one year costs less.", action: "Ask again", big: 1 },

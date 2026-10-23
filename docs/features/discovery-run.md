@@ -314,8 +314,9 @@ it is a setting of its own — `PublishedModel` on the composing model, describe
 [the AI configuration](../operations/configuration-ai.md) — rather than the routed model name the deployment sends to
 the provider. Those are separate because a routed name can carry a deployment identifier, a tenant, or an internal
 routing label that is nobody's business outside the deployment, and publishing it by default would leak the
-configuration to every client. An operator that sets nothing publishes nothing: the field arrives empty, and a client
-shows the alias alone.
+configuration to every client. An operator that sets nothing publishes nothing: the field arrives empty. MailFathom's own
+client shows neither name, nor the ceilings and the spend beside them: a person asking about their mail is told how many
+messages the answer was read from, and the rest is the operator's, in the run's own record and on the meter.
 
 Two orderings hold within that. **A source is always declared before the block naming it**, so a block can be drawn the
 moment it arrives instead of being held until the run closes. And **an ending is the last thing a run publishes** —
@@ -448,6 +449,6 @@ nothing about the question or the mail it read.
 - **A live Case's own updates.** Nothing here updates an answer on its own yet. When something does, it runs through the
   same ledgers as a question somebody asked, so unattended spend is bounded by what is written above rather than by a
   second mechanism.
-- **Rendering.** The client draws nine of the eleven block types, and names any other type — the Agent's event and
-  task proposals, until their own renderers exist — to the reader rather than dropping it. What each of them looks like is the client's and is
+- **Rendering.** The client draws nine of the eleven block types, and draws any other type — the Agent's event and
+  task proposals, until their own renderers exist — as a part it cannot show yet rather than dropping it. What each of them looks like is the client's and is
   described nowhere here.

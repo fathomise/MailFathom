@@ -108,7 +108,7 @@ describe('EventProposal', () => {
         expect(askAnotherTime).toHaveBeenCalledWith('Renewal call');
     });
 
-    it('names a block it is not the renderer for rather than drawing somebody else’s data as an event', () => {
+    it('draws another renderer’s block as an unknown block rather than as an event', () => {
         drawEvent({
             type: 'taskProposal',
             named: 'taskProposal',

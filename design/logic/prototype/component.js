@@ -36,7 +36,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
                         Tones: finished (no card) · stopped by you · limit reached (period allowance with when-line,
                         run allowance) · try again (timed out, temporarily unavailable) · could not finish (failed,
                         gone, stopped) · not possible here (unavailable, retrieval refused).
-       d_finished  1.2c completed - no card; “Answered by {endpoint} ({model})” and spend go in the run line.
+       d_finished  1.2c completed - no card; “Read {n} messages” goes in the run line.
        d_coming    1.3a “still coming” dashed card trailing blocks: loading (shimmer), error, offline (+ Retry only here).
        d_empty     1.3b nothing composed (no action) · answer from a newer version · unknown block (dashed neutral).
        ev_opening  1.4a inspector opening - header from the citation, shimmer body, “Opening the source…”.
@@ -1127,7 +1127,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (th.ai && cards.length < 3) cards.push({ heading: "What this is about", claim: th.ai, why: "This is the reading the message list shows - it comes from the subject and the opening of the message.", idx: 0 });
       return cards.slice(0, 3).map(c => ({
         heading: c.heading, claim: c.claim, why: c.why,
-        model: "Model - mailfathom-email-enrichment",
         quote: msgs[c.idx] || msgs.join(" ") || th.subject,
         showSrc: msgs.length > 1,
         srcLabel: "Open message " + (c.idx + 1) + " in the thread",
@@ -2015,7 +2014,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           titleStyle: BLK.tlTitle,
           detailStyle: BLK.tlDetail,
         })) : b.type === "evidence" ? (b.items || []).map((e, i) => ({
-          n: e.n, source: e.source, snippet: e.snippet, relevance: e.relevance, freshness: e.freshness,
+          n: e.n, source: e.source, snippet: e.snippet, freshness: e.freshness,
           isPrivate: !!e.private, hasSnippet: !e.private && !!e.snippet,
           badge: e.badge,
           style: "display:flex;flex-direction:column;gap:7px;padding:" + (i ? 12 : 2) + "px 0 12px 0;" + (i ? "border-top:1px solid var(--line2);" : ""),
@@ -3304,9 +3303,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         sugRowStyle: isMobile
           ? "display:flex;flex-direction:column;align-items:flex-start;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:13px 14px"
           : "display:flex;justify-content:space-between;align-items:center;gap:16px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px",
-        sugMetaStyle: isMobile
-          ? "font-size:12px;color:var(--faint)"
-          : "font-size:12px;color:var(--faint);white-space:nowrap",
         accountsStyle: isMobile
           ? "display:flex;flex-direction:column;gap:10px"
           : "width:" + (compact ? 250 : 290) + "px;flex:0 0 " + (compact ? 250 : 290) + "px;display:flex;flex-direction:column;gap:10px",
@@ -3424,13 +3420,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             ? "color:var(--muted);background:var(--rail);border:1px solid var(--line);"
             : "color:var(--accent-d);background:var(--accent-soft);"),
         })),
-        suggestions: SUGGESTED_QUESTIONS.map(x => ({ text: x.text, plan: x.plan, pick: () => this.run(x.text) })),
+        suggestions: SUGGESTED_QUESTIONS.map(x => ({ text: x.text, pick: () => this.run(x.text) })),
 
         showIdle: st.phase === "idle",
         hasRun,
         running: st.phase === "running",
-        progressText: plan ? (isMobile ? "Semantic retrieval… blocks arrive one by one" : "Semantic retrieval across 3 accounts… blocks arrive one by one") : "",
-        planLabel: plan ? plan.label : "",
+        progressText: plan ? (isMobile ? "Searching your mail…" : "Searching your mail in 3 accounts…") : "",
+        runFinished: hasRun && st.phase === "done",
         runMeta: plan ? plan.meta : "",
         confidence: plan ? plan.confidence : "",
         gapNote: plan && plan.gap ? plan.gap : false,
@@ -3455,8 +3451,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         people: plan && plan.people ? plan.people.map(p => ({ initials: p.initials, name: p.name, role: p.role, last: p.last, open: openEv(p.cite) })) : [],
         actionReady: !!ready.action,
         actionText: plan ? plan.action : "",
-        showTrace: hasRun && (this.props.showTrace ?? true) && st.phase === "done",
-        traceText: plan ? plan.trace : "",
 
         evidenceCount: plan ? plan.evidence.length + " sources · click to see the passage" : "",
         evidence: plan && ready.evidence ? plan.evidence.map(e => { const sb = srcBadge(e); return { n: e.n, title: e.title, snippet: e.snippet, meta: e.meta, open: () => this.setState({ ev: e.n }), badgeStyle: SRC_BADGE_STYLE, badgeIconStyle: SRC_BADGE_ICON_STYLE, badgeIcon: sb.icon, badgeLabel: sb.label, badgeTitle: sb.title }; }) : [],
@@ -4222,7 +4216,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const full = w < 900;
           return {
             aiSumCards: aiSumThread ? this.aiSumCards(aiSumThread) : [],
-            aiSumModel: "mailfathom-email-enrichment",
+            aiSumAuthor: "Written by AI",
             aiSumFootText: full ? "Quoted from this message alone" : "Read from this message alone - every reading quotes the passage it rests on.",
             aiSumOverlayStyle: full
               ? (isMobile ? this.ovStyle(97, true) : "position:fixed;inset:0;z-index:97;display:flex;align-items:stretch;justify-content:stretch;background:var(--scrim)")

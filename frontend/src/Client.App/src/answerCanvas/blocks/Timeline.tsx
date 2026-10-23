@@ -35,7 +35,7 @@ export function Timeline({ block }: { readonly block: AnswerBlock }) {
     const { locale, translate } = useLocalization();
 
     if (block.type !== 'timeline') {
-        return <UnrecognisedAnswerBlock named={block.named} />;
+        return <UnrecognisedAnswerBlock />;
     }
 
     const { entries, evidence } = block;

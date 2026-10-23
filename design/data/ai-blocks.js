@@ -10,12 +10,12 @@ MailFathomDesign.data.aiBlocksAnswerParts = [
 ];
 
 MailFathomDesign.data.aiBlocksEvidence = [
-  { n: "1", source: "Master agreement.pdf", srcType: "attachment", snippet: "“Monthly remuneration is €1,200 net…”", relevance: "94%", freshness: "current · 12.04.2021", verdict: "supported" },
-  { n: "3", source: "SLA addendum.pdf", srcType: "attachment", snippet: "“Response time shortened from 4 h to 2 h…”", relevance: "88%", freshness: "current · 18.11.2025", verdict: "outdated" },
-  { n: "5", source: "Calculation_2027.xlsx", srcTypes: ["attachment", "mail"], snippet: "“Indexation at 4.1% CPI adds €10,542…”", relevance: "81%", freshness: "fresh · yesterday", verdict: "conflicting" },
+  { n: "1", source: "Master agreement.pdf", srcType: "attachment", snippet: "“Monthly remuneration is €1,200 net…”", freshness: "current · 12.04.2021", verdict: "supported" },
+  { n: "3", source: "SLA addendum.pdf", srcType: "attachment", snippet: "“Response time shortened from 4 h to 2 h…”", freshness: "current · 18.11.2025", verdict: "outdated" },
+  { n: "5", source: "Calculation_2027.xlsx", srcTypes: ["attachment", "mail"], snippet: "“Indexation at 4.1% CPI adds €10,542…”", freshness: "fresh · yesterday", verdict: "conflicting" },
 ];
 
-MailFathomDesign.data.aiBlocksPrivateEvidence = { n: "7", source: "Private message - Karolina Kowalska", srcType: "mail", relevance: "76%", freshness: "today" };
+MailFathomDesign.data.aiBlocksPrivateEvidence = { n: "7", source: "Private message - Karolina Kowalska", srcType: "mail", freshness: "today" };
 
 MailFathomDesign.data.aiBlocksTimeline = [
   { date: "12.04.2021", title: "Master agreement", detail: "€1,200/mo · SLA 4 h", cite: "1" },
@@ -71,8 +71,6 @@ MailFathomDesign.data.aiBlocksSuggestedAction = {
   effect: "the message goes into the “Contract addendum” thread as a reply; nothing is sent automatically",
   partialEffect: "not determined yet - simulation running",
 };
-
-MailFathomDesign.data.aiBlocksUnknownBlock = { name: "RiskScore", planVersion: "v3", clientVersion: "v2" };
 
 MailFathomDesign.data.aiBlocksDraftParagraphs = [
   "Thank you for the addendum. We accept shortening the response time for critical incidents to 2 hours on business days.",

@@ -34,7 +34,7 @@ export function AttachmentGallery({ block }: { readonly block: AnswerBlock }) {
     const { locale, translate } = useLocalization();
 
     if (block.type !== 'attachmentGallery') {
-        return <UnrecognisedAnswerBlock named={block.named} />;
+        return <UnrecognisedAnswerBlock />;
     }
 
     const { entries } = block;

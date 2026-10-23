@@ -62,7 +62,7 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
     const [typed, setTyped] = useState<string | null>(null);
 
     if (block.type !== 'draft') {
-        return <UnrecognisedAnswerBlock named={block.named} />;
+        return <UnrecognisedAnswerBlock />;
     }
 
     const { draft, evidence } = block;

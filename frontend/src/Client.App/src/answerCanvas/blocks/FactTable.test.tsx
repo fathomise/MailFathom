@@ -119,9 +119,9 @@ describe('FactTable', () => {
         expect(screen.getByText('No column had coverage in the sources - the table stays empty.')).toBeDefined();
     });
 
-    it('names a block it is not the renderer for rather than drawing somebody else’s data as a comparison', () => {
+    it('draws another renderer’s block as an unknown block rather than as a comparison', () => {
         renderTable({ type: null, named: 'RiskScore' });
 
-        expect(screen.getByText('type: RiskScore')).toBeDefined();
+        expect(screen.getByText('Unknown block')).toBeDefined();
     });
 });

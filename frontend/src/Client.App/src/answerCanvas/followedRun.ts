@@ -8,7 +8,6 @@ import type {
     ClientResult,
     DeclaredSource,
     DiscoveryRetrievalProgress,
-    DiscoveryRunCeilings,
     DiscoveryRunEnding,
     DiscoveryRunEvent,
     DiscoveryRunSpend,
@@ -52,13 +51,6 @@ export type RunReadFailure = Exclude<ClientFailureReason, 'missing'>;
  */
 export type RunEnding = DiscoveryRunEnding | 'completed' | 'gone';
 
-/** What a run said about itself before it spent anything: what one question may spend here, and what will answer it. */
-export interface RunEnvelope {
-    readonly ceilings: DiscoveryRunCeilings;
-    readonly endpointAlias: string;
-    readonly publishedModel: string;
-}
-
 /** A run as far as the client has read it. */
 export interface FollowedAnswer {
     /** The blocks that have arrived, in the order the run published them. */
@@ -81,9 +73,6 @@ export interface FollowedAnswer {
 
     /** Why the last read did not answer, and `null` where it did, which is what a screen says instead of waiting in silence. */
     readonly failure: RunReadFailure | null;
-
-    /** What the run may spend and what will answer it, and `null` before the run has started. */
-    readonly envelope: RunEnvelope | null;
 
     /** How far retrieval has got, and `null` before a lookup of the plan has settled. */
     readonly retrieval: DiscoveryRetrievalProgress | null;
@@ -110,7 +99,6 @@ export const nothingRead: FollowedAnswer = {
     running: true,
     planSchemaVersion: null,
     failure: null,
-    envelope: null,
     retrieval: null,
     spend: null,
     ending: null,
@@ -140,7 +128,6 @@ export function answerAfter(before: FollowedAnswer, tail: ClientResult<RunTail<D
     const blocks = [...before.blocks];
     const sources = new Map(before.sources);
     let planSchemaVersion = before.planSchemaVersion;
-    let envelope = before.envelope;
     let retrieval = before.retrieval;
     let spend = before.spend;
     let ending = before.ending;
@@ -149,11 +136,6 @@ export function answerAfter(before: FollowedAnswer, tail: ClientResult<RunTail<D
     for (const event of tail.value.events) {
         if (event.kind === 'started') {
             planSchemaVersion = event.planSchemaVersion;
-            envelope = {
-                ceilings: event.ceilings,
-                endpointAlias: event.endpointAlias,
-                publishedModel: event.publishedModel,
-            };
         } else if (event.kind === 'citation') {
             sources.set(event.source.id, event.source);
         } else if (event.kind === 'block') {
@@ -177,7 +159,6 @@ export function answerAfter(before: FollowedAnswer, tail: ClientResult<RunTail<D
         running: tail.value.running,
         planSchemaVersion,
         failure: null,
-        envelope,
         retrieval,
         spend,
         ending,

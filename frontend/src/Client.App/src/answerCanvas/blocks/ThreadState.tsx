@@ -37,7 +37,7 @@ export function ThreadState({ block }: { readonly block: AnswerBlock }) {
     const { locale, translate } = useLocalization();
 
     if (block.type !== 'threadState') {
-        return <UnrecognisedAnswerBlock named={block.named} />;
+        return <UnrecognisedAnswerBlock />;
     }
 
     const { evidence, standing } = block;

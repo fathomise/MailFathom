@@ -42,7 +42,7 @@ export function EventProposal({ block }: { readonly block: AnswerBlock }) {
     const answering = useProposalAnswering();
 
     if (block.type !== 'eventProposal') {
-        return <UnrecognisedAnswerBlock named={block.named} />;
+        return <UnrecognisedAnswerBlock />;
     }
 
     const { proposal, evidence } = block;

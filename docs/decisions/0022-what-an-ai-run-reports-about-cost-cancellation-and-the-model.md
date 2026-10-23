@@ -69,7 +69,7 @@ Recorded on issue [#1145](https://github.com/Krzysztof318/MailFathom/issues/1145
 
 ## Decision Outcome
 
-Chosen: **A3, B2, C2, D4, and E2** — a run reports what it has itself consumed against the bound it runs under, cancelling stops the provider call and keeps what arrived while still costing what it spent, a spent ceiling arrives as one of two states neither of which names a consumed amount, the answering endpoint is published by a name the operator chose for that purpose, and the run is the unit of cost with a Case owning the runs it caused.
+Chosen: **A3, B2, C2, D4, and E2** — a run reports what it has itself consumed against the bound it runs under, cancelling stops the provider call and keeps what arrived while still costing what it spent, a spent ceiling arrives as one of two states neither of which names a consumed amount, the answering endpoint is published by a name the operator chose for that purpose, and the run is the unit of cost with a Case owning the runs it caused. MailFathom's own client draws none of the counts, ceilings, or names to the person asking: it says that their mail is being searched and, once the run is over, how many messages the answer was read from — the section *What the client draws is the reach, not the machinery* below.
 
 ### The unit is the run's own consumption, and never money
 
@@ -81,7 +81,7 @@ A run reports three counts, each against the ceiling it will be stopped by: prov
 
 ### Before, during, and after are three different reports, and only one of them is a number that moves
 
-**Before** a run there is no estimate. What is shown instead is the envelope: what one question may spend on this deployment, and which endpoint will answer it. Both are known without asking anything, and neither is a prediction. A forecast would have to guess how many times the model will ask for mail, which is the one thing about a run nothing can know in advance.
+**Before** a run there is no estimate. What the run publishes instead is the envelope: what one question may spend on this deployment, and which endpoint will answer it. Both are known without asking anything, and neither is a prediction. A forecast would have to guess how many times the model will ask for mail, which is the one thing about a run nothing can know in advance.
 
 **During** a run the three counts accrue, carried on the run's own event stream rather than polled — the events [#1170](https://github.com/Krzysztof318/MailFathom/issues/1170) defines are what a progress figure rides on, and a second channel for cost would be a second thing to keep in step with the first.
 
@@ -110,13 +110,24 @@ The MCP surface is unchanged: `MailAnsweringBudgetExhaustedException` continues 
 
 ### The endpoint is published by a name the operator chose to publish
 
-The client shows the endpoint alias with every run, and beside it a model name the operator declares for publication and which is absent unless they do. `Chat:Alias` is already the name every log line, metric tag, and failure message calls the endpoint, and the audit entry already records it, so it is the identity the deployment already has for its answering endpoint.
+Every run publishes the endpoint alias, and beside it a model name the operator declares for publication and which is absent unless they do. `Chat:Alias` is already the name every log line, metric tag, and failure message calls the endpoint, and the audit entry already records it, so it is the identity the deployment already has for its answering endpoint.
 
 **`Chat:Model` is not that identity and is not published.** The configuration reference is explicit that it is what a request is routed under, which for a cloud deployment is the operator's own resource name rather than the vendor's model identifier — a value that can carry a tenant, a project, or an environment in it. Publishing it to every signed-in client would disclose deployment topology to answer a question about model quality, which is the wrong trade in both directions.
 
 So a second key on the `Chat` section carries what may be published — the vendor's identifier as the operator wishes it stated, `gpt-4o` while the request routes to `prod-eu-4o-2` — and empty publishes nothing beyond the alias. Disclosure is declared rather than inferred, which is the same shape this project uses wherever a deployment property reaches a client.
 
 The attribution is **per run, never per block.** A declaration reload landing mid-question changes the next question and not that one, so every block of one run came from one endpoint under one declaration, and a per-block attribution would repeat one fact as many times as the plan has parts.
+
+### What the client draws is the reach, not the machinery
+
+Everything above is what a run *publishes* to a client. MailFathom's own client draws less of it, because the person reading the screen is asking a business question about their mail rather than operating the deployment, and a figure they cannot act on reads as a debugging console in front of the answer:
+
+- **While the run works**, one sentence says the mail is being searched and how many matching passages have been found so far. It names no lookup and no plan.
+- **Once the run is over**, one line says how many messages the answer was read from, and nothing where it read none.
+- **A spent ceiling** reads as the two states above, in the same words, because those are the ones a person can act on.
+- **Calls, tokens, retrieved characters, their ceilings, the floor caveat, the endpoint alias, and the published model name are not drawn.** They stay where an operator reads them — the run's own record, the meter, the audit entry — and in the published events, for a client that wants them.
+
+So the trust question D1 raises is answered by the operator rather than on every answer: which endpoint and model a deployment uses is the operator's to state to the people they serve, and the run's record names it for whoever has to reconcile one answer against another.
 
 ### The run is the unit of cost; a Case owns the runs it caused
 
@@ -126,7 +137,7 @@ Every charge belongs to exactly one run, and every run belongs to exactly one ca
 
 ### Consequences
 
-- Good, because a person watching a run sees the same three quantities that will stop it, so *is this working* and *is this about to be refused* are answered by one figure rather than by a spinner and a surprise.
+- Good, because a person watching a run is told that their mail is being searched and, afterwards, how much of it the answer rests on, while the three quantities that stop it are published for the operator and for any client that wants them.
 - Good, because a refusal is legible without publishing anything about how much a deployment or anybody on it has spent, which keeps the client's honesty and the multi-user privacy boundary from pulling against each other.
 - Good, because cancelling is defined at the provider call rather than at the listener, so the control means what a person takes it to mean.
 - Good, because the model attribution is a declaration, so a deployment discloses what its operator decided to disclose and no more.
@@ -134,7 +145,8 @@ Every charge belongs to exactly one run, and every run belongs to exactly one ca
 - Neutral, because a live Case's cost is visible to the Case's members and to nobody else, which follows the Case's own membership rather than adding a rule about cost.
 - Bad, because the figure is a floor: a call abandoned in flight may be billed by the provider and counted here as nothing, so a person reading the number after a cancellation is reading less than they were charged.
 - Bad, because two users share one allowance and one of them can exhaust it for the other, and this record makes that legible without fixing it — a per-user ceiling is work neither this decision nor its issue carries.
-- Bad, because the second model key is one more thing an operator has to set to get a useful answer on screen, and a deployment that leaves it empty shows an alias that may mean nothing to the person reading it.
+- Bad, because the second model key is one more thing an operator has to set, and MailFathom's own client does not draw it, so it serves the run's record and other clients rather than the person asking.
+- Bad, because a person reading MailFathom's own client cannot tell two answers of different quality apart by what answered them, which is the trade D1 was refused over; the client accepts it in favour of a screen a business reader can use.
 
 ## Validation
 

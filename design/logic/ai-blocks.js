@@ -18,7 +18,6 @@ MailFathomDesign.artboards.aiBlocks = (DCLogic, React) => {
     aiBlocksParticipants: PARTICIPANTS,
     aiBlocksDraft: DRAFT,
     aiBlocksSuggestedAction: SUGGESTED_ACTION,
-    aiBlocksUnknownBlock: UNKNOWN_BLOCK,
     aiBlocksProposals: PROPOSAL_SPECS,
   } = MailFathomDesign.data;
 
@@ -186,7 +185,7 @@ MailFathomDesign.artboards.aiBlocks = (DCLogic, React) => {
         const vi = verdictInfo(e.verdict);
         const sb = srcBadge(e);
         return Object.assign({}, e, {
-          ariaLabel: "Evidence: " + e.source + " - " + sb.title + " - relevance " + e.relevance + ", verdict " + vi.label,
+          ariaLabel: "Evidence: " + e.source + " - " + sb.title + ", verdict " + vi.label,
           verdictLabel: vi.label, verdictIcon: vi.icon, verdictChipStyle: verdictChipStyle(e.verdict),
           verdictIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:12px;line-height:1",
           badgeStyle: SRC_BADGE_STYLE, badgeIconStyle: SRC_BADGE_ICON_STYLE, badgeIcon: sb.icon, badgeLabel: sb.label, badgeTitle: sb.title,
@@ -289,7 +288,7 @@ MailFathomDesign.artboards.aiBlocks = (DCLogic, React) => {
             : s.type === "draft" ? "Nothing to draft - the last message in the thread is yours."
             : "Nothing worth doing here - the thread needs no step.",
           errorText: "Could not build this proposal.",
-          errorReason: s.type === "event" ? "The calendar did not answer." : s.type === "task" ? "The task list did not answer." : "The model timed out.",
+          errorReason: s.type === "event" ? "The calendar did not answer." : s.type === "task" ? "The task list did not answer." : "This took too long. Try again.",
           retryAria: "Try again: " + PROP_LABEL[s.type].toLowerCase(),
           hasResult: accepted,
           result: s.result || "",
@@ -352,17 +351,17 @@ MailFathomDesign.artboards.aiBlocks = (DCLogic, React) => {
         answerPartialNote: "The paragraph about the 2027 proposal is missing - still processing.",
         answerEmptyText: "The query does not touch any thread in this scope - there is nothing to build an answer from.",
         answerErrorText: "Could not assemble an answer.",
-        answerErrorReason: "The model timed out while synthesising citations.",
+        answerErrorReason: "This took too long. Try again.",
 
         evidenceMeta: (isPartial ? EVIDENCE_FULL.slice(0, 2).length : EVIDENCE_FULL.length) + " items · sorted by relevance",
         evidenceItems, evidencePrivate: Object.assign({}, EVIDENCE_PRIVATE, (() => { const sb = srcBadge(EVIDENCE_PRIVATE); return {
           ariaLabel: "Private evidence: " + EVIDENCE_PRIVATE.source + " - content unavailable",
           badgeStyle: SRC_BADGE_STYLE, badgeIconStyle: SRC_BADGE_ICON_STYLE, badgeIcon: sb.icon, badgeLabel: sb.label, badgeTitle: sb.title,
         }; })()),
-        evidencePartialNote: "1 item missing - still being indexed.",
-        evidenceEmptyText: "No documents met the relevance threshold for this query.",
+        evidencePartialNote: "1 item is still being read.",
+        evidenceEmptyText: "No messages matched this question closely enough.",
         evidenceErrorText: "Could not fetch the source passages.",
-        evidenceErrorReason: "The search index did not respond.",
+        evidenceErrorReason: "Your mail could not be searched just now.",
 
         timelineMeta: timelineItems.length + " events · 2021-2026",
         timelineItems,
@@ -436,10 +435,7 @@ MailFathomDesign.artboards.aiBlocks = (DCLogic, React) => {
 
         crossHeadingStyle: "font-size:13px;font-weight:600;color:var(--text2);margin-top:6px",
         crossRowStyle: isMobile ? "display:flex;flex-direction:column;gap:14px" : "display:flex;gap:14px;align-items:stretch",
-        unknownBlockName: UNKNOWN_BLOCK.name,
-        schemaPlanVersion: UNKNOWN_BLOCK.planVersion,
-        schemaClientVersion: UNKNOWN_BLOCK.clientVersion,
-        schemaBannerText: "This result uses a newer plan schema version (" + UNKNOWN_BLOCK.planVersion + ") than this app supports (" + UNKNOWN_BLOCK.clientVersion + "). Some new block types may have been skipped.",
+        schemaBannerText: "Part of this answer needs a newer version of the app, so it was skipped. Update the app to see it.",
 
         citationSamples: [
           { label: "default", style: "font-size:11px;color:var(--accent-d);background:var(--accent-soft);border-radius:4px;padding:2px 7px;min-width:20px;text-align:center" },

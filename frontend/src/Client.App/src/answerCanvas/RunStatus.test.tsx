@@ -9,12 +9,6 @@ import { nothingRead, type FollowedAnswer } from './followedRun';
 import { RunStatus } from './RunStatus';
 import type { RunStopping } from './useRunStopping';
 
-const envelope = {
-    ceilings: { retrievedCharacters: 20_000, providerCalls: 8, tokens: 80_000 },
-    endpointAlias: 'house',
-    publishedModel: '',
-};
-
 const spend = { providerCalls: 3, tokens: 1_200, retrievedCharacters: 900, messagesRetrieved: 4 };
 
 function renderStatus(
@@ -23,7 +17,7 @@ function renderStatus(
 ) {
     return render(
         <LocalizationProvider>
-            <RunStatus answer={{ ...nothingRead, envelope, ...answer }} {...status} />
+            <RunStatus answer={{ ...nothingRead, ...answer }} {...status} />
         </LocalizationProvider>,
     );
 }
@@ -35,12 +29,15 @@ describe('RunStatus', () => {
         expect(screen.getByRole('status').textContent).toContain('Working through your mail');
     });
 
-    it('says how far retrieval has got once a lookup of the plan settles', () => {
+    it('says the mail is being searched and how many matching passages it has found, without lookups', () => {
         renderStatus({
             retrieval: { lookupsRun: 2, lookupsRefused: 0, lookupsPlanned: 5, passagesFound: 41 },
         });
 
-        expect(screen.getByRole('status').textContent).toContain('2 of 5');
+        const said = screen.getByRole('status').textContent;
+        expect(said).toContain('Searching your mail');
+        expect(said).toContain('41');
+        expect(said).not.toContain('lookups');
     });
 
     it('offers a control that stops the run while it is working', () => {
@@ -99,44 +96,29 @@ describe('RunStatus', () => {
         expect(screen.getByRole('status').textContent).toContain('no longer holds this run');
     });
 
-    it('reads every count against the ceiling that will stop the run, while it is still working', () => {
-        renderStatus({ spend, retrieval: { lookupsRun: 1, lookupsRefused: 0, lookupsPlanned: 5, passagesFound: 9 } });
-
-        expect(screen.getByText(/3 of 8 calls/u).textContent).toContain('from 4 messages');
-    });
-
-    it('says the counted tokens are a floor once the run is over, and not while it is still moving', () => {
-        const { unmount } = renderStatus({ spend });
-
-        expect(screen.queryByText(/floor rather than a bill/u)).toBeNull();
-
-        unmount();
+    it('says how many messages a finished run read, and nothing about calls, tokens, or what answered it', () => {
         renderStatus({ running: false, ending: 'completed', spend });
 
-        expect(screen.getByText(/floor rather than a bill/u)).toBeDefined();
+        expect(screen.getByText('Read 4 messages')).toBeDefined();
+        expect(document.body.textContent).not.toMatch(/tokens|calls|characters|Answered by/u);
     });
 
-    it('names the endpoint the operator chose, and the model only where they declared one', () => {
-        const { unmount } = renderStatus({ spend });
+    it('draws no read line while the run is still working, the working line already saying the search moves', () => {
+        renderStatus({ spend, retrieval: { lookupsRun: 1, lookupsRefused: 0, lookupsPlanned: 5, passagesFound: 9 } });
 
-        expect(screen.getByText('Answered by house')).toBeDefined();
-
-        unmount();
-        renderStatus({ envelope: { ...envelope, publishedModel: 'gpt-4o' }, spend });
-
-        expect(screen.getByText('Answered by house (gpt-4o)')).toBeDefined();
+        expect(screen.queryByText(/^Read \d/u)).toBeNull();
     });
 
-    it('says nothing about cost before the run has said what it may spend', () => {
-        renderStatus({ envelope: null });
+    it('draws no read line for a run that read nothing', () => {
+        renderStatus({ running: false, ending: 'retrievalRefused', spend: { ...spend, messagesRetrieved: 0 } });
 
-        expect(screen.queryByText(/Answered by/u)).toBeNull();
+        expect(screen.queryByText(/^Read \d/u)).toBeNull();
     });
 
     it('takes the keyboard off the control that stopped the run when the run ends', () => {
         const { rerender } = render(
             <LocalizationProvider>
-                <RunStatus answer={{ ...nothingRead, envelope }} onStop={() => undefined} />
+                <RunStatus answer={{ ...nothingRead }} onStop={() => undefined} />
             </LocalizationProvider>,
         );
 
@@ -144,10 +126,7 @@ describe('RunStatus', () => {
 
         rerender(
             <LocalizationProvider>
-                <RunStatus
-                    answer={{ ...nothingRead, envelope, running: false, ending: 'completed' }}
-                    onStop={() => undefined}
-                />
+                <RunStatus answer={{ ...nothingRead, running: false, ending: 'completed' }} onStop={() => undefined} />
             </LocalizationProvider>,
         );
 

@@ -80,13 +80,13 @@ Project repository: https://github.com/fathomise/MailFathom
               <div role="button" tabIndex="0" aria-label="{{ e.ariaLabel }}" style="display:flex;flex-direction:column;gap:5px;border-bottom:1px solid var(--line2);padding:10px 0;cursor:pointer" style-hover="background:var(--hover)" style-focus="outline:2px solid var(--accent);outline-offset:2px">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:14px;font-weight:600">{{ e.source }}</div><span title="{{ e.badgeTitle }}" style="{{ e.badgeStyle }}"><span style="{{ e.badgeIconStyle }}">{{ e.badgeIcon }}</span>{{ e.badgeLabel }}</span><div style="{{ e.verdictChipStyle }}"><span style="{{ e.verdictIconStyle }}">{{ e.verdictIcon }}</span>{{ e.verdictLabel }}</div></div>
                 <div style="font-size:13.5px;line-height:1.5;color:var(--text2);border-left:2px solid var(--accent-line);padding:1px 0 1px 11px;text-wrap:pretty">{{ e.snippet }}</div>
-                <div style="display:flex;gap:10px;font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint)"><span>relevance {{ e.relevance }}</span><span>{{ e.freshness }}</span></div>
+                <div style="display:flex;gap:10px;font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint)"><span>{{ e.freshness }}</span></div>
               </div>
             </sc-for>
             <div role="button" tabIndex="0" aria-label="{{ evidencePrivate.ariaLabel }}" style="display:flex;flex-direction:column;gap:5px;padding:10px 0;cursor:pointer" style-hover="background:var(--hover)" style-focus="outline:2px solid var(--accent);outline-offset:2px">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:14px;font-weight:600">{{ evidencePrivate.source }}</div><span title="{{ evidencePrivate.badgeTitle }}" style="{{ evidencePrivate.badgeStyle }}"><span style="{{ evidencePrivate.badgeIconStyle }}">{{ evidencePrivate.badgeIcon }}</span>{{ evidencePrivate.badgeLabel }}</span><div style="font-size:11px;background:var(--rail);color:var(--muted);border-radius:12px;padding:3px 9px;display:flex;align-items:center;gap:4px"><span style="{{ noteIconStyle }}">lock</span>private source</div></div>
               <div style="font-size:13px;color:var(--faint);font-style:italic">Content not available for review - the conclusion drawn from this source is kept in the result.</div>
-              <div style="display:flex;gap:10px;font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint)"><span>relevance {{ evidencePrivate.relevance }}</span><span>{{ evidencePrivate.freshness }}</span></div>
+              <div style="display:flex;gap:10px;font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint)"><span>{{ evidencePrivate.freshness }}</span></div>
             </div>
             <sc-if value="{{ isPartial }}" hint-placeholder-val="{{ false }}"><div style="{{ noteStyle }}"><span style="{{ noteIconStyle }}">hourglass_top</span>{{ evidencePartialNote }}</div></sc-if>
           </sc-if>
@@ -263,12 +263,12 @@ Project repository: https://github.com/fathomise/MailFathom
         <div style="{{ crossHeadingStyle }}">Cross-cutting states</div>
         <div style="{{ crossRowStyle }}">
           <div style="{{ cardStyle }};flex:1">
-            <div style="{{ headStyle }}"><span aria-hidden="true" style="{{ tileStyle }}"><span style="{{ glyphStyle }}">extension_off</span></span><div style="{{ labelStyle }}">Unknown block</div><div style="{{ metaStyle }}">type: {{ unknownBlockName }}</div></div>
+            <div style="{{ headStyle }}"><span aria-hidden="true" style="{{ tileStyle }}"><span style="{{ glyphStyle }}">extension_off</span></span><div style="{{ labelStyle }}">Unknown block</div></div>
             <div style="display:flex;gap:11px;align-items:flex-start">
               <span style="{{ emptyIconStyle }};flex:0 0 auto">extension_off</span>
               <div style="display:flex;flex-direction:column;gap:5px">
-                <div style="font-size:14px;color:var(--text2);text-wrap:pretty">This client does not recognise the block type “{{ unknownBlockName }}”. The block was skipped - the rest of the result rendered normally.</div>
-                <div style="{{ emptyReasonStyle }}">Updating the app may unlock this block type.</div>
+                <div style="font-size:14px;color:var(--text2);text-wrap:pretty">This app cannot show one part of this answer yet, so it was skipped - the rest is shown as usual.</div>
+                <div style="{{ emptyReasonStyle }}">Updating the app may show it.</div>
               </div>
             </div>
           </div>

@@ -223,8 +223,8 @@ describe('ProposalCard', () => {
     it.each<[ProposalKind, string]>([
         ['eventProposal', 'Could not build this proposal. The calendar did not answer.'],
         ['taskProposal', 'Could not build this proposal. The task list did not answer.'],
-        ['draft', 'Could not build this proposal. The model timed out.'],
-        ['suggestedAction', 'Could not build this proposal. The model timed out.'],
+        ['draft', 'Could not build this proposal. This took too long - try again.'],
+        ['suggestedAction', 'Could not build this proposal. This took too long - try again.'],
     ])('says in its own words why a %s could not be built, and offers trying again', (kind, said) => {
         const onRetry = vi.fn();
         drawCard({ kind, state: 'error', onRetry });

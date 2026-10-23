@@ -39,7 +39,7 @@ export function SuggestedAction({ block }: { readonly block: AnswerBlock }) {
     const answering = useProposalAnswering();
 
     if (block.type !== 'suggestedAction') {
-        return <UnrecognisedAnswerBlock named={block.named} />;
+        return <UnrecognisedAnswerBlock />;
     }
 
     const { evidence, suggestion } = block;
