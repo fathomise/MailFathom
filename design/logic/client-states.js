@@ -13,7 +13,7 @@ MailFathomDesign.artboards.clientStates = (DCLogic, React) => {
     clientStatesPeople: PEOPLE,
     clientStatesConversationHistory: HISTORY,
   } = MailFathomDesign.data;
-  const { askedBefore: ASKED_BEFORE } = SAMPLE;
+  const { watched: WATCHED } = SAMPLE;
 
   const W = { telefon: 390, fold: 884, tablet: 1024, desktop: 1440 };
   const H = { telefon: 844, fold: 832, tablet: 768, desktop: 900 };
@@ -35,7 +35,7 @@ MailFathomDesign.artboards.clientStates = (DCLogic, React) => {
     ["ev_private", "1.4c", "discover", "Evidence - private source"],
     ["ev_outdated", "1.4d", "discover", "Evidence - outdated copy"],
     ["ev_kinds", "1.4e", "discover", "Evidence - other kinds of citation"],
-    ["d_asked", "1.5", "discover", "Asked before"],
+    ["d_watched", "1.5", "discover", "Watched questions"],
     ["m_verdict", "2.1", "mail", "Sender verdict"],
     ["m_more", "2.2a", "mail", "Reading a thread in pages"],
     ["m_partial", "2.2b", "mail", "Partial thread failure and head notes"],
@@ -63,7 +63,7 @@ MailFathomDesign.artboards.clientStates = (DCLogic, React) => {
     ["1.2", "d_cancel", "Changed", "How a run ends", "The ending takes the running bar's slot at the top of the canvas, so blocks already shown never move. Eleven reasons fall into five tones (1.2b). “Completed” gets no card: how many messages were read moves into the existing run line (1.2c)."],
     ["1.3", "d_coming", "Drawn", "Canvas in progress and empty", "Trailing dashed card after the last block; Retry only when offline, as the client does. Newer-version and unknown-block share one dashed neutral card (1.3b)."],
     ["1.4", "ev_opening", "Merged", "Evidence inspector", "Every state drawn in the inspector body (1.4a-e). The “not permitted” read failure is merged into Private source - same cause, same remedy, same lock badge - so the client should render it as 1.4c."],
-    ["1.5", "d_asked", "Changed", "Asked before", "Kept in Discover, idle only, under the field. Chips carry the question alone and re-ask it, because Discover always asks about all mail; the stored short answer and freshness are not shown - recall should start a fresh run, not replay a possibly stale answer. savedAnswers.a and .fresh can go."],
+    ["1.5", "d_watched", "Changed", "Watched questions", "Replaces “Asked before”. A question is kept only when somebody pressed Watch on its answer, and it refreshes when new mail matches it rather than on a timer. A row says whether its answer moved since it was last opened, never the answer itself, and names no scope, because Discover always asks about all mail; a paused refresh says when it resumes, a failed one offers Try again, and an empty list says how to add one."],
     ["2.1", "m_verdict", "Changed", "Sender verdict", "Sits under the sender line, above the body. Warning is a notice box; healthy is one quiet line so it never competes with the message. Copy tightened."],
     ["2.2", "m_more", "Drawn", "Thread in pages and failures", "Paging control at the thread's end, partial-failure notice where the missing messages would be, whole-pane states in the “Nothing open” layout, head notes under the subject (2.2a-c)."],
     ["2.3", "m_folders", "Changed", "Folder column and list states", "Folder loading becomes a skeleton; the sentence stays for screen readers only. Failed, offline and no account drawn; the four list states drawn (2.3a-b)."],
@@ -216,7 +216,11 @@ MailFathomDesign.artboards.clientStates = (DCLogic, React) => {
       return {
         pageTheme: themes[0],
         sample: SAMPLE,
-        askedBefore: ASKED_BEFORE,
+        watchedRows: WATCHED.map((w) => ({
+          question: w.question, note: w.note, action: w.action || "", hasAction: !!w.action,
+          stateStyle: "display:inline-flex;align-items:center;gap:6px;font-size:12px;line-height:1.4;" + (w.state === "changed" ? "color:var(--accent-d);font-weight:600;" : w.state === "same" ? "color:var(--muted);" : "color:var(--warn-text);"),
+          dotStyle: "width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:" + (w.state === "changed" ? "var(--accent)" : w.state === "same" ? "var(--border2)" : "var(--warn)"),
+        })),
         show, g,
         focused: focus !== "all",
         focusLabel: cur ? cur[1] + " " + cur[3] : "",

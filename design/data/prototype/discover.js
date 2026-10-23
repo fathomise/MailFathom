@@ -7,7 +7,6 @@ MailFathomDesign.data.plans = {
     confidence: "high confidence",
     gap: "1 gap: 2022 addendum missing",
     meta: "41 messages read",
-    action: "Draft a counter-proposal capping indexation? Decision due 28.08",
     blocks: ["answer", "timeline", "table", "action"],
     parts: [
       { text: "The terms changed in three stages: the master agreement of April 2021", cite: "1" },
@@ -54,7 +53,6 @@ MailFathomDesign.data.plans = {
     confidence: "high confidence",
     gap: "",
     meta: "6 files found",
-    action: "Download the latest policy and add a renewal reminder?",
     blocks: ["answer", "gallery", "action"],
     parts: [
       { text: "The current policy runs to 31.12.2026 and arrived attached to the broker's email of 14.12.2025", cite: "2" },
@@ -83,7 +81,6 @@ MailFathomDesign.data.plans = {
     confidence: "medium confidence",
     gap: "no email confirmation from the board",
     meta: "18 messages, 3 people",
-    action: "Ask the board to confirm the approval in writing?",
     blocks: ["answer", "people", "action"],
     parts: [
       { text: "The 2023 indexation budget was approved by Marta Nowak in Finance, after Jacek Wrona's legal opinion", cite: "6" },
@@ -109,16 +106,93 @@ MailFathomDesign.data.plans = {
   },
 };
 
-// Answers Discover keeps for questions asked before, and how fresh each one is.
-MailFathomDesign.data.savedAnswers = [
-  { q: "What SLA commitments do we have to clients?", a: "4 contracts with a 4 h SLA, one being negotiated to 2 h.", fresh: "up to date" },
-  { q: "Who owns Q4 renewals?", a: "Karolina (clients), Marta (budget), Jacek (wording).", fresh: "up to date" },
-  { q: "Where are the insurance policies?", a: "3 files, the newest from 06.2026 in the broker thread.", fresh: "1 new mail" },
+// What a result can do short of the Agent, per plan: the messages it was built from (`sources`, which open as a
+// filtered Mail list), the refinements offered under it, and the one-step proposals drawn with their controls.
+// A refinement's `patch` is laid over the plan to make the next revision. It reworks what the answer shows, never
+// the mail it reads: Discover always asks about all of it.
+Object.assign(MailFathomDesign.data.plans.contract, {
+  sources: ["contoso", "finanse", "marta", "jacek"],
+  refinements: [
+    { label: "Only 2025-2026", icon: "date_range", patch: {
+      gap: "", meta: "12 messages read",
+      parts: [
+        { text: "Since 2025 one addendum changed the terms: the SLA went from 4 h to 2 h for 8% more", cite: "5" },
+        { text: ", and the 2027 proposal adds another 8% with indexation still uncapped", cite: "7" },
+      ],
+      timeline: "last2", table: "last2",
+    } },
+    { label: "Just the price", icon: "euro", patch: {
+      meta: "41 messages read",
+      parts: [
+        { text: "The monthly price went from €1,200 in 2021", cite: "1" },
+        { text: " to €1,452 after the 2025 addendum", cite: "5" },
+        { text: ", and the 2027 proposal would take it to €1,568 - 31% above where it started", cite: "7" },
+      ],
+    } },
+    { label: "Only what Contoso wrote", icon: "person_search", patch: {
+      meta: "19 messages read",
+      parts: [
+        { text: "Contoso asked for uncapped CPI indexation in 2023", cite: "3" },
+        { text: " and now proposes 8% more from 1 January 2027, asking for a decision by 28 August", cite: "7" },
+      ],
+    } },
+  ],
+  steps: [
+    { type: "task", phase: "pending", title: "Reply to Contoso on the 2027 terms", due: "28.08 · decision due", from: "Proposed terms 2027", reminder: "the day before, 09:00", done: "Task added" },
+    { type: "draft", phase: "pending", meta: "opens in the composer", to: "Anna Kowalska", subject: "Re: Proposed terms 2027",
+      paras: ["Thank you for the proposal. We can accept the 2-hour response time, but not indexation without a cap.", "We propose CPI indexation capped at 5% a year, and would like to settle it before 28 August."] },
+  ],
+});
+
+Object.assign(MailFathomDesign.data.plans.files, {
+  sources: ["north1", "finanse"],
+  refinements: [
+    { label: "Only the current policy", icon: "filter_1", patch: { meta: "1 file found", gallery: "first" } },
+    { label: "Compare the limits", icon: "compare_arrows", patch: {
+      meta: "6 files found",
+      parts: [
+        { text: "The limit of indemnity rose from €1.5m in 2025", cite: "4" },
+        { text: " to €2m per claim in the current policy", cite: "2" },
+      ],
+    } },
+  ],
+  steps: [
+    { type: "task", phase: "pending", title: "Renew the professional indemnity policy", due: "01.12.2026", from: "Policy for 2026 - for approval", reminder: "a month before", done: "Task added" },
+  ],
+});
+
+Object.assign(MailFathomDesign.data.plans.people, {
+  sources: ["marta", "jacek", "contoso"],
+  refinements: [
+    { label: "Only internal people", icon: "badge", patch: { meta: "11 messages, 2 people", people: "internal" } },
+  ],
+  steps: [
+    { type: "event", phase: "pending", title: "Indexation cap: Finance and Legal", when: "Mon 31.08, 10:00", duration: "30 min", attendees: "Marta Nowak, Jacek Wrona", from: "Re: 2023 indexation budget", done: "Added to the calendar" },
+  ],
+});
+
+// A question that could mean several things is not run until one reading is chosen.
+MailFathomDesign.data.clarify = [
+  { match: "what did we agree", readings: [
+    { text: "How have the Contoso contract terms changed since 2021?", note: "the service contract · 2021-2027" },
+    { text: "What did we agree with Contoso about the rollout schedule?", note: "the rollout · this year" },
+    { text: "Which payment terms did we agree with Contoso?", note: "invoices and payment" },
+  ] },
+];
+
+// Questions kept on the start screen. Each refreshes when new mail matches it; `changed` says whether that moved
+// its answer since it was last opened, and `paused` stands for a refresh the allowance did not cover.
+MailFathomDesign.data.watchedQuestions = [
+  { id: "w1", q: "What is still open with Contoso before 28 August?", state: "changed", note: "1 new message from Anna Kowalska since Tuesday" },
+  { id: "w2", q: "Which invoices from August are unpaid?", state: "same", note: "no change since yesterday" },
+  { id: "w3", q: "Who owns the Q4 renewals?", state: "paused", note: "paused until 1 September - the allowance is spent" },
 ];
 
 // The questions Discover suggests when nothing has been asked yet.
+// The last one is ambiguous on purpose, and reaches the clarifying state.
 MailFathomDesign.data.suggestedQuestions = [
   { text: "How have the Contoso contract terms changed since 2021?" },
   { text: "Where is the latest version of the insurance policy?" },
   { text: "Who approved the indexation budget in 2023?" },
+  { text: "What did we agree with Contoso?" },
 ];
