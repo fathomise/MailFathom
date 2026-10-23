@@ -6,7 +6,7 @@ import type { PointerEvent, ReactNode } from 'react';
 import { BrandMark } from '../controls/BrandMark';
 import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
-import { addressOf, barSpaces, implementedSpaces, overflowSpaces, spaceLabels, type Space } from '../routing/spaces';
+import { addressOf, barSpaces, overflowSpaces, spaceLabels, type Space } from '../routing/spaces';
 import { spaceIcons } from './spaceIcons';
 import { NavigationMark } from './NavigationMark';
 import { SpaceOverflow } from './SpaceOverflow';
@@ -131,16 +131,12 @@ export function SpaceNavigation({
 
 function SpaceLink({ space, current }: { readonly space: Space; readonly current: boolean }) {
     const { translate } = useLocalization();
-    const built = implementedSpaces.includes(space);
     const name = translate(spaceLabels[space]);
 
     return (
         <a
             href={addressOf(space)}
             aria-current={current ? 'page' : undefined}
-            // A placeholder says what it is in its own name rather than in a note beside it: the name is what a screen
-            // reader announces on the link, and it is the one place the sentence is not read on every other item too.
-            aria-label={built ? undefined : translate('space.notBuiltYet', { space: name })}
             // In the rail each destination is a tile inset from both edges, so two neighbours never meet across a
             // dark gap and the current one needs no edge bar to stand out — the tint and the weight carry it. The
             // bottom bar marks it with the pill behind the symbol instead.
@@ -150,7 +146,7 @@ function SpaceLink({ space, current }: { readonly space: Space; readonly current
             className={`group flex flex-1 flex-col items-center gap-1 rounded-xl px-0.5 py-1.5 text-sm transition workspace:mx-1.75 workspace:flex-none workspace:px-0 workspace:gap-1 workspace:rounded-lg workspace:py-2 desktop:py-2.25 workspace:low:min-h-9 workspace:low:justify-center workspace:low:py-1 workspace:low:pointer-coarse:min-h-11 workspace:low:pointer-coarse:py-0 ${
                 current
                     ? 'font-semibold text-accent-deep workspace:bg-accent-soft'
-                    : `hover:bg-hover hover:text-text ${built ? 'text-muted' : 'text-faint'}`
+                    : 'text-muted hover:bg-hover hover:text-text'
             }`}
         >
             <NavigationMark current={current}>

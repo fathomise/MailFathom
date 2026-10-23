@@ -5,7 +5,6 @@
 MailFathomDesign.data.notifications = [
   { id: "n1", kind: "mail", unread: true, mins: 3, title: "Anna Kowalska replied", body: "CPI cap counter-proposal - she asks for approval by tomorrow.", src: "Mail · Contoso", go: { screen: "mail", thread: "contoso" } },
   { id: "n2", kind: "cal", unread: true, mins: 26, title: "Meeting in 30 minutes", body: "Contoso addendum review · Nordwind room and Teams.", src: "Calendar", go: { screen: "cal" } },
-  { id: "n3", kind: "case", unread: true, mins: 74, title: "Fabrikam is waiting for confirmation", body: "The delivery confirmation is due 02.09.", src: "Cases · Fabrikam Q4 deliveries", go: { screen: "cases" } },
   { id: "n4", kind: "task", unread: false, mins: 150, title: "Task: IT contract list", body: "Audit is waiting for the list with notice periods.", src: "Tasks", go: { screen: "tasks" } },
   { id: "n5", kind: "mail", unread: false, mins: 320, title: "New attachment in the audit thread", body: "Marek Wiśniewski added two files to “IT contract audit”.", src: "Mail · Audit", go: { screen: "mail", thread: "audyt" } },
   { id: "n6", kind: "system", unread: false, mins: 700, title: "Sync finished", body: "3 accounts, 12 new threads, 1 account needs to sign in again.", src: "System", go: null },
@@ -15,7 +14,6 @@ MailFathomDesign.data.notifications = [
 MailFathomDesign.data.incomingNotifications = [
   { kind: "mail", title: "Tomasz Zieliński: date confirmation", body: "Fabrikam confirms delivery on 12.11 - asks for approval.", src: "Mail · Fabrikam", go: { screen: "mail", thread: "fabrikam" } },
   { kind: "cal", title: "Meeting in 10 minutes", body: "Contoso - call about the CPI cap.", src: "Calendar", go: { screen: "cal" } },
-  { kind: "case", title: "New document in a case", body: "Addendum no. 3 (version 4) attached to the Contoso 2027 case.", src: "Cases · Contoso renegotiation", go: { screen: "cases" } },
 ];
 
 /* Demo refresh — one click plays a small, realistic inbox event: a mail lands, an existing

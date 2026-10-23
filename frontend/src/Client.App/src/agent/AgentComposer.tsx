@@ -10,7 +10,7 @@ import { useWideWorkspace } from '../shell/useWideWorkspace';
 
 // What a new conversation offers to start with. The design's prototype opens a seeded conversation from each;
 // a client has none to open, so each asks its question exactly as typing it would.
-const starters: readonly MessageKey[] = ['agent.starter.day', 'agent.starter.slipped', 'agent.starter.cases'];
+const starters: readonly MessageKey[] = ['agent.starter.day', 'agent.starter.slipped'];
 
 /**
  * Where the reader tells the agent what to do: the field, Send, and Cancel beside it, which is drawn at all times and

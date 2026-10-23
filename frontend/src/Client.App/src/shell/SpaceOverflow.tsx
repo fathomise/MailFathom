@@ -4,7 +4,7 @@
 
 import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
-import { addressOf, implementedSpaces, spaceLabels, type Space } from '../routing/spaces';
+import { addressOf, spaceLabels, type Space } from '../routing/spaces';
 import { useTopLayerSurface } from './screenLayers';
 import { NavigationMark } from './NavigationMark';
 import { spaceIcons } from './spaceIcons';
@@ -113,20 +113,14 @@ export function SpaceOverflow({
 
 function OverflowLink({ space, current }: { readonly space: Space; readonly current: boolean }) {
     const { translate } = useLocalization();
-    const built = implementedSpaces.includes(space);
     const name = translate(spaceLabels[space]);
 
     return (
         <a
             href={addressOf(space)}
             aria-current={current ? 'page' : undefined}
-            // A placeholder says what it is in its own name here too, for the reason the bar's links do: the sentence
-            // is read on the one link it is true of rather than beside every other item.
-            aria-label={built ? undefined : translate('space.notBuiltYet', { space: name })}
             className={`flex min-h-13 items-center gap-4 rounded-md px-3.5 transition ${
-                current
-                    ? 'bg-accent-soft font-semibold text-accent-deep'
-                    : `hover:bg-hover ${built ? 'text-text' : 'text-muted'}`
+                current ? 'bg-accent-soft font-semibold text-accent-deep' : 'text-text hover:bg-hover'
             }`}
         >
             <Icon name={spaceIcons[space]} className="size-icon-xl" />

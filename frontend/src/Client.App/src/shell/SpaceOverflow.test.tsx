@@ -18,7 +18,7 @@ const handedTheAccount = 'The account control this sheet was handed.';
 const handedTheRefresh = 'The refresh this sheet was handed.';
 
 function renderOverflow(
-    spaces: readonly Space[] = ['tasks', 'cases'],
+    spaces: readonly Space[] = ['tasks', 'calendar'],
     current: Space | null = null,
 ): { readonly current: ScreenLayers } {
     const { result } = renderHook(() => useScreenLayerStack());
@@ -80,38 +80,31 @@ describe('SpaceOverflow', () => {
     });
 
     it('offers each space it was handed as a link, at the address the bar would have used', () => {
-        renderOverflow(['tasks', 'cases', 'calendar', 'people']);
+        renderOverflow(['tasks', 'calendar', 'people']);
 
         expect(
             screen.getAllByRole('link', { hidden: true }).map((row) => [row.textContent, row.getAttribute('href')]),
         ).toEqual([
             ['Tasks', '#/tasks'],
-            ['Cases', '#/cases'],
             ['Calendar', '#/calendar'],
             ['People', '#/people'],
         ]);
     });
 
-    it('says in a placeholder row’s own name that there is nothing behind it yet', () => {
-        renderOverflow();
-
-        expect(screen.getByRole('link', { name: 'Cases - not built yet', hidden: true })).toBeDefined();
-    });
-
     it('marks the row the reader is on, so the sheet says where they are rather than only where they may go', () => {
-        renderOverflow(['tasks', 'cases'], 'cases');
+        renderOverflow(['tasks', 'calendar'], 'calendar');
 
-        expect(screen.getByRole('link', { current: 'page', hidden: true }).textContent).toBe('Cases');
+        expect(screen.getByRole('link', { current: 'page', hidden: true }).textContent).toBe('Calendar');
     });
 
     it('marks its own control while what is on the screen is behind it, the bar drawing no row for that space', () => {
-        renderOverflow(['tasks', 'cases'], 'cases');
+        renderOverflow(['tasks', 'calendar'], 'calendar');
 
         expect(screen.getByRole('button', { name: 'More' }).getAttribute('aria-current')).toBe('true');
     });
 
     it('leaves its own control unmarked while the reader is on a space the bar draws itself', () => {
-        renderOverflow(['tasks', 'cases'], 'mail');
+        renderOverflow(['tasks', 'calendar'], 'mail');
 
         expect(screen.getByRole('button', { name: 'More' }).getAttribute('aria-current')).toBeNull();
     });

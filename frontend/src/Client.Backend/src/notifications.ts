@@ -64,7 +64,7 @@ const longestNotificationIdentity = 256;
 const longestNotificationText = 4_096;
 
 /** What part of MailFathom a notification is about, which is what a row is drawn by. */
-export type NotificationKind = 'Mail' | 'Calendar' | 'Case' | 'Task' | 'System';
+export type NotificationKind = 'Mail' | 'Calendar' | 'Task' | 'System';
 
 /** A screen a notification leads to, where it leads to a screen rather than to a record. */
 export type NotificationScreen = 'Mail' | 'Settings';
@@ -169,7 +169,7 @@ export interface ErasedNotifications {
     readonly unreadCount: number;
 }
 
-const kinds: readonly NotificationKind[] = ['Mail', 'Calendar', 'Case', 'Task', 'System'];
+const kinds: readonly NotificationKind[] = ['Mail', 'Calendar', 'Task', 'System'];
 const causes: readonly NotificationCause[] = [
     'MailArrived',
     'SynchronizationIncomplete',

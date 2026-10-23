@@ -46,7 +46,7 @@ const longestSignalText = 4_096;
 export const mostNamedSignalEmails = 100;
 
 /** What part of MailFathom a raised notification was about, which is the same closed set the record routes publish. */
-export type SignalNotificationKind = 'Mail' | 'Calendar' | 'Case' | 'Task' | 'System';
+export type SignalNotificationKind = 'Mail' | 'Calendar' | 'Task' | 'System';
 
 /**
  * Where one message's two server flags now stand, as a flag change carries it.
@@ -549,5 +549,5 @@ function isCount(value: unknown): value is number {
 }
 
 function isNotificationKind(value: unknown): value is SignalNotificationKind {
-    return value === 'Mail' || value === 'Calendar' || value === 'Case' || value === 'Task' || value === 'System';
+    return value === 'Mail' || value === 'Calendar' || value === 'Task' || value === 'System';
 }

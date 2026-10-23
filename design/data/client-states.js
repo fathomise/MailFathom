@@ -158,7 +158,7 @@ MailFathomDesign.data.clientStatesFolders = [
   { icon: "archive", label: "Archive", count: "" },
   { icon: "report", label: "Spam", count: "4" },
   { icon: "delete", label: "Trash", count: "" },
-  { icon: "folder", label: "Cases", count: "" },
+  { icon: "folder", label: "Projects", count: "" },
   { icon: "folder", label: "Contracts", count: "" },
 ];
 

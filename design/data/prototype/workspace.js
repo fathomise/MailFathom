@@ -12,7 +12,7 @@ MailFathomDesign.data.accounts = [
   { key: "acc1", label: "Nordwind · work", address: "k.kowalska@nordwind.example", dot: "var(--accent)", counts: { Inbox: "8", Drafts: "2", Spam: "3" },
     moveFolders: [
       { icon: "inbox", label: "Inbox" }, { icon: "archive", label: "Archive" },
-      { icon: "folder", label: "Cases" }, { icon: "folder", label: "Contracts" }, { icon: "folder", label: "Archive 2026" },
+      { icon: "folder", label: "Projects" }, { icon: "folder", label: "Contracts" }, { icon: "folder", label: "Archive 2026" },
     ] },
   { key: "acc2", label: "Personal mail", address: "kowalska.k@mail.example", dot: "#4d9aa8", counts: { Inbox: "4" },
     moveFolders: [

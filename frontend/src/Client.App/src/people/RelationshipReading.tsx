@@ -16,9 +16,8 @@ import { ReceivedAt } from '../controls/ReceivedAt';
 //
 // **The figures beside it are the mailbox's rather than the reading's**, which is why one of them is drawn today: when
 // this person was last in touch is read off the correlation the two columns below are drawn from, and it waits with
-// them rather than with the reading above it. The design draws two more — how much is owed to this person and which
-// cases they appear in — and this deployment holds neither, which is a correction owed to the design rather than a
-// figure to invent here.
+// them rather than with the reading above it. The design draws one more — how much is owed to this person — and this
+// deployment holds it nowhere, which is a correction owed to the design rather than a figure to invent here.
 
 export function RelationshipReading({
     lastCorrespondedAt,

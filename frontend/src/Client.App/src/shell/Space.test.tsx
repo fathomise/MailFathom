@@ -105,16 +105,9 @@ describe('Space', () => {
 
         expect(document.activeElement).toBe(screen.getByRole('main', { name: 'Mail' }));
 
-        rerender(inStrictMode('cases'));
+        rerender(inStrictMode('tasks'));
 
-        expect(document.activeElement).toBe(screen.getByRole('main', { name: 'Cases' }));
-    });
-
-    it('names the space it is showing', () => {
-        render(inStrictMode('cases'));
-
-        expect(screen.getByRole('heading', { name: 'Cases' })).toBeDefined();
-        expect(screen.getByRole('main', { name: 'Cases' })).toBeDefined();
+        expect(document.activeElement).toBe(screen.getByRole('main', { name: 'Tasks' }));
     });
 
     it('draws Mail without a heading, as the design does, and names the landmark instead', () => {
@@ -124,11 +117,10 @@ describe('Space', () => {
         expect(screen.getByRole('main', { name: 'Mail' })).toBeDefined();
     });
 
-    it('draws the Discover space it was handed rather than a placeholder', () => {
+    it('draws the Discover space it was handed, under no heading of the frame', () => {
         render(inStrictMode('discover'));
 
         expect(screen.getByText(handedToDiscover)).toBeDefined();
-        expect(within(screen.getByRole('main', { name: 'Discover' })).queryByText(/not built yet/)).toBeNull();
         expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
     });
 
@@ -138,7 +130,6 @@ describe('Space', () => {
         const agent = screen.getByRole('main', { name: 'Agent' });
 
         expect(within(agent).getByText(handedToTheAgent)).toBeDefined();
-        expect(within(agent).queryByText(/not built yet/)).toBeNull();
         expect(within(agent).queryByText(handedTheThreadField)).toBeNull();
         expect(within(agent).queryByText(handedTheStatus)).toBeNull();
     });
@@ -154,7 +145,7 @@ describe('Space', () => {
     });
 
     it('carries the connection into every other space', () => {
-        for (const space of ['mail', 'cases'] as const) {
+        for (const space of ['mail', 'tasks'] as const) {
             const { unmount } = render(inStrictMode(space));
 
             expect(screen.getByText(handedTheStatus)).toBeDefined();
@@ -219,18 +210,10 @@ describe('Space', () => {
         expect(within(screen.getByRole('main', { name: 'Tasks' })).getByText(handedTheStatus)).toBeDefined();
         expect(screen.queryByText(handedTheThreadField)).toBeNull();
 
-        rerender(inStrictMode('cases'));
+        rerender(inStrictMode('mail'));
 
         expect(within(screen.getByLabelText('Tasks')).queryByText(handedTheStatus)).toBeNull();
         expect(within(screen.getByLabelText('Tasks')).getByText(handedToTasks)).toBeDefined();
-    });
-
-    it('does not call the Tasks space unbuilt either', () => {
-        render(inStrictMode('tasks'));
-
-        expect(
-            within(screen.getByRole('main', { name: 'Tasks' })).queryByText(/This space is not built yet\./),
-        ).toBeNull();
     });
 
     it('shows what the frame composed for People in the People space', () => {
@@ -239,36 +222,16 @@ describe('Space', () => {
         expect(within(screen.getByRole('main', { name: 'People' })).getByText(handedToPeople)).toBeDefined();
     });
 
-    // People composes its own height as Mail does rather than scrolling a column of prose as a placeholder does, and
-    // what says so is the class the frame gives the region: a space that scrolled its own column would put the book's
-    // scroller inside a second scroller.
-    it('lays the People space out as a composition rather than as a page of prose', () => {
-        render(inStrictMode('people'));
-
-        const region = screen.getByRole('main', { name: 'People' });
-
-        expect(region.className).toContain('overflow-hidden');
-        expect(region.className).not.toContain('overflow-y-auto');
-    });
-
     it('hands the connection to People when it is in front, and to nothing when it is not', () => {
         const { rerender } = render(inStrictMode('people'));
 
         expect(within(screen.getByRole('main', { name: 'People' })).getByText(handedTheStatus)).toBeDefined();
         expect(screen.queryByText(handedTheThreadField)).toBeNull();
 
-        rerender(inStrictMode('cases'));
+        rerender(inStrictMode('mail'));
 
         expect(within(screen.getByLabelText('People')).queryByText(handedTheStatus)).toBeNull();
         expect(within(screen.getByLabelText('People')).getByText(handedToPeople)).toBeDefined();
-    });
-
-    it('does not call the People space unbuilt either', () => {
-        render(inStrictMode('people'));
-
-        expect(
-            within(screen.getByRole('main', { name: 'People' })).queryByText(/This space is not built yet\./),
-        ).toBeNull();
     });
 
     it('draws the Calendar without a heading either, and names its landmark the same way', () => {
@@ -290,7 +253,7 @@ describe('Space', () => {
         expect(within(screen.getByRole('main', { name: 'Calendar' })).getByText(handedTheStatus)).toBeDefined();
         expect(screen.queryByText(handedTheThreadField)).toBeNull();
 
-        rerender(inStrictMode('cases'));
+        rerender(inStrictMode('mail'));
 
         expect(within(screen.getByLabelText('Calendar')).queryByText(handedTheStatus)).toBeNull();
         expect(within(screen.getByLabelText('Calendar')).getByText(handedToTheCalendar)).toBeDefined();
@@ -302,26 +265,10 @@ describe('Space', () => {
         expect(screen.getByText(handedTheFolders)).toBeDefined();
     });
 
-    it('does not call the Mail space unbuilt, which is what it stopped being when it started reading mail', () => {
-        render(inStrictMode('mail'));
-
-        expect(
-            within(screen.getByRole('main', { name: 'Mail' })).queryByText(/This space is not built yet\./),
-        ).toBeNull();
-    });
-
-    it('shows the pending note in a space nothing has been built for yet', () => {
-        render(inStrictMode('cases'));
-
-        expect(
-            within(screen.getByRole('main', { name: 'Cases' })).getByText(/This space is not built yet\./),
-        ).toBeDefined();
-    });
-
     // The mechanism, stated as a count: a space the deployment offers is a space that is on the screen from the first
     // render, whichever one the address names.
     it('mounts every space the deployment offers, not only the one in front', () => {
-        render(inStrictMode('cases', ['discover', 'mail', 'cases']));
+        render(inStrictMode('tasks', ['discover', 'mail', 'tasks']));
 
         expect(document.querySelectorAll('main')).toHaveLength(3);
         expect(screen.getByLabelText('Discover')).toBeDefined();
@@ -332,16 +279,16 @@ describe('Space', () => {
         render(inStrictMode('mail', ['mail']));
 
         expect(document.querySelectorAll('main')).toHaveLength(1);
-        expect(screen.queryByLabelText('Cases')).toBeNull();
+        expect(screen.queryByLabelText('Tasks')).toBeNull();
     });
 
-    // What says a space is aside is what a reader would find: one landmark rather than seven, nothing in the others to
+    // What says a space is aside is what a reader would find: one landmark rather than six, nothing in the others to
     // tab into, and no live region in one reaching somebody standing on another.
     it('leaves exactly the space in front reachable by the keyboard and by an accessible name', () => {
-        render(inStrictMode('cases', ['discover', 'mail', 'cases']));
+        render(inStrictMode('tasks', ['discover', 'mail', 'tasks']));
 
         expect(screen.getAllByRole('main')).toHaveLength(1);
-        expect(screen.getByRole('main', { name: 'Cases' })).toBeDefined();
+        expect(screen.getByRole('main', { name: 'Tasks' })).toBeDefined();
 
         for (const aside of ['Discover', 'Mail'] as const) {
             const region = screen.getByLabelText(aside);
@@ -352,7 +299,7 @@ describe('Space', () => {
     });
 
     it('keeps a space on the screen while another is in front of it, with everything it was handed still in it', () => {
-        render(inStrictMode('cases'));
+        render(inStrictMode('tasks'));
 
         const mail = screen.getByLabelText('Mail');
 
@@ -369,7 +316,7 @@ describe('Space', () => {
         const { rerender } = render(inStrictMode('mail'));
         const before = screen.getByText(handedTheList);
 
-        rerender(inStrictMode('cases'));
+        rerender(inStrictMode('tasks'));
         rerender(inStrictMode('mail'));
 
         expect(screen.getByText(handedTheList)).toBe(before);
@@ -377,13 +324,13 @@ describe('Space', () => {
     });
 
     it('gives back the space that was left whichever space it is, not only Mail', () => {
-        const { rerender } = render(inStrictMode('cases'));
-        const before = screen.getByRole('heading', { name: 'Cases' });
+        const { rerender } = render(inStrictMode('tasks'));
+        const before = screen.getByText(handedToTasks);
 
         rerender(inStrictMode('mail'));
-        rerender(inStrictMode('cases'));
+        rerender(inStrictMode('tasks'));
 
-        expect(screen.getByRole('heading', { name: 'Cases' })).toBe(before);
+        expect(screen.getByText(handedToTasks)).toBe(before);
     });
 
     // The scroll offset is the platform's rather than this client's: it belongs to the scroller's box, so it survives
@@ -392,14 +339,14 @@ describe('Space', () => {
     // aside space also keeps its *box*, by standing aside with `visibility` rather than leaving the layout, is a
     // rendered-layout claim and is the browser suite's rather than this one's.
     it('keeps a space its scroll offset across a visit to another space and back', () => {
-        const { rerender } = render(inStrictMode('cases'));
-        const region = screen.getByLabelText('Cases');
+        const { rerender } = render(inStrictMode('tasks'));
+        const region = screen.getByLabelText('Tasks');
 
         region.scrollTop = 120;
         rerender(inStrictMode('mail'));
-        rerender(inStrictMode('cases'));
+        rerender(inStrictMode('tasks'));
 
-        expect(screen.getByLabelText('Cases')).toBe(region);
+        expect(screen.getByLabelText('Tasks')).toBe(region);
         expect(region.scrollTop).toBe(120);
     });
 
@@ -416,10 +363,10 @@ describe('Space', () => {
     it('takes the field away with Mail and moves the connection to the space arrived at', () => {
         const { rerender } = render(inStrictMode('mail'));
 
-        rerender(inStrictMode('cases'));
+        rerender(inStrictMode('tasks'));
 
         expect(screen.queryByText(handedTheThreadField)).toBeNull();
         expect(screen.getAllByText(handedTheStatus)).toHaveLength(1);
-        expect(within(screen.getByRole('main', { name: 'Cases' })).getByText(handedTheStatus)).toBeDefined();
+        expect(within(screen.getByRole('main', { name: 'Tasks' })).getByText(handedTheStatus)).toBeDefined();
     });
 });

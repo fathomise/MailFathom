@@ -7,7 +7,7 @@ import type { IconName } from '../controls/icons';
 import type { MessageKey } from '../localization/en';
 import type { ToastKind } from '../toasts/useToasts';
 
-// How each of the five kinds is drawn, said, and — when one arrives while somebody is looking at the screen — spoken
+// How each of the four kinds is drawn, said, and — when one arrives while somebody is looking at the screen — spoken
 // about in the corner. Three lookups rather than three chains inside the components that read them, each exhaustive by
 // its own type so a kind the service adds fails to compile until it has been drawn.
 //
@@ -25,7 +25,6 @@ export interface NotificationTone {
 export const notificationTones: Readonly<Record<NotificationKind, NotificationTone>> = {
     Mail: { icon: 'mail', mark: 'bg-accent-soft text-accent-strong' },
     Calendar: { icon: 'event', mark: 'bg-healthy-soft text-healthy-text' },
-    Case: { icon: 'topic', mark: 'bg-warning-soft text-warning-text' },
     Task: { icon: 'task_alt', mark: 'bg-hover text-text-soft' },
     System: { icon: 'sync', mark: 'bg-hover text-muted' },
 };
@@ -34,7 +33,6 @@ export const notificationTones: Readonly<Record<NotificationKind, NotificationTo
 export const notificationKindLabels: Readonly<Record<NotificationKind, MessageKey>> = {
     Mail: 'notifications.kind.mail',
     Calendar: 'notifications.kind.calendar',
-    Case: 'notifications.kind.case',
     Task: 'notifications.kind.task',
     System: 'notifications.kind.system',
 };
@@ -56,15 +54,12 @@ export const systemNotificationCounts: Readonly<
 > = {
     Mail: counted('mail'),
     Calendar: counted('calendar'),
-    Case: counted('case'),
     Task: counted('task'),
     System: counted('system'),
 };
 
 /** The four forms one kind is counted in, which every kind declares the same way. */
-function counted(
-    kind: 'mail' | 'calendar' | 'case' | 'task' | 'system',
-): Readonly<Record<Intl.LDMLPluralRule, MessageKey>> {
+function counted(kind: 'mail' | 'calendar' | 'task' | 'system'): Readonly<Record<Intl.LDMLPluralRule, MessageKey>> {
     return {
         zero: `notifications.arrived.${kind}.other`,
         one: `notifications.arrived.${kind}.one`,
@@ -78,14 +73,12 @@ function counted(
 /**
  * The weight a toast is raised at when a notification of this kind arrives while the client is open.
  *
- * A case is the one that carries a consequence somebody has to know about without anything having failed, which is
- * what `warning` says; mail and the calendar are the client saying something of its own, and a task and a statement
- * from MailFathom itself take no colour at all.
+ * Mail and the calendar are the client saying something of its own, and a task and a statement from MailFathom
+ * itself take no colour at all.
  */
 export const notificationToastKinds: Readonly<Record<NotificationKind, ToastKind>> = {
     Mail: 'info',
     Calendar: 'info',
-    Case: 'warning',
     Task: 'neutral',
     System: 'neutral',
 };

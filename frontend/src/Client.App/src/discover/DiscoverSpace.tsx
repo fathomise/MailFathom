@@ -43,10 +43,9 @@ import { useStartedRun } from './useStartedRun';
 // *Hand to the agent* under an answer that finished, and both hand the run over — so the conversation they open asks
 // its next question about this answer rather than about the whole mailbox.
 //
-// **What the design draws and this does not, it does not draw inert.** *Save as Case* waits for a Case (#2087); the
-// idle state's morning
-// briefing and its *needs you today* list are derived before anybody asks, which #1174 defers as a question about
-// unattended spend that nothing has settled. Each is left out rather than drawn as a control leading nowhere.
+// **What the design draws and this does not, it does not draw inert.** The idle state's morning briefing and its
+// *needs you today* list are derived before anybody asks, which #1174 defers as a question about unattended spend that
+// nothing has settled. Each is left out rather than drawn as a control leading nowhere.
 
 /** How the follower waits before reading a silent run again, which is the one thing it cannot do for itself. */
 const whileTheRunIsSilent: RunFollowingSchedule = {

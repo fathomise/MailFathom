@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { describe, expect, it } from 'vitest';
-import { addressOf, implementedSpaces, isSpace, spaceAt, spaces } from './spaces';
+import { addressOf, isSpace, spaceAt, spaces } from './spaces';
 
 describe('addressOf', () => {
     it.each(spaces)('writes %s as a fragment, so the address reloads without a server rule', (space) => {
@@ -30,17 +30,5 @@ describe('isSpace', () => {
         expect(isSpace('archive')).toBe(false);
         expect(isSpace(null)).toBe(false);
         expect(isSpace(0)).toBe(false);
-    });
-});
-
-describe('implementedSpaces', () => {
-    it('names only spaces the client actually carries, so nothing is drawn as working that is not', () => {
-        expect(implementedSpaces.every((space) => spaces.includes(space))).toBe(true);
-    });
-
-    // A space stops being a placeholder in the change that builds it, and this is the list the frame reads to decide
-    // whether to draw the sentence saying there is nothing behind one.
-    it('names the six spaces that are screens rather than placeholders', () => {
-        expect([...implementedSpaces]).toStrictEqual(['discover', 'mail', 'agent', 'tasks', 'calendar', 'people']);
     });
 });

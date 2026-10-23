@@ -35,9 +35,9 @@ describe('arrivalCounts', () => {
     });
 
     it('counts each kind in the order it first arrived, so what happened first is said first', () => {
-        const counted = arrivalCounts([arrived('Case', 'n-1'), arrived('Mail', 'n-2'), arrived('Case', 'n-3')]);
+        const counted = arrivalCounts([arrived('Task', 'n-1'), arrived('Mail', 'n-2'), arrived('Task', 'n-3')]);
 
-        expect(counted.map((count) => count.kind)).toEqual(['Case', 'Mail']);
+        expect(counted.map((count) => count.kind)).toEqual(['Task', 'Mail']);
     });
 
     it('counts nothing where nothing arrived', () => {

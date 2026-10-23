@@ -32,9 +32,6 @@ test('opens in Discover, on the questions it offers', async ({ page }) => {
     await expect(discover.getByRole('heading', { name: 'Try this' })).toBeVisible();
     await expect(discover.getByRole('listitem').first().getByRole('button')).toBeVisible();
 
-    // The note every unbuilt space carries is what this screen replaced, so its absence is part of the claim.
-    await expect(discover.getByText('This space is not built yet.', { exact: false })).toHaveCount(0);
-
     // The question is this space's own field, which the design draws under its head rather than at its foot — and no
     // other space draws a copy of it. It offers no scope: Discover asks about all mail.
     await expect(page.getByRole('searchbox', { name: 'Ask your mail' })).toBeVisible();

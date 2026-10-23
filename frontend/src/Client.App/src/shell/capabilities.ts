@@ -63,11 +63,9 @@ const capabilityGrants: Readonly<Record<ClientCapability, MailFathomPermission>>
     writeProfile: 'mailfathom.profile.write',
 };
 
-// Which capabilities each space is reached under, every one of which the credential has to carry. A space that is
-// still a placeholder names none, because nothing behind one is reached over a grant yet; the space that fills it is
-// what decides what it needs, and naming a permission here before then would be a guess enforced on a screen that does
-// not exist. `discover` is asked of mail, so it needs the grant that asks and the one that reads what is asked about;
-// `agent` needs only the first, because what an answer may draw on is decided record by record by the deployment.
+// Which capabilities each space is reached under, every one of which the credential has to carry. `discover` is asked
+// of mail, so it needs the grant that asks and the one that reads what is asked about; `agent` needs only the first,
+// because what an answer may draw on is decided record by record by the deployment.
 // `people` is reached under reading the address book alone, because that screen draws a book somebody may only read.
 // `tasks` and `calendar` need both halves of their own pair: neither screen has a composition for a list or a calendar
 // somebody may look at and not change, so a credential holding one half is not offered a screen whose every control
@@ -76,7 +74,6 @@ const capabilityGrants: Readonly<Record<ClientCapability, MailFathomPermission>>
 const spaceCapabilities: Readonly<Record<Space, readonly ClientCapability[]>> = {
     discover: ['askMail', 'readMail'],
     mail: ['readMail'],
-    cases: [],
     agent: ['askMail'],
     tasks: ['readTasks', 'writeTasks'],
     calendar: ['readCalendar', 'writeCalendar'],

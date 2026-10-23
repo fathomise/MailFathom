@@ -42,7 +42,7 @@ describe('App session', () => {
         renderApp(servedFrom, heldSession, granting('mailfathom.mail.read'));
         await framed();
 
-        expect(screen.getAllByRole('link').map((space) => space.textContent)).toEqual(['Mail', 'Cases']);
+        expect(screen.getAllByRole('link').map((space) => space.textContent)).toEqual(['Mail']);
     });
 
     // The task list and the calendar are each a record of their own with a grant pair of their own, so reading mail
@@ -61,12 +61,7 @@ describe('App session', () => {
         );
         await framed();
 
-        expect(screen.getAllByRole('link').map((space) => space.textContent)).toEqual([
-            'Mail',
-            'Cases',
-            'Tasks',
-            'Calendar',
-        ]);
+        expect(screen.getAllByRole('link').map((space) => space.textContent)).toEqual(['Mail', 'Tasks', 'Calendar']);
     });
 
     // Neither screen has a composition for a record somebody may look at and not change, so one half of a pair offers
@@ -79,16 +74,16 @@ describe('App session', () => {
         );
         await framed();
 
-        expect(screen.getAllByRole('link').map((space) => space.textContent)).toEqual(['Mail', 'Cases']);
+        expect(screen.getAllByRole('link').map((space) => space.textContent)).toEqual(['Mail']);
     });
 
-    // People is the second space behind a grant of its own, and it is the worked example of a space that became a
-    // screen: a placeholder is reached by anybody, and what reading somebody's address book needs is said here.
+    // People is the second space behind a grant of its own, and what reading somebody's address book needs is said
+    // here.
     it('offers the address book to a credential that may read one', async () => {
         renderApp(servedFrom, heldSession, granting('mailfathom.mail.read', 'mailfathom.contacts.read'));
         await framed();
 
-        expect(screen.getAllByRole('link').map((space) => space.textContent)).toEqual(['Mail', 'Cases', 'People']);
+        expect(screen.getAllByRole('link').map((space) => space.textContent)).toEqual(['Mail', 'People']);
     });
 
     // Discover asks a question of mail, so it needs the grant that asks and the one that reads what is asked about;
@@ -98,7 +93,7 @@ describe('App session', () => {
         renderApp(servedFrom, heldSession, granting('mailfathom.assistant.use'));
         await screen.findByRole('link', { name: 'Agent' });
 
-        expect(screen.getAllByRole('link').map((space) => space.textContent)).toEqual(['Cases', 'Agent']);
+        expect(screen.getAllByRole('link').map((space) => space.textContent)).toEqual(['Agent']);
     });
 
     it('says what the credential may not do, so an absence is not read as a client that is broken', async () => {

@@ -111,7 +111,7 @@ import { conversationKey, type OpenConversation } from './workspace/openConversa
 import { scopeKey } from './workspace/mailScope';
 import { emptyWorkspace, useWorkspace, type Workspace } from './workspace/useWorkspace';
 
-// The frame Discover, Mail, and Cases are held in, and the only thing in the client that survives moving between them.
+// The frame every space is held in, and the only thing in the client that survives moving between them.
 // It is one tree laid out two ways by the width it is given — a rail beside a workspace, or bottom navigation under a
 // stack of screens — and nothing in it asks which head or which platform it is running on.
 //

@@ -111,7 +111,7 @@ describe('App', () => {
         });
     });
 
-    it.each(['Mail', 'Cases'])('opens in %s when that is what the address names', async (space) => {
+    it.each(['Mail', 'Tasks'])('opens in %s when that is what the address names', async (space) => {
         openingAt(`#/${space.toLowerCase()}`);
 
         renderApp();
@@ -418,9 +418,9 @@ describe('App', () => {
         renderApp();
         await screen.findByRole('heading', { name: 'Discover', level: 1 });
 
-        await goTo('Cases');
+        await goTo('Tasks');
 
-        expect(screen.getByRole('link', { current: 'page' }).textContent).toBe('Cases');
+        expect(screen.getByRole('link', { current: 'page' }).textContent).toBe('Tasks');
     });
 
     // Discover's question is the one field that asks one, so the space moved to draws no copy of it — and coming back

@@ -27,16 +27,16 @@ test('opens in Discover, under the version it was built from and the one the dep
 });
 
 test('reaches each space by its own address, and reloads there', async ({ page }) => {
-    await openSignedIn(page, '/#/cases');
+    await openSignedIn(page, '/#/agent');
 
-    await expect(page.getByRole('heading', { name: 'Cases', level: 1 })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Tell the agent what to do' })).toBeVisible();
 
     // The whole reason the address is a fragment: nothing is asked of a server, so the bundle that answers `/` answers
     // this too and the client reads the space back out of the address it was reloaded at. A path would need a fallback
     // mapping every unmatched address onto the entry document, which the service deliberately does not serve.
     await page.reload();
 
-    await expect(page.getByRole('heading', { name: 'Cases', level: 1 })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Tell the agent what to do' })).toBeVisible();
 });
 
 test('moves back and forward through its own spaces without leaving the application', async ({ page }) => {
@@ -119,8 +119,8 @@ test('keeps the question in Discover alone across a visit to other spaces', asyn
     const question = page.getByRole('searchbox', { name: 'Ask your mail' });
     await question.fill('the renewal Nordwind sent');
 
-    await page.getByRole('link', { name: 'Cases' }).click();
-    await expect(page.getByRole('heading', { name: 'Cases', level: 1 })).toBeVisible();
+    await page.getByRole('link', { name: 'Mail' }).click();
+    await expect(page.getByRole('listbox', { name: 'Messages' })).toBeVisible();
     await expect(question).toBeHidden();
 
     await page.getByRole('link', { name: 'Agent' }).click();

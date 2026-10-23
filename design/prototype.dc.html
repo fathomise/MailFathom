@@ -18,7 +18,6 @@ Project repository: https://github.com/fathomise/MailFathom
 <script src="data/prototype/compose.js"></script>
 <script src="data/prototype/discover.js"></script>
 <script src="data/prototype/home.js"></script>
-<script src="data/prototype/cases.js"></script>
 <script src="data/prototype/calendar.js"></script>
 <script src="data/prototype/tasks.js"></script>
 <script src="data/prototype/agent.js"></script>
@@ -67,10 +66,6 @@ Project repository: https://github.com/fathomise/MailFathom
     <div onClick="{{ goMail }}" style="{{ railMailStyle }}" style-hover="background:var(--hover);cursor:pointer">
       <div style="{{ railIconStyle }}">mail</div>
       <div style="{{ railLabelStyle }}">{{ railLabelMail }}</div>
-    </div>
-    <div onClick="{{ goCases }}" style="{{ railCasesStyle }}" style-hover="background:var(--hover);cursor:pointer">
-      <div style="{{ railIconStyle }}">topic</div>
-      <div style="{{ railLabelStyle }}">{{ railLabelCases }}</div>
     </div>
     <div onClick="{{ goAgent }}" style="{{ railAgentStyle }}" style-hover="background:var(--hover);cursor:pointer">
       <div style="{{ railIconStyle }}">auto_awesome</div>
@@ -393,7 +388,6 @@ Project repository: https://github.com/fathomise/MailFathom
                 <div style="{{ blk.head }}"><span aria-hidden="true" style="{{ blk.accentTile }}"><span style="{{ blk.glyph }}">bolt</span></span><div style="{{ blk.title }}">Suggested action</div><div style="{{ blk.meta }}">one step</div><div style="{{ blk.pendingChip }}"><span style="{{ blk.chipGlyph }}">help</span>needs confirmation</div></div>
                 <div style="{{ blk.propTitle }}">{{ actionText }}</div>
                 <div style="{{ blk.pendingFoot }}">
-                  <div style="{{ blk.primaryBtn }}" style-hover="opacity:0.88;cursor:pointer">Save as Case</div>
                   <div style="{{ blk.quietBtn }}" style-hover="background:var(--rail);cursor:pointer">Dismiss</div>
                 </div>
               </div>
@@ -446,7 +440,6 @@ Project repository: https://github.com/fathomise/MailFathom
                 </div>
                 <div style="display:flex;gap:9px;flex-wrap:wrap;padding:14px 18px;border-top:1px solid var(--line);background:var(--panel)">
                   <div onClick="{{ openInMail }}" style="font-size:13px;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:9px 16px" style-hover="opacity:0.88;cursor:pointer">Open in mail <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;vertical-align:-3px;margin-left:4px">arrow_forward</span></div>
-                  <div style="font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:9px 16px" style-hover="background:var(--rail);cursor:pointer">Add to Case</div>
                 </div>
               </div>
             </sc-if>
@@ -1311,193 +1304,6 @@ Project repository: https://github.com/fathomise/MailFathom
     </div>
   </sc-if>
 
-  <sc-if value="{{ isCases }}" hint-placeholder-val="{{ false }}">
-    <div data-motion="screen" style="position:relative;flex:1;display:flex;flex-direction:column;min-width:0;min-height:0">
-    <sc-if value="{{ showScreenFab }}" hint-placeholder-val="{{ false }}">
-      <div onClick="{{ openNewCase }}" title="New case" style="{{ fabStyle }}" style-hover="cursor:pointer;opacity:0.92"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:24px;line-height:1">create_new_folder</span></div>
-    </sc-if>
-    <sc-if value="{{ selBarShown }}" hint-placeholder-val="{{ false }}">
-      <div style="{{ selBarStyle }}">
-        <div style="font-size:13px;font-weight:600;white-space:nowrap">{{ selBarCount }}</div>
-        <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          <sc-for list="{{ selBarActions }}" as="sa" hint-placeholder-count="3">
-            <div onClick="{{ sa.run }}" title="{{ sa.label }}" style="{{ sa.style }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">{{ sa.icon }}</span>{{ sa.shown }}</div>
-          </sc-for>
-        </div>
-        <div onClick="{{ selClear }}" title="Cancel selection" style="{{ closeBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
-      </div>
-    </sc-if>
-    <div ref="{{ tbRef }}" style="{{ toolbarStyle }}">
-      <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}"><div style="{{ tbTitleStyle }}">Cases</div></sc-if>
-      <sc-if value="{{ tbPrimaryShown }}" hint-placeholder-val="{{ true }}">
-        <div onClick="{{ openNewCase }}" style="{{ tbPrimaryStyle }}" style-hover="cursor:pointer;opacity:0.9"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">add</span>{{ tbCaseLabel }}</div>
-      <div style="width:1px;align-self:stretch;background:var(--line);margin:0 2px"></div>
-      </sc-if>
-      <sc-for list="{{ caseActions }}" as="a" hint-placeholder-count="4">
-        <div title="{{ a.label }}" style="{{ a.style }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;width:20px;text-align:center">{{ a.icon }}</span>{{ a.label }}</div>
-      </sc-for>
-    </div>
-    <div style="flex:1;display:flex;min-width:0;min-height:0">
-      <sc-if value="{{ showCaseList }}" hint-placeholder-val="{{ true }}">
-        <div data-motion="{{ moCaseList }}" style="{{ caseListStyle }}">
-          <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)">
-            <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Cases</div>
-            <div onClick="{{ openNewCase }}" style="margin-left:auto;font-size:12px;color:var(--accent-d)" style-hover="cursor:pointer;text-decoration:underline">New case</div>
-          </div>
-          <div ref="{{ caseListRef }}" onScroll="{{ onCaseListScroll }}" style="flex:1;overflow:auto;min-height:0;background:var(--sub)">
-            <sc-for list="{{ caseRows }}" as="c" hint-placeholder-count="3">
-              <div onClick="{{ c.open }}" onContextMenu="{{ c.press.ctx }}" onTouchStart="{{ c.press.down }}" onTouchEnd="{{ c.press.up }}" onTouchMove="{{ c.press.up }}" style="{{ c.style }}" style-hover="cursor:pointer;background:var(--hover)">
-                <div style="display:flex;align-items:baseline;gap:9px">
-                  <sc-if value="{{ c.selected }}" hint-placeholder-val="{{ false }}"><span style="align-self:center;width:17px;height:17px;flex:0 0 17px;border-radius:50%;background:var(--accent);color:var(--onaccent);display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">check</span></sc-if>
-                  <span style="font-size:14px;font-weight:600;text-wrap:pretty">{{ c.title }}</span>
-                  <span style="margin-left:auto;font-size:11px;color:var(--faint);white-space:nowrap">{{ c.owner }}</span>
-                </div>
-                <div style="font-size:12px;color:var(--muted)">{{ c.parties }}</div>
-                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                  <span style="{{ c.statusStyle }}">{{ c.status }}</span>
-                  <span style="font-size:11px;color:var(--faint)">{{ c.scope }}</span>
-                </div>
-              </div>
-            </sc-for>
-          </div>
-        </div>
-      </sc-if>
-
-      <sc-if value="{{ showCaseDetail }}" hint-placeholder-val="{{ true }}">
-        <div data-motion="{{ moCaseDetail }}" style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0">
-          <sc-if value="{{ showCaseBack }}" hint-placeholder-val="{{ false }}">
-            <div onClick="{{ backToCases }}" style="display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line);background:var(--sub)" style-hover="cursor:pointer">
-              <div style="font-size:14px;color:var(--text2);font-weight:600"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;vertical-align:-3px;margin-right:5px">arrow_back</span>Cases</div>
-            </div>
-          </sc-if>
-          <div style="{{ caseHeadStyle }}">
-            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-              <div style="{{ caseTitleStyle }}">{{ caseTitle }}</div>
-              <div style="{{ caseStatusStyle }}">{{ caseStatus }}</div>
-              <sc-if value="{{ caseHeadActionsShown }}" hint-placeholder-val="{{ true }}">
-                <div style="margin-left:auto;display:flex;gap:12px;font-size:13px;color:var(--muted)"><span style-hover="cursor:pointer;color:var(--text)">Add thread</span><span style-hover="cursor:pointer;color:var(--text)">Export</span></div>
-              </sc-if>
-            </div>
-            <sc-if value="{{ caseHeadFullShown }}" hint-placeholder-val="{{ true }}">
-              <div style="font-size:13px;color:var(--muted)">{{ caseParties }} · {{ caseScope }}</div>
-              <div style="{{ caseSummaryStyle }}">{{ caseSummary }}</div>
-            </sc-if>
-          </div>
-
-          <div onScroll="{{ onCaseScroll }}" style="{{ caseBodyStyle }}">
-            <div style="{{ caseStateGridStyle }}">
-              <sc-for list="{{ caseColumns }}" as="col" hint-placeholder-count="3">
-                <div style="display:flex;flex-direction:column;gap:9px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px">
-                  <div style="display:flex;align-items:center;gap:8px">
-                    <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">{{ col.label }}</div>
-                    <div style="{{ col.countStyle }}">{{ col.count }}</div>
-                  </div>
-                  <sc-for list="{{ col.items }}" as="it" hint-placeholder-count="2">
-                    <div style="display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--line2);padding-top:9px">
-                      <div style="display:flex;align-items:baseline;gap:9px">
-                        <span style="font-size:14px;line-height:1.4;text-wrap:pretty">{{ it.text }}</span>
-                        <span style="{{ it.whenStyle }}">{{ it.when }}</span>
-                      </div>
-                      <div style="{{ srcLinkStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">open_in_new</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis">{{ it.src }}</span></div>
-                    </div>
-                  </sc-for>
-                </div>
-              </sc-for>
-            </div>
-
-            <div style="display:flex;flex-direction:column;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px">
-              <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Terms - what changes</div>
-              <div style="display:flex;flex-direction:column">
-                <sc-if value="{{ caseFactHeadShown }}" hint-placeholder-val="{{ true }}">
-                  <div style="{{ caseFactHeadStyle }}">
-                    <div style="flex:2;min-width:0">Parameter</div><div style="flex:1;min-width:0">Current</div><div style="flex:1;min-width:0">After addendum</div><div style="flex:1;min-width:0">Source</div>
-                  </div>
-                </sc-if>
-                <sc-for list="{{ caseFacts }}" as="f" hint-placeholder-count="4">
-                  <div style="{{ f.rowStyle }}">
-                    <div style="{{ f.pStyle }}">{{ f.p }}</div>
-                    <div style="{{ f.valWrapStyle }}">
-                      <div style="{{ f.aStyle }}">{{ f.a }}</div>
-                      <sc-if value="{{ f.arrowShown }}" hint-placeholder-val="{{ false }}">
-                        <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--faint)">arrow_forward</span>
-                      </sc-if>
-                      <div style="{{ f.bStyle }}">{{ f.b }}</div>
-                    </div>
-                    <div style="{{ f.srcStyle }}">{{ f.src }}</div>
-                  </div>
-                </sc-for>
-              </div>
-            </div>
-
-            <div style="display:flex;flex-direction:column;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px">
-              <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Case timeline</div>
-              <div style="{{ caseTimelineStyle }}">
-                <sc-for list="{{ caseTimeline }}" as="tl" hint-placeholder-count="4">
-                  <div style="{{ tl.style }}">
-                    <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted)">{{ tl.d }}</div>
-                    <div style="font-size:14px;line-height:1.4;text-wrap:pretty">{{ tl.t }}</div>
-                  </div>
-                </sc-for>
-              </div>
-            </div>
-
-            <div style="{{ caseMaterialsStyle }}">
-              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px">
-                <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Threads</div>
-                <sc-for list="{{ caseThreads }}" as="ct" hint-placeholder-count="3">
-                  <div onClick="{{ ct.open }}" style="display:flex;flex-direction:column;gap:3px;border-top:1px solid var(--line2);padding:9px 0 0 0" style-hover="cursor:pointer">
-                    <div style="font-size:14px">{{ ct.label }}</div>
-                    <div style="font-size:12px;color:var(--muted)">{{ ct.meta }}</div>
-                  </div>
-                </sc-for>
-              </div>
-              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px">
-                <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Documents</div>
-                <sc-for list="{{ caseDocs }}" as="cd" hint-placeholder-count="3">
-                  <div onClick="{{ cd.open }}" style="display:flex;align-items:center;gap:9px;border-top:1px solid var(--line2);padding:9px 0 0 0" style-hover="cursor:pointer;color:var(--accent-d)">
-                    <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted)">{{ cd.type }}</span>
-                    <span style="font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ cd.name }}</span>
-                    <span style="font-size:12px;color:var(--faint)">{{ cd.size }}</span>
-                  </div>
-                </sc-for>
-                <sc-if value="{{ caseNoDocs }}" hint-placeholder-val="{{ false }}">
-                  <div style="font-size:13px;color:var(--faint);border-top:1px solid var(--line2);padding-top:9px">No documents pinned to this case</div>
-                </sc-if>
-              </div>
-            </div>
-
-            <div style="display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px">
-              <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Commitments</div>
-              <sc-for list="{{ caseDuties }}" as="d" hint-placeholder-count="3">
-                <div style="{{ d.rowStyle }}">
-                  <div style="flex:0 0 90px;font-size:13px;color:var(--muted)">{{ d.who }}</div>
-                  <div style="flex:1;min-width:0;font-size:14px;text-wrap:pretty">{{ d.what }}</div>
-                  <div style="flex:0 0 74px;font-size:13px">{{ d.when }}</div>
-                  <div style="{{ d.stateStyle }}">{{ d.state }}</div>
-                </div>
-              </sc-for>
-            </div>
-          </div>
-
-          <div style="{{ caseAskStyle }}">
-            <div onClick="{{ askAgentCase }}" style="{{ caseAskRowStyle }}" style-hover="cursor:pointer">
-              <div style="{{ caseAskBadgeStyle }}">AI</div>
-              <div style="{{ caseAskTextStyle }}">{{ caseAskPlaceholder }}</div>
-              <div onClick="{{ askAgentCase }}" style="font-size:13px;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:8px 15px;white-space:nowrap" style-hover="opacity:0.88;cursor:pointer">Ask</div>
-            </div>
-            <sc-if value="{{ caseAskExtrasShown }}" hint-placeholder-val="{{ true }}">
-              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                <div style="font-size:12px;background:var(--accent-soft);color:var(--accent-d);border-radius:16px;padding:5px 11px">Scope: {{ caseScope }}</div>
-                <div style="font-size:12px;color:var(--muted)">case state updates with every new message</div>
-              </div>
-            </sc-if>
-          </div>
-        </div>
-      </sc-if>
-    </div>
-    </div>
-  </sc-if>
-
 
   <sc-if value="{{ isAgent }}" hint-placeholder-val="{{ false }}">
     <div data-motion="screen" style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--sub)">
@@ -1521,7 +1327,7 @@ Project repository: https://github.com/fathomise/MailFathom
         <div onClick="{{ agentNewConv }}" title="New conversation" style="{{ agentNewBtnStyle }}" style-hover="cursor:pointer;opacity:0.9"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">add</span><sc-if value="{{ notMobile }}" hint-placeholder-val="{{ true }}">New conversation</sc-if></div>
         <div style="{{ agentTitleStyle }}">{{ convTitle }}</div>
         <sc-if value="{{ notMobile }}" hint-placeholder-val="{{ true }}">
-          <div style="margin-left:auto;font-size:13px;color:var(--muted)">works across your mail, calendar and cases</div>
+          <div style="margin-left:auto;font-size:13px;color:var(--muted)">works across your mail and calendar</div>
         </sc-if>
       </div>
 
@@ -1981,52 +1787,6 @@ Project repository: https://github.com/fathomise/MailFathom
           <div onClick="{{ moreSettings }}" style="{{ moreRowStyle }}" style-hover="background:var(--hover)">
             <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;width:26px;text-align:center">settings</span>
             <span style="font-size:15px">Settings</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </sc-if>
-
-  <sc-if value="{{ newCaseOpen }}" hint-placeholder-val="{{ false }}">
-    <div data-motion="scrim" data-phase="{{ mo.newCase }}" onClick="{{ closeNewCase }}" style="{{ ovZ96 }}">
-      <div data-motion="{{ moDialog }}" data-phase="{{ mo.newCase }}" onClick="{{ stopProp }}" style="width:520px;max-width:100%;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 22px 52px var(--sh-3);overflow:hidden">
-        <sc-if value="{{ sheetGrabber }}" hint-placeholder-val="{{ false }}"><div style="{{ grabberStyle }}"></div></sc-if>
-        <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--sub)">
-          <div style="font-size:15px;font-weight:600">New case</div>
-          <div onClick="{{ closeNewCase }}" style="{{ closeBtnAutoStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:13px;padding:18px">
-          <div style="display:flex;flex-direction:column;gap:9px;background:var(--accent-soft);border-radius:12px;padding:12px 13px">
-            <div style="display:flex;align-items:center;gap:9px">
-              <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:3px 7px">AI</span>
-              <span style="font-size:12px;color:var(--accent-d)">Describe the case - I'll gather threads, documents and deadlines</span>
-            </div>
-            <input ref="{{ csPromptRef }}" placeholder="e.g. renegotiating the Adventure Works contract, weekend SLA" style="{{ promptFieldStyle }}" />
-            <div style="display:flex;gap:7px;flex-wrap:wrap">
-              <div onClick="{{ csBuild }}" style="font-size:12px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:7px 13px" style-hover="cursor:pointer;opacity:0.9">Build the case</div>
-              <div onClick="{{ csFromThread }}" style="font-size:12px;color:var(--accent-d);background:var(--panel);border:1px solid var(--accent-line);border-radius:8px;padding:7px 13px" style-hover="cursor:pointer">From the open thread</div>
-            </div>
-            <sc-if value="{{ csFoundShown }}" hint-placeholder-val="{{ false }}">
-              <div style="display:flex;flex-direction:column;gap:7px;border-top:1px solid var(--accent-line);padding-top:9px">
-                <div style="font-size:11px;color:var(--accent-d);font-family:'Geist',system-ui,sans-serif;font-weight:600">Found in the mailbox</div>
-                <sc-for list="{{ csFound }}" as="cf" hint-placeholder-count="3">
-                  <div style="display:flex;align-items:center;gap:9px;background:var(--panel);border-radius:8px;padding:7px 10px">
-                    <span style="font-size:11px;color:var(--muted);width:66px">{{ cf.kind }}</span>
-                    <span style="font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ cf.label }}</span>
-                    <span style="font-size:11px;color:var(--accent-d)">included</span>
-                  </div>
-                </sc-for>
-              </div>
-            </sc-if>
-          </div>
-          <input ref="{{ csTitleRef }}" placeholder="Case name" style="{{ fieldStyle }}" />
-          <div style="display:flex;gap:10px">
-            <input ref="{{ csPartiesRef }}" placeholder="Parties (e.g. Contoso · Nordwind)" style="{{ fieldStyle }}" />
-            <input ref="{{ csDueRef }}" placeholder="Due date (e.g. 12.09)" style="{{ fieldStyle }}" />
-          </div>
-          <div style="display:flex;gap:9px;justify-content:flex-end">
-            <div onClick="{{ closeNewCase }}" style="font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:8px 15px" style-hover="cursor:pointer;background:var(--hover)">Cancel</div>
-            <div onClick="{{ saveCase }}" style="font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:8px 16px" style-hover="cursor:pointer;opacity:0.9">Create case</div>
           </div>
         </div>
       </div>
@@ -2614,7 +2374,7 @@ Project repository: https://github.com/fathomise/MailFathom
           </div>
           <div style="display:flex;align-items:center;gap:10px;background:var(--accent-soft);border-radius:8px;padding:11px 13px">
             <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:2px 6px">AI</span>
-            <span style="font-size:12px;color:var(--accent-d);line-height:1.45;text-wrap:pretty">I'll link the event to a thread if the title matches a case in your mailbox.</span>
+            <span style="font-size:12px;color:var(--accent-d);line-height:1.45;text-wrap:pretty">I'll link the event to a thread if the title matches one in your mailbox.</span>
           </div>
           <div style="display:flex;flex-direction:column;gap:9px;background:var(--sub);border:1px solid var(--line);border-radius:12px;padding:12px 13px">
             <div style="display:flex;align-items:center;gap:9px">
@@ -2929,7 +2689,7 @@ Project repository: https://github.com/fathomise/MailFathom
                 <div onClick="{{ al.pick }}" style="{{ al.style }}" style-hover="cursor:pointer">{{ al.label }}</div>
               </sc-for>
             </div>
-            <div style="font-size:13px;line-height:1.5;max-width:620px;color:var(--muted);text-wrap:pretty">Summaries, thread digests, suggested replies and case notes are written in this language. It is separate from the interface language, which you set in <b style="font-weight:600">Application</b>.</div>
+            <div style="font-size:13px;line-height:1.5;max-width:620px;color:var(--muted);text-wrap:pretty">Summaries, thread digests and suggested replies are written in this language. It is separate from the interface language, which you set in <b style="font-weight:600">Application</b>.</div>
             <div style="display:flex;align-items:flex-start;gap:8px;max-width:620px;font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">
               <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3;color:var(--faint)">info</span>
               <span>A change applies only to content written from now on. Summaries, notes and drafts that already exist keep the language they were created in.</span>
@@ -3174,7 +2934,7 @@ Project repository: https://github.com/fathomise/MailFathom
     <div data-motion="pop" data-phase="{{ mo.agentReturn }}" role="button" tabIndex="0" aria-label="Back to the agent conversation you came from" onClick="{{ backToConv }}" onKeyDown="{{ backToConvKey }}" style="{{ convReturnStyle }}" style-hover="cursor:pointer;opacity:0.92" style-focus="outline:2px solid var(--accent);outline-offset:3px"><span style="{{ convReturnIconStyle }}">arrow_back</span>{{ convReturnLabel }}</div>
   </sc-if>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;desktop&quot;,&quot;tablet&quot;,&quot;fold&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;space&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;discover&quot;,&quot;mail&quot;,&quot;cases&quot;,&quot;agent&quot;,&quot;tasks&quot;,&quot;calendar&quot;,&quot;people&quot;],&quot;default&quot;:&quot;discover&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;aiHints&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;showTrace&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;streamDelay&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:550,&quot;min&quot;:120,&quot;max&quot;:1200,&quot;step&quot;:50,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;desktop&quot;,&quot;tablet&quot;,&quot;fold&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;space&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;discover&quot;,&quot;mail&quot;,&quot;agent&quot;,&quot;tasks&quot;,&quot;calendar&quot;,&quot;people&quot;],&quot;default&quot;:&quot;discover&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;aiHints&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;showTrace&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;streamDelay&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:550,&quot;min&quot;:120,&quot;max&quot;:1200,&quot;step&quot;:50,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
 const Component = MailFathomDesign.artboards.prototype(DCLogic, React);
 </script>
 </body>

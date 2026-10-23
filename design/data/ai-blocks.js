@@ -81,8 +81,8 @@ MailFathomDesign.data.aiBlocksDraftParagraphs = [
 ];
 
 /* The blocks that gain controls in a conversation. EVENT and TASK earn a block of their own only
-   because the object has to be seen and corrected before it is approved; move to folder, mark as
-   read, add to a case and close a case stay one-line SUGGESTED ACTIONs. */
+   because the object has to be seen and corrected before it is approved; move to folder and mark
+   as read stay one-line SUGGESTED ACTIONs. */
 MailFathomDesign.data.aiBlocksProposals = [
   {
     type: "event", phase: "pending", meta: "calendar · work",
@@ -162,22 +162,22 @@ MailFathomDesign.data.aiBlocksProposals = [
   { type: "draft", phase: "declined", meta: "reply", title: "Reply to Anna Kowalska" },
   {
     type: "action", phase: "pending", meta: "one step",
-    title: "Attach the legal opinion to the Contoso 2027 case",
-    reason: "The opinion answers the open question about the indexation cap and is not in the case file.",
-    effect: "Adds the document to the case - nothing is sent to anyone.",
-    cta: "Attach it", nav: [{ label: "Open the case", icon: "folder_open" }],
+    title: "Move the legal opinion thread to Contracts",
+    reason: "The opinion answers the open question about the indexation cap and is still in the inbox.",
+    effect: "Moves the thread to the Contracts folder - nothing is sent to anyone.",
+    cta: "Move it", nav: [{ label: "Open the thread", icon: "forum" }],
   },
   {
     type: "action", phase: "accepted", meta: "one step",
-    title: "Attach the legal opinion to the Contoso 2027 case",
-    effect: "Adds the document to the case - nothing is sent to anyone.",
-    result: "Attached to Contoso 2027 · 14:16",
+    title: "Move the legal opinion thread to Contracts",
+    effect: "Moves the thread to the Contracts folder - nothing is sent to anyone.",
+    result: "Moved to Contracts · 14:16",
   },
   {
     type: "action", phase: "accepted", failed: true, meta: "one step",
-    title: "Add the 12.11 date to the Fabrikam case",
-    effect: "Writes the date into the case file.",
-    result: "Could not add it - the case server rejected the write · 07:31",
+    title: "Label the Fabrikam thread with the 12.11 date",
+    effect: "Adds a label to the thread.",
+    result: "Could not add it - the mail server rejected the write · 07:31",
   },
   { type: "action", phase: "declined", meta: "one step", title: "Mark the Fabrikam thread as waiting on them" },
 ];
