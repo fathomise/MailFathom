@@ -4,7 +4,6 @@
 
 import { useId, useRef, useState, type RefObject } from 'react';
 import {
-    describedAt,
     draftCalendarEvent,
     type CalendarEventRecord,
     type ClientSession,
@@ -13,10 +12,11 @@ import {
 import { mannerDrawn } from '../confirmation/wayOutShapes';
 import { dialogField } from '../controls/chrome';
 import { Icon } from '../controls/Icon';
-import { SecondaryButton } from '../controls/SecondaryButton';
 import { SurfaceControl } from '../controls/SurfaceControl';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { ReminderPanel } from '../reminders/ReminderPanel';
+import { wordReminderCount } from '../reminders/reminderWords';
 import { useTopLayerSurface } from '../shell/screenLayers';
 import { EventFields } from './EventFields';
 import { draftOn, draftedFrom, recordOf, type EventDraft } from './eventDraft';
@@ -31,6 +31,9 @@ import { draftOn, draftedFrom, recordOf, type EventDraft } from './eventDraft';
 // field promising to take a description over a deployment that reads none would fail a person at the one moment they
 // trusted it.
 //
+// **What announces the event is decided here too**, through the same panel the event's own dialog opens, so an event
+// is written down with its reminders rather than amended afterwards to gain them.
+//
 // The dialog is the platform's own, so the page behind it is inert, focus moves into it and is held there, Escape
 // leaves it, and leaving it puts focus back on the control that opened it.
 
@@ -39,7 +42,6 @@ export function NewEvent({
     session,
     transport,
     on,
-    now,
     readsDescriptions,
     onSave,
 }: {
@@ -52,16 +54,13 @@ export function NewEvent({
     /** The day the reader is standing on, which the date field opens on rather than on nothing. */
     readonly on: Date;
 
-    /** What the clock says, which every relative day in a typed sentence is read against and a test decides itself. */
-    readonly now: () => Date;
-
     /** Whether this deployment turns a typed description into an event at all. */
     readonly readsDescriptions: boolean;
 
     /** Writes what is in the form, run while the dialog is still open so a refusal is reported over the fields. */
     readonly onSave: (record: CalendarEventRecord) => void;
 }) {
-    const { translate } = useLocalization();
+    const { locale, translate } = useLocalization();
     const closesOnBack = useTopLayerSurface();
     const describes = useId();
 
@@ -73,6 +72,7 @@ export function NewEvent({
     // Which reading is the current one. The dialog can be left and opened again while a sentence is still being read,
     // and an answer arriving into a form somebody has since emptied would fill it with an event they had abandoned.
     const latest = useRef(0);
+    const panel = useRef<HTMLDialogElement>(null);
 
     const record = recordOf(draft);
 
@@ -96,10 +96,7 @@ export function NewEvent({
         setReading(true);
         setSaid(null);
 
-        void draftCalendarEvent(session, transport, {
-            description: sentence,
-            writtenAt: describedAt(now()),
-        }).then((answer) => {
+        void draftCalendarEvent(session, transport, { description: sentence }).then((answer) => {
             if (asking !== latest.current) {
                 return;
             }
@@ -197,11 +194,14 @@ export function NewEvent({
                                 }}
                             />
 
-                            <SecondaryButton
-                                label={translate(reading ? 'calendar.describing' : 'calendar.describeAct')}
-                                shape="compact"
-                                onActivate={readDescription}
-                            />
+                            <button
+                                type="button"
+                                aria-busy={reading}
+                                className="self-start rounded-md bg-accent px-3.25 py-1.75 text-sm font-semibold text-on-accent"
+                                onClick={readDescription}
+                            >
+                                {translate(reading ? 'calendar.describing' : 'calendar.describeAct')}
+                            </button>
 
                             {said === null ? null : (
                                 <p role="status" className="text-sm text-accent-deep text-pretty">
@@ -212,6 +212,22 @@ export function NewEvent({
                     )}
 
                     <EventFields draft={draft} onDraft={setDraft} />
+
+                    <button
+                        type="button"
+                        className="flex items-center gap-2.25 rounded-lg border border-line bg-sunken px-3.25 py-3 text-start"
+                        onClick={() => {
+                            panel.current?.showModal();
+                        }}
+                    >
+                        <Icon name="notifications_active" className="size-icon-md shrink-0 text-muted" />
+
+                        <span className="flex-1 text-base font-semibold">{translate('calendar.eventReminders')}</span>
+
+                        <span className="shrink-0 rounded-full bg-hover px-2 py-0.5 text-sm text-muted">
+                            {wordReminderCount(draft.reminders.length, locale, translate)}
+                        </span>
+                    </button>
                 </div>
 
                 <div className="flex flex-wrap justify-end gap-2.25 px-4.5 pb-4.5">
@@ -234,6 +250,18 @@ export function NewEvent({
                     </button>
                 </div>
             </form>
+
+            {/* Beside the form rather than inside it, so Enter in the panel's own field adds a reminder instead of
+                writing the event down. */}
+            <ReminderPanel
+                panel={panel}
+                subject={draft.title.trim() === '' ? translate('calendar.newEvent') : draft.title.trim()}
+                anchor={draft.allDay ? 'eventDay' : 'eventTime'}
+                reminders={draft.reminders}
+                onRemindersChanged={(reminders) => {
+                    setDraft((standing) => ({ ...standing, reminders }));
+                }}
+            />
         </dialog>
     );
 }

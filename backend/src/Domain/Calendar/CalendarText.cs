@@ -24,8 +24,9 @@ namespace MailFathom.Domain.Calendar;
 /// admit the line and paragraph separators, which end a line while categorizing as neither control nor format.
 /// </para>
 /// <para>
-/// It is the contact book's rule applied to this calendar's own values rather than a second reading of it: the book
-/// admits the layout characters a note may carry, and nothing an event holds is written across lines.
+/// It is the contact book's rule applied to this calendar's own values rather than a second reading of it. A title and
+/// an imported identifier are single lines, while an event's notes, like a contact's note, keep the line breaks and
+/// tabs they were written with.
 /// </para>
 /// </remarks>
 internal static class CalendarText
@@ -39,6 +40,12 @@ internal static class CalendarText
     /// <returns><see langword="true" /> when every code unit takes part in a scalar and every scalar carries a glyph.</returns>
     internal static bool IsReadable(string value) =>
         IsWellFormed(value) && !value.EnumerateRunes().Any(IsUnprintable);
+
+    /// <summary>Answers whether text is written entirely in characters that render as part of it, line breaks and tabs aside.</summary>
+    /// <param name="value">The text to judge.</param>
+    /// <returns><see langword="true" /> when every code unit takes part in a scalar and every scalar carries a glyph or lays the text out.</returns>
+    internal static bool IsReadableAcrossLines(string value) =>
+        IsWellFormed(value) && !value.EnumerateRunes().Any(scalar => IsUnprintable(scalar) && !IsLayout(scalar));
 
     /// <summary>Answers whether a scalar would render as something other than the text it is part of.</summary>
     /// <remarks>
@@ -77,6 +84,9 @@ internal static class CalendarText
 
         return true;
     }
+
+    /// <summary>Answers whether a scalar is one of the control characters that carry layout rather than terminal behavior.</summary>
+    private static bool IsLayout(Rune scalar) => scalar.Value is '\r' or '\n' or '\t';
 
     /// <summary>Admits the two formatting characters that belong inside ordinary words.</summary>
     /// <remarks>

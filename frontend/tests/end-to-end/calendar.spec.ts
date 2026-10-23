@@ -92,9 +92,9 @@ test('writes an event down, amends it, and takes it off the calendar', async ({ 
     await expect(writing).toBeVisible();
 
     await writing.getByLabel('Title', { exact: true }).fill(written);
-    await writing.getByLabel('Day', { exact: true }).fill(seededDay(0));
-    await writing.getByLabel('Starts', { exact: true }).fill('17:00');
-    await writing.getByLabel('Ends', { exact: true }).fill('17:45');
+    await writing.getByLabel('Starts', { exact: true }).fill(seededDay(0));
+    await writing.getByLabel('Start time', { exact: true }).fill('17:00');
+    await writing.getByLabel('End time', { exact: true }).fill('17:45');
     await writing.getByRole('button', { name: 'Save' }).click();
 
     await expect(entryFor(page, written)).toBeVisible();

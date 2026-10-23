@@ -6,13 +6,19 @@ import { useRef } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { LocalizationProvider } from '../localization/Localization';
-import { NewContact, type ContactDraft } from './NewContact';
+import { ContactDialog, type ContactDraft } from './ContactDialog';
 
 // What opens the dialog in the test, named here rather than written into the markup: the localization rule
 // holds over every `.tsx` under the packages, and a label a test invented is not a catalogue entry.
 const asks = 'Ask';
 
-function Asking({ onSave }: { readonly onSave: (draft: ContactDraft) => void }) {
+function Asking({
+    amending,
+    onSave,
+}: {
+    readonly amending: ContactDraft | null;
+    readonly onSave: (draft: ContactDraft) => void;
+}) {
     const asked = useRef<HTMLDialogElement>(null);
 
     return (
@@ -26,17 +32,17 @@ function Asking({ onSave }: { readonly onSave: (draft: ContactDraft) => void }) 
                 {asks}
             </button>
 
-            <NewContact asked={asked} onSave={onSave} />
+            <ContactDialog asked={asked} amending={amending} onSave={onSave} />
         </>
     );
 }
 
-function drawForm(): { readonly saved: ReturnType<typeof vi.fn> } {
+function drawForm(amending: ContactDraft | null = null): { readonly saved: ReturnType<typeof vi.fn> } {
     const saved = vi.fn();
 
     render(
         <LocalizationProvider>
-            <Asking onSave={saved} />
+            <Asking amending={amending} onSave={saved} />
         </LocalizationProvider>,
     );
 
@@ -49,7 +55,7 @@ function typeInto(field: string, text: string): void {
     fireEvent.change(screen.getByLabelText(field), { target: { value: text } });
 }
 
-describe('NewContact', () => {
+describe('ContactDialog', () => {
     // A name and an address are what a contact record holds on this deployment; a company and a role are not fields of
     // it, so a form offering them would be asking for values no request could carry.
     it('asks for the two things a record this client writes actually holds', () => {
@@ -108,5 +114,21 @@ describe('NewContact', () => {
 
         expect(screen.getByLabelText<HTMLInputElement>('Name').value).toBe('');
         expect(screen.getByLabelText<HTMLInputElement>('Email address').value).toBe('');
+    });
+
+    it('opens a correction on what the record holds and saves nothing until something in it changes', () => {
+        const { saved } = drawForm({ displayName: 'Anna Kowalska', address: 'anna@contoso.example' });
+
+        expect(screen.getByRole('heading', { name: 'Edit contact' })).toBeDefined();
+        expect(screen.getByLabelText<HTMLInputElement>('Name').value).toBe('Anna Kowalska');
+        expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(true);
+
+        typeInto('Email address', 'anna.kowalska@contoso.example');
+        fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+        expect(saved).toHaveBeenCalledWith({
+            displayName: 'Anna Kowalska',
+            address: 'anna.kowalska@contoso.example',
+        });
     });
 });

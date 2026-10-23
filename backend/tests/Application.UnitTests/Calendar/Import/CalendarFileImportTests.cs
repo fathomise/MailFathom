@@ -245,6 +245,7 @@ public sealed class CalendarFileImportTests
         CalendarEvent.Create(
             CalendarEventId.Create(Guid.CreateVersion7(Now)),
             CalendarEventTitle.Create(uid),
+            notes: null,
             Monday,
             null,
             isAllDay: false,

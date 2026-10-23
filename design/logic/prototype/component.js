@@ -1184,6 +1184,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     evPromptRef = React.createRef();
     evDayRef = React.createRef();
     evTimeRef = React.createRef();
+    evEndDayRef = React.createRef();
+    evEndTimeRef = React.createRef();
+    evNotesRef = React.createRef();
     ctNameRef = React.createRef();
     ctMailRef = React.createRef();
     ctOrgRef = React.createRef();
@@ -1199,6 +1202,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     onDocDown = (e) => {
       const el = this.userMenuRef.current;
       if (this.state.userMenu && el && !el.contains(e.target)) this.setState({ userMenu: false });
+      /* On the phone the filters band stands over the list rather than beside it, so a press anywhere outside the band
+         and its control folds it away as its control would. */
+      if (this.state.filtersOpen && this._isMobile && !e.target.closest?.("[data-filters-band],[data-filters-toggle]")) this.setState({ filtersOpen: false });
     };
 
     tabsMode = () => {
@@ -2419,6 +2425,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const touch = FR ? true : mode === "desktop" ? false : !!st.coarse;
       const railW = compact ? 66 : 96;
       this._low = low;
+      this._isMobile = isMobile;
       /* A dialog takes what a low window has and stops growing in a tall one. */
       const dlgMaxH = low ? "calc(100dvh - 16px)" : tall ? "min(calc(100dvh - 44px), 760px)" : "calc(100dvh - 44px)";
       const toastCompact = w < 900;
@@ -2853,7 +2860,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         mePreviewStyle: "width:46px;height:46px;flex:0 0 46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;letter-spacing:0.02em;background:var(--border2);color:var(--text2);" +
           (myPhoto ? "background-image:url(" + myPhoto + ");background-size:cover;background-position:center;" : ""),
         avatarStyle:
-          "width:" + (touch ? 44 : 34) + "px;height:" + (touch ? 44 : 34) + "px;border-radius:50%;background:var(--border2);" + (myPhoto ? "background-image:url(" + myPhoto + ");background-size:cover;background-position:center;" : "") + "display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text2);transition:transform 120ms ease,box-shadow 120ms ease;box-shadow:0 1px 0 var(--inset) inset,0 1px 3px var(--sh-2);" +
+          "width:" + (touch ? 44 : 40) + "px;height:" + (touch ? 44 : 40) + "px;border-radius:50%;background:var(--border2);" + (myPhoto ? "background-image:url(" + myPhoto + ");background-size:cover;background-position:center;" : "") + "display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--text2);transition:transform 120ms ease,box-shadow 120ms ease;box-shadow:0 1px 0 var(--inset) inset,0 1px 3px var(--sh-2);" +
           (st.userMenu ? "outline:2px solid var(--accent-line);outline-offset:2px;" : ""),
         railThemeStyle: railBase + "color:var(--muted);",
         notMobile: !isMobile,
@@ -3190,8 +3197,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         startHistoryResize: this.beginHistoryResize,
         resetHistoryResize: () => this.setState({ historyPanelW: 250 }),
         historyCloseShown: isMobile,
+        // A drawer over the conversation on the phone, so a press beside it puts it away as its close control does.
+        historyScrimShown: isMobile && (st.history == null ? !isMobile : !!st.history),
         historyPanelStyle: isMobile
-          ? "position:absolute;inset:0;z-index:45;display:flex;flex-direction:column;gap:1px;overflow:auto;background:var(--rail);padding:12px 12px 18px"
+          ? "position:absolute;top:0;bottom:0;left:0;width:min(320px,86%);box-sizing:border-box;z-index:45;display:flex;flex-direction:column;gap:1px;overflow:auto;background:var(--rail);border-right:1px solid var(--line);box-shadow:0 0 40px var(--sh-3);padding:12px 12px 18px"
           : "width:" + Math.max(200, Math.min(480, st.historyPanelW || 250)) + "px;flex:0 0 " + Math.max(200, Math.min(480, st.historyPanelW || 250)) + "px;display:flex;flex-direction:column;gap:1px;overflow:auto;scrollbar-width:thin;background:var(--rail);border-right:1px solid var(--line);padding:14px 10px",
         convHistoryGroups: convGroups((activeConvList.length ? activeConvList : [{ id: null, title: "New conversation", when: "now", msgs: [] }]).filter(matchesHistQuery).slice().reverse().map(c => convRow(c, false))),
         historyCount: activeConvList.length,
@@ -3702,7 +3711,20 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         ].map(a => ({ icon: a.icon, title: a.label, label: tbFull ? a.label : "", style: tbFull ? tbBtn : tbIcon + ";flex:0 0 auto" })),
         fieldStyle: "flex:1;min-width:0;font-family:inherit;font-size:14px;color:var(--text);background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:10px 12px;outline:none",
         newEventOpen: !!st.newEvent,
-        openNewEvent: () => { this.remSet("new:event", REM_DEFAULT); this.setState({ newEvent: true, evParsed: null }); },
+        openNewEvent: () => { this.remSet("new:event", REM_DEFAULT); this.setState({ newEvent: true, evParsed: null, evAllDay: false }); },
+        evNotesRef: this.evNotesRef, evEndDayRef: this.evEndDayRef, evEndTimeRef: this.evEndTimeRef,
+        evAllDay: !!st.evAllDay,
+        evTimeStyle: st.evAllDay
+          ? "display:none"
+          : "flex:0 0 96px;width:96px;box-sizing:border-box;font-family:inherit;font-size:14px;color:var(--text);background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:10px 12px;outline:none",
+        evToggleAllDay: () => this.setState(s2 => ({ evAllDay: !s2.evAllDay })),
+        evAllDayBox: st.evAllDay
+          ? "width:18px;height:18px;flex:0 0 18px;border-radius:6px;background:var(--accent);color:var(--onaccent);display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1"
+          : "width:18px;height:18px;flex:0 0 18px;box-sizing:border-box;border-radius:6px;border:1.5px solid var(--border2);background:var(--panel)",
+        evAllDayMark: st.evAllDay ? "check" : "",
+        // Side by side for days alone, stacked once each carries a time - a day and a time do not fit twice in one row.
+        evSpanRow: st.evAllDay ? "display:flex;gap:10px" : "display:flex;flex-direction:column;gap:13px",
+        evLengthLabel: st.evAllDay ? "1 day" : "1 hour",
         evRem: this.remBlock("new:event", { timed: true, numRef: this.remNumEventRef, hint: "before the event time" }),
         closeNewEvent: () => this.setState({ newEvent: false }),
         evTitleRef: this.evTitleRef, evDayRef: this.evDayRef, evTimeRef: this.evTimeRef, evPromptRef: this.evPromptRef,
@@ -3715,6 +3737,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           if (this.evTitleRef.current) this.evTitleRef.current.value = p.title;
           if (this.evDayRef.current) this.evDayRef.current.value = p.day;
           if (this.evTimeRef.current) this.evTimeRef.current.value = p.time;
+          if (this.evEndDayRef.current) this.evEndDayRef.current.value = p.day;
           this.setState({ evParsed: p.chips });
         },
         evFromThread: () => {
@@ -3739,10 +3762,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           this.remFire(t, rem, "cal", "Calendar", { screen: "cal" });
         },
         newContactOpen: !!st.newContact,
-        openNewContact: () => this.setState({ newContact: true }),
+        openNewContact: () => this.setState({ newContact: true, ctEditing: false }),
+        ctDialogTitle: st.ctEditing ? "Edit contact" : "New contact",
+        ctSaveLabel: st.ctEditing ? "Save changes" : "Save contact",
         closeNewContact: () => this.setState({ newContact: false }),
         ctNameRef: this.ctNameRef, ctMailRef: this.ctMailRef, ctOrgRef: this.ctOrgRef, ctRoleRef: this.ctRoleRef,
         saveContact: () => {
+          if (st.ctEditing) {
+            this.setState({ newContact: false, ctEditing: false });
+            this.notify("Contact saved", { kind: "success" });
+            return;
+          }
           const name = (this.ctNameRef.current || {}).value || "New contact";
           const mail = (this.ctMailRef.current || {}).value || "";
           const org = (this.ctOrgRef.current || {}).value || "";
@@ -4012,6 +4042,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "background:var(--panel);color:var(--text);font-weight:600;box-shadow:0 1px 2px var(--sh-1);"
           : "background:transparent;color:var(--muted);"),
         personCollected: !!person.collected,
+        personOwn: !person.collected,
+        // The same dialog as writing somebody down, opened on what the record holds.
+        editContact: () => {
+          this.setState({ newContact: true, ctEditing: true });
+          setTimeout(() => {
+            if (this.ctNameRef.current) this.ctNameRef.current.value = person.name;
+            if (this.ctMailRef.current) this.ctMailRef.current.value = person.mail;
+            if (this.ctOrgRef.current) this.ctOrgRef.current.value = person.org === "-" ? "" : person.org;
+            if (this.ctRoleRef.current) this.ctRoleRef.current.value = person.role === "-" ? "" : person.role;
+          }, 0);
+        },
         addToOwnLabel: narrow || isMobile ? "Add" : "Add to my contacts",
         personReadOnlyNote: "Read-only - editable once added to your contacts",
         removeCollected: () => this.askDel({
@@ -4695,7 +4736,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* The phone's field labels take the width of the longest of them rather than a desktop column, so a recipient
            chip keeps one line beside its label. */
         /* A low window lowers the editor's floor so the foot with *Send* stays on screen; the editor scrolls itself. */
-        composeEditorStyle: "flex:1;min-height:" + (low ? 72 : 170) + "px;overflow:auto;padding:16px 17px;font-size:15px;line-height:1.65;color:var(--text2);outline:none",
+        composeEditorStyle: "flex:1;min-height:" + (low ? 72 : 170) + "px;overflow:auto;padding:16px 17px;border-left:2px solid transparent;font-size:15px;line-height:1.65;color:var(--text2);outline:none",
         composeHeadStyle: "display:flex;align-items:center;gap:12px;padding:" + (low ? "0 6px 0 15px" : "11px 15px") + ";background:var(--sub);border-bottom:1px solid var(--line);border-radius:12px 12px 0 0",
         /* In a low window the fields, the AI drafting and the editor scroll together and the foot with *Send* stays
            pinned under them; anywhere else the wrapper is not a box at all. */

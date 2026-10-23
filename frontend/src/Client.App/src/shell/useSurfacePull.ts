@@ -39,7 +39,8 @@ function isOpen(surface: HTMLElement): boolean {
     return surface instanceof HTMLDialogElement ? surface.open : surface.matches(':popover-open');
 }
 
-function drawnAsSheet(surface: HTMLElement): boolean {
+/** Whether the surface is drawn as a sheet or a drawer right now, which is what travels on `translate`. */
+export function drawnAsSheet(surface: HTMLElement): boolean {
     return getComputedStyle(surface)
         .transitionProperty.split(',')
         .some((property) => property.trim() === 'translate');

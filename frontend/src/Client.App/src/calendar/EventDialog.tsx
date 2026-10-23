@@ -31,6 +31,13 @@ import { draftOf, recordOf, type EventDraft } from './eventDraft';
 // leaves it, and leaving it puts focus back on the entry that opened it. Whether it is open is therefore the element's
 // state rather than a second copy of it, which is why the caller hands over the reference.
 
+// Days end where their last day closes, so the day a reader is told it ends on is the one before that midnight.
+function lastDayOf(end: string): string | null {
+    const closes = Date.parse(end);
+
+    return Number.isNaN(closes) ? null : new Date(closes - 1).toISOString();
+}
+
 export function EventDialog({
     event,
     asked,
@@ -135,6 +142,16 @@ export function EventDialog({
                                 ? translate('calendar.eventAllDay')
                                 : wordInstantRange(event.start, event.end, locale, 'full', timeZone)}
                         </p>
+
+                        {event.isAllDay && event.end !== null ? (
+                            <p className="text-base text-text-soft">
+                                {wordInstantRange(event.start, lastDayOf(event.end), locale, 'day', timeZone)}
+                            </p>
+                        ) : null}
+
+                        {event.notes === null ? null : (
+                            <p className="text-base whitespace-pre-line text-text-soft text-pretty">{event.notes}</p>
+                        )}
 
                         <button
                             type="button"

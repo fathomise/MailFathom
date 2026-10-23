@@ -19,7 +19,7 @@ import { initialsOf } from './initials';
 export type PersonAvatarPlace = 'menu' | 'profile';
 
 const places: Readonly<Record<PersonAvatarPlace, string>> = {
-    menu: 'size-8.5 text-xs',
+    menu: 'size-10 text-sm',
     profile: 'size-11.5 text-2xl',
 };
 

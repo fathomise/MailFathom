@@ -86,6 +86,7 @@ import { Refresh } from './shell/Refresh';
 import { ReturnToConversation } from './shell/ReturnToConversation';
 import { SpaceNavigation } from './shell/SpaceNavigation';
 import { useConnection } from './shell/useConnection';
+import { usePressOutsideSurface } from './shell/usePressOutsideSurface';
 import { useSurfacePull } from './shell/useSurfacePull';
 import { useBackNavigation } from './shellOperations/backNavigation';
 import { ScreenLayersContext, ScreenStep, useScreenLayerStack } from './shell/screenLayers';
@@ -692,8 +693,10 @@ export function App({
     // of them have no common parent below this, and what the shell asks of them is asked of all of them at once.
     const layers = useScreenLayerStack();
 
-    // A sheet or a drawer anywhere under the frame closes when a finger pulls it the way it came.
+    // A sheet or a drawer anywhere under the frame closes when a finger pulls it the way it came, and when somebody
+    // presses beside it.
     useSurfacePull();
+    usePressOutsideSurface();
 
     // Every press of the back gesture unwinds the topmost thing standing between the reader and the screen they came
     // from — a surface over it, or a view drawn in place of another inside the space in front — and the stack holds

@@ -440,7 +440,7 @@ describe('CalendarSpace', () => {
         // event is written into, and the week walked to opens on its own Monday.
         const writing = within(screen.getByRole('dialog', { name: 'New event' }));
 
-        expect(writing.getByLabelText<HTMLInputElement>('Day').value).toBe('2026-09-28');
+        expect(writing.getByLabelText<HTMLInputElement>('Starts').value).toBe('2026-09-28');
     });
 
     it('draws the description field only where the deployment reads one', async () => {

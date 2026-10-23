@@ -399,6 +399,7 @@ export function TasksSpace({
                           end: null,
                           isAllDay: true,
                           reminders: [],
+                          notes: null,
                           sourceMessage: task.sourceMessageId,
                       }).then((answer) => ({ ...wroteToTheCalendar(answer), id: task.id }));
             }),
@@ -458,6 +459,7 @@ export function TasksSpace({
                           end,
                           isAllDay: false,
                           reminders: [],
+                          notes: null,
                           sourceMessage: task.sourceMessageId,
                       }).then((answer) => ({ ...wroteToTheCalendar(answer), id: placement.taskId }));
             }),

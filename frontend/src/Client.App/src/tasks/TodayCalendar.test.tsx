@@ -27,6 +27,7 @@ function eventAt(id: string, title: string, start: string): CalendarEvent {
         isAllDay: false,
         reminders: [],
         remindsAt: [],
+        notes: null,
         origin: 'Asserted',
         sourceMessage: null,
         recordedAt: start,

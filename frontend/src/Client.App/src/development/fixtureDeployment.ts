@@ -592,7 +592,7 @@ function contactAnswer(
         );
     }
 
-    if (request.method === 'POST') {
+    if (request.method === 'POST' || request.method === 'PUT') {
         return answering(contacts.contactWritten);
     }
 

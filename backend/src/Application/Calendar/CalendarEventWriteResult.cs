@@ -44,6 +44,9 @@ public sealed record CalendarEventWriteResult
     public static CalendarEventWriteResult RemindersRefused { get; } =
         new(CalendarEventWriteOutcome.RemindersRefused, null);
 
+    /// <summary>Gets the result of a write whose notes are too long or carry a character that renders as nothing.</summary>
+    public static CalendarEventWriteResult NotesRefused { get; } = new(CalendarEventWriteOutcome.NotesRefused, null);
+
     /// <summary>States that the calendar holds the event as supplied.</summary>
     /// <param name="calendarEvent">The event as it now stands.</param>
     /// <returns>The result.</returns>

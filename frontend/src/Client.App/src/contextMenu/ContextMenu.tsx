@@ -9,6 +9,7 @@ import { DepartureContext } from '../shell/departure';
 import { useScreenLayer } from '../shell/screenLayers';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
 import { placedWithin, type MenuPoint } from './menuPlacement';
+import { pressSuppressesTapFor } from './rowPress';
 
 // What a row answers a press with, which the design draws on six of its lists: a header naming the row, then
 // the acts that row offers, the one that cannot be taken back drawn as what it is. It is one component for all six
@@ -64,6 +65,13 @@ export function ContextMenu({
     const [placed, setPlaced] = useState<MenuPoint | null>(null);
     const leaving = useContext(DepartureContext);
 
+    // When the menu arrived, which is what tells the press that opened it from a reader pointing somewhere else.
+    const arrivedAt = useRef(0);
+
+    useEffect(() => {
+        arrivedAt.current = performance.now();
+    }, []);
+
     // Measured rather than computed from what the items would come to: the menu's own size is the stylesheet's answer,
     // and a second copy of it here would be two numbers that have to agree. A layout effect, because this runs against
     // a commit the browser has already laid out and before it has painted one — so the menu is never drawn in the wrong
@@ -112,10 +120,26 @@ export function ContextMenu({
             }
         }
 
+        // A second menu gesture outside it is a reader pointing somewhere else, so this one goes — unless it is the
+        // press that opened it. A finger held on a row opens the menu on the row's own timer, and the platform answers
+        // that same press with a menu gesture of its own a moment later, delivered to whatever is under the finger by
+        // then, which is the scrim this just drew there. Read as a second gesture, it closed the menu the press had
+        // just opened, and only where the menu happened not to land under the finger did it stay.
+        function pointedElsewhere(event: Event): void {
+            if (
+                panel.current?.contains(event.target as Node) !== true &&
+                performance.now() - arrivedAt.current > pressSuppressesTapFor
+            ) {
+                onClose();
+            }
+        }
+
         document.addEventListener('pointerdown', pressedElsewhere, true);
+        document.addEventListener('contextmenu', pointedElsewhere, true);
 
         return () => {
             document.removeEventListener('pointerdown', pressedElsewhere, true);
+            document.removeEventListener('contextmenu', pointedElsewhere, true);
         };
     }, [onClose, leaving]);
 
@@ -151,16 +175,14 @@ export function ContextMenu({
 
     return (
         <>
-            {/* What the page is dimmed to behind the menu. A second menu gesture out here is a reader pointing
-                somewhere else, so the browser's own menu is refused and this one goes; the panel refuses the same
-                gesture on its own account below, because it paints over this rather than inside it. Everything else
-                about leaving is the two effects above. */}
+            {/* What the page is dimmed to behind the menu. The browser's own menu is refused out here, and the panel
+                refuses it on its own account below, because it paints over this rather than inside it. Whether such a
+                gesture also closes this one, and everything else about leaving, is the effects above. */}
             <div
                 aria-hidden="true"
                 className={`fixed inset-0 z-70 bg-scrim ${leaving ? 'animate-scrim-out' : 'animate-scrim-in'}`}
                 onContextMenu={(event) => {
                     event.preventDefault();
-                    onClose();
                 }}
             />
 

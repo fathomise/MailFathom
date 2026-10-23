@@ -59,6 +59,9 @@ export interface CalendarEvent {
     /** What announces it, in minutes before it begins, in the order the deployment holds them. */
     readonly reminders: readonly number[];
 
+    /** What the event is about, as somebody wrote it, or `null` where nobody wrote anything. */
+    readonly notes: string | null;
+
     /** When each of those falls, resolved by the deployment so that no screen computes an instant of its own. */
     readonly remindsAt: readonly string[];
 
@@ -90,6 +93,9 @@ export interface CalendarEventRecord {
     /** What is to announce it, in minutes before it begins, which `isStatableReminderSet` is the bar for. */
     readonly reminders: readonly number[];
 
+    /** What the event is about, or `null` to hold nothing. */
+    readonly notes: string | null;
+
     /** The message it was created from, or `null` where none was open. */
     readonly sourceMessage: string | null;
 }
@@ -105,6 +111,9 @@ export interface CalendarEventAmendment {
 
     /** What is to announce it from now on, which replaces whatever it carried rather than adding to it. */
     readonly reminders: readonly number[];
+
+    /** What the event is about from now on, or `null` to hold nothing. */
+    readonly notes: string | null;
 }
 
 /**
@@ -164,12 +173,20 @@ export const mostCalendarEventsPerWindow = 1000;
 /** How many a screen asks for where it states no bound of its own, which is what the service serves by default. */
 export const calendarEventsPerWindow = 200;
 
-// An event is a title, two instants, an identity and three short fields. Generous against that arithmetic over a full
-// window and well under the transport's own backstop.
-const longestCalendarWindow = 512 * 1024;
-
-// One event, one write answer, and one draft are each a single record of the same shape.
+// One event, one write answer, and one draft are each a single record of the same shape. What sizes it is the notes: up
+// to the deployment's 4000 characters, each up to six bytes once escaped, beside a title of at most 200 and a handful
+// of short fields — 32 KiB holds the longest such record with room to spare.
 const longestCalendarAnswer = 32 * 1024;
+
+/** The longest notes the deployment keeps, which an answer carrying more describes no event it could have stored. */
+const longestCalendarNotes = 4000;
+
+// A window is as many of those records as it asked for, so its bound follows the count rather than a figure that holds
+// only while nobody writes long notes. A full window of the longest notes is what this admits, and the transport's own
+// backstop gives way to it because the count is the caller's own.
+function longestCalendarWindow(count: number): number {
+    return count * longestCalendarAnswer + 1024;
+}
 
 const calendarEventOrigins: readonly CalendarEventOrigin[] = ['Asserted', 'Proposed'];
 
@@ -195,7 +212,7 @@ export function readCalendarWindow(
             method: 'GET',
             path: `${routeFor(session, calendarRoute)}?${windowArguments(span.from, span.until, span.origin ?? null, count)}`,
             headers: headersFor(session),
-            longestAnswer: longestCalendarWindow,
+            longestAnswer: longestCalendarWindow(count),
         });
 
         if (response === null) {
@@ -378,14 +395,13 @@ export function readsCalendarDescriptions(
 /**
  * Reads one sentence somebody typed into the event it describes, storing none of it.
  *
- * @param described What was typed, and the instant the person typing it is standing on — which is what every relative
- * day and hour in the sentence is resolved against, and why it carries the reader's own offset rather than the
- * deployment's.
+ * @param described What was typed. Every relative day and hour in it is resolved by the deployment against the zone the
+ * user's own record states, so the sentence travels alone: the route refuses any member it does not read.
  */
 export function draftCalendarEvent(
     session: ClientSession,
     transport: MailFathomTransport,
-    described: { readonly description: string; readonly writtenAt: string },
+    described: { readonly description: string },
 ): Promise<ClientResult<CalendarEventDraft>> {
     return spanned(`POST ${calendarEventDraftRoute}`, async () => {
         const response = await send(transport, {
@@ -412,29 +428,6 @@ export function draftCalendarEvent(
 
         return draft === null ? failed('unreadable', response.status) : read(draft);
     });
-}
-
-/**
- * An instant in the one form the drafting route reads: a local wall clock with the offset it is being read in.
- *
- * Composed here rather than taken from `toISOString`, which words every instant in UTC with a `Z` the route's own
- * format refuses — and the offset is the whole point of the value, being what turns *Thursday at three* into three
- * o'clock where the person typing it is.
- */
-export function describedAt(at: Date): string {
-    const aheadOfUtcBy = -at.getTimezoneOffset();
-    const sign = aheadOfUtcBy < 0 ? '-' : '+';
-    const away = Math.abs(aheadOfUtcBy);
-
-    return (
-        `${padded(at.getFullYear(), 4)}-${padded(at.getMonth() + 1, 2)}-${padded(at.getDate(), 2)}` +
-        `T${padded(at.getHours(), 2)}:${padded(at.getMinutes(), 2)}:${padded(at.getSeconds(), 2)}` +
-        `${sign}${padded(Math.floor(away / 60), 2)}:${padded(away % 60, 2)}`
-    );
-}
-
-function padded(value: number, places: number): string {
-    return value.toFixed(0).padStart(places, '0');
 }
 
 // Written out rather than composed with `URLSearchParams`, which is a browser API and therefore one this package
@@ -559,6 +552,7 @@ export function parseCalendarEvent(value: unknown): CalendarEvent | null {
     const isAllDay = record['isAllDay'];
     const reminders = record['reminders'];
     const remindsAt = record['remindsAt'];
+    const notes = record['notes'] ?? null;
     const origin = record['origin'];
     const sourceMessage = record['sourceMessage'] ?? null;
     const recordedAt = record['recordedAt'];
@@ -580,6 +574,10 @@ export function parseCalendarEvent(value: unknown): CalendarEvent | null {
         return null;
     }
 
+    if (notes !== null && (typeof notes !== 'string' || notes.length > longestCalendarNotes)) {
+        return null;
+    }
+
     // An announcement the contract says cannot exist — more than an event may carry, a lead further ahead than one may
     // state, or the same lead twice — is a body this client refuses rather than a set it draws: the panel enforces the
     // same three rules before it writes, so an answer breaking them describes an event nothing here could have made.
@@ -587,7 +585,20 @@ export function parseCalendarEvent(value: unknown): CalendarEvent | null {
         return null;
     }
 
-    return { id, title, start, end, isAllDay, reminders, remindsAt, origin, sourceMessage, recordedAt, amendedAt };
+    return {
+        id,
+        title,
+        start,
+        end,
+        isAllDay,
+        reminders,
+        notes,
+        remindsAt,
+        origin,
+        sourceMessage,
+        recordedAt,
+        amendedAt,
+    };
 }
 
 /** Whether the value is one of the two origins this surface publishes. */

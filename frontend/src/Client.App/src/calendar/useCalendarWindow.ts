@@ -120,10 +120,17 @@ export function useCalendarWindow(
         void read();
     }, [read]);
 
+    // A span not answered yet keeps drawing what the last one held on the calendar for the same person, so moving
+    // between views or weeks does not empty the grid for the moment the read takes and fill it again: each view draws
+    // only the events falling on its own days, and the answer replaces the set as soon as it arrives. The proposals are
+    // not held over, because they are listed under the new span's heading whatever their day and can be accepted there.
     const standing =
         held.from === from && held.until === until && held.session === session
             ? held
-            : nothingRead(from, until, session);
+            : {
+                  ...nothingRead(from, until, session),
+                  events: held.session === session ? held.events.filter((event) => event.origin === 'Asserted') : [],
+              };
 
     return {
         events: standing.events.filter((event) => event.origin === 'Asserted'),

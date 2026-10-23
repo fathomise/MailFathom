@@ -25,6 +25,7 @@ internal static class CalendarEventMapping
             Id = calendarEvent.Id.Value,
             UserId = owner.Value,
             Title = calendarEvent.Title.Value,
+            Notes = calendarEvent.Notes?.Value,
             StartsAt = calendarEvent.Start,
             EndsAt = calendarEvent.End,
             IsAllDay = calendarEvent.IsAllDay,
@@ -61,6 +62,7 @@ internal static class CalendarEventMapping
         CalendarEvent.Create(
             CalendarEventId.Create(stored.Id),
             CalendarEventTitle.Create(stored.Title),
+            stored.Notes is null ? null : CalendarEventNotes.Create(stored.Notes),
             stored.StartsAt,
             stored.EndsAt,
             stored.IsAllDay,

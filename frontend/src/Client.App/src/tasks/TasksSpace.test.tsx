@@ -382,6 +382,7 @@ describe('TasksSpace', () => {
             end: null,
             isAllDay: true,
             reminders: [],
+            notes: null,
             sourceMessage: null,
         });
     });
@@ -478,6 +479,7 @@ describe('TasksSpace', () => {
             end: '2026-09-21T09:45:00.000Z',
             isAllDay: false,
             reminders: [],
+            notes: null,
             sourceMessage: null,
         });
     });

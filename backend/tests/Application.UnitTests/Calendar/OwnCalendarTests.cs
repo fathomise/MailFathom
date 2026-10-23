@@ -143,6 +143,7 @@ public sealed class OwnCalendarTests
         // Act
         var written = await this.SignedIn().CreateAsync(
             "Standup",
+            notes: null,
             Monday,
             Monday.AddMinutes(30),
             isAllDay: false,
@@ -168,6 +169,7 @@ public sealed class OwnCalendarTests
         // Act
         var written = await this.SignedIn().CreateAsync(
             "Kick-off",
+            notes: null,
             Monday,
             end: null,
             isAllDay: false,
@@ -189,6 +191,7 @@ public sealed class OwnCalendarTests
         // Act
         var written = await this.SignedIn().CreateAsync(
             title,
+            notes: null,
             Monday,
             end: null,
             isAllDay: false,
@@ -208,6 +211,7 @@ public sealed class OwnCalendarTests
         // Act
         var written = await this.SignedIn().CreateAsync(
             "Review",
+            notes: null,
             Monday,
             Monday,
             isAllDay: false,
@@ -227,6 +231,7 @@ public sealed class OwnCalendarTests
         var held = CalendarEvent.Create(
             CalendarEventId.Create(new Guid("7c6d5e4f-3a2b-4c1d-9e8f-7a6b5c4d3e2f")),
             CalendarEventTitle.Create("Review"),
+            notes: null,
             Monday,
             Monday.AddHours(1),
             isAllDay: false,
@@ -244,6 +249,7 @@ public sealed class OwnCalendarTests
         var written = await this.SignedIn().AmendAsync(
             held.Id,
             "Review, moved",
+            notes: null,
             Monday.AddHours(3),
             end: null,
             isAllDay: false,
@@ -274,6 +280,7 @@ public sealed class OwnCalendarTests
         var written = await this.SignedIn().AmendAsync(
             theirs.Id,
             "mine now",
+            notes: null,
             Monday,
             end: null,
             isAllDay: false,
@@ -297,6 +304,7 @@ public sealed class OwnCalendarTests
         var written = await this.SignedIn().AmendAsync(
             held.Id,
             "  ",
+            notes: null,
             Monday,
             end: null,
             isAllDay: false,
@@ -414,6 +422,7 @@ public sealed class OwnCalendarTests
         await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(
             () => calendar.CreateAsync(
                 "Standup",
+                notes: null,
                 Monday,
                 end: null,
                 isAllDay: false,
@@ -429,6 +438,7 @@ public sealed class OwnCalendarTests
         // Act
         var written = await this.SignedIn().CreateAsync(
             "Standup",
+            notes: null,
             Monday,
             end: null,
             isAllDay: false,
@@ -452,6 +462,7 @@ public sealed class OwnCalendarTests
         // Act
         var written = await this.SignedIn().CreateAsync(
             "Anna's birthday",
+            notes: null,
             theDay,
             end: null,
             isAllDay: true,
@@ -476,6 +487,7 @@ public sealed class OwnCalendarTests
         // Act
         var written = await this.SignedIn().CreateAsync(
             "Standup",
+            notes: null,
             Monday,
             end: null,
             isAllDay: false,
@@ -494,6 +506,7 @@ public sealed class OwnCalendarTests
         // Act
         var written = await this.SignedIn().CreateAsync(
             "Standup",
+            notes: null,
             Monday,
             end: null,
             isAllDay: false,
@@ -511,6 +524,7 @@ public sealed class OwnCalendarTests
         // Act
         var written = await this.SignedIn().CreateAsync(
             "Standup",
+            notes: null,
             Monday,
             end: null,
             isAllDay: false,
@@ -530,6 +544,7 @@ public sealed class OwnCalendarTests
         var held = CalendarEvent.Create(
             CalendarEventId.Create(new Guid("8d7e6f5a-4b3c-4d2e-9f1a-0b9c8d7e6f5a")),
             CalendarEventTitle.Create("Review"),
+            notes: null,
             Monday,
             end: null,
             isAllDay: false,
@@ -546,6 +561,7 @@ public sealed class OwnCalendarTests
         var written = await this.SignedIn().AmendAsync(
             held.Id,
             "Review",
+            notes: null,
             Monday,
             end: null,
             isAllDay: false,
@@ -554,6 +570,125 @@ public sealed class OwnCalendarTests
 
         // Assert
         Assert.Empty(written.Event!.Reminders);
+    }
+
+    [Fact]
+    public async Task CreateAsync_AnEventStatedWithNotes_KeepsThemTrimmedAndAsWritten()
+    {
+        // Act
+        var written = await this.SignedIn().CreateAsync(
+            "Standup",
+            "  Agenda:\n- budget\n",
+            Monday,
+            end: null,
+            isAllDay: false,
+            reminders: [],
+            sourceMessage: null,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("Agenda:\n- budget", written.Event!.Notes?.Value);
+    }
+
+    /// <summary>A person who cleared the field wrote no notes, which is an event holding none rather than a refusal.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" \n\t ")]
+    public async Task CreateAsync_NotesThatSayNothing_WritesAnEventWithNone(string? notes)
+    {
+        // Act
+        var written = await this.SignedIn().CreateAsync(
+            "Standup",
+            notes,
+            Monday,
+            end: null,
+            isAllDay: false,
+            reminders: [],
+            sourceMessage: null,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(CalendarEventWriteOutcome.Written, written.Outcome);
+        Assert.Null(written.Event!.Notes);
+    }
+
+    [Theory]
+    [InlineData("Lunch‮with Anna")]
+    [InlineData("Lunch\u0000with Anna")]
+    public async Task CreateAsync_NotesThatAreNotUsable_AreRefusedWithNothingWritten(string notes)
+    {
+        // Act
+        var written = await this.SignedIn().CreateAsync(
+            "Standup",
+            notes,
+            Monday,
+            end: null,
+            isAllDay: false,
+            reminders: [],
+            sourceMessage: null,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(CalendarEventWriteOutcome.NotesRefused, written.Outcome);
+        Assert.Null(written.Event);
+    }
+
+    [Fact]
+    public async Task CreateAsync_NotesLongerThanAnEventHolds_AreRefused()
+    {
+        // Act
+        var written = await this.SignedIn().CreateAsync(
+            "Standup",
+            new string('a', CalendarEventNotes.MaximumLength + 1),
+            Monday,
+            end: null,
+            isAllDay: false,
+            reminders: [],
+            sourceMessage: null,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(CalendarEventWriteOutcome.NotesRefused, written.Outcome);
+    }
+
+    /// <summary>An amendment states the whole record, so stating no notes clears the ones the event held.</summary>
+    [Theory]
+    [InlineData("Bring the slides", "Bring the slides")]
+    [InlineData(null, null)]
+    [InlineData("  ", null)]
+    public async Task AmendAsync_TheNotesTheEventIsToStandWith_ReplaceTheOnesHeld(string? stated, string? expected)
+    {
+        // Arrange
+        var held = CalendarEvent.Create(
+            CalendarEventId.Create(new Guid("9e8f7a6b-5c4d-4e3f-8a2b-1c0d9e8f7a6b")),
+            CalendarEventTitle.Create("Review"),
+            CalendarEventNotes.Create("Agenda"),
+            Monday,
+            end: null,
+            isAllDay: false,
+            reminders: [],
+            CalendarEventOrigin.Asserted,
+            sourceMessage: null,
+            importedUid: null,
+            Now,
+            Now);
+
+        this.store.Hold(Person, held);
+
+        // Act
+        var written = await this.SignedIn().AmendAsync(
+            held.Id,
+            "Review",
+            stated,
+            Monday,
+            end: null,
+            isAllDay: false,
+            reminders: [],
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(expected, written.Event!.Notes?.Value);
     }
 
     private static CalendarEvent EventAt(DateTimeOffset start, string title) =>
@@ -566,6 +701,7 @@ public sealed class OwnCalendarTests
         CalendarEvent.Create(
             CalendarEventId.Create(Guid.CreateVersion7(start)),
             CalendarEventTitle.Create(title),
+            notes: null,
             start,
             end: null,
             isAllDay: false,

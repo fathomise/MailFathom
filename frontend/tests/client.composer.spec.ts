@@ -270,16 +270,18 @@ test('keeps a draft with its file when the composer is left, lists it in Drafts,
     ]);
 });
 
-// What the stylesheet's own focus ring would have drawn is an outline on the focused element; a field drawn without one
-// has to be lit by the row around it instead. Asked as an expression rather than as a closure, for the reason
+// What a focused field draws is read off the field and the row around it — an outline, a shadow, or an edge taking the
+// accent — and compared with what the same two drew a keypress earlier, so the check holds whichever of those the
+// composer marks focus with rather than naming one. Asked as expressions rather than as closures, for the reason
 // `client.layout.spec.ts` gives: this suite is compiled without a DOM declaration on purpose.
-const focusIsDrawn = `(() => {
-    const drawn = (element) => {
+const drawing = `((field) => [field, field.parentElement]
+    .map((element) => {
         const style = getComputedStyle(element);
-        return style.outlineStyle !== 'none' || style.boxShadow !== 'none';
-    };
-    return drawn(document.activeElement) || drawn(document.activeElement.parentElement);
-})()`;
+        return [style.outlineStyle, style.outlineColor, style.boxShadow, style.borderBottomColor, style.borderLeftColor].join(' ');
+    })
+    .join(' / '))`;
+const drawingOfTheFocused = `(() => { window.fieldReached = document.activeElement; return ${drawing}(document.activeElement); })()`;
+const drawingOfTheFieldLeft = `${drawing}(window.fieldReached)`;
 
 test('draws a visible focus on every field of the composer reached by the keyboard', async ({ page, deployment }) => {
     await openMailWriting(page, deployment);
@@ -299,7 +301,12 @@ test('draws a visible focus on every field of the composer reached by the keyboa
         await page.keyboard.press('Tab');
         await expect(field).toBeFocused();
 
-        expect(await page.evaluate<boolean>(focusIsDrawn)).toBe(true);
+        const focused = await page.evaluate<string>(drawingOfTheFocused);
+
+        await page.keyboard.press('Shift+Tab');
+        await expect(field).not.toBeFocused();
+
+        expect(focused).not.toBe(await page.evaluate<string>(drawingOfTheFieldLeft));
     }
 });
 

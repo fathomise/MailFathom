@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import type { AnswerBlock, EventProposal as ProposedEvent } from '@mailfathom/client-backend';
-import { wordInstant, wordInstantRange } from '../../localization/instants';
+import { wordInstant, wordInstantRange, wordLasting } from '../../localization/instants';
 import type { Locale } from '../../localization/locale';
 import { useLocalization } from '../../localization/useLocalization';
 import { useReadingZone } from '../../localization/useReadingZone';
@@ -18,21 +18,21 @@ import { citedThread, useProposalAnswering } from '../proposalAnswering';
 
 const minutesInADay = 24 * 60;
 
-/** How long the event would last, worded by `Intl`, and nothing where the proposal states no end. */
+/** How long the event would last, and nothing where the proposal states no end. */
 function wordDuration(event: ProposedEvent, locale: Locale): string | null {
     if (event.end === null) {
         return null;
     }
 
     const minutes = Math.round((Date.parse(event.end) - Date.parse(event.start)) / 60_000);
-    const unit = (name: 'day' | 'hour' | 'minute', amount: number): string =>
-        new Intl.NumberFormat(locale, { style: 'unit', unit: name, unitDisplay: 'long' }).format(amount);
 
-    if (event.isAllDay) {
-        return unit('day', Math.max(1, Math.round(minutes / minutesInADay)));
-    }
-
-    return minutes % 60 === 0 ? unit('hour', minutes / 60) : unit('minute', minutes);
+    return wordLasting(
+        event.isAllDay
+            ? { unit: 'day', count: Math.max(1, Math.round(minutes / minutesInADay)) }
+            : { unit: 'minute', count: minutes },
+        locale,
+        'long',
+    );
 }
 
 export function EventProposal({ block }: { readonly block: AnswerBlock }) {

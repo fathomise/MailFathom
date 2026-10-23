@@ -214,7 +214,7 @@ export function WrittenMessage({
             ) : null}
 
             {address === null ? null : (
-                <div className="flex shrink-0 flex-wrap items-center gap-2.5 border-b border-line-soft px-3.75 py-2.25 focus-within:border-accent focus-within:ring-3 focus-within:ring-accent-soft focus-within:ring-inset">
+                <div className="flex shrink-0 flex-wrap items-center gap-2.5 border-b border-line-soft px-3.75 py-2.25 focus-within:border-b-accent">
                     <label htmlFor={addressId} className="w-14.5 shrink-0 text-sm text-muted workspace:w-22">
                         {translate('compose.linkAddress')}
                     </label>
@@ -281,7 +281,7 @@ export function WrittenMessage({
                 suppressContentEditableWarning
                 tabIndex={0}
                 // A low window lowers the floor so the foot carrying *Send* stays on the screen above a keyboard.
-                className="min-h-42.5 flex-1 overflow-auto px-4.25 py-4 text-lg text-text-soft focus-visible:-outline-offset-2 low:min-h-18"
+                className="min-h-42.5 flex-1 overflow-auto border-s-2 border-transparent px-4.25 py-4 text-lg text-text-soft outline-none focus-visible:border-accent low:min-h-18"
                 onInput={written}
                 onPaste={(event) => {
                     // What arrives from somewhere else arrives as text. A message carries the formatting its author

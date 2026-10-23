@@ -58,6 +58,7 @@ public sealed class CalendarEventMappingTests
 
         // Assert
         Assert.Null(row.EndsAt);
+        Assert.Null(row.Notes);
         Assert.Null(row.ImportedUid);
         Assert.Null(row.SourceStoredEmailId);
     }
@@ -100,6 +101,24 @@ public sealed class CalendarEventMappingTests
         Assert.Equal(held.SourceMessage, read.SourceMessage);
         Assert.Equal(held.RecordedAt, read.RecordedAt);
         Assert.Equal(held.AmendedAt, read.AmendedAt);
+    }
+
+    [Fact]
+    public void ToDomain_ARowCarryingNotes_ReadsThemBackAsWritten()
+    {
+        // Arrange
+        var held = EventOf(
+            end: null,
+            origin: CalendarEventOrigin.Asserted,
+            notes: CalendarEventNotes.Create("Agenda:\n- budget"));
+
+        // Act
+        var row = CalendarEventMapping.ToEntity(SyntheticUser.Deployment, held);
+        var read = CalendarEventMapping.ToDomain(row);
+
+        // Assert
+        Assert.Equal("Agenda:\n- budget", row.Notes);
+        Assert.Equal(held.Notes, read.Notes);
     }
 
     /// <summary>
@@ -193,10 +212,12 @@ public sealed class CalendarEventMappingTests
         StoredEmailId? sourceMessage = null,
         ImportedCalendarEventUid? importedUid = null,
         bool isAllDay = false,
-        IReadOnlyCollection<Reminder>? reminders = null) =>
+        IReadOnlyCollection<Reminder>? reminders = null,
+        CalendarEventNotes? notes = null) =>
         CalendarEvent.Create(
             CalendarEventId.Create(Guid.CreateVersion7()),
             CalendarEventTitle.Create("Design review"),
+            notes,
             Start,
             end,
             isAllDay,

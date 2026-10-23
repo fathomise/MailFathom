@@ -293,6 +293,16 @@ test.describe('driven by a finger', () => {
             await expect(drawer).toBeHidden();
             await expect(opener).toBeFocused();
 
+            // A press beside it puts it away as well: the backdrop is the drawer's own, so the press is delivered to the
+            // drawer at a point outside its box, which is the one place this suite reaches for a position.
+            await opener.click();
+            await expect(drawer.getByRole('tree', { name: 'Mailboxes and folders' })).toBeVisible();
+
+            const drawn = await drawer.boundingBox();
+
+            await drawer.click({ position: { x: (drawn?.width ?? 0) + 24, y: 24 }, force: true });
+            await expect(drawer).toBeHidden();
+
             await list.getByRole('option').first().click();
             await expect(page.getByRole('article', messageRegion)).toBeVisible();
 

@@ -120,7 +120,7 @@ export function SpaceNavigation({
                 the bell is the fourth place and the account has moved behind the fifth, which is what the design
                 draws and what leaves the bar five items wide however many spaces the session offers. */}
             {wide ? (
-                <div className="mt-auto flex flex-none flex-col items-center justify-center gap-2 pt-3">
+                <div className="mt-auto flex flex-none flex-col items-center justify-center gap-3.5 pt-3">
                     {refresh}
                     {notifications}
                     {account}

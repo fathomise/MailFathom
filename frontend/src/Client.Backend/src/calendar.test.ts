@@ -2,14 +2,13 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { longestReminderLead, mostRemindersOnOneRecord } from './reminders';
 import {
     acceptCalendarEvent,
     amendCalendarEvent,
     calendarEventRoute,
     deleteCalendarEvent,
-    describedAt,
     draftCalendarEvent,
     parseCalendarEvent,
     readCalendarEvent,
@@ -32,6 +31,7 @@ const asserted = {
     end: '2026-09-24T09:45:00+02:00',
     isAllDay: false,
     reminders: [15],
+    notes: 'Bring the signed copy.',
     remindsAt: ['2026-09-24T08:45:00+02:00'],
     origin: 'Asserted',
     sourceMessage: null,
@@ -81,6 +81,17 @@ describe('readCalendarWindow', () => {
             'https://mail.example.invalid/api/client/calendar' +
                 '?from=2026-09-21T00%3A00%3A00.000Z&until=2026-09-28T00%3A00%3A00.000Z&origin=Proposed&count=40',
         );
+    });
+
+    it('reads a window as large as the events it asked for, each carrying the longest notes', async () => {
+        const longest = { ...asserted, notes: 'ł'.repeat(4000) };
+        const full = JSON.stringify({ events: Array.from({ length: 1000 }, () => longest) }).replace(/ł/gu, '\\u0142');
+        const { transport, requests } = recording({ status: 200, body: full });
+
+        const answer = await readCalendarWindow(session, transport, { ...aWindow, count: 1000 });
+
+        expect(full.length).toBeLessThanOrEqual(requests[0]?.longestAnswer ?? 0);
+        expect(answer.outcome).toBe('read');
     });
 
     it('names no half where the caller asked for both', async () => {
@@ -178,6 +189,7 @@ describe('recordCalendarEvent', () => {
         end: null,
         isAllDay: false,
         reminders: [],
+        notes: null,
         sourceMessage: null,
     };
 
@@ -232,6 +244,7 @@ describe('amendCalendarEvent', () => {
             end: null,
             isAllDay: false,
             reminders: [15],
+            notes: 'Bring the signed copy.',
         });
 
         expect(requests[0]?.method).toBe('PUT');
@@ -242,6 +255,7 @@ describe('amendCalendarEvent', () => {
                 end: null,
                 isAllDay: false,
                 reminders: [15],
+                notes: 'Bring the signed copy.',
             }),
         );
     });
@@ -253,6 +267,7 @@ describe('amendCalendarEvent', () => {
             end: null,
             isAllDay: false,
             reminders: [],
+            notes: null,
         });
 
         expect(answer).toStrictEqual({ outcome: 'read', value: { outcome: 'NotFound', event: null } });
@@ -311,9 +326,9 @@ describe('readsCalendarDescriptions', () => {
 });
 
 describe('draftCalendarEvent', () => {
-    const described = { description: 'call with Anna on Friday at one', writtenAt: '2026-09-20T18:04:00+02:00' };
+    const described = { description: 'call with Anna on Friday at one' };
 
-    it('sends the sentence and the instant it was typed at in the body rather than in the address', async () => {
+    it('sends the sentence alone in the body, which is every member the route reads', async () => {
         const { transport, requests } = recording({
             status: 200,
             body: JSON.stringify({ drafted: true, title: 'Call with Anna', start: '2026-09-25T13:00:00+02:00' }),
@@ -385,35 +400,17 @@ describe('draftCalendarEvent', () => {
     });
 });
 
-// The zone is pinned through Vitest rather than by assigning `process.env` directly, because this package declares no
-// ambient Node types at all — `tsconfig.json` sets `types` to nothing, which is what keeps a browser or a runtime
-// global out of the wire. `vi.stubEnv` writes the same variable, which the runtime re-reads, and `unstubAllEnvs` puts
-// the machine's own zone back so a later file is not run in somebody else's.
-describe('describedAt', () => {
-    afterEach(() => {
-        vi.unstubAllEnvs();
-    });
-
-    it('writes the wall clock and the offset of the zone the runtime reports', () => {
-        vi.stubEnv('TZ', 'Europe/Warsaw');
-
-        expect(describedAt(new Date('2026-09-20T16:04:09Z'))).toBe('2026-09-20T18:04:09+02:00');
-    });
-
-    it('writes a zone behind Greenwich with its own sign', () => {
-        vi.stubEnv('TZ', 'America/New_York');
-
-        expect(describedAt(new Date('2026-09-20T16:04:09Z'))).toBe('2026-09-20T12:04:09-04:00');
-    });
-
-    it('writes an offset that is not a whole number of hours', () => {
-        vi.stubEnv('TZ', 'Asia/Kolkata');
-
-        expect(describedAt(new Date('2026-09-20T16:04:09Z'))).toBe('2026-09-20T21:34:09+05:30');
-    });
-});
-
 describe('parseCalendarEvent', () => {
+    it('reads what somebody wrote about the event, and nothing where nobody wrote anything', () => {
+        expect(parseCalendarEvent(asserted)?.notes).toBe('Bring the signed copy.');
+        expect(parseCalendarEvent({ ...asserted, notes: null })?.notes).toBeNull();
+    });
+
+    it('refuses notes that are not text, or longer than the deployment keeps', () => {
+        expect(parseCalendarEvent({ ...asserted, notes: 42 })).toBeNull();
+        expect(parseCalendarEvent({ ...asserted, notes: 'a'.repeat(4001) })).toBeNull();
+    });
+
     it('reads an event that names the message it came out of', () => {
         expect(parseCalendarEvent(proposed)?.sourceMessage).toBe(proposed.sourceMessage);
     });

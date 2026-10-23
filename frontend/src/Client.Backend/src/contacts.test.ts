@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+    amendContact,
     eraseContact,
     promoteContact,
     readCollectedContacts,
@@ -202,6 +203,37 @@ describe('readContact', () => {
         const result = await readContact(session, answering({ status: 404, body: '' }), 'gone');
 
         expect(result).toEqual({ outcome: 'failed', failure: { reason: 'missing', status: 404 } });
+    });
+});
+
+describe('amendContact', () => {
+    it('states the whole record at the one contact it amends', async () => {
+        const { transport, requests } = recording({
+            status: 200,
+            body: JSON.stringify({ outcome: 'Written', contact: asserted, addressHolder: null }),
+        });
+
+        await amendContact(session, transport, 'a/b', record);
+
+        expect(requests[0]).toEqual({
+            method: 'PUT',
+            path: 'https://mail.example.invalid/api/client/contacts/a%2Fb',
+            headers: {
+                Accept: 'application/json',
+                Authorization: 'Basic dGVzdA==',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(record),
+            longestAnswer: 32768,
+        });
+    });
+
+    it('reads an address another contact holds as the outcome the book answered', async () => {
+        const body = JSON.stringify({ outcome: 'AddressHeldByAnotherContact', contact: null, addressHolder: 'x' });
+
+        const result = await amendContact(session, answering({ status: 200, body }), 'a', record);
+
+        expect(result.outcome === 'read' && result.value.outcome).toBe('AddressHeldByAnotherContact');
     });
 });
 

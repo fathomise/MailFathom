@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { afterEach, describe, expect, it } from 'vitest';
-import { wordCalendarDay, wordDueDay, wordInstant, wordInstantRange, wordRecentInstant } from './instants';
+import { wordCalendarDay, wordDueDay, wordInstant, wordInstantRange, wordLasting, wordRecentInstant } from './instants';
 
 // The zone is pinned rather than compared against a formatter built the same way, which is the whole point of this
 // file: an assertion written as `expect(shown).toBe(new Intl.DateTimeFormat(locale, options).format(at))` passes for a
@@ -267,5 +267,16 @@ describe('wordDueDay', () => {
 
     it('shows a day it cannot read as the value it was given rather than as an invalid date', () => {
         expect(wordDueDay('sometime in August', 'en', readingAt, 'Europe/Warsaw')).toBe('sometime in August');
+    });
+});
+
+describe('wordLasting', () => {
+    it('words whole hours as hours and anything else as minutes', () => {
+        expect(wordLasting({ unit: 'minute', count: 120 }, 'en', 'long')).toBe('2 hours');
+        expect(wordLasting({ unit: 'minute', count: 45 }, 'en', 'short')).toBe('45 min');
+    });
+
+    it('words days in the reader’s own language', () => {
+        expect(wordLasting({ unit: 'day', count: 3 }, 'pl', 'long')).toBe('3 dni');
     });
 });

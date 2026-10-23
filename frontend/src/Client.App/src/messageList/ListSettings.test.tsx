@@ -91,6 +91,25 @@ describe('ListSettings', () => {
         }
     });
 
+    // jsdom answers no media query, so these tests stand at the narrow composition, where the band covers the list.
+    it('puts the band away on a press anywhere else while it stands over the list', () => {
+        renderSettings();
+        openFilters();
+
+        fireEvent.pointerDown(document.body);
+
+        expect(screen.getByRole('button', { name: /Filters/u, expanded: false })).toBeTruthy();
+    });
+
+    it('keeps the band open for a press inside it', () => {
+        renderSettings();
+        openFilters();
+
+        fireEvent.pointerDown(screen.getByRole('switch', { name: 'Show a reading on each row' }));
+
+        expect(screen.getByRole('button', { name: /Filters/u, expanded: true })).toBeTruthy();
+    });
+
     it('offers turning the readings off for this view, drawn as on where they are shown', () => {
         renderSettings();
         openFilters();

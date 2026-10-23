@@ -166,6 +166,7 @@ internal sealed class CalendarEventStore(MailFathomDbContext context) : ICalenda
         }
 
         held.Title = calendarEvent.Title.Value;
+        held.Notes = calendarEvent.Notes?.Value;
         held.StartsAt = calendarEvent.Start;
         held.EndsAt = calendarEvent.End;
         held.IsAllDay = calendarEvent.IsAllDay;

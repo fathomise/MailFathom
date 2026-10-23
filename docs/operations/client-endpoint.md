@@ -3378,6 +3378,7 @@ GET /api/client/calendar?from=2026-09-21T00:00:00Z&until=2026-09-28T00:00:00Z&or
     {
       "id": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90",
       "title": "Kick-off",
+      "notes": "Agenda: scope, owners, first milestone.",
       "start": "2026-09-21T09:00:00+00:00",
       "end": "2026-09-21T10:00:00+00:00",
       "isAllDay": false,
@@ -3414,9 +3415,9 @@ else's days cannot be composed, and an event another person holds answers `404` 
 all-zero identifier no event carries answers `404` too.
 
 **A write states the whole record rather than the difference from the one held.** Creating an event names its title,
-its start, an optional end, whether it is stated as a day, what is to announce it, and optionally the message it was
-created from; amending one names the title, the start, the end, the day statement, and the reminders it is to stand
-with, and changes neither the identity, the origin, nor the message it cites. What a person
+its notes, its start, an optional end, whether it is stated as a day, what is to announce it, and optionally the
+message it was created from; amending one names the title, the notes, the start, the end, the day statement, and the
+reminders it is to stand with, and changes neither the identity, the origin, nor the message it cites. What a person
 types into their own client is on the calendar rather than offered to it, so a created event is always `Asserted` —
 nothing here produces a proposal.
 
@@ -3442,6 +3443,13 @@ character that renders as nothing is refused with `400` stating that rule, and t
 problem document is the one part of an answer a proxy log, a trace, and a client's captured error all keep, and a
 title says who somebody is meeting. An end that is not after its start is refused the same way, when the event is
 created and again whenever it is amended.
+
+**`notes` is what the event is about**, in the words of whoever wrote it down: an agenda, a dial-in, a reason. It keeps
+the line breaks and tabs it was written with, is trimmed of surrounding whitespace, and a `null`, an absent, or a blank
+value is an event with no notes — so an amendment stating none clears them. Notes longer than 4000 characters, or
+carrying any other character that renders as nothing, are refused with `400` naming that rule, and like a title they
+are never echoed. Because notes are the longest thing an event carries, a write body may be up to 32 KiB, and a larger
+one is refused before it is read.
 
 **The two reads are `mailfathom.calendar.read` and the four writes are `mailfathom.calendar.write`**, on the reading
 [the task routes](#the-task-routes) above are split by. An event is this deployment's own record of when one person is
