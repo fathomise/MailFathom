@@ -3056,9 +3056,11 @@ is settled and an issue for the work that is not.
   Check out the branch that carries the change and rerun; the scripts never
   change branches themselves.
 - `HEAD does not contain the current origin/main` means `main` moved after the
-  branch was cut. Both gates refuse it. Rebase onto the fetched base, resolve any
-  conflicts, and rerun; earlier passing results describe a base that no longer
-  exists.
+  branch was cut. Both gates refuse it and list the commits that arrived. Read
+  them: rebase onto the fetched base when one of them conflicts with or relates
+  to the change, resolve any conflicts, and rerun; otherwise rerun with
+  `VERIFY_IGNORE_BASE_DRIFT=1`, which reports the same drift and verifies the
+  branch on its own merge base.
 - `cannot fetch origin main`, from either gate, means the remote is unreachable
   or the credentials failed. Restore access and rerun. Do not work around it by
   verifying against the local remote-tracking ref.
