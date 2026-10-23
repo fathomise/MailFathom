@@ -440,6 +440,59 @@ MailFathomDesign.data.draftRewrites = {
   },
 };
 
+// The composer takes the same rewrite: these are the sentences of the drafts that land there - the writing
+// assistant's own (`composeDrafts`) and the draft Discover opens in it.
+Object.assign(MailFathomDesign.data.draftRewrites, {
+  "thank you for the addendum.": {
+    shorter: "thanks for the addendum.",
+    formal: "thank you for sending the addendum.",
+    softer: "thank you for the addendum, and for turning it round so quickly.",
+    firmer: "we have reviewed the addendum.",
+  },
+  "At the same time we ask for an upper cap on CPI indexation of 5% per year.": {
+    shorter: "We also ask for a 5% annual cap on CPI indexation.",
+    formal: "At the same time, we request an upper limit of 5% per year on CPI indexation.",
+    softer: "At the same time, we would be grateful if CPI indexation could be capped at 5% per year.",
+    firmer: "At the same time, CPI indexation must be capped at 5% per year.",
+  },
+  "At the 4.1% forecast this gives both sides a predictable cost through 2027.": {
+    shorter: "That keeps the cost predictable through 2027.",
+    formal: "Based on the 4.1% forecast, this ensures a predictable cost for both parties through 2027.",
+    softer: "At the 4.1% forecast, we think this keeps the cost predictable for both of us through 2027.",
+    firmer: "At the 4.1% forecast this is the only way the cost stays predictable through 2027.",
+  },
+  "we accept the 2 h SLA.": {
+    shorter: "the 2 h SLA is fine.",
+    formal: "we accept the 2-hour service level.",
+    softer: "we are happy with the 2 h SLA.",
+    firmer: "we accept the 2 h SLA as it stands.",
+  },
+  "We ask for a 5% annual cap on CPI indexation - then we can close the decision by 28.08.": {
+    shorter: "With a 5% CPI cap we can decide by 28.08.",
+    formal: "We request a 5% annual cap on CPI indexation, which would allow us to conclude the decision by 28.08.",
+    softer: "If CPI indexation could be capped at 5% a year, we would be glad to close the decision by 28.08.",
+    firmer: "We need a 5% annual cap on CPI indexation before we close the decision by 28.08.",
+  },
+  "Thank you for the proposal.": {
+    shorter: "Thanks for the proposal.",
+    formal: "Thank you for your proposal.",
+    softer: "Thank you for the proposal - we appreciate the work that went into it.",
+    firmer: "We have reviewed the proposal.",
+  },
+  "We can accept the 2-hour response time, but not indexation without a cap.": {
+    shorter: "The 2-hour response time works; uncapped indexation does not.",
+    formal: "We are able to accept the 2-hour response time, but not indexation without an upper limit.",
+    softer: "The 2-hour response time works well for us, though we would find indexation without a cap hard to accept.",
+    firmer: "We accept the 2-hour response time. We do not accept indexation without a cap.",
+  },
+  "We propose CPI indexation capped at 5% a year, and would like to settle it before 28 August.": {
+    shorter: "We propose a 5% CPI cap, settled before 28 August.",
+    formal: "We propose CPI indexation capped at 5% per year, and would like to reach agreement before 28 August.",
+    softer: "Could we agree on CPI indexation capped at 5% a year, ideally before 28 August?",
+    firmer: "CPI indexation is to be capped at 5% a year, and this has to be settled before 28 August.",
+  },
+});
+
 // The presets a draft selection offers, and the words in a typed instruction that pick one of them.
 MailFathomDesign.data.rewritePresets = [
   { key: "shorter", label: "Shorter", icon: "short_text", words: /short|brief|concise|cut|trim/i },

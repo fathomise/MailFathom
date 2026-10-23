@@ -1168,6 +1168,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     cancelLongPress = () => { if (this.lpTimer) { clearTimeout(this.lpTimer); this.lpTimer = null; } };
 
     bodyRef = React.createRef();
+    composeFootRef = React.createRef();
     userMenuRef = React.createRef();
     evTitleRef = React.createRef();
     evPromptRef = React.createRef();
@@ -1884,14 +1885,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     /* The bar a selection opens. It stands over the passage on a fine pointer and docks above the field on touch,
        where the system's own selection menu already sits over the passage. */
     selBarView = (st, touch, convMsgs) => {
-      const bar = st.screen === "agent" ? st.selBar : null;
+      const sb = st.selBar;
+      const bar = sb && (sb.kind === "compose" ? st.compose && !st.composeMin : st.screen === "agent") ? sb : null;
       this._passageDocked = touch;
       if (!bar || !bar.rect) return { passageBarShown: false };
-      const isDraft = bar.kind === "draft";
-      const parts = isDraft ? bar.key.split("#") : [];
-      const msg = isDraft ? convMsgs[+parts[1]] : null;
+      /* The composer's selection is a draft too, rewritten in the editor rather than in a block. */
+      const inCompose = bar.kind === "compose";
+      const isDraft = bar.kind === "draft" || inCompose;
+      const parts = bar.kind === "draft" ? bar.key.split("#") : [];
+      const msg = bar.kind === "draft" ? convMsgs[+parts[1]] : null;
       const blk = msg && (msg.blocks || [])[+parts[2]];
-      if (isDraft && !blk) return { passageBarShown: false };
+      if (bar.kind === "draft" && !blk) return { passageBarShown: false };
       const r = bar.rect, W = isDraft ? 440 : 400;
       const above = r.top > 300;
       const pos = touch
@@ -1902,12 +1906,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const icon = (n) => "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--muted)";
       const act = (label, ic, run, aria) => ({ label, icon: ic, run, key: keyer(run), aria: aria || label, style: chip, iconStyle: icon() });
       const ans = bar.answer || null;
-      const ask = () => this.rewriteAsk(blk);
+      const ask = () => (inCompose ? this.rewriteComposeAsk() : this.rewriteAsk(blk));
       return {
         passageBarShown: true,
         passageBarIsDraft: isDraft,
         passageBarIsText: !isDraft,
-        passageBarAria: isDraft ? "Rewrite the selected part of the draft" : "Do something with the selected passage",
+        passageBarAria: inCompose ? "Rewrite the selected part of the message" : isDraft ? "Rewrite the selected part of the draft" : "Do something with the selected passage",
         passageBarTitle: isDraft ? "Rewrite this part" : "Selected from " + bar.from,
         passageBarIcon: isDraft ? "edit_note" : "format_quote",
         passageBarQuote: "“" + (bar.text || "") + "”",
@@ -1915,7 +1919,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         passageBarKeep: (e) => { if (e.target.tagName !== "INPUT") e.preventDefault(); },
         passageBarKey: (e) => { if (e.key === "Escape") this.closeSelBar(); },
         passageCloseBar: this.closeSelBar,
-        passagePresets: isDraft ? REWRITE_PRESETS.map(pr => act(pr.label, pr.icon, () => this.rewriteSel(blk, pr.key, pr.label), "Rewrite the selection: " + pr.label.toLowerCase())) : [],
+        passagePresets: isDraft ? REWRITE_PRESETS.map(pr => act(pr.label, pr.icon, () => (inCompose ? this.rewriteCompose(pr.key, pr.label) : this.rewriteSel(blk, pr.key, pr.label)), "Rewrite the selection: " + pr.label.toLowerCase())) : [],
+        /* The composer has no conversation to quote a passage into, so it offers the rewrite alone. */
+        passageQuoteShown: !inCompose,
         passageAskValue: st.selAsk || "",
         passageOnAsk: (e) => this.setState({ selAsk: e.target.value }),
         passageAskKey: (e) => { if (e.key === "Enter") ask(); if (e.key === "Escape") this.closeSelBar(); },
@@ -2401,10 +2407,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     onSelPointer = (e) => {
       if (e.pointerType !== "mouse") return;
       this._mouseHeld = e.type === "pointerdown";
-      if (!this._mouseHeld && this.state.screen === "agent") this.onAgentSelect(null, true);
+      if (!this._mouseHeld && (this.state.screen === "agent" || this.state.compose)) this.onAgentSelect(null, true);
     };
     onSelChange = () => {
-      if (this._mouseHeld || this.state.screen !== "agent") return;
+      if (this._mouseHeld || (this.state.screen !== "agent" && !this.state.compose)) return;
       this.onAgentSelect(null, true, 350);
     };
 
@@ -2415,6 +2421,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const text = sel && !sel.isCollapsed ? sel.toString().replace(/\s+/g, " ").trim() : "";
         const cur = this.state.selBar;
         if (!text) { if (!openOnly && cur && !cur.answer) this.setState({ selBar: null }); return; }
+        if (this.composeSelect(sel, text, cur, openOnly)) return;
         const scopeOf = (n) => { const el = n && (n.nodeType === 1 ? n : n.parentElement); return el && el.closest ? el.closest("[data-sel]") : null; };
         const a = scopeOf(sel.anchorNode), f = scopeOf(sel.focusNode);
         if (!a || !f || !a.getAttribute("data-sel") || !f.getAttribute("data-sel")) return;
@@ -2514,6 +2521,142 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const next = order[(order.indexOf(ch.variant) + 1) % order.length];
       const p0 = ch.pieces[0], pl = ch.pieces[ch.pieces.length - 1];
       this.setState({ selBar: { kind: "draft", key, from: { pi: p0.pi, at: p0.s }, to: { pi: pl.pi, at: pl.e } } }, () => this.rewriteSel(b, next, ch.label.replace(/ · another version$/, "") + " · another version"));
+    };
+
+    /* The composer takes the same rewrite as the Agent's draft. Its body is the reader's own editor, so a paragraph
+       is any block in it that holds no other block, and offsets are counted inside each one. */
+    composeParas = () => {
+      const el = this.bodyRef.current;
+      if (!el) return [];
+      const leaves = Array.from(el.querySelectorAll("p, div, li, blockquote")).filter(n => !n.querySelector("p, div, li, blockquote"));
+      return leaves.length ? leaves : [el];
+    };
+
+    composeSelect = (sel, text, cur, openOnly) => {
+      const el = this.bodyRef.current;
+      if (!el || !el.contains(sel.anchorNode) || !el.contains(sel.focusNode)) return false;
+      if (this.state.cChange) return true;
+      const range = sel.getRangeAt(0);
+      const paras = this.composeParas();
+      const at = (node, off) => {
+        const pi = paras.findIndex(n => n === node || n.contains(node));
+        if (pi < 0) return null;
+        const r = document.createRange(); r.setStart(paras[pi], 0); r.setEnd(node, off);
+        return { pi, at: r.toString().length };
+      };
+      const from = at(range.startContainer, range.startOffset), to = at(range.endContainer, range.endOffset);
+      if (!from || !to) return true;
+      const short = text.length > 140 ? text.slice(0, 137) + "…" : text;
+      if (openOnly && cur && cur.kind === "compose" && cur.text === short) return true;
+      const rr = range.getBoundingClientRect(), root = this.rootRef.current.getBoundingClientRect();
+      const rect = { top: rr.top - root.top, bottom: rr.bottom - root.top, left: rr.left - root.left, width: root.width, height: root.height, inputTop: root.height - 90 };
+      /* Docked under touch, the bar sits on the composer's foot, across the composer's own width. */
+      const foot = this.composeFootRef.current;
+      if (foot) { const b = foot.getBoundingClientRect(); rect.inputTop = b.top - root.top; rect.inputLeft = b.left - root.left; rect.inputWidth = b.width; }
+      this.setState({ selBar: { kind: "compose", text: short, rect, from, to }, selAsk: "" });
+      return true;
+    };
+
+    /* The character range [s, e) of a paragraph as a DOM range, across whatever formatting it holds. */
+    paraRange = (para, s, e) => {
+      const r = document.createRange();
+      const walk = document.createTreeWalker(para, NodeFilter.SHOW_TEXT);
+      let n, pos = 0, started = false;
+      while ((n = walk.nextNode())) {
+        const len = n.nodeValue.length;
+        if (!started && s <= pos + len) { r.setStart(n, s - pos); started = true; }
+        if (started && e <= pos + len) { r.setEnd(n, e - pos); return r; }
+        pos += len;
+      }
+      return started ? (r.setEndAfter(para.lastChild), r) : null;
+    };
+
+    /* A rewrite in the composer marks the whole sentences the selection touches in place: they pulse while the
+       agent works, then show struck beside the new text, and the editor is held until the change is kept or undone. */
+    rewriteCompose = (variant, label, from, to) => {
+      const bar = this.state.selBar;
+      from = from || (bar && bar.kind === "compose" ? bar.from : null);
+      to = to || (bar && bar.kind === "compose" ? bar.to : null);
+      const el = this.bodyRef.current;
+      if (!from || !to || !el) return;
+      const before = this.state.cChange ? this.state.cChange.before : el.innerHTML;
+      if (this.state.cChange) el.innerHTML = before;
+      const paras = this.composeParas();
+      const SENT = /.+?(?:[.!?]+["”’)]*(?=\s|$)|$)\s*/g;
+      const pieces = [];
+      for (let pi = from.pi; pi <= to.pi; pi++) {
+        const t = paras[pi] ? paras[pi].textContent : "";
+        const lo = pi === from.pi ? from.at : 0, hi = pi === to.pi ? to.at : t.length;
+        const hit = []; let m; SENT.lastIndex = 0;
+        while ((m = SENT.exec(t))) { if (!m[0]) break; const x = { s: m.index, e: m.index + m[0].trimEnd().length }; if (x.e > lo && x.s < hi) hit.push(x); }
+        if (!hit.length) continue;
+        pieces.push({ pi, s: hit[0].s, e: hit[hit.length - 1].e, old: t.slice(hit[0].s, hit[hit.length - 1].e), nw: null });
+      }
+      if (!pieces.length) return;
+      this.dropSelection();
+      pieces.slice().reverse().forEach((pc, i) => {
+        const r = this.paraRange(paras[pc.pi], pc.s, pc.e);
+        if (!r) return;
+        const mark = document.createElement("span");
+        mark.setAttribute("data-rewrite", String(pieces.length - 1 - i));
+        mark.style.cssText = "background:var(--accent-soft);border-radius:4px;animation:mfpulse 1s ease-in-out infinite";
+        mark.appendChild(r.extractContents());
+        r.insertNode(mark);
+      });
+      this.setState({ selBar: null, selAsk: "", cChange: { busy: true, variant, label, pieces, before } });
+      this.timers.push(setTimeout(() => {
+        const ch = this.state.cChange;
+        if (!ch || !this.bodyRef.current) return;
+        const swap = (old) => old.split(/(?<=[.!?]["”’)]*)\s+/).map(x => ((DRAFT_REWRITES[x.trim()] || {})[variant]) || x).join(" ");
+        const done = pieces.map(pc => Object.assign({}, pc, { nw: swap(pc.old) }));
+        if (done.every(pc => pc.nw === pc.old)) {
+          this.bodyRef.current.innerHTML = before;
+          this.setState({ cChange: null });
+          this.notify("The agent found nothing to change there.", { title: label });
+          return;
+        }
+        const esc = (x) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+        this.bodyRef.current.querySelectorAll("[data-rewrite]").forEach(mark => {
+          const pc = done[+mark.getAttribute("data-rewrite")];
+          mark.style.cssText = "";
+          if (pc.nw === pc.old) { mark.replaceWith(...mark.childNodes); return; }
+          mark.innerHTML = '<span style="color:var(--muted);text-decoration:line-through;text-decoration-color:var(--faint)">' + esc(pc.old) + "</span> "
+            + '<span style="background:var(--accent-soft);color:var(--text);border-radius:4px;box-shadow:0 1.5px 0 var(--accent);padding:0 1px">' + esc(pc.nw) + "</span>";
+        });
+        this.setState({ cChange: Object.assign({}, ch, { busy: false, pieces: done }) });
+      }, Math.max(500, (this.props.streamDelay ?? 550) * 1.4)));
+    };
+
+    rewriteComposeAsk = () => {
+      const words = (this.state.selAsk || "").trim();
+      if (!words) return;
+      const preset = REWRITE_PRESETS.find(pr => pr.words.test(words)) || REWRITE_PRESETS[1];
+      this.rewriteCompose(preset.key, "“" + words + "”");
+    };
+
+    keepComposeChange = () => {
+      const ch = this.state.cChange, el = this.bodyRef.current;
+      if (!ch || ch.busy || !el) return;
+      el.querySelectorAll("[data-rewrite]").forEach(mark => { const pc = ch.pieces[+mark.getAttribute("data-rewrite")]; mark.replaceWith(document.createTextNode(pc.nw)); });
+      this.setState({ cChange: null });
+      this.notify(ch.label + " · kept in the message", { title: "Change kept", actionLabel: "Undo",
+        onAction: () => { if (this.bodyRef.current) this.bodyRef.current.innerHTML = ch.before; } });
+    };
+
+    dropComposeChange = () => {
+      const ch = this.state.cChange;
+      if (ch && this.bodyRef.current) this.bodyRef.current.innerHTML = ch.before;
+      this.setState({ cChange: null });
+    };
+
+    /* *Try again* puts the sentences back and asks for them under the next preset, as the Agent's does. */
+    retryComposeChange = () => {
+      const ch = this.state.cChange;
+      if (!ch || ch.busy) return;
+      const order = REWRITE_PRESETS.map(pr => pr.key);
+      const next = order[(order.indexOf(ch.variant) + 1) % order.length];
+      const p0 = ch.pieces[0], pl = ch.pieces[ch.pieces.length - 1];
+      this.rewriteCompose(next, ch.label.replace(/ · another version$/, "") + " · another version", { pi: p0.pi, at: p0.s }, { pi: pl.pi, at: pl.e });
     };
 
     /* A passage asked about is answered where it stands, in the bar over it, rather than at the bottom of the
@@ -3077,11 +3220,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         return el ? (el.innerText || "").replace(/\u200b/g, "").trim() : "";
       };
       const finishCompose = () => {
-        const patch = { compose: false, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "" };
+        const patch = { compose: false, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", cChange: null,
+          selBar: st.selBar && st.selBar.kind === "compose" ? null : st.selBar };
         if ((st.workMode || "classic") === "tabs") this.closeTab("compose");
         this.setState(patch);
       };
       const askSend = () => {
+        /* Nothing is sent while a rewrite waits to be kept or undone. */
+        if (st.cChange) return;
         const w = [];
         if (!curSubj.trim()) w.push("The message has no subject.");
         if (!bodyTxt()) w.push("The message body is empty.");
@@ -5368,6 +5514,28 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         saveDraftAndClose: () => { finishCompose(); this.notify("The message is waiting in Drafts.", { kind: "success", title: "Draft saved" }); },
         closeAskOpen: !!st.closeAsk,
         composeKeyDown: (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); askSend(); } },
+        /* A rewrite waiting in the composer holds the editor and stands in the foot in place of *Send*. */
+        composeEditable: st.cChange ? "false" : "true",
+        composeFootRef: this.composeFootRef,
+        composeEditorScroll: () => { if (st.selBar && st.selBar.kind === "compose" && !this._passageDocked) this.closeSelBar(); },
+        composeIdle: !st.cChange,
+        composeHasChange: !!st.cChange,
+        composeChangeBusy: !!(st.cChange && st.cChange.busy),
+        composeChangeReady: !!(st.cChange && !st.cChange.busy),
+        composeChangeNote: !st.cChange ? "" : st.cChange.busy
+          ? "Rewriting " + st.cChange.pieces.length + (st.cChange.pieces.length === 1 ? " passage" : " passages") + " · " + st.cChange.label
+          : st.cChange.label + " · the struck text stays until you keep the change",
+        composeChangeIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;flex:0 0 auto;color:var(--accent-d)" + (st.cChange && st.cChange.busy ? ";animation:mfspin 1.15s linear infinite" : ""),
+        composeChangeIcon: st.cChange && st.cChange.busy ? "progress_activity" : "auto_awesome",
+        composeChangeNoteStyle: "display:flex;align-items:center;gap:8px;min-width:0;flex:" + (isMobile ? "1 1 100%" : "1 1 220px") + ";font-size:13px;line-height:1.45;color:var(--accent-d);text-wrap:pretty",
+        composeChangeActs: !(st.cChange && !st.cChange.busy) ? [] : [
+          { label: "Keep the change", aria: "Keep the rewritten text in the message", primary: true, run: this.keepComposeChange },
+          { label: "Try again", aria: "Ask the agent for another version of the same sentences", run: this.retryComposeChange },
+          { label: "Undo", aria: "Leave the message as it was", run: this.dropComposeChange },
+        ].map(c => ({ label: c.label, aria: c.aria, run: c.run,
+          key: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); c.run(); } },
+          style: "display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;border-radius:8px;font-size:13px;white-space:nowrap;" + (touch ? "min-height:44px;padding:0 16px;" : "padding:8px 14px;")
+            + (c.primary ? "font-weight:600;color:var(--onaccent);background:var(--accent);" : "color:var(--text2);border:1px solid var(--border2);") })),
         askSend: askSend,
         sendAskOpen: !!st.sendAsk,
         sendWarnings: ((st.sendAsk && st.sendAsk.warnings) || []).map(w => ({ text: w })),
