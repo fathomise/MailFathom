@@ -20,7 +20,7 @@ A statement is never a sentence on its own. Each one carries:
 |---|---|
 | **Aspect** | Which of the four it is: an *agreement*, an *open question*, a *commitment*, or a *version difference*. |
 | **Text** | What it says, as one plain sentence, at most 240 characters. |
-| **Owed by** | Who undertook a commitment, at most 120 characters. Only a commitment may carry one, and only where the conversation named somebody. |
+| **Owed by** | Who undertook a commitment, at most 120 characters. Only a commitment may carry one, and only where the conversation named somebody — a signature names who wrote a message, never who owes what it describes. |
 | **Due date** | When a commitment falls due. Only a commitment may carry one, and only where the conversation named a date. |
 | **Sources** | The messages the statement rests on, at most four, best first. |
 

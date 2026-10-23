@@ -71,6 +71,29 @@ public sealed class EmailEnrichmentInstructionsTests
         Assert.Contains("give the earliest of those days", text, StringComparison.Ordinal);
     }
 
+    /// <summary>A line in the reader's own list that leads with what somebody else owes hides what the message asks of them.</summary>
+    [Fact]
+    public void TextFor_TheInstruction_PutsWhatTheMessageAsksOfItsReaderAheadOfWhatOthersOwe()
+    {
+        // Act
+        var text = string.Join(' ', EmailEnrichmentInstructions.TextFor(MailAccountLanguage.English).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains("that request is the commitment, ahead of anything the sender or a third party owes", text, StringComparison.Ordinal);
+        Assert.Contains("that request and its day are what make it pressing", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>The organisation in a signature is often the only party a message names, which is not a reason to make it the one owing.</summary>
+    [Fact]
+    public void TextFor_TheInstruction_TakesNobodyAsOwingSomethingFromTheSignatureAlone()
+    {
+        // Act
+        var text = string.Join(' ', EmailEnrichmentInstructions.TextFor(MailAccountLanguage.English).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains("says who wrote the message and nothing more", text, StringComparison.Ordinal);
+    }
+
     /// <summary>A subject rendered into another language is no longer the subject somebody would find in their mail.</summary>
     [Fact]
     public void TextFor_TheInstruction_LeavesQuotedTextAsItWasWritten()

@@ -158,6 +158,28 @@ internal static class WrittenCorpus
             Tessa
             """))[0];
 
+    /// <summary>Gets a client's request for comments by one day, above a tax payment of the client's own falling due on a later one.</summary>
+    /// <remarks>
+    /// The shape a reading once got wrong: the only party the message names is the bank in the signature, the payment is
+    /// the bank's and the larger matter, and the reading led with it — leaving out the one thing the message asks of the
+    /// person who received it, which falls due four days earlier.
+    /// </remarks>
+    public static CorpusMessage RequestAboveASignersPayment { get; } = Exchange(
+        1080,
+        Mail("halina.wrona@kormoran-bank.test", "Halina Wrona", [Owner], [], At(10, 16, 8, 20), "Podatek od aktywów – deklaracja za wrzesień 2026", """
+            Pani Mecenas,
+
+            przesyłam w załączniku wyliczenie za wrzesień – podatek 1 918 300 zł. Tym razem uzgodniłam sumę aktywów
+            z bilansem na koniec miesiąca. Termin płatności: 26 października, bo 25 października wypada w niedzielę.
+
+            Proszę o ewentualne uwagi do czwartku, 22 października.
+
+            Z poważaniem
+            Halina Wrona
+            Kierownik Zespołu Podatków
+            Kormoran Bank Inwestycyjny S.A.
+            """))[0];
+
     /// <summary>Gets a monthly newsletter, which informs and asks nothing of the person it reaches.</summary>
     public static CorpusMessage Newsletter { get; } = Exchange(
         1050,
@@ -185,6 +207,7 @@ internal static class WrittenCorpus
         [Acknowledgement],
         [RequestInQuotedHistory],
         [DatedRequestOfTheReader],
+        [RequestAboveASignersPayment],
 
         // Three issues of one newsletter, whose sender has a correspondence of nothing but them.
         Exchange(1060, Mail("digest@harbourline.test", "Harbourline Digest", [Owner], [], At(7, 1, 6, 0), "Harbourline Monthly — July 2026", "The July product notes: faster search and a new dark theme.")),

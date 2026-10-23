@@ -110,6 +110,15 @@ internal sealed record EmailEnrichmentCase(
             SaysWhatItIsAbout,
             TaskExpectation: TaskDueOn(new DateOnly(2026, 9, 15))),
 
+        // A bank's tax lead asks the owner for comments by Thursday, 22 October, above the bank's own payment due on 26
+        // October and a signature naming the bank: what the reader owes, and its earlier day, is the commitment.
+        new(
+            "RequestAboveASignersPayment",
+            static () => WrittenCorpus.RequestAboveASignersPayment,
+            Every(SaysWhatItIsAbout, DueOn(new DateOnly(2026, 10, 22))),
+            MailAccountLanguage.Polish,
+            TaskDueOn(new DateOnly(2026, 10, 22))),
+
         // "Thanks, got them!" — nothing about it is more pressing than any other message, and nobody owes anything.
         new(
             "NothingWorthWriting",
