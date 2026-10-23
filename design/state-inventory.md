@@ -185,6 +185,8 @@ composition keeps its own sizes.
 | One choice among several | A segmented control — `--rail` track, the chosen segment raised on `--panel` — rather than loose bordered buttons: People's *Own* and *Collected*, the calendar's four views |
 | Symbols alone | Where a glyph names the action beyond doubt — attach, archive, delete, close, back, and the thread's reply, forward and flag — the phone draws the symbol alone in its 44 box, and the name stays its title and its accessible name. An action no glyph names keeps its words |
 | A sheet | Whatever rises from the bottom under a finger — the *More* sheet, the thread state, the phone's dialogs, Settings on one pane — closes by being pulled down as well as by its *X*, and shows where to take hold: a 38 × 4 px `--border2` grabber centred in a 20 px band at its top (`sheetGrabber`, `settingsGrabber`). The pull takes over only once the sheet's content is scrolled to its top; let go past a third of its height, or flung down, and it closes as its *X* would, otherwise it springs back. A drawer closes the same way, pushed back toward the edge it came from |
+| Folded away | What a wider window stands in place but a narrow one folds away and slides out — the mail folders, the Agent's history (`historyScrimShown`), the list's filters, a drawer, a sheet — closes on its *X* and on a press anywhere beside it, which is a press on the scrim behind it or, for the filters band, anywhere outside the band and its control. A scrim takes the press it closes on, so nothing under it is pressed too |
+| A long press | A finger held on a row opens the row's own menu and nothing closes it but a choice, a press beside it, Escape or the back gesture — the platform's own menu gesture that follows the same press is that press, not a second one |
 | The fold's split | Two panes in less than 1020 px leave the thread the width, under a finger and a mouse alike: while a thread is open the list folds to a strip of senders (`listStrip`), and the strip's head widens it again — § *The panes* under Mail. With nothing open the whole list stays |
 | Duplicated actions | A two-pane composition under a finger does not repeat in the thread head what the toolbar above it already carries, so the subject keeps the width |
 | Text | 12 px is the smallest size a reader is asked to read; 11 px is left to captions over something larger and to counts on a badge |
@@ -537,7 +539,8 @@ menu's *Tab mode* switch is turned on at a width of at least 1180 px**.
 | Event has a source | `eventHasSrc` | the event carries the mail it came from |
 | Event has reminders | `eventRemAny` / `eventRemNone` | the reminder list for that event |
 | Parsed from a message | `evParsedShown` | the event was read out of mail |
-| New event | `newEventOpen` | the new-event control |
+| New event | `newEventOpen` | the new-event control. Title, a description (`evNotesRef`), *All day*, then *Starts* and *Ends* each a day and a time — the same fields as editing one (`c_edit` on the client-states artboard) — with how long it lasts under them, reminders, and *Generate* filling the fields from one sentence |
+| New event, all day | `evAllDay` / `evTimeStyle` | *All day* ticked: the two times fold away and the two days stand side by side, so one event spans several days |
 
 ## People — `isPeople`
 
@@ -551,6 +554,7 @@ menu's *Tab mode* switch is turned on at a width of at least 1180 px**.
 | Next step | `personHasNext` | the person's AI reading proposes one |
 | **No documents** | `personNoDocs` | that person's `docs` is empty |
 | New contact | `newContactOpen` | the new-contact control |
+| Edit contact | `personOwn` / `ctEditing` | the *Edit contact* symbol in the header of a person the reader wrote down (never a collected one) — the new-contact dialog titled *Edit contact*, opened on the record, saved with *Save changes* |
 
 ## Agent — `isAgent`
 
@@ -566,8 +570,9 @@ menu's *Tab mode* switch is turned on at a width of at least 1180 px**.
 | An answer still being worked | `m.working` | the message carries `working` — it draws an `autorenew` glyph and *The agent is going through your mail…* instead of prose |
 | An answer carrying blocks | `m.hasBlocks` | the message carries `blocks` |
 | Back to the conversation | `convReturnShown` | a block's `nav` row was pressed, which is what `goLook` records in `agentReturn`; the pill stands fixed over whatever screen was opened until `backToConv` is pressed |
-| History open | `historyOpen` | `!isMobile` by default, and the history control otherwise. On the phone it covers the conversation, so **picking a conversation, *Open conversation* in its menu, or *New conversation* closes it** |
+| History open | `historyOpen` | `!isMobile` by default, and the history control otherwise. On the phone it is a drawer from the start edge over the conversation, so **picking a conversation, *Open conversation* in its menu, or *New conversation* closes it** |
 | History close | `historyCloseShown` | `isMobile` |
+| History scrim | `historyScrimShown` | `isMobile` with the history open — a press on it closes the drawer as *X* does |
 | History header | `historyCount` | *History* and the count of conversations not archived — the header carries no second *New*, the toolbar already has one |
 | History search has a value | `historySearchValue` | typing in *Search conversations* — a 34 px field (44 px on the phone) with 12 px under it (16 px on the phone) before the list |
 | Nothing matches | `historyEmpty` | a search that matches no conversation — *No conversation matches.* |

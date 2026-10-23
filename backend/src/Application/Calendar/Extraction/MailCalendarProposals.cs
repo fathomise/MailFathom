@@ -140,6 +140,7 @@ public sealed class MailCalendarProposals
         CalendarEvent.Create(
             CalendarEventId.Create(Guid.CreateVersion7(recordedAt)),
             proposal.Title,
+            notes: null,
             proposal.Start,
             proposal.End,
             isAllDay: false,

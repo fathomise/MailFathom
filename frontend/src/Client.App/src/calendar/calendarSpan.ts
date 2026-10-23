@@ -173,9 +173,11 @@ export function eventsOn(events: readonly CalendarEvent[], day: Date): readonly 
             return false;
         }
 
-        const ends = event.end === null ? begins : Date.parse(event.end);
+        const ends = event.end === null ? Number.NaN : Date.parse(event.end);
 
-        return begins < closes && (Number.isNaN(ends) ? begins : ends) >= opens;
+        // An end is where the event stops rather than its last moment, so one ending at midnight — as every day-long
+        // event does — is not drawn on the day that midnight opens.
+        return begins < closes && (Number.isNaN(ends) ? begins >= opens : ends > opens);
     });
 }
 

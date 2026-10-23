@@ -228,6 +228,26 @@ export function recordContact(
     );
 }
 
+/** Amends one contact this user asserted to the record the caller states, which is the whole record. */
+export function amendContact(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    contactId: string,
+    record: ContactRecord,
+): Promise<ClientResult<ContactWrite>> {
+    return spanned(`PUT ${contactsRoute}/{contactId}`, async () =>
+        writeOf(
+            await send(transport, {
+                method: 'PUT',
+                path: routeFor(session, contactRoute(contactId)),
+                headers: { ...headersFor(session), 'Content-Type': 'application/json' },
+                body: JSON.stringify(record),
+                longestAnswer: longestContactAnswer,
+            }),
+        ),
+    );
+}
+
 /** Takes on a collected record, so it becomes one this user asserted and may amend. */
 export function promoteContact(
     session: ClientSession,

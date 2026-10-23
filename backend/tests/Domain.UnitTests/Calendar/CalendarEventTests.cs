@@ -73,16 +73,18 @@ public sealed class CalendarEventTests
         Assert.Equal("importedUid", refusal.ParamName);
     }
 
-    /// <summary>Each of the three is a struct, so the one value its private constructor cannot reach is refused here.</summary>
+    /// <summary>Each of the four is a struct, so the one value its private constructor cannot reach is refused here.</summary>
     [Theory]
     [InlineData("id")]
     [InlineData("title")]
+    [InlineData("notes")]
     [InlineData("importedUid")]
     public void Create_StructDefaultInPlaceOfAValidatedValue_IsRefused(string parameterName)
     {
         // Arrange
         var id = parameterName == "id" ? default : CalendarEventId.Create(Guid.CreateVersion7());
         var title = parameterName == "title" ? default : CalendarEventTitle.Create("Design review");
+        CalendarEventNotes? notes = parameterName == "notes" ? default(CalendarEventNotes) : null;
         ImportedCalendarEventUid? importedUid = parameterName == "importedUid"
             ? default(ImportedCalendarEventUid)
             : null;
@@ -91,6 +93,7 @@ public sealed class CalendarEventTests
         var refusal = Assert.Throws<ArgumentException>(() => CalendarEvent.Create(
             id,
             title,
+            notes,
             Start,
             end: null,
             isAllDay: false,
@@ -149,6 +152,7 @@ public sealed class CalendarEventTests
         // Act
         var amended = held.AmendedWith(
             CalendarEventTitle.Create("Design review, moved"),
+            notes: null,
             movedTo,
             end: null,
             isAllDay: false,
@@ -174,7 +178,7 @@ public sealed class CalendarEventTests
 
         // Act
         var refusal = Assert.Throws<ArgumentOutOfRangeException>(() =>
-            held.AmendedWith(held.Title, Start, Start, isAllDay: false, reminders: [], RecordedAt.AddHours(1)));
+            held.AmendedWith(held.Title, held.Notes, Start, Start, isAllDay: false, reminders: [], RecordedAt.AddHours(1)));
 
         // Assert
         Assert.Equal("end", refusal.ParamName);
@@ -259,6 +263,54 @@ public sealed class CalendarEventTests
         Assert.Equal([1440], accepted.Reminders.Select(reminder => reminder.MinutesBefore));
     }
 
+    [Fact]
+    public void Create_Notes_AreCarriedOnTheEvent()
+    {
+        // Act
+        var held = Compose(notes: CalendarEventNotes.Create("Agenda:\n- budget"));
+
+        // Assert
+        Assert.Equal("Agenda:\n- budget", held.Notes?.Value);
+    }
+
+    /// <summary>An amendment states the whole record, so the notes it names replace the ones held and naming none clears them.</summary>
+    [Theory]
+    [InlineData("Bring the slides")]
+    [InlineData(null)]
+    public void AmendedWith_StatedNotes_ReplaceTheOnesHeld(string? stated)
+    {
+        // Arrange
+        var held = Compose(notes: CalendarEventNotes.Create("Agenda"));
+        CalendarEventNotes? notes = stated is null ? null : CalendarEventNotes.Create(stated);
+
+        // Act
+        var amended = held.AmendedWith(
+            held.Title,
+            notes,
+            held.Start,
+            held.End,
+            held.IsAllDay,
+            held.Reminders,
+            RecordedAt.AddHours(1));
+
+        // Assert
+        Assert.Equal(stated, amended.Notes?.Value);
+    }
+
+    /// <summary>Agreeing to a proposal changes what the record claims, not what it says about the meeting.</summary>
+    [Fact]
+    public void Accepted_AProposalCarryingNotes_KeepsThem()
+    {
+        // Arrange
+        var proposed = Compose(origin: CalendarEventOrigin.Proposed, notes: CalendarEventNotes.Create("Agenda"));
+
+        // Act
+        var accepted = proposed.Accepted(RecordedAt.AddHours(1));
+
+        // Assert
+        Assert.Equal("Agenda", accepted.Notes?.Value);
+    }
+
     private static Reminder Lead(int minutesBefore) => Reminder.Create(minutesBefore);
 
     private static CalendarEvent Compose(
@@ -267,10 +319,12 @@ public sealed class CalendarEventTests
         StoredEmailId? sourceMessage = null,
         ImportedCalendarEventUid? importedUid = null,
         bool isAllDay = false,
-        IReadOnlyCollection<Reminder>? reminders = null) =>
+        IReadOnlyCollection<Reminder>? reminders = null,
+        CalendarEventNotes? notes = null) =>
         CalendarEvent.Create(
             CalendarEventId.Create(Guid.CreateVersion7()),
             CalendarEventTitle.Create("Design review"),
+            notes,
             Start,
             end,
             isAllDay,

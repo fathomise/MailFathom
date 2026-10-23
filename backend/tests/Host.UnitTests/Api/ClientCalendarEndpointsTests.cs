@@ -230,7 +230,7 @@ public sealed class ClientCalendarEndpointsTests
     {
         // Act
         var result = await ClientCalendarEndpoints.CreateAsync(
-            new CalendarEventCreationRequest("Standup", Start: null, End: null, IsAllDay: false, Reminders: null, SourceMessage: null),
+            new CalendarEventCreationRequest("Standup", Notes: null, Start: null, End: null, IsAllDay: false, Reminders: null, SourceMessage: null),
             this.Calendar(),
             TestContext.Current.CancellationToken);
 
@@ -243,7 +243,7 @@ public sealed class ClientCalendarEndpointsTests
     {
         // Act
         var result = await ClientCalendarEndpoints.CreateAsync(
-            new CalendarEventCreationRequest("Standup", Monday, End: null, IsAllDay: false, Reminders: null, Guid.Empty),
+            new CalendarEventCreationRequest("Standup", Notes: null, Monday, End: null, IsAllDay: false, Reminders: null, Guid.Empty),
             this.Calendar(),
             TestContext.Current.CancellationToken);
 
@@ -257,7 +257,7 @@ public sealed class ClientCalendarEndpointsTests
     {
         // Act
         var result = await ClientCalendarEndpoints.CreateAsync(
-            new CalendarEventCreationRequest("Lunch‮with Anna", Monday, End: null, IsAllDay: false, Reminders: null, SourceMessage: null),
+            new CalendarEventCreationRequest("Lunch‮with Anna", Notes: null, Monday, End: null, IsAllDay: false, Reminders: null, SourceMessage: null),
             this.Calendar(),
             TestContext.Current.CancellationToken);
 
@@ -272,7 +272,7 @@ public sealed class ClientCalendarEndpointsTests
     {
         // Act
         var result = await ClientCalendarEndpoints.CreateAsync(
-            new CalendarEventCreationRequest("Standup", Monday, Monday.AddMinutes(30), IsAllDay: false, Reminders: null, SourceMessage: null),
+            new CalendarEventCreationRequest("Standup", Notes: null, Monday, Monday.AddMinutes(30), IsAllDay: false, Reminders: null, SourceMessage: null),
             this.Calendar(),
             TestContext.Current.CancellationToken);
 
@@ -294,7 +294,7 @@ public sealed class ClientCalendarEndpointsTests
         // Act
         var result = await ClientCalendarEndpoints.AmendAsync(
             Guid.CreateVersion7(Now),
-            new CalendarEventAmendmentRequest("Standup", Monday, End: null, IsAllDay: false, Reminders: null),
+            new CalendarEventAmendmentRequest("Standup", Notes: null, Monday, End: null, IsAllDay: false, Reminders: null),
             this.Calendar(),
             TestContext.Current.CancellationToken);
 
@@ -312,7 +312,7 @@ public sealed class ClientCalendarEndpointsTests
         // Act
         var result = await ClientCalendarEndpoints.AmendAsync(
             held.Id.Value,
-            new CalendarEventAmendmentRequest("Interview, moved", Monday.AddHours(2), End: null, IsAllDay: false, Reminders: null),
+            new CalendarEventAmendmentRequest("Interview, moved", Notes: null, Monday.AddHours(2), End: null, IsAllDay: false, Reminders: null),
             this.Calendar(),
             TestContext.Current.CancellationToken);
 
@@ -410,7 +410,7 @@ public sealed class ClientCalendarEndpointsTests
     {
         // Act
         var result = await ClientCalendarEndpoints.CreateAsync(
-            new CalendarEventCreationRequest("Standup", Monday, End: null, IsAllDay: false, [15, 1440], SourceMessage: null),
+            new CalendarEventCreationRequest("Standup", Notes: null, Monday, End: null, IsAllDay: false, [15, 1440], SourceMessage: null),
             this.Calendar(),
             TestContext.Current.CancellationToken);
 
@@ -426,7 +426,7 @@ public sealed class ClientCalendarEndpointsTests
     {
         // Act
         var result = await ClientCalendarEndpoints.CreateAsync(
-            new CalendarEventCreationRequest("Standup", Monday, End: null, IsAllDay: false, Reminders: null, SourceMessage: null),
+            new CalendarEventCreationRequest("Standup", Notes: null, Monday, End: null, IsAllDay: false, Reminders: null, SourceMessage: null),
             this.Calendar(),
             TestContext.Current.CancellationToken);
 
@@ -442,6 +442,7 @@ public sealed class ClientCalendarEndpointsTests
         var result = await ClientCalendarEndpoints.CreateAsync(
             new CalendarEventCreationRequest(
                 "Standup",
+                Notes: null,
                 Monday,
                 End: null,
                 IsAllDay: false,
@@ -463,7 +464,7 @@ public sealed class ClientCalendarEndpointsTests
 
         // Act
         var result = await ClientCalendarEndpoints.CreateAsync(
-            new CalendarEventCreationRequest("Anna's birthday", theDay, End: null, IsAllDay: true, [0], SourceMessage: null),
+            new CalendarEventCreationRequest("Anna's birthday", Notes: null, theDay, End: null, IsAllDay: true, [0], SourceMessage: null),
             this.Calendar(),
             TestContext.Current.CancellationToken);
 
@@ -473,6 +474,84 @@ public sealed class ClientCalendarEndpointsTests
         Assert.Equal([theDay.AddHours(CalendarEvent.AllDayReminderHour)], written.RemindsAt);
     }
 
+    [Fact]
+    public async Task CreateAsync_AnEventStatedWithNotes_AnswersThemAsWritten()
+    {
+        // Act
+        var result = await ClientCalendarEndpoints.CreateAsync(
+            new CalendarEventCreationRequest(
+                "Standup",
+                "Agenda:\n- budget",
+                Monday,
+                End: null,
+                IsAllDay: false,
+                Reminders: null,
+                SourceMessage: null),
+            this.Calendar(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("Agenda:\n- budget", Assert.IsType<Ok<CalendarEventResponse>>(result.Result).Value!.Notes);
+    }
+
+    /// <summary>Blank notes are no notes, so a client clearing the field is answered with none rather than refused.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData(" \n ")]
+    public async Task CreateAsync_NotesThatSayNothing_AnswersAnEventWithNone(string? notes)
+    {
+        // Act
+        var result = await ClientCalendarEndpoints.CreateAsync(
+            new CalendarEventCreationRequest("Standup", notes, Monday, End: null, IsAllDay: false, Reminders: null, SourceMessage: null),
+            this.Calendar(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(Assert.IsType<Ok<CalendarEventResponse>>(result.Result).Value!.Notes);
+    }
+
+    /// <summary>Notes say what a meeting is about, so a refusal of them names the rule and never the text.</summary>
+    [Fact]
+    public async Task CreateAsync_NotesThatAreNotUsable_AreRefusedWithoutEchoingThem()
+    {
+        // Act
+        var result = await ClientCalendarEndpoints.CreateAsync(
+            new CalendarEventCreationRequest(
+                "Standup",
+                "Lunch‮with Anna",
+                Monday,
+                End: null,
+                IsAllDay: false,
+                Reminders: null,
+                SourceMessage: null),
+            this.Calendar(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var refusal = Assert.IsType<ProblemHttpResult>(result.Result);
+        Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
+        Assert.DoesNotContain("Anna", refusal.ProblemDetails.Detail, StringComparison.Ordinal);
+    }
+
+    /// <summary>An amendment states the whole record, so the notes it carries replace the ones the event held.</summary>
+    [Fact]
+    public async Task AmendAsync_TheNotesTheEventIsToStandWith_AnswersThem()
+    {
+        // Arrange
+        var held = Proposal(Monday, "Interview");
+        this.Holds(held);
+
+        // Act
+        var result = await ClientCalendarEndpoints.AmendAsync(
+            held.Id.Value,
+            new CalendarEventAmendmentRequest("Interview", "Bring the slides", Monday, End: null, IsAllDay: false, Reminders: null),
+            this.Calendar(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("Bring the slides", Assert.IsType<Ok<CalendarEventResponse>>(result.Result).Value!.Notes);
+    }
+
     private static CalendarEvent Proposal(DateTimeOffset start, string title) =>
         Compose(start, title, CalendarEventOrigin.Proposed);
 
@@ -480,6 +559,7 @@ public sealed class ClientCalendarEndpointsTests
         CalendarEvent.Create(
             CalendarEventId.Create(Guid.CreateVersion7(start)),
             CalendarEventTitle.Create(title),
+            notes: null,
             start,
             end: null,
             isAllDay: false,

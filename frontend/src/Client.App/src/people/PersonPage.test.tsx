@@ -39,19 +39,21 @@ function pageOf({
     contact = personCalled('Asserted'),
     writable = true,
     promoting = false,
-    promotionSaid = null,
+    recordSaid = null,
     onBack = null,
     composing = composingWhere(true),
     onPromote = vi.fn(),
+    onAskAmendment = vi.fn(),
     onAskErasure = vi.fn(),
 }: {
     contact?: Contact;
     writable?: boolean;
     promoting?: boolean;
-    promotionSaid?: 'people.written' | null;
+    recordSaid?: 'people.written' | null;
     onBack?: (() => void) | null;
     composing?: Composing;
     onPromote?: () => void;
+    onAskAmendment?: () => void;
     onAskErasure?: () => void;
 } = {}): ReactNode {
     return (
@@ -62,9 +64,10 @@ function pageOf({
                     correspondence={nothingCorrelated}
                     writable={writable}
                     promoting={promoting}
-                    promotionSaid={promotionSaid}
+                    recordSaid={recordSaid}
                     onBack={onBack}
                     onPromote={onPromote}
+                    onAskAmendment={onAskAmendment}
                     onAskErasure={onAskErasure}
                     onOpenThread={vi.fn()}
                     onOpenDocument={vi.fn()}
@@ -125,6 +128,21 @@ describe('PersonPage', () => {
         expect(screen.queryByRole('button', { name: 'Add to my contacts' })).toBeNull();
     });
 
+    it('offers correcting a record the reader asserted, through the question that holds it', () => {
+        const onAskAmendment = vi.fn();
+        drawPage({ onAskAmendment });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Edit contact' }));
+
+        expect(onAskAmendment).toHaveBeenCalledTimes(1);
+    });
+
+    it('offers no correction of a record a mailbox collected', () => {
+        drawPage({ contact: personCalled('Collected') });
+
+        expect(screen.queryByRole('button', { name: 'Edit contact' })).toBeNull();
+    });
+
     it('says a promotion is in flight rather than leaving the control silent', () => {
         drawPage({ contact: personCalled('Collected'), promoting: true });
 
@@ -136,6 +154,7 @@ describe('PersonPage', () => {
 
         expect(screen.queryByRole('button', { name: 'Add to my contacts' })).toBeNull();
         expect(screen.queryByRole('button', { name: 'Delete contact' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Edit contact' })).toBeNull();
     });
 
     it('raises the question an erasure stands behind rather than erasing on the press', () => {
@@ -172,7 +191,7 @@ describe('PersonPage', () => {
     });
 
     it('says what the last write to this record did, beside the record it did it to', () => {
-        drawPage({ promotionSaid: 'people.written' });
+        drawPage({ recordSaid: 'people.written' });
 
         expect(screen.getByRole('status').textContent).toBe('Contact added.');
     });

@@ -26,8 +26,8 @@ namespace MailFathom.Domain.Calendar;
 /// participants, not a line of its body — is written here.
 /// </para>
 /// <para>
-/// The title, the times, and the message an event cites are personal data. They are never logged, never a metric
-/// dimension, and never written into a failure message; <see cref="Id" /> is what a failure names.
+/// The title, the notes, the times, and the message an event cites are personal data. They are never logged, never a
+/// metric dimension, and never written into a failure message; <see cref="Id" /> is what a failure names.
 /// </para>
 /// </remarks>
 public sealed class CalendarEvent
@@ -38,6 +38,7 @@ public sealed class CalendarEvent
     private CalendarEvent(
         CalendarEventId id,
         CalendarEventTitle title,
+        CalendarEventNotes? notes,
         DateTimeOffset start,
         DateTimeOffset? end,
         bool isAllDay,
@@ -50,6 +51,7 @@ public sealed class CalendarEvent
     {
         this.Id = id;
         this.Title = title;
+        this.Notes = notes;
         this.Start = start;
         this.End = end;
         this.IsAllDay = isAllDay;
@@ -66,6 +68,9 @@ public sealed class CalendarEvent
 
     /// <summary>Gets what this event is called.</summary>
     public CalendarEventTitle Title { get; }
+
+    /// <summary>Gets what the event is about, or <see langword="null" /> when nobody wrote anything down beside its title.</summary>
+    public CalendarEventNotes? Notes { get; }
 
     /// <summary>Gets when the event begins.</summary>
     public DateTimeOffset Start { get; }
@@ -135,6 +140,7 @@ public sealed class CalendarEvent
     /// <summary>Builds an event from what a writer supplied, enforcing every invariant the calendar rests on.</summary>
     /// <param name="id">The identity this event keeps for as long as it is held.</param>
     /// <param name="title">What the event is called.</param>
+    /// <param name="notes">What the event is about, or <see langword="null" /> when nothing was written down beside its title.</param>
     /// <param name="start">When it begins.</param>
     /// <param name="end">When it ends, or <see langword="null" /> when nothing said how long it lasts.</param>
     /// <param name="isAllDay">Whether the event is stated as a day rather than as a clock time.</param>
@@ -147,7 +153,7 @@ public sealed class CalendarEvent
     /// <returns>The event.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="reminders" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="origin" /> names no declared value, when <paramref name="end" /> is not after <paramref name="start" />, or when more than <see cref="Reminder.MaximumCount" /> reminders are supplied.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="id" />, <paramref name="title" />, or a supplied <paramref name="importedUid" /> is the default of its type, when a proposal is supplied with <paramref name="importedUid" />, or when one lead is supplied twice.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="id" />, <paramref name="title" />, or a supplied <paramref name="notes" /> or <paramref name="importedUid" /> is the default of its type, when a proposal is supplied with <paramref name="importedUid" />, or when one lead is supplied twice.</exception>
     /// <remarks>
     /// An end at the same instant as the start is refused rather than kept as an event of no length: an entry naming
     /// both is naming a span, and one whose span is empty is a file or a reading that went wrong rather than something
@@ -156,6 +162,7 @@ public sealed class CalendarEvent
     public static CalendarEvent Create(
         CalendarEventId id,
         CalendarEventTitle title,
+        CalendarEventNotes? notes,
         DateTimeOffset start,
         DateTimeOffset? end,
         bool isAllDay,
@@ -186,6 +193,11 @@ public sealed class CalendarEvent
             throw new ArgumentException("A calendar event carries a title.", nameof(title));
         }
 
+        if (notes is { IsSpecified: false })
+        {
+            throw new ArgumentException("An event carrying notes carries the notes themselves.", nameof(notes));
+        }
+
         if (importedUid is { IsSpecified: false })
         {
             throw new ArgumentException(
@@ -209,6 +221,7 @@ public sealed class CalendarEvent
         return new CalendarEvent(
             id,
             title,
+            notes,
             start,
             end,
             isAllDay,
@@ -222,6 +235,7 @@ public sealed class CalendarEvent
 
     /// <summary>Produces this event with what an amendment replaced, keeping its identity, its origin, and where it came from.</summary>
     /// <param name="title">What the event is called after the amendment.</param>
+    /// <param name="notes">What it is about after the amendment, or <see langword="null" /> to hold no notes.</param>
     /// <param name="start">When it begins after the amendment.</param>
     /// <param name="end">When it ends after the amendment, or <see langword="null" /> to hold no end.</param>
     /// <param name="isAllDay">Whether it is stated as a day rather than as a clock time afterwards.</param>
@@ -230,16 +244,17 @@ public sealed class CalendarEvent
     /// <returns>The amended event.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="reminders" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="end" /> is not after <paramref name="start" />, or when more than <see cref="Reminder.MaximumCount" /> reminders are supplied.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="title" /> is the default of its type, or when one lead is supplied twice.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="title" /> or supplied <paramref name="notes" /> are the default of their type, or when one lead is supplied twice.</exception>
     /// <remarks>
     /// An amendment states the event as it is to stand rather than the difference from the one held, which is what
     /// keeps retitling it, moving it, dropping its end, and changing what announces it one operation instead of four
     /// that each pass through a shape the invariants above refuse. The reminders are part of that record for the same
     /// reason: a person turning the last one off is stating an event that announces nothing rather than omitting a
-    /// field.
+    /// field, and the notes are part of it too: an amendment stating none is an event whose notes were cleared.
     /// </remarks>
     public CalendarEvent AmendedWith(
         CalendarEventTitle title,
+        CalendarEventNotes? notes,
         DateTimeOffset start,
         DateTimeOffset? end,
         bool isAllDay,
@@ -248,6 +263,7 @@ public sealed class CalendarEvent
         Create(
             this.Id,
             title,
+            notes,
             start,
             end,
             isAllDay,
@@ -277,6 +293,7 @@ public sealed class CalendarEvent
         return new CalendarEvent(
             this.Id,
             this.Title,
+            this.Notes,
             this.Start,
             this.End,
             this.IsAllDay,

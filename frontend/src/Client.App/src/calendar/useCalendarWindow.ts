@@ -120,10 +120,13 @@ export function useCalendarWindow(
         void read();
     }, [read]);
 
+    // A span not answered yet keeps drawing what the last one held for the same person, so moving between views or
+    // weeks does not empty the screen for the moment the read takes and fill it again: each view draws only the events
+    // falling on its own days, and the answer replaces the set as soon as it arrives.
     const standing =
         held.from === from && held.until === until && held.session === session
             ? held
-            : nothingRead(from, until, session);
+            : { ...nothingRead(from, until, session), events: held.session === session ? held.events : [] };
 
     return {
         events: standing.events.filter((event) => event.origin === 'Asserted'),

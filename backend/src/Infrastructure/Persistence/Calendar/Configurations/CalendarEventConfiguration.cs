@@ -46,6 +46,7 @@ internal sealed class CalendarEventConfiguration : IEntityTypeConfiguration<Cale
         entity.Property(calendarEvent => calendarEvent.Title)
             .HasMaxLength(CalendarEventEntity.MaximumTitleLength)
             .IsRequired();
+        entity.Property(calendarEvent => calendarEvent.Notes).HasMaxLength(CalendarEventEntity.MaximumNotesLength);
         entity.Property(calendarEvent => calendarEvent.StartsAt).IsRequired();
         entity.Property(calendarEvent => calendarEvent.IsAllDay).IsRequired();
         entity.Property(calendarEvent => calendarEvent.Origin).HasConversion<string>().HasMaxLength(32).IsRequired();

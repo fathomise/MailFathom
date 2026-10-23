@@ -302,6 +302,7 @@ public sealed class TodayLayoutTests
     private static CalendarEvent Committed(string title, DateTimeOffset start) => CalendarEvent.Create(
         CalendarEventId.Create(Guid.CreateVersion7()),
         CalendarEventTitle.Create(title),
+        notes: null,
         start,
         start.AddMinutes(30),
         isAllDay: false,

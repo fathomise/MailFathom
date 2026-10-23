@@ -1320,8 +1320,12 @@
         }
     }
 
+    /* A centred dialog scrolls only downwards. Its width is the design's and its fields fill it, so a pixel of overflow
+       sideways — a rounding at a fractional zoom, an engine's own widget drawn a little wider — is not content to reach
+       but a horizontal scrollbar that then takes enough height to raise a vertical one as well. */
     dialog:modal {
         max-height: var(--spacing-dialog-height);
+        overflow-x: hidden;
     }
 
     /* What a control measures under a finger, decided once here for the same reason the ring above is: a floor met by

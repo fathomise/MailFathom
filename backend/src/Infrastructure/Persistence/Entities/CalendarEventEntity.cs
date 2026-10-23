@@ -23,7 +23,7 @@ namespace MailFathom.Infrastructure.Persistence.Entities;
 /// </para>
 /// <para>
 /// Every column but the identity, the owner, and the origin is personal data: a title says who somebody is meeting,
-/// and the times say when they are not somewhere else. It is held under the same terms as the mail beside it and
+/// the notes what the meeting is about, and the times say when they are not somewhere else. It is held under the same terms as the mail beside it and
 /// erasing it is a delete rather than a mark.
 /// </para>
 /// </remarks>
@@ -32,6 +32,9 @@ internal sealed class CalendarEventEntity
 {
     /// <summary>The longest title stored, which is the bound the domain value already refuses to exceed.</summary>
     internal const int MaximumTitleLength = CalendarEventTitle.MaximumLength;
+
+    /// <summary>The longest notes stored, which is the bound the domain value already refuses to exceed.</summary>
+    internal const int MaximumNotesLength = CalendarEventNotes.MaximumLength;
 
     /// <summary>The longest imported identifier stored, which is the bound the domain value already refuses to exceed.</summary>
     internal const int MaximumImportedUidLength = ImportedCalendarEventUid.MaximumLength;
@@ -47,6 +50,9 @@ internal sealed class CalendarEventEntity
 
     /// <summary>Gets or sets what the event is called, as whoever wrote it down wrote it.</summary>
     public required string Title { get; set; }
+
+    /// <summary>Gets or sets what the event is about, or <see langword="null" /> when nobody wrote anything down beside its title.</summary>
+    public string? Notes { get; set; }
 
     /// <summary>Gets or sets when the event begins.</summary>
     public DateTimeOffset StartsAt { get; set; }

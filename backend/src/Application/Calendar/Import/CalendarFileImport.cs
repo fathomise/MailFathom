@@ -258,6 +258,7 @@ public sealed class CalendarFileImport
             events.Add(CalendarEvent.Create(
                 CalendarEventId.Create(Guid.CreateVersion7(recordedAt)),
                 entry.Title,
+                notes: null,
                 entry.Start,
                 entry.End,
                 entry.IsAllDay,

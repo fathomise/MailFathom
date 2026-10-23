@@ -4,17 +4,21 @@
 
 import { useId } from 'react';
 import { dialogField, dialogFieldLabel } from '../controls/chrome';
+import { wordLasting } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
-import type { EventDraft } from './eventDraft';
+import { endsBeforeItBegins, lengthOf, type EventDraft } from './eventDraft';
 
-// The four fields an event is, drawn once for the two dialogs that hold them: writing one down and amending one are
-// the same four values, and two arrangements of them is how one form comes to accept what the other refuses.
+// The fields an event is, drawn once for the two dialogs that hold them: writing one down and amending one are the
+// same values, and two arrangements of them is how one form comes to accept what the other refuses. The design's
+// *Editing an event* state is the arrangement — *Starts* and *Ends* each a day and a time, *All day* folding the times
+// away and keeping the days, and a line under them saying how long it lasts or why it cannot be saved.
 //
-// **The day and the two times are the platform's own fields.** A date input and a time input already know the
-// reader's own calendar and clock, offer the platform's picker on a phone, and are reachable from a keyboard without
-// this client writing a line of it — which is the whole of what the design's two free-text boxes, *Day (e.g.
-// 28)* and *Time (e.g. 14:00)*, were standing in for. That is a correction owed to the design rather than a pair of
-// text boxes to reproduce.
+// **The days and the times are the platform's own fields.** A date input and a time input already know the reader's
+// own calendar and clock, offer the platform's picker on a phone, and are reachable from a keyboard without this
+// client writing a line of it.
+
+/** The longest description the deployment keeps, which the field stops at rather than letting a save be refused. */
+const longestNotes = 4000;
 
 export function EventFields({
     draft,
@@ -23,12 +27,25 @@ export function EventFields({
     readonly draft: EventDraft;
     readonly onDraft: (draft: EventDraft) => void;
 }) {
-    const { translate } = useLocalization();
+    const { locale, translate } = useLocalization();
     const titles = useId();
-    const days = useId();
-    const starts = useId();
-    const ends = useId();
+    const notes = useId();
+    const startDays = useId();
+    const endDays = useId();
     const allDay = useId();
+
+    const conflicting = endsBeforeItBegins(draft);
+    const length = lengthOf(draft);
+
+    function startOn(day: string): void {
+        // The last day travels with the first where it stood on it or would now stand before it, so moving an event
+        // to another day does not leave it ending on the day it was moved away from.
+        onDraft({
+            ...draft,
+            startDay: day,
+            endDay: draft.endDay === draft.startDay || draft.endDay < day ? day : draft.endDay,
+        });
+    }
 
     return (
         <>
@@ -49,17 +66,18 @@ export function EventFields({
             </div>
 
             <div className="flex flex-col gap-1.5">
-                <label htmlFor={days} className={dialogFieldLabel}>
-                    {translate('calendar.eventDay')}
+                <label htmlFor={notes} className={dialogFieldLabel}>
+                    {translate('calendar.eventNotes')}
                 </label>
 
-                <input
-                    id={days}
-                    type="date"
-                    value={draft.day}
-                    className={dialogField}
+                <textarea
+                    id={notes}
+                    rows={3}
+                    maxLength={longestNotes}
+                    value={draft.notes}
+                    className={`${dialogField} resize-y`}
                     onChange={(typing) => {
-                        onDraft({ ...draft, day: typing.target.value });
+                        onDraft({ ...draft, notes: typing.target.value });
                     }}
                 />
             </div>
@@ -71,7 +89,7 @@ export function EventFields({
                     checked={draft.allDay}
                     className="size-4.5 accent-accent"
                     onChange={(ticking) => {
-                        // A day carries no clock reading, so turning it on empties the two fields rather than leaving
+                        // A day carries no clock reading, so turning it on empties the two times rather than leaving
                         // values the record would not state and the form would then have to explain.
                         onDraft(
                             ticking.target.checked
@@ -86,40 +104,116 @@ export function EventFields({
                 </label>
             </div>
 
-            {draft.allDay ? null : (
-                <div className="flex flex-wrap gap-2.75">
+            {draft.allDay ? (
+                <div className="flex gap-2.5">
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                        <label htmlFor={starts} className={dialogFieldLabel}>
+                        <label htmlFor={startDays} className={dialogFieldLabel}>
                             {translate('calendar.eventStart')}
                         </label>
 
                         <input
-                            id={starts}
-                            type="time"
-                            value={draft.start}
+                            id={startDays}
+                            type="date"
+                            value={draft.startDay}
                             className={dialogField}
                             onChange={(typing) => {
-                                onDraft({ ...draft, start: typing.target.value });
+                                startOn(typing.target.value);
                             }}
                         />
                     </div>
 
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                        <label htmlFor={ends} className={dialogFieldLabel}>
+                        <label htmlFor={endDays} className={dialogFieldLabel}>
                             {translate('calendar.eventEnd')}
                         </label>
 
                         <input
-                            id={ends}
-                            type="time"
-                            value={draft.end}
-                            className={dialogField}
+                            id={endDays}
+                            type="date"
+                            value={draft.endDay}
+                            aria-invalid={conflicting}
+                            className={`${dialogField} aria-invalid:border-error`}
                             onChange={(typing) => {
-                                onDraft({ ...draft, end: typing.target.value });
+                                onDraft({ ...draft, endDay: typing.target.value });
                             }}
                         />
                     </div>
                 </div>
+            ) : (
+                <>
+                    <div className="flex flex-col gap-1.5">
+                        <label htmlFor={startDays} className={dialogFieldLabel}>
+                            {translate('calendar.eventStart')}
+                        </label>
+
+                        <div className="flex gap-2.5">
+                            <div className="min-w-0 flex-1">
+                                <input
+                                    id={startDays}
+                                    type="date"
+                                    value={draft.startDay}
+                                    className={dialogField}
+                                    onChange={(typing) => {
+                                        startOn(typing.target.value);
+                                    }}
+                                />
+                            </div>
+
+                            <div className="w-28 shrink-0">
+                                <input
+                                    type="time"
+                                    aria-label={translate('calendar.eventStartTime')}
+                                    value={draft.start}
+                                    className={dialogField}
+                                    onChange={(typing) => {
+                                        onDraft({ ...draft, start: typing.target.value });
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                        <label htmlFor={endDays} className={dialogFieldLabel}>
+                            {translate('calendar.eventEnd')}
+                        </label>
+
+                        <div className="flex gap-2.5">
+                            <div className="min-w-0 flex-1">
+                                <input
+                                    id={endDays}
+                                    type="date"
+                                    value={draft.endDay}
+                                    className={dialogField}
+                                    onChange={(typing) => {
+                                        onDraft({ ...draft, endDay: typing.target.value });
+                                    }}
+                                />
+                            </div>
+
+                            <div className="w-28 shrink-0">
+                                <input
+                                    type="time"
+                                    aria-label={translate('calendar.eventEndTime')}
+                                    aria-invalid={conflicting}
+                                    value={draft.end}
+                                    className={`${dialogField} aria-invalid:border-error`}
+                                    onChange={(typing) => {
+                                        onDraft({ ...draft, end: typing.target.value });
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {conflicting ? (
+                <p role="alert" className="text-sm text-error-text text-pretty">
+                    {translate('calendar.endsBeforeStart')}
+                </p>
+            ) : length === null ? null : (
+                <p className="text-sm text-muted">{wordLasting(length, locale, 'short')}</p>
             )}
         </>
     );

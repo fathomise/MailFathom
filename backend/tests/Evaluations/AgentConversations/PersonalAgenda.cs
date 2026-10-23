@@ -133,6 +133,7 @@ internal static class PersonalAgenda
         CalendarEvent.Create(
             CalendarEventId.Create(new Guid(number, 2, 0, new byte[8])),
             CalendarEventTitle.Create(title),
+            notes: null,
             start,
             end,
             isAllDay,

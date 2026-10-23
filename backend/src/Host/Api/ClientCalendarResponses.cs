@@ -9,6 +9,7 @@ namespace MailFathom.Host.Api;
 
 /// <summary>The event a caller states for their own calendar.</summary>
 /// <param name="Title">What the event is called.</param>
+/// <param name="Notes">What the event is about, or nothing — or blank text — to state no notes.</param>
 /// <param name="Start">When it begins.</param>
 /// <param name="End">When it ends, or nothing to state no end.</param>
 /// <param name="IsAllDay">Whether the event is stated as a day rather than as a clock time; a request naming nothing states a clock time.</param>
@@ -20,6 +21,7 @@ namespace MailFathom.Host.Api;
 /// </remarks>
 internal sealed record CalendarEventCreationRequest(
     string? Title,
+    string? Notes,
     DateTimeOffset? Start,
     DateTimeOffset? End,
     bool IsAllDay,
@@ -28,18 +30,20 @@ internal sealed record CalendarEventCreationRequest(
 
 /// <summary>The event a caller states one of their own is to stand as.</summary>
 /// <param name="Title">What the event is called afterwards.</param>
+/// <param name="Notes">What it is about afterwards, or nothing — or blank text — to hold no notes.</param>
 /// <param name="Start">When it begins afterwards.</param>
 /// <param name="End">When it ends afterwards, or nothing to hold no end.</param>
 /// <param name="IsAllDay">Whether it is stated as a day rather than as a clock time afterwards.</param>
 /// <param name="Reminders">The leads it is announced at afterwards, in minutes before it, or nothing to announce nothing.</param>
 /// <remarks>
 /// The whole record rather than the difference from the one held, so a caller sending only what changed is sending a
-/// record that is missing the rest. The reminders are part of that record, which is what makes turning the last one
-/// off an event stated with none rather than a field left out. What it cannot state is the identity, the origin, or
+/// record that is missing the rest. The reminders and the notes are part of that record, which is what makes turning
+/// the last reminder off, or clearing the notes, an event stated with none rather than a field left out. What it cannot state is the identity, the origin, or
 /// the message the event cites: an amendment changes none of those.
 /// </remarks>
 internal sealed record CalendarEventAmendmentRequest(
     string? Title,
+    string? Notes,
     DateTimeOffset? Start,
     DateTimeOffset? End,
     bool IsAllDay,
@@ -48,6 +52,7 @@ internal sealed record CalendarEventAmendmentRequest(
 /// <summary>One event as the calendar holds it.</summary>
 /// <param name="Id">The identity this deployment gave it, which neither an amendment nor an acceptance changes.</param>
 /// <param name="Title">What the event is called, as whoever wrote it down wrote it.</param>
+/// <param name="Notes">What the event is about, or nothing where nobody wrote anything down beside its title.</param>
 /// <param name="Start">When it begins.</param>
 /// <param name="End">When it ends, or nothing where nothing said how long it lasts.</param>
 /// <param name="IsAllDay">Whether the event is stated as a day rather than as a clock time.</param>
@@ -69,14 +74,15 @@ internal sealed record CalendarEventAmendmentRequest(
 /// the surface rather than travelling with every event on a screen.
 /// </para>
 /// <para>
-/// The title and the times are personal data: they say who somebody is meeting and when they are not somewhere else.
-/// They travel to the person whose calendar this is and reach nothing else — no log line, no metric dimension, and no
-/// failure message.
+/// The title, the notes, and the times are personal data: they say who somebody is meeting, about what, and when they
+/// are not somewhere else. They travel to the person whose calendar this is and reach nothing else — no log line, no
+/// metric dimension, and no failure message.
 /// </para>
 /// </remarks>
 internal sealed record CalendarEventResponse(
     Guid Id,
     string Title,
+    string? Notes,
     DateTimeOffset Start,
     DateTimeOffset? End,
     bool IsAllDay,
@@ -98,6 +104,7 @@ internal sealed record CalendarEventResponse(
         return new CalendarEventResponse(
             calendarEvent.Id.Value,
             calendarEvent.Title.Value,
+            calendarEvent.Notes?.Value,
             calendarEvent.Start,
             calendarEvent.End,
             calendarEvent.IsAllDay,

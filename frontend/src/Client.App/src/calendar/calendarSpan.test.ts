@@ -43,6 +43,7 @@ function event(id: string, start: string, end: string | null = null, title = id)
         isAllDay: false,
         reminders: [],
         remindsAt: [],
+        notes: null,
         origin: 'Asserted',
         sourceMessage: null,
         recordedAt: '2026-09-01T09:00:00+02:00',
@@ -176,6 +177,14 @@ describe('eventsOn', () => {
 
     it('answers what falls on that day', () => {
         expect(eventsOn([meeting, instant], new Date(2026, 8, 24))).toEqual([meeting]);
+    });
+
+    it('answers days on every day they cover and not on the day their closing midnight opens', () => {
+        const days = event('days', '2026-09-24T00:00:00+02:00', '2026-09-26T00:00:00+02:00');
+
+        expect(eventsOn([days], new Date(2026, 8, 24))).toEqual([days]);
+        expect(eventsOn([days], new Date(2026, 8, 25))).toEqual([days]);
+        expect(eventsOn([days], new Date(2026, 8, 26))).toEqual([]);
     });
 
     it('answers an event in both of the days it runs across', () => {

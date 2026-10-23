@@ -423,11 +423,13 @@ export function CalendarSpace({
                 </p>
             ) : null}
 
-            {reading.reading ? (
-                <p role="status" className="shrink-0 border-b border-line bg-sunken px-4 py-2 text-sm text-muted">
-                    {translate('calendar.reading')}
-                </p>
-            ) : null}
+            {/* Said to whoever is listening and drawn nowhere, the way the design settles the folder tree's wait: a span
+                answers in moments, and a bar standing over the views for those moments is what moved the whole screen
+                down and back up every time somebody switched between them. The region stands from the start, so a
+                screen reader hears the sentence arrive rather than a region that was not there to listen to. */}
+            <p role="status" className="sr-only">
+                {reading.reading ? translate('calendar.reading') : ''}
+            </p>
 
             {reading.failure === null ? null : (
                 <div className="flex shrink-0 flex-col items-start gap-2 border-b border-line bg-sunken px-4 py-2.75">
@@ -442,7 +444,10 @@ export function CalendarSpace({
                 </div>
             )}
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto desktop:flex-row desktop:overflow-hidden">
+            <div
+                aria-busy={reading.reading}
+                className="flex min-h-0 flex-1 flex-col overflow-y-auto desktop:flex-row desktop:overflow-hidden"
+            >
                 {drawnView()}
 
                 <ProposedDates proposals={standing} onAccept={accept} onDismiss={dismiss} />
@@ -475,7 +480,6 @@ export function CalendarSpace({
                     session={session}
                     transport={transport}
                     on={anchor}
-                    now={now}
                     readsDescriptions={readsDescriptions}
                     onSave={record}
                 />

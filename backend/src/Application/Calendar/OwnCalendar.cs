@@ -119,6 +119,7 @@ public sealed class OwnCalendar
 
     /// <summary>Puts an event the person states on their own calendar.</summary>
     /// <param name="title">What the event is called, as supplied.</param>
+    /// <param name="notes">What the event is about, as supplied, where blank text or <see langword="null" /> states none.</param>
     /// <param name="start">When it begins.</param>
     /// <param name="end">When it ends, or <see langword="null" /> to state no end.</param>
     /// <param name="isAllDay">Whether the event is stated as a day rather than as a clock time.</param>
@@ -134,6 +135,7 @@ public sealed class OwnCalendar
     /// </remarks>
     public async Task<CalendarEventWriteResult> CreateAsync(
         string? title,
+        string? notes,
         DateTimeOffset start,
         DateTimeOffset? end,
         bool isAllDay,
@@ -145,7 +147,7 @@ public sealed class OwnCalendar
 
         var owner = this.authorization.RequireUser();
 
-        if (Refusal(title, start, end, reminders) is { } refused)
+        if (Refusal(title, notes, start, end, reminders) is { } refused)
         {
             return refused;
         }
@@ -154,6 +156,7 @@ public sealed class OwnCalendar
         var created = CalendarEvent.Create(
             CalendarEventId.Create(Guid.CreateVersion7(recordedAt)),
             CalendarEventTitle.Create(title),
+            StatedNotes(notes),
             start,
             end,
             isAllDay,
@@ -175,6 +178,7 @@ public sealed class OwnCalendar
     /// <summary>Amends one event of the signed-in person's calendar to the record they state.</summary>
     /// <param name="eventId">The event to amend.</param>
     /// <param name="title">What it is called afterwards, as supplied.</param>
+    /// <param name="notes">What it is about afterwards, as supplied, where blank text or <see langword="null" /> clears them.</param>
     /// <param name="start">When it begins afterwards.</param>
     /// <param name="end">When it ends afterwards, or <see langword="null" /> to hold no end.</param>
     /// <param name="isAllDay">Whether it is stated as a day rather than as a clock time afterwards.</param>
@@ -184,12 +188,13 @@ public sealed class OwnCalendar
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller acts for no person, or its grant omits <see cref="MailFathomPermission.CalendarWrite" />.</exception>
     /// <remarks>
     /// The whole record rather than the difference from the one held, which is what keeps retitling an event, moving
-    /// it, and dropping its end one operation. What it never changes is the identity, the origin, the message the event
+    /// it, rewriting its notes, and dropping its end one operation. What it never changes is the identity, the origin, the message the event
     /// cites, and the identifier it was imported under — so this is not how a proposal is accepted.
     /// </remarks>
     public async Task<CalendarEventWriteResult> AmendAsync(
         CalendarEventId eventId,
         string? title,
+        string? notes,
         DateTimeOffset start,
         DateTimeOffset? end,
         bool isAllDay,
@@ -200,12 +205,13 @@ public sealed class OwnCalendar
 
         var owner = this.authorization.RequireUser();
 
-        if (Refusal(title, start, end, reminders) is { } refused)
+        if (Refusal(title, notes, start, end, reminders) is { } refused)
         {
             return refused;
         }
 
         var amendedTitle = CalendarEventTitle.Create(title);
+        var amendedNotes = StatedNotes(notes);
         var amendedReminders = Stated(reminders);
 
         return await this.concurrencyRetryPolicy.CommitAsync(
@@ -218,6 +224,7 @@ public sealed class OwnCalendar
 
                 var amended = held.AmendedWith(
                     amendedTitle,
+                    amendedNotes,
                     start,
                     end,
                     isAllDay,
@@ -300,6 +307,7 @@ public sealed class OwnCalendar
     /// </remarks>
     private static CalendarEventWriteResult? Refusal(
         string? title,
+        string? notes,
         DateTimeOffset start,
         DateTimeOffset? end,
         IReadOnlyCollection<int> reminders)
@@ -309,6 +317,11 @@ public sealed class OwnCalendar
         if (!CalendarEventTitle.TryCreate(title, out _))
         {
             return CalendarEventWriteResult.TitleRefused;
+        }
+
+        if (!string.IsNullOrWhiteSpace(notes) && !CalendarEventNotes.TryCreate(notes, out _))
+        {
+            return CalendarEventWriteResult.NotesRefused;
         }
 
         if (end is { } stated && stated <= start)
@@ -325,6 +338,10 @@ public sealed class OwnCalendar
             ? CalendarEventWriteResult.RemindersRefused
             : null;
     }
+
+    /// <summary>Reads the notes a caller stated, treating blank text as no notes at all, which <see cref="Refusal" /> has already held to what an event may carry.</summary>
+    private static CalendarEventNotes? StatedNotes(string? notes) =>
+        string.IsNullOrWhiteSpace(notes) ? null : CalendarEventNotes.Create(notes);
 
     /// <summary>Reads the leads a caller stated, which <see cref="Refusal" /> has already held to what an event may carry.</summary>
     private static IReadOnlyCollection<Reminder> Stated(IReadOnlyCollection<int> reminders) =>

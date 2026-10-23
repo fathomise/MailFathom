@@ -41,7 +41,7 @@ namespace MailFathom.Host.Api;
 /// </para>
 /// <para>
 /// <b>Nothing an event carries reaches a refusal.</b> Every message a refusal states comes from this system rather
-/// than from the request, so a title that was not accepted is reported as a title that is not usable instead of being
+/// than from the request, so a title or notes that were not accepted are reported as not usable instead of being
 /// echoed into a problem document a proxy log keeps.
 /// </para>
 /// </remarks>
@@ -62,11 +62,13 @@ internal static class ClientCalendarEndpoints
 
     /// <summary>The greatest request body a calendar write reads before refusing it.</summary>
     /// <remarks>
-    /// A full request is one title, two instants, an identifier, and a short list of whole numbers, which is under a
-    /// kilobyte however it is escaped. This stands well above that, so a body that was never an event at all is
-    /// answered <c>413</c> before the handler is reached rather than parsed.
+    /// A full request is one title, notes of up to <see cref="CalendarEventNotes.MaximumLength" /> characters, two
+    /// instants, an identifier, and a short list of whole numbers. The notes decide the size: six bytes a character is
+    /// the most JSON escaping widens one to, which puts the largest event a client can state under 25 kilobytes. This
+    /// stands above that, so a body that was never an event at all is answered <c>413</c> before the handler is reached
+    /// rather than parsed.
     /// </remarks>
-    internal const int MaxWriteRequestBytes = 4 * 1024;
+    internal const int MaxWriteRequestBytes = 32 * 1024;
 
     /// <summary>Maps the calendar routes into the client group, so they inherit its requirement, its policy, and its limits.</summary>
     /// <param name="api">The client route group.</param>
@@ -195,6 +197,7 @@ internal static class ClientCalendarEndpoints
 
         var written = await calendar.CreateAsync(
             request.Title,
+            request.Notes,
             start,
             request.End,
             request.IsAllDay,
@@ -239,6 +242,7 @@ internal static class ClientCalendarEndpoints
         var written = await calendar.AmendAsync(
             identity,
             request.Title,
+            request.Notes,
             start,
             request.End,
             request.IsAllDay,
@@ -327,6 +331,9 @@ internal static class ClientCalendarEndpoints
         CalendarEventWriteOutcome.RemindersRefused =>
             $"An event carries at most {Reminder.MaximumCount} reminders, each stated once, as whole "
             + $"minutes between 0 and {Reminder.MaximumMinutesBefore} before it.",
+        CalendarEventWriteOutcome.NotesRefused =>
+            $"Event notes are at most {CalendarEventNotes.MaximumLength} characters and carry no control or format "
+            + "character other than a line break or a tab.",
         _ => "The event cannot be written as stated.",
     };
 

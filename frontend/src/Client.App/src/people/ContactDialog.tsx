@@ -11,9 +11,10 @@ import { SurfaceControl } from '../controls/SurfaceControl';
 import { useLocalization } from '../localization/useLocalization';
 import { useTopLayerSurface } from '../shell/screenLayers';
 
-// Writing somebody down, which is the one way this client puts a person into the book. What it records is asserted by
-// the person typing it, which is not a field on this form and never could be: the surface reads the origin off who is
-// writing rather than off what they send.
+// Writing somebody down, and correcting somebody already written down, which are the two ways this client states a
+// person in the book and one form: a name and an address. What it records is asserted by the person typing it, which
+// is not a field on this form and never could be: the surface reads the origin off who is writing rather than off what
+// they send. Amending opens on what the record holds, and *Save* stays flat until something in it differs.
 //
 // **Two fields rather than the four the design draws.** A name and an address are what a contact record holds
 // on this deployment; a company and a role are not fields of it, so a form offering them would be asking for values no
@@ -36,12 +37,18 @@ export interface ContactDraft {
     readonly address: string;
 }
 
-export function NewContact({
+const nothingWritten: ContactDraft = { displayName: '', address: '' };
+
+export function ContactDialog({
     asked,
+    amending = null,
     onSave,
 }: {
     /** The dialog itself, held by the caller so that every way of opening it reaches the same one. */
     readonly asked: RefObject<HTMLDialogElement | null>;
+
+    /** What the record being corrected holds, or `null` where somebody is being written down for the first time. */
+    readonly amending?: ContactDraft | null;
 
     /** Records what was typed, run once the dialog has closed and focus has been restored. */
     readonly onSave: (draft: ContactDraft) => void;
@@ -52,12 +59,15 @@ export function NewContact({
     const names = useId();
     const addresses = useId();
 
-    const [draft, setDraft] = useState<ContactDraft>({ displayName: '', address: '' });
+    const opensOn = amending ?? nothingWritten;
+    const [draft, setDraft] = useState<ContactDraft>(opensOn);
 
     const named = draft.displayName.trim() !== '';
     const addressed = draft.address.trim() !== '';
     const usable = !addressed || looksLikeAnAddress(draft.address.trim());
-    const savable = named && addressed && usable;
+    const changed =
+        draft.displayName.trim() !== amending?.displayName || draft.address.trim() !== amending.address;
+    const savable = named && addressed && usable && changed;
 
     return (
         <dialog
@@ -77,9 +87,9 @@ export function NewContact({
                     onSave({ displayName: draft.displayName.trim(), address: draft.address.trim() });
                 }
 
-                // The form is emptied on the way out rather than on the way in, so a dialog opened again is a blank
-                // one and nothing of what was typed outlives the question it was typed into.
-                setDraft({ displayName: '', address: '' });
+                // The form is put back on the way out rather than on the way in, so a dialog opened again opens on the
+                // record and nothing of what was typed outlives the question it was typed into.
+                setDraft(opensOn);
             }}
         >
             <form
@@ -99,7 +109,7 @@ export function NewContact({
                     <Icon name="person" className="size-icon-lg shrink-0 text-muted" />
 
                     <h2 id={asks} className="min-w-0 flex-1 truncate text-lg font-semibold">
-                        {translate('people.newContact')}
+                        {translate(amending === null ? 'people.newContact' : 'people.editContact')}
                     </h2>
 
                     <SurfaceControl
@@ -154,9 +164,11 @@ export function NewContact({
                         </p>
                     )}
 
-                    <p className="rounded-md bg-accent-soft px-3 py-2.5 text-sm text-accent-deep text-pretty">
-                        {translate('people.newContactHint')}
-                    </p>
+                    {amending === null ? (
+                        <p className="rounded-md bg-accent-soft px-3 py-2.5 text-sm text-accent-deep text-pretty">
+                            {translate('people.newContactHint')}
+                        </p>
+                    ) : null}
                 </div>
 
                 <div className="flex flex-wrap justify-end gap-2.25 px-4.5 pb-4.5">
@@ -175,7 +187,7 @@ export function NewContact({
                         disabled={!savable}
                         className={`${mannerDrawn.act} disabled:cursor-not-allowed disabled:bg-rail disabled:text-faint disabled:opacity-100`}
                     >
-                        {translate('people.saveContact')}
+                        {translate(amending === null ? 'people.saveContact' : 'people.saveChanges')}
                     </button>
                 </div>
             </form>

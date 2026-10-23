@@ -69,8 +69,9 @@ test('draws an event it wrote, amended, and deleted the same in the week, the da
     const writing = page.getByRole('dialog', { name: 'New event' });
 
     await writing.getByLabel('Title').fill('Dentist appointment');
-    await writing.getByLabel('Starts').fill('13:00');
-    await writing.getByLabel('Ends').fill('13:30');
+    await writing.getByLabel('Description').fill('Bring the referral.');
+    await writing.getByLabel('Start time').fill('13:00');
+    await writing.getByLabel('End time').fill('13:30');
     await writing.getByRole('button', { name: 'Save' }).click();
 
     await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
@@ -88,6 +89,7 @@ test('draws an event it wrote, amended, and deleted the same in the week, the da
             end: `${today()}T13:30:00.000Z`,
             isAllDay: false,
             reminders: [],
+            notes: 'Bring the referral.',
             sourceMessage: null,
         },
     ]);
@@ -97,10 +99,11 @@ test('draws an event it wrote, amended, and deleted the same in the week, the da
 
     const opened = page.getByRole('dialog', { name: 'Dentist appointment' });
 
+    await expect(opened.getByText('Bring the referral.')).toBeVisible();
     await opened.getByRole('button', { name: 'Edit' }).click();
     await opened.getByLabel('Title').fill('Dental check-up');
-    await opened.getByLabel('Starts').fill('15:00');
-    await opened.getByLabel('Ends').fill('15:45');
+    await opened.getByLabel('Start time').fill('15:00');
+    await opened.getByLabel('End time').fill('15:45');
     await opened.getByRole('button', { name: 'Save' }).click();
 
     const amended = page.getByRole('dialog', { name: 'Dental check-up' });
@@ -130,6 +133,7 @@ test('draws an event it wrote, amended, and deleted the same in the week, the da
         end: `${today()}T15:45:00.000Z`,
         isAllDay: false,
         reminders: [],
+        notes: 'Bring the referral.',
     });
 
     await (await viewOfToday(page, 'Week', 15)).getByRole('option', { name: /Dental check-up$/u }).click();

@@ -29,4 +29,7 @@ public enum CalendarEventWriteOutcome
 
     /// <summary>The reminders state a lead that is negative, further ahead than one may be set, repeated, or more of them than an event holds.</summary>
     RemindersRefused = 5,
+
+    /// <summary>The notes are longer than an event holds or carry a character that renders as nothing, other than a line break or a tab.</summary>
+    NotesRefused = 6,
 }

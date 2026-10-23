@@ -292,6 +292,7 @@ export class FakeDeployment {
 
     private readonly contactsWritten: Held[] = [];
     private readonly contactsErased = new Set<string>();
+    private readonly contactsAmended = new Map<string, Held>();
 
     /** Mail that arrived while the check ran, newest first, which the inbox lists ahead of what the corpus holds. */
     private readonly arrived: FolderRow[] = [];
@@ -803,7 +804,7 @@ export class FakeDeployment {
     }
 
     /** Erasing one person from whichever book holds them, and what the mail index says about them. */
-    private contactAnswer({ method }: IssuedRequest, segments: readonly string[]): FakeAnswer | null {
+    private contactAnswer({ method, body }: IssuedRequest, segments: readonly string[]): FakeAnswer | null {
         const [space, id = '', part] = segments;
 
         if (space !== 'contacts' || segments.length > 3) {
@@ -814,6 +815,21 @@ export class FakeDeployment {
         const standing = books
             .filter((contact) => !this.contactsErased.has(String(contact['id'])))
             .find((contact) => contact['id'] === id);
+
+        if (method === 'PUT' && part === undefined && standing?.['origin'] === 'Asserted') {
+            const stated = recordIn(body) ?? {};
+            const contact = {
+                ...standing,
+                displayName: stated['displayName'],
+                addresses: stated['addresses'],
+                preferredAddress: stated['preferredAddress'],
+                note: stated['note'] ?? null,
+            };
+
+            this.contactsAmended.set(id, contact);
+
+            return answering({ ...contacts.contactWritten, contact });
+        }
 
         if (method === 'DELETE' && part === undefined) {
             this.contactsErased.add(id);
@@ -887,6 +903,7 @@ export class FakeDeployment {
             end: stated['end'] ?? null,
             isAllDay: stated['isAllDay'] === true,
             reminders,
+            notes: stated['notes'] ?? null,
             remindsAt: reminders.map((lead) => new Date(Date.parse(start) - lead * 60_000).toISOString()),
             origin: 'Asserted',
             sourceMessage: amends === null ? (stated['sourceMessage'] ?? null) : (amends['sourceMessage'] ?? null),
@@ -940,6 +957,7 @@ export class FakeDeployment {
 
         return book
             .filter((contact) => !this.contactsErased.has(String(contact['id'])))
+            .map((contact) => this.contactsAmended.get(String(contact['id'])) ?? contact)
             .sort((one, other) => String(one['displayName']).localeCompare(String(other['displayName']), 'en'));
     }
 

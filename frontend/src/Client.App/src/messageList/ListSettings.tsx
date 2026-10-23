@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useContext, useId, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { MailEnrichmentAspect, MailTimelineOrder } from '@mailfathom/client-backend';
 import { CheckControl } from '../controls/CheckControl';
@@ -14,6 +14,7 @@ import { useLocalization } from '../localization/useLocalization';
 import { useListHeadRow } from '../mailSpace/listHeadRow';
 import { Departing } from '../shell/Departing';
 import { DepartureContext } from '../shell/departure';
+import { useWideWorkspace } from '../shell/useWideWorkspace';
 import {
     dateRanges,
     narrowedToRange,
@@ -127,6 +128,35 @@ export function ListSettings({
     const headRow = useListHeadRow();
 
     const [open, setOpen] = useState(false);
+    const opens = useRef<HTMLButtonElement>(null);
+    const wide = useWideWorkspace();
+
+    // Below the wide composition the band stands over the list somebody came to read rather than beside it, so a press
+    // anywhere else puts it away the way the control that opened it does — the rule every surface folded away at that
+    // width follows. The control itself is left to its own press, which is what toggles it.
+    useEffect(() => {
+        if (!open || wide) {
+            return;
+        }
+
+        function pressed(event: PointerEvent): void {
+            const target = event.target;
+
+            if (
+                target instanceof Node &&
+                document.getElementById(panel)?.contains(target) !== true &&
+                opens.current?.contains(target) !== true
+            ) {
+                setOpen(false);
+            }
+        }
+
+        document.addEventListener('pointerdown', pressed, true);
+
+        return () => {
+            document.removeEventListener('pointerdown', pressed, true);
+        };
+    }, [open, wide, panel]);
 
     // The pair as typed, held only while it selects nothing. A refused range is still what the reader is looking at, so
     // it stays in the two controls and is what the next keystroke is judged against — a control that snapped back to
@@ -175,6 +205,7 @@ export function ListSettings({
 
     const opener = (
         <button
+            ref={opens}
             type="button"
             aria-expanded={open}
             aria-controls={panel}

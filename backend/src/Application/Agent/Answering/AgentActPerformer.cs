@@ -141,6 +141,7 @@ public sealed class AgentActPerformer : IAgentActPerformer
     {
         var written = await this.calendar.CreateAsync(
             scheduling.Title.Value,
+            notes: null,
             scheduling.Start,
             scheduling.End,
             scheduling.IsAllDay,

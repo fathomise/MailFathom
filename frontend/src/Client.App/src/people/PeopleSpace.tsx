@@ -4,6 +4,7 @@
 
 import { useRef, useState } from 'react';
 import {
+    amendContact,
     eraseContact,
     promoteContact,
     recordContact,
@@ -20,7 +21,7 @@ import { Control } from '../controls/Control';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useTwoPanes, useWideWorkspace } from '../shell/useWideWorkspace';
-import { NewContact, type ContactDraft } from './NewContact';
+import { ContactDialog, type ContactDraft } from './ContactDialog';
 import { PersonPage } from './PersonPage';
 import { useContactCorrespondence } from './useContactCorrespondence';
 import { paneArrival, usePaneMotion } from '../shell/paneMotion';
@@ -102,6 +103,7 @@ export function PeopleSpace({
 
     const asked = useRef<HTMLDialogElement | null>(null);
     const asking = useRef<HTMLDialogElement | null>(null);
+    const amending = useRef<HTMLDialogElement | null>(null);
 
     // Who is open *now*, as against who was open when a write was asked for. A write answers after a wait, and the
     // reader is free to open somebody else inside it — so state read in that answer is the state the press closed
@@ -146,6 +148,44 @@ export function PeopleSpace({
                 setBook('own');
                 reading.readAgain();
             }
+        });
+    }
+
+    // A correction states the name and the address the form holds, and keeps everything the form does not show: the
+    // other addresses the book holds for them and the note. The address typed becomes the preferred one, which is the
+    // one the form opened on.
+    function amend(contact: Contact, draft: ContactDraft): void {
+        if (session === null) {
+            return;
+        }
+
+        void amendContact(session, transport, contact.id, {
+            displayName: draft.displayName,
+            addresses: [
+                draft.address,
+                ...contact.addresses.filter(
+                    (address) => address !== contact.preferredAddress && address !== draft.address,
+                ),
+            ],
+            preferredAddress: draft.address,
+            note: contact.note,
+        }).then((answer) => {
+            if (answer.outcome === 'failed') {
+                setSaid({ where: 'person', said: 'people.writeFailed' });
+
+                return;
+            }
+
+            setSaid({
+                where: 'person',
+                said: answer.value.outcome === 'Written' ? 'people.amended' : writeSaid[answer.value.outcome],
+            });
+
+            if (answer.value.contact !== null && openedNow.current === contact.id) {
+                open(answer.value.contact);
+            }
+
+            reading.readAgain();
         });
     }
 
@@ -336,7 +376,7 @@ export function PeopleSpace({
                             correspondence={correspondence}
                             writable={writable}
                             promoting={promoting}
-                            promotionSaid={said?.where === 'person' ? said.said : null}
+                            recordSaid={said?.where === 'person' ? said.said : null}
                             onBack={
                                 twoPanes
                                     ? null
@@ -345,6 +385,10 @@ export function PeopleSpace({
                                       }
                             }
                             onPromote={promote}
+                            onAskAmendment={() => {
+                                setSaid(null);
+                                amending.current?.showModal();
+                            }}
                             onAskErasure={() => {
                                 askErasure([opened]);
                             }}
@@ -371,7 +415,20 @@ export function PeopleSpace({
                 />
             ) : null}
 
-            {writable ? <NewContact asked={asking} onSave={record} /> : null}
+            {writable ? <ContactDialog asked={asking} onSave={record} /> : null}
+
+            {/* Keyed by the person, so the form opens on whoever is open now rather than on whoever it was first
+                drawn for. */}
+            {writable && opened !== null && opened.origin === 'Asserted' ? (
+                <ContactDialog
+                    key={opened.id}
+                    asked={amending}
+                    amending={{ displayName: opened.displayName, address: opened.preferredAddress }}
+                    onSave={(draft) => {
+                        amend(opened, draft);
+                    }}
+                />
+            ) : null}
 
             <Confirmation
                 asked={asked}

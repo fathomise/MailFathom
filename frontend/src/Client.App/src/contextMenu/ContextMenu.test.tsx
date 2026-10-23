@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { LocalizationProvider } from '../localization/Localization';
 import { ScreenLayersContext, useScreenLayerStack, type ScreenLayers } from '../shell/screenLayers';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
+import { pressSuppressesTapFor } from './rowPress';
 
 const archiving = vi.fn();
 
@@ -126,6 +127,30 @@ describe('ContextMenu', () => {
 
         menuOver(closed);
         fireEvent.pointerDown(screen.getByRole('menuitem', { name: 'Archive' }));
+
+        expect(closed).not.toHaveBeenCalled();
+    });
+
+    it('closes on a later menu gesture outside it, which is a reader pointing somewhere else', () => {
+        const closed = vi.fn();
+        const now = vi.spyOn(performance, 'now').mockReturnValue(1000);
+
+        menuOver(closed);
+        now.mockReturnValue(1000 + pressSuppressesTapFor + 1);
+        fireEvent.contextMenu(document.body);
+        now.mockRestore();
+
+        expect(closed).toHaveBeenCalledOnce();
+    });
+
+    it('stays open through the platform’s own menu gesture for the long press that opened it', () => {
+        const closed = vi.fn();
+        const now = vi.spyOn(performance, 'now').mockReturnValue(1000);
+
+        menuOver(closed);
+        now.mockReturnValue(1000 + pressSuppressesTapFor - 100);
+        fireEvent.contextMenu(document.body);
+        now.mockRestore();
 
         expect(closed).not.toHaveBeenCalled();
     });

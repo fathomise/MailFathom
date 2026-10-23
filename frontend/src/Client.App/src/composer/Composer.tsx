@@ -696,7 +696,7 @@ export function Composer({
                         </>
                     ) : null}
 
-                    <div className="flex items-center gap-2.5 border-b border-line px-3.75 py-2.25 focus-within:border-accent focus-within:ring-3 focus-within:ring-accent-soft focus-within:ring-inset">
+                    <div className="flex items-center gap-2.5 border-b border-line px-3.75 py-2.25">
                         {/* Two elements rather than one, because only one of the two things the row holds is labelable:
                             an answer's subject is text the deployment writes, and `for` on a paragraph names nothing a
                             screen reader would follow. So the field takes a label and the paragraph is named by the

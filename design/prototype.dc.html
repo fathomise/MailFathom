@@ -105,7 +105,7 @@ Project repository: https://github.com/fathomise/MailFathom
     </sc-if>
     </div>
     <sc-if value="{{ notMobile }}" hint-placeholder-val="{{ true }}">
-      <div ref="{{ userMenuRef }}" style="margin-top:auto;padding-top:10px;flex:0 0 auto;position:relative;display:flex;flex-direction:column;align-items:center;gap:8px">
+      <div ref="{{ userMenuRef }}" style="margin-top:auto;padding-top:10px;flex:0 0 auto;position:relative;display:flex;flex-direction:column;align-items:center;gap:14px">
         <sc-if value="{{ railCaptionShown }}" hint-placeholder-val="{{ true }}"><div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint);text-align:center;line-height:1.4;font-weight:600">Prototype</div></sc-if>
         <sc-if value="{{ userMenuOpen }}" hint-placeholder-val="{{ false }}">
           <div data-motion="pop" data-phase="{{ mo.userMenu }}" style="position:fixed;bottom:18px;left:106px;width:216px;z-index:60;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 0 var(--inset) inset,0 10px 24px var(--sh-2),0 2px 6px var(--sh-2);overflow:hidden">
@@ -1335,6 +1335,9 @@ Project repository: https://github.com/fathomise/MailFathom
       </sc-if>
 
       <div style="flex:1;display:flex;min-height:0;min-width:0;position:relative">
+      <sc-if value="{{ historyScrimShown }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ toggleHistory }}" style="position:absolute;inset:0;z-index:44;background:var(--scrim)"></div>
+      </sc-if>
       <sc-if value="{{ historyOpen }}" hint-placeholder-val="{{ false }}">
         <div style="{{ historyPanelStyle }}">
           <div style="display:flex;align-items:center;gap:8px;padding:0 4px 6px 4px;min-height:28px">
@@ -2232,6 +2235,9 @@ Project repository: https://github.com/fathomise/MailFathom
                   <div onClick="{{ removeCollected }}" title="Remove from collected" style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:38px;height:38px;color:var(--text2);background:var(--panel);border:1px solid var(--border2);border-radius:8px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1" style-hover="cursor:pointer;background:var(--hover);color:var(--warn-text)">delete</div>
                   <div onClick="{{ addToOwn }}" title="Save to the address book" style="flex:0 0 auto;display:flex;align-items:center;gap:7px;font-size:13px;white-space:nowrap;color:var(--text2);background:var(--panel);border:1px solid var(--border2);border-radius:8px;padding:9px 14px" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">person_add</span>{{ addToOwnLabel }}</div>
                 </sc-if>
+                <sc-if value="{{ personOwn }}" hint-placeholder-val="{{ true }}">
+                  <div onClick="{{ editContact }}" title="Edit contact" aria-label="Edit contact" style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:38px;height:38px;color:var(--text2);background:var(--panel);border:1px solid var(--border2);border-radius:8px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">edit_note</div>
+                </sc-if>
                 <div onClick="{{ personWrite }}" style="flex:0 0 auto;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:9px 15px" style-hover="cursor:pointer;opacity:0.9">Write</div>
               </div>
             </div>
@@ -2362,7 +2368,7 @@ Project repository: https://github.com/fathomise/MailFathom
             </div>
             <input ref="{{ evPromptRef }}" placeholder="e.g. call with Anna on Friday after 1pm, 45 min, about the addendum" style="{{ promptFieldStyle }}" />
             <div style="display:flex;gap:7px;flex-wrap:wrap">
-              <div onClick="{{ evParse }}" style="font-size:12px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:7px 13px" style-hover="cursor:pointer;opacity:0.9">Create from description</div>
+              <div onClick="{{ evParse }}" style="font-size:12px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:7px 13px" style-hover="cursor:pointer;opacity:0.9">Generate</div>
               <div onClick="{{ evFromThread }}" style="font-size:12px;color:var(--accent-d);background:var(--panel);border:1px solid var(--accent-line);border-radius:8px;padding:7px 13px" style-hover="cursor:pointer">From the open thread</div>
             </div>
             <sc-if value="{{ evParsedShown }}" hint-placeholder-val="{{ false }}">
@@ -2374,10 +2380,25 @@ Project repository: https://github.com/fathomise/MailFathom
             </sc-if>
           </div>
           <input ref="{{ evTitleRef }}" placeholder="Event title" style="{{ fieldStyle }}" />
-          <div style="display:flex;gap:10px">
-            <input ref="{{ evDayRef }}" placeholder="Day (e.g. 28)" style="{{ fieldStyle }}" />
-            <input ref="{{ evTimeRef }}" placeholder="Time (e.g. 14:00)" style="{{ fieldStyle }}" />
+          <textarea ref="{{ evNotesRef }}" rows="3" placeholder="Description - agenda, dial-in, what to bring" style="{{ fieldStyle }}resize:vertical"></textarea>
+          <div onClick="{{ evToggleAllDay }}" style="display:flex;align-items:center;gap:10px;font-size:14px" style-hover="cursor:pointer"><span role="checkbox" aria-checked="{{ evAllDay }}" style="{{ evAllDayBox }}">{{ evAllDayMark }}</span>All day</div>
+          <div style="{{ evSpanRow }}">
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+              <span style="font-size:11px;color:var(--muted);font-weight:600">Starts</span>
+              <div style="display:flex;gap:10px">
+                <input ref="{{ evDayRef }}" placeholder="Day (e.g. 28)" style="{{ fieldStyle }}" />
+                <input ref="{{ evTimeRef }}" placeholder="14:00" style="{{ evTimeStyle }}" />
+              </div>
+            </div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+              <span style="font-size:11px;color:var(--muted);font-weight:600">Ends</span>
+              <div style="display:flex;gap:10px">
+                <input ref="{{ evEndDayRef }}" placeholder="Day (e.g. 29)" style="{{ fieldStyle }}" />
+                <input ref="{{ evEndTimeRef }}" placeholder="15:00" style="{{ evTimeStyle }}" />
+              </div>
+            </div>
           </div>
+          <span style="font-size:12px;color:var(--muted)">{{ evLengthLabel }}</span>
           <div style="display:flex;align-items:center;gap:10px;background:var(--accent-soft);border-radius:8px;padding:11px 13px">
             <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:2px 6px">AI</span>
             <span style="font-size:12px;color:var(--accent-d);line-height:1.45;text-wrap:pretty">I'll link the event to a thread if the title matches one in your mailbox.</span>
@@ -2425,7 +2446,7 @@ Project repository: https://github.com/fathomise/MailFathom
       <div data-motion="{{ moDialog }}" data-phase="{{ mo.newContact }}" onClick="{{ stopProp }}" style="{{ dlgForm }}">
         <sc-if value="{{ sheetGrabber }}" hint-placeholder-val="{{ false }}"><div style="{{ grabberStyle }}"></div></sc-if>
         <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--sub)">
-          <div style="font-size:15px;font-weight:600">New contact</div>
+          <div style="font-size:15px;font-weight:600">{{ ctDialogTitle }}</div>
           <div onClick="{{ closeNewContact }}" style="{{ closeBtnAutoStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
         </div>
         <div style="display:flex;flex-direction:column;gap:13px;padding:18px">
@@ -2441,7 +2462,7 @@ Project repository: https://github.com/fathomise/MailFathom
           </div>
           <div style="display:flex;gap:9px;justify-content:flex-end">
             <div onClick="{{ closeNewContact }}" style="font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:8px 15px" style-hover="cursor:pointer;background:var(--hover)">Cancel</div>
-            <div onClick="{{ saveContact }}" style="font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:8px 16px" style-hover="cursor:pointer;opacity:0.9">Save contact</div>
+            <div onClick="{{ saveContact }}" style="font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:8px 16px" style-hover="cursor:pointer;opacity:0.9">{{ ctSaveLabel }}</div>
           </div>
         </div>
       </div>

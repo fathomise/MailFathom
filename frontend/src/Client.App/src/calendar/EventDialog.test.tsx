@@ -28,6 +28,7 @@ const meeting: CalendarEvent = {
     isAllDay: false,
     reminders: [],
     remindsAt: [],
+    notes: null,
     origin: 'Asserted',
     sourceMessage: null,
     recordedAt: '2026-09-01T09:00:00+02:00',
@@ -155,17 +156,18 @@ describe('EventDialog', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
 
         expect(screen.getByLabelText<HTMLInputElement>('Title').value).toBe('Review with Anna');
-        expect(screen.getByLabelText<HTMLInputElement>('Day').value).toBe('2026-09-24');
-        expect(screen.getByLabelText<HTMLInputElement>('Starts').value).toBe('09:00');
-        expect(screen.getByLabelText<HTMLInputElement>('Ends').value).toBe('10:00');
+        expect(screen.getByLabelText<HTMLInputElement>('Starts').value).toBe('2026-09-24');
+        expect(screen.getByLabelText<HTMLInputElement>('Start time').value).toBe('09:00');
+        expect(screen.getByLabelText<HTMLInputElement>('Ends').value).toBe('2026-09-24');
+        expect(screen.getByLabelText<HTMLInputElement>('End time').value).toBe('10:00');
     });
 
     it('states the whole record rather than the field that changed, which is what the route takes', () => {
         const { onAmend } = drawDialog();
 
         fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
-        fireEvent.change(screen.getByLabelText('Starts'), { target: { value: '11:00' } });
-        fireEvent.change(screen.getByLabelText('Ends'), { target: { value: '12:00' } });
+        fireEvent.change(screen.getByLabelText('Start time'), { target: { value: '11:00' } });
+        fireEvent.change(screen.getByLabelText('End time'), { target: { value: '12:00' } });
         fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
         expect(onAmend).toHaveBeenCalledWith({
@@ -174,6 +176,7 @@ describe('EventDialog', () => {
             end: new Date(2026, 8, 24, 12).toISOString(),
             isAllDay: false,
             reminders: [],
+            notes: null,
         });
     });
 
@@ -181,7 +184,7 @@ describe('EventDialog', () => {
         const { onAmend } = drawDialog();
 
         fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
-        fireEvent.change(screen.getByLabelText('Ends'), { target: { value: '08:00' } });
+        fireEvent.change(screen.getByLabelText('End time'), { target: { value: '08:00' } });
 
         expect(screen.getByRole('button', { name: 'Save' }).hasAttribute('disabled')).toBe(true);
 
@@ -219,6 +222,7 @@ describe('EventDialog', () => {
             end: new Date(2026, 8, 24, 10).toISOString(),
             isAllDay: false,
             reminders: [15],
+            notes: null,
         });
     });
 

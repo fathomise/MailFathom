@@ -267,3 +267,24 @@ export function wordCalendarDay(day: string, locale: Locale): string {
 
     return Number.isNaN(at.getTime()) ? day : new Intl.DateTimeFormat(locale, { dateStyle: 'long' }).format(at);
 }
+
+/**
+ * How long something lasts, worded by `Intl` in the unit it was counted in.
+ *
+ * Minutes that make whole hours are worded as hours, because *two hours* is what somebody says and *120 minutes* is
+ * what a clock does.
+ */
+export function wordLasting(
+    lasting: { readonly unit: 'day' | 'minute'; readonly count: number },
+    locale: Locale,
+    unitDisplay: 'long' | 'short',
+): string {
+    const unit = (name: 'day' | 'hour' | 'minute', amount: number): string =>
+        new Intl.NumberFormat(locale, { style: 'unit', unit: name, unitDisplay }).format(amount);
+
+    if (lasting.unit === 'day') {
+        return unit('day', lasting.count);
+    }
+
+    return lasting.count % 60 === 0 ? unit('hour', lasting.count / 60) : unit('minute', lasting.count);
+}

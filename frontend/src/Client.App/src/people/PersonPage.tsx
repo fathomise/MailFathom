@@ -40,9 +40,10 @@ export function PersonPage({
     correspondence,
     writable,
     promoting,
-    promotionSaid,
+    recordSaid,
     onBack,
     onPromote,
+    onAskAmendment,
     onAskErasure,
     onOpenThread,
     onOpenDocument,
@@ -56,13 +57,14 @@ export function PersonPage({
     /** Whether a promotion asked for from this page has not answered yet. */
     readonly promoting: boolean;
 
-    /** What the last promotion said, or `null` where none has been asked for. */
-    readonly promotionSaid: MessageKey | null;
+    /** What the last write to this record said — a promotion or a correction — or `null` where none was asked for. */
+    readonly recordSaid: MessageKey | null;
 
     /** Returns to the list, or `null` where the list is standing beside this page rather than behind it. */
     readonly onBack: (() => void) | null;
 
     readonly onPromote: () => void;
+    readonly onAskAmendment: () => void;
     readonly onAskErasure: () => void;
 
     readonly onOpenThread: (thread: {
@@ -131,6 +133,15 @@ export function PersonPage({
                 </div>
 
                 <div className="ms-auto flex shrink-0 items-center gap-2.25">
+                    {writable && !collected ? (
+                        <Control
+                            label={translate('people.editContact')}
+                            icon="edit_note"
+                            shape="symbol"
+                            onPress={onAskAmendment}
+                        />
+                    ) : null}
+
                     {writable ? (
                         <Control
                             label={translate('people.deleteContact')}
@@ -160,9 +171,9 @@ export function PersonPage({
                     ) : null}
                 </div>
 
-                {promotionSaid === null ? null : (
+                {recordSaid === null ? null : (
                     <p role="status" className="basis-full text-sm text-muted text-pretty">
-                        {translate(promotionSaid)}
+                        {translate(recordSaid)}
                     </p>
                 )}
             </div>

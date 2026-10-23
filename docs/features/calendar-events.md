@@ -31,6 +31,7 @@ into the dialog that creates an event is read into the fields it opens with — 
 | --- | --- |
 | Identity | MailFathom's own, assigned once and kept through every acceptance and amendment |
 | Title | What the event is called, as whoever wrote it down wrote it |
+| Notes | What the event is about — an agenda, a dial-in, a reason — where the person wrote anything beside the title |
 | Start | When it begins |
 | End | When it ends, where anything said so — an event that states none simply lasts no stated time |
 | Stated as a day | Whether it names a day rather than a clock time, which decides what its reminders are measured from |
@@ -51,6 +52,11 @@ typing, a reading of a message, and a file somebody was handed — and a title i
 events, so a line break would end the row it is on and a bidirectional override would render the rest of it as text
 the record does not contain. Such a title is refused rather than silently stripped, so a person who typed one is told
 it was not accepted instead of being shown something other than what they wrote.
+
+**Notes keep their lines and nothing else that renders as nothing.** They are read as somebody wrote them, so line
+breaks and tabs stay, while every other character a title refuses is refused here too. They are trimmed, at most 4000
+characters, and blank text is no notes at all. Only a person writes them: a reading of a message, an imported file, and
+an act the agent performs state none.
 
 ## Reminders
 
@@ -108,7 +114,8 @@ as deleting an event.
 moving it, and dropping its end are therefore one operation instead of three that each pass through a shape the rules
 above refuse — and a caller that sends only what changed is sending a record that is missing the rest.
 
-What an amendment may change is the title, the start, the end, whether it is stated as a day, and what announces it.
+What an amendment may change is the title, the notes, the start, the end, whether it is stated as a day, and what
+announces it.
 What it always keeps is the identity, the origin,
 the message the event cites, and the identifier it was imported under: an amendment is not how a proposal becomes a
 calendar entry, not how an event moves to another calendar, and not how the record of where it came from is edited.
@@ -212,7 +219,7 @@ gone.
 
 ## Privacy
 
-A title says who somebody is meeting and the times say when they are not somewhere else, so every part of an event but
+A title says who somebody is meeting, the notes what about, and the times say when they are not somewhere else, so every part of an event but
 its identity, its owner, and its origin is personal data. A reminder is a number of minutes and holds no text at all,
 but when somebody wants to be told about their own day is theirs too, and it is held and erased with the event
 through the same cascade. It is held under the same terms as the mail beside it — the

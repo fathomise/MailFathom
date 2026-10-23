@@ -401,6 +401,12 @@
           "isAllDay": {
             "type": "boolean"
           },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "reminders": {
             "items": {
               "format": "int32",
@@ -431,6 +437,7 @@
         },
         "required": [
           "title",
+          "notes",
           "start",
           "end",
           "isAllDay",
@@ -449,6 +456,12 @@
           },
           "isAllDay": {
             "type": "boolean"
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "reminders": {
             "items": {
@@ -487,6 +500,7 @@
         },
         "required": [
           "title",
+          "notes",
           "start",
           "end",
           "isAllDay",
@@ -514,6 +528,12 @@
           },
           "isAllDay": {
             "type": "boolean"
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "origin": {
             "type": "string"
@@ -558,6 +578,7 @@
         "required": [
           "id",
           "title",
+          "notes",
           "start",
           "end",
           "isAllDay",

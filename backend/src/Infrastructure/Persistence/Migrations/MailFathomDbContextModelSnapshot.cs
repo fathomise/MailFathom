@@ -257,6 +257,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsAllDay")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("Notes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
                     b.Property<string>("Origin")
                         .IsRequired()
                         .HasMaxLength(32)

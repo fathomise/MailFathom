@@ -110,3 +110,38 @@ test('offers a person it wrote down to a message, opens their page, and lets the
         [fragment, '5'],
     ]);
 });
+
+// A correction made from the person's own page reaches the book beside it and the page itself, and states the rest of
+// the record as it stood: the address it was not given stays, and so does the note.
+test('corrects a person it wrote down from their page, and the book and the page both read the correction', async ({
+    page,
+    deployment,
+}) => {
+    deployment.grant('mailfathom.contacts.read', 'mailfathom.contacts.write');
+
+    await openSignedIn(page, '/#/people');
+
+    const book = page.getByRole('listbox', { name: 'Contacts' });
+
+    await book.getByRole('option', { name: /Anna Marlow/u }).click();
+    await page.getByRole('region', { name: 'Anna Marlow' }).getByRole('button', { name: 'Edit contact' }).click();
+
+    const correcting = page.getByRole('dialog', { name: 'Edit contact' });
+
+    await expect(correcting.getByLabel('Email address')).toHaveValue('anna@nordwind.example');
+    await correcting.getByLabel('Name').fill('Anna Marlow-Berg');
+    await correcting.getByRole('button', { name: 'Save changes' }).click();
+
+    await expect(page.getByRole('status').filter({ hasText: 'Contact saved.' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Anna Marlow-Berg' })).toBeVisible();
+    await expect(book.getByRole('option', { name: /Anna Marlow-Berg/u })).toBeVisible();
+
+    expect(deployment.requests('PUT', '/contacts/contact-anna').map(({ body }) => body)).toStrictEqual([
+        {
+            displayName: 'Anna Marlow-Berg',
+            addresses: ['anna@nordwind.example', 'a.marlow@nordwind.example'],
+            preferredAddress: 'anna@nordwind.example',
+            note: 'Runs the warehouse in Gdańsk.',
+        },
+    ]);
+});

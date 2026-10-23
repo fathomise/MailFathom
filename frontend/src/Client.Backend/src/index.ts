@@ -20,7 +20,6 @@ export {
     calendarEventsPerWindow,
     calendarRoute,
     deleteCalendarEvent,
-    describedAt,
     draftCalendarEvent,
     isCalendarEventOrigin,
     mostCalendarEventsPerWindow,
@@ -63,6 +62,7 @@ export {
     type CorrespondingThread,
 } from './contactCorrespondence';
 export {
+    amendContact,
     collectedContactsRoute,
     contactPromotionRoute,
     contactRoute,
