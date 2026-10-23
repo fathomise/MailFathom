@@ -63,9 +63,15 @@
       k: {
         type: "evidence", meta: "3 sources",
         items: [
-          { n: "1", source: "Contract addendum - signatures", badge: "mail", snippet: "“…indexation by the CPI published for the previous year…”", freshness: "yesterday · Anna Kowalska" },
-          { n: "2", source: "CPI addendum 2023.pdf", badge: "attachment", snippet: "“Indexation shall not exceed 5% per year.”", freshness: "18 August · attachment" },
-          { n: "3", source: "Framework contract.pdf", badge: "attachment", snippet: "“Response time 4 h, penalty 0.2% of the monthly fee.”", freshness: "March · attachment" },
+          { n: "1", source: "Contract addendum - signatures", badge: "mail", snippet: "“…indexation by the CPI published for the previous year…”", freshness: "yesterday · Anna Kowalska",
+            why: "It is the wording on the table now - the newest message that states the indexation, and the one the reply answers.",
+            without: "Without the thread itself I can only compare the two documents: the 2023 cap stands, but I cannot say the new draft drops it - that claim came from this message." },
+          { n: "2", source: "CPI addendum 2023.pdf", badge: "attachment", snippet: "“Indexation shall not exceed 5% per year.”", freshness: "18 August · attachment",
+            why: "It is the only source that puts the 5% cap in writing, so the whole reading turns on it.",
+            without: "Without the 2023 addendum the cap rests on Anna's mail alone, which mentions it only indirectly - I would no longer call it agreed, only discussed." },
+          { n: "3", source: "Framework contract.pdf", badge: "attachment", snippet: "“Response time 4 h, penalty 0.2% of the monthly fee.”", freshness: "March · attachment",
+            why: "It carries the penalty clause, which is how I could say the shorter response time adds no new exposure.",
+            without: "Without the framework contract the reading of the cap is unchanged, but I can no longer say the penalty stays at 0.2% - that figure came only from there." },
         ],
       },
     },
@@ -206,8 +212,12 @@
             {
               type: "evidence", meta: "2 sources",
               items: [
-                { n: "1", source: "SLA addendum.pdf", badge: "attachment", snippet: "“Response time drops from 4 to 2 hours, fee +8%…”", freshness: "current · 18.11.2025" },
-                { n: "2", source: "Private message - Marta Nowak", badge: "private source", private: true, freshness: "today" },
+                { n: "1", source: "SLA addendum.pdf", badge: "attachment", snippet: "“Response time drops from 4 to 2 hours, fee +8%…”", freshness: "current · 18.11.2025",
+                  why: "It is the current version of the addendum, and the only source that pairs the 2-hour response time with the 8% fee.",
+                  without: "Without the addendum I can still draft the reply, but the 8% and the 2 hours would come from Anna's mail rather than from a signed document." },
+                { n: "2", source: "Private message - Marta Nowak", badge: "private source", private: true, freshness: "today",
+                  why: "Its content is private to Marta, but its conclusion - that Finance accepts the 8% - is kept, which is why the draft can agree to the fee.",
+                  without: "Without Marta's message the draft still stands, but I would no longer say Finance accepts the 8% - only that the addendum proposes it." },
               ],
             },
             Object.assign({ phase: "pending" }, BK_DRAFT_CONTOSO),
@@ -415,4 +425,212 @@ MailFathomDesign.data.anotherTimeReply = {
 MailFathomDesign.data.agentScheduledEvents = [
   { day: "27", time: "10:00", h: 10, t: "Reply to Marta - calculation", kind: "meeting", src: "agent block" },
   { day: "27", time: "16:00", h: 16, t: "CPI cap counter-proposal", kind: "meeting", src: "agent block" },
+];
+
+// What the agent offers for a selection in a draft. A rewrite widens the selection to the sentences it touches,
+// so each entry is keyed by one sentence of a seeded draft and carries one version per preset.
+MailFathomDesign.data.draftRewrites = {
+  "Thank you for the addendum.": {
+    shorter: "Thanks for the addendum.",
+    formal: "Thank you for sending the addendum.",
+    softer: "Thank you for the addendum, and for turning it round so quickly.",
+    firmer: "We have reviewed the addendum.",
+  },
+  "We accept shortening the response time for critical incidents to 2 hours on business days.": {
+    shorter: "We accept a 2-hour response time for critical incidents.",
+    formal: "We accept the reduction of the response time for critical incidents to 2 hours on business days.",
+    softer: "We are happy to accept the 2-hour response time for critical incidents on business days.",
+    firmer: "We accept the 2-hour response time for critical incidents on business days, and no further change to it.",
+  },
+  "In return we ask for an upper cap on CPI indexation of 5% per year.": {
+    shorter: "In return, we ask for a 5% annual cap on CPI indexation.",
+    formal: "In return, we request an upper limit on CPI indexation of 5% per annum.",
+    softer: "In return, we would ask you to consider a 5% annual cap on CPI indexation.",
+    firmer: "In return, CPI indexation has to be capped at 5% per year.",
+  },
+  "At the 4.1% forecast this keeps the cost predictable for both sides through 2027.": {
+    shorter: "That keeps 2027 predictable for both sides.",
+    formal: "Given the 4.1% forecast, this ensures predictable costs for both parties through 2027.",
+    softer: "With the 4.1% forecast, we think this keeps things predictable for both of us through 2027.",
+    firmer: "At the 4.1% forecast the cap costs you nothing, and it is the condition for our signature.",
+  },
+  "If the cap is acceptable, we are ready to close the decision by 28 August.": {
+    shorter: "With the cap agreed, we can close by 28 August.",
+    formal: "Should the cap be acceptable, we are prepared to finalise the decision by 28 August.",
+    softer: "If the cap works for you, we would be glad to close this by 28 August.",
+    firmer: "With the cap in writing, we will close the decision by 28 August.",
+  },
+};
+
+// The presets a draft selection offers, and the words in a typed instruction that pick one of them.
+MailFathomDesign.data.rewritePresets = [
+  { key: "shorter", label: "Shorter", icon: "short_text", words: /short|brief|concise|cut|trim/i },
+  { key: "formal", label: "More formal", icon: "work", words: /formal|polite|official|professional/i },
+  { key: "softer", label: "Softer", icon: "sentiment_satisfied", words: /soft|warm|friend|gentle|kind/i },
+  { key: "firmer", label: "Firmer", icon: "front_hand", words: /firm|strong|direct|insist|clear/i },
+];
+
+// What the agent answers about a selected passage, in place, without moving the conversation.
+MailFathomDesign.data.selectionReplies = {
+  explain: {
+    label: "Explain",
+    text: "In plain terms: this turns on the 2023 addendum. The 5% cap was agreed there, and the new wording drops it without saying so - accepting it as written gives the cap up.",
+  },
+  check: {
+    label: "Check against the sources",
+    text: "Supported by 2 of the 3 sources - the 2023 addendum says it in so many words, and nothing later in the thread changes it. Anna's last message only refers to it indirectly.",
+  },
+  task: { due: "Friday, 17:00", reminder: "the day before, 09:00" },
+};
+
+// The alternatives the agent offers for one field of an event or a task proposal, each with its reason.
+MailFathomDesign.data.fieldAlternatives = {
+  When: [
+    { v: "tomorrow 09:00-09:30", why: "first free half-hour" },
+    { v: "tomorrow 14:00-14:30", why: "after the Fabrikam call" },
+    { v: "Thursday 11:00-11:30", why: "both calendars free" },
+  ],
+  Duration: [
+    { v: "15 min", why: "one open question" },
+    { v: "45 min", why: "room for the penalty clause" },
+  ],
+  Due: [
+    { v: "today, 17:00", why: "before the end of the day" },
+    { v: "Friday, 17:00", why: "end of the week" },
+    { v: "26 August", why: "two days before the deadline" },
+  ],
+  Reminder: [
+    { v: "the day before, 09:00", why: "your usual" },
+    { v: "1 hour before", why: "short notice" },
+    { v: "none", why: "" },
+  ],
+};
+
+// What a selection of people turns into: a draft to them, or a meeting with them.
+MailFathomDesign.data.peopleActions = {
+  draft: {
+    subject: "Contoso 2027 - where we stand",
+    paras: [
+      "A short update before tomorrow's decision on the Contoso 2027 terms.",
+      "We accept the 2-hour response time and the 8% fee, and we are asking for the 5% cap on indexation to be restated in the addendum. The legal opinion supports that.",
+      "If anything in this does not match what you have, tell me today.",
+    ],
+  },
+  invite: { title: "Contoso 2027 - decision call", when: "Thursday 11:00-11:30", duration: "30 min" },
+};
+
+// Two more real examples, each played back like the first one and each showing a different part of the agent:
+// a meeting put together from people and a timeline, and a document check before signing.
+MailFathomDesign.data.moreDemos = [
+  {
+    id: "c-real-rollout", label: "Real example · go/no-go", title: "Real example - Fabrikam go/no-go",
+    script: [
+      { d: 300, u: "Get the right people together for the Fabrikam rollout go/no-go this week." },
+      { d: 450, s: "Reading your request" },
+      { d: 900, s: "Finding the rollout threads and who is in them" },
+      { d: 1300, b: { scope: "4 threads · 2 accounts", text: "Four threads carry the rollout. Here is where it stands against the plan." },
+        k: {
+          type: "timeline", meta: "Fabrikam rollout · 5 milestones",
+          periodNote: "Everything before the go/no-go is done; everything after it waits on that one decision.",
+          items: [
+            { date: "02.09", title: "Test environment handed over", detail: "done · Piotr Zieliński" },
+            { date: "09.09", title: "Load test passed", detail: "done · 1,200 users" },
+            { date: "16.09", title: "Data migration rehearsal", detail: "done · 2 h 40 min" },
+            { date: "this week", title: "Go/no-go decision", detail: "not scheduled yet" },
+            { date: "12.11", title: "Delivery date", detail: "Fabrikam asked to confirm" },
+          ],
+        } },
+      { d: 800, s: "Checking who decided what in those threads" },
+      { d: 1500, k: {
+          type: "people", meta: "5 people · from the rollout threads",
+          items: [
+            { initials: "TZ", name: "Tomasz Zieliński", role: "Fabrikam · project manager", last: "today" },
+            { initials: "PZ", name: "Piotr Zieliński", role: "Delivery lead · owns the plan", last: "yesterday" },
+            { initials: "EL", name: "Ewa Lis", role: "QA · signed off the load test", last: "09.09" },
+            { initials: "MN", name: "Marta Nowak", role: "Finance · approves the change budget", last: "Monday" },
+            { initials: "KD", name: "Kamil Duda", role: "Fabrikam · IT operations", last: "16.09" },
+          ],
+        } },
+      { d: 700, p: "**Four of them decide, one is optional.** Tomasz and Kamil carry Fabrikam's side, Piotr owns the plan and Ewa signed off the tests. Marta only needs to be there if the date moves - the budget is already approved." },
+      { d: 900, s: "Looking for a slot in 4 calendars" },
+      { d: 1600, k: {
+          type: "event", meta: "calendar · work", phase: "pending",
+          title: "Fabrikam rollout - go/no-go",
+          when: "Thursday 15:00-15:45", duration: "45 min", attendees: "You, Tomasz Zieliński, Kamil Duda, Piotr Zieliński, Ewa Lis",
+          from: "Rollout plan - Fabrikam Q4",
+          conflict: "Kamil Duda is out until 15:30 on Thursday - the agent can only see that he is busy",
+          done: "Invitations sent",
+          nav: [{ label: "Open the calendar", icon: "calendar_month", kind: "gocal" }],
+        } },
+      { d: 700, s: "Writing down how I got there" },
+      { d: 1300, k: {
+          type: "trace", meta: "how this answer was built · 4 steps",
+          items: [
+            { step: "Searched 2 accounts for the rollout threads", detail: "4 threads · 37 messages", why: "The rollout is discussed in both your work and your shared delivery mailbox, so neither alone has the whole picture." },
+            { step: "Read the milestones from the plan and the test reports", detail: "plan v4, 2 reports", why: "A go/no-go is only meaningful against what is done, so the timeline comes before the people." },
+            { step: "Picked the people who decided something", detail: "5 of 11 participants", why: "Six people only replied or were copied. The five here approved, signed off or own a part of the plan." },
+            { step: "Checked 4 calendars for 45 minutes this week", detail: "1 slot, with a conflict", why: "Thursday afternoon is the only time all four deciders are in; Kamil's calendar shows him busy until 15:30, which I cannot see past." },
+          ],
+        } },
+      { d: 500, n: ["Move it to after 15:30", "Draft the agenda", "Who has not replied in the threads?"] },
+    ],
+  },
+  {
+    id: "c-real-sign", label: "Real example · safe to sign?", title: "Real example - is it safe to sign",
+    script: [
+      { d: 300, u: "Marta sent a new calculation. What changed since last week, and is it safe to sign the Contoso addendum?" },
+      { d: 450, s: "Reading your request" },
+      { d: 900, s: "Opening the two versions of the calculation" },
+      { d: 1400, b: { scope: "2 versions · 3 documents", text: "Three documents decide this. Each can be summarised or compared with the version before it." },
+        k: {
+          type: "attachments", meta: "3 documents",
+          items: [
+            { name: "Calculation_2027.xlsx", icon: "table_chart", meta: "yesterday · Marta Nowak · version 2",
+              summary: "Two sheets. The 2027 cost at the 4.1% CPI forecast is €16,190 with or without the cap; at a 2022-style 14% it is €17,730 uncapped against €16,330 capped.",
+              changes: "Against last week's version: the 14% scenario and the capped column are new, and the fee base moved from €1,200 to €1,296. The forecast row is unchanged." },
+            { name: "Addendum_v4_draft.docx", icon: "description", meta: "today · Anna Kowalska · version 4",
+              summary: "Two pages. The 2-hour response time, the 8% fee from January, and indexation by the CPI - with no ceiling stated anywhere.",
+              changes: "Against version 3: only the effective date moved, from 1 December to 1 January. The indexation clause is word for word the same - the cap is still missing." },
+            { name: "Legal opinion - indexation.docx", icon: "description", meta: "05.09 · Wrona Law Office",
+              summary: "Three pages. Dropping the cap is a material change to the 2023 terms and needs both signatures; the opinion recommends restating the 5% cap in the addendum itself." },
+          ],
+        } },
+      { d: 800, s: "Putting the numbers side by side" },
+      { d: 1500, k: {
+          type: "facttable", meta: "2027 cost · from the calculation",
+          cols: ["Scenario", "No cap", "5% cap", "Difference"],
+          rows: [
+            ["CPI 4.1% (forecast)", "€16,190", "€16,190", "€0"],
+            ["CPI 8%", "€16,790", "€16,330", "€460"],
+            ["CPI 14% (2022 repeat)", "€17,730", "€16,330", "€1,400"],
+          ],
+        } },
+      { d: 900, s: "Checking the claim against the sources" },
+      { d: 1400, k: {
+          type: "evidence", meta: "3 sources",
+          items: [
+            { n: "1", source: "Addendum_v4_draft.docx", badge: "attachment", snippet: "“…indexed annually by the CPI published for the previous year.”", freshness: "today · Anna Kowalska",
+              why: "It is the text you would sign, and the clause in it is where the cap is missing.",
+              without: "Without the draft itself I can only say the cap was discussed, not that it is missing from what you would sign." },
+            { n: "2", source: "Calculation_2027.xlsx", badge: "attachment", snippet: "“CPI 14%: €17,730 uncapped / €16,330 capped”", freshness: "yesterday · Marta Nowak",
+              why: "It is the only source that prices the missing cap - €1,400 in a 2022-style year.",
+              without: "Without Marta's calculation the risk is real but unpriced - I could not put a number on it." },
+            { n: "3", source: "Legal opinion - indexation.docx", badge: "attachment", snippet: "“…recommends restating the cap in the addendum itself.”", freshness: "05.09 · Wrona Law Office",
+              why: "It turns the missing cap from a commercial point into a legal one - both signatures are needed to drop it.",
+              without: "Without the opinion the advice is the same, but it rests on the numbers alone rather than on the 2023 terms." },
+          ],
+        } },
+      { d: 700, b: { scope: "my reading", text: "" } },
+      { d: 600, p: "**Not as it stands.** Nothing in version 4 changed the indexation clause, so the 5% cap is still missing. At the forecast it costs nothing; in a year like 2022 it costs **€1,400**." },
+      { d: 1400, p: "Sign once the cap is back in the clause - one sentence, which the legal opinion already words for you." },
+      { d: 700, s: "Looking for what follows from this" },
+      { d: 1300, k: {
+          type: "task", meta: "tasks · from mail", phase: "pending",
+          title: "Ask Anna to restate the 5% cap in the addendum before signing",
+          due: "tomorrow, 12:00", from: "Re: Addendum v4 - for signature", reminder: "the day before, 09:00",
+          done: "Added to your task list",
+        } },
+      { d: 500, n: ["Draft the sentence for Anna", "What if CPI stays at 4%?", "Open the legal opinion"] },
+    ],
+  },
 ];
