@@ -52,7 +52,7 @@ export function SpaceOverflow({
     const { translate } = useLocalization();
 
     // Marked while what is on the screen is behind it, which is what keeps the bar honest about where the reader is:
-    // three of seven spaces are drawn in it, and without this the other four would leave the whole bar unmarked. It is
+    // three of six spaces are drawn in it, and without this the other three would leave the whole bar unmarked. It is
     // `aria-current="true"` rather than `page`, which is the row inside the sheet — this says *the current one of these
     // five places*, which is what it is.
     const holdsCurrent = current !== null && spaces.includes(current);

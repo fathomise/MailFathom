@@ -20,8 +20,8 @@ public enum NotificationKind
     Calendar = 1,
 
     /// <summary>Something happened to one of the person's tasks.</summary>
-    Task = 2,
+    Task = 3,
 
     /// <summary>MailFathom itself has something to say, which is usually something that needs a person.</summary>
-    System = 3,
+    System = 4,
 }

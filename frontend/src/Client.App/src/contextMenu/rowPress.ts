@@ -7,7 +7,7 @@ import type { MenuPoint } from './menuPlacement';
 
 // The two ways a row is asked what it offers: the pointer's own menu gesture, and a finger held on it. They live here
 // rather than beside whichever list reached for one first, because the design answers a press with a menu on
-// seven of its lists — and a client where a press has to be held a little longer on tasks than on mail has two gesture
+// six of its lists — and a client where a press has to be held a little longer on tasks than on mail has two gesture
 // vocabularies, and nobody can learn the second one.
 //
 // **Neither opener is bound to a head.** Which of the two runs is decided by the pointer that arrived, so a touch

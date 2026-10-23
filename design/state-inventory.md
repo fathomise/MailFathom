@@ -11,7 +11,7 @@ state in an artboard changes this file in the same pull request. `design/README.
 
 | Artboard | What it settles |
 |---|---|
-| `prototype.dc.html` | The whole signed-in application: seven screens, every overlay, every composition, and the only artboard that carries navigation. Its logic is `logic/prototype/component.js` and its sample data `data/prototype/` |
+| `prototype.dc.html` | The whole signed-in application: six screens, every overlay, every composition, and the only artboard that carries navigation. Its logic is `logic/prototype/component.js` and its sample data `data/prototype/` |
 | `client-states.dc.html` | The error, empty, waiting, refusal and in-flight states the client renders and the prototype does not draw, one artboard per state at every composition |
 | `sign-in.dc.html` | Sign-in, and the server screen behind it |
 | `toasts.dc.html` | Toasts and the blocking overlay — the system's answer to what somebody just did |
@@ -444,7 +444,7 @@ Added to the prototype after this inventory was first written, and read against 
 | State | Flag | Reveal |
 |---|---|---|
 | Selection running | `selectionOn` | one or more rows selected; it *replaces* the toolbar |
-| Selection bar | `selBarShown` | the same, and it appears on five screens, not only mail |
+| Selection bar | `selBarShown` | the same, and it appears on five screens, not only mail — Mail, Tasks, Calendar, People, and the Agent's conversation list |
 | Search idle | `listSearchIdle` | `!st.listSearchOn` |
 | Search active | `listSearchActive` | the search control |
 | Filters open | `filtersOpen` | the filter control |
@@ -991,7 +991,7 @@ This is the class the inventory exists for. Each is in the source, and none of t
 clicking a preview.
 
 - **The application with no mailbox at all.** `const emptyApp = false;` is a constant, and
-  every one of the seven screen gates is `st.screen === "…" && !emptyApp`. Nothing anywhere draws the
+  every one of the six screen gates is `st.screen === "…" && !emptyApp`. Nothing anywhere draws the
   true branch, so **the design does not cover a deployment with no mailbox** — a session that needs
   that screen is designing something the design has not settled, and it is drawn in `design/` first, in a
   change of its own, rather than invented in the client. The folder column alone has one: `m_folders` in the Client States file draws

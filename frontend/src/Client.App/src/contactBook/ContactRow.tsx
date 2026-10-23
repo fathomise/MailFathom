@@ -13,7 +13,7 @@ import { SenderAvatar } from '../controls/SenderAvatar';
 // the keyboard path, and a test.
 //
 // **It answers a press exactly as every other list in this client does**, through `contextMenu/rowPress.ts` rather
-// than through a gesture of its own — the design gives all seven of its lists one behaviour, and a client
+// than through a gesture of its own — the design gives all six of its lists one behaviour, and a client
 // where a contact has to be held a little longer than a message has two gesture vocabularies nobody can learn.
 //
 // Its height is fixed by the token rather than by its contents, which is load-bearing rather than cosmetic: the window

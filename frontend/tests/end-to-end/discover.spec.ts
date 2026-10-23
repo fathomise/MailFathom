@@ -5,7 +5,7 @@
 import { expect, test } from '@playwright/test';
 import { signIn } from './deployment';
 
-// Discover, which is where the client opens and which is now a screen rather than a placeholder.
+// Discover, which is where the client opens.
 //
 // **What this file holds is the screen a deployment lands somebody on, and not an answer.** The space draws the
 // questions it offers, and pressing one starts a real run over `POST /api/client/discovery/runs` — but composing an
@@ -13,9 +13,8 @@ import { signIn } from './deployment';
 // block would be waiting on a model nothing here provides, and one that asserted a particular ending would be pinning
 // which failure a deployment with no provider reports — a service decision this file is not the place to fix.
 //
-// What is worth holding is that landing reaches the screen rather than the note saying nothing is behind it, that the
-// questions it offers are there to press, and that the question field stands on it, because a space in front is exactly
-// where a frame regression shows.
+// What is worth holding is that landing reaches the screen, that the questions it offers are there to press, and that
+// the question field stands on it, because a space in front is exactly where a frame regression shows.
 //
 // The answered canvas is the unit suite's claim, over a transport handed the run the corpus states, and the browser
 // suite's for what a built bundle draws. What would move here is a run this deployment can actually answer, which is a
