@@ -595,6 +595,30 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       }
     };
 
+    /* Under a finger, a swipe across what a strip of tabs or a segmented control shows steps to the tab beside it:
+       left opens the one to the right, right the one to the left, and nothing happens past either end. The same
+       numbers as a row's swipe — 14 to engage, 96 to count, 26 of drift before it is a scroll — and it acts the moment
+       it counts rather than on the lift, since there is nothing to carry back. People's books, the calendar's views,
+       and Settings' sections on one pane. */
+    tabSwipe = (order, cur, pick) => ({
+      down: (e) => {
+        const t = e.touches && e.touches[0];
+        this._tsw = t ? { x: t.clientX, y: t.clientY } : null;
+      },
+      move: (e) => {
+        const s = this._tsw, t = e.touches && e.touches[0];
+        if (!s || !t) return;
+        const dx = t.clientX - s.x, dy = t.clientY - s.y;
+        if (Math.abs(dy) > 26 && Math.abs(dy) > Math.abs(dx)) { this._tsw = null; return; }
+        if (Math.abs(dx) >= 14) this.cancelLongPress();
+        if (Math.abs(dx) < 96) return;
+        this._tsw = null;
+        const next = order[order.indexOf(cur) + (dx < 0 ? 1 : -1)];
+        if (next !== undefined) pick(next);
+      },
+      up: () => { this._tsw = null; },
+    });
+
     undoArchive = () => this.setState(s2 => ({
       archived: (s2.archived || []).filter(x => x !== s2.lastArchived),
       lastArchived: null,
@@ -4135,6 +4159,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
                 ? "background:var(--accent);color:var(--onaccent);font-weight:600;"
                 : "color:var(--text2);border:1px solid var(--border2);"),
         })),
+        calSwipe: touch ? this.tabSwipe(["Day", "Week", "Month", "Agenda"], st.calView || "Week", v => this.setState({ calView: v })) : {},
         calIsWeek: (st.calView || "Week") === "Week",
         calIsDay: st.calView === "Day",
         calIsMonth: st.calView === "Month",
@@ -4315,6 +4340,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         peopleCount: shownContacts.length + (shownContacts.length === 1 ? " person" : " people"),
         peopleTabHint: peopleTab === "collected" ? "from received mail headers" : "address book",
         showOwnContacts: () => this.setState({ peopleTab: "own" }),
+        peopleSwipe: touch ? this.tabSwipe(["own", "collected"], peopleTab, v => this.setState({ peopleTab: v })) : {},
         showCollectedContacts: () => this.setState({ peopleTab: "collected" }),
         tabOwnStyle: "display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex:1;text-align:center;border-radius:8px;font-size:13px;white-space:nowrap;" + (touch ? "min-height:36px;padding:0 10px;" : "padding:6px 10px;") + (peopleTab !== "collected"
           ? "background:var(--panel);color:var(--text);font-weight:600;box-shadow:0 1px 2px var(--sh-1);"
@@ -5264,6 +5290,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               .filter(g => g.items.length),
           };
         })(),
+        settingsSwipe: touch && singlePane
+          ? this.tabSwipe(["profil", "accounts", "ai", "notif", "app"], st.settingsTab || "profil", v => this.setState({ settingsTab: v }))
+          : {},
         settingsTabs: [["profil", "Profile"], ["accounts", "Accounts"], ["ai", "AI"], ["notif", "Notifications"], ["app", "Application"]].map(([v, label]) => ({
           label,
           pick: () => this.setState({ settingsTab: v }),

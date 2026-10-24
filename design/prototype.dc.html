@@ -2128,7 +2128,7 @@ Project repository: https://github.com/fathomise/MailFathom
         <span style="font-size:14px;color:var(--text);text-wrap:pretty">{{ calBriefing }}</span>
         <span style="font-size:12px;color:var(--accent-d);margin-left:auto" style-hover="cursor:pointer;text-decoration:underline">Plan my day</span>
       </div>
-      <div ref="{{ calScrollRef }}" onScroll="{{ onCalScroll }}" style="{{ calBodyStyle }}">
+      <div ref="{{ calScrollRef }}" onScroll="{{ onCalScroll }}" onTouchStart="{{ calSwipe.down }}" onTouchMove="{{ calSwipe.move }}" onTouchEnd="{{ calSwipe.up }}" style="{{ calBodyStyle }}">
         <sc-if value="{{ calIsWeek }}" hint-placeholder-val="{{ true }}">
         <div style="{{ calGridStyle }}">
           <sc-for list="{{ calDays }}" as="d" hint-placeholder-count="7">
@@ -2321,7 +2321,7 @@ Project repository: https://github.com/fathomise/MailFathom
               <div style="margin-left:auto;font-size:11px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ peopleTabHint }}</div>
             </div>
           </div>
-          <div ref="{{ peopleListRef }}" onScroll="{{ onPeopleListScroll }}" style="flex:1;overflow:auto;min-height:0;background:var(--sub)">
+          <div ref="{{ peopleListRef }}" onScroll="{{ onPeopleListScroll }}" onTouchStart="{{ peopleSwipe.down }}" onTouchMove="{{ peopleSwipe.move }}" onTouchEnd="{{ peopleSwipe.up }}" style="flex:1;overflow:auto;min-height:0;background:var(--sub)">
             <sc-for list="{{ peopleRows }}" as="p" hint-placeholder-count="5">
               <div onClick="{{ p.open }}" onContextMenu="{{ p.press.ctx }}" onTouchStart="{{ p.press.down }}" onTouchEnd="{{ p.press.up }}" onTouchMove="{{ p.press.up }}" style="{{ p.style }}" style-hover="cursor:pointer;background:var(--hover)">
                 <sc-if value="{{ p.selected }}" hint-placeholder-val="{{ false }}"><div style="width:17px;height:17px;flex:0 0 17px;border-radius:50%;background:var(--accent);color:var(--onaccent);display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">check</div></sc-if>
@@ -2650,7 +2650,7 @@ Project repository: https://github.com/fathomise/MailFathom
             </div>
           </div>
         </sc-if>
-        <div style="{{ settingsScrollStyle }}">
+        <div onTouchStart="{{ settingsSwipe.down }}" onTouchMove="{{ settingsSwipe.move }}" onTouchEnd="{{ settingsSwipe.up }}" style="{{ settingsScrollStyle }}">
         <div style="{{ settingsBodyStyle }}">
           <sc-if value="{{ settingsNavShown }}" hint-placeholder-val="{{ true }}">
             <div style="display:flex;flex-direction:column;gap:4px;padding-bottom:10px;margin-bottom:6px;border-bottom:1px solid var(--line2)">
