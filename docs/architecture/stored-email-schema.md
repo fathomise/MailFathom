@@ -2556,12 +2556,16 @@ and the folder alias, never a subject, an address, a file name, or a line of wha
 
 `settings_accounts` is personal data of a kind nothing else on this page holds: it is the record of a person rather than of their mail, and its document is what they configured MailFathom to do on their behalf. It is therefore the row a data-subject erasure is aimed at, and the cascade beneath it is what discharges the rest — which is also why the tables that record a mail account without keying onto one are taken by the same operation rather than left for somebody to remember. The contact book is reached by a cascade rather than by that derived list, and by the one belonging to whichever holder each half has: `contacts` keys onto the user directly on the asserted half and onto `mailbox_accounts` on the collected one, and `contact_addresses` keys onto `contacts` through `(ContactId, BookHolderId)`, so erasing the user takes their own book with them in two hops — which is what an erasure request owes about an assembled record of third parties this user wrote down — while what their mailboxes collected goes with a mailbox rather than with them. `stored_secrets` keys onto the user directly as well, so the sealed material behind every reference in their document leaves through that cascade. The refresh token of an account that was authorized but never synchronized is reached by the explicit account predicate over `mailbox_refresh_tokens`, over the accounts this user was the last one assigned; it no longer survives for lack of a `mailbox_accounts` row. Nothing in the user row reaches a log, a metric, a trace, or an exception message: a failure names the user's identifier, which is a value MailFathom generated, and never the document beside it.
 
-`notifications` is derived personal data by the same reading as a chunk or a classification, and by a weaker one than a
-mutation history: a row says that something reached this person's mailbox and when, without saying what. It therefore
-inherits the source message's obligations wherever it names one, and the cascade from `stored_emails` is what makes that
-structural — a notification offering to open a message that has been erased is exactly the row that must not survive.
-What the rows naming no message carry instead is a bound of the record's own: thirty days from the instant described,
-swept on each account's own run. Nothing in the table reaches a log, a metric, a trace, or an exception message; the
+`notifications` is derived personal data by the same reading as a chunk or a classification. A `MessageArrived` row
+names its message and carries that message's sender and subject as its headline and second line, which is somebody
+else's personal data copied out of the mail. So it inherits the source message's obligations, and the cascade from
+`stored_emails` is what makes that structural: a notification offering to open a message that has been erased, or
+still showing who sent it, is exactly the row that must not survive. Every other row is weaker than a mutation history.
+It says that something reached this person's mailbox and when, without saying what — a merged `MailArrived` row
+counts what arrived and quotes none of it. What the rows naming no message carry instead is a bound of the record's
+own: thirty days from the instant described, swept on each account's own run. `notification_named_emails` is derived
+from the same mail, recording which stored messages a merged row stands for. It goes with its notification and with
+its message alike, through the two cascades, so an erased message leaves no row naming it. Nothing in the table reaches a log, a metric, a trace, or an exception message; the
 user's generated identifier and the account alias are what a failure names, and they are the two values that are not
 personal data.
 
