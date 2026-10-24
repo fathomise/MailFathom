@@ -459,7 +459,7 @@ Project repository: https://github.com/fathomise/MailFathom
       <div ref="{{ tbRef }}" style="{{ toolbarStyle }}">
         <sc-if value="{{ viewLeadShown }}" hint-placeholder-val="{{ true }}">
           <sc-if value="{{ listToggleShown }}" hint-placeholder-val="{{ false }}">
-            <div onClick="{{ toggleList }}" onContextMenu="{{ keepList }}" title="{{ listToggleTitle }}" aria-label="{{ listToggleLabel }}" style="{{ listToggleStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">{{ listToggleIcon }}</div>
+            <div tabIndex="0" data-hold="true" onClick="{{ toggleList }}" onContextMenu="{{ keepList }}" title="{{ listToggleTitle }}" aria-label="{{ listToggleLabel }}" style="{{ listToggleStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">{{ listToggleIcon }}</div>
           </sc-if>
           <sc-if value="{{ sideToggleShown }}" hint-placeholder-val="{{ true }}">
             <div onClick="{{ toggleSide }}" title="{{ sideToggleTitle }}" aria-label="{{ sideToggleTitle }}" style="{{ sideToggleBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">{{ sideToggleIcon }}</div>

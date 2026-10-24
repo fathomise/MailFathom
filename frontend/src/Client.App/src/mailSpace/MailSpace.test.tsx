@@ -664,6 +664,21 @@ describe('MailSpace, in the four compositions', () => {
         expect(screen.getByRole('button', { name: 'Folders and filters' })).toBeDefined();
     });
 
+    it.each([
+        ['the fold', fold],
+        ['a tablet width', tablet],
+    ])('keeps the way into the drawer in the list’s head at %s while messages are picked out', (_name, pixels) => {
+        renderSpace(pixels, { selection: 'stored-1', selected: ['stored-1', 'stored-2'] });
+
+        expect(screen.queryByRole('toolbar', { name: 'Mail actions' })).toBeNull();
+        expect(screen.getAllByRole('button', { name: 'Folders and filters' })).toHaveLength(1);
+        expect(
+            within(screen.getByRole('region', { name: 'Message list' })).getByRole('button', {
+                name: 'Folders and filters',
+            }),
+        ).toBeDefined();
+    });
+
     it('gives the mailboxes a column of their own at a desktop width, rather than a control that opens one', () => {
         renderSpace(desktop);
 
