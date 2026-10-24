@@ -132,21 +132,25 @@ describe('Space', () => {
         expect(within(agent).queryByText(handedTheStatus)).toBeNull();
     });
 
-    // The one space the connection is not stood beneath: the design draws the question field under this screen's own
-    // head, so the space is handed the connection where it is built rather than given it here as well.
+    // The other space the design draws the connection in: it stands in this screen's own head above the question
+    // field, so the space is handed the connection where it is built rather than given it here as well.
     it('stands no connection beneath Discover, which is handed it instead', () => {
         render(inStrictMode('discover'));
 
         expect(screen.queryByText(handedTheStatus)).toBeNull();
     });
 
-    it('carries the connection into every other space', () => {
-        for (const space of ['mail', 'tasks'] as const) {
+    it('carries the connection into Mail and into none of the spaces composing their own columns', () => {
+        for (const space of ['tasks', 'people', 'calendar'] as const) {
             const { unmount } = render(inStrictMode(space));
 
-            expect(screen.getByText(handedTheStatus)).toBeDefined();
+            expect(screen.queryByText(handedTheStatus)).toBeNull();
             unmount();
         }
+
+        render(inStrictMode('mail'));
+
+        expect(screen.getByText(handedTheStatus)).toBeDefined();
     });
 
     it('shows what the frame composed for Mail in the Mail space', () => {
@@ -184,32 +188,10 @@ describe('Space', () => {
         expect(within(screen.getByRole('main', { name: 'Tasks' })).getByText(handedToTasks)).toBeDefined();
     });
 
-    it('hands the connection to Tasks when it is in front, and to nothing when it is not', () => {
-        const { rerender } = render(inStrictMode('tasks'));
-
-        expect(within(screen.getByRole('main', { name: 'Tasks' })).getByText(handedTheStatus)).toBeDefined();
-
-        rerender(inStrictMode('mail'));
-
-        expect(within(screen.getByLabelText('Tasks')).queryByText(handedTheStatus)).toBeNull();
-        expect(within(screen.getByLabelText('Tasks')).getByText(handedToTasks)).toBeDefined();
-    });
-
     it('shows what the frame composed for People in the People space', () => {
         render(inStrictMode('people'));
 
         expect(within(screen.getByRole('main', { name: 'People' })).getByText(handedToPeople)).toBeDefined();
-    });
-
-    it('hands the connection to People when it is in front, and to nothing when it is not', () => {
-        const { rerender } = render(inStrictMode('people'));
-
-        expect(within(screen.getByRole('main', { name: 'People' })).getByText(handedTheStatus)).toBeDefined();
-
-        rerender(inStrictMode('mail'));
-
-        expect(within(screen.getByLabelText('People')).queryByText(handedTheStatus)).toBeNull();
-        expect(within(screen.getByLabelText('People')).getByText(handedToPeople)).toBeDefined();
     });
 
     it('draws the Calendar without a heading either, and names its landmark the same way', () => {
@@ -223,17 +205,6 @@ describe('Space', () => {
         render(inStrictMode('calendar'));
 
         expect(within(screen.getByRole('main', { name: 'Calendar' })).getByText(handedToTheCalendar)).toBeDefined();
-    });
-
-    it('hands the connection to the Calendar when it is in front, and to nothing when it is not', () => {
-        const { rerender } = render(inStrictMode('calendar'));
-
-        expect(within(screen.getByRole('main', { name: 'Calendar' })).getByText(handedTheStatus)).toBeDefined();
-
-        rerender(inStrictMode('mail'));
-
-        expect(within(screen.getByLabelText('Calendar')).queryByText(handedTheStatus)).toBeNull();
-        expect(within(screen.getByLabelText('Calendar')).getByText(handedToTheCalendar)).toBeDefined();
     });
 
     it('shows the scope the Mail space is drawn against beside what it is drawn from', () => {
@@ -336,12 +307,11 @@ describe('Space', () => {
         expect(within(screen.getByRole('main', { name: 'Mail' })).getByText(handedTheStatus)).toBeDefined();
     });
 
-    it('moves the connection to the space arrived at', () => {
+    it('takes the connection away with Mail when another space is arrived at', () => {
         const { rerender } = render(inStrictMode('mail'));
 
         rerender(inStrictMode('tasks'));
 
-        expect(screen.getAllByText(handedTheStatus)).toHaveLength(1);
-        expect(within(screen.getByRole('main', { name: 'Tasks' })).getByText(handedTheStatus)).toBeDefined();
+        expect(screen.queryByText(handedTheStatus)).toBeNull();
     });
 });

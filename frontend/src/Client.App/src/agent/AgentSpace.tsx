@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     answerAgentProposal,
     archiveAgentConversation,
@@ -107,7 +107,6 @@ const deletingCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
 };
 
 /**
- * @param status What the deployment is doing, which every space shows somewhere and this one shows in its header.
  * @param handOver What another space last handed to the agent, and `null` before any has. Each hand-over is a new
  * value, and a new one opens a new conversation carrying it as the context, whatever was open before.
  * @param schedule How the follower waits, which a test replaces so nothing polls in it.
@@ -116,14 +115,12 @@ const deletingCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
 export function AgentSpace({
     session,
     transport,
-    status,
     handOver = null,
     schedule = whileTheConversationIsSilent,
     onLook = null,
 }: {
     readonly session: ClientSession | null;
     readonly transport: MailFathomTransport;
-    readonly status: ReactNode;
     readonly handOver?: AgentHandOver | null;
     readonly schedule?: RunFollowingSchedule;
     readonly onLook?: ((where: ProposalLook) => void) | null;
@@ -508,10 +505,6 @@ export function AgentSpace({
                     history and the way to a new conversation; the wider compositions keep it after both. */}
                 {wide ? newConversation : title}
                 {wide ? title : newConversation}
-
-                {/* The phone gives the connection a line of its own under the bar, where it would otherwise take the
-                    title's width; it draws nothing at all while the connection is fine. */}
-                {wide ? status : <div className="basis-full empty:hidden has-[>div:empty]:hidden">{status}</div>}
             </header>
 
             <div className="relative flex min-h-0 flex-1">

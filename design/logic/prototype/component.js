@@ -4892,10 +4892,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           hasAvatar: !!avatarOf(t.from), noAvatar: !avatarOf(t.from), initials: initialsOf(t.from),
           avatarStyle: "width:" + avSz + "px;height:" + avSz + "px;flex:0 0 " + avSz + "px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:" + (isMobile ? 12 : 11) + "px;letter-spacing:0.02em;background:var(--border2);color:var(--text2)",
           avatarImgStyle: "width:" + avSz + "px;height:" + avSz + "px;flex:0 0 " + avSz + "px;border-radius:50%;background-color:var(--border2);background-position:center;background-size:cover;background-repeat:no-repeat;background-image:url(" + avatarOf(t.from) + ");display:block",
-          /* Unread is the weight of the words, as every mail client draws it: the sender and the subject in 600, a
-             read row in 400. The colours are the read row's either way, so weight is the one signal. No dot. */
-          fromStyle: (isMobile ? "flex:1;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:14px;white-space:nowrap") + ";font-weight:" + (unreadMap[t.id] ? "600" : "400"),
-          subjStyle: (isMobile ? "font-size:14px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:14px") + ";font-weight:" + (unreadMap[t.id] ? "600" : "400"),
+          /* Unread is the weight and the ink of the words, as every mail client draws it: the sender and the subject
+             in 700 and the full text colour, a read row in 400 and the secondary one. 600 against 400 alone read as
+             the same row at a glance. No dot. */
+          fromStyle: (isMobile ? "flex:1;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:14px;white-space:nowrap") + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
+          subjStyle: (isMobile ? "font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:14px") + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
           orgStyle: isMobile || compact ? "display:none" : "font-size:12px;color:var(--muted);white-space:nowrap",
           showAi: aiHints && !!t.ai,
           openAiSum: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.openAiSum(t.id); },
