@@ -148,6 +148,11 @@ public sealed class MailboxChangeSubmission
     {
         ArgumentNullException.ThrowIfNull(sources);
 
+        if (sources.Count == 0)
+        {
+            return PreparedLocalCopies.None;
+        }
+
         var custodian = await this.custodians.ResolveAsync(account, cancellationToken);
 
         return await custodian.PrepareCopiesAsync(account, sources, cancellationToken);

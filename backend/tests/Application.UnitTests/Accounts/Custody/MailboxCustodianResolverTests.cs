@@ -34,6 +34,40 @@ public sealed class MailboxCustodianResolverTests
         Assert.IsType(expected, custodian);
     }
 
+    /// <summary>Only a held account places arrivals and filed copies in local folders; a restoring one is handing its folders back.</summary>
+    [Theory]
+    [InlineData(MailAccountCustodyPhase.Mirrored, false)]
+    [InlineData(MailAccountCustodyPhase.Held, true)]
+    [InlineData(MailAccountCustodyPhase.Restoring, false)]
+    public async Task ResolveAsync_EachPhase_ChoosesACustodianThatSaysWhetherItPlacesMailInLocalFolders(
+        MailAccountCustodyPhase phase,
+        bool expected)
+    {
+        // Arrange
+        var store = new InMemoryLocalMailFolderStore(Account, phase);
+
+        // Act
+        var custodian = await store.Composing(new FakeTimeProvider()).Custodians.ResolveAsync(Account, Token);
+
+        // Assert
+        Assert.Equal(expected, custodian.PlacesMailInLocalFolders);
+    }
+
+    /// <summary>A phase added without an arm here compiles, so it has to fail loudly on the first act rather than fall to a default custodian.</summary>
+    [Fact]
+    public async Task ResolveAsync_APhaseNoCustodianCarries_Throws()
+    {
+        // Arrange
+        var custody = Substitute.For<IMailAccountCustodyStore>();
+        custody
+            .ReadAsync(Account, Arg.Any<CancellationToken>())
+            .Returns(new MailAccountCustodyState(MailAccountCustody.HoldMailbox, (MailAccountCustodyPhase)99));
+        var custodians = new MailboxCustodianComposition(new FakeTimeProvider()) { Custody = custody }.Custodians;
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() => custodians.ResolveAsync(Account, Token));
+    }
+
     /// <summary>An account whose row no synchronization has written yet starts mirrored, as its row would.</summary>
     [Fact]
     public async Task ResolveAsync_AnAccountWithNoCustodyRecorded_ChoosesTheMirroredCustodian()

@@ -322,7 +322,7 @@ public sealed class LocalMailFolderEditor
         IPersistenceSession session,
         MailAccountId account,
         CancellationToken cancellationToken) =>
-        await this.custodians.ResolveAsync(session, account, cancellationToken) is HeldMailboxCustodian;
+        (await this.custodians.ResolveAsync(session, account, cancellationToken)).PlacesMailInLocalFolders;
 
     private sealed record LocalMailFolderDecision(LocalMailFolderEdit Edit, MailFolderChangeKind? Kind)
     {

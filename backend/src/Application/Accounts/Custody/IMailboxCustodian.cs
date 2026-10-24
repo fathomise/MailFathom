@@ -40,6 +40,17 @@ namespace MailFathom.Application.Accounts.Custody;
 /// </remarks>
 public interface IMailboxCustodian
 {
+    /// <summary>Gets whether the account's folders are local ones, so an arrival or a filed copy is placed in them and a local folder edit commits.</summary>
+    /// <remarks>
+    /// The writes that act on local folders were dispatched on an earlier reading of the account, so they ask again inside
+    /// their own transaction, through
+    /// <see cref="MailboxCustodianResolver.ResolveAsync(IPersistenceSession, MailAccountId, CancellationToken)" />, and
+    /// write nothing where the custodian they get back answers <see langword="false" />. A restoring account answers
+    /// <see langword="false" /> although it commits message acts locally: its folders are being handed back to the source
+    /// and take no new ones.
+    /// </remarks>
+    bool PlacesMailInLocalFolders { get; }
+
     /// <summary>Reads the account's folders and which acts each of them and the account itself allow.</summary>
     /// <param name="account">The account.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>

@@ -74,6 +74,9 @@ public sealed class MirroredMailboxCustodian : IMailboxCustodian
     }
 
     /// <inheritdoc />
+    public bool PlacesMailInLocalFolders => false;
+
+    /// <inheritdoc />
     public async Task<MailFolderManagement?> DescribeFoldersAsync(MailAccountId account, CancellationToken cancellationToken)
     {
         if (await this.folders.ReadAsync(account, cancellationToken) is not { } holding)

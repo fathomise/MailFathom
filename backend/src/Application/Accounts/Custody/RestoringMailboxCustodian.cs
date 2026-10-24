@@ -73,6 +73,9 @@ public sealed class RestoringMailboxCustodian : IMailboxCustodian
     }
 
     /// <inheritdoc />
+    public bool PlacesMailInLocalFolders => false;
+
+    /// <inheritdoc />
     public async Task<MailFolderManagement?> DescribeFoldersAsync(MailAccountId account, CancellationToken cancellationToken) =>
         await this.folders.ReadAsync(account, cancellationToken) is { } holding
             ? LocalMailFolderManagement.Describe(holding, allowsActs: false)

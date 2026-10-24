@@ -54,7 +54,7 @@ public sealed class LocalMailFolderArrivals
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns><see langword="true" /> when the account is held.</returns>
     public async Task<bool> HoldsAsync(MailAccountId account, CancellationToken cancellationToken) =>
-        await this.custodians.ResolveAsync(account, cancellationToken) is HeldMailboxCustodian;
+        (await this.custodians.ResolveAsync(account, cancellationToken)).PlacesMailInLocalFolders;
 
     /// <summary>Places one stored message, inside the transaction that stored it.</summary>
     /// <param name="session">The transaction that stored the message.</param>
@@ -74,7 +74,7 @@ public sealed class LocalMailFolderArrivals
 
         // The custodian is asked first so a mirrored account's arrival costs one read of the account row, not the
         // hierarchy as well.
-        if (await this.custodians.ResolveAsync(session, account, cancellationToken) is not HeldMailboxCustodian)
+        if (!(await this.custodians.ResolveAsync(session, account, cancellationToken)).PlacesMailInLocalFolders)
         {
             return false;
         }

@@ -33,8 +33,8 @@ namespace MailFathom.Application.Mail.Delivery.Filing;
 /// <para>
 /// No IMAP command is issued by anything here, and nothing here decides whether an account is held: the account's
 /// custodian decides whether a copy is prepared at all, and <see cref="FileAsync" /> asks
-/// <see cref="MailboxCustodianResolver" /> again inside the transaction and files nothing where the account has stopped
-/// being held.
+/// <see cref="MailboxCustodianResolver" /> again inside the transaction and files nothing where the custodian it gets
+/// back no longer places mail in local folders.
 /// </para>
 /// </remarks>
 public sealed class LocalMailFiler
@@ -237,7 +237,7 @@ public sealed class LocalMailFiler
     {
         ArgumentNullException.ThrowIfNull(copy);
 
-        if (await this.custodians.ResolveAsync(session, copy.Account, cancellationToken) is not HeldMailboxCustodian
+        if (!(await this.custodians.ResolveAsync(session, copy.Account, cancellationToken)).PlacesMailInLocalFolders
             || await this.folders.ReadAsync(session, copy.Account, cancellationToken) is not { } holding)
         {
             return null;

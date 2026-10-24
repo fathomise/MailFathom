@@ -12,7 +12,9 @@ namespace MailFathom.Application.Accounts.Custody;
 /// <para>
 /// This is the only reader of the phase for an act, and its <c>switch</c> is the only one over
 /// <see cref="MailAccountCustodyPhase" /> outside the background work that exists because of a mode. A new phase is a
-/// new arm here and a new implementation of <see cref="IMailboxCustodian" />, and nothing else.
+/// new arm here and a new implementation of <see cref="IMailboxCustodian" />, and nothing else. It is not a compiler
+/// error: the <c>switch</c> ends in an arm that throws, so a phase added without its arm compiles and fails on the first
+/// act on an account in it, rather than being carried by a custodian chosen for another phase.
 /// </para>
 /// <para>
 /// An account no custody was ever recorded for is mirrored: its row is written by its first synchronization, and a row

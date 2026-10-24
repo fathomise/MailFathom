@@ -20,7 +20,9 @@ namespace MailFathom.Boundaries.UnitTests;
 /// appears in no signature. The types admitted here either decide from the phase because they exist for one mode — the
 /// synchronization, the drain, the restore, and the converger — or own it rather than decide from it: the custody domain
 /// types, the store and the switch that change it, the endpoint that reports it, and the persistence of the account and
-/// its folders. Each implementation of the port is outside that set on purpose.
+/// its folders. Each implementation of the port is outside that set on purpose. The same dispatch can be written without
+/// naming the phase, as a test of which custodian the resolver returned, so the concrete custodians are held to their
+/// own namespace and the registration that composes them.
 /// </remarks>
 public sealed class MailboxCustodyBoundaryTests
 {
@@ -33,6 +35,9 @@ public sealed class MailboxCustodyBoundaryTests
         + @"|Infrastructure\.Persistence\.(Accounts|Folders|Synchronization|Entities|Migrations)\."
         + @"|Host\.Api\.MailAccountCustodyEndpoints"
         + @")";
+
+    private const string ConcreteCustodianReadersPattern =
+        @"^MailFathom\.(Application\.Accounts\.Custody\.|Infrastructure\.ServiceCollectionExtensions)";
 
     [Fact]
     public void CustodyPhase_OutsideItsReadersAndOwners_IsUnreachable()
@@ -50,6 +55,37 @@ public sealed class MailboxCustodyBoundaryTests
 
         // Act & Assert
         onlyTheResolverDispatchesAnAct.Check(CompiledBoundaries.Solution);
+    }
+
+    [Fact]
+    public void ConcreteCustodians_OutsideTheirNamespaceAndTheirRegistration_AreUnreachable()
+    {
+        // Arrange
+        IArchRule onlyThePortIsAsked = Types()
+            .That()
+            .DependOnAny(typeof(MirroredMailboxCustodian), typeof(HeldMailboxCustodian), typeof(RestoringMailboxCustodian))
+            .Should()
+            .HaveFullNameMatching(ConcreteCustodianReadersPattern)
+            .Because(
+                "a caller testing which custodian it got back is a phase switch written as a type test, which a new "
+                    + "custodian would silently fail; it asks IMailboxCustodian instead, so every custodian has to answer");
+
+        // Act & Assert
+        onlyThePortIsAsked.Check(CompiledBoundaries.Solution);
+    }
+
+    /// <summary>The rule above passes vacuously if a type test in a method body is not seen, so the resolver's own construction of the arms must be.</summary>
+    [Fact]
+    public void ConcreteCustodians_NamedByTheResolver_AreSeenAsADependency()
+    {
+        // Act
+        var readers = Types()
+            .That()
+            .DependOnAny(typeof(HeldMailboxCustodian))
+            .GetObjects(CompiledBoundaries.Solution);
+
+        // Assert
+        Assert.Contains(readers, type => type.FullName.StartsWith(typeof(MailboxCustodianResolver).FullName!, StringComparison.Ordinal));
     }
 
     /// <summary>The rule above passes vacuously if a phase compared in a method body is not seen, so the resolver's own comparison must be.</summary>
