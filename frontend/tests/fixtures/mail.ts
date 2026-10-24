@@ -10,6 +10,7 @@
 // Nothing here parses a request. Where an answer depends on what was asked for — how far into the folder somebody has
 // read — the corpus states it as a function of that question, and the consumer routing it decides what was asked.
 
+import { workAccount } from './deployment';
 import {
     markupOnlyBody,
     markupOnlyId,
@@ -80,7 +81,7 @@ function derivedReading(at: number) {
 function timelineRow(at: number) {
     return {
         id: `message-${String(at)}`,
-        account: 'work',
+        account: workAccount.id,
         folder: 'INBOX',
         threadId: null,
         subject: `Message ${String(at)}`,
@@ -488,7 +489,7 @@ export function conversation({ content = false } = {}) {
 function conversationEmail(row: (typeof conversationRows)[number], position: number) {
     return {
         id: row.id,
-        account: 'work',
+        account: workAccount.id,
         folder: row.folder,
         threadId: conversationId,
         subject: row.subject,

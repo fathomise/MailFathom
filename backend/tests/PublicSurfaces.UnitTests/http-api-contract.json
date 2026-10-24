@@ -4347,11 +4347,21 @@
       },
       "ClientSessionResponse": {
         "properties": {
+          "organization": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "permissions": {
             "items": {
               "type": "string"
             },
             "type": "array"
+          },
+          "revision": {
+            "type": "string"
           },
           "service": {
             "type": "string"
@@ -4366,6 +4376,8 @@
         "required": [
           "service",
           "version",
+          "revision",
+          "organization",
           "permissions",
           "telemetry"
         ],

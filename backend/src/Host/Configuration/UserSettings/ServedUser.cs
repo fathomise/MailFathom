@@ -54,4 +54,11 @@ internal sealed record ServedUser(
     /// and is read where it is needed — it is theirs, and no composition of their record holds it.
     /// </remarks>
     public ForcedClientTelemetry? ForcedClientTelemetry { get; init; }
+
+    /// <summary>Gets the organization this person belongs to, or <see langword="null" /> where they belong to none.</summary>
+    /// <remarks>
+    /// Read off the policies this person was composed under, for the reason <see cref="ForcedClientTelemetry" /> is:
+    /// the organization is what selected the policy layer above their record, so it moves exactly when they do.
+    /// </remarks>
+    public Guid? Organization { get; init; }
 }

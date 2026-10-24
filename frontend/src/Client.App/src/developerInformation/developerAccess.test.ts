@@ -4,6 +4,7 @@
 
 import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { writeClientEvent } from '@mailfathom/client-backend';
 import {
     closeDeveloperInformation,
     developerWindowName,
@@ -14,6 +15,7 @@ import {
     toggleDeveloperInformation,
     useDeveloperAccess,
 } from './developerAccess';
+import { developerRecord } from './developerRecord';
 
 function pressed(times: number): void {
     for (let press = 0; press < times; press += 1) {
@@ -57,6 +59,19 @@ describe('unlocking the developer information surface', () => {
         expect(result.current.unlocked).toBe(true);
     });
 
+    it('starts recording the moment it unlocks, and goes on while the surface is closed', () => {
+        writeClientEvent({ event: 'signals_opened' });
+        expect(developerRecord().events).toEqual([]);
+
+        pressed(pressesToUnlock);
+        writeClientEvent({ event: 'signals_dropped' });
+        toggleDeveloperInformation(false);
+        closeDeveloperInformation();
+        writeClientEvent({ event: 'signals_opened' });
+
+        expect(developerRecord().events.map((noticed) => noticed.event)).toEqual(['signals_dropped', 'signals_opened']);
+    });
+
     it('starts the count again after a pause between two presses', () => {
         const { result, rerender } = renderHook(() => useDeveloperAccess());
 
@@ -73,6 +88,11 @@ describe('unlocking the developer information surface', () => {
 
         expect(localStorage.length).toBe(0);
         expect(sessionStorage.length).toBe(0);
+
+        lockDeveloperInformation();
+        writeClientEvent({ event: 'signals_opened' });
+
+        expect(developerRecord().events).toEqual([]);
     });
 });
 

@@ -188,7 +188,8 @@ internal static class ClientApiEndpoints
                     forwardsTelemetry,
                     deploymentTelemetryLevel,
                     StatedTelemetryLevelOf(servedUsers, principal),
-                    TakesNoTelemetryFrom(servedUsers, principal)));
+                    TakesNoTelemetryFrom(servedUsers, principal),
+                    OrganizationOf(servedUsers, principal)));
             })
             .RequireNoPermission();
 
@@ -249,6 +250,16 @@ internal static class ClientApiEndpoints
         ? servedUsers.Peek(user)?.ClientTelemetryLevel
         : null;
 
+    /// <summary>Reads the organization the acting person belongs to.</summary>
+    /// <param name="servedUsers">The served-user cache this request's acting person was read into when its scope was prepared.</param>
+    /// <param name="principal">What admitted this request, or nothing where the transport established none.</param>
+    /// <returns>Their organization, or <see langword="null" /> where they belong to none, where the request names no user, or where this replica holds no composition of them.</returns>
+    internal static Guid? OrganizationOf(
+        ServedUsers servedUsers,
+        AuthorizedPrincipal? principal) => principal?.User is { } user
+        ? servedUsers.Peek(user)?.Organization
+        : null;
+
     /// <summary>Reports whether the telemetry routes take nothing from the acting person whatever they answered themselves.</summary>
     /// <param name="servedUsers">The served-user cache this request's acting person was read into when its scope was prepared.</param>
     /// <param name="principal">What admitted this request, or nothing where the transport established none.</param>
@@ -280,6 +291,8 @@ internal static class ClientApiEndpoints
 /// <param name="Service">The product this is, so a client can tell it reached MailFathom rather than something else answering the port.</param>
 /// <param name="Version">The running version, which is what tells a client which contract it is talking to.</param>
 /// <param name="Permissions">The published names of what this caller's grant carries, in the order this repository publishes them, and empty for a credential granted nothing.</param>
+/// <param name="Revision">The source revision the running build was stamped with, <c>unknown</c> where the build stamped none, which is what names the image a deployment runs more precisely than its version.</param>
+/// <param name="Organization">The organization the caller's user belongs to, or <see langword="null" /> where they belong to none or the request names no user.</param>
 /// <param name="Telemetry">The least severe log record this deployment asks this caller's client to write, <c>none</c> where it asks for no log record and still takes the client's traces and metrics, or <c>off</c> where it forwards nothing at all or a settings policy holds this person's telemetry off — configuration rather than a grant, and the deployment's own answer unless this person's record raised or lowered it for them alone.</param>
 /// <remarks>
 /// <para>
@@ -319,6 +332,8 @@ internal static class ClientApiEndpoints
 internal sealed record ClientSessionResponse(
     string Service,
     string Version,
+    string Revision,
+    Guid? Organization,
     IReadOnlyList<string> Permissions,
     string Telemetry)
 {
@@ -331,6 +346,7 @@ internal sealed record ClientSessionResponse(
     /// <param name="deploymentTelemetryLevel">The least severe record this deployment asks every client to write, read where the routes are mapped.</param>
     /// <param name="statedTelemetryLevel">The level this person's own record asks their client for, or <see langword="null" /> where it states none and where the request is served for nobody in particular.</param>
     /// <param name="telemetryRefused">Whether the telemetry routes take nothing from this person whatever they answered themselves: a settings policy forces their switch off, or this replica holds no composition of them.</param>
+    /// <param name="organization">The organization this person belongs to, or <see langword="null" /> where they belong to none and where the request is served for nobody in particular.</param>
     /// <returns>The response body.</returns>
     /// <remarks>
     /// <para>
@@ -353,13 +369,18 @@ internal sealed record ClientSessionResponse(
         bool forwardsTelemetry,
         ClientTelemetryLevel deploymentTelemetryLevel,
         ClientTelemetryLevel? statedTelemetryLevel = null,
-        bool telemetryRefused = false) => new(
+        bool telemetryRefused = false,
+        Guid? organization = null) => new(
         "MailFathom",
-        StampedAssemblyVersion.ReadFrom(typeof(ClientSessionResponse).Assembly).Version,
+        StampedBuild.Version,
+        StampedBuild.Revision,
+        organization,
         GrantOf(principal),
         forwardsTelemetry && !telemetryRefused
             ? (statedTelemetryLevel ?? deploymentTelemetryLevel).Published()
             : NoTelemetry);
+
+    private static StampedAssemblyVersion StampedBuild => StampedAssemblyVersion.ReadFrom(typeof(ClientSessionResponse).Assembly);
 
     /// <summary>Names what the caller holds, in the order this repository publishes the set.</summary>
     /// <remarks>The published order rather than the grant's own, so two credentials granted the same permissions are reported identically whichever order an operator wrote them in.</remarks>

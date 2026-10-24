@@ -7,13 +7,15 @@
 // A draft here is the one in the user's own drafts folder, so there is nothing held only in the client for a fixture
 // to stand in for: what a save answers with is the record itself, and that is what these values are.
 
+import { workAccount } from './deployment';
+
 /** The identity the draft below is addressed by, everywhere the corpus names one draft. */
 export const draftId = '00000000-0000-4000-8000-0000000000d0';
 
 /** A message of the author's own, addressed to two people and carrying one staged file. */
 export const draft = {
     draftId,
-    account: 'work',
+    account: workAccount.id,
     subject: 'The yard on the ninth',
     recipients: [
         { role: 'To', address: 'sales@nordwind.example', displayName: 'Nordwind' },
@@ -40,7 +42,7 @@ export const draft = {
  */
 export const answeringDraft = {
     draftId: '00000000-0000-4000-8000-0000000000d2',
-    account: 'work',
+    account: workAccount.id,
     subject: 'Re: The racking quote',
     recipients: [{ role: 'To', address: 'sales@nordwind.example', displayName: 'Nordwind' }],
     attachments: [],

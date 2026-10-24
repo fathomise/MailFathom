@@ -1439,14 +1439,18 @@ before the answer arrived is thrown away rather than flushed: a client that has 
 answer and records into the buffer described below, so an answer of off empties that buffer without ever addressing
 it. Turning it back on begins at that moment and reaches back over nothing.
 
-**The developer information surface is a view, not a recording.** While it is open it hears every occurrence the
-client could record, below the floor and whatever the switch says, together with the requests on the wire and what
-the page measured about itself, and draws them. Nothing it hears leaves the page, is written anywhere, or survives
-its closing. While it is closed it observes nothing, with two exceptions that cost no running work: the Web Vitals,
-which the browser buffers on its own, and whether the signal hub's connection stands and since when, which is noted
-only as a connection opens or ends. It is unlocked from the version line in *Settings* and
-forgotten on reload, and because it is a developer's tool it shows the identifiers of the person, their accounts,
-their runs, and their requests. It never shows what anybody wrote or was sent.
+**Developer mode is a view, not a recording that leaves the page.** Once it is switched on from the version line in
+*Settings* it hears every occurrence the client could record, below the floor and whatever the switch says, together
+with the requests on the wire and their headers, the signals the hub delivered, and what the page measured about
+itself, and keeps the latest 200 of each kind in memory, the oldest giving way first, whether its surface is open or
+closed. The surface draws that record newest first, and closing it lets nothing go. Nothing it hears leaves the page
+or is written anywhere, and a reload forgets developer mode and the record with it. Until it is switched on it
+observes nothing, with two exceptions that cost no running work: the Web Vitals, which the browser buffers on its own,
+and whether the signal hub's connection stands and since when, which is noted only as a connection opens or ends.
+Because it is a developer's tool it shows the identifiers of the person, their organization, their accounts, their
+runs, and their requests, and the revision of the deployment's image. It never shows what anybody wrote or was sent:
+no body is read, a header whose value is a credential or names an attachment's file is shown by its name alone, and a
+notification signal is shown without its two lines.
 
 **A deployment that takes no telemetry from a client offers no switch.** That is one that forwards none at all, one
 whose settings policy holds this person's switch off, and one that cannot say on this replica what governs them. Each

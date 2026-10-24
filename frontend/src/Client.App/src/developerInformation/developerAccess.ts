@@ -3,8 +3,12 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useSyncExternalStore } from 'react';
+import { startWatching, stopWatching } from './developerRecord';
 
-// Whether the developer information surface may be opened, whether it is, and the window it stands in where it has one.
+// Whether developer mode is on, whether its surface is open, and the window it stands in where it has one.
+//
+// **Switching it on is what starts the record**, and opening the surface only shows it: the unlock begins watching at
+// once, so what happens while the surface is closed is kept, and closing the surface or its window lets nothing go.
 //
 // **Where a mouse drives the client it opens in a window of its own**, on the desktop head and in a browser alike, so it
 // can stand beside the client rather than over it. Where a finger does it is a surface inside the page, because a
@@ -12,8 +16,9 @@ import { useSyncExternalStore } from 'react';
 // what a browser asks of a page before it lets one open, and a head that refuses it gets the surface inside the page.
 //
 // Both live in this module and nowhere else, which is what makes the unlock last exactly as long as the page: it is
-// never written to a store, so a reload forgets it and the button it reveals goes with it. The surface is a developer's
-// tool rather than anything a reader is offered, and somebody who stumbled on it once is not shown it for good.
+// never written to a store, so a reload forgets it, and the record and the button it reveals go with it. The surface
+// is a developer's tool rather than anything a reader is offered, and somebody who stumbled on it once is not shown it
+// for good.
 
 /** How many presses on the version line unlock the surface. */
 export const pressesToUnlock = 5;
@@ -65,7 +70,7 @@ export function useDeveloperAccess(): DeveloperAccess {
     return useSyncExternalStore(subscribe, read);
 }
 
-/** Counts one press on the version line, and unlocks the surface on the last of a quick run of them. */
+/** Counts one press on the version line, and switches developer mode on at the last of a quick run of them. */
 export function pressVersionLine(): void {
     const at = Date.now();
 
@@ -73,6 +78,7 @@ export function pressVersionLine(): void {
     lastPressAt = at;
 
     if (presses >= pressesToUnlock && !access.unlocked) {
+        startWatching();
         revise({ ...access, unlocked: true });
     }
 }
@@ -156,11 +162,12 @@ export function returnFocusToOpener(): void {
     }
 }
 
-/** Forgets the unlock, which is what a reload does and what a test asks for. */
+/** Forgets the unlock and the record, which is what a reload does and what a test asks for. */
 export function lockDeveloperInformation(): void {
     presses = 0;
     lastPressAt = 0;
     opener = null;
     closeDeveloperInformation();
+    stopWatching();
     revise({ unlocked: false, open: false, window: null });
 }
