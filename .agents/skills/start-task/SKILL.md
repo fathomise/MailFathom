@@ -111,7 +111,27 @@ them if that access were ever removed.
    `CHANGELOG.md` is written only by the release pull request.
 8. Identify the GitHub issue that governs the task, reading
    `docs/operations/issue-tracking.md` first. Create it when none exists; its body draws on what
-   step 6 read. Then read what it waits on, before it is placed and before it is claimed:
+   step 6 read and ends with the `## Baseline` section that page § *Issue content* asks for, naming
+   the commit `git rev-parse` reads from the base step 3 fetched — `origin/main`, or `upstream/main`
+   in the fork role. Below, `<base>` is that same ref.
+
+   An issue that already existed was written against an older `main`, and its body says which. Read
+   that commit and what landed on top of it before trusting anything the body found:
+
+   ```bash
+   baseline=$(gh issue view <number> --repo fathomise/MailFathom --json body --jq .body \
+     | sed -n '/^##* Baseline/,$p' | grep -oE '[0-9a-f]{40}' | head -n 1)
+   git log --oneline "$baseline"..<base>
+   ```
+
+   Hold each commit against what the body names — a file, a type, a route, a rule, the cause of a
+   defect — and re-check in the current tree every finding one of them touched; one that changed is
+   corrected in the body and the section moved to `<base>`, so the next reader inherits the
+   current reading rather than this one. An empty list means the body is as current as the tree. An
+   issue with no section predates the rule or came from outside the project: say so in the brief,
+   and read the body as a reading of unknown age.
+
+   Then read what it waits on, before it is placed and before it is claimed:
 
    ```bash
    gh api repos/fathomise/MailFathom/issues/<number>/dependencies/blocked_by \
@@ -198,6 +218,7 @@ Workspace: <safe or blocked, branch, base branch>
 Scope: <what governs the task, or that nothing does>
 Protected paths: <none reached, or which — and whether the pull request waits for a maintainer's approval of its head, which it does unless its author is a maintainer>
 Issue: <number and title, or created with reason>
+Baseline: <the main commit the body was written against, what landed since that touches it and what that changed, or none recorded>
 Blocked by: <the open blockers refusing the work, or none — and any relation written>
 Placement: <type label, stack label or neither, Area, Queue, Size placeholder, milestone or none — or what the board probe left to triage>
 Scale: <no split warning, or what makes this look XL, which surfaces it reaches, and where a seam between two issues would fall>

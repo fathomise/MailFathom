@@ -828,7 +828,10 @@ The canonical skills are:
   context before edits. The refusal reads the issue's own `blocked by` list, so
   what stops the session is the order the tracker records rather than a judgement
   the session makes; an issue it opens carries that order out to the tracker in
-  the same pass that places it. Its brief also says whether the change looks large
+  the same pass that places it. An issue it opens also records the `main` commit
+  its body was written against, and an issue it takes is read against what landed
+  on `main` since that commit, so a finding the tree has moved past is re-checked
+  rather than trusted. Its brief also says whether the change looks large
   enough to split, which lands there rather than on the board's `Size` field
   because this is the last point before the first edit at which anything has read
   the issue against the repository, and the warning needs the surfaces a change
