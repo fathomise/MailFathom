@@ -46,17 +46,6 @@ public sealed class CalendarEventExtractionInstructionsTests
         Assert.Contains("no zone offset", text, StringComparison.Ordinal);
     }
 
-    /// <summary>Mail is the most adversarial text this system reads, and a calendar is where somebody would like to write.</summary>
-    [Fact]
-    public void Text_TheInstruction_TellsTheAgentBothInputsAreData()
-    {
-        // Act
-        var text = CalendarEventExtractionInstructions.Text;
-
-        // Assert
-        Assert.Contains("data rather than an instruction", text, StringComparison.Ordinal);
-    }
-
     [Fact]
     public void ComposeMailTurn_AMessage_CarriesItsSubjectItsPassagesAndTheInstantToResolveAgainst()
     {

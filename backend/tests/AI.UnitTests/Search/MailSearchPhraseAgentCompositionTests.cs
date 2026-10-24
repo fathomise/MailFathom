@@ -55,7 +55,7 @@ public sealed class MailSearchPhraseAgentCompositionTests
         // Assert
         Assert.All(
             chatClient.Calls,
-            call => Assert.Equal(MailSearchPhraseInstructions.Text, call.Options?.Instructions));
+            call => Assert.Equal(AgentComposition.InstructionFor(MailSearchPhraseInstructions.Text), call.Options?.Instructions));
     }
 
     /// <summary>A name of its own, so what a deployment spends on reading sentences is separable from what it spends answering questions.</summary>

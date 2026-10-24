@@ -18,7 +18,6 @@ using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
-using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using Microsoft.Extensions.DependencyInjection;
@@ -118,13 +117,13 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             this.egressGuard,
             brief.Question.AskedAt);
         var tools = new AgentConversationTools(journal, retrieval, this.readers, this.egressGuard, scope.AccountIds);
-        var messages = ComposeMessages(brief, tools.NamedAccounts);
+        var accounts = tools.NamedAccounts;
         var stickySession = StickySessionOf(brief.Question.Conversation);
 
         var answer = await ChatModelFallThrough.RunAsync(
             this.plan,
             this.logger,
-            (model, attemptToken) => this.AskAsync(model, brief.Language, messages, tools, journal, runLedger, stickySession, attemptToken),
+            (model, attemptToken) => this.AskAsync(model, brief, accounts, tools, journal, runLedger, stickySession, attemptToken),
             () => !tools.HasProposed,
             cancellationToken);
 
@@ -175,10 +174,17 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     /// <param name="accounts">The accounts the turn names, which are the ones a tool the model is offered takes.</param>
     /// <returns>The conversation, oldest turn first.</returns>
     internal static IReadOnlyList<ChatMessage> ComposeMessages(AgentAnswerBrief brief, IReadOnlyList<MailAccountId> accounts) =>
+        ComposeMessages(brief, accounts, TextsOf(brief));
+
+    /// <summary>Composes the conversation from texts standing in for the ones the person and the Agent wrote, in the order <see cref="TextsOf" /> lists them.</summary>
+    private static IReadOnlyList<ChatMessage> ComposeMessages(
+        AgentAnswerBrief brief,
+        IReadOnlyList<MailAccountId> accounts,
+        IReadOnlyList<string> texts) =>
     [
-        .. brief.History.Select(static turn => new ChatMessage(
+        .. brief.History.Select((turn, index) => new ChatMessage(
             turn.Author is AgentMessageAuthor.Person ? ChatRole.User : ChatRole.Assistant,
-            turn.Text)),
+            texts[index])),
         new ChatMessage(
             ChatRole.User,
             AgentConversationComposition.ComposeTurn(
@@ -186,8 +192,12 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
                 accounts,
                 brief.Question.Scope,
                 brief.NamedEmails,
-                brief.Question.Text.Value)),
+                texts[^1])),
     ];
+
+    /// <summary>Lists every text the person or the Agent wrote: each earlier turn's, oldest first, then the question.</summary>
+    private static string[] TextsOf(AgentAnswerBrief brief) =>
+        [.. brief.History.Select(static turn => turn.Text), brief.Question.Text.Value];
 
     /// <summary>Derives the sticky session every request of one conversation is routed by.</summary>
     /// <param name="conversation">The conversation the turn belongs to.</param>
@@ -208,21 +218,28 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     internal static string StickySessionOf(AgentConversationId conversation) =>
         Convert.ToHexStringLower(SHA256.HashData(conversation.Value.ToByteArray()));
 
-    /// <summary>Scans every turn the person or the Agent wrote, which is what leaves this deployment on each call.</summary>
-    private async Task<IReadOnlyList<ChatMessage>> GuardAsync(IReadOnlyList<ChatMessage> messages, CancellationToken cancellationToken)
+    /// <summary>Scans every text the person or the Agent wrote, which is what leaves this deployment on each call, and composes the conversation from what the scan let through.</summary>
+    /// <remarks>
+    /// Each text is scanned as the value it is, before the question's turn is written around it, so no redaction can
+    /// reach into the elements the turn is composed of.
+    /// </remarks>
+    private async Task<IReadOnlyList<ChatMessage>> GuardAsync(
+        AgentAnswerBrief brief,
+        IReadOnlyList<MailAccountId> accounts,
+        CancellationToken cancellationToken)
     {
         var guarded = await this.egressGuard.GuardAllAsync(
             SensitiveContentEgressPoint.ChatPrompt,
-            [.. messages.Select(static message => message.Text)],
+            TextsOf(brief),
             cancellationToken);
 
-        return [.. messages.Select((message, index) => new ChatMessage(message.Role, guarded[index]))];
+        return ComposeMessages(brief, accounts, guarded);
     }
 
     private async Task<PresentationText> AskAsync(
         ChatGenerationPlan model,
-        UserLanguage language,
-        IReadOnlyList<ChatMessage> messages,
+        AgentAnswerBrief brief,
+        IReadOnlyList<MailAccountId> accounts,
         AgentConversationTools tools,
         AgentAnswerJournal journal,
         MailAnsweringRunLedger runLedger,
@@ -230,10 +247,10 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         CancellationToken cancellationToken)
     {
         // Against this model's own bounds, and before the scan, so a conversation refused by a ceiling costs no scan.
-        ChatRequestBounds.RequireForAttempt(messages, model);
+        ChatRequestBounds.RequireForAttempt(ComposeMessages(brief, accounts), model);
         tools.ForgetEndingReports();
 
-        var guarded = await this.GuardAsync(messages, cancellationToken);
+        var guarded = await this.GuardAsync(brief, accounts, cancellationToken);
 
         var endpoint = model.Endpoint;
 
@@ -251,7 +268,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         using var recordedClient = new RecordedChatClient(budgetedClient, journal);
         using var steeredClient = new SteeredChatClient(recordedClient, journal, this.egressGuard);
 
-        var agent = AgentConversationComposition.Compose(steeredClient, model, language, tools.Create(), this.instructionEnvelope, this.loggerFactory);
+        var agent = AgentConversationComposition.Compose(steeredClient, model, brief.Language, tools.Create(), this.instructionEnvelope, this.loggerFactory);
         var response = await agent.RunAsync(ChatConversationMapping.ToProviderConversation(guarded), session: null, options: null, cancellationToken);
 
         if (Presentable(response.Text) is not { } answer)

@@ -23,9 +23,11 @@ namespace MailFathom.AI.Orchestration;
 /// </para>
 /// <para>
 /// The instruction is carried as the agent's own rather than written into a message, which is what keeps it in a
-/// position no tool result can be placed in. Its three parts are concatenated and nothing else happens to them: there
-/// is no substitution syntax, no placeholder, and no separator, so an empty envelope composes the operation's
-/// instruction byte for byte.
+/// position no tool result can be placed in. It is the operation's own text followed by
+/// <see cref="AgentTurnDocument.DataClause" />, which is how the rule about quoted text is stated once for every
+/// operation rather than once per instruction, and the envelope's two halves are placed around that. Nothing else
+/// happens to any part: there is no substitution syntax and no placeholder, so an empty envelope composes exactly what
+/// <see cref="InstructionFor" /> returns.
 /// </para>
 /// <para>
 /// The envelope is asked at composition rather than read once at start, so an implementation whose answer varies per
@@ -44,6 +46,21 @@ namespace MailFathom.AI.Orchestration;
 /// </remarks>
 internal static class AgentComposition
 {
+    /// <summary>Composes the instruction one operation runs under, before any envelope is placed around it.</summary>
+    /// <param name="operationInstruction">What the operation tells the model about its task.</param>
+    /// <returns>The operation's instruction followed by the data clause every operation carries.</returns>
+    /// <remarks>
+    /// Also what the relevance judgement, a call that composes no agent, sends as its system instruction, and what an
+    /// operation recording which policy a run was conducted under digests. The image describer is the other call that
+    /// composes no agent, and it still sends its own instruction alone.
+    /// </remarks>
+    internal static string InstructionFor(string operationInstruction)
+    {
+        ArgumentNullException.ThrowIfNull(operationInstruction);
+
+        return $"{operationInstruction}\n\n{AgentTurnDocument.DataClause}";
+    }
+
     /// <summary>Composes one operation's agent over one chat client.</summary>
     /// <param name="chatClient">The provider-neutral client every turn of the run is sent through, already carrying whatever the caller wrapped it in.</param>
     /// <param name="plan">The validated declaration: the generation parameters one call runs with.</param>
@@ -69,7 +86,7 @@ internal static class AgentComposition
 
         chatOptions.Instructions = string.Concat(
             instructionEnvelope.Preamble,
-            operation.Instruction,
+            InstructionFor(operation.Instruction),
             instructionEnvelope.Postamble);
         chatOptions.Tools = [.. operation.Tools];
 

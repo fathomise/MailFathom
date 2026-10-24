@@ -65,7 +65,7 @@ public sealed class ContactRelationshipAgentCompositionTests
         // Assert
         Assert.All(
             chatClient.Calls,
-            call => Assert.Equal(ContactRelationshipInstructions.TextFor(language), call.Options?.Instructions));
+            call => Assert.Equal(AgentComposition.InstructionFor(ContactRelationshipInstructions.TextFor(language)), call.Options?.Instructions));
     }
 
     /// <summary>The name is what the composition is recorded under, so it is this agent's alone.</summary>

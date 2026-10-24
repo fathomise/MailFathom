@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.AI.Orchestration;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.Chat;
 using MailFathom.Application.Emails.Mailboxes;
@@ -205,7 +206,9 @@ internal sealed class ModelJudgedKnowledgeSearch : IEmailKnowledgeSearch
     {
         IReadOnlyList<ChatMessage> conversation =
         [
-            new ChatMessage(ChatRole.System, PassageRelevanceInstructions.Text),
+            // Composed like every agent's instruction although no agent is composed here, so the rule about quoted text
+            // reaches this judgement in the same words it reaches every other operation in.
+            new ChatMessage(ChatRole.System, AgentComposition.InstructionFor(PassageRelevanceInstructions.Text)),
             new ChatMessage(
                 ChatRole.User,
                 PassageRelevanceInstructions.ComposeJudgementTurn(query, candidate, retrievalMode)),

@@ -54,7 +54,7 @@ public sealed class DiscoveryPlanningAgentCompositionTests
         // Assert
         Assert.All(
             chatClient.Calls,
-            call => Assert.Equal(DiscoveryPlanningInstructions.Text, call.Options?.Instructions));
+            call => Assert.Equal(AgentComposition.InstructionFor(DiscoveryPlanningInstructions.Text), call.Options?.Instructions));
     }
 
     /// <summary>A name of its own, so a run reaching two agents is two named operations rather than one.</summary>

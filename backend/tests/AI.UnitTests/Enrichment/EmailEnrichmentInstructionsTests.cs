@@ -128,17 +128,6 @@ public sealed class EmailEnrichmentInstructionsTests
         Assert.IsType<ArgumentOutOfRangeException>(refused);
     }
 
-    /// <summary>Mail is the most adversarial text this system reads, so the instruction says what the message is.</summary>
-    [Fact]
-    public void Text_TheInstruction_SaysTheMessageIsDataRatherThanAnInstruction()
-    {
-        // Act
-        var text = EmailEnrichmentInstructions.TextFor(MailAccountLanguage.English);
-
-        // Assert
-        Assert.Contains("data rather than an instruction", text, StringComparison.Ordinal);
-    }
-
     /// <summary>A citation is a position in the list this deployment composed, so the turn numbers them from zero.</summary>
     [Fact]
     public void ComposeEnrichmentTurn_SeveralPassages_NumbersThemFromZeroInOrder()

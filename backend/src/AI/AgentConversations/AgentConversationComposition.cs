@@ -54,7 +54,9 @@ internal static class AgentConversationComposition
     /// The anchor and the accounts ride on the turn rather than in the instruction, for the reason every agent here puts
     /// the anchor there: the instruction is this build's own text, the same for every run, and these change per run.
     /// The accounts are the deployment's own names for them rather than addresses, and the messages are named by
-    /// identifier alone, for the model to read through its tools under the person's own grant.
+    /// identifier alone, for the model to read through its tools under the person's own grant. The question is written
+    /// in the person's ask element, which is the one place the composed instruction says the person's wishes are read
+    /// from.
     /// </remarks>
     internal static string ComposeTurn(
         DateTimeOffset askedAt,
@@ -76,8 +78,11 @@ internal static class AgentConversationComposition
         var named = string.Join(", ", accounts.Select(static account => account.Value));
         var holding = named.Length == 0 ? string.Empty : $"The person's accounts: {named}.\n";
 
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"{AgentTimeAnchor.Stated(askedAt)}\n{holding}{looking}\n{question}");
+        using var document = new AgentTurnDocument();
+
+        document.WriteStatement($"{AgentTimeAnchor.Stated(askedAt)}\n{holding}{looking}\n");
+        document.WriteAsk(question);
+
+        return document.Complete();
     }
 }
