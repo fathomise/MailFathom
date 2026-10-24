@@ -52,11 +52,12 @@ internal static class ClientReplyDraftingEndpoint
 
     /// <summary>The greatest request body a drafting reads before refusing it.</summary>
     /// <remarks>
-    /// Generous against the two texts the request carries and the envelope around them, and small enough that a body
-    /// over it is refused before it is read rather than after. The correspondence itself is not in it: a drafting names
-    /// the messages it is written from and reads the exchange out of the store.
+    /// Generous against the two texts the request carries — each up to four thousand characters, which UTF-8 spells in
+    /// up to three bytes apiece — and the envelope around them, and small enough that a body over it is refused before it
+    /// is read rather than after. The correspondence itself is not in it: a drafting names the messages it is written
+    /// from and reads the exchange out of the store.
     /// </remarks>
-    internal const int MaxDraftingRequestBytes = 16 * 1024;
+    internal const int MaxDraftingRequestBytes = 32 * 1024;
 
     /// <summary>Maps the routes into the client group, so they inherit its requirement, its policy, and its limits.</summary>
     /// <param name="api">The client route group.</param>

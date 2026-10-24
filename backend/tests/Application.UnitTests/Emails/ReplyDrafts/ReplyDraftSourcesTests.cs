@@ -93,6 +93,44 @@ public sealed class ReplyDraftSourcesTests
         Assert.Equal([0, 1, 2], merged.Messages.Select(static message => message.Position));
     }
 
+    /// <summary>A chosen message is what the reply answers, so a merge past the bound keeps it however old it is.</summary>
+    [Fact]
+    public void Merged_ReadsPastTheBound_KeepsAnOldChosenMessageBesideTheMostRecentOthers()
+    {
+        // Arrange
+        var chosen = Message(Monday, "chosen") with { IsChosen = true };
+        var a = Enumerable.Range(1, 3).Select(day => Message(Monday.AddDays(day * 2), $"a{day}")).ToArray();
+        var b = Enumerable.Range(1, 3).Select(day => Message(Monday.AddDays((day * 2) + 1), $"b{day}")).ToArray();
+
+        // Act
+        var merged = ReplyDraftSources.Merged([Read("A", [chosen, .. a], [], []), Read("B", b, [], [])], maximumMessages: 3);
+
+        // Assert
+        Assert.Equal(["chosen", "a3", "b3"], merged.Messages.Select(static message => message.Text));
+        Assert.Equal([true, false, false], merged.Messages.Select(static message => message.IsChosen));
+        Assert.Equal([0, 1, 2], merged.Messages.Select(static message => message.Position));
+    }
+
+    /// <summary>Two chosen messages of one conversation each read the other as background, and the turn still marks both.</summary>
+    [Fact]
+    public void Merged_AMessageChosenInOneReadAndCarriedByAnother_StaysChosen()
+    {
+        // Arrange
+        var first = Message(Monday, "first");
+        var second = Message(Monday.AddDays(1), "second");
+
+        // Act
+        var merged = ReplyDraftSources.Merged(
+            [
+                Read("Subject", [first with { IsChosen = true }, second], [], []),
+                Read("Subject", [first, second with { IsChosen = true }], [], []),
+            ],
+            MailReplyDrafting.MaximumMessages);
+
+        // Assert
+        Assert.Equal([true, true], merged.Messages.Select(static message => message.IsChosen));
+    }
+
     /// <summary>One correspondent writing in both conversations is one person a reply may be proposed to.</summary>
     [Fact]
     public void Merged_ACorrespondentInBothConversations_IsNumberedOnce()
@@ -149,7 +187,7 @@ public sealed class ReplyDraftSourcesTests
     }
 
     private static ReplyDraftMessage Message(DateTimeOffset? sentAt, string text) =>
-        new(StoredEmailId.Create(Guid.CreateVersion7()), Position: 0, "Karolina", sentAt, text);
+        new(StoredEmailId.Create(Guid.CreateVersion7()), Position: 0, "Karolina", sentAt, text, IsChosen: false, Attachments: []);
 
     private static ReplyDraftSources Read(
         string subject,

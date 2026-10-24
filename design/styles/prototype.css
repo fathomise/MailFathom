@@ -6,7 +6,9 @@
 
 html, body { margin: 0; padding: 0; background: oklch(0.982 0.003 262); min-height: 100%; }
 html:has([data-theme="dark"]), body:has([data-theme="dark"]) { background: oklch(0.183 0.016 262); }
-input::placeholder { color: var(--faint); }
+input::placeholder, textarea::placeholder { color: var(--faint); }
+textarea:placeholder-shown { white-space: nowrap; overflow: hidden !important; }
+textarea::placeholder { text-overflow: ellipsis; }
 [data-rail]::-webkit-scrollbar { width: 0; height: 0; }
 [data-rail] { scrollbar-width: none; }
 a { color: var(--accent); }

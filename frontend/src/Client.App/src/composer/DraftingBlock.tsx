@@ -4,6 +4,7 @@
 
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { longestDraftInstruction } from '@mailfathom/client-backend';
+import { GrowingField } from '../controls/GrowingField';
 import { Icon } from '../controls/Icon';
 import { SymbolControl } from '../controls/SymbolControl';
 import type { MessageKey } from '../localization/en';
@@ -186,7 +187,7 @@ export function DraftingBlock({
                     {translate('ai.badge')}
                 </span>
 
-                <input
+                <GrowingField
                     ref={(element) => {
                         landHere(element, (landing) => landing.on === 'field');
                     }}
@@ -196,7 +197,7 @@ export function DraftingBlock({
                     )}
                     value={written}
                     maxLength={longestDraftInstruction}
-                    className="min-w-0 flex-1 bg-transparent text-base text-text outline-none placeholder:text-faint"
+                    className="min-w-0 flex-1 bg-transparent text-md text-text outline-none placeholder:text-faint"
                     onChange={(event) => {
                         setWritten(event.target.value);
                     }}

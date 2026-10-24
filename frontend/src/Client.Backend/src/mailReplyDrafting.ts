@@ -93,17 +93,20 @@ export interface MailReplyDraftRequest {
     /** The part of the correspondence being answered, or `null` to answer it as a whole. */
     readonly selection: string | null;
 
-    /** What the draft should say, or `null` where the person asked for nothing in particular. */
+    /**
+     * What the person typed about the message — an instruction, their own draft of it, or both — or `null` where they
+     * asked for nothing in particular.
+     */
     readonly instruction: string | null;
 }
 
 /**
- * The greatest instruction the service reads.
+ * The greatest instruction the service reads, which is long enough to hold somebody's own draft of a reply.
  *
  * The client's own copy of the service's bound, so a composer shortens what it sends rather than putting a request
  * together that the deployment will refuse with a sentence nobody asked for.
  */
-export const longestDraftInstruction = 1_000;
+export const longestDraftInstruction = 4_000;
 
 /** The greatest selection the service reads, on the same terms as the instruction above. */
 export const longestDraftSelection = 4_000;

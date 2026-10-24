@@ -2,13 +2,14 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Emails.ReplyDrafts;
 
 /// <summary>Everything one drafting is written from: the correspondence it answers, who is in it, and how its author writes.</summary>
 /// <param name="Subject">The subject the conversation is read under, or <see langword="null" /> where no message carried one.</param>
-/// <param name="Messages">The most recent messages of the conversation, or of every conversation the context reaches, in the order they were written, which is what the draft is grounded in and cites.</param>
+/// <param name="Messages">Every chosen message and the most recent of the rest of its conversation, or of every conversation the context reaches, in the order they were written, which is what the draft is grounded in and cites.</param>
 /// <param name="Participants">The people those messages name, which is the whole set a proposed recipient may come from.</param>
 /// <param name="StyleSamples">What the person themselves has recently sent, which the draft's manner is derived from, and which is empty where a deployment derives no style.</param>
 /// <remarks>
@@ -44,10 +45,11 @@ public sealed record ReplyDraftSources(
     /// <remarks>
     /// <para>
     /// Two context messages of one conversation read the same conversation, so a message is kept once, by its identity,
-    /// and the people once, by their normalized address. The messages are ordered by when they were written, which is
-    /// what lets a reply drawing on several exchanges answer where each of them got to; a message carrying no date is
-    /// placed before every dated one, in read order, so it is the first the bound drops — what is kept is the most
-    /// recent end of the whole.
+    /// and the people once, by their normalized address. A message one read was chosen in and another merely carries is
+    /// kept as chosen. The messages are ordered by when they were written, which is what lets a reply drawing on several
+    /// exchanges answer where each of them got to; a message carrying no date is placed before every dated one, in read
+    /// order, so it is the first the bound drops — what is kept is every chosen message and the most recent end of the
+    /// rest, because a chosen message is the one the reply answers and dropping it would answer something else.
     /// </para>
     /// <para>
     /// The subject and the style samples are the first read's alone. A reply is written in one account's manner, and the
@@ -73,12 +75,15 @@ public sealed record ReplyDraftSources(
             return only;
         }
 
-        var messages = reads
-            .SelectMany(static read => read.Messages)
-            .DistinctBy(static message => message.StoredEmailId)
-            .OrderBy(static message => message.SentAt)
-            .TakeLast(maximumMessages)
-            .ToArray();
+        var messages = Kept(
+            [
+                .. reads
+                    .SelectMany(static read => read.Messages)
+                    .GroupBy(static message => message.StoredEmailId)
+                    .Select(static copies => copies.First() with { IsChosen = copies.Any(static copy => copy.IsChosen) })
+                    .OrderBy(static message => message.SentAt),
+            ],
+            maximumMessages);
 
         return new ReplyDraftSources(
             reads.Count > 0 ? reads[0].Subject : null,
@@ -90,6 +95,21 @@ public sealed record ReplyDraftSources(
                     .Select(static (participant, position) => participant with { Position = position }),
             ],
             reads.Count > 0 ? [.. reads[0].StyleSamples.Where(sample => !messages.Any(message => SameOpening(sample, message.Text)))] : []);
+    }
+
+    /// <summary>Keeps every chosen message and the most recent of the rest, up to the bound, in the order they were written.</summary>
+    /// <param name="ordered">The merged messages, ordered by when they were written.</param>
+    /// <param name="maximumMessages">How many messages are kept at most.</param>
+    private static ReplyDraftMessage[] Kept(ReplyDraftMessage[] ordered, int maximumMessages)
+    {
+        var chosenCount = ordered.Count(static message => message.IsChosen);
+        var unchosenKept = ordered
+            .Where(static message => !message.IsChosen)
+            .TakeLast(Math.Max(0, maximumMessages - chosenCount))
+            .Select(static message => message.StoredEmailId)
+            .ToHashSet();
+
+        return [.. ordered.Where(message => message.IsChosen || unchosenKept.Contains(message.StoredEmailId))];
     }
 
     /// <summary>Whether a style sample and a message's text were cut from the start of the same body.</summary>
@@ -105,12 +125,22 @@ public sealed record ReplyDraftSources(
 /// <param name="AuthorDisplayName">The name the message was written under, or <see langword="null" /> where it carried none.</param>
 /// <param name="SentAt">When the message was written, which is what a date its text states relatively is read against.</param>
 /// <param name="Text">What the message added, with the history it quoted already trimmed off, bounded by what one turn may carry.</param>
+/// <param name="IsChosen">Whether the person chose this message to write from — the one being answered, or one picked out in the list — rather than it arriving as the rest of a chosen message's conversation.</param>
+/// <param name="Attachments">The words its attachments yielded, in the order the message carries them, which share the message's own bound with its text.</param>
 public sealed record ReplyDraftMessage(
     StoredEmailId StoredEmailId,
     int Position,
     string? AuthorDisplayName,
     DateTimeOffset? SentAt,
-    string Text);
+    string Text,
+    bool IsChosen,
+    IReadOnlyList<ReplyDraftAttachment> Attachments);
+
+/// <summary>What one attachment of a message yielded, as a drafting is shown it.</summary>
+/// <param name="FileName">The attachment's file name, or <see langword="null" /> where it carried none.</param>
+/// <param name="Kind">Whether the words are the file's own or a model's description of a picture.</param>
+/// <param name="Text">The words, cut to what remains of the message's bound once its own text is counted.</param>
+public sealed record ReplyDraftAttachment(string? FileName, AttachmentTextKind Kind, string Text);
 
 /// <summary>One person the conversation names, as a proposed recipient resolves back to.</summary>
 /// <param name="Position">The zero-based place the person holds in the list the turn publishes, which is how a proposal names them.</param>

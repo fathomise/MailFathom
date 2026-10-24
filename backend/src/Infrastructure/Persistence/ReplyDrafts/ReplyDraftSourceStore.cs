@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.ReplyDrafts;
 using MailFathom.Application.Mail.Delivery.Composition;
@@ -59,9 +60,12 @@ internal sealed class ReplyDraftSourceStore(
             return null;
         }
 
-        // The recent end of the conversation rather than its opening, because a reply answers where an exchange got to.
-        // Ordering descending and reversing afterwards is what makes the bound cut the beginning rather than the end.
-        var recent = await MostRecent(this.ReadableWithText(scope, contextMessage, contextEmailId), bounds.MaximumMessages)
+        // The chosen message and the recent end of the rest of its conversation, because a reply answers that message
+        // and where the exchange got to around it.
+        var recent = await ChosenAndMostRecent(
+                this.ReadableWithText(scope, contextMessage, contextEmailId),
+                contextEmailId,
+                bounds.MaximumMessages)
             .Select(email => new ConversationMessageRow(
                 email.Id,
                 email.Subject,
@@ -73,9 +77,31 @@ internal sealed class ReplyDraftSourceStore(
 
         return Assemble(
             recent,
+            contextEmailId,
+            await this.AttachmentsAsync(scope, recent, bounds, cancellationToken),
+            bounds.MaximumCharactersPerMessage,
             this.SendingAddressOf(contextMessage.MailboxAccountId),
             await this.StyleSamplesAsync(scope, contextMessage, bounds, cancellationToken));
     }
+
+    /// <summary>Orders a conversation's mail with the chosen message first and the rest newest first, and keeps that many of it.</summary>
+    /// <param name="emails">The conversation's mail.</param>
+    /// <param name="chosenEmailId">The message the person chose, which is kept however old it is.</param>
+    /// <param name="count">How many messages to keep, the chosen one among them.</param>
+    /// <returns>The chosen message and the most recent of the rest.</returns>
+    /// <remarks>
+    /// Without the chosen message ahead of the rest, a reply to an early message of a long exchange would be grounded in
+    /// the twenty after it and never in the one it answers.
+    /// </remarks>
+    internal static IQueryable<StoredEmailEntity> ChosenAndMostRecent(
+        IQueryable<StoredEmailEntity> emails,
+        StoredEmailId chosenEmailId,
+        int count) =>
+        emails
+            .OrderByDescending(email => email.Id == chosenEmailId.Value)
+            .ThenByDescending(email => email.SentAt)
+            .ThenByDescending(email => email.Id)
+            .Take(count);
 
     /// <summary>Orders mail newest first, by when it was sent and then by identity, and keeps the most recent of it.</summary>
     /// <param name="emails">The mail to order.</param>
@@ -87,30 +113,76 @@ internal sealed class ReplyDraftSourceStore(
             .ThenByDescending(email => email.Id)
             .Take(count);
 
-    /// <summary>Assembles what a drafting is grounded in from the conversation's most recent messages, read newest first.</summary>
-    /// <param name="recent">The conversation's most recent messages, newest first, each already cut to its bound.</param>
+    /// <summary>Assembles what a drafting is grounded in from the conversation's messages the read kept.</summary>
+    /// <param name="recent">The chosen message and the conversation's most recent others, in any order, each already cut to its bound.</param>
+    /// <param name="chosenEmailId">The message the person chose, which the turn marks as the one being answered.</param>
+    /// <param name="attachments">The attachments those messages carry, in the order each message carries them, each already cut to the per-message bound.</param>
+    /// <param name="maximumCharactersPerMessage">What a message and its attachments may carry together.</param>
     /// <param name="sendingNormalizedAddress">The normalized address the mailbox sends from, which names nobody the reply is addressed to.</param>
     /// <param name="styleSamples">The person's own recent sent mail the reply's manner is drawn from.</param>
     /// <returns>The sources, the conversation oldest first and numbered in that order.</returns>
     internal static ReplyDraftSources Assemble(
         IReadOnlyList<ConversationMessageRow> recent,
+        StoredEmailId chosenEmailId,
+        IReadOnlyList<AttachmentRow> attachments,
+        int maximumCharactersPerMessage,
         string? sendingNormalizedAddress,
         IReadOnlyList<string> styleSamples)
     {
-        var conversation = recent.Reverse().ToArray();
+        // The order the database cut in, reversed: PostgreSQL sorts a missing date first when descending, so an undated
+        // message counts as the newest, and its uuid order is the order of the canonical text form.
+        var conversation = recent
+            .OrderBy(static row => row.SentAt is null)
+            .ThenBy(static row => row.SentAt)
+            .ThenBy(static row => row.StoredEmailId.ToString(), StringComparer.Ordinal)
+            .ToArray();
+
+        var attachmentsByMessage = attachments.ToLookup(static attachment => attachment.StoredEmailId);
 
         return new ReplyDraftSources(
             conversation.Length > 0 ? conversation[^1].Subject : null,
             [
-                .. conversation.Select(static (row, position) => new ReplyDraftMessage(
+                .. conversation.Select((row, position) => new ReplyDraftMessage(
                     StoredEmailId.Create(row.StoredEmailId),
                     position,
                     row.SenderDisplayName,
                     row.SentAt,
-                    row.Text)),
+                    row.Text,
+                    row.StoredEmailId == chosenEmailId.Value,
+                    WithinWhatRemains(attachmentsByMessage[row.StoredEmailId], maximumCharactersPerMessage - row.Text.Length))),
             ],
             Participants(conversation, sendingNormalizedAddress),
             styleSamples);
+    }
+
+    /// <summary>Cuts a message's attachments to what its own text left of the per-message bound, in the order the message carries them.</summary>
+    /// <remarks>
+    /// The attachments share the bound a message's text travels under rather than taking one of their own, so reading
+    /// them never makes a turn larger than a turn of messages alone could be: what a body leaves unused is what an
+    /// attachment may fill, and a message whose own text reaches the bound carries none.
+    /// </remarks>
+    private static List<ReplyDraftAttachment> WithinWhatRemains(
+        IEnumerable<AttachmentRow> attachments,
+        int remainingCharacters)
+    {
+        var kept = new List<ReplyDraftAttachment>();
+
+        foreach (var attachment in attachments)
+        {
+            if (remainingCharacters <= 0)
+            {
+                break;
+            }
+
+            var text = attachment.Text.Length <= remainingCharacters
+                ? attachment.Text
+                : MailTextBounds.TruncateAtTextElementBoundary(attachment.Text, remainingCharacters);
+
+            kept.Add(new ReplyDraftAttachment(attachment.FileName, attachment.Kind, text));
+            remainingCharacters -= text.Length;
+        }
+
+        return kept;
     }
 
     /// <summary>Reads the people the conversation names, leaving out the account whose reply this is.</summary>
@@ -177,6 +249,35 @@ internal sealed class ReplyDraftSourceStore(
             : readable.Where(email => email.Id == contextEmailId.Value);
     }
 
+    /// <summary>Reads the words the attachments of the kept messages yielded, each cut to the per-message bound.</summary>
+    /// <remarks>
+    /// Read off the messages the caller may read rather than off the attachment table directly, so an attachment is
+    /// reached through exactly the narrowing its message is. Only an attachment that yielded words is read: one that
+    /// was skipped, refused, or never read has nothing to ground a reply in, and a deployment that reads no attachments
+    /// holds no such rows at all. Extraction already bounds how many attachments one message records.
+    /// </remarks>
+    private async Task<IReadOnlyList<AttachmentRow>> AttachmentsAsync(
+        MailboxScope scope,
+        IReadOnlyList<ConversationMessageRow> messages,
+        ReplyDraftBounds bounds,
+        CancellationToken cancellationToken)
+    {
+        var messageIds = messages.Select(static row => row.StoredEmailId).ToArray();
+
+        return await this.Readable(scope)
+            .Where(email => messageIds.Contains(email.Id))
+            .SelectMany(email => email.AttachmentTexts)
+            .Where(attachment => attachment.Text != null)
+            .OrderBy(attachment => attachment.StoredEmailId)
+            .ThenBy(attachment => attachment.AttachmentPosition)
+            .Select(attachment => new AttachmentRow(
+                attachment.StoredEmailId,
+                attachment.FileName,
+                attachment.Kind,
+                attachment.Text!.Substring(0, bounds.MaximumCharactersPerMessage)))
+            .ToArrayAsync(cancellationToken);
+    }
+
     /// <summary>Reads the openings of the account's own recent sent mail, or nothing where this deployment derives no manner.</summary>
     /// <remarks>
     /// The context message's conversation is left out of the sample. Its messages are already in the turn, and sending
@@ -226,6 +327,17 @@ internal sealed class ReplyDraftSourceStore(
         string? SenderDisplayName,
         string? SenderAddress,
         DateTimeOffset? SentAt,
+        string Text);
+
+    /// <summary>One attachment of a kept message as the store reads it.</summary>
+    /// <param name="StoredEmailId">The message carrying it.</param>
+    /// <param name="FileName">Its file name, or <see langword="null" /> where it carried none.</param>
+    /// <param name="Kind">Whether the words are the file's own or a description of a picture.</param>
+    /// <param name="Text">Its words, cut to the per-message bound.</param>
+    internal sealed record AttachmentRow(
+        Guid StoredEmailId,
+        string? FileName,
+        AttachmentTextKind Kind,
         string Text);
 
     private sealed record ContextEmailRow(string MailboxAccountId, Guid? EmailThreadId);

@@ -3549,6 +3549,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "display:inline-flex;align-items:center;min-height:44px;padding:0 6px;font-size:13px;color:var(--muted)"
           : "font-size:12px;color:var(--muted)",
         composeAiPlaceholder: isMobile ? "Write what this is about…" : "Write what this is about - e.g. “we accept the 2 h SLA but ask for a 5% CPI cap”",
+        /* Both drafting fields take an instruction, a draft of the message, or both, so they grow with what is
+           written: one line empty, wrapping rather than scrolling sideways, up to six lines, and a scrollbar past
+           that. An empty field keeps its placeholder on the one line, cut with an ellipsis. */
+        growingFieldStyle: "flex:1;min-width:0;resize:none;border:none;outline:none;background:transparent;font-family:inherit;line-height:1.5;color:var(--text);padding:0;field-sizing:content;max-height:6lh;overflow-y:auto;overflow-wrap:anywhere;",
+        composeAiText: st.composeAiText || "",
+        onComposeAiText: (e) => this.setState({ composeAiText: e.target.value }),
         askLabel: touch ? "Ask" : "Ask ⏎",
         askBtnStyle: "font-size:13px;color:var(--onaccent);background:var(--accent);border-radius:8px;white-space:nowrap;box-sizing:border-box;display:flex;align-items:center;" +
           (touch ? "min-height:44px;padding:0 18px" : "padding:8px 16px"),
@@ -4777,8 +4783,18 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         showComposerChips: !singlePane && !paneCompact,
         askThreadLabel: singlePane ? "Draft" : "Draft a reply",
         composerPlaceholder: singlePane ? "Describe the reply…" : "Describe the reply you want to send…",
-        composerBarStyle: "flex:1;min-width:0;display:flex;align-items:center;gap:10px;border:" + (singlePane ? "1px solid var(--accent-line)" : "2px solid var(--accent)") + ";background:var(--sub);border-radius:" + (isMobile ? 999 : 12) + "px;padding:" + (isMobile ? "4px 4px 4px 14px" : singlePane ? "4px 4px 4px 12px" : "6px 6px 6px 14px"),
-        composerPhStyle: "flex:1;min-width:0;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:" + (singlePane ? 14 : 15) + "px",
+        /* 24 px rather than a pill on the phone: one line reads as the pill it was, and a field grown to several lines
+           stays a rounded box instead of a capsule whose ends cut into the text. */
+        composerBarStyle: "flex:1;min-width:0;display:flex;align-items:center;gap:10px;border:" + (singlePane ? "1px solid var(--accent-line)" : "2px solid var(--accent)") + ";background:var(--sub);border-radius:" + (isMobile ? 24 : 12) + "px;padding:" + (isMobile ? "4px 4px 4px 14px" : singlePane ? "4px 4px 4px 12px" : "6px 6px 6px 14px"),
+        composerPhStyle: "flex:1;min-width:0;resize:none;border:none;outline:none;background:transparent;font-family:inherit;color:var(--text);padding:0;field-sizing:content;max-height:6lh;overflow-y:auto;overflow-wrap:anywhere;" + (singlePane ? "font-size:14px;line-height:1.5" : "font-size:15px;line-height:1.55"),
+        replyDockText: st.replyDockText || "",
+        onReplyDockText: (e) => this.setState({ replyDockText: e.target.value }),
+        /* Enter asks for the draft, Shift+Enter starts a new line, and nothing is asked while a composition is
+           still being typed. */
+        onReplyDockKey: (e) => {
+          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); this.draftReply(); }
+          else if (e.key === "Escape") { e.preventDefault(); this.setState({ replyDock: null }); }
+        },
         askThreadBtnStyle: "display:flex;align-items:center;justify-content:center;flex:0 0 auto;white-space:nowrap;color:var(--onaccent);background:var(--accent);font-weight:600;border-radius:" + (isMobile ? 999 : 7) + "px;" + (isMobile
           ? "min-height:44px;padding:0 18px;font-size:14px;"
           : touch ? "min-height:44px;padding:0 16px;font-size:13px;"

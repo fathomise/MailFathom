@@ -3,12 +3,13 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.AI.ReplyDrafts;
+using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Domain.Access;
 using Xunit;
 
 namespace MailFathom.AI.UnitTests.ReplyDrafts;
 
-/// <summary>Covers which language a drafting is told to write in, and what a turn carrying no correspondence says.</summary>
+/// <summary>Covers which language a drafting is told to write in, what a turn carrying no correspondence says, and how a turn marks the chosen messages, their attachments, and what the person typed.</summary>
 /// <remarks>
 /// The two halves are one decision seen from either end. A reply is written in the conversation's language because the
 /// person receiving it reads that; a message answering nothing has no such language, so the instruction names the one
@@ -111,7 +112,9 @@ public sealed class ReplyDraftInstructionsTests
                         0,
                         "Karolina",
                         new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero),
-                        "The quotation is 4,200 euros."),
+                        "The quotation is 4,200 euros.",
+                        IsChosen: true,
+                        Attachments: []),
                 ],
                 ["Dzień dobry, dziękuję za wiadomość."],
                 Selection: null,
@@ -120,7 +123,7 @@ public sealed class ReplyDraftInstructionsTests
         // Assert
         Assert.Contains("How this person writes, from their own recent messages, for tone and length rather than language", turn, StringComparison.Ordinal);
         Assert.EndsWith(
-            "Write the reply in the language the conversation above is written in, whatever language the ask and the samples are in, unless the ask names a language for it.\n",
+            "Write the reply in the language the conversation above is written in, whatever language what the person typed and the samples are in, unless what they typed names a language for it.\n",
             turn,
             StringComparison.Ordinal);
     }
@@ -139,7 +142,9 @@ public sealed class ReplyDraftInstructionsTests
                         0,
                         "Karolina",
                         new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero),
-                        "It is 4 200 zloty."),
+                        "It is 4 200 zloty.",
+                        IsChosen: false,
+                        Attachments: []),
                 ],
                 [],
                 Selection: null,
@@ -148,17 +153,117 @@ public sealed class ReplyDraftInstructionsTests
         // Assert
         Assert.Contains("Subject: The racking quotation", turn, StringComparison.Ordinal);
         Assert.Contains("Person 0: Karolina", turn, StringComparison.Ordinal);
-        Assert.Contains("Message 0", turn, StringComparison.Ordinal);
+        Assert.Contains("Message 0\n", turn, StringComparison.Ordinal);
     }
 
-    /// <summary>A person may ask in their own language about a conversation held in another, and its recipients read the other.</summary>
+    /// <summary>A reply answers the messages the person chose, so the turn says which they are and leaves the rest unmarked.</summary>
     [Fact]
-    public void TextFor_TheInstruction_DoesNotReadTheRequestsOwnLanguageAsAskingForIt()
+    public void ComposeDraftingTurn_AChosenMessageAmongOthers_MarksOnlyTheChosenOne()
     {
         // Act
-        var text = string.Join(' ', ReplyDraftInstructions.TextFor(UserLanguage.Polish).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        var turn = ReplyDraftInstructions.ComposeDraftingTurn(
+            new GuardedDraftingTurn(
+                "The racking quotation",
+                [new GuardedDraftingPerson(0, "Karolina")],
+                [
+                    Message(0, "Could you confirm the delivery date?", isChosen: true),
+                    Message(1, "Also, the invoice is attached.", isChosen: false),
+                ],
+                [],
+                Selection: null,
+                Instruction: null));
 
         // Assert
-        Assert.Contains("The language the request itself is written in is not such an instruction", text, StringComparison.Ordinal);
+        Assert.Contains("Message 0 — chosen by the person\n", turn, StringComparison.Ordinal);
+        Assert.Contains("Message 1\n", turn, StringComparison.Ordinal);
+        Assert.DoesNotContain("Message 1 — chosen", turn, StringComparison.Ordinal);
     }
+
+    /// <summary>An attachment's words travel under the message carrying it, named by its file, so a claim cites that message.</summary>
+    [Fact]
+    public void ComposeDraftingTurn_AMessageWithAttachments_WritesTheirWordsUnderItsNumberAndTheirFileNames()
+    {
+        // Act
+        var turn = ReplyDraftInstructions.ComposeDraftingTurn(
+            new GuardedDraftingTurn(
+                "The racking quotation",
+                [new GuardedDraftingPerson(0, "Karolina")],
+                [
+                    Message(0, "Please see the offer attached.", isChosen: true) with
+                    {
+                        Attachments =
+                        [
+                            new GuardedDraftingAttachment("offer.pdf", AttachmentTextKind.Document, "Total: 4 200 zloty."),
+                            new GuardedDraftingAttachment(FileName: null, AttachmentTextKind.ImageDescription, "A pallet rack."),
+                        ],
+                    },
+                ],
+                [],
+                Selection: null,
+                Instruction: null));
+
+        // Assert
+        Assert.Contains("Attached to message 0: offer.pdf\nTotal: 4 200 zloty.\n", turn, StringComparison.Ordinal);
+        Assert.Contains(
+            "Attached to message 0: (unnamed) — a description of the picture, not its own words\nA pallet rack.\n",
+            turn,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>What the person typed may be a draft as readily as an instruction, so the turn heads it as either.</summary>
+    [Fact]
+    public void ComposeDraftingTurn_WhatThePersonTyped_IsHeadedAsAnInstructionADraftOrBoth()
+    {
+        // Act
+        var turn = ReplyDraftInstructions.ComposeDraftingTurn(
+            new GuardedDraftingTurn(Subject: null, [], [], [], Selection: null, "Thanks, Friday works for us."));
+
+        // Assert
+        Assert.Contains(
+            "What the person typed about the reply — an instruction, their own draft, or both\nThanks, Friday works for us.\n",
+            turn,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>A draft somebody typed is the part of the reply they already wrote, so the model keeps it rather than replacing it.</summary>
+    [Fact]
+    public void TextFor_TheInstruction_TellsADraftFromAnInstructionAndKeepsTheDraftsWording()
+    {
+        // Act
+        var text = Normalized(ReplyDraftInstructions.TextFor(UserLanguage.English));
+
+        // Assert
+        Assert.Contains("decide what it is", text, StringComparison.Ordinal);
+        Assert.Contains("Wording they drafted is theirs", text, StringComparison.Ordinal);
+        Assert.Contains("never carry an instruction itself into the reply", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>The chosen messages are what the reply answers, and the rest of the conversation explains them.</summary>
+    [Fact]
+    public void TextFor_TheInstruction_AnswersTheChosenMessagesFirst()
+    {
+        // Act
+        var text = Normalized(ReplyDraftInstructions.TextFor(UserLanguage.English));
+
+        // Assert
+        Assert.Contains("The reply answers the chosen messages first", text, StringComparison.Ordinal);
+        Assert.Contains("answer it rather than the latest", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>A person may write in their own language about a conversation held in another, and its recipients read the other.</summary>
+    [Fact]
+    public void TextFor_TheInstruction_DoesNotReadTheLanguageOfWhatWasTypedAsAskingForIt()
+    {
+        // Act
+        var text = Normalized(ReplyDraftInstructions.TextFor(UserLanguage.Polish));
+
+        // Assert
+        Assert.Contains("The language what they typed is written in is not such an instruction", text, StringComparison.Ordinal);
+    }
+
+    private static GuardedDraftingMessage Message(int position, string text, bool isChosen) =>
+        new(position, "Karolina", new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero), text, isChosen, Attachments: []);
+
+    private static string Normalized(string text) =>
+        string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 }

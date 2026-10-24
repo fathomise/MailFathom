@@ -22,8 +22,10 @@ namespace MailFathom.Application.Emails.ReplyDrafts;
 /// </para>
 /// <para>
 /// The two texts are what makes this a drafting request rather than a reading. A selection is the part of the
-/// correspondence somebody pointed at — the paragraph they are actually answering — and an instruction is what they
-/// want said. Both are optional, and a request carrying neither is the ordinary one: reply to this conversation.
+/// correspondence somebody pointed at — the paragraph they are actually answering — and an instruction is whatever
+/// they typed about the reply: what it should say, their own rough version of it, or both, which the drafting tells
+/// apart rather than the caller. Both are optional, and a request carrying neither is the ordinary one: reply to this
+/// conversation.
 /// </para>
 /// <para>
 /// <b>A request naming no message is the composer with nothing behind it</b>, which the same drafting answers because
@@ -43,8 +45,12 @@ public sealed record ReplyDraftRequest
     public const int MaximumContextMessages = 10;
 
     /// <summary>The greatest length an instruction may have.</summary>
-    /// <remarks>A sentence or two saying what to say. Somebody writing more than this is writing the reply, which is the work they asked to be spared.</remarks>
-    public const int MaximumInstructionLength = 1_000;
+    /// <remarks>
+    /// Room for what somebody types into the drafting field, which may be a sentence saying what to say, their own rough
+    /// version of the reply, or both. It is the bound a selection travels under, because a draft somebody typed is the
+    /// same order of text as the passage they are answering, and past it the field is no longer a field.
+    /// </remarks>
+    public const int MaximumInstructionLength = 4_000;
 
     /// <summary>The greatest length a selection may have.</summary>
     /// <remarks>The bound one message of the conversation already travels under, because a selection is part of one and a longer one would be the exchange sent twice.</remarks>
@@ -56,6 +62,6 @@ public sealed record ReplyDraftRequest
     /// <summary>Gets the part of the correspondence the draft is to answer, or <see langword="null" /> to answer the conversation as a whole.</summary>
     public string? Selection { get; init; }
 
-    /// <summary>Gets what the person asked the reply to say, or <see langword="null" /> where they asked for nothing in particular.</summary>
+    /// <summary>Gets what the person typed about the reply — what it should say, their own draft of it, or both — or <see langword="null" /> where they typed nothing.</summary>
     public string? Instruction { get; init; }
 }

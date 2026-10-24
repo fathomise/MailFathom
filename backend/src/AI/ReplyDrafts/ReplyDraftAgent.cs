@@ -23,8 +23,9 @@ namespace MailFathom.AI.ReplyDrafts;
 /// <remarks>
 /// <para>
 /// One call, no tools, and one conversation. What leaves this deployment is the subject, each message's author name,
-/// when it was written and what it added, the names of the people in it, a few openings of the person's own recent
-/// sent mail, and whatever they typed — every one of them guarded first. <b>No address leaves at all</b>: the people
+/// when it was written, what it added and the words its attachments yielded under their file names, whether the person
+/// chose it, the names of the people in it, a few openings of the person's own recent sent mail, and whatever they
+/// typed — every text of them guarded first. <b>No address leaves at all</b>: the people
 /// are numbered, a proposal names a number, and the address it resolves to is looked up here afterwards.
 /// </para>
 /// <para>
@@ -214,11 +215,23 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
 
         foreach (var message in sources.Messages)
         {
+            var attachments = new List<GuardedDraftingAttachment>(message.Attachments.Count);
+
+            foreach (var attachment in message.Attachments)
+            {
+                attachments.Add(new GuardedDraftingAttachment(
+                    await GuardedOptionalAsync(egressGuard, attachment.FileName, cancellationToken),
+                    attachment.Kind,
+                    await GuardedAsync(egressGuard, attachment.Text, cancellationToken)));
+            }
+
             messages.Add(new GuardedDraftingMessage(
                 message.Position,
                 await GuardedOptionalAsync(egressGuard, message.AuthorDisplayName, cancellationToken),
                 message.SentAt,
-                await GuardedAsync(egressGuard, message.Text, cancellationToken)));
+                await GuardedAsync(egressGuard, message.Text, cancellationToken),
+                message.IsChosen,
+                attachments));
         }
 
         var people = new List<GuardedDraftingPerson>(sources.Participants.Count);

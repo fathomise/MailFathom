@@ -206,6 +206,69 @@ public sealed class ReplyDraftScenarioTests : IDisposable
         Assert.Equal(expected, verdict.Get<BooleanMetric>(ReplyDraftScenario.CitesEveryConversationMetricName).Value);
     }
 
+    /// <summary>The message the person chose is marked in the turn, and it stays the one marked when it is not the latest.</summary>
+    [Fact]
+    public void Sources_EveryScenario_MarksExactlyTheMessagesThePersonChose()
+    {
+        // Act
+        var readings = ReplyDraftScenario.All.Select(static scenario => (
+            Marked: scenario.Sources().Messages
+                .Where(static message => message.IsChosen)
+                .Select(static message => message.StoredEmailId.Value)
+                .Order()
+                .ToArray(),
+            Chosen: scenario.ChosenMessages.Select(static message => message.Id.Value).Order().ToArray()));
+
+        // Assert
+        Assert.All(readings, static reading => Assert.Equal(reading.Chosen, reading.Marked));
+    }
+
+    /// <summary>The attachment a case writes onto the chosen message reaches the turn under that message.</summary>
+    [Fact]
+    public void Sources_ACaseWithAnAttachment_CarriesItOnTheChosenMessage()
+    {
+        // Act
+        var chosen = Named("ReplyDraft.FromAnAttachment").Sources().Messages.Single(static message => message.IsChosen);
+
+        // Assert
+        Assert.Equal("parking-permit-terms.pdf", Assert.Single(chosen.Attachments).FileName);
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public async Task RunAsync_ADraftAnsweringAnEarlierChosenMessage_PassesOnlyWhereItCitesThatMessage(bool citesChosen, bool expected)
+    {
+        // Arrange
+        var scenario = Named("ReplyDraft.AnswersAnEarlierChosenMessage");
+        var sources = scenario.Sources();
+        var cited = sources.Messages
+            .Single(message => message.StoredEmailId == (citesChosen ? scenario.Chosen!.Id : scenario.Conversation[^1].Id))
+            .Position;
+        using var model = Model($$"""{"body":"Thank you, Ingrid. The lift booking works for us.","claims":[{"text":"The goods lift is booked for move day.","messages":[{{cited}}]}],"recipients":[0]}""");
+
+        // Act
+        var verdict = await this.RunAsync(scenario, model);
+
+        // Assert
+        Assert.Equal(expected, verdict.Get<BooleanMetric>(ReplyDraftScenario.CitesTheChosenMessageMetricName).Value);
+    }
+
+    [Theory]
+    [InlineData("We will collect the permits with the key cards. Could we have one more space for the movers' van?", true)]
+    [InlineData("We will collect everything with the key cards. Could we have one more space on Sunday?", false)]
+    public async Task RunAsync_ADraftOfWhatThePersonTyped_PassesOnlyWhereItKeepsTheWordsTheyDrafted(string body, bool expected)
+    {
+        // Arrange
+        using var model = Model($$"""{"body":"{{body}}","claims":[],"recipients":[0]}""");
+
+        // Act
+        var verdict = await this.RunAsync(Named("ReplyDraft.KeepsWhatThePersonDrafted"), model);
+
+        // Assert
+        Assert.Equal(expected, verdict.Get<BooleanMetric>(ReplyDraftScenario.CarriesRequiredWordsMetricName).Value);
+    }
+
     public void Dispose() => this.store.Delete(recursive: true);
 
     private static ReplyDraftScenario Named(string name) =>

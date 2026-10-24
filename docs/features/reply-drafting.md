@@ -44,14 +44,27 @@ A request names its **context**: the messages somebody chose to write from — u
 at most ten, from one conversation or from several. Each is resolved by one read of the store, and the reads are put
 together into one correspondence; with a single message that is exactly the one read below.
 
-- **The conversation** of each context message, at most the twenty most recent messages, at most 4 000 characters of
-  each — the bound [a conversation's state](thread-state.md) reads a message under, because it is the same text: what a
-  message added, with the history it quoted trimmed off. A reply answers where an exchange got to, so the recent end of
-  it is what grounds a draft; the opening of a long exchange is what its derived state is for. A context of several
-  messages shares the twenty between them, each read taking an even share, so it costs a provider what one long
-  conversation does. The merged correspondence carries each message once — two chosen messages of one conversation read
-  the same exchange — in the order the messages were written, numbered afresh, and keeps the most recent twenty if it is
-  still longer; the people are carried once each, by address.
+- **The conversation** of each context message: the context message itself and the most recent others, at most twenty
+  in all, at most 4 000 characters of each — the bound [a conversation's state](thread-state.md) reads a message under,
+  because it is the same text: what a message added, with the history it quoted trimmed off. A reply answers the
+  message it was asked about and where the exchange got to around it, so the context message is kept however old it is
+  and the recent end of the rest grounds it; the opening of a long exchange is what its derived state is for. A context
+  of several messages shares the twenty between them, each read taking an even share, so it costs a provider what one
+  long conversation does. The merged correspondence carries each message once — two chosen messages of one conversation
+  read the same exchange — in the order the messages were written, numbered afresh, and keeps every context message and
+  the most recent of the rest if it is still longer; the people are carried once each, by address.
+- **Which messages were chosen.** Every context message is marked as one the person chose — the message being
+  answered, or one picked out in the list — and the drafting is told to answer those first and to read the rest of the
+  conversation as what explains them, so a reply to an early message of a long exchange answers that message rather
+  than the latest one.
+- **The attachments** of each message the correspondence carries, where this deployment reads attachments: the words
+  each one yielded, under its file name, inside the same 4 000 characters as the message's own text — what the body
+  leaves unused is what its attachments may fill, in the order the message carries them, so reading them never makes a
+  drafting larger than one of messages alone could be. A message whose own text reaches the bound carries none, and so
+  does an attachment that yielded no words: one that was skipped, refused, or never read. Words a model wrote describing
+  a picture are labelled as a description rather than as the picture's own words.
+  [Attachment text extraction](attachment-text-extraction.md) is what reads them, and a deployment that leaves it off
+  sends no attachment at all.
 - **The way the account writes** — the account of the first context message, and only that one, so a context reaching
   two accounts is still written in one voice — at most six of its own recent sent messages, at most 1 200 characters of
   each, taken from the folder playing the `Sent` role and never from the first context message's conversation, nor
@@ -60,9 +73,12 @@ together into one correspondence; with a single message that is exactly the one 
   they sign off, whether they write in paragraphs or in lines. An operator who turned that derivation off leaves the
   bound at zero and the draft is written from the conversation alone.
 - **What the person typed**, which is optional and is two separate things: a *selection*, the part of the
-  correspondence they are actually answering, at most 4 000 characters; and an *instruction*, what they want said, at
-  most 1 000 characters. Somebody writing more than that is writing the reply, which is the work they asked to be
-  spared. A request carrying neither is the ordinary one — *reply to this*.
+  correspondence they are actually answering, at most 4 000 characters; and an *instruction*, at most 4 000 characters
+  as well, which is whatever they typed about the reply — what it should say, their own rough version of it, or a draft
+  with instructions around it. Nothing asks which: the drafting tells them apart itself, keeps what a draft says and as
+  much of its wording as reads well while correcting and completing it, follows an instruction over its own reading of
+  what the reply should be about, and never carries an instruction itself into the body. A request carrying neither is
+  the ordinary one — *reply to this*.
 
 The correspondence is read across every account this user holds, with no folder narrowing and junk included, which is
 the scope the conversation screen itself reads under: a reply is answered across an exchange rather than inside a
@@ -82,7 +98,8 @@ that from, and no mailbox either, the one it will be sent from being a choice no
 [the language the person writing it reads](../operations/configuration-sources.md#the-language-this-person-reads--language).
 An instruction asking for a particular language outranks both, being the one thing the person said about the message
 themselves. The language the request happens to be written in is not such an instruction: somebody asking in Polish for
-a reply to an English exchange gets an English reply. The turn closes on that rule, after the request and the writer's
+a reply to an English exchange gets an English reply, and a rough draft they typed in Polish is carried over into
+English. The turn closes on that rule, after the request and the writer's
 own recent messages, which it labels as showing tone and length rather than language: both come after the exchange and
 may be in the writer's language, and a model otherwise drafts in whichever language it read last.
 
@@ -95,7 +112,9 @@ retrieval** — so the only mail a model sees is the mail this turn published to
 name and nothing else, and the model proposes recipients by naming positions back; the addresses are resolved from those
 positions inside this deployment afterwards. The types the turn is composed of carry no address field at all, so a turn
 carrying one does not compile. The same numbering grounds the citations: a message is published by its position, so a
-claim can cite nothing the turn did not carry, and a position outside it is dropped rather than followed.
+claim can cite nothing the turn did not carry, and a position outside it is dropped rather than followed. An
+attachment's words are published under the position of the message carrying them, so a claim resting on an attachment
+cites that message.
 
 Everything that goes out is scanned at `ChatPrompt` before it is sent, and everything that comes back is scanned again
 before it reaches the client, at an egress point of this path's own —

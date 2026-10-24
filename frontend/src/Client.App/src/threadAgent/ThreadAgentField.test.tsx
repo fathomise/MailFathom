@@ -291,6 +291,22 @@ describe('ThreadAgentField', () => {
         });
     });
 
+    it('asks for the reply on Enter, and keeps Shift+Enter and an unfinished composition as typing', () => {
+        const { composed } = drawing();
+
+        fireEvent.change(field(), { target: { value: 'accept the SLA' } });
+        fireEvent.keyDown(field(), { key: 'Enter', shiftKey: true });
+        fireEvent.keyDown(field(), { key: 'Enter', isComposing: true });
+
+        expect(composed).not.toHaveBeenCalled();
+
+        fireEvent.keyDown(field(), { key: 'Enter' });
+
+        expect(composed).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({ drafting: { asked: 'accept the SLA', passage: null } }),
+        );
+    });
+
     it('folds the drafter back on Escape', () => {
         drawing();
 
