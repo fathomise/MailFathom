@@ -165,6 +165,9 @@ public sealed class QuotedTextContainmentTests
             ["calendar: passage"] = (
                 static text => CalendarEventExtractionInstructions.ComposeMailTurn(Harmless, Now, [text]),
                 MessagePassages.PassageElementName),
+            ["calendar: subject"] = (
+                static text => CalendarEventExtractionInstructions.ComposeMailTurn(text, Now, [Harmless]),
+                MessagePassages.SubjectElementName),
             ["calendar: sentence"] = (
                 static text => CalendarEventExtractionInstructions.ComposeDescriptionTurn(text, Now),
                 AgentTurnDocument.AskElementName),
@@ -187,6 +190,11 @@ public sealed class QuotedTextContainmentTests
                     [new GuardedRelationshipConversation(Harmless, Now)],
                     [new GuardedRelationshipDocument(text, "application/pdf", Now)])),
                 ContactRelationshipInstructions.FileNameElementName),
+            ["relationship: declared type"] = (
+                static text => ContactRelationshipInstructions.ComposeRelationshipTurn(new GuardedRelationshipTurn(
+                    [new GuardedRelationshipConversation(Harmless, Now)],
+                    [new GuardedRelationshipDocument(Harmless, text, Now)])),
+                ContactRelationshipInstructions.DeclaredTypeElementName),
             ["day layout: task title"] = (
                 static text => DayLayoutInstructions.ComposeLayoutTurn(Day(), [text], [Harmless]),
                 DayLayoutInstructions.TitleElementName),
@@ -196,6 +204,9 @@ public sealed class QuotedTextContainmentTests
             ["outline: subject"] = (
                 static text => MailBodyCleanupInstructions.ComposeOutlineTurn(new CleanableMailBody(text, Harmless, [Block(0, Harmless)])),
                 MailBodyCleanupInstructions.SubjectElementName),
+            ["outline: sender"] = (
+                static text => MailBodyCleanupInstructions.ComposeOutlineTurn(new CleanableMailBody(Harmless, text, [Block(0, Harmless)])),
+                MailBodyCleanupInstructions.SenderElementName),
             ["outline: block"] = (
                 static text => MailBodyCleanupInstructions.ComposeOutlineTurn(new CleanableMailBody(Harmless, Harmless, [Block(0, Harmless), Block(1, text)])),
                 MailBodyCleanupInstructions.BlockElementName),

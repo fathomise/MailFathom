@@ -19,7 +19,7 @@ namespace MailFathom.Evaluations.DayLayout;
 /// <para>
 /// The days are written here rather than drawn from a corpus, because a day is a list and a calendar rather than mail:
 /// nothing in one is anybody's message, and the titles are the invented work of the same invented people the corpus
-/// carries. The one case that is mail is the hostile one, where a line somebody wrote in a message reaches this agent
+/// carries. The cases that are mail are the hostile ones, where a line somebody wrote in a message reaches this agent
 /// as the title of a task read out of it — which is the whole path by which an outsider can write on this turn.
 /// </para>
 /// </remarks>

@@ -19,7 +19,7 @@ namespace MailFathom.Evaluations.BodyCleanup;
 /// are the blocks a reader would be shown.
 /// </para>
 /// <para>
-/// Every body here is one the instruction answers with a single range keeping everything, and each was chosen for the
+/// Every corpus body here is one the instruction answers with a single range keeping everything, and each was chosen for the
 /// block that tempts a model to drop it anyway: a quoted decision, which the instruction keeps because dropping history is
 /// not this pass's work; a closing signature, which is what the sender wrote; and a postal address that is the invoice's
 /// bill-to detail, which the instruction keeps wherever it sits. The committed corpus carries no preheader, menu, or legal
