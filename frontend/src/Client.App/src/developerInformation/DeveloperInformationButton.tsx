@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { Icon } from '../controls/Icon';
+import { useTip } from '../controls/useTip';
 import { useLocalization } from '../localization/useLocalization';
 import { useCoarsePointer } from '../shell/useWideWorkspace';
 import { toggleDeveloperInformation, useDeveloperAccess } from './developerAccess';
@@ -20,24 +21,31 @@ export function DeveloperInformationButton() {
     const { translate } = useLocalization();
     const { unlocked, open } = useDeveloperAccess();
     const coarsePointer = useCoarsePointer();
+    // In the rail the symbol stands alone, so its name is the bubble's; in the overflow sheet it is drawn beside it.
+    const { anchor, tip } = useTip({
+        says: translate('developer.title'),
+        onPress: () => {
+            toggleDeveloperInformation(!coarsePointer);
+        },
+    });
 
     if (!unlocked) {
         return null;
     }
 
     return (
-        <button
-            type="button"
-            aria-label={translate('developer.title')}
-            aria-expanded={open}
-            title={translate('developer.title')}
-            className={`flex flex-1 cursor-pointer flex-col items-center gap-0.75 rounded-xl px-0.5 py-1.75 text-sm transition workspace:size-8.5 workspace:flex-none workspace:justify-center workspace:gap-0 workspace:rounded-lg workspace:border workspace:px-0 workspace:py-0 ${open ? showing : resting}`}
-            onClick={() => {
-                toggleDeveloperInformation(!coarsePointer);
-            }}
-        >
-            <Icon name="code" className="size-icon-lg" />
-            <span className="max-w-full truncate workspace:hidden">{translate('developer.title')}</span>
-        </button>
+        <>
+            <button
+                {...anchor}
+                type="button"
+                aria-label={translate('developer.title')}
+                aria-expanded={open}
+                className={`flex flex-1 cursor-pointer flex-col items-center gap-0.75 rounded-xl px-0.5 py-1.75 text-sm transition workspace:size-8.5 workspace:flex-none workspace:justify-center workspace:gap-0 workspace:rounded-lg workspace:border workspace:px-0 workspace:py-0 ${open ? showing : resting}`}
+            >
+                <Icon name="code" className="size-icon-lg" />
+                <span className="max-w-full truncate workspace:hidden">{translate('developer.title')}</span>
+            </button>
+            {tip}
+        </>
     );
 }
