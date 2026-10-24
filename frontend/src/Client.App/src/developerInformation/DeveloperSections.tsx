@@ -43,9 +43,9 @@ import { wordBytes, wordFromNow, wordMilliseconds, wordNumber } from './develope
 // else a person wrote or was sent — no mail, no subject, no address, no display name of an account, which is often an
 // address, and no headline of a notification — and no credential.
 //
-// The six sections stand side by side where the window is desktop-wide and are tabs below that. Which of the two is a
-// question CSS answers rather than a hook, because the surface may be drawn into a window of its own whose width is not
-// the client's — so both shapes are rendered, and the window's own media queries pick one.
+// The six sections stand side by side where the window is desktop-wide and are tabs below that. Which of the two is
+// decided in script, by `sideBySide`, measured in the window that draws the surface rather than in the client's, and only
+// that one shape is rendered: six named regions side by side, or a tab list with the selected section as its panel.
 
 /** What the frame knows about the session, which is everything here that the record does not hold. */
 export interface DeveloperContext {
@@ -454,7 +454,7 @@ function RequestList({
         <ul className="flex flex-col gap-2">
             {requests.map((request) => {
                 const operation = request.traceId === null ? undefined : record.outcomes[request.traceId];
-                const took = (request.endedAt ?? now) - request.askedAt;
+                const took = Math.max(0, (request.endedAt ?? now) - request.askedAt);
                 const failed = request.phase === 'failed' || (request.status !== null && request.status >= 400);
 
                 return (

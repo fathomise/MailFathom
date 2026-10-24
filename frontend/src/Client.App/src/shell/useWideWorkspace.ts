@@ -75,7 +75,8 @@ function pointerIsCoarse() {
 const atLeastWide = (width: string) => `(min-width: ${width})`;
 const workspaceWidth = windowSize('--breakpoint-workspace', '43.75rem', atLeastWide, true);
 const paneWidth = windowSize('--breakpoint-panes', '51.25rem', atLeastWide, true);
-const desktopWidth = windowSize('--breakpoint-desktop', '73.75rem', atLeastWide, true);
+const desktopBandIn = (view: Window) => windowSize('--breakpoint-desktop', '73.75rem', atLeastWide, true, view);
+const desktopWidth = desktopBandIn(window);
 const roomyWidth = windowSize('--breakpoint-roomy', '63.75rem', atLeastWide, true);
 const lowHeight = windowSize('--window-height-low', '30rem', (height) => `(height < ${height})`, false);
 const tallHeight = windowSize('--window-height-tall', '60rem', (height) => `(height >= ${height})`, false);
@@ -130,7 +131,7 @@ export function useDesktopComposition(): boolean {
 
 /** Whether a window the client draws into beside its own is in the desktop composition, measured in that window. */
 export function useDesktopCompositionIn(view: Window): boolean {
-    const band = useMemo(() => windowSize('--breakpoint-desktop', '73.75rem', atLeastWide, true, view), [view]);
+    const band = useMemo(() => desktopBandIn(view), [view]);
 
     return useSyncExternalStore(band.watch, band.matches);
 }

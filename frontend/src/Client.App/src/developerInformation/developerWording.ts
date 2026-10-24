@@ -8,9 +8,14 @@ import type { Locale } from '../localization/locale';
 // read, and a moment relative to now rather than as a time of day, which is what somebody watching a client wants to
 // know about it and needs no zone to be right.
 
-/** How long ago or how far ahead an instant is, from `now`. */
+/**
+ * How long ago or how far ahead an instant is, from `now`.
+ *
+ * Within a second of `now` it is now: the surface re-reads the clock once a second, so an instant stamped since the
+ * last reading is up to a second ahead of it, and would otherwise read as something about to happen.
+ */
 export function wordFromNow(at: number, now: number, locale: Locale): string {
-    const seconds = Math.round((at - now) / 1_000);
+    const seconds = Math.abs(at - now) < 1_000 ? 0 : Math.round((at - now) / 1_000);
     const words = new Intl.RelativeTimeFormat(locale, { numeric: 'auto', style: 'short' });
 
     if (Math.abs(seconds) < 60) {
