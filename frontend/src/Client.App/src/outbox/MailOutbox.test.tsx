@@ -23,6 +23,9 @@ import { OutboxPane } from './OutboxPane';
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
 
 const sent = { kind: 'folder', accountId: workAccount.id, folderId: 'SENT' } as const;
+const personalAccountId = 'personal';
+const anotherOutboxName = 'Open another account’s Outbox';
+const workOutboxName = 'Open the work account’s Outbox';
 
 // What stands in for the Sent folder's list and the mark on its row, which the test names rather than the client.
 const sentFolderName = 'The Sent folder';
@@ -35,6 +38,8 @@ function deployment(sends: readonly Send[] = outbox.outboxPage.sends, refusing =
     const requests: ClientRequest[] = [];
     let held = sends;
     let pagesHeldBack = false;
+    let decided: { readonly outcome: string } | { readonly status: number } = { outcome: 'Accepted' };
+    let previewsRefused = false;
 
     const transport: MailFathomTransport = (request) => {
         requests.push(request);
@@ -47,16 +52,30 @@ function deployment(sends: readonly Send[] = outbox.outboxPage.sends, refusing =
         const named = (JSON.parse(request.body ?? '{}') as { outgoingEmail?: string }).outgoingEmail;
 
         if (request.method === 'POST') {
-            held = path === '/outbox/requeue' ? held : held.filter((send) => send.outgoingEmail !== named);
+            if ('status' in decided) {
+                return Promise.resolve({ status: decided.status, body: '', headers: {} });
+            }
 
-            return answering({ outgoingEmail: named, outcome: 'Accepted' });
+            if (decided.outcome === 'Accepted' && path !== '/outbox/requeue') {
+                held = held.filter((send) => send.outgoingEmail !== named);
+            }
+
+            return answering({ outgoingEmail: named, outcome: decided.outcome });
         }
 
         if (path === '/outbox') {
-            return pagesHeldBack ? new Promise<never>(() => undefined) : answering({ sends: held, nextCursor: null });
+            const ownSends = new URL(request.path).searchParams.get('account') === workAccount.id ? held : [];
+
+            return pagesHeldBack
+                ? new Promise<never>(() => undefined)
+                : answering({ sends: ownSends, nextCursor: null });
         }
 
         const send = held.find(({ outgoingEmail }) => path === `/outbox/${outgoingEmail}`);
+
+        if (send !== undefined && previewsRefused) {
+            return Promise.resolve({ status: 503, body: '', headers: {} });
+        }
 
         return send === undefined
             ? Promise.resolve({ status: 404, body: '', headers: {} })
@@ -76,6 +95,12 @@ function deployment(sends: readonly Send[] = outbox.outboxPage.sends, refusing =
         },
         holdPagesBack: () => {
             pagesHeldBack = true;
+        },
+        refusePreviews: (refused: boolean) => {
+            previewsRefused = refused;
+        },
+        answerDecisionsWith: (answer: { readonly outcome: string } | { readonly status: number }) => {
+            decided = answer;
         },
     };
 }
@@ -107,6 +132,20 @@ function Surfaces({ transport, entry }: { readonly transport: MailFathomTranspor
 
     return (
         <>
+            <button
+                type="button"
+                aria-label={anotherOutboxName}
+                onClick={() => {
+                    revise({ outbox: { account: personalAccountId, entry: null } });
+                }}
+            />
+            <button
+                type="button"
+                aria-label={workOutboxName}
+                onClick={() => {
+                    revise({ outbox: { account: workAccount.id, entry: null } });
+                }}
+            />
             <OutboxList outbox={workspace.outbox} />
             <OutboxPane session={session} transport={transport} outbox={workspace.outbox} />
         </>
@@ -281,6 +320,66 @@ describe('the Outbox preview', () => {
         });
     });
 
+    // A decision the deployment did not take changes nothing, so the send stays where it was and the toast says why in
+    // the words that answer names.
+    it.each([
+        ['AttemptUnderWay', 'It is already being sent, so it could not be taken back.'],
+        ['StageDoesNotAllowIt', 'It moved on since this was shown, so nothing was changed. The Outbox now says where it stands.'],
+        ['RecordUnknown', 'The server no longer holds that send.'],
+    ])('says what a withdrawal the deployment answered with %s came to, and keeps the send', async (outcome, said) => {
+        const held = deployment();
+
+        held.answerDecisionsWith({ outcome });
+        drawing(held.transport, { entry: outbox.waitingSend.outgoingEmail });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Cancel sending' }));
+
+        expect(await screen.findByText(said)).toBeDefined();
+        expect(screen.getByText('Nothing changed')).toBeDefined();
+        expect(within(screen.getByRole('list', { name: 'Outbox' })).getByText('Re: UAT testing date')).toBeDefined();
+    });
+
+    it('says a send offered again was not, once its refusal no longer stands as it was shown', async () => {
+        const held = deployment();
+
+        held.answerDecisionsWith({ outcome: 'RefusalNotRestated' });
+        drawing(held.transport, { entry: outbox.refusedOutgoingSend.outgoingEmail });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Send again' }));
+
+        expect(
+            await screen.findByText(
+                'It moved on since this was shown, so nothing was changed. The Outbox now says where it stands.',
+            ),
+        ).toBeDefined();
+    });
+
+    it('says why a decision could not be done where the deployment did not answer it', async () => {
+        const held = deployment();
+
+        held.answerDecisionsWith({ status: 503 });
+        drawing(held.transport, { entry: outbox.waitingSend.outgoingEmail });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Cancel sending' }));
+
+        expect(await screen.findByText('That could not be done: unavailable.')).toBeDefined();
+    });
+
+    it('puts a dismissed send back on the list where the deployment did not take the dismissal', async () => {
+        const held = deployment();
+
+        held.answerDecisionsWith({ outcome: 'StageDoesNotAllowIt' });
+        drawing(held.transport, { entry: outbox.unknownSend.outgoingEmail });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Close' }));
+
+        expect(
+            await within(screen.getByRole('list', { name: 'Outbox' })).findByText('Re: proposed terms for 2027'),
+        ).toBeDefined();
+        expect(screen.getByText('Nothing changed')).toBeDefined();
+    });
+
     it('offers nothing to decide about a send an attempt holds right now', async () => {
         drawing(deployment().transport, { entry: outbox.sendingSend.outgoingEmail });
 
@@ -365,6 +464,26 @@ describe('the Outbox preview', () => {
         ).toBeNull();
     });
 
+    // Another account's page says nothing about this one's sends, so reading it while a dismissal's toast still stands
+    // does not draw the dismissed send again once this account's Outbox is back.
+    it('keeps a dismissed send off its own list while another account’s Outbox is read', async () => {
+        const held = deployment();
+
+        drawing(held.transport, { entry: outbox.unknownSend.outgoingEmail });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
+        fireEvent.click(screen.getByRole('button', { name: anotherOutboxName }));
+
+        expect(await screen.findByText('Outbox is empty')).toBeDefined();
+
+        fireEvent.click(screen.getByRole('button', { name: workOutboxName }));
+
+        const list = await listed();
+
+        expect(await within(list).findByText('Re: UAT testing date')).toBeDefined();
+        expect(within(list).queryByText('Re: proposed terms for 2027')).toBeNull();
+    });
+
     it('puts focus on what the pane draws once the send it stood on has left', async () => {
         drawing(deployment().transport, { entry: outbox.waitingSend.outgoingEmail });
 
@@ -377,6 +496,30 @@ describe('the Outbox preview', () => {
             expect(document.activeElement?.getAttribute('role')).toBe('status');
         });
         expect(document.activeElement?.textContent).toContain('Nothing open');
+    });
+
+    it('says a preview the deployment did not answer could not be read, and reads it again on a retry', async () => {
+        const held = deployment();
+
+        held.refusePreviews(true);
+        drawing(held.transport, { entry: outbox.waitingSend.outgoingEmail });
+
+        expect(await screen.findByText('This message could not be read: unavailable.')).toBeDefined();
+        expect(screen.getByText('Not read')).toBeDefined();
+
+        held.refusePreviews(false);
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+        expect(await screen.findByRole('button', { name: 'Cancel sending' })).toBeDefined();
+    });
+
+    it('says the machine is offline rather than reading a send it cannot reach', () => {
+        const offline = deployment();
+
+        drawing(offline.transport, { entry: outbox.waitingSend.outgoingEmail, online: false });
+
+        expect(screen.getByText('Offline')).toBeDefined();
+        expect(offline.requests).toStrictEqual([]);
     });
 
     it('lets go of a send the deployment no longer holds, leaving the Outbox open with nothing in the pane', async () => {

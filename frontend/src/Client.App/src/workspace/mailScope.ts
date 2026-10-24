@@ -93,7 +93,7 @@ export function isMailFolderRole(value: unknown): value is MailFolderRole {
 export const folderRoles: readonly MailFolderRole[] = Object.keys(roleOrder).filter(isMailFolderRole);
 
 /**
- * The roles offered across every account at once, which is three of the ten.
+ * The roles offered across every account at once, which is three of the nine.
  *
  * **A role is offered unified only where reading every account's folder as one column is what somebody wants.** Mail
  * arrives, is answered, and is written in the same way whichever account it belongs to, so an inbox, a sent folder and

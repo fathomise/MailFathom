@@ -178,8 +178,9 @@ export function MailSpace({
     // The list is the last thing the *fullscreen* control takes away, and only at a tablet-class width: the design's
     // `showThreadList` is off where a tablet has both panes and something open under that control, and on at every
     // desktop width, where there is room for the correspondence to stand alone without the list going with it. The
-    // toolbar stays either way, which is what leaves the control there to turn it back off.
-    const listGivenUp = workspace.panelsHidden && twoPanes && !desktop && readingOpen;
+    // toolbar stays either way, which is what leaves the control there to turn it back off. An Outbox keeps its list,
+    // because the toolbar draws no such control while one is open.
+    const listGivenUp = workspace.panelsHidden && twoPanes && !desktop && readingOpen && outbox === null;
 
     // Whether the list stands behind what is in front of it rather than beside it. Both cases above put the reading
     // column where the list was, and neither is a reason to take the list down: what it holds is the pages the

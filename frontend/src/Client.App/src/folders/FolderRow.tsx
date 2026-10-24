@@ -129,6 +129,20 @@ export function FolderRow({
     readonly outbox?: OutboxMarking | undefined;
 }) {
     const press = useRowPress(onPress);
+
+    // The tap that ends a hold which already opened this row's menu opens nothing else, the mark included: one held
+    // finger opens one surface.
+    const mark: OutboxMarking | undefined =
+        outbox === undefined
+            ? undefined
+            : {
+                  ...outbox,
+                  onOpen: () => {
+                      if (!press.tapSuppressed()) {
+                          outbox.onOpen();
+                      }
+                  },
+              };
     const group = groupOrdinal !== null;
     const indent = group ? '' : (levelIndents[Math.min(Math.max(row.level - 2, 0), levelIndents.length - 1)] ?? '');
     const [draggedOver, setDraggedOver] = useState(false);
@@ -163,7 +177,7 @@ export function FolderRow({
             selected={selected}
             expanded={expanded}
             focusable={focusable}
-            outbox={outbox}
+            outbox={mark}
             onToggle={onToggle}
         />
     );
@@ -217,10 +231,10 @@ export function FolderRow({
                     : `${drawn} ${row.scope === null ? '' : 'cursor-pointer'}`
             }
         >
-            {folded && outbox !== undefined ? (
+            {folded && mark !== undefined ? (
                 <>
                     <div className={drawn}>{line}</div>
-                    <OutboxStrip marking={outbox} focusable={focusable} />
+                    <OutboxStrip marking={mark} focusable={focusable} />
                 </>
             ) : (
                 line

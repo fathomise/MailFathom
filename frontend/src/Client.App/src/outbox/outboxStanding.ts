@@ -4,7 +4,7 @@
 
 import type { OutgoingMail, OutgoingMailPreview, OutgoingMailRecipient } from '@mailfathom/client-backend';
 import type { IconName } from '../controls/icons';
-import { wordInstant } from '../localization/instants';
+import { calendarDayIn, wordInstant } from '../localization/instants';
 import type { Locale } from '../localization/locale';
 import type { MessageKey } from '../localization/en';
 import type { Translate } from '../localization/useLocalization';
@@ -87,11 +87,12 @@ const attemptCounts: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
     other: 'outbox.attempts.other',
 };
 
-/** What wording a send needs: the language, the reader's zone, and the catalogue. */
+/** What wording a send needs: the language, the reader's zone, the catalogue, and the instant it is worded at. */
 export interface OutboxWording {
     readonly locale: Locale;
     readonly timeZone: string | null;
     readonly translate: Translate;
+    readonly now: number;
 }
 
 /** How many attempts a send has taken, in words. */
@@ -104,6 +105,14 @@ export function attemptsSaid(count: number, { locale, translate }: OutboxWording
 /** A clock time on the reader's own clock, which is how the design names when something happened today. */
 function timeOf(instant: string, { locale, timeZone }: OutboxWording): string {
     return wordInstant(instant, locale, 'time', timeZone) ?? '';
+}
+
+/** When a send is tried again: a clock time where that is today, and the day beside it where a backoff runs past it. */
+function retryAt(instant: string, { locale, timeZone, now }: OutboxWording): string {
+    const at = Date.parse(instant);
+    const today = !Number.isNaN(at) && calendarDayIn(at, timeZone) === calendarDayIn(now, timeZone);
+
+    return wordInstant(instant, locale, today ? 'time' : 'stamp', timeZone) ?? '';
 }
 
 /** When a send was written to leave, which may be any day, so the day is said beside the time. */
@@ -131,7 +140,7 @@ function stageWords(
 ): string {
     return wording.translate(lineKeys[standing], {
         leaves: leavesAt(send.dueAt, wording),
-        at: timeOf(send.availableAt, wording),
+        at: retryAt(send.availableAt, wording),
     });
 }
 

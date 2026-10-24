@@ -262,6 +262,7 @@ function drawComposer(
     drafts = false,
     telemetry: ClientTelemetry = noTelemetry,
     exchange: AttachmentExchange = takesNothing,
+    showsOutbox = true,
 ): {
     closed: ReturnType<typeof vi.fn>;
     asked: ClientRequest[];
@@ -315,6 +316,7 @@ function drawComposer(
                                             opening={opening}
                                             online={online}
                                             drafts={drafts}
+                                            showsOutbox={showsOutbox}
                                             onClosed={onClosed}
                                         />
                                     )}
@@ -765,6 +767,28 @@ describe('Composer, a message of its own', () => {
         });
         expect(workspace()?.scope).toStrictEqual({ kind: 'folder', accountId: work.id, folderId: 'SENT' });
         expect(window.location.hash).toBe('#/mail');
+    });
+
+    // An Outbox is read under the grant that reads mail, so a credential that only sends is led to no send it could not
+    // open.
+    it('leads nowhere from a queued message where the session does not read mail', async () => {
+        drawComposer(
+            { kind: 'new' },
+            {},
+            [work],
+            true,
+            uploadsOneFile,
+            false,
+            noTelemetry,
+            takesNothing,
+            false,
+        );
+
+        address('ada@example.invalid');
+        confirmSend();
+
+        expect(await screen.findByText('Queued to go out.')).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Show in Outbox' })).toBeNull();
     });
 
     // A queued message offers no way back, because there is none: the deployment has taken it and the composer the act

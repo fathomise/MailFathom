@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+import { useState } from 'react';
 import type { OutgoingMail } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import { ReceivedAt } from '../controls/ReceivedAt';
@@ -27,7 +28,8 @@ export function OutboxRow({
 }) {
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
-    const wording = { locale, timeZone, translate };
+    const [now] = useState(() => Date.now());
+    const wording = { locale, timeZone, translate, now };
     const standing = standingOf(send);
 
     if (standing === null) {

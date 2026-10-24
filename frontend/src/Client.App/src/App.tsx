@@ -1501,6 +1501,7 @@ export function App({
                                                                                             written === null ||
                                                                                             session === null ? (
                                                                                                 session !== null &&
+                                                                                                readsMail &&
                                                                                                 workspace.outbox !==
                                                                                                     null ? (
                                                                                                     <MailAccountsContext
@@ -1539,6 +1540,9 @@ export function App({
                                                                                                     }
                                                                                                     drafts={
                                                                                                         composing.drafts
+                                                                                                    }
+                                                                                                    showsOutbox={
+                                                                                                        readsMail
                                                                                                     }
                                                                                                     inFront={
                                                                                                         space === 'mail'

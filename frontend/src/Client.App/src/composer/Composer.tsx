@@ -148,6 +148,7 @@ export function Composer({
     opening,
     online,
     drafts,
+    showsOutbox = true,
     inFront = true,
     onClosed,
 }: {
@@ -168,6 +169,12 @@ export function Composer({
      * would move the fields under whoever was already writing in them.
      */
     readonly drafts: boolean;
+
+    /**
+     * Whether the session reads mail, which is what an Outbox is read under: a credential that only sends is offered no
+     * way to a send it could not open.
+     */
+    readonly showsOutbox?: boolean;
 
     /** Whether the mail space is the one in front, which the composer is written in and stays in while it is aside. */
     readonly inFront?: boolean;
@@ -616,12 +623,16 @@ export function Composer({
                     kind: 'success',
                     title: translate('compose.sentTitle'),
                     body: translate('compose.queued'),
-                    action: {
-                        label: translate('compose.showInOutbox'),
-                        take: () => {
-                            showInOutbox(account, outcome.outgoingEmailId);
-                        },
-                    },
+                    ...(showsOutbox
+                        ? {
+                              action: {
+                                  label: translate('compose.showInOutbox'),
+                                  take: () => {
+                                      showInOutbox(account, outcome.outgoingEmailId);
+                                  },
+                              },
+                          }
+                        : {}),
                 };
             case 'withdrawn':
                 return {

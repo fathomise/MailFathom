@@ -167,8 +167,13 @@ export type MailSendOutcome =
  */
 export const mostRecipientsInDraft = 256;
 
-/** @see mostRecipientsInDraft */
-export const mostAttachmentsInDraft = 64;
+/**
+ * The most files a draft or a send may carry, which is the highest number an operator may configure a message to attach:
+ * a bound below it would refuse a send the service composed legitimately.
+ *
+ * @see mostRecipientsInDraft
+ */
+export const mostAttachmentsInDraft = 100;
 
 // A draft record is a handful of short fields plus the two bounded collections above, and it carries no body at any
 // size. Generous against that arithmetic and far below anything worth buffering.

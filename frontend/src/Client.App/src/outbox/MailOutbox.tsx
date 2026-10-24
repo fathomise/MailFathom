@@ -75,13 +75,14 @@ export function MailOutboxProvider({
     const account = workspace.outbox?.account ?? null;
     const [answered, setAnswered] = useState<Answered | null>(null);
     const [asked, setAsked] = useState(0);
-    const [hidden, setHidden] = useState<readonly string[]>([]);
+    const [hidden, setHidden] = useState<readonly { readonly account: string; readonly id: string }[]>([]);
 
     // The page before the one arriving, which is what says a send that was being sent has left.
     const lastSends = useRef<{ readonly account: string; readonly sends: readonly OutgoingMail[] } | null>(null);
     const entry = workspace.outbox?.entry ?? null;
 
-    const wording: OutboxWording = { locale, timeZone, translate };
+    const [now] = useState(() => Date.now());
+    const wording: OutboxWording = { locale, timeZone, translate, now };
 
     // A newer page arrived: say once what left while it was being sent, and stop holding open a send that has gone.
     const arrived = useEffectEvent((sends: readonly OutgoingMail[]) => {
@@ -128,11 +129,11 @@ export function MailOutboxProvider({
             );
 
             if (result.outcome === 'read') {
-                // A send stays hidden for as long as a page still lists it, so one the deployment took a dismissal of
-                // is not drawn again between that answer and the read that no longer holds it.
+                // A send stays hidden for as long as its own account's page still lists it, so one the deployment took
+                // a dismissal of is not drawn again between that answer and the read that no longer holds it.
                 const listed = new Set(result.value.sends.map((send) => send.outgoingEmailId));
 
-                setHidden((current) => current.filter((hiddenId) => listed.has(hiddenId)));
+                setHidden((current) => current.filter((held) => held.account !== account || listed.has(held.id)));
                 arrived(result.value.sends);
             }
         });
@@ -227,7 +228,7 @@ export function MailOutboxProvider({
         const id = send.outgoingEmailId;
         let undone = false;
 
-        setHidden((current) => [...current, id]);
+        setHidden((current) => [...current, { account, id }]);
 
         if (entry === id) {
             revise({ outbox: { account, entry: null } });
@@ -244,7 +245,7 @@ export function MailOutboxProvider({
                 label: translate('act.undo'),
                 take: () => {
                     undone = true;
-                    setHidden((current) => current.filter((hiddenId) => hiddenId !== id));
+                    setHidden((current) => current.filter((held) => held.id !== id));
                 },
             },
             whenGone: () => {
@@ -254,7 +255,7 @@ export function MailOutboxProvider({
 
                 void dismissOutgoingMail(session, transport, id).then((result) => {
                     if (result.outcome === 'failed' || result.value !== 'accepted') {
-                        setHidden((current) => current.filter((hiddenId) => hiddenId !== id));
+                        setHidden((current) => current.filter((held) => held.id !== id));
                         decided(result, { kind: 'neutral', title: translate('outbox.dismissedTitle') });
                     }
 
@@ -272,7 +273,9 @@ export function MailOutboxProvider({
             ? { kind: 'failed', reason: answered.result.failure.reason }
             : {
                   kind: 'read',
-                  sends: answered.result.value.sends.filter((send) => !hidden.includes(send.outgoingEmailId)),
+                  sends: answered.result.value.sends.filter(
+                      (send) => !hidden.some((held) => held.id === send.outgoingEmailId),
+                  ),
               };
 
     const outbox: MailOutbox = { page, readAgain, cancel, sendAgain, dismiss };

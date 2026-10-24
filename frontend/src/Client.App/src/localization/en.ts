@@ -1068,6 +1068,8 @@ export const en = {
     'outbox.back': 'Back to Outbox',
     'outbox.previewReading': 'Reading this message…',
     'outbox.previewFailed': 'This message could not be read: {reason}.',
+    'outbox.previewFailedTitle': 'Not read',
+    'outbox.previewOfflineTitle': 'Offline',
     'outbox.readOnlyFoot': 'In Outbox, read-only - it cannot be replied to, forwarded, flagged, moved or deleted here.',
     'outbox.attempts.one': '{count} attempt',
     'outbox.attempts.few': '{count} attempts',

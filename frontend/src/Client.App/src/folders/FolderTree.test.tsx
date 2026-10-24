@@ -1516,4 +1516,28 @@ describe('the Outbox mark on a Sent row', () => {
         // Beside the menu's name rather than inside the element carrying its role, which holds the items alone.
         expect(screen.getByText(named, { selector: 'p' })).toBeDefined();
     });
+
+    // A finger held on the mark is a hold on the Sent row, which opens that row's menu; the tap the hold ends on is not
+    // also a press of the mark, or one held finger would open the menu and the Outbox together.
+    it('opens only the Sent row’s menu for a finger held on the mark', async () => {
+        renderTree(answering(holding({ waiting: 4, refused: 1 })), true, undefined, undefined, offering().maintenance);
+
+        const mark = await screen.findByRole('button', { name: named });
+
+        vi.useFakeTimers();
+
+        try {
+            fireEvent.pointerDown(mark, { pointerType: 'touch', clientX: 40, clientY: 80 });
+            act(() => {
+                vi.advanceTimersByTime(600);
+            });
+            fireEvent.pointerUp(mark, { pointerType: 'touch' });
+            fireEvent.click(mark);
+        } finally {
+            vi.useRealTimers();
+        }
+
+        expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toContain('Mark all as read');
+        expect(carried().outbox).toBeNull();
+    });
 });

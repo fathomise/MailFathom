@@ -282,6 +282,15 @@ describe('readOutgoingMail', () => {
         expect(answer).toMatchObject({ outcome: 'read', value: { text: null, sender: null } });
     });
 
+    // An operator may let a message carry up to a hundred files, so a send carrying that many is one the service composed.
+    it('reads a send carrying as many files as a deployment may let a message attach', async () => {
+        const attachments = Array.from({ length: 100 }, () => preview.attachments[0]);
+
+        const answer = await readOutgoingMail(session, answering(sending({ ...preview, attachments })), outgoingEmailId);
+
+        expect(answer).toMatchObject({ outcome: 'read', value: { attachments: { length: 100 } } });
+    });
+
     it('reads a send this user does not hold as missing', async () => {
         const answer = await readOutgoingMail(session, answering({ status: 404, body: '' }), outgoingEmailId);
 

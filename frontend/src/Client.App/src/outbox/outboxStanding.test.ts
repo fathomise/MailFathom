@@ -21,8 +21,11 @@ function translating(locale: Locale): Translate {
         catalogues[locale][key].replace(/\{(\w+)\}/gu, (hole: string, name: string) => values?.[name] ?? hole);
 }
 
+/** The instant every wording here is made at: the day the sample send was handed over and is tried again on. */
+const today = '2026-08-31T12:00:00+00:00';
+
 function wording(locale: Locale = 'en'): OutboxWording {
-    return { locale, timeZone: null, translate: translating(locale) };
+    return { locale, timeZone: null, translate: translating(locale), now: Date.parse(today) };
 }
 
 const send: OutgoingMail = {
@@ -89,6 +92,22 @@ describe('standingLine', () => {
         expect(standingLine('retrying', { ...send, attemptCount: 2 }, wording('pl'))).toBe(
             'Kolejna próba o 12:55 · 2 próby',
         );
+    });
+
+    it('says the retry time on the clock of the zone the runtime reports', () => {
+        process.env['TZ'] = 'America/New_York';
+
+        expect(standingLine('retrying', { ...send, attemptCount: 2 }, wording())).toBe(
+            'Trying again at 6:55 AM · 2 attempts',
+        );
+    });
+
+    // A backoff may run past midnight, and a clock time alone would then name a moment today that already went by.
+    it('says the day of a retry that does not fall today', () => {
+        const tomorrow = { ...send, attemptCount: 2, availableAt: '2026-09-01T07:30:00+00:00' };
+
+        expect(standingLine('retrying', tomorrow, wording())).toBe('Trying again at 9/1/26, 9:30 AM · 2 attempts');
+        expect(standingLine('retrying', tomorrow, wording('pl'))).toBe('Kolejna próba o 1.09.2026, 09:30 · 2 próby');
     });
 
     it('says no attempts for a send being sent right now', () => {

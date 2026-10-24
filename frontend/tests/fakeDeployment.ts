@@ -279,6 +279,12 @@ export class FakeDeployment {
      * folders route counts and the Outbox route lists, so the mark on the Sent row and the list it opens agree.
      */
     private outboxHeld: readonly OutboxSend[] = outbox.outboxPage.sends;
+
+    /**
+     * Every send that is no longer in the Outbox, at the stage it ended at: the service still answers its preview, with
+     * the stage it stands at and `inOutbox` false, for as long as it holds the record.
+     */
+    private readonly outboxLeft = new Map<string, { readonly send: OutboxSend; readonly dismissed: boolean }>();
     private readonly runs = new Map<string, DiscoveryRun>();
     private readonly conversations = new Map<string, Conversation>([
         [agent.answeredConversationId, this.corpusConversation(agent.answeredConversationId, 'answered')],
@@ -478,7 +484,7 @@ export class FakeDeployment {
 
     /** Lets a send leave the Outbox, as a delivery the mail server took does, and says the account's Outbox moved. */
     sendLeaves(outgoingEmail: string): void {
-        this.outboxHeld = this.outboxHeld.filter((send) => send.outgoingEmail !== outgoingEmail);
+        this.outboxLeaves(outgoingEmail, 'Sent');
         this.signal({ kind: 'outbox.changed', account: deployment.workAccount.id });
     }
 
@@ -1198,6 +1204,7 @@ export class FakeDeployment {
             return { ...drafts.withdrawnSend, outgoingEmail, outcome: 'RecordUnknown' };
         }
 
+        this.outboxLeaves(outgoingEmail, 'Cancelled');
         this.sendsQueued.delete(outgoingEmail);
         this.draftsHeld.set(queued.draftId, queued.held);
         this.count(draftsFolder ?? '', 1, 0);
@@ -1205,18 +1212,53 @@ export class FakeDeployment {
         return { ...drafts.withdrawnSend, outgoingEmail };
     }
 
-    /** Every send the Outbox lists, newest first: what a check queued, then what the corpus holds. */
-    private outboxSends(): readonly OutboxSend[] {
-        const queued = [...this.sendsQueued].reverse().map(([outgoingEmail, { held }]) => ({
-            ...outbox.waitingSend,
-            outgoingEmail,
-            subject: typeof held.record['subject'] === 'string' ? held.record['subject'] : null,
-            recipients: (Array.isArray(held.record['recipients']) ? (held.record['recipients'] as Held[]) : []).map(
-                (recipient) => ({ address: String(recipient['address']), role: String(recipient['role']) }),
-            ),
-        }));
+    /**
+     * Every send the Outbox lists, newest first: what a check queued, then what the corpus holds. A queued send's row
+     * names its recipients as the service's does — up to three from `To`, else `Cc`, else `Bcc`, and the rest counted —
+     * while its preview names every one of them.
+     */
+    private outboxSends(): readonly (OutboxSend & { readonly otherRecipientCount?: number })[] {
+        const queued = [...this.sendsQueued].reverse().map(([outgoingEmail]) => {
+            const send = this.queuedSend(outgoingEmail);
+            const named = (['To', 'Cc', 'Bcc'] as const)
+                .map((role) => send.recipients.filter((recipient) => recipient.role === role))
+                .find((recipients) => recipients.length > 0) ?? [];
+
+            return {
+                ...send,
+                recipients: named.slice(0, 3),
+                otherRecipientCount: send.recipients.length - Math.min(named.length, 3),
+            };
+        });
 
         return [...queued, ...this.outboxHeld];
+    }
+
+    /** One queued send whole, as its preview states it. */
+    private queuedSend(outgoingEmail: string): OutboxSend {
+        const held = this.sendsQueued.get(outgoingEmail)?.held;
+
+        return {
+            ...outbox.waitingSend,
+            outgoingEmail,
+            subject: typeof held?.record['subject'] === 'string' ? held.record['subject'] : null,
+            recipients: (Array.isArray(held?.record['recipients']) ? (held.record['recipients'] as Held[]) : []).map(
+                (recipient) => ({ address: String(recipient['address']), role: String(recipient['role']) }),
+            ),
+        };
+    }
+
+    /** Takes a send out of the Outbox at the stage it ended at, keeping it for the preview the service still answers. */
+    private outboxLeaves(outgoingEmail: string, stage: string, dismissed = false): void {
+        const send = this.sendsQueued.has(outgoingEmail)
+            ? this.queuedSend(outgoingEmail)
+            : this.outboxHeld.find((held) => held.outgoingEmail === outgoingEmail);
+
+        if (send !== undefined) {
+            this.outboxLeft.set(outgoingEmail, { send: { ...send, stage, heldByAttempt: false }, dismissed });
+        }
+
+        this.outboxHeld = this.outboxHeld.filter((held) => held.outgoingEmail !== outgoingEmail);
     }
 
     /** What the folders route counts in the Outbox: what is on its way, and what the mail server refused. */
@@ -1227,7 +1269,10 @@ export class FakeDeployment {
         return { waiting: sends.length - refused, refused };
     }
 
-    /** One send's preview, or nothing where the Outbox holds no send under that identity. */
+    /**
+     * One send's preview: whole while the Outbox holds it, at the stage it ended at once it left, and nothing where no
+     * send was ever made under that identity.
+     */
     private outboxAnswer({ method }: IssuedRequest, segments: readonly string[]): FakeAnswer | null {
         const [space, id = ''] = segments;
 
@@ -1235,9 +1280,25 @@ export class FakeDeployment {
             return null;
         }
 
-        const send = this.outboxSends().find(({ outgoingEmail }) => outgoingEmail === id);
+        if (this.sendsQueued.has(id)) {
+            return answering(outbox.outgoingMailPreview(this.queuedSend(id)));
+        }
 
-        return send === undefined ? { status: 404, body: '' } : answering(outbox.outgoingMailPreview(send));
+        const send = this.outboxHeld.find(({ outgoingEmail }) => outgoingEmail === id);
+
+        if (send !== undefined) {
+            return answering(outbox.outgoingMailPreview(send));
+        }
+
+        const left = this.outboxLeft.get(id);
+
+        return left === undefined
+            ? { status: 404, body: '' }
+            : answering({
+                  ...outbox.outgoingMailPreview(left.send),
+                  inOutbox: false,
+                  dismissedAt: left.dismissed ? left.send.recordedAt : null,
+              });
     }
 
     /**
@@ -1263,7 +1324,7 @@ export class FakeDeployment {
                     : 'StageDoesNotAllowIt';
 
         if (outcome === 'Accepted') {
-            this.outboxHeld = this.outboxHeld.filter((held) => held !== send);
+            this.outboxLeaves(outgoingEmail, 'Cancelled');
         }
 
         return this.outboxDecided({ outgoingEmail, outcome });
@@ -1313,8 +1374,8 @@ export class FakeDeployment {
                   ? 'Accepted'
                   : 'StageDoesNotAllowIt';
 
-        if (outcome === 'Accepted') {
-            this.outboxHeld = this.outboxHeld.filter((held) => held !== send);
+        if (outcome === 'Accepted' && send !== undefined) {
+            this.outboxLeaves(outgoingEmail, send.stage, true);
         }
 
         return this.outboxDecided({ outgoingEmail, outcome });

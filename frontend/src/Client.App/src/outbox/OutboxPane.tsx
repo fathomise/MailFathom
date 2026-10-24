@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
 import {
     readOutgoingMail,
     type ClientFailureReason,
@@ -15,6 +15,7 @@ import {
 } from '@mailfathom/client-backend';
 import { Control } from '../controls/Control';
 import { Icon } from '../controls/Icon';
+import type { IconName } from '../controls/icons';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import { wordInstant } from '../localization/instants';
@@ -90,22 +91,12 @@ export function OutboxPane({
         const empty = page.kind === 'read' && page.sends.length === 0;
 
         return (
-            <div
+            <PaneNotice
                 ref={nothingOpen}
-                role="status"
-                tabIndex={-1}
-                className="flex min-h-full flex-1 flex-col items-center justify-center gap-4 bg-sunken p-8 text-center"
-            >
-                <span className="flex size-11.5 items-center justify-center rounded-xl bg-rail text-muted">
-                    <Icon name="outbox" className="size-icon-2xl" />
-                </span>
-                <div className="flex max-w-105 flex-col items-center gap-1.75">
-                    <p className="text-3xl font-semibold tracking-tight">{translate('outbox.nothingOpen')}</p>
-                    <p className="text-md/relaxed text-pretty text-muted">
-                        {translate(empty ? 'outbox.nothingOpenEmpty' : 'outbox.nothingOpenText')}
-                    </p>
-                </div>
-            </div>
+                icon="outbox"
+                title={translate('outbox.nothingOpen')}
+                text={translate(empty ? 'outbox.nothingOpenEmpty' : 'outbox.nothingOpenText')}
+            />
         );
     }
 
@@ -119,7 +110,47 @@ export function OutboxPane({
             outbox={outbox}
             entry={outbox.entry}
             row={row}
+            online={page.kind !== 'offline'}
         />
+    );
+}
+
+// The pane's one layout for having nothing to show — nothing picked, a preview that could not be read, a machine with
+// no network — as the design gives the reading pane: a glyph, a title, a sentence, and one way on where one exists.
+function PaneNotice({
+    ref,
+    icon,
+    title,
+    text,
+    back,
+    action,
+}: {
+    readonly ref?: Ref<HTMLDivElement>;
+    readonly icon: IconName;
+    readonly title: string;
+    readonly text: string;
+    readonly back?: ReactNode;
+    readonly action?: ReactNode;
+}) {
+    return (
+        <div className="flex min-h-full flex-1 flex-col bg-sunken">
+            {back === undefined || back === null ? null : <div className="flex px-2 py-1.5">{back}</div>}
+            <div
+                ref={ref}
+                role="status"
+                tabIndex={-1}
+                className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center"
+            >
+                <span className="flex size-11.5 items-center justify-center rounded-xl bg-rail text-muted">
+                    <Icon name={icon} className="size-icon-2xl" />
+                </span>
+                <div className="flex max-w-105 flex-col items-center gap-1.75">
+                    <p className="text-3xl font-semibold tracking-tight">{title}</p>
+                    <p className="text-md/relaxed text-pretty text-muted">{text}</p>
+                </div>
+                {action}
+            </div>
+        </div>
     );
 }
 
@@ -129,6 +160,7 @@ function OpenSend({
     outbox,
     entry,
     row,
+    online,
 }: {
     readonly session: ClientSession;
     readonly transport: MailFathomTransport;
@@ -137,17 +169,23 @@ function OpenSend({
 
     /** The send as the Outbox's page last said it, which is what its standing is read from while the page has it. */
     readonly row: OutgoingMail | undefined;
+    readonly online: boolean;
 }) {
     const { translate } = useLocalization();
     const { revise } = useWorkspace();
     const twoPanes = useTwoPanes();
     const [read, setRead] = useState<ClientResult<OutgoingMailPreview> | null>(null);
+    const [attempt, setAttempt] = useState(0);
 
     // What the page says about the send, as one value: a change to any of it is the send having moved on, which is when
     // what the preview says about it is read again.
     const moved = row === undefined ? '' : `${row.stage}:${String(row.heldByAttempt)}:${String(row.attemptCount)}`;
 
     useEffect(() => {
+        if (!online) {
+            return;
+        }
+
         let listening = true;
 
         void readOutgoingMail(session, transport, entry).then((result) => {
@@ -169,7 +207,7 @@ function OpenSend({
         return () => {
             listening = false;
         };
-    }, [session, transport, entry, moved, outbox.account, revise]);
+    }, [session, transport, entry, moved, outbox.account, revise, online, attempt]);
 
     const back = twoPanes ? null : (
         <Control
@@ -181,6 +219,17 @@ function OpenSend({
             }}
         />
     );
+
+    if (!online && read?.outcome !== 'read') {
+        return (
+            <PaneNotice
+                icon="cloud_off"
+                title={translate('outbox.previewOfflineTitle')}
+                text={translate('message.offline')}
+                back={back}
+            />
+        );
+    }
 
     if (read === null) {
         return (
@@ -194,13 +243,26 @@ function OpenSend({
     }
 
     if (read.outcome === 'failed') {
+        // Reading again is the way out of exactly one failure, for the reason `shell/ConnectionSummary.tsx` gives: the
+        // other four repeat identically on a second attempt.
         return (
-            <div className="flex flex-col items-start gap-2 p-4">
-                {back}
-                <p className="text-sm text-warning-text">
-                    {translate('outbox.previewFailed', { reason: translate(failureLabels[read.failure.reason]) })}
-                </p>
-            </div>
+            <PaneNotice
+                icon="warning"
+                title={translate('outbox.previewFailedTitle')}
+                text={translate('outbox.previewFailed', { reason: translate(failureLabels[read.failure.reason]) })}
+                back={back}
+                action={
+                    read.failure.reason === 'unavailable' ? (
+                        <SecondaryButton
+                            label={translate('connection.retry')}
+                            onActivate={() => {
+                                setRead(null);
+                                setAttempt((current) => current + 1);
+                            }}
+                        />
+                    ) : undefined
+                }
+            />
         );
     }
 
@@ -266,7 +328,8 @@ function StateBox({
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
     const { cancel, sendAgain, dismiss } = useMailOutbox();
-    const wording: OutboxWording = { locale, timeZone, translate };
+    const [now] = useState(() => Date.now());
+    const wording: OutboxWording = { locale, timeZone, translate, now };
     const shape = standingShapes[standing];
     const tone = toneBox[shape.tone];
     const send = decidedAbout(preview, row);
@@ -329,7 +392,8 @@ function StateBox({
 function Facts({ preview }: { readonly preview: OutgoingMailPreview }) {
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
-    const wording: OutboxWording = { locale, timeZone, translate };
+    const [now] = useState(() => Date.now());
+    const wording: OutboxWording = { locale, timeZone, translate, now };
 
     const facts: readonly {
         readonly key: string;

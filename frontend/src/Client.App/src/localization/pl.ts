@@ -1085,6 +1085,8 @@ export const pl: Catalogue = {
     'outbox.back': 'Wróć do Nadawczej',
     'outbox.previewReading': 'Wczytywanie tej wiadomości…',
     'outbox.previewFailed': 'Nie udało się wczytać tej wiadomości: {reason}.',
+    'outbox.previewFailedTitle': 'Nie wczytano',
+    'outbox.previewOfflineTitle': 'Bez sieci',
     'outbox.readOnlyFoot':
         'W Nadawczej, tylko do odczytu - nie można tu na nią odpowiedzieć, przekazać jej, oznaczyć, przenieść ani usunąć.',
     'outbox.attempts.one': '{count} próba',
