@@ -7,26 +7,35 @@ using MailFathom.Infrastructure.Persistence.Entities;
 
 namespace MailFathom.Infrastructure.Persistence.Emails;
 
-/// <summary>Narrows a query by folders named as an account and an alias together, in either direction.</summary>
+/// <summary>Narrows a query by the folders a caller selected, or by the folders configuration admits or withholds.</summary>
 /// <remarks>
 /// <para>
-/// A folder decision is made about an account and an alias together, and no column holds that pair, so the narrowing is
-/// written once here rather than at each query that needs it. One clause is composed per account the decision reaches —
-/// <c>account &lt;&gt; 'a' OR alias &lt;&gt; ALL(…)</c> to withhold, <c>account &lt;&gt; 'a' OR alias = ANY(…)</c> to
-/// select or to admit — which is bounded by how many accounts are configured.
+/// The two kinds of narrowing name a folder differently, because they come from different places. A caller selects a
+/// folder by its MailFathom-issued identity or by the role it plays: an identity names one account's folder by itself,
+/// so <see cref="Selecting(IQueryable{StoredEmailEntity}, IReadOnlyList{MailFolderId}, IReadOnlyList{MailFolderSpecialUse})" />
+/// narrows by the folder reference with no account clause, and a role is matched against the role each account's own
+/// folder row plays, so one role reaches each account's own folder.
 /// </para>
 /// <para>
-/// What an empty list means is the one thing that differs between the three, and it follows from what each list is. A
-/// withheld set that is empty withholds nothing and a selected set that is empty is a caller who named no folder, so
-/// both disappear and the query is unnarrowed; an admitted set that is empty admits nothing, because a folder is
-/// readable by being mapped rather than by not being mentioned.
+/// Configuration decides by an account and an alias together, because the alias is what per-folder settings —
+/// participation, junk, visibility to tools — are keyed by, and it is matched against the alias recorded on the folder
+/// row. One clause is composed per account the decision reaches — <c>account &lt;&gt; 'a' OR alias &lt;&gt; ALL(…)</c>
+/// to withhold, <c>account &lt;&gt; 'a' OR alias = ANY(…)</c> to admit — which is bounded by how many accounts are
+/// configured. Narrowing by the alias alone would withhold or admit another account's folder of the same name.
 /// </para>
 /// <para>
-/// Narrowing by the alias alone would be the silent mistake this exists to prevent, and it fails differently on each
-/// side. Withholding by name alone hides another account's folder of the same name, which is the wrong mail withheld
-/// for a reason nobody could find. Selecting by name alone admits another account's folder of the same name, which is
-/// mail the caller's own filter never asked for — the case a folder named by the role it plays produces, because a role
-/// resolves to a different alias on each account.
+/// A folder whose row carries no alias is one no declaration names: a folder a person made on a held account.
+/// <see cref="Admitting(IQueryable{StoredEmailEntity}, IReadOnlyList{MailFolderIdentity})" /> admits it within the
+/// accounts admitted at all, and <see cref="Excluding(IQueryable{StoredEmailEntity}, IReadOnlyList{MailFolderIdentity})" />
+/// never removes it, because no setting can name it to withhold it, and withholding it by default would hide every
+/// folder a person made from the tools they made it for. A folder whose row still carries an alias configuration no
+/// longer declares is the opposite case and stays out, because nothing admits it.
+/// </para>
+/// <para>
+/// What an empty list means follows from what each list is. A withheld set that is empty withholds nothing and a
+/// selection that is empty is a caller who named no folder, so both disappear and the query is unnarrowed; an admitted
+/// set that is empty admits nothing, because an account is readable by being admitted rather than by not being
+/// mentioned.
 /// </para>
 /// </remarks>
 internal static class AccountScopedMailFolders

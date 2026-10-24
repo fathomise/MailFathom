@@ -224,6 +224,35 @@ public sealed class MailFolderEditorTests
         Assert.Equal(EditorDeployment.RowIdOf(Projects).ToString(), outcome.Folder!.Id);
     }
 
+    [Fact]
+    public async Task CreateAsync_AMirroredAccountWhoseRowLosesOneConflict_NamesTheFolderByTheRowItsSecondDeclarationGave()
+    {
+        // Arrange
+        await using var deployment = new EditorDeployment(MailAccountCustodyPhase.Mirrored);
+        deployment.CreatesAt("Projects");
+        deployment.LosesRowDeclarations(1);
+
+        // Act
+        var outcome = await deployment.Editor.CreateAsync(Account, parentId: null, "Projects", role: null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EditorDeployment.RowIdOf(Projects).ToString(), outcome.Folder!.Id);
+    }
+
+    /// <summary>Configuration's name for the folder is no identity a client could hand back, so a folder without a row is reported as the conflict that left it so.</summary>
+    [Fact]
+    public async Task CreateAsync_AMirroredAccountWhoseRowNeverLands_ReportsTheConflictRatherThanAFolder()
+    {
+        // Arrange
+        await using var deployment = new EditorDeployment(MailAccountCustodyPhase.Mirrored);
+        deployment.CreatesAt("Projects");
+        deployment.LosesRowDeclarations(2);
+
+        // Act, Assert
+        await Assert.ThrowsAsync<PersistenceConcurrencyConflictException>(
+            () => deployment.Editor.CreateAsync(Account, parentId: null, "Projects", role: null, TestContext.Current.CancellationToken));
+    }
+
     /// <summary>An account on its way back to its source is half in each place, so an act on either side would be an act against half a mailbox.</summary>
     [Fact]
     public async Task DeleteAsync_AnAccountBeingRestored_IsRefused()
@@ -273,6 +302,8 @@ public sealed class MailFolderEditorTests
         private readonly IMailFolderDeclarationWriter declarations = Substitute.For<IMailFolderDeclarationWriter>();
         private readonly IMailFolderResolutionStore folderRows = Substitute.For<IMailFolderResolutionStore>();
         private IReadOnlyList<MailFolderMapping> folders = [];
+        private int withheldRowDeclarations;
+        private bool lastDeclarationConflicted;
 
         internal EditorDeployment(MailAccountCustodyPhase phase, params MailFathomPermission[] granted)
         {
@@ -285,7 +316,7 @@ public sealed class MailFolderEditorTests
                     Arg.Any<MailAccountId>(),
                     Arg.Any<IReadOnlyList<MailFolderMapping>>(),
                     Arg.Any<CancellationToken>())
-                .Returns(call => this.GiveRows(call.ArgAt<IReadOnlyList<MailFolderMapping>>(2)));
+                .Returns(call => this.DeclareRows(call.ArgAt<IReadOnlyList<MailFolderMapping>>(2)));
             this.declarations
                 .AliasesTheAccountDeclaresAsync(Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>())
                 .Returns(_ => Task.FromResult<IReadOnlySet<MailFolderAlias>>(new HashSet<MailFolderAlias>()));
@@ -307,7 +338,9 @@ public sealed class MailFolderEditorTests
                 .Returns(AuthoredFolderDeleteDisposition.DeleteOnServer);
 
             var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
-            sessionFactory.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(_ => new CommittingSession());
+            sessionFactory
+                .BeginSessionAsync(Arg.Any<CancellationToken>())
+                .Returns(_ => new CommittingSession(() => this.lastDeclarationConflicted));
 
             this.Accounts = Substitute.For<ICallerMailAccountCatalog>();
             this.Accounts.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns([SyntheticServedAccount.Of(Account)]);
@@ -369,6 +402,23 @@ public sealed class MailFolderEditorTests
         internal static MailFolderId RowIdOf(MailFolderAlias alias) =>
             MailFolderId.Create(new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(alias.Value)).AsSpan(0, 16)));
 
+        /// <summary>Scripts the next declarations of folder rows losing to a competing writer, so none of them gives a row.</summary>
+        internal void LosesRowDeclarations(int count) => this.withheldRowDeclarations = count;
+
+        private bool DeclareRows(IReadOnlyList<MailFolderMapping> mappings)
+        {
+            this.lastDeclarationConflicted = this.withheldRowDeclarations > 0;
+
+            if (this.lastDeclarationConflicted)
+            {
+                this.withheldRowDeclarations--;
+
+                return true;
+            }
+
+            return this.GiveRows(mappings);
+        }
+
         /// <summary>Gives every mapping without a row one, as a run's declaration does, and says whether any was given.</summary>
         private bool GiveRows(IEnumerable<MailFolderMapping> mappings)
         {
@@ -406,10 +456,10 @@ public sealed class MailFolderEditorTests
         public ValueTask DisposeAsync() => this.Signals.DisposeAsync();
     }
 
-    private sealed class CommittingSession : IPersistenceSession
+    private sealed class CommittingSession(Func<bool> conflicts) : IPersistenceSession
     {
         public Task<PersistenceCommitResult> CommitAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(PersistenceCommitResult.Committed);
+            Task.FromResult(conflicts() ? PersistenceCommitResult.ConcurrencyConflict : PersistenceCommitResult.Committed);
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

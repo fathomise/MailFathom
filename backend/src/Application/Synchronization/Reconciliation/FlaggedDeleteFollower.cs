@@ -170,8 +170,10 @@ public sealed class FlaggedDeleteFollower
 
     /// <summary>Stops following an occurrence whose erased message the run has stored again, or found it could not.</summary>
     /// <remarks>
-    /// A message stored again is announced as changed in its folder, as a kept row brought back is, because an open
-    /// client has to learn that a message it was told had gone is back.
+    /// A message stored again is announced as changed, as a kept row brought back is, because an open client has to
+    /// learn that a message it was told had gone is back. The announcement names the account and the message and no
+    /// folder, because the occurrence is known only by where it stands on the server, so a client re-reads whichever
+    /// folder of the account it is showing.
     /// </remarks>
     /// <param name="account">The account the occurrence belongs to.</param>
     /// <param name="undeleted">One of the occurrences a follow-up returned as awaiting restore.</param>

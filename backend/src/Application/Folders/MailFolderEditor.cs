@@ -5,6 +5,7 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Folders.Local;
+using MailFathom.Application.Persistence;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Folders;
@@ -109,6 +110,7 @@ public sealed class MailFolderEditor
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>The created folder, or the refusal.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold <c>mailfathom.mail.folders.write</c> and <c>mailfathom.mail.read</c>, both of which an act needs.</exception>
+    /// <exception cref="PersistenceConcurrencyConflictException">Thrown when an act on a mirrored account committed on its mail server and a competing writer kept the folder it left from being given a row.</exception>
     public Task<MailFolderActOutcome> CreateAsync(
         MailAccountId account,
         string? parentId,
@@ -130,6 +132,7 @@ public sealed class MailFolderEditor
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>The renamed folder, or the refusal.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold <c>mailfathom.mail.folders.write</c> and <c>mailfathom.mail.read</c>, both of which an act needs.</exception>
+    /// <exception cref="PersistenceConcurrencyConflictException">Thrown when an act on a mirrored account committed on its mail server and a competing writer kept the folder it left from being given a row.</exception>
     public Task<MailFolderActOutcome> RenameAsync(
         MailAccountId account,
         string? folderId,
@@ -149,6 +152,7 @@ public sealed class MailFolderEditor
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>The moved folder, or the refusal.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold <c>mailfathom.mail.folders.write</c> and <c>mailfathom.mail.read</c>, both of which an act needs.</exception>
+    /// <exception cref="PersistenceConcurrencyConflictException">Thrown when an act on a mirrored account committed on its mail server and a competing writer kept the folder it left from being given a row.</exception>
     public Task<MailFolderActOutcome> MoveAsync(
         MailAccountId account,
         string? folderId,
@@ -171,6 +175,7 @@ public sealed class MailFolderEditor
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>The folder as the act left it, or the refusal.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold <c>mailfathom.mail.folders.write</c> and <c>mailfathom.mail.read</c>, both of which an act needs.</exception>
+    /// <exception cref="PersistenceConcurrencyConflictException">Thrown when an act on a mirrored account committed on its mail server and a competing writer kept the folder it left from being given a row.</exception>
     /// <remarks>
     /// On an account whose mailbox MailFathom holds, a deletion moves the folder into the trash and a deletion of one
     /// already there erases it with its mail. On a mirrored account it deletes the folder on the mail server, or marks
@@ -229,9 +234,17 @@ public sealed class MailFolderEditor
 
     /// <summary>Carries out an act on a mirrored account, and reports the folder it left by the identity a client names it by.</summary>
     /// <remarks>
+    /// <para>
     /// The rows are read on both sides of the act: a created folder has its row only afterwards, and a deleted one only
-    /// before.
+    /// before. The second read ignores the caller's cancellation, because the server has already acted by then and the
+    /// answer is what tells the caller so.
+    /// </para>
+    /// <para>
+    /// A folder with no row on either side is one whose row a competing writer kept this act from declaring. It is
+    /// reported as that conflict rather than by its alias, which no surface accepts back.
+    /// </para>
     /// </remarks>
+    /// <exception cref="PersistenceConcurrencyConflictException">Thrown when the act committed and no row names the folder it left.</exception>
     private async Task<MailFolderActOutcome> ActOnMirroredAsync(
         MailAccountId account,
         Func<MailAccountId, IReadOnlyList<LocalMailFolder>, Task<MailFolderActOutcome>> act,
@@ -246,8 +259,11 @@ public sealed class MailFolderEditor
         }
 
         var after = await this.folders.ReadFoldersAsync(account, CancellationToken.None);
+        var identified = Identified(folder, IdsByAlias([.. before, .. after]))
+            ?? throw new PersistenceConcurrencyConflictException(
+                $"A folder act on account {account.Value} committed, and another writer kept its folder from being given a row.");
 
-        return outcome with { Folder = Identified(folder, IdsByAlias([.. before, .. after])) ?? folder };
+        return outcome with { Folder = identified };
     }
 
     private async Task<MailFolderActOutcome> CreateLocallyAsync(

@@ -43,6 +43,8 @@ namespace MailFathom.Application.Folders;
 /// </remarks>
 public sealed class MirroredMailFolderEditor
 {
+    private const int RowDeclarationAttempts = 2;
+
     private readonly IMailFolderMappingReader mappings;
     private readonly IMailFolderResolutionStore bindings;
     private readonly IMailFolderDeclarationWriter declarations;
@@ -463,20 +465,27 @@ public sealed class MirroredMailFolderEditor
 
     /// <summary>Brings the account's folder rows in line with what it declares once an act changed that.</summary>
     /// <remarks>
-    /// A row is what a client names a folder by, so a created folder needs one before the act is reported. A competing
-    /// writer reaching the rows first is left to win: the account's next run declares them again.
+    /// A row is what a client names a folder by, so a created folder needs one before the act is reported. A declaration
+    /// that lost to a competing writer is made once more: it re-reads the rows the winner wrote and adds only what is
+    /// still missing. One that loses twice is left to the account's next run, and the act reports the conflict rather
+    /// than a folder it cannot name.
     /// </remarks>
     // ponytail: a created folder's row starts at the top of the hierarchy and takes its place beneath its parent on the
     // account's next run, which binds it; project it from the created path here if that wait shows on screen.
     private async Task DeclareFolderRowsAsync(MailAccountId account, IReadOnlyList<MailFolderMapping> declared)
     {
-        try
+        for (var attempt = 1; attempt <= RowDeclarationAttempts; attempt++)
         {
-            await this.folderRows.DeclareFoldersAsync(account, declared, CancellationToken.None);
-        }
-        catch (PersistenceConcurrencyConflictException)
-        {
-            return;
+            try
+            {
+                await this.folderRows.DeclareFoldersAsync(account, declared, CancellationToken.None);
+
+                return;
+            }
+            catch (PersistenceConcurrencyConflictException)
+            {
+                // The next attempt reads what the winner committed.
+            }
         }
     }
 

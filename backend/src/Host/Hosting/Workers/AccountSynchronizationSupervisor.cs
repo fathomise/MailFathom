@@ -371,10 +371,10 @@ internal sealed partial class AccountSynchronizationSupervisor
                     {
                         Interlocked.Add(ref arrivedEmailCount, folderRun.ArrivedEmailCount);
 
-                        // Said here rather than with the run's report, because this is where the folder is known and a
-                        // client refills the list for a folder rather than for an account. The publisher folds the
-                        // statements of one folder into one, so a folder that committed its mail in several batches
-                        // still reaches a screen as one arrival.
+                        // Said here rather than with the run's report, so an arrival reaches a screen while the rest of
+                        // the account is still synchronizing. The publisher folds the statements of one account into
+                        // one, so a folder that committed its mail in several batches still reaches a screen as one
+                        // arrival.
                         // ponytail: names no folder, which a client reads as any folder of the account; carry the
                         // binding's folder identity on the run's outcome when a per-folder refresh is worth it.
                         if (folderRun.ResolvedFolder is not null)

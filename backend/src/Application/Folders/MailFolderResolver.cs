@@ -62,15 +62,24 @@ public sealed class MailFolderResolver
     /// <param name="account">The account owning the alias.</param>
     /// <param name="mapping">What configuration says the alias names.</param>
     /// <param name="transportSecurityPolicy">The connection and authentication policy discovery must obey.</param>
-    /// <param name="cancellationToken">Cancels discovery and the write that records a new binding.</param>
+    /// <param name="cancellationToken">Cancels discovery, the write that records a new binding, and the write that places the folder's row.</param>
     /// <returns>The durable binding, or the reason the alias resolved to no single advertised folder.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="mapping" /> is <see langword="null" />.</exception>
-    /// <exception cref="PersistenceConcurrencyConflictException">Thrown when a competing writer recorded a binding for the same alias first.</exception>
+    /// <exception cref="PersistenceConcurrencyConflictException">Thrown when a competing writer recorded a binding for the same alias first, or placed its folder row first.</exception>
     /// <exception cref="RemoteFolderCreationRefusedException">Thrown when a mapping asked for its folder to be created and the mail server refused to hold one at that path.</exception>
     /// <remarks>
-    /// A binding that already matches the advertised folder is returned without a write and without an audit record.
-    /// A binding that names a different remote folder is replaced by the next generation, which starts with no
+    /// <para>
+    /// A binding that already matches the advertised folder is kept without a binding write and without an audit
+    /// record. A binding that names a different remote folder is replaced by the next generation, which starts with no
     /// checkpoint, so the new folder is synchronized from its first UID whatever UIDVALIDITY it reports.
+    /// </para>
+    /// <para>
+    /// Either way the folder's row is then projected from the binding: it is given a row if it has none, placed under
+    /// the row of its remote parent, named by its own level of the remote path, and given the role configuration
+    /// declares. That is read on every resolution and written only when something moved, in a session of its own,
+    /// and a write announces the account's folders as changed. Projecting on every run rather than only on a new
+    /// binding is what lets a rename or move made on the server, or a parent that gained its own row, reach the tree.
+    /// </para>
     /// </remarks>
     public async Task<MailFolderResolutionResult> ResolveAsync(
         MailAccountId account,
@@ -121,17 +130,24 @@ public sealed class MailFolderResolver
         return MailFolderResolutionResult.Resolved(newResolution);
     }
 
-    /// <summary>Gives every folder a mirrored account declares a folder row, before any of them is synchronized.</summary>
+    /// <summary>Gives every folder a mirrored account declares a folder row, and retires the row of every alias it declares no longer.</summary>
     /// <param name="account">The account the folders are declared on.</param>
     /// <param name="mappings">Every folder the account declares, mirrored or not.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
-    /// <returns>A task that completes once every declared folder has a row.</returns>
+    /// <returns>A task that completes once every declared folder has a row and no undeclared alias has a live one.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="mappings" /> is <see langword="null" />.</exception>
     /// <exception cref="PersistenceConcurrencyConflictException">Thrown when a competing run declared the same folder first.</exception>
     /// <remarks>
+    /// <para>
     /// A folder declared and not mirrored is never resolved by a run, and a reader still lists it and a person still
     /// files mail into it, so it needs an identity before anything binds it. A declaration that already names a row
     /// writes nothing.
+    /// </para>
+    /// <para>
+    /// A row whose alias the account no longer declares is retired: it leaves the folder tree and keeps its alias, so the
+    /// mail still filed under it stays out of every read until the erasure of that folder's mail reaches it. A folder
+    /// act that withdraws a declaration relies on this to take the folder out of the tree it re-reads.
+    /// </para>
     /// </remarks>
     public async Task DeclareFoldersAsync(
         MailAccountId account,

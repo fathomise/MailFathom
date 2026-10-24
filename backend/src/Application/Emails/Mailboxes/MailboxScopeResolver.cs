@@ -41,7 +41,7 @@ public sealed class MailboxScopeResolver
     /// <param name="accountCatalog">Answers which accounts the user this work is acting for is assigned.</param>
     /// <param name="folderParticipation">Answers whether one folder is one a tool may read from.</param>
     /// <param name="deploymentFolders">Answers which folders of the accounts in scope a tool may read from, and which is each one's junk folder.</param>
-    /// <param name="folderReferences">Turns the alias or the role a request named into the folder of an account it means.</param>
+    /// <param name="folderReferences">Answers whether an account in scope has a folder playing a role a request named.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public MailboxScopeResolver(
         ICallerMailAccountCatalog accountCatalog,
@@ -62,7 +62,7 @@ public sealed class MailboxScopeResolver
 
     /// <summary>Resolves what a request named into the scope a query runs with.</summary>
     /// <param name="accountSelectors">The text a request named accounts with, or empty for every account the caller's user is assigned.</param>
-    /// <param name="folders">The folders a request named, each by alias or by role, or empty for every folder.</param>
+    /// <param name="folders">The folders a request named, each by its folder identifier or by role, or empty for every folder.</param>
     /// <param name="junkMail">Whether the caller asked for the account's junk folder, which defaults to it being left out.</param>
     /// <param name="cancellationToken">Cancels the reads of which folders the accounts in scope admit.</param>
     /// <returns>The scope a query runs with.</returns>
@@ -71,6 +71,7 @@ public sealed class MailboxScopeResolver
     /// <exception cref="MailAccountNotAccessibleException">Thrown when the request names an account the caller's user is not assigned, which includes every account this deployment does not serve.</exception>
     /// <exception cref="MailFolderRoleUnmappedException">Thrown when the request names a role no account in scope maps a folder with.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="junkMail" /> is not a defined member.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="folders" /> names a folder by its alias, which no request may.</exception>
     /// <remarks>
     /// <para>
     /// An account may be named by the identifier the deployment generated for it or by the display name it is published under, and this is
@@ -99,8 +100,10 @@ public sealed class MailboxScopeResolver
     /// The folders a tool may read are named here, once, rather than by each read model — which is what makes "no tool
     /// lists, searches, reads, or answers from it" a property of the system instead of a list of places somebody has to
     /// keep complete. It is stated as what is admitted rather than as what is withheld, because the store holds rows of
-    /// folders configuration no longer names and no list of withheld names reaches those: a folder nobody mapped is a
-    /// folder MailFathom does not have, and it stays out by not being admitted. A tool that read the mailbox some other
+    /// folders configuration no longer declares and no list of withheld names reaches those: such a folder stays out by
+    /// not being admitted. A folder no declaration names at all — one a person made on a held account — is the other
+    /// case: no setting can name it, so it is admitted with its account rather than hidden from the tools it was made
+    /// for. A tool that read the mailbox some other
     /// way would bypass this, which is why the two reads that reach an email by its identifier ask the folder mapping
     /// directly rather than building a scope. Until #2330 moves them, those two read the mapping in the settings the
     /// work's own scope was prepared with while a scope reads the account's settings columns. A request's settings come
@@ -115,10 +118,11 @@ public sealed class MailboxScopeResolver
     /// under either answer, because the two lists narrow the query independently.
     /// </para>
     /// <para>
-    /// A folder named by the role it plays is turned into the folder of each account it means here, after the accounts
-    /// are settled and before anything is read, because a role means a different folder on each account in scope. One
-    /// role therefore narrows a multi-account read to each account's own folder rather than to whichever alias one
-    /// deployment happened to choose. A role no account in scope maps is refused instead of narrowed away, for the
+    /// A folder is named by the identifier MailFathom issued it or by the role it plays, never by its alias, which is
+    /// configuration's name for it rather than one a caller is given. An identifier names one account's folder and is
+    /// passed to the scope as it is. A role is passed as a role and read against each account's own folder rows when the
+    /// query runs, because a role means a different folder on each account in scope, so one role narrows a
+    /// multi-account read to each account's own folder. A role no account in scope maps is refused instead of narrowed away, for the
     /// reason an unserved account is: the caller asked for a folder that is not there, and an empty page would read as
     /// a folder holding no mail. Naming <c>role:Junk</c> is narrowing rather than asking — the withholding above still
     /// applies, so a read that names it and does not also ask for junk mail returns nothing.
@@ -236,8 +240,10 @@ public sealed class MailboxScopeResolver
     /// settings the work's own scope was prepared with, while a scope reads the account's settings columns, so a folder a
     /// write withheld stays readable here for up to one convergence interval of the commit on every replica but the one
     /// that wrote it, while it is already out of every scope. It is a mapping being asked to admit the folder
-    /// rather than a list being asked whether it names it, so an email stored under an alias no mapping names is
-    /// unreadable by the same answer that withholds a mapped folder. A caller that may not read the email is told it was
+    /// rather than a list being asked whether it names it, so an email in a folder whose alias no mapping names any more
+    /// is unreadable by the same answer that withholds a mapped folder. An email in a folder with no alias at all — one a
+    /// person made on a held account — is readable, because no setting can name that folder to withhold it, which is
+    /// the same answer a scope gives. A caller that may not read the email is told it was
     /// not found rather than refused, for the reason an account this deployment no longer serves is: a refusal would
     /// confirm the identifier exists.
     /// </remarks>

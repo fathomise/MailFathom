@@ -13,15 +13,16 @@ namespace MailFathom.Application.Emails.Mailboxes;
 /// <para>
 /// This is what a query runs with rather than what a request asked for. Both differences are settled before the scope is
 /// built: an unnamed account list becomes the accounts the caller's user is assigned, because a store holds rows for
-/// accounts an operator has since removed and rows of mailboxes this caller is assigned none of, and every folder a request named — by its
-/// alias or by the role it plays — becomes the folder of the account it means. A folder is therefore named here as an account and an alias together, never as an
-/// alias alone, so one account's junk folder cannot admit another account's folder that happens to share the name.
+/// accounts an operator has since removed and rows of mailboxes this caller is assigned none of. A folder a request named
+/// is held as it was named, by the identifier MailFathom issued it or by the role it plays, never by its alias: an
+/// identifier names one account's folder by itself, and a role is read against each account's own folders, so one
+/// account's junk folder cannot select another account's folder that happens to share its name.
 /// </para>
 /// <para>
-/// A request that names no folder is restricted to none: an empty folder list means every folder of the accounts in
-/// scope, which is every folder configuration admits rather than every folder the store holds rows for. An account in
-/// scope that appears in no pair while others do is the opposite case — it maps no folder the request named, and
-/// contributes nothing.
+/// A request that names no folder is restricted to none: empty folder and role lists mean every folder of the accounts
+/// in scope that configuration admits, which includes every folder no declaration names — one a person made on a held
+/// account — and excludes the folders of aliases configuration no longer declares. An account in scope with no folder
+/// the request named contributes nothing.
 /// </para>
 /// <para>
 /// Both lists are deduplicated and ordered when the scope is created, so two requests that name the same accounts in a
@@ -46,7 +47,7 @@ public sealed record MailboxScope
     /// a role sharpens: <c>role:Junk</c> is one name however many accounts answer it. Both bounds are enforced where the
     /// caller's own list is read, in <see cref="MailboxScopeResolver" />, rather than over the resolved lists this type
     /// holds. Resolution can only produce more: a request naming no account resolves to every account its user is
-    /// assigned, and one role a request named resolves to a folder on each of them.
+    /// assigned, and one role a request named reaches a folder on each of them.
     /// </remarks>
     public const int MaximumFolders = 64;
 
@@ -174,16 +175,16 @@ public sealed record MailboxScope
     /// </remarks>
     public IReadOnlyList<StoredEmailId> SelectedEmails { get; private init; } = [];
 
-    /// <summary>Creates the scope a query runs with, from identities already resolved against configuration.</summary>
+    /// <summary>Creates the scope a query runs with, from the accounts already resolved and the folders a request named.</summary>
     /// <param name="accountIds">The accounts the query runs against, which are the ones the caller's user is assigned when a request named none.</param>
-    /// <param name="selectedFolders">The folders the query runs against, or <see langword="null" /> to name none.</param>
+    /// <param name="selectedFolders">The folders the query runs against by their identity, or <see langword="null" /> to name none.</param>
     /// <param name="selectedRoles">The roles whose folders the query runs against, or <see langword="null" /> to name none.</param>
     /// <returns>The scope, with every list deduplicated and ordered.</returns>
     /// <remarks>
-    /// No count limit applies to either list, and the two constants above say where the limits are enforced instead.
-    /// Both lists are configuration read through a resolution rather than caller input: a deployment that serves more
-    /// accounts than a request may name still answers a request that names none, and one role a request named can mean
-    /// a folder on each of those accounts.
+    /// No count limit applies to any list, and the two constants above say where the limits are enforced instead: the
+    /// accounts are a resolution rather than caller input, so a deployment that serves more accounts than a request may
+    /// name still answers a request that names none, and the folders and roles were counted as the caller wrote them
+    /// before they reached this.
     /// </remarks>
     public static MailboxScope Create(
         IEnumerable<MailAccountId>? accountIds,

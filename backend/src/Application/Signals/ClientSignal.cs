@@ -24,7 +24,7 @@ namespace MailFathom.Application.Signals;
 /// it.
 /// </para>
 /// <para>
-/// <b>No mail crosses.</b> A count, an account alias, a folder alias, a stored identity, a server flag, a state, and a
+/// <b>No mail crosses.</b> A count, an account alias, a folder identity, a stored identity, a server flag, a state, and a
 /// run with the sequence it has reached are the whole vocabulary; no subject, address, body fragment, filename,
 /// attachment name, or snippet reaches a signal at any size. <see cref="ClientSignalKind.RunAdvanced" /> is the kind
 /// whose subject is mail-derived and which therefore carries none of it: identifiers and a number, with the answer read
@@ -44,8 +44,8 @@ public sealed class ClientSignal
     /// <remarks>
     /// A bound at a boundary rather than a tuning value: a reconciliation window can attribute changes to a few hundred
     /// occurrences at once, and a client acting on such a signal re-reads the scope rather than each row anyway. Beyond
-    /// this many the signal still names the account and the folder, which is enough for the client to re-read what it
-    /// is showing.
+    /// this many the signal still names the account, and the folder where it names one, which is enough for the client
+    /// to re-read what it is showing.
     /// </remarks>
     public const int MostNamedEmails = 100;
 

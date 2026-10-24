@@ -221,8 +221,10 @@ public sealed class MailboxReconciler
     /// without <c>CONDSTORE</c>, and an account still ramping up, describe every occurrence in every window, so reading
     /// the outcome's whole still-present list would announce a mailbox nobody touched once per cycle.
     /// <para>
-    /// What crosses is the account, the folder, and the stored identities — no count of which kind of change, and
-    /// nothing derived from a message. Which of them changed is what the client re-reads to find out.
+    /// What crosses is the account and the stored identities — no folder, no count of which kind of change, and nothing
+    /// derived from a message. A window knows its folder only by where it stands on the server, which is no identity a
+    /// client holds, so the signal names none and a client reads it as any folder of the account. Which of the stored
+    /// identities changed is what the client re-reads to find out.
     /// </para>
     /// <para>
     /// A window in which nothing moved but the two server flags is the one exception, and it states where they now

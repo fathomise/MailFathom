@@ -117,8 +117,6 @@ internal sealed record StoredEmailSummaryRow(
             email.MachineAuthorshipSignals,
             email.MachineAuthorshipProfileRevision);
 
-    /// <summary>Turns the returned columns into the application read model.</summary>
-    /// <returns>The summary, with every domain value object built by its own factory.</returns>
     /// <summary>Rebuilds the summaries of a set of rows, naming each one's folder by its path.</summary>
     /// <param name="rows">The rows, in the order the summaries are wanted in.</param>
     /// <param name="folders">The folder rows the paths are read from, untracked.</param>
@@ -143,6 +141,9 @@ internal sealed record StoredEmailSummaryRow(
         return [.. rows.Select(row => row.ToSummary(paths))];
     }
 
+    /// <summary>Turns the returned columns into the application read model.</summary>
+    /// <param name="folderPaths">The path of every folder of the row's account, keyed by folder identity, which names the row's folder.</param>
+    /// <returns>The summary, with every domain value object built by its own factory.</returns>
     internal EmailSummary ToSummary(IReadOnlyDictionary<Guid, IReadOnlyList<string>> folderPaths) => new()
     {
         StoredEmailId = StoredEmailId.Create(this.Id),
