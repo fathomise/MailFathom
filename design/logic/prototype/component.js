@@ -3678,7 +3678,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const open = (st.accOpen || {})[g.key] !== false;
           const press = g.key === "all" ? null : this.pressFor("account", g.key, g.label, this.accountMenu(g.key, g.label), undefined, g.title);
           return {
-            label: g.label, title: g.title, open, chevron: open ? "expand_more" : "chevron_right",
+            label: g.label, title: press ? g.title : null, open, chevron: open ? "expand_more" : "chevron_right",
             showHeader: !sideCollapsed, showDot: sideCollapsed,
             ctxOpen: press ? press.ctx : noop, pressDown: press ? press.down : noop, pressUp: press ? press.up : noop,
             toggle: () => this.setState(s2 => ({ accOpen: Object.assign({}, s2.accOpen, { [g.key]: !((s2.accOpen || {})[g.key] !== false) }) })),
@@ -3710,7 +3710,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               return {
               ctxOpen: fpress ? fpress.ctx : noop, pressDown: fpress ? fpress.down : noop, pressUp: fpress ? fpress.up : noop,
               icon: node.icon, label: label, count: node.count, expanded: !sideCollapsed,
-              title: said,
+              title: fpress ? said : null,
               pick: () => this.pickFolder(fk, label),
               dragOver: (e) => this.dragOverFolder(fk, e),
               dragLeave: () => this.dragLeaveFolder(fk),
@@ -4728,6 +4728,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             this.startLongPress(t.id, p ? p.clientX : 0, p ? p.clientY : 0);
           },
           touchMove: (e) => { this.cancelLongPress(); if (isMobile) this.swipeMove(t.id, e); },
+          // Folded to a strip, the row answers a tap and its menu alone: too narrow to carry a swipe across.
+          stripTouchStart: (e) => { const p = e && e.touches && e.touches[0]; this.startLongPress(t.id, p ? p.clientX : 0, p ? p.clientY : 0); },
+          stripTouchEnd: () => this.cancelLongPress(),
           touchEnd: () => { this.cancelLongPress(); if (isMobile) this.swipeEnd(t.id); },
           dragStart: (e) => this.dragThreadsStart(t.id, e),
           dragEnd: this.dragThreadsEnd,

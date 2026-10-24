@@ -702,7 +702,7 @@ Project repository: https://github.com/fathomise/MailFathom
             <div style="{{ stripHeadStyle }}"><div onClick="{{ widenList }}" title="Show the list" style="{{ stripBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1">left_panel_open</span></div></div>
             <div style="{{ stripScrollStyle }}">
               <sc-for list="{{ threads }}" as="t" hint-placeholder-count="5">
-                <div onClick="{{ t.select }}" data-tip-hover title="{{ t.stripLabel }}" style="{{ t.stripStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+                <div onClick="{{ t.select }}" onContextMenu="{{ t.longPress }}" onTouchStart="{{ t.stripTouchStart }}" onTouchEnd="{{ t.stripTouchEnd }}" onTouchMove="{{ t.stripTouchEnd }}" data-tip-hover title="{{ t.stripLabel }}" style="{{ t.stripStyle }}" style-hover="cursor:pointer;background:var(--hover)">
                   <span style="{{ t.stripAvatarStyle }}">{{ t.stripInitials }}</span>
                   <sc-if value="{{ t.isUnread }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:7px;right:7px;width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--sub)"></span></sc-if>
                 </div>
