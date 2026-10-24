@@ -331,7 +331,7 @@ internal static class ClientTelemetryEndpoint
             return forced.Enabled;
         }
 
-        // ponytail: a key lookup per batch where no policy forces the switch. Hold the answer beside the served user,
+        // A key lookup per batch where no policy forces the switch. Hold the answer beside the served user,
         // moved by the preferences write and its announcement, if an export interval ever measures as a cost.
         try
         {

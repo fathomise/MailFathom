@@ -375,7 +375,7 @@ internal sealed partial class AccountSynchronizationSupervisor
                         // the account is still synchronizing. The publisher folds the statements of one account into
                         // one, so a folder that committed its mail in several batches still reaches a screen as one
                         // arrival.
-                        // ponytail: names no folder, which a client reads as any folder of the account; carry the
+                        // Names no folder, which a client reads as any folder of the account; carry the
                         // binding's folder identity on the run's outcome when a per-folder refresh is worth it.
                         if (folderRun.ResolvedFolder is not null)
                         {

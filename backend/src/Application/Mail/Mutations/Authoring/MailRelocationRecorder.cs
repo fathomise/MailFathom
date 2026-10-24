@@ -248,7 +248,7 @@ public sealed class MailRelocationRecorder
     /// A folder a source binding feeds is named by that binding's alias and a protected one by its role, which reaches
     /// the same folder on a held account and the folder on the server on a mirrored one.
     /// </remarks>
-    // ponytail: a folder somebody created on a held account carries neither, so it is not yet a destination; filing by
+    // A folder somebody created on a held account carries neither, so it is not yet a destination; filing by
     // the folder itself arrives with the custodian that owns a held account's moves (#2579).
     private static MailFolderReference? ReferenceTo(LocalMailFolder folder) =>
         folder.SourceFolderAlias is { } alias ? MailFolderReference.ToAlias(alias)

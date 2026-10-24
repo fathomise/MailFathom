@@ -155,7 +155,7 @@ export function startRecording(): ClientPipeline {
         async hold() {
             await Promise.all([traces.forceFlush(), meters.forceFlush(), loggers.forceFlush()]);
 
-            // ponytail: the measurements a session recorded stay in their instruments after it ends, the temporality
+            // The measurements a session recorded stay in their instruments after it ends, the temporality
             // being cumulative and a provider belonging to the run rather than to a session — so signing out and
             // signing in as somebody else attributes the first person's totals to the second, on a deployment several
             // users share. Nothing personal travels either way, both being counts over a closed set of route

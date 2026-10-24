@@ -52,7 +52,7 @@ export function Refresh() {
         [changes],
     );
 
-    // ponytail: one beat of the pulse rather than until every surface's read has landed, which no surface reports; tie
+    // One beat of the pulse rather than until every surface's read has landed, which no surface reports; tie
     // it to their reads if a refresh ever takes long enough for the difference to show.
     useEffect(() => {
         if (!working) {

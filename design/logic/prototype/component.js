@@ -640,7 +640,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        value for MOTION_EXIT_MS, so the surface stays mounted and drawn with its content, and `mo[<key>]` reads `out`
        — its `data-phase` — until the timer unmounts it. A pane key (mailPane, peoplePane) records which way
        it last moved instead, read by `paneMotion`, so one pane at a time pushes forward and comes back.
-       ponytail: the held value is read by the whole render, so anything else gated on the same key (the FAB waits on
+       The held value is read by the whole render, so anything else gated on the same key (the FAB waits on
        `compose`) follows it 240 ms late; a per-surface snapshot is the upgrade if that ever shows. */
     static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "sideDrawer", "compose", "settings",
       "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyChooser",
@@ -691,7 +691,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        Every step that stands records one history entry at the same address; a press consumes one and the top step
        closes, and a step closed by its own control gives its entry back. A space switch is an entry of its own, and
        going back across one closes everything still standing, the way the client's change of destination does.
-       ponytail: steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
+       Steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
     static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
       "more", "aiSum", "moveFor", "newFolder", "remFor", "event", "ctxMenu", "replyChooser"];
 

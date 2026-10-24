@@ -228,7 +228,7 @@ describe('startRecording', () => {
         await running.exportTo(session, true);
 
         // The measurements are the one signal with nothing to throw away — cumulative totals in the instruments rather
-        // than a buffer — which is the ceiling the `ponytail:` note beside `hold` names against #1227. What a person
+        // than a buffer — which is the ceiling the note beside `hold` names against #1227. What a person
         // refusing to be reported on must not have exported is what was written about them, and both of the signals
         // that carry that are empty.
         expect(destinations.built).toHaveLength(3);

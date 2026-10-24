@@ -255,7 +255,7 @@ public sealed class AgentAnswering
 
     /// <summary>Reads the technical history up to the question, which is what the turn is composed from.</summary>
     /// <remarks>
-    /// ponytail: every entry before the question is read, tool traffic included, though composing needs only the
+    /// Every entry before the question is read, tool traffic included, though composing needs only the
     /// visible turns after the newest summary, that summary, and the newest charge. A read that starts at the newest
     /// compaction and passes over tool calls and results is the upgrade once a long conversation's turn is measured
     /// spending its time here.

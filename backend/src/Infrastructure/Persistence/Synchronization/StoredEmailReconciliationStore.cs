@@ -238,7 +238,7 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
         var generation = folderResolutionId.Generation.Value;
         var uidValidityValue = uidValidity.Value;
 
-        // ponytail: an occurrence recorded under a UIDVALIDITY the folder no longer reports is never asked about again and
+        // An occurrence recorded under a UIDVALIDITY the folder no longer reports is never asked about again and
         // is left in place; it names a position and nothing of the message. Remove such rows once they are ever counted.
         var followed = await readContext.MailboxFlaggedDeletes
             .AsNoTracking()

@@ -187,7 +187,7 @@ internal sealed class PersistedSettingsPolicies(
     /// does not.
     /// </para>
     /// </remarks>
-    // ponytail: one run of statements per account whose queryable settings moved. Batch them through unnest if a
+    // One run of statements per account whose queryable settings moved. Batch them through unnest if a
     // policy write that forces a mode or a folder list over many thousands of accounts measures slow.
     private async Task<SettingsPolicyCommit?> JudgeAndProjectAsync(
         SettingsPolicyDocument standing,

@@ -332,7 +332,7 @@ export function FolderMaintenanceProvider({
             // read, and the rows and the counts in the folder column have to draw it that way from here rather than
             // when the account's pass has reported the flag back, which is minutes later.
             //
-            // ponytail: held for the life of the tab, as a marking made by opening is, so once the deployment's own
+            // Held for the life of the tab, as a marking made by opening is, so once the deployment's own
             // count has caught up the tree still subtracts these and undercounts mail that arrives unread afterwards.
             // Following the records through `pendingChanges/` and forgetting each as it converges is the upgrade.
             recordMarked(outcome.markedRead);

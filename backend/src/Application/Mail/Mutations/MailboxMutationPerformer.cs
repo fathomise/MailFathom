@@ -122,7 +122,7 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
 
         // Named by no folder: the request knows the source and the destination by their bindings, and a client knows a
         // folder by its identity, so the statement reaches every folder of the account rather than one named wrong.
-        // ponytail: an account-wide refresh where one folder moved; resolve the binding's folder when it shows in load.
+        // An account-wide refresh where one folder moved; resolve the binding's folder when it shows in load.
         if (WrittenFlagsOf(request, outcome) is { } writtenFlags)
         {
             this.signals.Publish(ClientSignal.MailFlagsChanged(request.Account, folder: null, [writtenFlags]));

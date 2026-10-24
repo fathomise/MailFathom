@@ -27,7 +27,7 @@ public interface IUserSettingsDocumentReader
     /// user with both mail endpoint switches off — the default administrator, recorded that way — is one no caller naming
     /// no user could mean, so it is not counted.
     /// <para>
-    /// ponytail: counts a user whose switch is on for either surface, where the rule is per surface; a user served on the
+    /// Counts a user whose switch is on for either surface, where the rule is per surface; a user served on the
     /// client alone still counts against an unauthenticated MCP endpoint. Split the count by surface when a deployment
     /// needs that combination.
     /// </para>

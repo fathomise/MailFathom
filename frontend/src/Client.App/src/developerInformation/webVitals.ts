@@ -47,7 +47,7 @@ export function measureWebVitals(noticeVital: (name: VitalName, value: number) =
         }
     });
 
-    // ponytail: the sum of every unexpected shift rather than the largest five-second session window, which reads high
+    // The sum of every unexpected shift rather than the largest five-second session window, which reads high
     // on a long-lived page; window the shifts the way the specification does if this number is ever compared to a report.
     let shifted = 0;
 
@@ -65,7 +65,7 @@ export function measureWebVitals(noticeVital: (name: VitalName, value: number) =
         noticeVital('cls', shifted);
     });
 
-    // ponytail: the slowest interaction rather than the 98th percentile, which is the same number until a page has
+    // The slowest interaction rather than the 98th percentile, which is the same number until a page has
     // seen fifty interactions; keep a sorted list of the worst ten if the difference ever matters.
     let slowest = 0;
 

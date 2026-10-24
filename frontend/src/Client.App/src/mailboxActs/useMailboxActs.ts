@@ -229,7 +229,7 @@ export function useMailboxActs(): MailboxActs {
  * nothing while a second read finishes is worse than the surface this opens instead — so what closes the window is the
  * one shared reading of the folders `MailboxActs.tsx` already carries as its debt, rather than a wait on the press.
  *
- * ponytail: a press classified against a folder tree that may not have landed. The single `/folders` read the client
+ * A press classified against a folder tree that may not have landed. The single `/folders` read the client
  * shares is the upgrade, and it closes this window in the same move as it closes the second read.
  */
 export function opensAsDraft(acts: MailboxActs, email: MailTimelineEntry): boolean {

@@ -81,7 +81,7 @@ public sealed class EmbeddingSpendGate
     /// instead would embed mail no caller can read — every caller-facing scope narrows to the accounts somebody is
     /// assigned — and would do so under no per-user ceiling at all, for as long as the mailbox stayed unassigned.
     /// <para>
-    /// ponytail: one indexed read per assigned user. A mailbox is shared by a handful of people and the read sits
+    /// One indexed read per assigned user. A mailbox is shared by a handful of people and the read sits
     /// beside a provider call costing orders of magnitude more, so a grouped read is worth writing only if a
     /// deployment ever assigns a mailbox widely enough for the count to show.
     /// </para>
