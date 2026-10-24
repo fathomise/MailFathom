@@ -90,6 +90,7 @@ export function ThreadAgentField({
     // Focus goes back to the button whenever the card folds into it, which is the button mounting again — so it is the
     // button's own ref that honours the debt rather than an effect watching the state that dropped it.
     const buttonFocusOwed = useRef(false);
+    const keyboardTakenBack = useRef(false);
     const choiceFocusOwed = useRef(false);
 
     const passage = fragmentBeingRead(workspace);
@@ -255,11 +256,14 @@ export function ThreadAgentField({
                         ref={(element) => {
                             chooserName.anchor.ref(element);
 
-                            if (element !== null && (buttonFocusOwed.current || takesTheKeyboard)) {
+                            const handedBack = takesTheKeyboard && !keyboardTakenBack.current;
+
+                            if (element !== null && (buttonFocusOwed.current || handedBack)) {
                                 buttonFocusOwed.current = false;
                                 element.focus();
 
-                                if (takesTheKeyboard) {
+                                if (handedBack) {
+                                    keyboardTakenBack.current = true;
                                     onKeyboardTaken?.();
                                 }
                             }

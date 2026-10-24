@@ -210,6 +210,12 @@ export function App({
     const [blockedOn, setBlockedOn] = useState<BlockingOperation | null>(null);
     const askedFrom = useRef<HTMLElement | null>(null);
     const [focusReturnsUnder, setFocusReturnsUnder] = useState<string | null>(null);
+
+    // The keyboard is owed to the reading column it was taken from and to no other, so moving to another message lets
+    // the debt go rather than leaving it for that message's button the next time it is opened.
+    if (focusReturnsUnder !== null && focusReturnsUnder !== workspace.selection) {
+        setFocusReturnsUnder(null);
+    }
     const focusedFor = useRef(signedInAs);
 
     // Built once per address and credential rather than per render, because it is what the message read below depends
@@ -464,15 +470,16 @@ export function App({
                         askedFrom.current.focus();
                     } else if (written?.kind === 'answer' && written.drafting !== undefined) {
                         // The drafter that asked went with the reading column the composer stood in, so the AI button
-                        // drawn under the same message again is what takes the keyboard back, once it is drawn.
-                        setFocusReturnsUnder(written.storedEmailId);
+                        // drawn there again is what takes the keyboard back, once it is drawn — under whichever message
+                        // the list points at now, which a click while the composer stood may have moved.
+                        setFocusReturnsUnder(workspace.selection);
                     }
                 }
 
                 askedFrom.current = null;
             },
         }),
-        [writesMail, drafts, written],
+        [writesMail, drafts, written, workspace.selection],
     );
 
     // What the whole client is blocked on, held here for the reason above and one more: the surface covers everything
@@ -900,7 +907,7 @@ export function App({
                       key={workspace.selection}
                       thread={thread}
                       drafts={drafts}
-                      takesTheKeyboard={focusReturnsUnder !== null && focusReturnsUnder === workspace.selection}
+                      takesTheKeyboard={focusReturnsUnder !== null}
                       onKeyboardTaken={() => {
                           setFocusReturnsUnder(null);
                       }}

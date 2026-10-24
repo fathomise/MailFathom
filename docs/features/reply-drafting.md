@@ -54,7 +54,8 @@ together into one correspondence; with a single message that is exactly the one 
   still longer; the people are carried once each, by address.
 - **The way the account writes** — the account of the first context message, and only that one, so a context reaching
   two accounts is still written in one voice — at most six of its own recent sent messages, at most 1 200 characters of
-  each, taken from the folder playing the `Sent` role and never from the conversation being answered. Shorter than a
+  each, taken from the folder playing the `Sent` role and never from the first context message's conversation, nor
+  from a message the correspondence already carries from another context conversation. Shorter than a
   message of the exchange because what is read out of it is a manner rather than a meaning — how somebody opens, how
   they sign off, whether they write in paragraphs or in lines. An operator who turned that derivation off leaves the
   bound at zero and the draft is written from the conversation alone.

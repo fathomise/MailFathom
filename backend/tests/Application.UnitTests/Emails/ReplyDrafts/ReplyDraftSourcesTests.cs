@@ -129,6 +129,25 @@ public sealed class ReplyDraftSourcesTests
         Assert.Equal(["Best, Maren"], merged.StyleSamples);
     }
 
+    /// <summary>The person's own message in a second context conversation is a message of the correspondence, never also a sample of their manner.</summary>
+    [Fact]
+    public void Merged_ASampleThatOpensAMessageOfAnotherConversation_IsLeftOutOfTheManner()
+    {
+        // Arrange
+        var sentInTheSecond = Message(Monday, "Thanks, Vasco - the bays are booked for Friday.");
+
+        // Act
+        var merged = ReplyDraftSources.Merged(
+            [
+                Read("The racking quotation", [Message(Monday, "a")], [], ["Thanks, Vasco - the bays", "Best, Maren"]),
+                Read("The delivery", [sentInTheSecond], [], []),
+            ],
+            MailReplyDrafting.MaximumMessages);
+
+        // Assert
+        Assert.Equal(["Best, Maren"], merged.StyleSamples);
+    }
+
     private static ReplyDraftMessage Message(DateTimeOffset? sentAt, string text) =>
         new(StoredEmailId.Create(Guid.CreateVersion7()), Position: 0, "Karolina", sentAt, text);
 

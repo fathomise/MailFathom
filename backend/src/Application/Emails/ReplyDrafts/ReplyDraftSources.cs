@@ -55,6 +55,13 @@ public sealed record ReplyDraftSources(
     /// them would be the second voice this shape rules out.
     /// </para>
     /// <para>
+    /// The first read leaves only its own conversation out of the samples, so a message the person sent in another
+    /// context conversation can arrive twice: once as a sample and once as a numbered message. Both are cut from the
+    /// start of the same body text, so one is always a prefix of the other, and a sample that is the opening of a merged
+    /// message is dropped. Without that the request would carry the text twice and make it the loudest example of how
+    /// the person writes.
+    /// </para>
+    /// <para>
     /// One read is returned as it is, which is what keeps a reply to one message exactly what it was before a context
     /// could hold several.
     /// </para>
@@ -70,23 +77,26 @@ public sealed record ReplyDraftSources(
             .SelectMany(static read => read.Messages)
             .DistinctBy(static message => message.StoredEmailId)
             .OrderBy(static message => message.SentAt)
+            .TakeLast(maximumMessages)
             .ToArray();
 
         return new ReplyDraftSources(
             reads.Count > 0 ? reads[0].Subject : null,
-            [
-                .. messages
-                    .TakeLast(maximumMessages)
-                    .Select(static (message, position) => message with { Position = position }),
-            ],
+            [.. messages.Select(static (message, position) => message with { Position = position })],
             [
                 .. reads
                     .SelectMany(static read => read.Participants)
                     .DistinctBy(static participant => participant.Address.NormalizedAddress, StringComparer.Ordinal)
                     .Select(static (participant, position) => participant with { Position = position }),
             ],
-            reads.Count > 0 ? reads[0].StyleSamples : []);
+            reads.Count > 0 ? [.. reads[0].StyleSamples.Where(sample => !messages.Any(message => SameOpening(sample, message.Text)))] : []);
     }
+
+    /// <summary>Whether a style sample and a message's text were cut from the start of the same body.</summary>
+    private static bool SameOpening(string sample, string text) =>
+        sample.Length > 0
+        && text.Length > 0
+        && (sample.StartsWith(text, StringComparison.Ordinal) || text.StartsWith(sample, StringComparison.Ordinal));
 }
 
 /// <summary>One message of the correspondence as a drafting is shown it.</summary>

@@ -2061,6 +2061,11 @@ describe('Composer, the context it drafts from', () => {
 
         expect(screen.queryByRole('img', { name: 'The context changed since you started' })).toBeNull();
         expect(screen.getAllByRole('button', { name: /^Remove .+ from the context$/ })).toHaveLength(1);
+        await waitFor(() => {
+            expect(document.activeElement).toBe(
+                screen.getByRole('button', { name: 'Remove Quarterly invoice from the context' }),
+            );
+        });
     });
 
     it('warns once a message is taken out of where it started', async () => {
@@ -2076,6 +2081,24 @@ describe('Composer, the context it drafts from', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'Remove Quarterly invoice from the context' }));
 
         expect(screen.getByRole('img', { name: 'The context changed since you started' })).toBeDefined();
+        await waitFor(() => {
+            expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'What the draft should say' }));
+        });
+    });
+
+    it('hands the keyboard to the next chip when one of several is taken out', async () => {
+        theDesktopComposition();
+        const { point } = drawComposer({ kind: 'new' }, {}, [work], true, uploadsOneFile, true);
+
+        await screen.findByText('none yet - click a message in the list to draft from it');
+        point({ selected: ['listed-1', 'listed-2'] });
+
+        const [first, second] = await screen.findAllByRole('button', { name: /^Remove .+ from the context$/ });
+        fireEvent.click(first ?? document.body);
+
+        await waitFor(() => {
+            expect(document.activeElement).toBe(second);
+        });
     });
 
     it('leaves the context alone where the composer is the screen and no list stands beside it', async () => {

@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
 import {
     readMailThread,
     readMailThreadState,
@@ -187,6 +187,7 @@ export function Thread({
     // because it survives StrictMode's second invocation of the effect below, for the reason the reading pane's own
     // focus guard is one.
     const arrivedAt = useRef<string | null>(null);
+    const column = useRef<HTMLElement>(null);
 
     // A failure the network gap itself caused goes with the gap, so what stands while there is no network is the
     // sentence below rather than a refusal to try again that a reader would have to press through — and coming back
@@ -332,7 +333,12 @@ export function Thread({
 
         if (region !== undefined) {
             arrivedAt.current = arrival.storedEmailId;
-            region.focus({ preventScroll: true });
+
+            // Focus already inside the conversation was placed there on purpose — the AI button at its foot, which a
+            // closing composer hands the keyboard back to — and arriving does not take it away again.
+            if (column.current?.contains(document.activeElement) !== true) {
+                region.focus({ preventScroll: true });
+            }
 
             if (firstDrawnId !== arrival.storedEmailId) {
                 region.scrollIntoView({ block: 'start' });
@@ -434,6 +440,7 @@ export function Thread({
 
     return (
         <Conversation
+            ref={column}
             state={stateBlock}
             foot={foot?.(handOver)}
             header={
@@ -682,11 +689,14 @@ function actedOn(message: MailThreadMessage): ActedMessage {
 // way back where it has one. A control saying *back to the message* was this client's invention, and it offered to
 // leave a message for the message it was already drawing.
 function Conversation({
+    ref,
     header,
     state,
     foot,
     children,
 }: {
+    readonly ref?: Ref<HTMLElement>;
+
     readonly header?: ReactNode;
 
     /** The AI button the conversation draws as the last thing in it, which stays at the column's foot as it scrolls. */
@@ -700,7 +710,7 @@ function Conversation({
     const { translate } = useLocalization();
 
     return (
-        <section aria-label={translate('thread.label')} className="flex grow flex-col">
+        <section ref={ref} aria-label={translate('thread.label')} className="flex grow flex-col">
             {header}
 
             {state}

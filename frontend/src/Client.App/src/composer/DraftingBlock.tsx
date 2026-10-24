@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useState, type KeyboardEvent } from 'react';
+import { useRef, useState, type KeyboardEvent } from 'react';
 import { longestDraftInstruction } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import { SymbolControl } from '../controls/SymbolControl';
@@ -67,6 +67,11 @@ const toneSteps: Readonly<Record<string, number>> = {
 
 type Tone = (typeof tones)[number]['key'];
 
+// Where the keyboard lands once the control holding it has gone: a removed chip hands it to its neighbour, or to the
+// field once none is left, and *Restore* — which goes with the line it stands on — to the first chip it put back.
+type FocusLanding =
+    { readonly on: 'chip'; readonly storedEmailId: string } | { readonly on: 'firstChip' } | { readonly on: 'field' };
+
 /** One message the draft is written from, as its chip names it. */
 export interface DraftingContextMessage {
     readonly storedEmailId: string;
@@ -119,6 +124,16 @@ export function DraftingBlock({
     const wideWorkspace = useWideWorkspace();
     const [written, setWritten] = useState(asked);
     const [tone, setTone] = useState<Tone>('neutral');
+    const focusLanding = useRef<FocusLanding | null>(null);
+
+    // A ref runs on every render, so the landing is what stops a later render taking the keyboard back from wherever the
+    // reader has moved it since.
+    function landHere(element: HTMLElement | null, here: (landing: FocusLanding) => boolean): void {
+        if (element !== null && focusLanding.current !== null && here(focusLanding.current)) {
+            focusLanding.current = null;
+            element.focus();
+        }
+    }
 
     function askFor(act: DraftingAct): void {
         const chosen = tones.find((one) => one.key === tone)?.asks ?? null;
@@ -172,6 +187,9 @@ export function DraftingBlock({
                 </span>
 
                 <input
+                    ref={(element) => {
+                        landHere(element, (landing) => landing.on === 'field');
+                    }}
                     aria-label={translate('compose.aiPrompt')}
                     placeholder={translate(
                         wideWorkspace ? 'compose.aiPromptPlaceholder' : 'compose.aiPromptPlaceholderShort',
@@ -244,7 +262,7 @@ export function DraftingBlock({
             <div className="flex flex-wrap items-center gap-2 text-sm text-accent-deep">
                 <span className="font-semibold">{translate('compose.aiContext')}</span>
 
-                {context.map((message) => (
+                {context.map((message, at) => (
                     <span
                         key={message.storedEmailId}
                         className="flex max-w-65 min-w-0 items-center gap-1.5 rounded-sm border border-accent-line bg-panel py-0.5 ps-1.5 pe-0.5 max-workspace:max-w-55 pointer-coarse:min-h-9"
@@ -253,9 +271,23 @@ export function DraftingBlock({
                         <span className="min-w-0 truncate">{message.subject}</span>
 
                         <SymbolControl
+                            ref={(element) => {
+                                landHere(
+                                    element,
+                                    (landing) =>
+                                        (landing.on === 'chip' && landing.storedEmailId === message.storedEmailId) ||
+                                        (landing.on === 'firstChip' && at === 0),
+                                );
+                            }}
                             label={translate('compose.aiContextRemove', { subject: message.subject })}
                             className="flex shrink-0 items-center justify-center rounded-xs text-muted transition hover:bg-hover hover:text-text pointer-coarse:size-8"
                             onPress={() => {
+                                const neighbour = context[at + 1] ?? context[at - 1];
+
+                                focusLanding.current =
+                                    neighbour === undefined
+                                        ? { on: 'field' }
+                                        : { on: 'chip', storedEmailId: neighbour.storedEmailId };
                                 onRemove(message.storedEmailId);
                             }}
                         >
@@ -286,7 +318,10 @@ export function DraftingBlock({
                     <button
                         type="button"
                         className="flex items-center gap-1.5 rounded-md px-2 py-1 font-semibold transition hover:bg-warning-soft"
-                        onClick={onRestore}
+                        onClick={() => {
+                            focusLanding.current = { on: 'firstChip' };
+                            onRestore();
+                        }}
                     >
                         <Icon name="undo" className="size-icon-md" />
                         {translate('compose.aiContextRestore')}

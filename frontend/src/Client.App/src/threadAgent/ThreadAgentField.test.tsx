@@ -79,7 +79,14 @@ function drawing(
     {
         handToAgent = null,
         drafts = true,
-    }: { handToAgent?: ((handOver: AgentHandOver) => void) | null; drafts?: boolean } = {},
+        takesTheKeyboard = false,
+        onKeyboardTaken = () => undefined,
+    }: {
+        handToAgent?: ((handOver: AgentHandOver) => void) | null;
+        drafts?: boolean;
+        takesTheKeyboard?: boolean;
+        onKeyboardTaken?: () => void;
+    } = {},
 ): {
     composed: ReturnType<typeof vi.fn<(opening: ComposerOpening) => void>>;
     workspace: () => Workspace;
@@ -96,7 +103,12 @@ function drawing(
                     >
                         <AgentHandOverContext value={handToAgent}>
                             <Standing as={{ selection: answering, ...as }} />
-                            <ThreadAgentField thread={thread} drafts={drafts} />
+                            <ThreadAgentField
+                                thread={thread}
+                                drafts={drafts}
+                                takesTheKeyboard={takesTheKeyboard}
+                                onKeyboardTaken={onKeyboardTaken}
+                            />
                             <Reporting
                                 onWorkspace={(workspace) => {
                                     last = workspace;
@@ -144,6 +156,15 @@ function draftingAReply(): void {
 }
 
 describe('ThreadAgentField', () => {
+    it('takes the keyboard onto the AI button as it is drawn where a composer it opened handed it back', () => {
+        const taken = vi.fn<() => void>();
+
+        drawing({}, true, { takesTheKeyboard: true, onKeyboardTaken: taken });
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: aiButton }));
+        expect(taken).toHaveBeenCalledOnce();
+    });
+
     it('stands folded into the AI button until somebody asks for it', () => {
         drawing();
 

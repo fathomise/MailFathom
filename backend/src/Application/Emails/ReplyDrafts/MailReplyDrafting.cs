@@ -122,7 +122,7 @@ public sealed class MailReplyDrafting
         this.derivesStyleFromSentMail = derivesStyleFromSentMail;
     }
 
-    /// <summary>Drafts a reply to one of the acting user's messages.</summary>
+    /// <summary>Drafts a message from the context messages the acting user chose, from one conversation or several, or from what they asked for alone.</summary>
     /// <param name="request">Which messages the reply is written from, if any, and what its author asked the reply to say.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>
