@@ -18,7 +18,8 @@ offered only to a credential granted its own name — `mailfathom.mail.flags.wri
 `mailfathom.mail.send` — and none comes with being able to read; the two answering tools and a draft that answers
 stored mail need the reading name too, because an answer is derived from the message it answers. Drafting and sending
 are separate names deliberately: a deployment can let an agent prepare mail for you to send and let it send none. `get_outgoing_email` and `cancel_outgoing_email` say what became of a message it sent and stop one
-that has not left yet, and both sit behind the sending name rather than one of their own. It cannot delete or move
+that has not left yet, and both sit behind the sending name rather than one of their own. `list_outgoing_emails` lists
+what an account has not sent yet, read-only, and needs the reading name beside the sending one. It cannot delete or move
 mail. What it can write besides is MailFathom's own contact book — the people you or your deployment wrote down — which
 six tools read and maintain, one of them by erasing a record for good.
 

@@ -62,7 +62,9 @@ written `role:Junk`, and the role is read against the role each account's own fo
 folder on each account, so it contributes each of their own folders once the accounts in scope are settled. A role no
 account in scope maps is refused with `53003 MailFolderRoleUnmapped`, unlike an identity no folder carries, which selects
 nothing — an identity is already a name the caller chose to use, while a role that reached no folder anywhere would
-leave a caller reading an empty page as an empty folder.
+leave a caller reading an empty page as an empty folder. `role:Outbox` is refused by the MCP adapter on its own terms
+with `51002`, its message naming `list_outgoing_emails`: an account's outbox is its not-yet-sent mail rather than a
+folder, so no folder plays the role and no mailbox query reads it.
 
 A listing that names no folder reads every folder the account maps and lets tools read, so a message that exists in two
 of them — because it was copied, by

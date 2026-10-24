@@ -288,9 +288,9 @@ this deployment already holds and carry exactly the same four annotations, for e
 announce that they reach outside this
 process, which is the annotation most clients read before deciding whether to prompt.
 
-Two more sit over a send rather than performing one. `get_outgoing_email` reports what became of a message one of the
-sending tools queued and advertises itself as read-only, non-destructive, and confined to this process, so a client may
-call it without asking. `cancel_outgoing_email` stops one that has not left yet, and it is the one tool here that
+Three more sit over a send rather than performing one. `get_outgoing_email` reports what became of a message one of the
+sending tools queued, and `list_outgoing_emails` lists what an account has not sent yet; both advertise themselves as
+read-only, non-destructive, and confined to this process, so a client may call them without asking. `cancel_outgoing_email` stops one that has not left yet, and it is the one tool here that
 advertises itself as destructive *and* as confined to this process — it destroys a queued message no later call brings
 back, while reaching no mail server and nobody outside the deployment.
 

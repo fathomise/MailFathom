@@ -872,6 +872,14 @@ holds the column.
 cases, and both take the sending grant rather than the reading one — what a caller may read back and stop is exactly
 what it was allowed to start.
 
+**A caller that may also read mail reads the account's outbox instead.** Holding `mailfathom.mail.read` beside
+`mailfathom.mail.send` is being entitled to the account's Sent folder and to send as it, so such a caller reaches every
+send of an account its user is assigned, whoever queued it, through `UserOutbox` rather than through the principal
+stamp: [`list_outgoing_emails`](mcp-tools.md#list_outgoing_emails) lists what has not left, and `get_outgoing_email`
+answers with the outbox preview. Withdrawing stays where it was — `cancel_outgoing_email` reaches only the caller's own
+sends — and nothing on MCP offers a refused send again or dismisses one, because the first would transmit mail and the
+second would hide a failure from the person.
+
 ## The window that cannot be decided
 
 A crash immediately after the body went out and immediately before the acknowledgement was read leaves a record nobody

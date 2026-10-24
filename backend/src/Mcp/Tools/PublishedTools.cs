@@ -54,6 +54,7 @@ internal static class PublishedTools
             [SendDraftTool.ToolName] = new(SendDraftTool.RequiredPermission, SendDraftTool.Category),
             [GetOutgoingEmailTool.ToolName] = new(GetOutgoingEmailTool.RequiredPermission, GetOutgoingEmailTool.Category),
             [CancelOutgoingEmailTool.ToolName] = new(CancelOutgoingEmailTool.RequiredPermission, CancelOutgoingEmailTool.Category),
+            [ListOutgoingEmailsTool.ToolName] = new(ListOutgoingEmailsTool.RequiredPermission, ListOutgoingEmailsTool.Category),
             [AskMailTool.ToolName] = new(AskMailTool.RequiredPermission, AskMailTool.Category),
             [ListContactsTool.ToolName] = new(ListContactsTool.RequiredPermission, ListContactsTool.Category),
             [GetContactTool.ToolName] = new(GetContactTool.RequiredPermission, GetContactTool.Category),

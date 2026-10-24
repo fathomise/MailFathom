@@ -106,9 +106,11 @@ internal sealed class SetMailFlagsTool(MailFlagChangeRecorder flagChangeRecorder
         + "reversible: call again with the opposite value. keywordChange replace states the whole keyword set — a "
         + "keyword you do not list is removed, and an empty list clears them all — so read the email's keywords first, "
         + "or use add and remove, which touch only what they name. Only these three values can be written: this tool "
-        + "never sets the answered or draft flags, never deletes mail, and never sends anything.")]
+        + "never sets the answered or draft flags, never deletes mail, and never sends anything. A message in an "
+        + "account's outbox is not an email and carries no flags: an outgoingEmailId is refused here as an unknown "
+        + "email.")]
     public async Task<SetMailFlagsToolResult> SetMailFlagsAsync(
-        [Description("The storedEmailId a listing, a search, or a read returned for the email. A UUID that does not change when the mail server renumbers or moves the message.")]
+        [Description("The storedEmailId a listing, a search, or a read returned for the email. A UUID that does not change when the mail server renumbers or moves the message. An outgoingEmailId names no email and is refused.")]
         string storedEmailId,
         [Description("true marks the email read, false marks it unread. Omit it to leave the flag where it stands. Reading mail through MailFathom never sets it, so this is the only way it moves from here.")]
         bool? seen = null,

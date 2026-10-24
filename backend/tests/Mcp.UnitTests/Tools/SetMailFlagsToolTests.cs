@@ -321,6 +321,29 @@ public sealed class SetMailFlagsToolTests
         Assert.Empty(records.OpenedRequests);
     }
 
+    /// <summary>An outbox entry is not a stored message, so its identifier is refused as the unknown email it is and nothing is recorded against it.</summary>
+    [Fact]
+    public async Task SetMailFlagsAsync_AnOutgoingEmailIdentifier_IsRefusedAsAnUnknownEmailWithoutRecording()
+    {
+        // Arrange
+        var outgoingEmailId = Guid.Parse("0198f0a0-3333-7000-8000-000000000003");
+        var tool = ToolOver(out var records, out var targets);
+        targets
+            .FindAsync(StoredEmailId.Create(outgoingEmailId), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<AuthoredMailboxTarget?>(null));
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<AuthoredMailChangeTargetNotFoundException>(() =>
+            tool.SetMailFlagsAsync(
+                outgoingEmailId.ToString(),
+                flagged: true,
+                cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomErrorCode.StoredEmailNotFound, refusal.ErrorCode);
+        Assert.Empty(records.OpenedRequests);
+    }
+
     /// <summary>Changing a mailbox is its own grant, asked for by the use case whatever entrypoint reached it.</summary>
     [Fact]
     public async Task SetMailFlagsAsync_ACallerHoldingOnlyTheReadingGrant_IsRefused()

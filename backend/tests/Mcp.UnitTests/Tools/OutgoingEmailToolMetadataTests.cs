@@ -80,9 +80,9 @@ public sealed class OutgoingEmailToolMetadataTests
         Assert.Contains("already been transmitted", description, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>Reading back is the alternative to sending again, so the description says so where a model will read it.</summary>
+    /// <summary>Reading back is the alternative to sending again, and the outbox it reads is not a place to act, so the description says both where a model will read it.</summary>
     [Fact]
-    public void AddMailFathomServer_AdvertisesAReadDescriptionOfferingItselfInsteadOfASecondSend()
+    public void AddMailFathomServer_AdvertisesAReadDescriptionOfferingItselfInsteadOfASecondSendOverAReadOnlyOutbox()
     {
         // Arrange, Act
         var description = AdvertisedTool(GetOutgoingEmailTool.ToolName).Description;
@@ -90,7 +90,24 @@ public sealed class OutgoingEmailToolMetadataTests
         // Assert
         Assert.NotNull(description);
         Assert.Contains("instead of sending again", description, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("no way to list", description, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("outbox is read-only", description, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(ListOutgoingEmailsTool.ToolName, description, StringComparison.Ordinal);
+    }
+
+    /// <summary>The listing is where a model learns the outbox exists, so it says there that nothing in it can be acted on but a withdrawal.</summary>
+    [Fact]
+    public void AddMailFathomServer_AdvertisesAListingDescriptionStatingTheOutboxIsReadOnly()
+    {
+        // Arrange, Act
+        var listing = AdvertisedTool(ListOutgoingEmailsTool.ToolName);
+
+        // Assert
+        Assert.NotNull(listing.Description);
+        Assert.Contains("outbox is read-only", listing.Description, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(CancelOutgoingEmailTool.ToolName, listing.Description, StringComparison.Ordinal);
+        Assert.Equal(
+            ((bool?)true, (bool?)false, (bool?)true, (bool?)false),
+            (listing.Annotations?.ReadOnlyHint, listing.Annotations?.DestructiveHint, listing.Annotations?.IdempotentHint, listing.Annotations?.OpenWorldHint));
     }
 
     /// <summary>The pair is named where a model reads about sending, so it is seen rather than inferred.</summary>
@@ -142,9 +159,9 @@ public sealed class OutgoingEmailToolMetadataTests
         Assert.Equal(read.Value.GetRawText(), cancel.Value.GetRawText());
     }
 
-    /// <summary>What a caller may read back is what it supplied, so the answer publishes no part of the message.</summary>
+    /// <summary>The preview carries the subject and the bounded text a caller that may read mail is entitled to, and never the raw message or its markup.</summary>
     [Fact]
-    public void AddMailFathomServer_AdvertisesAnAnswerCarryingNothingAboutTheMessageItself()
+    public void AddMailFathomServer_AdvertisesAnAnswerCarryingThePreviewAndNeverTheRawMessage()
     {
         // Arrange, Act
         var outputSchema = AdvertisedTool(GetOutgoingEmailTool.ToolName).OutputSchema;
@@ -153,10 +170,12 @@ public sealed class OutgoingEmailToolMetadataTests
         Assert.NotNull(outputSchema);
         var advertisedSchema = outputSchema.Value.GetRawText();
         Assert.Contains("\"recipients\"", advertisedSchema, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"subject\"", advertisedSchema, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"plainTextBody\"", advertisedSchema, StringComparison.Ordinal);
+        Assert.Contains("\"subject\"", advertisedSchema, StringComparison.Ordinal);
+        Assert.Contains("\"text\"", advertisedSchema, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"sanitizedHtml\"", advertisedSchema, StringComparison.Ordinal);
         Assert.DoesNotContain("\"htmlBody\"", advertisedSchema, StringComparison.Ordinal);
         Assert.DoesNotContain("\"rawMime\"", advertisedSchema, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"downloadUrl\"", advertisedSchema, StringComparison.Ordinal);
     }
 
     private static Tool AdvertisedTool(string toolName) => RegisteredMcpToolSurface.AdvertisedTool(toolName);
