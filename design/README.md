@@ -40,8 +40,10 @@ a signed-in client. This directory is public.
 
 ## Changing the design
 
-A change to the design is a decision about the product, so it is made deliberately: in a change whose issue asks for it,
-never as a side effect of a client task making the design agree with what it built. It edits the artboard and whatever
+A change to the design is a decision about the product, so it is made deliberately and in one of two places:
+on its own, ahead of the client, or in the client pull request that would otherwise ship something the design does not
+show — the root [`AGENTS.md`](../AGENTS.md) § *The design leads the client, never the other way round* is the rule. It
+is never redrawn to excuse a client defect. It edits the artboard and whatever
 of its data, logic, and styles the change reaches, and in the same change:
 
 - `state-inventory.md`, for every state it adds, removes, or gates differently — the inventory is what a screen is
@@ -66,9 +68,9 @@ generated and which is replaced whole rather than edited; the root `AGENTS.md` s
 
 The design wins and the client changes. Three things turn that around — an accessibility obligation, a real platform
 constraint, and something that cannot be built — and each of those is a correction to the design rather than a
-difference to live with: name it precisely in the pull request and in an issue of its own, and let the design move
-first. The same holds for a state the source gates and nothing draws, which is a gap in the design rather than a screen
-to invent in the client.
+difference to live with: name it precisely in the pull request and correct the design here in that same pull request.
+The same holds for a state the source gates and nothing draws, which is a gap in the design, closed here rather than
+invented in the client.
 
 `frontend/AGENTS.md` § *Where a screen comes from* and § *Holding a screen against the design* carry the rule and the
 three scripts that hold a running screen against these files as images.

@@ -843,8 +843,8 @@ The canonical skills are:
   own, so every clone runs the whole design loop. The inventory's last section is
   the one that has to be there: the states the source gates and no preview
   reaches. One of those is a gap rather than a screen to invent — it is closed in
-  `design/` first, in a change whose issue asks for it, never in the client as a
-  guess. When the task is the design itself, the skill says what that change owes:
+  `design/`, ahead of the client or in the pull request that builds it, never in
+  the client as a guess. When the task is the design itself, the skill says what that change owes:
   the inventory and the parity pairing moved in the same change, sample data kept
   made up and in `data/`, and the artboard opened at the compositions it reaches.
   How that change is authored is `design/AGENTS.md`'s: the vendored design skills
