@@ -35,6 +35,7 @@ export const developerWindowName = 'mailfathom-developer-information';
 const developerWindowFeatures = 'popup,width=1280,height=860';
 
 let access: DeveloperAccess = { unlocked: false, open: false, window: null };
+let opener: HTMLElement | null = null;
 let presses = 0;
 let lastPressAt = 0;
 const listeners = new Set<() => void>();
@@ -87,6 +88,8 @@ export function toggleDeveloperInformation(inAWindow: boolean): void {
 
         return;
     }
+
+    opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     const opened = inAWindow ? window.open('', developerWindowName, developerWindowFeatures) : null;
 
@@ -142,10 +145,22 @@ export function closeDeveloperInformation(): void {
     standing?.close();
 }
 
+/** Puts focus back on the control that opened the surface, where that control is still on the page. */
+export function returnFocusToOpener(): void {
+    const returningTo = opener;
+
+    opener = null;
+
+    if (returningTo?.isConnected === true) {
+        returningTo.focus();
+    }
+}
+
 /** Forgets the unlock, which is what a reload does and what a test asks for. */
 export function lockDeveloperInformation(): void {
     presses = 0;
     lastPressAt = 0;
+    opener = null;
     closeDeveloperInformation();
     revise({ unlocked: false, open: false, window: null });
 }

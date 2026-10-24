@@ -2,11 +2,12 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { act, fireEvent, render, renderHook, screen, within, type RenderResult } from '@testing-library/react';
+import { act, fireEvent, render, screen, within, type RenderResult } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { largestPortraitOctets } from '@mailfathom/client-backend';
 import type { TelemetryForwarding } from '../deployment/telemetryForwarding';
-import { lockDeveloperInformation, pressesToUnlock, useDeveloperAccess } from '../developerInformation/developerAccess';
+import { lockDeveloperInformation, pressesToUnlock } from '../developerInformation/developerAccess';
+import { DeveloperInformationButton } from '../developerInformation/DeveloperInformationButton';
 import { LocalizationProvider } from '../localization/Localization';
 import { chooseSystemNotifications } from '../preferences/systemNotifications';
 import { TelemetryContext, noTelemetry, type ClientTelemetry } from '../telemetry/clientTelemetry';
@@ -206,6 +207,11 @@ function choose(picture: File): void {
 // taken back between tests rather than carried into the next one as a decision somebody made.
 afterEach(() => {
     window.localStorage.removeItem(deviceKeys.systemNotifications);
+});
+
+// The unlock lasts as long as the page, which in a test file is every test after the one that pressed for it.
+afterEach(() => {
+    lockDeveloperInformation();
 });
 
 describe('Settings', () => {
@@ -713,8 +719,13 @@ describe('Settings', () => {
                 fireEvent.click(running);
             }
 
-            expect(renderHook(() => useDeveloperAccess()).result.current.unlocked).toBe(true);
-            lockDeveloperInformation();
+            render(
+                <LocalizationProvider>
+                    <DeveloperInformationButton />
+                </LocalizationProvider>,
+            );
+
+            expect(screen.getByRole('button', { name: 'Developer information' })).toBeDefined();
         });
     });
 

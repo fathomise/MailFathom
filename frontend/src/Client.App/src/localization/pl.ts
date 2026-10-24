@@ -1997,7 +1997,7 @@ export const pl: Catalogue = {
     'developer.visibility': 'Widoczność',
     'developer.vitals': 'Web Vitals',
     'developer.renderFailures': 'Nieudane renderowania',
-    'developer.readAndFailed': '{read} z odpowiedzią, {failed} nieudanych',
+    'developer.readAndFailed': 'odpowiedzi: {read}, niepowodzenia: {failed}',
     'developer.measuredSize': '{width} × {height}',
     'developer.themeChoice': '{theme} (wybrano: {choice})',
 };

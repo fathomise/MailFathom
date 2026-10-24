@@ -3,7 +3,6 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { retryDelay } from '@mailfathom/client-backend';
-import { notWatched, watchedByDeveloperRecord } from '../developerInformation/developerRecord';
 
 // The one place in this client a request to the deployment is put on the wire. The four modules in this directory that
 // call `fetch` each read a different kind of answer, and they share what happens before any answer is read: how many
@@ -73,6 +72,21 @@ export interface RequestWatch {
 /** Begins watching one request, at the moment it is asked for and before it has a place on the wire. */
 export type RequestWatcher = (path: string, init: RequestInit) => RequestWatch;
 
+/** What a request reports to while nothing is listening, which is nowhere. */
+export const unwatched: RequestWatch = {
+    sent: () => undefined,
+    answered: () => undefined,
+    retrying: () => undefined,
+    ended: () => undefined,
+};
+
+let watchingTheWire: RequestWatcher = () => unwatched;
+
+/** Names what is told where each request the application makes has got to, which the composition root does once. */
+export function watchRequestsWith(watcher: RequestWatcher): void {
+    watchingTheWire = watcher;
+}
+
 /**
  * Composes the one way this client reaches its deployment out of the three things it cannot decide for itself.
  *
@@ -87,7 +101,7 @@ export function deploymentFetchOver(
     pausing: Pausing,
     drawing: () => number,
     most: number = mostRequestsInFlight,
-    watching: RequestWatcher = () => notWatched,
+    watching: RequestWatcher = () => unwatched,
 ): DeploymentFetch {
     let inFlight = 0;
     const waiting: (() => void)[] = [];
@@ -240,5 +254,5 @@ export const fetchFromDeployment: DeploymentFetch = deploymentFetchOver(
     pauseFor,
     Math.random,
     mostRequestsInFlight,
-    watchedByDeveloperRecord,
+    (path, init) => watchingTheWire(path, init),
 );

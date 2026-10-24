@@ -100,9 +100,13 @@ function useNow(): number {
 
 export function DeveloperSections({
     context,
+    sideBySide,
     onClose,
 }: {
     readonly context: DeveloperContext;
+
+    /** Whether the window it is drawn in has room for every section at once, rather than one tab of them at a time. */
+    readonly sideBySide: boolean;
     readonly onClose: () => void;
 }) {
     const { translate } = useLocalization();
@@ -143,24 +147,34 @@ export function DeveloperSections({
                 </button>
             </header>
 
-            <SectionTabs id={tabsId} selected={selected} onSelect={setSelected} />
-
-            <div className="min-h-0 flex-1 overflow-y-auto p-4 desktop:grid desktop:grid-cols-3 desktop:content-start desktop:gap-4">
-                {sections.map((section) => (
-                    <section
-                        key={section}
-                        id={`${tabsId}-${section}-panel`}
+            {sideBySide ? (
+                <div className="grid min-h-0 flex-1 grid-cols-3 content-start gap-4 overflow-y-auto p-4">
+                    {sections.map((section) => (
+                        <section
+                            key={section}
+                            aria-labelledby={`${tabsId}-${section}-heading`}
+                            className="flex min-w-0 flex-col gap-3 rounded-lg border border-line p-3.5"
+                        >
+                            <h3 id={`${tabsId}-${section}-heading`} className="text-md font-semibold">
+                                {translate(sectionNames[section])}
+                            </h3>
+                            {bodies[section]}
+                        </section>
+                    ))}
+                </div>
+            ) : (
+                <>
+                    <SectionTabs id={tabsId} selected={selected} onSelect={setSelected} />
+                    <div
+                        id={`${tabsId}-${selected}-panel`}
                         role="tabpanel"
-                        aria-labelledby={`${tabsId}-${section}-heading`}
-                        className={`${section === selected ? 'flex' : 'hidden'} min-w-0 flex-col gap-3 desktop:flex desktop:rounded-lg desktop:border desktop:border-line desktop:p-3.5`}
+                        aria-labelledby={`${tabsId}-${selected}`}
+                        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
                     >
-                        <h3 id={`${tabsId}-${section}-heading`} className="text-md font-semibold">
-                            {translate(sectionNames[section])}
-                        </h3>
-                        {bodies[section]}
-                    </section>
-                ))}
-            </div>
+                        {bodies[selected]}
+                    </div>
+                </>
+            )}
         </div>
     );
 }
@@ -207,7 +221,7 @@ function SectionTabs({
         <div
             role="tablist"
             aria-label={translate('developer.sections')}
-            className="flex shrink-0 gap-1 overflow-x-auto border-b border-line px-3 py-2 desktop:hidden"
+            className="flex shrink-0 gap-1 overflow-x-auto border-b border-line px-3 py-2"
             onKeyDown={moved}
         >
             {sections.map((section) => (
@@ -271,10 +285,15 @@ function SubHeading({ name }: { readonly name: MessageKey }) {
     return <h4 className="pt-1 text-xs font-semibold tracking-wide text-faint uppercase">{translate(name)}</h4>;
 }
 
+/** An instant, or nothing where there is none or what the deployment sent does not read as one. */
 function Moment({ at, now }: { readonly at: number | null; readonly now: number }) {
     const { locale } = useLocalization();
 
-    return at === null ? <Absent /> : <time dateTime={new Date(at).toISOString()}>{wordFromNow(at, now, locale)}</time>;
+    return at === null || Number.isNaN(at) ? (
+        <Absent />
+    ) : (
+        <time dateTime={new Date(at).toISOString()}>{wordFromNow(at, now, locale)}</time>
+    );
 }
 
 function YesNo({ value }: { readonly value: boolean }) {
@@ -587,7 +606,7 @@ function SessionSection({ context, now }: { readonly context: DeveloperContext; 
                     </Fact>
                 )}
                 <Fact name="developer.expires">
-                    <Moment at={expiresAt === null || Number.isNaN(expiresAt) ? null : expiresAt} now={now} />
+                    <Moment at={expiresAt} now={now} />
                 </Fact>
                 <Fact name="developer.userAgent">
                     <Literal>{navigator.userAgent}</Literal>
@@ -641,11 +660,14 @@ function DataSection({ context, now }: { readonly context: DeveloperContext; rea
                                 <Literal>{account.synchronizationState}</Literal>
                                 {account.behind ? <span>{translate('developer.behind')}</span> : null}
                                 <span>
-                                    {account.lastSynchronizedAt === null ? (
-                                        <Absent />
-                                    ) : (
-                                        <Moment at={Date.parse(account.lastSynchronizedAt)} now={now} />
-                                    )}
+                                    <Moment
+                                        at={
+                                            account.lastSynchronizedAt === null
+                                                ? null
+                                                : Date.parse(account.lastSynchronizedAt)
+                                        }
+                                        now={now}
+                                    />
                                 </span>
                             </span>
                         </li>

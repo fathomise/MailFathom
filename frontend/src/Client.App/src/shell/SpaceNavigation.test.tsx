@@ -11,6 +11,7 @@ import { SpaceNavigation } from './SpaceNavigation';
 const handedTheAccount = 'The account control this navigation was handed.';
 const handedTheBell = 'The bell this navigation was handed.';
 const handedTheRefresh = 'The refresh this navigation was handed.';
+const handedTheDeveloper = 'The developer control this navigation was handed.';
 
 // The one thing about this component jsdom cannot answer for, because it decides which of the two shapes is in the
 // document rather than how one of them is laid out. It answers narrow to every query unless a test says otherwise, so
@@ -36,7 +37,7 @@ function renderNavigation(offered: readonly Space[] = spaces, current: Space | n
                 account={<button>{handedTheAccount}</button>}
                 notifications={<button>{handedTheBell}</button>}
                 refresh={<button>{handedTheRefresh}</button>}
-                developer={null}
+                developer={<button>{handedTheDeveloper}</button>}
                 onPointerDown={() => undefined}
                 onClickCapture={() => undefined}
             />
@@ -129,6 +130,19 @@ describe('SpaceNavigation', () => {
 
         expect(navigation.contains(account)).toBe(true);
         expect(lastLink?.compareDocumentPosition(account)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+
+    it('stands the developer control it was handed in the rail, above the account', () => {
+        atWorkspaceWidth(true);
+        renderNavigation();
+
+        const navigation = screen.getByRole('navigation', { name: 'Spaces' });
+        const developer = screen.getByRole('button', { name: handedTheDeveloper });
+
+        expect(navigation.contains(developer)).toBe(true);
+        expect(developer.compareDocumentPosition(screen.getByRole('button', { name: handedTheAccount }))).toBe(
+            Node.DOCUMENT_POSITION_FOLLOWING,
+        );
     });
 
     it('stands the bell beside the account, after every space and before the account itself', () => {

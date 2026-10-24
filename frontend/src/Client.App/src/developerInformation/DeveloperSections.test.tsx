@@ -8,6 +8,7 @@ import { writeClientEvent } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import { ThemeProvider } from '../theme/Theme';
 import { lockDeveloperInformation, pressesToUnlock, pressVersionLine } from './developerAccess';
+import { DeveloperInformation } from './DeveloperInformation';
 import { DeveloperInformationButton } from './DeveloperInformationButton';
 import { developerRecord } from './developerRecord';
 import { DeveloperSections, type DeveloperContext } from './DeveloperSections';
@@ -34,11 +35,11 @@ const context: DeveloperContext = {
     space: 'mail',
 };
 
-function renderSections(): ReturnType<typeof render> {
+function renderSections(sideBySide = false, shown: DeveloperContext = context): ReturnType<typeof render> {
     return render(
         <LocalizationProvider>
             <ThemeProvider>
-                <DeveloperSections context={context} onClose={() => undefined} />
+                <DeveloperSections context={shown} sideBySide={sideBySide} onClose={() => undefined} />
             </ThemeProvider>
         </LocalizationProvider>,
     );
@@ -49,9 +50,17 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
+function unlock(): void {
+    act(() => {
+        for (let press = 0; press < pressesToUnlock; press += 1) {
+            pressVersionLine();
+        }
+    });
+}
+
 describe('DeveloperSections', () => {
     it('shows the identifiers a developer looks a session up by, and never the name an account goes by', () => {
-        renderSections();
+        renderSections(true);
 
         expect(screen.getByText('account-91c7')).toBeDefined();
         expect(screen.getByText('person-4f2a')).toBeDefined();
@@ -72,6 +81,32 @@ describe('DeveloperSections', () => {
         fireEvent.keyDown(screen.getByRole('tab', { name: 'Requests' }), { key: 'End' });
 
         expect(screen.getByRole('tab', { name: 'Environment' }).getAttribute('aria-selected')).toBe('true');
+    });
+
+    it('stands every section side by side as a named region where there is room, with no tab anywhere', () => {
+        renderSections(true);
+
+        expect(screen.queryByRole('tablist')).toBeNull();
+        expect(screen.queryByRole('tabpanel')).toBeNull();
+        expect(screen.getByRole('region', { name: 'Signals' })).toBeDefined();
+        expect(screen.getByRole('region', { name: 'Environment' })).toBeDefined();
+    });
+
+    it('draws an instant the deployment sent in a form it cannot read as absent rather than failing', () => {
+        renderSections(true, {
+            ...context,
+            accounts: [
+                {
+                    id: 'account-91c7',
+                    displayName: 'anna.kowalska@example.com',
+                    synchronizationState: 'Synchronized',
+                    lastSynchronizedAt: 'yesterday',
+                    behind: false,
+                },
+            ],
+        });
+
+        expect(screen.getByText('account-91c7')).toBeDefined();
     });
 
     it('watches only while it is shown', () => {
@@ -137,5 +172,58 @@ describe('DeveloperInformationButton', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Developer information' }));
 
         expect(close).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('DeveloperInformation', () => {
+    function renderSurface(): void {
+        render(
+            <LocalizationProvider>
+                <ThemeProvider>
+                    <DeveloperInformationButton />
+                    <DeveloperInformation context={context} />
+                </ThemeProvider>
+            </LocalizationProvider>,
+        );
+    }
+
+    it('closes the window it stands in on Escape', () => {
+        const into = document.implementation.createHTMLDocument('');
+        const close = vi.fn();
+        const opened = Object.assign(new EventTarget(), { document: into, close }) as unknown as Window;
+
+        vi.spyOn(window, 'open').mockReturnValue(opened);
+        unlock();
+        renderSurface();
+        fireEvent.click(screen.getByRole('button', { name: 'Developer information' }));
+
+        expect(into.body.textContent).toContain('Signals');
+
+        act(() => {
+            into.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+        });
+
+        expect(close).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole('button', { name: 'Developer information' }).getAttribute('aria-expanded')).toBe(
+            'false',
+        );
+    });
+
+    it('puts focus back on the control that opened it once it closes inside the page', () => {
+        vi.spyOn(window, 'open').mockReturnValue(null);
+        unlock();
+        renderSurface();
+
+        const opener = screen.getByRole('button', { name: 'Developer information' });
+
+        opener.focus();
+        fireEvent.click(opener);
+
+        expect(screen.getByRole('dialog', { name: 'Developer information' })).toBeDefined();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Close developer information' }));
+
+        expect(screen.queryByRole('dialog', { name: 'Developer information' })).toBeNull();
+        expect(document.activeElement).toBe(opener);
     });
 });

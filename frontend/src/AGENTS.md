@@ -343,7 +343,12 @@ not a preference about polish.
   identifier is shown by the name a person knows it by, and where the client holds no such name the thing is left
   unnamed or described rather than shown as the identifier it arrived as. An identifier is how the service is asked,
   and on a screen it reads as a fault. `shell/accountNames.ts` is the shape for an account, and the account list it
-  reads may not have answered yet, which is exactly the case a fallback to the identifier would have shown.
+  reads may not have answered yet, which is exactly the case a fallback to the identifier would have shown. The one
+  exception is the developer information surface under `developerInformation/`, which is a developer's tool unlocked
+  by hand rather than a screen a reader is offered, and which shows identifiers because finding a session in the
+  deployment's own telemetry is what it is for. It is the only one, it is no precedent for another screen, and it
+  still shows no mail content, subject, address, correspondent, display name, notification headline, search text,
+  credential, signal ticket, or token.
 - **No state is reachable that a person cannot leave.** Every dialog closes, every flow can be abandoned, and every
   error state offers something other than reloading the page.
 - **Every screen has its five states, and each is designed rather than defaulted**: loading, empty, partial (some of it

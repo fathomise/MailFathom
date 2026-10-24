@@ -9,11 +9,16 @@ import { Containment } from './containment/Containment';
 import { regionOf } from './containment/caughtRegion';
 import { showStaticFailure } from './containment/staticFailure';
 import { adoptedDeployment } from './deployment/adoptedDeployment';
+import { watchRequestsWith } from './deployment/deploymentFetch';
 import { attachmentExchange, AttachmentExchangeContext } from './deployment/attachmentExchange';
 import { AttachmentUploadContext, uploadAttachment } from './deployment/attachmentUpload';
 import { portraitExchange } from './deployment/portraitExchange';
 import { transportForThisRun } from './deployment/transportForThisRun';
-import { watchedSignalChannel, watchedSignalSchedule } from './developerInformation/developerRecord';
+import {
+    watchedByDeveloperRecord,
+    watchedSignalChannel,
+    watchedSignalSchedule,
+} from './developerInformation/developerRecord';
 import { LocalizationProvider } from './localization/Localization';
 import { configuredConnection } from './shellOperations/configuredConnection';
 import { LinkOpenerContext, linkOpenerForThisApplication } from './shellOperations/linkOpener';
@@ -38,6 +43,9 @@ const systemNotifier = systemNotifierForThisApplication();
 // reason the link opener is: what this client reports about itself is the application's decision and not one screen's,
 // and everything below receives it as a value rather than registering anything of its own.
 const telemetry = clientTelemetryForThisApplication();
+
+// The developer information surface is what listens to the wire, and it hears nothing until it is opened.
+watchRequestsWith(watchedByDeveloperRecord);
 
 const container = document.getElementById('root');
 

@@ -2,13 +2,18 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocalization } from '../localization/useLocalization';
 import { useScreenLayer } from '../shell/screenLayers';
-import { useTwoPanes } from '../shell/useWideWorkspace';
+import { useDesktopComposition, useDesktopCompositionIn, useTwoPanes } from '../shell/useWideWorkspace';
 import { useTheme } from '../theme/useTheme';
-import { closeDeveloperInformation, dressDeveloperWindow, useDeveloperAccess } from './developerAccess';
+import {
+    closeDeveloperInformation,
+    dressDeveloperWindow,
+    returnFocusToOpener,
+    useDeveloperAccess,
+} from './developerAccess';
 import { DeveloperSections, type DeveloperContext } from './DeveloperSections';
 
 // Where the developer information surface stands while it is open: in the window `developerAccess.ts` opened for it,
@@ -17,6 +22,13 @@ import { DeveloperSections, type DeveloperContext } from './DeveloperSections';
 
 export function DeveloperInformation({ context }: { readonly context: DeveloperContext }) {
     const { open, window: standing } = useDeveloperAccess();
+
+    // After the surface is gone rather than as it goes, because a modal surface leaves its opener inert until it is.
+    useEffect(() => {
+        if (!open) {
+            returnFocusToOpener();
+        }
+    }, [open]);
 
     if (!open) {
         return null;
@@ -39,6 +51,7 @@ export function DeveloperInformation({ context }: { readonly context: DeveloperC
 function DeveloperWindow({ context, into }: { readonly context: DeveloperContext; readonly into: Window }) {
     const { translate, locale } = useLocalization();
     const { theme } = useTheme();
+    const sideBySide = useDesktopCompositionIn(into);
 
     const title = `${translate('developer.title')} · ${translate('shell.title')}`;
 
@@ -46,9 +59,23 @@ function DeveloperWindow({ context, into }: { readonly context: DeveloperContext
         dressDeveloperWindow(into, title, locale, theme);
     }, [into, title, locale, theme]);
 
+    useEffect(() => {
+        const leaveOnEscape = (event: KeyboardEvent): void => {
+            if (event.key === 'Escape') {
+                closeDeveloperInformation();
+            }
+        };
+
+        into.document.addEventListener('keydown', leaveOnEscape);
+
+        return () => {
+            into.document.removeEventListener('keydown', leaveOnEscape);
+        };
+    }, [into]);
+
     return createPortal(
         <div className="h-dvh">
-            <DeveloperSections context={context} onClose={closeDeveloperInformation} />
+            <DeveloperSections context={context} sideBySide={sideBySide} onClose={closeDeveloperInformation} />
         </div>,
         into.document.body,
     );
@@ -59,21 +86,36 @@ function DeveloperWindow({ context, into }: { readonly context: DeveloperContext
  *
  * Where the window has two panes it is a large window that leaves the page usable behind it, so the control that opened
  * it in the rail closes it again; below that it takes the whole screen, as a modal over a page there is no room to use.
- * It is the platform's own `dialog` either way, so focus moves in as it opens and back to its opener as it closes.
+ * It is the platform's own `dialog` either way, so focus moves in as it opens, and goes back to its opener once it has closed.
  */
 function DeveloperDialog({ context }: { readonly context: DeveloperContext }) {
     const { translate } = useLocalization();
     const twoPanes = useTwoPanes();
+    const sideBySide = useDesktopComposition();
 
+    const shownAs = useRef<'beside' | 'over' | null>(null);
+
+    // The same dialog is shown again rather than drawn again when the window crosses the pane breakpoint, so what it has
+    // gathered and the section it is on survive a tablet being turned.
     const arrived = useCallback(
         (dialog: HTMLDialogElement | null) => {
-            if (dialog !== null && !dialog.open) {
-                if (twoPanes) {
-                    dialog.show();
-                } else {
-                    dialog.showModal();
-                }
+            const wanted = twoPanes ? 'beside' : 'over';
+
+            if (dialog === null || shownAs.current === wanted) {
+                return;
             }
+
+            if (dialog.open) {
+                dialog.close();
+            }
+
+            if (twoPanes) {
+                dialog.show();
+            } else {
+                dialog.showModal();
+            }
+
+            shownAs.current = wanted;
         },
         [twoPanes],
     );
@@ -82,10 +124,14 @@ function DeveloperDialog({ context }: { readonly context: DeveloperContext }) {
 
     return (
         <dialog
-            key={twoPanes ? 'beside' : 'over'}
             ref={arrived}
             aria-label={translate('developer.title')}
-            onClose={closeDeveloperInformation}
+            onClose={(event) => {
+                // The close a switch between beside and over makes is followed at once by the dialog showing again.
+                if (!event.currentTarget.open) {
+                    closeDeveloperInformation();
+                }
+            }}
             onKeyDown={(event) => {
                 // A modal dialog closes on Escape on its own; one opened beside the page has to be told.
                 if (event.key === 'Escape' && twoPanes) {
@@ -95,7 +141,7 @@ function DeveloperDialog({ context }: { readonly context: DeveloperContext }) {
             }}
             className="fixed inset-0 z-50 m-0 h-auto max-h-none w-auto max-w-none overflow-hidden rounded-none border-0 bg-panel p-0 text-text open:flex open:flex-col panes:m-auto panes:h-file-window-tall panes:w-file-window panes:rounded-lg panes:border panes:border-line panes:shadow-dialog"
         >
-            <DeveloperSections context={context} onClose={closeDeveloperInformation} />
+            <DeveloperSections context={context} sideBySide={sideBySide} onClose={closeDeveloperInformation} />
         </dialog>
     );
 }

@@ -16,10 +16,11 @@ import {
     watchedSignalSchedule,
 } from './developerRecord';
 
-const traced = { traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' };
+const traced = { traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-0123456789abcdef-01' };
 
 afterEach(() => {
     stopWatching();
+    vi.useRealTimers();
 });
 
 describe('what the record holds while nothing is watching', () => {
@@ -49,7 +50,7 @@ describe('a request, as the transport reports it', () => {
 
     it('is joined to the trace its context names, and to none where the context names an empty one', () => {
         expect(traceIdOf(traced)).toBe('4bf92f3577b34da6a3ce929d0e0e4736');
-        expect(traceIdOf({ traceparent: '00-00000000000000000000000000000000-00f067aa0ba902b7-00' })).toBeNull();
+        expect(traceIdOf({ traceparent: '00-00000000000000000000000000000000-0123456789abcdef-00' })).toBeNull();
         expect(traceIdOf(undefined)).toBeNull();
     });
 
@@ -184,7 +185,6 @@ describe('the signal hub, as the events and the stream report it', () => {
         await waited;
 
         expect(developerRecord().signals.nextAttemptAt).toBeNull();
-        vi.useRealTimers();
     });
 });
 

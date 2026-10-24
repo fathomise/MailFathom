@@ -10,7 +10,7 @@ import {
     type ObservedClientEvent,
     type SignalStreamSchedule,
 } from '@mailfathom/client-backend';
-import type { RequestWatch, RequestWatcher } from '../deployment/deploymentFetch';
+import { unwatched, type RequestWatcher } from '../deployment/deploymentFetch';
 import { measureWebVitals } from './webVitals';
 
 // What the developer information surface draws about what this client did, gathered from the moment the page loaded.
@@ -190,14 +190,6 @@ export function stopWatching(): void {
     current = nothingYet;
 }
 
-/** What a request is told to report to while nothing is listening, which is nowhere. */
-export const notWatched: RequestWatch = {
-    sent: () => undefined,
-    answered: () => undefined,
-    retrying: () => undefined,
-    ended: () => undefined,
-};
-
 function revise(change: (record: DeveloperRecord) => DeveloperRecord): void {
     if (!watching) {
         return;
@@ -354,7 +346,7 @@ function keptRequests(requests: readonly WireRequest[], added: WireRequest): rea
 /** Puts each request into the record from when it is asked for until it is over, which is the transport's watcher. */
 export const watchedByDeveloperRecord: RequestWatcher = (path, init) => {
     if (!watching) {
-        return notWatched;
+        return unwatched;
     }
 
     const key = nextKey++;
