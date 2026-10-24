@@ -286,7 +286,11 @@ describe('readOutgoingMail', () => {
     it('reads a send carrying as many files as a deployment may let a message attach', async () => {
         const attachments = Array.from({ length: 100 }, () => preview.attachments[0]);
 
-        const answer = await readOutgoingMail(session, answering(sending({ ...preview, attachments })), outgoingEmailId);
+        const answer = await readOutgoingMail(
+            session,
+            answering(sending({ ...preview, attachments })),
+            outgoingEmailId,
+        );
 
         expect(answer).toMatchObject({ outcome: 'read', value: { attachments: { length: 100 } } });
     });

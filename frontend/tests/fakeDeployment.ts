@@ -1220,9 +1220,10 @@ export class FakeDeployment {
     private outboxSends(): readonly (OutboxSend & { readonly otherRecipientCount?: number })[] {
         const queued = [...this.sendsQueued].reverse().map(([outgoingEmail]) => {
             const send = this.queuedSend(outgoingEmail);
-            const named = (['To', 'Cc', 'Bcc'] as const)
-                .map((role) => send.recipients.filter((recipient) => recipient.role === role))
-                .find((recipients) => recipients.length > 0) ?? [];
+            const named =
+                (['To', 'Cc', 'Bcc'] as const)
+                    .map((role) => send.recipients.filter((recipient) => recipient.role === role))
+                    .find((recipients) => recipients.length > 0) ?? [];
 
             return {
                 ...send,

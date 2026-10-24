@@ -772,17 +772,7 @@ describe('Composer, a message of its own', () => {
     // An Outbox is read under the grant that reads mail, so a credential that only sends is led to no send it could not
     // open.
     it('leads nowhere from a queued message where the session does not read mail', async () => {
-        drawComposer(
-            { kind: 'new' },
-            {},
-            [work],
-            true,
-            uploadsOneFile,
-            false,
-            noTelemetry,
-            takesNothing,
-            false,
-        );
+        drawComposer({ kind: 'new' }, {}, [work], true, uploadsOneFile, false, noTelemetry, takesNothing, false);
 
         address('ada@example.invalid');
         confirmSend();

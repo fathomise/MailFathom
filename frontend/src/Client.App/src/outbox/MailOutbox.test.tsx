@@ -324,7 +324,10 @@ describe('the Outbox preview', () => {
     // the words that answer names.
     it.each([
         ['AttemptUnderWay', 'It is already being sent, so it could not be taken back.'],
-        ['StageDoesNotAllowIt', 'It moved on since this was shown, so nothing was changed. The Outbox now says where it stands.'],
+        [
+            'StageDoesNotAllowIt',
+            'It moved on since this was shown, so nothing was changed. The Outbox now says where it stands.',
+        ],
         ['RecordUnknown', 'The server no longer holds that send.'],
     ])('says what a withdrawal the deployment answered with %s came to, and keeps the send', async (outcome, said) => {
         const held = deployment();
