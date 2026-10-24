@@ -171,7 +171,7 @@ public interface IMailboxCustodian
 
     /// <summary>Brings the server copies of one settled send up to date by filing its sent copy.</summary>
     /// <param name="send">The send, read after its attempt ended.</param>
-    /// <param name="cancellationToken">Cancels the appends and the withdrawals.</param>
+    /// <param name="cancellationToken">Cancels the appends.</param>
     /// <returns>What each attempt did, which is empty where no copy of a send is kept on a server.</returns>
     Task<IReadOnlyList<OutgoingMailFilingResult>> SettleFiledCopiesAsync(
         OutgoingEmailRecord send,

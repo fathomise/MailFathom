@@ -165,7 +165,7 @@ public sealed class OutboxOperations
 
         return await this.SignalledAsync(
             outgoingEmailId,
-            await this.outbox.RequeueAsync(outgoingEmailId, refusalRestated, cancellationToken),
+            await this.outbox.RequeueAsync(outgoingEmailId, refusalRestated, reachesDismissedSend: true, cancellationToken),
             cancellationToken);
     }
 

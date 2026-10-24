@@ -252,7 +252,9 @@ public sealed class UserOutbox(
     /// </para>
     /// <para>
     /// A dismissed send is refused as one the decision no longer applies to. Dismissing it took it out of every outbox a
-    /// person reads, so offering it again is the operator's, from the administrative surface.
+    /// person reads, so offering it again is the operator's, from the administrative surface. The read answers the
+    /// ordinary case before a refusal is asked to be restated; the store's statement is what holds against a dismissal
+    /// committed after that read.
     /// </para>
     /// </remarks>
     public async Task<OutboxDecisionOutcome> RequeueAsync(
@@ -268,7 +270,11 @@ public sealed class UserOutbox(
             { Dismissal: not null } => OutboxDecisionOutcome.StageDoesNotAllowIt,
             var record => this.Signalled(
                 record,
-                await outbox.RequeueAsync(outgoingEmailId, refusalRestated, cancellationToken)),
+                await outbox.RequeueAsync(
+                    outgoingEmailId,
+                    refusalRestated,
+                    reachesDismissedSend: false,
+                    cancellationToken)),
         };
     }
 

@@ -91,6 +91,7 @@ public interface IOutboxOperationStore
     /// <summary>Puts one send back where the next delivery pass claims it, with its attempts given back.</summary>
     /// <param name="outgoingEmailId">The send to offer again.</param>
     /// <param name="refusalRestated">Whether the caller has restated a permanent refusal, which is what a refused send needs before it is offered again.</param>
+    /// <param name="reachesDismissedSend">Whether a dismissed send may be offered again, which is the operator's decision alone.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>What happened to the send.</returns>
     /// <remarks>
@@ -114,13 +115,16 @@ public interface IOutboxOperationStore
     /// have: an address a server settled is never offered a second time, whoever asked for the send to run again.
     /// </para>
     /// <para>
-    /// A dismissal is cleared, because a send offered again is back in its account's outbox whatever somebody decided
-    /// about it before.
+    /// A dismissed send is reached only when <paramref name="reachesDismissedSend" /> says so, and the dismissal is then
+    /// cleared, because a send offered again is back in its account's outbox whatever somebody decided about it before.
+    /// Otherwise the dismissal is a condition of the statement, so one committed between a caller's read and this write
+    /// is never undone by it.
     /// </para>
     /// </remarks>
     Task<OutboxDecisionOutcome> RequeueAsync(
         OutgoingEmailId outgoingEmailId,
         bool refusalRestated,
+        bool reachesDismissedSend,
         CancellationToken cancellationToken);
 
     /// <summary>Takes one refused send, or one whose outcome nobody will learn, out of its account's outbox.</summary>

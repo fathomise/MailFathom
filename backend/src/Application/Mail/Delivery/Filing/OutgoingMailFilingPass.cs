@@ -193,7 +193,7 @@ public sealed class OutgoingMailFilingPass
 
     /// <summary>Appends a settled send's sent copy on the account's server.</summary>
     /// <param name="record">The send, read after its attempt ended.</param>
-    /// <param name="cancellationToken">Cancels the appends and the withdrawals.</param>
+    /// <param name="cancellationToken">Cancels the appends.</param>
     /// <returns>What each attempt did.</returns>
     internal async Task<IReadOnlyList<OutgoingMailFilingResult>> SettleFiledCopiesOnSourceAsync(
         OutgoingEmailRecord record,

@@ -128,8 +128,14 @@ public sealed class OrchestratedOutboxOperationStoreTests(MailFathomOrchestratio
             services,
             enqueued.Id,
             refusalRestated: false,
+            reachesDismissedSend: true,
             cancellationToken);
-        var restated = await RequeueAsync(services, enqueued.Id, refusalRestated: true, cancellationToken);
+        var restated = await RequeueAsync(
+            services,
+            enqueued.Id,
+            refusalRestated: true,
+            reachesDismissedSend: true,
+            cancellationToken);
 
         // Assert
         Assert.Equal(OutboxDecisionOutcome.RefusalNotRestated, withoutRestatement);
@@ -141,6 +147,71 @@ public sealed class OrchestratedOutboxOperationStoreTests(MailFathomOrchestratio
 
         // Left where the rest of the collection expects an account's outbox to be, rather than queued for a delivery
         // pass another class in this collection would then have to account for.
+        Assert.Equal(OutboxDecisionOutcome.Accepted, await CancelAsync(services, enqueued.Id, cancellationToken));
+    }
+
+    /// <summary>
+    /// A dismissed send is offered again only where the caller may reach a dismissal, and the dismissal is a condition
+    /// of the statement rather than of a read before it — so a user's requeue leaves it in place, and the operator's
+    /// clears it.
+    /// </summary>
+    [Fact]
+    public async Task RequeueAsync_ADismissedSend_IsOfferedAgainOnlyByACallerThatMayReachTheDismissal()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var enqueued = await EnqueueAsync(services, "outbox-operations-requeue-dismissed", cancellationToken);
+
+        var claimed = await services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<IOutgoingEmailStore>().ClaimAsync(
+                OutgoingEmailClaimRequest.Create(Account, batchSize: 100, TimeSpan.FromMinutes(10)),
+                token),
+            cancellationToken);
+        var lease = Assert.Single(claimed, entry => entry.Record.Id == enqueued.Id).Lease;
+
+        await services.CommitAsync(
+            (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>().AdvanceAsync(
+                session,
+                lease,
+                enqueued.Id,
+                OutgoingEmailStage.Refused,
+                replyCode: 550,
+                token),
+            cancellationToken);
+
+        var dismissed = await services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<IOutboxOperationStore>()
+                .DismissAsync(enqueued.Id, UserId.Create(Guid.CreateVersion7()), token),
+            cancellationToken);
+
+        // Act
+        var byTheUser = await RequeueAsync(
+            services,
+            enqueued.Id,
+            refusalRestated: true,
+            reachesDismissedSend: false,
+            cancellationToken);
+        var stillDismissed = await FindAsync(services, enqueued.Id, cancellationToken);
+        var byTheOperator = await RequeueAsync(
+            services,
+            enqueued.Id,
+            refusalRestated: true,
+            reachesDismissedSend: true,
+            cancellationToken);
+
+        // Assert
+        Assert.Equal(OutboxDecisionOutcome.Accepted, dismissed);
+        Assert.Equal(OutboxDecisionOutcome.StageDoesNotAllowIt, byTheUser);
+        Assert.NotNull(stillDismissed.Dismissal);
+        Assert.Equal(OutgoingEmailStage.Refused, stillDismissed.Stage);
+        Assert.Equal(OutboxDecisionOutcome.Accepted, byTheOperator);
+
+        var requeued = await FindAsync(services, enqueued.Id, cancellationToken);
+        Assert.Null(requeued.Dismissal);
+        Assert.Equal(OutgoingEmailStage.Recorded, requeued.Stage);
+
+        // Left withdrawn for the reason the test above leaves its send withdrawn.
         Assert.Equal(OutboxDecisionOutcome.Accepted, await CancelAsync(services, enqueued.Id, cancellationToken));
     }
 
@@ -199,14 +270,15 @@ public sealed class OrchestratedOutboxOperationStoreTests(MailFathomOrchestratio
                 .CancelAsync(outgoingEmailId, token),
             cancellationToken);
 
-    /// <summary>Offers one send again, in a scope of its own, as an administrative request does.</summary>
+    /// <summary>Offers one send again, in a scope of its own, as an administrative or a user's request does.</summary>
     private static Task<OutboxDecisionOutcome> RequeueAsync(
         OrchestratedMailFathomServices services,
         OutgoingEmailId outgoingEmailId,
         bool refusalRestated,
+        bool reachesDismissedSend,
         CancellationToken cancellationToken) => services.InScopeAsync(
             (scope, token) => scope.GetRequiredService<IOutboxOperationStore>()
-                .RequeueAsync(outgoingEmailId, refusalRestated, token),
+                .RequeueAsync(outgoingEmailId, refusalRestated, reachesDismissedSend, token),
             cancellationToken);
 
     /// <summary>Reads one record back through a scope of its own, failing the test where nothing holds it.</summary>

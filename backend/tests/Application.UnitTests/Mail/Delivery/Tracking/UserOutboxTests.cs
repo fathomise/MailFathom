@@ -13,6 +13,7 @@ using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Screening;
 using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.Signals;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
@@ -42,6 +43,9 @@ public sealed class UserOutboxTests
 
     private static readonly ReadOnlyMemory<byte> RawMime =
         Encoding.ASCII.GetBytes("Subject: Quarterly figures\r\n\r\nHello.");
+
+    /// <summary>A credential the scanning guard recognises, standing in for anything a scan withholds.</summary>
+    private const string Marker = "AKIAEXAMPLEKEY";
 
     /// <summary>A page is read for the account the request named, narrowed to the mailboxes the caller is assigned.</summary>
     [Fact]
@@ -200,6 +204,27 @@ public sealed class UserOutboxTests
         Assert.Equal("Quarterly figures", Assert.Single(result.Page!.Sends).Subject);
     }
 
+    /// <summary>A row's subject is the person's correspondence leaving the deployment, so it passes the guard a listing does.</summary>
+    [Fact]
+    public async Task ReadPageAsync_ADeploymentScanningWhatLeaves_ServesARowsSubjectRedacted()
+    {
+        // Arrange
+        using var egress = ScanningSensitiveContentEgress.Finding(Marker, TimeProvider.System);
+        await using var context = new OutboxContext(egressGuard: egress.Guard);
+        context.Answering(Entry(OutgoingEmailId.Create(Guid.CreateVersion7()), subject: $"the key is {Marker}"));
+
+        // Act
+        var result = await context.Outbox.ReadPageAsync(
+            MailAccountSelector.For(Work),
+            stage: null,
+            pageSize: null,
+            cursor: null,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("the key is [redacted:CloudKey]", Assert.Single(result.Page!.Sends).Subject);
+    }
+
     /// <summary>A failure is stated in the reader's own words beside the code a client keys on.</summary>
     [Fact]
     public async Task ReadPageAsync_ARefusedSend_StatesItsFailureInTheReadersLanguage()
@@ -327,6 +352,31 @@ public sealed class UserOutboxTests
         Assert.Equal(2, preview.Attachments.Count);
     }
 
+    /// <summary>A preview is the message itself, so its subject, the name it is sent under, and its body all pass the guard.</summary>
+    [Fact]
+    public async Task ReadPreviewAsync_ADeploymentScanningWhatLeaves_ServesTheSubjectTheSenderNameAndTheBodyRedacted()
+    {
+        // Arrange
+        using var egress = ScanningSensitiveContentEgress.Finding(Marker, TimeProvider.System);
+        Assert.True(EmailAddress.TryCreate($"Key {Marker}", "sender@example.test", out var senderAddress));
+        await using var context = new OutboxContext(
+            egressGuard: egress.Guard,
+            renderer: new BoundedBodyEmailContentRenderer(
+                $"the key is {Marker}",
+                sender: new EmailParticipant(EmailAddressRole.From, senderAddress)));
+        var mine = await context.QueueAsync(Work, subject: $"the key is {Marker}");
+        context.Storing(mine);
+
+        // Act
+        var preview = await context.Outbox.ReadPreviewAsync(mine, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(preview);
+        Assert.Equal("the key is [redacted:CloudKey]", preview!.Subject);
+        Assert.Equal("Key [redacted:CloudKey]", preview.Sender?.Address.DisplayName);
+        Assert.Equal("the key is [redacted:CloudKey]", preview.Body?.PlainText.Text);
+    }
+
     /// <summary>A send whose stored message cannot be read is still previewed, with no body rather than a failure.</summary>
     [Fact]
     public async Task ReadPreviewAsync_ASendWhoseMessageIsMissing_AnswersWithTheRecordAndNoBody()
@@ -430,6 +480,35 @@ public sealed class UserOutboxTests
         // Assert
         Assert.Equal(OutboxDecisionOutcome.StageDoesNotAllowIt, outcome);
         Assert.Empty(context.Operations.ReceivedCalls());
+    }
+
+    /// <summary>
+    /// The read above answers the ordinary case, and the store's statement is what holds against a dismissal committed
+    /// after it: the user's requeue never asks the store to reach a dismissed send.
+    /// </summary>
+    [Fact]
+    public async Task RequeueAsync_ASendNobodyHasDismissed_AsksTheStoreToLeaveADismissedSendAlone()
+    {
+        // Arrange
+        await using var context = new OutboxContext();
+        var mine = await context.QueueAsync(Work);
+        context.Operations
+            .RequeueAsync(mine, refusalRestated: false, reachesDismissedSend: false, Arg.Any<CancellationToken>())
+            .Returns(OutboxDecisionOutcome.Accepted);
+
+        // Act
+        var outcome = await context.Outbox.RequeueAsync(
+            mine,
+            refusalRestated: false,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OutboxDecisionOutcome.Accepted, outcome);
+        await context.Operations.Received(1).RequeueAsync(
+            mine,
+            refusalRestated: false,
+            reachesDismissedSend: false,
+            Arg.Any<CancellationToken>());
     }
 
     /// <summary>Dismissing an unassigned mailbox's send reports it unknown rather than reaching the decision.</summary>
@@ -540,11 +619,15 @@ public sealed class UserOutboxTests
         private readonly RecordingClientSignalChannel signalChannel = new();
         private readonly ClientSignals signals;
 
-        internal OutboxContext(AccessAuthorization? authorization = null)
+        internal OutboxContext(
+            AccessAuthorization? authorization = null,
+            SensitiveContentEgressGuard? egressGuard = null,
+            BoundedBodyEmailContentRenderer? renderer = null)
         {
             this.Authorization = authorization ?? AccessAuthorizations.ForCallerGranted(
                 MailFathomPermission.MailRead,
                 MailFathomPermission.MailSend);
+            this.Renderer = renderer ?? new BoundedBodyEmailContentRenderer("Hello.", attachmentOctetCounts: [120, 4096]);
             this.OutgoingEmails = new InMemoryOutgoingEmailStore(timeProvider: this.clock);
             this.Operations
                 .ReadAccountOutboxAsync(Arg.Any<OutboxQuery>(), Arg.Any<CancellationToken>())
@@ -565,7 +648,7 @@ public sealed class UserOutboxTests
                 this.ContentStore,
                 this.Renderer,
                 this.TextReader,
-                SensitiveContentEgressGuards.Inactive(),
+                egressGuard ?? SensitiveContentEgressGuards.Inactive(),
                 new EmailContentReadOptions(),
                 languages,
                 this.Authorization,
@@ -581,8 +664,7 @@ public sealed class UserOutboxTests
 
         internal IEmailContentStore ContentStore { get; } = Substitute.For<IEmailContentStore>();
 
-        internal BoundedBodyEmailContentRenderer Renderer { get; } =
-            new("Hello.", attachmentOctetCounts: [120, 4096]);
+        internal BoundedBodyEmailContentRenderer Renderer { get; }
 
         internal IOutgoingMailTextReader TextReader { get; } = Substitute.For<IOutgoingMailTextReader>();
 

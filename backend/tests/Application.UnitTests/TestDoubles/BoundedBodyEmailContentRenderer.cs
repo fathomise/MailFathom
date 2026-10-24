@@ -22,11 +22,13 @@ namespace MailFathom.Application.UnitTests.TestDoubles;
 /// <param name="htmlBody">The HTML body a render returns when one was asked for, before bounding.</param>
 /// <param name="attachmentOctetCounts">The decoded size of each attachment the rendered message carries.</param>
 /// <param name="inlineImageOctets">How many octets of its own pictures a requested document inlines, or none.</param>
+/// <param name="sender">The one participant the rendered headers name, or none.</param>
 internal sealed class BoundedBodyEmailContentRenderer(
     string plainTextBody,
     string? htmlBody = null,
     IReadOnlyList<int>? attachmentOctetCounts = null,
-    int inlineImageOctets = 0)
+    int inlineImageOctets = 0,
+    EmailParticipant? sender = null)
     : IEmailContentRenderer
 {
     /// <summary>Gets the remaining budget each render was told about, in the order the renders happened.</summary>
@@ -65,7 +67,12 @@ internal sealed class BoundedBodyEmailContentRenderer(
 
         return Task.FromResult(EmailContentRenderingResult.Rendered(
             new EmailContentRendering(
-                new EmailContentHeaders("Subject", SentAt: null, ReceivedAt: null, [], EmailThreadReferences.None),
+                new EmailContentHeaders(
+                    "Subject",
+                    SentAt: null,
+                    ReceivedAt: null,
+                    sender is null ? [] : [sender],
+                    EmailThreadReferences.None),
                 plainText,
                 sanitizedHtml,
                 new EmailBodyForms(PlainText: true, Html: sanitizedHtml is not null),

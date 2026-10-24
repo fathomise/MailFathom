@@ -14,20 +14,21 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MailFathom.Infrastructure.Persistence.Delivery;
 
-/// <summary>Reads an outbox as an operator sees it, and writes the two decisions they take about one send, in PostgreSQL.</summary>
+/// <summary>Reads an outbox as an operator and as an account's user see it, and writes the three decisions about one send, in PostgreSQL.</summary>
 /// <remarks>
 /// <para>
-/// The listing is a projection rather than an entity load, and the recipients are the reason: an address is personal
-/// data, nothing on that surface reports one, and a projection is what keeps them from being read at all rather than
-/// read and then dropped. The stored MIME is left unread for the same reason and one more — a page of it would pull
-/// every queued message's bytes into memory.
+/// Both listings are projections rather than entity loads, and the recipients are the reason. The operator's names no
+/// address — an address is personal data and nothing on that surface reports one — so a projection keeps them from
+/// being read at all rather than read and then dropped. An account's outbox names the recipients its user wrote to, and
+/// reads them for one page of sends in one statement. The stored MIME is left unread by both, because a page of it
+/// would pull every queued message's bytes into memory.
 /// </para>
 /// <para>
-/// Both writes are one conditional update apiece. The condition is the stage the decision applies at together with the
-/// absence of a live lease, which makes the statement the whole of the exclusion: an operator and a delivery attempt
-/// racing for the same record produce one change, and the operator reads the row afterwards to find out that the
-/// attempt got there first. Nothing here takes a lease of its own, because an operator is not an attempt and inventing
-/// one would let a decision hold a record no worker could then claim.
+/// Every write is one conditional update. The condition is the state the decision applies at together with the absence
+/// of a live lease, which makes the statement the whole of the exclusion: a decision and a delivery attempt racing for
+/// the same record produce one change, and the caller reads the row afterwards to find out that the attempt got there
+/// first. Nothing here takes a lease of its own, because a decision is not an attempt and inventing one would let it
+/// hold a record no worker could then claim.
 /// </para>
 /// </remarks>
 [RequiresIntegrationCoverage]
@@ -128,6 +129,7 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
     public async Task<OutboxDecisionOutcome> RequeueAsync(
         OutgoingEmailId outgoingEmailId,
         bool refusalRestated,
+        bool reachesDismissedSend,
         CancellationToken cancellationToken)
     {
         var requeuedAt = timeProvider.GetUtcNow();
@@ -136,9 +138,9 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
         var transmissionBegun = nameof(OutgoingEmailStage.TransmissionBegun);
         var refused = nameof(OutgoingEmailStage.Refused);
 
-        // A refusal the caller has not restated is excluded in the statement rather than checked beforehand, so the
-        // decision and its condition stay one write: a send refused between the check and the update would otherwise be
-        // offered again on the strength of a stage it no longer stands at.
+        // A refusal the caller has not restated, and a dismissal the caller may not reach, are excluded in the statement
+        // rather than checked beforehand, so the decision and its conditions stay one write: a send refused or dismissed
+        // between the check and the update would otherwise be offered again on the strength of a state it left.
         var requeuedRows = await dbContext.Database.ExecuteSqlAsync(
             $"""
              UPDATE outgoing_emails
@@ -153,6 +155,7 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
              WHERE "Id" = {recordId}
                AND ("Stage" IN ({recorded}, {transmissionBegun})
                     OR ("Stage" = {refused} AND {refusalRestated}))
+               AND ("DismissedAt" IS NULL OR {reachesDismissedSend})
                AND ("LeaseExpiresAt" IS NULL OR "LeaseExpiresAt" <= {requeuedAt})
              """,
             cancellationToken);
@@ -285,14 +288,15 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
     /// <summary>The stages a withdrawal may be written from.</summary>
     private static OutgoingEmailStage[] CancellableStages => [OutgoingEmailStage.Recorded];
 
-    /// <summary>The stages a send may be offered again from, before the restatement rule narrows them.</summary>
     /// <summary>The headers a row of an account's outbox names recipients from, the first that names anybody winning.</summary>
     private static OutgoingRecipientRole[] RowNamingOrder =>
         [OutgoingRecipientRole.To, OutgoingRecipientRole.Cc, OutgoingRecipientRole.Bcc];
 
+    /// <summary>The stages a dismissal may be written at, before the lease narrows the second of them.</summary>
     private static OutgoingEmailStage[] DismissibleStages =>
         [OutgoingEmailStage.TransmissionBegun, OutgoingEmailStage.Refused];
 
+    /// <summary>The stages a send may be offered again from, before the restatement rule narrows them.</summary>
     private static OutgoingEmailStage[] RequeueableStages =>
         [OutgoingEmailStage.Recorded, OutgoingEmailStage.TransmissionBegun, OutgoingEmailStage.Refused];
 
@@ -371,7 +375,6 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
             : OutboxDecisionOutcome.StageDoesNotAllowIt;
     }
 
-    /// <summary>Rebuilds the listing entry one projected row describes.</summary>
     /// <summary>Reads the recipients of the sends one page names, in the order each message names them.</summary>
     /// <remarks>
     /// Every recipient of the page is read, at most a page of sends by the bound one message may be addressed to, and the
@@ -413,6 +416,7 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
                 row.ContactId));
     }
 
+    /// <summary>Rebuilds the account's outbox entry one projected row describes, naming the recipients of its first header that names anybody.</summary>
     private static AccountOutboxEntry ToAccountOutboxEntry(
         MailAccountId account,
         AccountOutboxRow row,
@@ -445,6 +449,7 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
         };
     }
 
+    /// <summary>Rebuilds the listing entry one projected row describes.</summary>
     private static OutboxEntry ToEntry(OutboxRow row) => new()
     {
         OutgoingEmailId = OutgoingEmailId.Create(row.Id),
@@ -460,7 +465,7 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
         LastReplyCode = row.LastReplyCode,
     };
 
-    /// <summary>The columns one listing row is read from, which are the ones that name no person.</summary>
+    /// <summary>The columns one row of an account's outbox is read from, its recipients being read beside them.</summary>
     private sealed record AccountOutboxRow(
         Guid Id,
         OutgoingEmailStage Stage,
@@ -473,6 +478,7 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
         int? LastFailureCode,
         int? LastReplyCode);
 
+    /// <summary>The columns one listing row is read from, which are the ones that name no person.</summary>
     private sealed record OutboxRow(
         Guid Id,
         string MailboxAccountId,

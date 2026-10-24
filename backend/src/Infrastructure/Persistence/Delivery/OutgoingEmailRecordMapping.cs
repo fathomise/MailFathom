@@ -105,17 +105,19 @@ internal static class OutgoingEmailRecordMapping
             entity.LastReplyCode,
             entity.AnsweredAt);
 
+    /// <summary>Reads back who took the send out of its account's outbox and when, where somebody did.</summary>
+    /// <remarks>The two columns are written together by one statement, so a row carrying only one of them reads as no dismissal.</remarks>
+    private static OutgoingEmailDismissal? ToDismissal(OutgoingEmailEntity entity) =>
+        entity is { DismissedAt: { } dismissedAt, DismissedByUserId: { } dismissedBy }
+            ? new OutgoingEmailDismissal(dismissedAt, UserId.Create(dismissedBy))
+            : null;
+
     /// <summary>Reads back the time the message was written to leave at, where one was named.</summary>
     /// <remarks>
     /// The two columns are written together and read together, and a row carrying an instant with no zone is read as
     /// naming no due time at all. The zone is what makes the instant answerable — which nine in the morning was meant —
     /// so reading such a row as a due time would state a moment nobody can check against the schedule it came from.
     /// </remarks>
-    private static OutgoingEmailDismissal? ToDismissal(OutgoingEmailEntity entity) =>
-        entity is { DismissedAt: { } dismissedAt, DismissedByUserId: { } dismissedBy }
-            ? new OutgoingEmailDismissal(dismissedAt, UserId.Create(dismissedBy))
-            : null;
-
     private static ZonedInstant? ToDueTime(OutgoingEmailEntity entity) =>
         entity is { DueAt: { } dueAt, DueZoneId: { Length: > 0 } zoneId }
             ? ZonedInstant.Restore(dueAt, zoneId)
