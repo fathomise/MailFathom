@@ -306,15 +306,9 @@ function StateSheet({
             aria-label={translate('threadState.label')}
             data-pull="down"
             className="surface-sheet fixed inset-x-0 top-auto bottom-0 m-0 hidden h-auto max-h-sheet-height w-auto max-w-none flex-col gap-3 overflow-y-auto rounded-t-xl border-0 bg-panel px-4 pt-2.5 pb-safe-bottom text-text shadow-dialog backdrop:bg-scrim open:flex"
-            onCancel={(event) => {
-                event.preventDefault();
-                onClose();
-            }}
-            onClick={(event) => {
-                if (event.target === event.currentTarget) {
-                    onClose();
-                }
-            }}
+            // Every way out arrives through the one event the platform fires however the sheet left — Escape, a pull, a
+            // press beside it, or its own control — so the control that opened it opens it again.
+            onClose={onClose}
         >
             {/* The handle the design draws at the head of the sheet, which says a finger can push it away. */}
             <span aria-hidden="true" className="flex shrink-0 justify-center pb-1">
