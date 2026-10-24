@@ -243,7 +243,81 @@ public sealed class ClientOutboxEndpointTests
         var read = Assert.IsType<Ok<ClientOutboxPreviewResponse>>(result.Result);
         Assert.Equal(mine.Value, read.Value!.OutgoingEmail);
         Assert.True(read.Value.InOutbox);
-        Assert.Equal(outgoingEmails.Read(mine).AvailableAt, read.Value.AvailableAt);
+    }
+
+    /// <summary>A send put back to wait states when it may next be tried, which is not when it was written down.</summary>
+    [Fact]
+    public async Task ReadSendAsync_ASendWaitingForALaterAttempt_StatesWhenItMayNextBeTried()
+    {
+        // Arrange
+        var outgoingEmails = new InMemoryOutgoingEmailStore();
+        var mine = await QueueAsync(outgoingEmails, Work);
+        var nextAttempt = DateTimeOffset.UnixEpoch.AddMinutes(37);
+        await outgoingEmails.DeferAsync(
+            Substitute.For<IPersistenceSession>(),
+            outgoingEmails.Reassign(mine),
+            mine,
+            nextAttempt,
+            failure: null,
+            TestContext.Current.CancellationToken);
+
+        // Act
+        var result = await ClientOutboxEndpoints.ReadSendAsync(
+            mine.Value,
+            OutboxOver(outgoingEmails, Substitute.For<IOutboxOperationStore>()),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var read = Assert.IsType<Ok<ClientOutboxPreviewResponse>>(result.Result);
+        Assert.Equal(nextAttempt, read.Value!.AvailableAt);
+        Assert.NotEqual(read.Value.RecordedAt, read.Value.AvailableAt);
+    }
+
+    /// <summary>A row of the page states when its send may next be tried, as the outbox read answered it.</summary>
+    [Fact]
+    public async Task ReadPageAsync_ASendWaitingForALaterAttempt_StatesWhenItMayNextBeTried()
+    {
+        // Arrange
+        Assert.True(EmailAddress.TryCreate(displayName: null, "someone@example.test", out var address));
+        var recordedAt = DateTimeOffset.UnixEpoch;
+        var nextAttempt = recordedAt.AddMinutes(37);
+        var operations = Substitute.For<IOutboxOperationStore>();
+        operations
+            .ReadAccountOutboxAsync(Arg.Any<OutboxQuery>(), Arg.Any<CancellationToken>())
+            .Returns(new AccountOutboxPage(
+                [
+                    new AccountOutboxEntry
+                    {
+                        OutgoingEmailId = OutgoingEmailId.Create(Guid.CreateVersion7()),
+                        AccountId = Work,
+                        Stage = OutgoingEmailStage.Recorded,
+                        IsHeldByAttempt = false,
+                        NamedRecipients = [OutgoingRecipient.Create(address, OutgoingRecipientRole.To)],
+                        OtherRecipientCount = 0,
+                        Subject = "A send",
+                        RecordedAt = recordedAt,
+                        DueAt = null,
+                        AvailableAt = nextAttempt,
+                        AttemptCount = 1,
+                        LastFailure = null,
+                        LastReplyCode = null,
+                    },
+                ],
+                NextCursor: null));
+
+        // Act
+        var result = await ClientOutboxEndpoints.ReadPageAsync(
+            Work.Value,
+            stage: null,
+            pageSize: null,
+            cursor: null,
+            OutboxOver(new InMemoryOutgoingEmailStore(), operations),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var read = Assert.IsType<Ok<ClientOutboxPageResponse>>(result.Result);
+        var row = Assert.Single(read.Value!.Sends);
+        Assert.Equal((recordedAt, nextAttempt), (row.RecordedAt, row.AvailableAt));
     }
 
     /// <summary>A send from a mailbox this caller is not assigned answers as one nobody made.</summary>
