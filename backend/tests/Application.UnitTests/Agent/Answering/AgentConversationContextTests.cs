@@ -129,7 +129,9 @@ public sealed class AgentConversationContextTests
         Assert.NotNull(plan);
         Assert.Equal("They asked a.", plan.PreviousSummary);
         Assert.Empty(plan.Carried);
-        Assert.IsType<AgentProposedMessageTurn>(plan.Turns[0]);
+        var proposal = Assert.IsType<AgentProposedMessageTurn>(plan.Turns[0]);
+        Assert.Equal("Re: Revised figures", proposal.Subject);
+        Assert.Equal(["ada@northwind.example"], proposal.Recipients);
         Assert.Equal([Text("c"), Text("d")], plan.Turns.Skip(1).Select(TextOf));
     }
 

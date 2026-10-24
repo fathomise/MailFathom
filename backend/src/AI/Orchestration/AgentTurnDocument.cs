@@ -92,6 +92,8 @@ internal sealed class AgentTurnDocument : IDisposable
     private readonly Stack<string> openElements = new();
     private readonly XmlWriter writer;
     private readonly int maximumCharacters;
+    private int reservedCharacters;
+    private int topLevelElements;
 
     /// <summary>Initializes a document no larger than a budget.</summary>
     /// <param name="maximumCharacters">The most characters the finished document may hold, or <see cref="int.MaxValue" /> for no budget of the writer's own.</param>
@@ -117,6 +119,11 @@ internal sealed class AgentTurnDocument : IDisposable
     /// <param name="elementName">The element's name, which is one of this service's own constants and never anything a sender wrote.</param>
     internal void StartElement(string elementName)
     {
+        if (this.openElements.Count is 0)
+        {
+            this.topLevelElements++;
+        }
+
         this.writer.WriteStartElement(elementName);
         this.openElements.Push(elementName);
     }
@@ -171,6 +178,28 @@ internal sealed class AgentTurnDocument : IDisposable
 
         this.writer.WriteString(fitting);
     }
+
+    /// <summary>Keeps room for elements the caller writes later out of what quoted text written until <see cref="Release" /> may spend.</summary>
+    /// <param name="writeLater">Writes the later elements, each at the top level of a document and holding quoted text or nothing.</param>
+    /// <remarks>
+    /// What a document writes first is cut first, so an element that must survive a cut — the person's own words after
+    /// the correspondence they are about — is measured here before that correspondence is written and kept whole. The
+    /// room is measured by writing the elements into a document of their own, from above: each is allowed the line
+    /// break before it and the one <see cref="ClosingLength" /> counts for closing it.
+    /// </remarks>
+    internal void Reserve(Action<AgentTurnDocument> writeLater)
+    {
+        ArgumentNullException.ThrowIfNull(writeLater);
+
+        using var measuring = new AgentTurnDocument();
+        writeLater(measuring);
+
+        this.reservedCharacters = measuring.Complete().Length
+            + (measuring.topLevelElements * 2 * Settings.NewLineChars.Length);
+    }
+
+    /// <summary>Gives the room <see cref="Reserve" /> kept back to the elements it was kept for.</summary>
+    internal void Release() => this.reservedCharacters = 0;
 
     /// <summary>Writes the person's own words in the one element that speaks for them.</summary>
     /// <param name="ask">What the person asked, as they wrote it.</param>
@@ -242,7 +271,7 @@ internal sealed class AgentTurnDocument : IDisposable
             return quoted;
         }
 
-        var remaining = this.maximumCharacters - this.WrittenLength() - this.ClosingLength() - (alreadyCut ? CutAttributeLength : 0);
+        var remaining = this.maximumCharacters - this.reservedCharacters - this.WrittenLength() - this.ClosingLength() - (alreadyCut ? CutAttributeLength : 0);
         var escaped = EscapedLength(quoted);
 
         if (escaped <= remaining)

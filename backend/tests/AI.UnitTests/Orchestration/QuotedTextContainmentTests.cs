@@ -122,6 +122,12 @@ public sealed class QuotedTextContainmentTests
             ["reply draft: style sample"] = (
                 static text => ReplyDraftInstructions.ComposeDraftingTurn(Drafting(sample: text)),
                 ReplyDraftInstructions.SampleElementName),
+            ["reply draft: author"] = (
+                static text => ReplyDraftInstructions.ComposeDraftingTurn(Drafting(author: text)),
+                ReplyDraftInstructions.FromElementName),
+            ["reply draft: person"] = (
+                static text => ReplyDraftInstructions.ComposeDraftingTurn(Drafting(person: text)),
+                ReplyDraftInstructions.PersonElementName),
             ["agent compaction: earlier summary"] = (
                 static text => AgentConversationSummaryInstructions.ComposeTurn(text, Compacted()),
                 AgentHistoryDocument.SummaryElementName),
@@ -180,13 +186,15 @@ public sealed class QuotedTextContainmentTests
         string attachment = Harmless,
         string selection = Harmless,
         string ask = Harmless,
-        string sample = Harmless) => new(
+        string sample = Harmless,
+        string author = Harmless,
+        string person = Harmless) => new(
         subject,
-        [new GuardedDraftingPerson(0, "Anna")],
+        [new GuardedDraftingPerson(0, person)],
         [
             new GuardedDraftingMessage(
                 0,
-                "Anna",
+                author,
                 Now,
                 message,
                 IsChosen: true,

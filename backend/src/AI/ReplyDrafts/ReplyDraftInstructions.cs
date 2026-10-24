@@ -207,8 +207,9 @@ internal static class ReplyDraftInstructions
     /// written, which is what lets a date stated relatively be answered with the day it means.
     /// </para>
     /// <para>
-    /// What a bounded turn loses is the tail of the style samples it writes last, which cost the reply its manner rather
-    /// than its meaning; the correspondence itself was already bounded before it was read out of the store.
+    /// A bounded turn loses the person's own sent mail first, which costs the reply its manner rather than its meaning,
+    /// and then the tail of the correspondence. The selection and what the person typed are never cut for either: the
+    /// room they take is set aside before the correspondence is written, so it is the correspondence that gives way.
     /// </para>
     /// </remarks>
     internal static string ComposeDraftingTurn(GuardedDraftingTurn turn, int maximumCharacters = int.MaxValue)
@@ -227,20 +228,14 @@ internal static class ReplyDraftInstructions
         // one is a message answering nothing.
         if (turn.Messages.Count > 0)
         {
+            document.Reserve(reserved => WriteRequest(reserved, turn));
             WriteConversation(document, turn);
+            document.Release();
         }
 
-        if (turn.Selection is { } selection)
-        {
-            document.WriteQuoted(SelectionElementName, selection);
-        }
+        WriteRequest(document, turn);
 
-        if (turn.Instruction is { } instruction)
-        {
-            document.WriteAsk(instruction);
-        }
-
-        if (turn.StyleSamples.Count > 0)
+        if (turn.StyleSamples.Count > 0 && !document.IsExhausted)
         {
             WriteStyleSamples(document, turn.StyleSamples);
         }
@@ -253,6 +248,21 @@ internal static class ReplyDraftInstructions
         return document.Complete();
     }
 
+    /// <summary>Writes what the person asked for: the part of the correspondence they selected, and what they typed.</summary>
+    private static void WriteRequest(AgentTurnDocument document, GuardedDraftingTurn turn)
+    {
+        if (turn.Selection is { } selection)
+        {
+            document.WriteQuoted(SelectionElementName, selection);
+        }
+
+        if (turn.Instruction is { } instruction)
+        {
+            document.WriteAsk(instruction);
+        }
+    }
+
+    /// <summary>Writes the correspondence, opening nothing more once the budget has cut it.</summary>
     private static void WriteConversation(AgentTurnDocument document, GuardedDraftingTurn turn)
     {
         document.StartElement(ConversationElementName);
@@ -264,6 +274,11 @@ internal static class ReplyDraftInstructions
 
         foreach (var person in turn.People)
         {
+            if (document.IsExhausted)
+            {
+                break;
+            }
+
             document.StartElement(PersonElementName);
             document.WriteAttribute(NumberAttributeName, Number(person.Position));
             WriteOptionalContent(document, person.DisplayName);
@@ -304,10 +319,18 @@ internal static class ReplyDraftInstructions
             document.WriteQuoted(FromElementName, author);
         }
 
-        document.WriteQuoted(TextElementName, message.Text);
+        if (!document.IsExhausted)
+        {
+            document.WriteQuoted(TextElementName, message.Text);
+        }
 
         foreach (var attachment in message.Attachments)
         {
+            if (document.IsExhausted)
+            {
+                break;
+            }
+
             document.StartElement(attachment.Kind is AttachmentTextKind.ImageDescription
                 ? PictureDescribedElementName
                 : AttachmentElementName);

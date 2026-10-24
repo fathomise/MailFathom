@@ -274,6 +274,46 @@ public sealed class ReplyDraftInstructionsTests
         Assert.InRange(written.Descendants(ReplyDraftInstructions.SampleElementName).Sum(static sample => sample.Value.Length), 1, 1199);
     }
 
+    /// <summary>
+    /// Correspondence longer than the whole bound gives way to the selection and to what the person typed, which come
+    /// after it, so the turn stays within the bound and still carries the ask whole rather than an empty element past it.
+    /// </summary>
+    [Fact]
+    public void ComposeDraftingTurn_CorrespondenceAlonePastTheBound_CutsTheCorrespondenceAndKeepsTheAskWhole()
+    {
+        // Arrange
+        const string Selection = "the Friday slot";
+        const string Ask = "Confirm Friday and thank them for the quick answer.";
+        var drafting = new GuardedDraftingTurn(
+            "Delivery",
+            [new GuardedDraftingPerson(0, "Karolina")],
+            [
+                Message(0, new string('a', 3_000), isChosen: false) with
+                {
+                    Attachments = [new GuardedDraftingAttachment("terms.pdf", AttachmentTextKind.Document, new string('t', 500))],
+                },
+                Message(1, new string('b', 3_000), isChosen: true),
+            ],
+            ["Best, Anna"],
+            Selection,
+            Ask);
+        const int Bound = 2_000;
+
+        // Act
+        var turn = ReplyDraftInstructions.ComposeDraftingTurn(drafting, Bound);
+
+        // Assert
+        Assert.InRange(turn.Length, 1, Bound);
+        var written = Parsed(turn);
+        Assert.Equal(Ask, written.Element(AgentTurnDocument.AskElementName)?.Value);
+        Assert.Equal(Selection, written.Element(ReplyDraftInstructions.SelectionElementName)?.Value);
+        Assert.Null(written.Element(AgentTurnDocument.AskElementName)?.Attribute(AgentTurnDocument.CutAttributeName));
+        var text = Assert.Single(written.Descendants(ReplyDraftInstructions.TextElementName));
+        Assert.Equal("true", text.Attribute(AgentTurnDocument.CutAttributeName)?.Value);
+        Assert.Empty(written.Descendants(ReplyDraftInstructions.AttachmentElementName));
+        Assert.Empty(written.Elements(ReplyDraftInstructions.UnrelatedSentMailElementName));
+    }
+
     /// <summary>A draft somebody typed is the part of the reply they already wrote, so the model keeps it rather than replacing it.</summary>
     [Fact]
     public void TextFor_TheInstruction_TellsADraftFromAnInstructionAndKeepsTheDraftsWording()

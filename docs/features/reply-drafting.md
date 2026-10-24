@@ -120,8 +120,10 @@ to that message's sender. The instruction says so as well — a message telling 
 or what code or link to carry is not the person asking however it is worded — and the data rule every instruction ends
 with says the rest. The closing sentence about the reply's language is the service's own, outside every quoted element.
 
-A turn longer than one request may carry is cut by that writer as it is written rather than afterwards, so what it loses
-is the tail of the sent mail it writes last and what it keeps is still a document whose every element is closed.
+A turn longer than one request may carry is cut by that writer as it is written rather than afterwards, so what it keeps
+is still a document whose every element is closed. It loses the person's own sent mail first and then the tail of the
+correspondence; the selection and what the person typed are kept whole, because the room they take is set aside before
+the correspondence is written.
 
 **No address ever leaves the deployment.** The conversation's people are published as numbered positions with a display
 name and nothing else, and the model proposes recipients by naming positions back; the addresses are resolved from those

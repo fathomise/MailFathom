@@ -14,6 +14,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.Discovery.Presentation;
+using MailFathom.Application.Discovery.Presentation.Blocks;
 using MailFathom.Application.Mail.Delivery.Authoring;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.Signals;
@@ -1363,15 +1364,44 @@ internal sealed record AgentConversationScenario(
     /// <summary>Reads the history the way a deployment reads a conversation's record before a turn.</summary>
     /// <returns>What a turn is composed from, and what a compaction is planned over.</returns>
     internal AgentConversationContext Context() =>
-        AgentConversationContext.Read(
-        [
-            .. this.History.Select(static (turn, index) =>
-                new AgentMessageWritten(
-                    AgentMessageId.New(),
-                    turn is AgentWrittenTurn { Author: AgentMessageAuthor.Person } ? AgentMessageAuthor.Person : AgentMessageAuthor.Agent,
-                    PresentationText.Create(HistoryTextOf(turn)),
-                    Scope: null) with { Sequence = index + 1 }),
-        ]);
+        AgentConversationContext.Read([.. this.History.Select(static (turn, index) => EntryOf(turn, index + 1L))]);
+
+    /// <summary>Writes a history turn as the entry a deployment records for it, so the turn is read back as the kind it is.</summary>
+    /// <remarks>
+    /// A summary opening a case stands in for nothing the case wrote before it, so it is recorded as a compaction covering
+    /// its own place, which leaves every turn after it to be sent verbatim. A proposal's body is never read back into a
+    /// history, so it repeats the subject only to be a draft the block accepts.
+    /// </remarks>
+    private static AgentConversationEntry EntryOf(AgentHistoryTurn turn, long place) =>
+        UnplacedEntryOf(turn, place) with { Sequence = place };
+
+    private static AgentConversationEntry UnplacedEntryOf(AgentHistoryTurn turn, long place) => turn switch
+    {
+        AgentWrittenTurn written => new AgentMessageWritten(
+            AgentMessageId.New(),
+            written.Author,
+            PresentationText.Create(written.Text),
+            Scope: null),
+        AgentProposedMessageTurn proposal => ProposalOf(proposal),
+        AgentSummaryTurn summary => new AgentConversationCompacted(AgentMessageId.New(), Through: place, summary.Summary, Carried: []),
+        _ => throw new ArgumentOutOfRangeException(nameof(turn), turn, "The turn is of a kind no case writes."),
+    };
+
+    private static AgentActionProposed ProposalOf(AgentProposedMessageTurn proposal)
+    {
+        EmailAddress[] recipients = [.. proposal.Recipients.Select(RecipientOf)];
+        var subject = PresentationText.Create(proposal.Subject);
+
+        return new AgentActionProposed(
+            AgentMessageId.New(),
+            new DraftBlock(PresentationEvidence.Unsupported(PresentationFreshness.Unknown), recipients, subject, subject, DraftDisposition.Composed),
+            new AgentMessageSending(CorpusKnowledgeSearch.Account.Value, recipients, subject, subject));
+    }
+
+    private static EmailAddress RecipientOf(string address) =>
+        EmailAddress.TryCreate(displayName: null, address, out var recipient)
+            ? recipient
+            : throw new InvalidOperationException($"A case proposes a message to \"{address}\", which is not an address.");
 
     /// <summary>States the question the way a deployment hands it to the Agent: who asked, what they were looking at, and when.</summary>
     private AgentQuestion AgentQuestion() =>
