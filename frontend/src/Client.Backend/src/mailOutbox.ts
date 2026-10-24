@@ -342,7 +342,7 @@ function answered<TValue>(
 function parseDecision(value: unknown): MailOutboxDecision | null {
     const outcome = asRecord(value)?.['outcome'];
 
-    return (typeof outcome === 'string' ? decisions[outcome] : undefined) ?? null;
+    return (typeof outcome === 'string' && Object.hasOwn(decisions, outcome) ? decisions[outcome] : undefined) ?? null;
 }
 
 function parsePage(value: unknown): MailOutboxPage | null {

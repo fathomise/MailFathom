@@ -69,6 +69,12 @@ describe('withdrawOutgoingMail', () => {
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
 
+    it.each(['constructor', 'toString', '__proto__'])('refuses %s, which names no outcome, as unreadable', async (outcome) => {
+        const answer = await withdrawOutgoingMail(session, answering(deciding(outcome)), outgoingEmailId);
+
+        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
+    });
+
     it('refuses a body that is not JSON as unreadable', async () => {
         const answer = await withdrawOutgoingMail(
             session,

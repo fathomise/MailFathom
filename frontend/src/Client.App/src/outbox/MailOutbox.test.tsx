@@ -34,6 +34,7 @@ type Send = (typeof outbox.outboxPage.sends)[number];
 function deployment(sends: readonly Send[] = outbox.outboxPage.sends, refusing = false) {
     const requests: ClientRequest[] = [];
     let held = sends;
+    let pagesHeldBack = false;
 
     const transport: MailFathomTransport = (request) => {
         requests.push(request);
@@ -52,7 +53,7 @@ function deployment(sends: readonly Send[] = outbox.outboxPage.sends, refusing =
         }
 
         if (path === '/outbox') {
-            return answering({ sends: held, nextCursor: null });
+            return pagesHeldBack ? new Promise<never>(() => undefined) : answering({ sends: held, nextCursor: null });
         }
 
         const send = held.find(({ outgoingEmail }) => path === `/outbox/${outgoingEmail}`);
@@ -72,6 +73,9 @@ function deployment(sends: readonly Send[] = outbox.outboxPage.sends, refusing =
         pageReads: () => requests.filter((request) => new URL(request.path).pathname.endsWith('/outbox')).length,
         leaves: (outgoingEmail: string) => {
             held = held.filter((send) => send.outgoingEmail !== outgoingEmail);
+        },
+        holdPagesBack: () => {
+            pagesHeldBack = true;
         },
     };
 }
@@ -325,6 +329,38 @@ describe('the Outbox preview', () => {
         await waitFor(() => {
             expect(held.posted('/outbox/dismissal')).toStrictEqual([{ outgoingEmail: outbox.unknownSend.outgoingEmail }]);
         });
+    });
+
+    it('keeps a dismissed send off the list once the deployment took it, before the page is read again', async () => {
+        const held = deployment();
+
+        drawing(held.transport, { entry: outbox.unknownSend.outgoingEmail });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
+        held.holdPagesBack();
+
+        const readsBefore = held.pageReads();
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Close' }));
+
+        await waitFor(() => {
+            expect(held.pageReads()).toBe(readsBefore + 1);
+        });
+        expect(within(screen.getByRole('list', { name: 'Outbox' })).queryByText('Re: proposed terms for 2027')).toBeNull();
+    });
+
+    it('puts focus on what the pane draws once the send it stood on has left', async () => {
+        drawing(deployment().transport, { entry: outbox.waitingSend.outgoingEmail });
+
+        const withdrawing = await screen.findByRole('button', { name: 'Cancel sending' });
+
+        withdrawing.focus();
+        fireEvent.click(withdrawing);
+
+        await waitFor(() => {
+            expect(document.activeElement?.getAttribute('role')).toBe('status');
+        });
+        expect(document.activeElement?.textContent).toContain('Nothing open');
     });
 
     it('lets go of a send the deployment no longer holds, leaving the Outbox open with nothing in the pane', async () => {

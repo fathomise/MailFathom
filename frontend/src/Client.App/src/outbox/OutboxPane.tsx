@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
     readOutgoingMail,
     type ClientFailureReason,
@@ -70,13 +70,30 @@ export function OutboxPane({
 }) {
     const { translate } = useLocalization();
     const { page } = useMailOutbox();
+    const nothingOpen = useRef<HTMLDivElement>(null);
+    const shownEntry = useRef(outbox.entry);
+
+    // A send leaving takes the controls it was decided with along with it, so focus that stood on one would be left on
+    // nothing. It moves to what the pane draws instead, and only when it was lost: a send leaving while the reader was
+    // elsewhere takes nothing from them.
+    useEffect(() => {
+        const closed = shownEntry.current !== null && outbox.entry === null;
+
+        shownEntry.current = outbox.entry;
+
+        if (closed && (document.activeElement === null || document.activeElement === document.body)) {
+            nothingOpen.current?.focus();
+        }
+    }, [outbox.entry]);
 
     if (outbox.entry === null) {
         const empty = page.kind === 'read' && page.sends.length === 0;
 
         return (
             <div
+                ref={nothingOpen}
                 role="status"
+                tabIndex={-1}
                 className="flex min-h-full flex-1 flex-col items-center justify-center gap-4 bg-sunken p-8 text-center"
             >
                 <span className="flex size-11.5 items-center justify-center rounded-xl bg-rail text-muted">

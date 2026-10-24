@@ -128,6 +128,11 @@ export function MailOutboxProvider({
             );
 
             if (result.outcome === 'read') {
+                // A send stays hidden for as long as a page still lists it, so one the deployment took a dismissal of
+                // is not drawn again between that answer and the read that no longer holds it.
+                const listed = new Set(result.value.sends.map((send) => send.outgoingEmailId));
+
+                setHidden((current) => current.filter((hiddenId) => listed.has(hiddenId)));
                 arrived(result.value.sends);
             }
         });
@@ -244,12 +249,12 @@ export function MailOutboxProvider({
                 }
 
                 void dismissOutgoingMail(session, transport, id).then((result) => {
-                    setHidden((current) => current.filter((hiddenId) => hiddenId !== id));
-                    readAgain();
-
                     if (result.outcome === 'failed' || result.value !== 'accepted') {
+                        setHidden((current) => current.filter((hiddenId) => hiddenId !== id));
                         decided(result, { kind: 'neutral', title: translate('outbox.dismissedTitle') });
                     }
+
+                    readAgain();
                 });
             },
         });
