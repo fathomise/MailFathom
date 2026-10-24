@@ -3,8 +3,9 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { pressOpensAfter } from '../contextMenu/rowPress';
+import { focusByKey } from '../controls/useTip.harness';
 import { LocalizationProvider } from '../localization/Localization';
 import { WidthGrip } from './WidthGrip';
 import { listWidthStep, narrowestList, startingListWidth, widestList } from './listWidth';
@@ -33,6 +34,10 @@ function renderGrip(width = 400): { chosen: ReturnType<typeof vi.fn>; grip: HTML
 }
 
 describe('WidthGrip', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
     it('stands as a separator naming what it moves, so a reader finds it by what it is', () => {
         const { grip } = renderGrip();
 
@@ -117,10 +122,16 @@ describe('WidthGrip', () => {
             vi.advanceTimersByTime(pressOpensAfter);
         });
         fireEvent.pointerUp(grip, { pointerId: 1, pointerType: 'touch', clientX: 680, clientY: 10 });
-        const afterDrag = screen.queryByRole('tooltip');
-        vi.useRealTimers();
 
-        expect(afterDrag).toBeNull();
+        expect(screen.queryByRole('tooltip')).toBeNull();
+    });
+
+    it('says how it is used to a key that reaches it', () => {
+        const { grip } = renderGrip();
+
+        focusByKey(grip);
+
+        expect(screen.getByRole('tooltip').textContent).toBe(listBoundary.hint);
     });
 
     it('ignores a second pointer arriving mid-drag, so two fingers cannot fight over one boundary', () => {

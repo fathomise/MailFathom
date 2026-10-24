@@ -40,9 +40,10 @@ for a pointer resting on something is missing from every phone, fold and tablet 
   mouse, a key and a finger's hold alike — `state-inventory.md`, *A control's name*. An artboard draws no tooltip of
   its own and no hover-only label beside it.
 - A control that cannot act says why on a tap, and is marked `aria-disabled="true"` so the bubble answers that tap.
-- Something inside a row whose own hold opens a menu carries `data-tip-hover`, and what it said is drawn again under
-  that menu's header (`ctxMenuDetail`). One held finger opens one surface — never a name and a menu, or a name and a
-  swipe, at once.
+- Something inside a row whose own hold opens a menu carries `data-tip-hover`, and a fact it said reaches a finger
+  another way: drawn again under that menu's header (`ctxMenuDetail`, passed to `pressFor`), or carried by what the
+  row already draws — `state-inventory.md`, *A row's hidden facts*. One held finger opens one surface — never a name
+  and a menu, or a name and a swipe, at once.
 - An action no glyph names keeps its words where the strip has room for them, and *Select all* keeps them everywhere.
 
 ## Fast, in balance

@@ -3676,7 +3676,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           .concat(ACCOUNTS.map(a => ({ key: a.key, label: a.label, title: a.address, dot: a.dot, folders: STD_FOLDERS(a.counts) })))
           .map(g => {
           const open = (st.accOpen || {})[g.key] !== false;
-          const press = g.key === "all" ? null : this.pressFor("account", g.key, g.label, this.accountMenu(g.key, g.label));
+          const press = g.key === "all" ? null : this.pressFor("account", g.key, g.label, this.accountMenu(g.key, g.label), undefined, g.title);
           return {
             label: g.label, title: g.title, open, chevron: open ? "expand_more" : "chevron_right",
             showHeader: !sideCollapsed, showDot: sideCollapsed,
@@ -3705,11 +3705,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               const active = (st.folderKey || "acc1·Inbox") === fk;
               const dragOver = st.dragOverKey === fk;
               const canNest = node.path.split("/").length < this.MAX_DEPTH;
-              const fpress = g.key === "all" ? null : this.pressFor("folder", fk, label, this.folderMenu(g.key, g.label, node.path, canNest, node.custom));
+              const said = g.title + " - " + node.path.split("/").join(" / ") + (node.count ? " · " + node.count : "");
+              const fpress = g.key === "all" ? null : this.pressFor("folder", fk, label, this.folderMenu(g.key, g.label, node.path, canNest, node.custom), undefined, said);
               return {
               ctxOpen: fpress ? fpress.ctx : noop, pressDown: fpress ? fpress.down : noop, pressUp: fpress ? fpress.up : noop,
               icon: node.icon, label: label, count: node.count, expanded: !sideCollapsed,
-              title: g.title + " - " + node.path.split("/").join(" / ") + (node.count ? " · " + node.count : ""),
+              title: said,
               pick: () => this.pickFolder(fk, label),
               dragOver: (e) => this.dragOverFolder(fk, e),
               dragLeave: () => this.dragLeaveFolder(fk),
