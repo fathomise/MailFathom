@@ -3110,7 +3110,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         this.setBk(key, { phase: "accepted", result: "Opened in the composer · " + this.hm() });
         /* It lands as an AI draft still to be accepted there, exactly as one written in the composer would. */
         this.pendingDraft = this.draftParas(key, b).map(t => "<p>" + t + "</p>").join("");
-        this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: "contoso", compose: true, composeMin: false, replyMode: "reply", composeSubjEdit: b.subject, closeAsk: false, sendAsk: null });
+        /* The same reply composer *Draft a reply* opens, so the thread stands as the draft's context. */
+        this.goScreen("mail", { composeSubjEdit: b.subject, closeAsk: false, sendAsk: null });
+        this.startReply("reply", ["contoso"]);
         this.notify("Nothing is sent until you send it from there.", { kind: "success", title: "Draft opened in the composer" });
         return;
       }
