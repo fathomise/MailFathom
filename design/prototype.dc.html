@@ -717,7 +717,7 @@ Project repository: https://github.com/fathomise/MailFathom
           </sc-if>
           <sc-if value="{{ listFull }}" hint-placeholder-val="{{ true }}">
           <sc-if value="{{ showFab }}" hint-placeholder-val="{{ false }}">
-            <div onClick="{{ openCompose }}" title="New message" style="{{ mailFabStyle }}" style-hover="cursor:pointer;opacity:0.92"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:24px;line-height:1">edit_square</span></div>
+            <div role="button" tabIndex="0" onClick="{{ openCompose }}" title="New message" aria-label="New message" style="{{ mailFabStyle }}" style-hover="cursor:pointer;opacity:0.92"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:24px;line-height:1">edit_square</span></div>
           </sc-if>
           <div style="{{ listHeadStyle }}">
             <sc-if value="{{ listNarrowable }}" hint-placeholder-val="{{ false }}">
@@ -865,7 +865,7 @@ Project repository: https://github.com/fathomise/MailFathom
             <div style="font-size:14px;line-height:1.55;color:var(--muted);text-align:center;text-wrap:pretty">{{ emptyMailText }}</div>
           </div>
           <div style="display:flex;gap:9px;flex-wrap:wrap;justify-content:center">
-            <div onClick="{{ openCompose }}" style="font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:9px 16px" style-hover="cursor:pointer;opacity:0.9">New message</div>
+            <div role="button" tabIndex="0" onClick="{{ openCompose }}" style="font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:9px 16px" style-hover="cursor:pointer;opacity:0.9">New message</div>
             <div onClick="{{ openLastThread }}" style="font-size:13px;color:var(--text2);background:var(--panel);border:1px solid var(--border2);border-radius:8px;padding:9px 16px" style-hover="cursor:pointer;background:var(--hover)">Open last thread</div>
             <div onClick="{{ goDiscover }}" style="font-size:13px;color:var(--text2);background:var(--panel);border:1px solid var(--border2);border-radius:8px;padding:9px 16px" style-hover="cursor:pointer;background:var(--hover)">Ask about the history</div>
           </div>
@@ -1154,6 +1154,23 @@ Project repository: https://github.com/fathomise/MailFathom
           <sc-if value="{{ replyFabShown }}" hint-placeholder-val="{{ true }}">
             <div data-motion="pop" role="button" tabIndex="0" aria-expanded="{{ replyChooserOpen }}" onClick="{{ toggleReplyChooser }}" title="{{ replyFabTitle }}" aria-label="{{ replyFabTitle }}" style="{{ replyFabStyle }}" style-hover="cursor:pointer;filter:brightness(1.08)">
               <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:22px;line-height:1">{{ replyFabIcon }}</span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ replyDockOpen }}" hint-placeholder-val="{{ false }}">
+            <div data-motion="rise" data-phase="{{ mo.replyDock }}" style="{{ composerStyle }}">
+              <div onClick="{{ closeReplyDock }}" title="Close the reply drafter" aria-label="Close the reply drafter" style="{{ replyDockCloseStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">close</div>
+              <div style="{{ composerBarStyle }}">
+                <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--accent-d);flex:0 0 auto">auto_awesome</span>
+                <div style="{{ composerPhStyle }}">{{ composerPlaceholder }}</div>
+                <div onClick="{{ draftReplyFromDock }}" style="{{ askThreadBtnStyle }}" style-hover="opacity:0.88;cursor:pointer">{{ askThreadLabel }}</div>
+              </div>
+              <sc-if value="{{ showComposerChips }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:0 2px">
+                  <div style="font-size:12px;background:var(--accent-soft);color:var(--accent-d);border-radius:16px;padding:5px 11px">Scope: this thread</div>
+                  <div style="font-size:12px;background:var(--rail);border:1px solid var(--line);border-radius:16px;padding:5px 11px">+ selected passage</div>
+                  <div style="margin-left:auto;font-size:12px;color:var(--muted)">Draft stays local until confirmed</div>
+                </div>
+              </sc-if>
             </div>
           </sc-if>
         </div>

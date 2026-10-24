@@ -3,9 +3,8 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect } from 'react';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ClientRequest, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
 import type { ComposerOpening } from '../composer/composition';
 import { ComposingContext } from '../composer/useComposing';
 import { LocalizationProvider } from '../localization/Localization';
@@ -13,22 +12,12 @@ import { AgentHandOverContext, type AgentHandOver } from '../routing/agentHandOv
 import { ToastsProvider } from '../toasts/Toasts';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import { useWorkspace, type Workspace } from '../workspace/useWorkspace';
-import { ReplyDraftCard } from './ReplyDraftCard';
-import { ReplyDraftingContext } from './replyDrafting';
 import { ThreadAgentField } from './ThreadAgentField';
-import { useReplyDraftingState } from './useReplyDraftingState';
 
-// The field and the card are drawn a scroller apart and share one draft, so they are driven together here, through the
-// state the frame holds for them and a transport answering the one route they reach. What is asserted is what a reader
-// meets: the two choices the AI button unfolds, the wording at each composition, the card that appears, and where focus
-// goes when it leaves.
-
-const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
+// What is asserted is what a reader meets: the two choices the AI button unfolds, the wording at each composition, the
+// composer the drafter opens, and where focus goes when it leaves.
 
 const answering = '00000000-0000-4000-8000-000000000042';
-const another = '00000000-0000-4000-8000-000000000043';
-
-const draftedWords = 'We accept the two-hour response time.';
 
 // jsdom answers every media query `false` unless something says otherwise, which is the phone reading; a test about a
 // wider composition states which.
@@ -61,30 +50,6 @@ function theTabletComposition(): void {
     widthsMatching((query) => query.includes('43.75rem') || query.includes('51.25rem'));
 }
 
-function answeringDrafts(drafting: { readonly status: number; readonly body: string } | null = null): {
-    readonly transport: MailFathomTransport;
-    readonly asked: ClientRequest[];
-} {
-    const asked: ClientRequest[] = [];
-
-    return {
-        asked,
-        transport: (request) => {
-            asked.push(request);
-
-            const answer = drafting ?? {
-                status: 200,
-                body: JSON.stringify({ drafted: true, body: draftedWords, claims: [], proposedRecipients: [] }),
-            };
-
-            return Promise.resolve({ ...answer, headers: {} });
-        },
-    };
-}
-
-/** A deployment that has not answered yet, and will not while the test is looking. */
-const neverAnswering: MailFathomTransport = () => new Promise(() => undefined);
-
 function Standing({ as }: { readonly as: Partial<Workspace> }) {
     const { revise } = useWorkspace();
 
@@ -103,53 +68,33 @@ function Reporting({ onWorkspace }: { readonly onWorkspace: (workspace: Workspac
     return null;
 }
 
-const signedInAs = 'https://mail.example.invalid\nagata';
-
 const thread: AgentHandOver = {
     scope: { kind: 'thread', subject: '00000000-0000-4000-8000-000000000099' },
     title: 'Service level agreement',
 };
 
-function Frame({
-    person,
-    presented,
-    transport,
-    drafts,
-}: {
-    readonly person: string;
-    readonly presented: ClientSession;
-    readonly transport: MailFathomTransport;
-    readonly drafts: boolean;
-}) {
-    const drafting = useReplyDraftingState(person, presented, transport);
-
-    return (
-        <ReplyDraftingContext value={drafting}>
-            <ReplyDraftCard under={answering} />
-            <ThreadAgentField thread={thread} drafts={drafts} />
-        </ReplyDraftingContext>
-    );
-}
-
 function drawing(
-    transport: MailFathomTransport,
     as: Partial<Workspace> = {},
     offered = true,
     {
         handToAgent = null,
         drafts = true,
-    }: { handToAgent?: ((handOver: AgentHandOver) => void) | null; drafts?: boolean } = {},
+        takesTheKeyboard = false,
+        onKeyboardTaken = () => undefined,
+    }: {
+        handToAgent?: ((handOver: AgentHandOver) => void) | null;
+        drafts?: boolean;
+        takesTheKeyboard?: boolean;
+        onKeyboardTaken?: () => void;
+    } = {},
 ): {
     composed: ReturnType<typeof vi.fn<(opening: ComposerOpening) => void>>;
     workspace: () => Workspace;
-    opening: (selection: string) => void;
-    renewing: () => void;
-    signingIn: (person: string) => void;
 } {
     const composed = vi.fn<(opening: ComposerOpening) => void>();
     let last: Workspace | null = null;
 
-    const tree = (standing: Partial<Workspace>, presented: ClientSession = session, person = signedInAs) => (
+    render(
         <LocalizationProvider>
             <ToastsProvider>
                 <WorkspaceProvider>
@@ -157,8 +102,13 @@ function drawing(
                         value={{ offered, drafts: true, opening: null, compose: composed, close: () => undefined }}
                     >
                         <AgentHandOverContext value={handToAgent}>
-                            <Standing as={standing} />
-                            <Frame person={person} presented={presented} transport={transport} drafts={drafts} />
+                            <Standing as={{ selection: answering, ...as }} />
+                            <ThreadAgentField
+                                thread={thread}
+                                drafts={drafts}
+                                takesTheKeyboard={takesTheKeyboard}
+                                onKeyboardTaken={onKeyboardTaken}
+                            />
                             <Reporting
                                 onWorkspace={(workspace) => {
                                     last = workspace;
@@ -168,24 +118,11 @@ function drawing(
                     </ComposingContext>
                 </WorkspaceProvider>
             </ToastsProvider>
-        </LocalizationProvider>
+        </LocalizationProvider>,
     );
-
-    const { rerender } = render(tree({ selection: answering, ...as }));
 
     return {
         composed,
-        opening: (selection) => {
-            rerender(tree({ selection }));
-        },
-        // A renewal replaces the credential an hour before it expires, and the frame builds a new session object
-        // for it, with nobody having signed out or in.
-        renewing: () => {
-            rerender(tree({ selection: answering, ...as }, { ...session, authorization: 'Bearer renewed' }));
-        },
-        signingIn: (person) => {
-            rerender(tree({ selection: answering, ...as }, { ...session, authorization: 'Basic b3RoZXI=' }, person));
-        },
         workspace: () => {
             if (last === null) {
                 throw new Error('The workspace was never reported.');
@@ -219,8 +156,17 @@ function draftingAReply(): void {
 }
 
 describe('ThreadAgentField', () => {
+    it('takes the keyboard onto the AI button as it is drawn where a composer it opened handed it back', () => {
+        const taken = vi.fn<() => void>();
+
+        drawing({}, true, { takesTheKeyboard: true, onKeyboardTaken: taken });
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: aiButton }));
+        expect(taken).toHaveBeenCalledOnce();
+    });
+
     it('stands folded into the AI button until somebody asks for it', () => {
-        drawing(answeringDrafts().transport);
+        drawing();
 
         expect(screen.getByRole('button', { name: aiButton }).getAttribute('aria-expanded')).toBe('false');
         expect(screen.queryByRole('button', { name: 'Draft a reply' })).toBeNull();
@@ -228,7 +174,7 @@ describe('ThreadAgentField', () => {
     });
 
     it('unfolds its two choices from the AI button, with the keyboard on the first', () => {
-        drawing(answeringDrafts().transport, {}, true, { handToAgent: () => undefined });
+        drawing({}, true, { handToAgent: () => undefined });
 
         fireEvent.click(screen.getByRole('button', { name: aiButton }));
 
@@ -244,7 +190,7 @@ describe('ThreadAgentField', () => {
     });
 
     it('folds the choices again on Escape, and puts the keyboard back on the AI button', () => {
-        drawing(answeringDrafts().transport, {}, true, { handToAgent: () => undefined });
+        drawing({}, true, { handToAgent: () => undefined });
 
         fireEvent.click(screen.getByRole('button', { name: aiButton }));
         fireEvent.keyDown(screen.getByRole('button', { name: 'Draft a reply' }), { key: 'Escape' });
@@ -254,7 +200,7 @@ describe('ThreadAgentField', () => {
     });
 
     it('folds the choices when somebody presses anywhere else', () => {
-        drawing(answeringDrafts().transport, {}, true, { handToAgent: () => undefined });
+        drawing({}, true, { handToAgent: () => undefined });
 
         fireEvent.click(screen.getByRole('button', { name: aiButton }));
         fireEvent.pointerDown(document.body);
@@ -265,7 +211,7 @@ describe('ThreadAgentField', () => {
     it('hands the conversation to the agent from *Ask*', () => {
         const handToAgent = vi.fn<(handOver: AgentHandOver) => void>();
 
-        drawing(answeringDrafts().transport, {}, true, { handToAgent });
+        drawing({}, true, { handToAgent });
 
         fireEvent.click(screen.getByRole('button', { name: aiButton }));
         fireEvent.click(screen.getByRole('button', { name: 'Ask' }));
@@ -275,7 +221,7 @@ describe('ThreadAgentField', () => {
     });
 
     it('offers *Ask* alone where the deployment drafts no replies', () => {
-        drawing(answeringDrafts().transport, {}, true, { handToAgent: () => undefined, drafts: false });
+        drawing({}, true, { handToAgent: () => undefined, drafts: false });
 
         fireEvent.click(screen.getByRole('button', { name: aiButton }));
 
@@ -284,7 +230,7 @@ describe('ThreadAgentField', () => {
     });
 
     it('offers *Draft a reply* alone where this credential has no agent to ask', () => {
-        drawing(answeringDrafts().transport);
+        drawing();
 
         fireEvent.click(screen.getByRole('button', { name: aiButton }));
 
@@ -293,13 +239,13 @@ describe('ThreadAgentField', () => {
     });
 
     it('draws nothing where neither choice is offered', () => {
-        drawing(answeringDrafts().transport, {}, true, { drafts: false });
+        drawing({}, true, { drafts: false });
 
         expect(screen.queryByRole('button', { name: aiButton })).toBeNull();
     });
 
     it('opens the drafter from its choice, with the keyboard in the field', () => {
-        drawing(answeringDrafts().transport);
+        drawing();
 
         openingTheDrafter();
 
@@ -309,7 +255,7 @@ describe('ThreadAgentField', () => {
     });
 
     it('folds the drafter back into its button from the close badge, and puts the keyboard on the button', () => {
-        drawing(answeringDrafts().transport);
+        drawing();
         openingTheDrafter();
 
         fireEvent.click(screen.getByRole('button', { name: 'Close the reply drafter' }));
@@ -318,37 +264,53 @@ describe('ThreadAgentField', () => {
         expect(document.activeElement).toBe(screen.getByRole('button', { name: aiButton }));
     });
 
-    it('puts the keyboard on the drafter’s field when a draft is discarded with the drafter open', async () => {
-        drawing(answeringDrafts().transport);
+    it('opens the reply composer on the message being read, asking it for the reply that was typed', () => {
+        const { composed } = drawing({ fragment: { messageId: answering, text: 'the response time is two hours' } });
+
+        fireEvent.change(field(), { target: { value: 'accept the SLA' } });
+        draftingAReply();
+
+        expect(composed).toHaveBeenCalledExactlyOnceWith({
+            kind: 'answer',
+            answers: 'senderOnly',
+            storedEmailId: answering,
+            drafting: { asked: 'accept the SLA', passage: 'the response time is two hours' },
+        });
+    });
+
+    it('asks for a reply with nothing typed, the press alone being the request', () => {
+        const { composed } = drawing();
 
         draftingAReply();
-        const discard = await screen.findByRole('button', { name: 'Discard draft' });
-        openingTheDrafter();
-        fireEvent.click(discard);
 
-        expect(screen.queryByRole('region', { name: 'Draft · local' })).toBeNull();
-        expect(document.activeElement).toBe(screen.getByRole('textbox', { name: drafterName }));
+        expect(composed).toHaveBeenCalledExactlyOnceWith({
+            kind: 'answer',
+            answers: 'senderOnly',
+            storedEmailId: answering,
+            drafting: { asked: '', passage: null },
+        });
     });
 
     it('folds the drafter back on Escape', () => {
-        drawing(answeringDrafts().transport);
+        drawing();
 
         fireEvent.keyDown(field(), { key: 'Escape' });
 
         expect(screen.queryByRole('form', { name: drafterName })).toBeNull();
     });
 
-    it('folds the drafter back once the reply is asked for', () => {
-        drawing(answeringDrafts().transport);
+    it('folds the drafter back once the reply is asked for, and starts the next one empty', () => {
+        drawing();
 
+        fireEvent.change(field(), { target: { value: 'accept the SLA' } });
         draftingAReply();
 
         expect(screen.queryByRole('form', { name: drafterName })).toBeNull();
-        expect(screen.getByRole('button', { name: aiButton })).toBeDefined();
+        expect(field()).toHaveProperty('value', '');
     });
 
     it('keeps what was typed while it is folded, so reopening it is not starting again', () => {
-        drawing(answeringDrafts().transport);
+        drawing();
 
         fireEvent.change(field(), { target: { value: 'accept the SLA' } });
         fireEvent.click(screen.getByRole('button', { name: 'Close the reply drafter' }));
@@ -359,14 +321,14 @@ describe('ThreadAgentField', () => {
     it('names the press in full where two panes are drawn, and speaks only of drafting a reply', () => {
         theTabletComposition();
 
-        drawing(answeringDrafts().transport);
+        drawing();
 
         expect(field()).toHaveProperty('placeholder', 'Describe the reply you want to send…');
         expect(screen.getByRole('button', { name: 'Draft a reply' })).toBeDefined();
     });
 
     it('shortens the press and the placeholder on one pane, where there is no room for the sentence', () => {
-        drawing(answeringDrafts().transport);
+        drawing();
 
         expect(field()).toHaveProperty('placeholder', 'Describe the reply…');
         expect(screen.getByRole('button', { name: 'Draft' })).toBeDefined();
@@ -376,7 +338,7 @@ describe('ThreadAgentField', () => {
     it('says what the draft is about and where it stays in the desktop composition', () => {
         theDesktopComposition();
 
-        drawing(answeringDrafts().transport);
+        drawing();
         openingTheDrafter();
 
         expect(screen.getByText('Scope: this thread')).toBeDefined();
@@ -387,7 +349,7 @@ describe('ThreadAgentField', () => {
     it('draws none of that below the desktop composition', () => {
         theTabletComposition();
 
-        drawing(answeringDrafts().transport);
+        drawing();
         openingTheDrafter();
 
         expect(screen.queryByText('Scope: this thread')).toBeNull();
@@ -397,214 +359,12 @@ describe('ThreadAgentField', () => {
     // The two fields hold separate sentences: what is typed under a correspondence is about that correspondence, and
     // what was typed into Discover's question is not something to draft a reply with.
     it('keeps what is typed here apart from Discover’s question, in both directions', () => {
-        const { workspace } = drawing(answeringDrafts().transport, { question: 'what did Nordwind send' });
+        const { workspace } = drawing({ question: 'what did Nordwind send' });
 
         expect(field()).toHaveProperty('value', '');
 
         fireEvent.change(field(), { target: { value: 'accept the SLA' } });
 
         expect(workspace().question).toBe('what did Nordwind send');
-    });
-});
-
-describe('ReplyDraftCard', () => {
-    it('drafts the reply into a card in the thread, asking the deployment once for it', async () => {
-        const { transport, asked } = answeringDrafts();
-
-        drawing(transport);
-        fireEvent.change(field(), { target: { value: 'accept the SLA' } });
-        draftingAReply();
-
-        const card = await screen.findByRole('region', { name: 'Draft · local' });
-
-        await waitFor(() => {
-            expect(card.textContent).toContain(draftedWords);
-        });
-
-        expect(asked).toHaveLength(1);
-        expect(asked[0]?.path.endsWith('/replies/drafting')).toBe(true);
-        expect(JSON.parse(asked[0]?.body ?? '')).toMatchObject({
-            answeredEmailId: answering,
-            selection: null,
-            instruction: 'Write a reply to this message. accept the SLA',
-        });
-    });
-
-    it('says a reply is being written while the deployment writes it, and offers nothing to act on yet', async () => {
-        drawing(neverAnswering);
-        draftingAReply();
-
-        expect(await screen.findByText('AI is drafting…')).toBeDefined();
-        expect(screen.queryByRole('button', { name: 'Discard draft' })).toBeNull();
-    });
-
-    it('asks once however often the press is made while a reply is being written', async () => {
-        const asked: ClientRequest[] = [];
-
-        drawing((request) => {
-            asked.push(request);
-
-            return new Promise(() => undefined);
-        });
-        draftingAReply();
-        await screen.findByText('AI is drafting…');
-        draftingAReply();
-
-        expect(asked).toHaveLength(1);
-    });
-
-    it('lets a reply be asked under another message while the first is still being written', async () => {
-        const asked: ClientRequest[] = [];
-
-        const { opening } = drawing((request) => {
-            asked.push(request);
-
-            return new Promise(() => undefined);
-        });
-        draftingAReply();
-        await screen.findByText('AI is drafting…');
-        opening(another);
-        openingTheDrafter();
-
-        expect(screen.getByRole('button', { name: 'Draft' }).getAttribute('aria-disabled')).toBe('false');
-
-        draftingAReply();
-
-        expect(asked).toHaveLength(2);
-        expect(JSON.parse(asked[1]?.body ?? '')).toMatchObject({ answeredEmailId: another });
-    });
-
-    it('carries the passage somebody selected into what the reply is written about', async () => {
-        const { transport, asked } = answeringDrafts();
-
-        drawing(transport, { fragment: { messageId: answering, text: 'the response time is two hours' } });
-        draftingAReply();
-
-        await screen.findByRole('region', { name: 'Draft · local' });
-
-        expect(JSON.parse(asked[0]?.body ?? '')).toMatchObject({ selection: 'the response time is two hours' });
-    });
-
-    it('opens the composer holding the draft, and lets the card go', async () => {
-        const { composed } = drawing(answeringDrafts().transport);
-
-        draftingAReply();
-        fireEvent.click(await screen.findByRole('button', { name: 'Open in composer' }));
-
-        expect(composed).toHaveBeenCalledWith({
-            kind: 'answer',
-            answers: 'senderOnly',
-            storedEmailId: answering,
-            drafted: draftedWords,
-        });
-        expect(screen.queryByRole('region', { name: 'Draft · local' })).toBeNull();
-    });
-
-    it('discards the draft and puts the keyboard back on the AI button it was asked for from', async () => {
-        drawing(answeringDrafts().transport);
-
-        draftingAReply();
-        fireEvent.click(await screen.findByRole('button', { name: 'Discard draft' }));
-
-        expect(screen.queryByRole('region', { name: 'Draft · local' })).toBeNull();
-        expect(document.activeElement).toBe(screen.getByRole('button', { name: aiButton }));
-    });
-
-    it('offers no composer where the deployment offers none, and still lets the draft go', async () => {
-        drawing(answeringDrafts().transport, {}, false);
-
-        draftingAReply();
-
-        expect(await screen.findByRole('button', { name: 'Discard draft' })).toBeDefined();
-        expect(screen.queryByRole('button', { name: 'Open in composer' })).toBeNull();
-    });
-
-    it('draws the card under the message it answers and under no other', async () => {
-        const { opening } = drawing(answeringDrafts().transport);
-
-        draftingAReply();
-        await screen.findByRole('region', { name: 'Draft · local' });
-        opening(another);
-
-        expect(screen.queryByRole('region', { name: 'Draft · local' })).toBeNull();
-    });
-
-    it('keeps the draft through a renewal of the credential, which signs nobody out', async () => {
-        const { renewing } = drawing(answeringDrafts().transport);
-
-        draftingAReply();
-        const card = await screen.findByRole('region', { name: 'Draft · local' });
-        await waitFor(() => {
-            expect(card.textContent).toContain(draftedWords);
-        });
-
-        renewing();
-
-        expect(screen.getByRole('region', { name: 'Draft · local' }).textContent).toContain(draftedWords);
-    });
-
-    it('drops the draft when another person signs in', async () => {
-        const { signingIn } = drawing(answeringDrafts().transport);
-
-        draftingAReply();
-        const card = await screen.findByRole('region', { name: 'Draft · local' });
-        await waitFor(() => {
-            expect(card.textContent).toContain(draftedWords);
-        });
-
-        signingIn('https://mail.example.invalid\nbelinda');
-
-        expect(screen.queryByRole('region', { name: 'Draft · local' })).toBeNull();
-    });
-
-    it('says nothing has been sent on the card where the workspace is wide', async () => {
-        theTabletComposition();
-
-        drawing(answeringDrafts().transport);
-        draftingAReply();
-
-        const card = await screen.findByRole('region', { name: 'Draft · local' });
-
-        expect(within(card).getByText('nothing has been sent')).toBeDefined();
-    });
-
-    it.each([
-        {
-            case: 'a deployment that drafted nothing',
-            answer: { status: 200, body: JSON.stringify({ drafted: false }) },
-            said: 'The server wrote no draft this time.',
-        },
-        {
-            case: 'a message the deployment no longer holds',
-            answer: { status: 404, body: '' },
-            said: 'The server wrote no draft this time.',
-        },
-        {
-            case: 'a deployment that did not answer',
-            answer: { status: 503, body: '' },
-            said: 'The server did not answer.',
-        },
-        {
-            case: 'a refused credential',
-            answer: { status: 401, body: '' },
-            said: 'This client is no longer signed in.',
-        },
-    ])('says why nothing was drafted for $case, and draws no card', async ({ answer, said }) => {
-        drawing(answeringDrafts(answer).transport);
-
-        draftingAReply();
-
-        expect(await screen.findByText('Nothing was drafted')).toBeDefined();
-        expect(screen.getByText(said, { exact: false })).toBeDefined();
-        expect(screen.queryByRole('region', { name: 'Draft · local' })).toBeNull();
-    });
-
-    it('says why nothing was drafted where the allowance is spent, and draws no card', async () => {
-        drawing(answeringDrafts({ status: 429, body: '' }).transport);
-
-        draftingAReply();
-
-        expect(await screen.findByText('Nothing was drafted')).toBeDefined();
-        expect(screen.queryByRole('region', { name: 'Draft · local' })).toBeNull();
     });
 });

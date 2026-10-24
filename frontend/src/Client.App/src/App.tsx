@@ -107,9 +107,7 @@ import { useSignals } from './signals/useSignals';
 import { useTelemetry } from './telemetry/clientTelemetry';
 import { useNavigationTelemetry } from './telemetry/navigationTelemetry';
 import { Thread } from './thread/Thread';
-import { ReplyDraftingContext } from './threadAgent/replyDrafting';
 import { ThreadAgentField, type ReadingFoot } from './threadAgent/ThreadAgentField';
-import { useReplyDraftingState } from './threadAgent/useReplyDraftingState';
 import { ToastLifetimeContext } from './toasts/useToasts';
 import { attachmentKey, OpenAttachmentContext, type OpenedAttachment } from './workspace/openAttachment';
 import { conversationKey, type OpenConversation } from './workspace/openConversation';
@@ -211,6 +209,13 @@ export function App({
     const [written, setWritten] = useState<ComposerOpening | null>(null);
     const [blockedOn, setBlockedOn] = useState<BlockingOperation | null>(null);
     const askedFrom = useRef<HTMLElement | null>(null);
+    const [focusReturnsUnder, setFocusReturnsUnder] = useState<string | null>(null);
+
+    // The keyboard is owed to the reading column it was taken from and to no other, so moving to another message lets
+    // the debt go rather than leaving it for that message's button the next time it is opened.
+    if (focusReturnsUnder !== null && focusReturnsUnder !== workspace.selection) {
+        setFocusReturnsUnder(null);
+    }
     const focusedFor = useRef(signedInAs);
 
     // Built once per address and credential rather than per render, because it is what the message read below depends
@@ -454,25 +459,28 @@ export function App({
                 // threaded through each of them.
                 askedFrom.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
+                setFocusReturnsUnder(null);
                 setWritten(writesMail ? asked : null);
             },
             close: (handFocusBack: boolean) => {
                 setWritten(null);
 
                 if (handFocusBack) {
-                    askedFrom.current?.focus();
+                    if (askedFrom.current?.isConnected === true) {
+                        askedFrom.current.focus();
+                    } else if (written?.kind === 'answer' && written.drafting !== undefined) {
+                        // The drafter that asked went with the reading column the composer stood in, so the AI button
+                        // drawn there again is what takes the keyboard back, once it is drawn — under whichever message
+                        // the list points at now, which a click while the composer stood may have moved.
+                        setFocusReturnsUnder(workspace.selection);
+                    }
                 }
 
                 askedFrom.current = null;
             },
         }),
-        [writesMail, drafts, written],
+        [writesMail, drafts, written, workspace.selection],
     );
-
-    // The reply the field under a correspondence asked for. Held here because the two things that read it are a
-    // scroller apart — the field at the foot of the reading column and the card at the end of the thread — and this is
-    // the nearest place both are composed from.
-    const replyDrafting = useReplyDraftingState(signedInAs, session, readMail);
 
     // What the whole client is blocked on, held here for the reason above and one more: the surface covers everything
     // this frame draws, so nothing below it could own the state without owning what is drawn over it as well. The
@@ -894,7 +902,17 @@ export function App({
     // the next.
     const readingFoot: ReadingFoot | null =
         written === null && asksMail && !workspace.panelsHidden && readingACorrespondence(workspace, inTabs)
-            ? (thread) => <ThreadAgentField key={workspace.selection} thread={thread} drafts={drafts} />
+            ? (thread) => (
+                  <ThreadAgentField
+                      key={workspace.selection}
+                      thread={thread}
+                      drafts={drafts}
+                      takesTheKeyboard={focusReturnsUnder !== null}
+                      onKeyboardTaken={() => {
+                          setFocusReturnsUnder(null);
+                      }}
+                  />
+              )
             : null;
 
     // What the reading column holds: the empty state where somebody working in tabs has closed all of them, and what
@@ -916,25 +934,23 @@ export function App({
         // other three uncontained.
         return (
             <Containment drawing={whatTheColumnDraws(workspace)} region="reading_pane">
-                <ReplyDraftingContext value={replyDrafting}>
-                    <MailAccountsContext value={mailAccounts}>
-                        <OpenMail
-                            session={session}
-                            transport={readMail}
-                            conversation={workspace.conversation}
-                            fullHtml={workspace.fullHtml}
-                            attachment={workspace.attachment}
-                            storedEmailId={workspace.selection}
-                            online={connection.online}
-                            inTabs={inTabs}
-                            expandWholeThread={preferences.expandWholeThread}
-                            onShowFullHtml={openTabs.openFullHtml}
-                            onCloseFullHtml={openTabs.closeFullHtml}
-                            onCloseAttachment={openTabs.closeAttachment}
-                            foot={readingFoot}
-                        />
-                    </MailAccountsContext>
-                </ReplyDraftingContext>
+                <MailAccountsContext value={mailAccounts}>
+                    <OpenMail
+                        session={session}
+                        transport={readMail}
+                        conversation={workspace.conversation}
+                        fullHtml={workspace.fullHtml}
+                        attachment={workspace.attachment}
+                        storedEmailId={workspace.selection}
+                        online={connection.online}
+                        inTabs={inTabs}
+                        expandWholeThread={preferences.expandWholeThread}
+                        onShowFullHtml={openTabs.openFullHtml}
+                        onCloseFullHtml={openTabs.closeFullHtml}
+                        onCloseAttachment={openTabs.closeAttachment}
+                        foot={readingFoot}
+                    />
+                </MailAccountsContext>
             </Containment>
         );
     }

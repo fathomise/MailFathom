@@ -12,7 +12,7 @@ using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Emails.ReplyDrafts;
 
-/// <summary>Drafts what somebody is about to write, out of the conversation they are answering and the way they write.</summary>
+/// <summary>Drafts what somebody is about to write, out of the correspondence they chose to write from and the way they write.</summary>
 /// <remarks>
 /// <para>
 /// <b>It produces a local artifact and takes no act.</b> Nothing here sends, queues, or writes to a mail server, and
@@ -31,13 +31,21 @@ namespace MailFathom.Application.Emails.ReplyDrafts;
 /// The correspondence is read under the same scope the conversation screen reads it under — every account this user
 /// holds, no folder narrowing, junk included — because a reply is answered across the exchange rather than inside a
 /// folder. A message the scope does not admit is a message this use case has none of, so the drafting answers exactly
-/// as it does for a message nobody holds.
+/// as it does for a message nobody holds — and so does a context of several messages any one of which it does not
+/// admit, because answering with the rest would report that the missing one exists somewhere else.
+/// </para>
+/// <para>
+/// A context of several messages is read one message at a time through the same read a single one is, each bringing
+/// the recent end of its own conversation, and the reads are put together into one correspondence. They share the
+/// bound one read carries rather than each taking the whole of it, so a context reaching several conversations costs a
+/// provider what one long conversation does.
 /// </para>
 /// <para>
 /// The style is the account's own sent mail and nothing else, and the read that fetches it is the read that resolved
-/// the answered message, which is what keeps one person's manner out of another account's reply. An operator who
-/// turned that derivation off leaves the bound at zero: no sent mail is read, and the draft is written from the
-/// conversation alone.
+/// the first context message, which is what keeps one person's manner out of another account's reply; the other
+/// context messages are read with no sample bound at all, so a context spanning two accounts is still written in one
+/// voice and the outbox is read once. An operator who turned that derivation off leaves the bound at zero: no sent
+/// mail is read, and the draft is written from the conversation alone.
 /// </para>
 /// <para>
 /// Both halves of the privacy posture are here rather than in the writer. What goes out to a provider is guarded by
@@ -47,7 +55,7 @@ namespace MailFathom.Application.Emails.ReplyDrafts;
 /// </remarks>
 public sealed class MailReplyDrafting
 {
-    /// <summary>How many of the conversation's most recent messages one drafting is grounded in.</summary>
+    /// <summary>How many of the most recent messages of the correspondence one drafting is grounded in, however many context messages it is read from.</summary>
     /// <remarks>
     /// A reply answers where a conversation got to, so the recent end of it is what a draft is written from; the
     /// opening of a long exchange is what its derived state is for. The bound is a constant rather than a setting
@@ -81,7 +89,7 @@ public sealed class MailReplyDrafting
     private readonly bool derivesStyleFromSentMail;
 
     /// <summary>Initializes the drafting.</summary>
-    /// <param name="sourceReader">Reads the conversation being answered and the manner its account writes in.</param>
+    /// <param name="sourceReader">Reads the conversation of each context message and the manner its account writes in.</param>
     /// <param name="writer">Writes the reply, which is the one part of this that reaches a provider.</param>
     /// <param name="scopeResolver">Decides which accounts and folders the conversation is read across.</param>
     /// <param name="egressGuard">Scans what the draft publishes to a client, where this deployment scans anything.</param>
@@ -114,12 +122,12 @@ public sealed class MailReplyDrafting
         this.derivesStyleFromSentMail = derivesStyleFromSentMail;
     }
 
-    /// <summary>Drafts a reply to one of the acting user's messages.</summary>
-    /// <param name="request">Which message is being answered, if any, and what its author asked the reply to say.</param>
+    /// <summary>Drafts a message from the context messages the acting user chose, from one conversation or several, or from what they asked for alone.</summary>
+    /// <param name="request">Which messages the reply is written from, if any, and what its author asked the reply to say.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>
     /// The draft, <see cref="ReplyDraft.Nothing" /> where none could be written, or <see langword="null" /> where the
-    /// request named a message this user does not hold.
+    /// request named any message this user does not hold.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="request" /> is <see langword="null" />.</exception>
     /// <exception cref="MailAnsweringBudgetExhaustedException">Thrown when this deployment has spent what it allows a provider for the period.</exception>
@@ -146,9 +154,12 @@ public sealed class MailReplyDrafting
 
         ReplyDraftSources sources;
 
-        if (request.AnsweredEmailId is { } answered)
+        // Bounded here as well as at the boundary, as the texts are, so the rule holds for every caller.
+        StoredEmailId[] context = [.. request.ContextEmailIds.Distinct().Take(ReplyDraftRequest.MaximumContextMessages)];
+
+        if (context.Length > 0)
         {
-            var read = await this.AnsweredSourcesAsync(answered, cancellationToken);
+            var read = await this.ContextSourcesAsync(context, cancellationToken);
 
             if (read is null)
             {
@@ -183,24 +194,42 @@ public sealed class MailReplyDrafting
         return draft.WasWritten ? await this.GuardedAsync(draft, cancellationToken) : draft;
     }
 
-    /// <summary>Reads the conversation one drafting answers, or nothing where this user holds no such message.</summary>
+    /// <summary>Reads the correspondence one drafting is written from, or nothing where this user does not hold every one of its messages.</summary>
     /// <remarks>
     /// A scope holding no account and a message the scope does not admit are the same answer on purpose, which is what
-    /// keeps this from reporting that somebody else's correspondence exists.
+    /// keeps this from reporting that somebody else's correspondence exists. The reads run one after another because
+    /// they share the store's unit of work.
     /// </remarks>
-    private async Task<ReplyDraftSources?> AnsweredSourcesAsync(
-        StoredEmailId answeredEmailId,
+    private async Task<ReplyDraftSources?> ContextSourcesAsync(
+        StoredEmailId[] context,
         CancellationToken cancellationToken)
     {
         var scope = await this.scopeResolver.ReadableScopeAsync([], [], JunkMailInclusion.Included, cancellationToken);
 
-        return scope.AccountIds.Count is 0
-            ? null
-            : await this.sourceReader.ReadSourcesAsync(
-                answeredEmailId,
+        if (scope.AccountIds.Count is 0)
+        {
+            return null;
+        }
+
+        var reads = new List<ReplyDraftSources>(context.Length);
+
+        foreach (var (position, contextEmailId) in context.Index())
+        {
+            var read = await this.sourceReader.ReadSourcesAsync(
+                contextEmailId,
                 scope,
-                BoundsFor(this.derivesStyleFromSentMail),
+                BoundsFor(this.derivesStyleFromSentMail, context.Length, position),
                 cancellationToken);
+
+            if (read is null)
+            {
+                return null;
+            }
+
+            reads.Add(read);
+        }
+
+        return ReplyDraftSources.Merged(reads, MaximumMessages);
     }
 
     /// <summary>States what a drafting is asked: the sources, and what the person selected and typed, each cut to what a drafting may carry.</summary>
@@ -215,13 +244,15 @@ public sealed class MailReplyDrafting
             Bounded(request.Instruction, ReplyDraftRequest.MaximumInstructionLength),
             language);
 
-    /// <summary>States how much of the mailbox one drafting reads.</summary>
+    /// <summary>States how much of the mailbox one read of a drafting's context reads.</summary>
     /// <param name="derivesStyleFromSentMail">Whether the deployment draws a reply's manner from the person's own sent mail.</param>
+    /// <param name="contextMessages">How many context messages share the drafting's message bound, each read taking an even share of it and never less than the message itself.</param>
+    /// <param name="position">Which of them this read is for, counted from zero: only the first reads any sent mail, because a reply is written in one account's manner.</param>
     /// <returns>The bounds.</returns>
-    internal static ReplyDraftBounds BoundsFor(bool derivesStyleFromSentMail) => new(
-        MaximumMessages,
+    internal static ReplyDraftBounds BoundsFor(bool derivesStyleFromSentMail, int contextMessages, int position) => new(
+        Math.Max(1, MaximumMessages / Math.Max(1, contextMessages)),
         MaximumCharactersPerMessage,
-        derivesStyleFromSentMail ? MaximumStyleMessages : 0,
+        derivesStyleFromSentMail && position is 0 ? MaximumStyleMessages : 0,
         MaximumStyleCharactersPerMessage);
 
     /// <summary>Cuts what somebody typed down to what one drafting may carry of it.</summary>

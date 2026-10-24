@@ -2,8 +2,10 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useState, type KeyboardEvent } from 'react';
+import { useRef, useState, type KeyboardEvent } from 'react';
 import { longestDraftInstruction } from '@mailfathom/client-backend';
+import { Icon } from '../controls/Icon';
+import { SymbolControl } from '../controls/SymbolControl';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
@@ -65,24 +67,73 @@ const toneSteps: Readonly<Record<string, number>> = {
 
 type Tone = (typeof tones)[number]['key'];
 
+// Where the keyboard lands once the control holding it has gone: a removed chip hands it to its neighbour, or to the
+// field once none is left, and *Restore* — which goes with the line it stands on — to the first chip it put back.
+type FocusLanding =
+    { readonly on: 'chip'; readonly storedEmailId: string } | { readonly on: 'firstChip' } | { readonly on: 'field' };
+
+/** One message the draft is written from, as its chip names it. */
+export interface DraftingContextMessage {
+    readonly storedEmailId: string;
+
+    /** What the chip reads, which is the message's subject once it has been read. */
+    readonly subject: string;
+}
+
+/** Where the context started, named for the line that says it has moved since: its first message, and how many more. */
+export interface DraftingContextStart {
+    readonly subject: string;
+    readonly more: number;
+}
+
 export function DraftingBlock({
     context,
+    noContextSaid,
+    changedFrom,
+    asked = '',
     busy,
     onDraft,
+    onRemove,
+    onRestore,
 }: {
-    /** What the draft is written against, as the line under the acts names it: the subject, or nothing yet. */
-    readonly context: string;
+    /** The messages the draft is written from, one chip apiece, in the order they were taken. */
+    readonly context: readonly DraftingContextMessage[];
+
+    /** What the row says while the context holds no message, which depends on whether a list stands beside it. */
+    readonly noContextSaid: MessageKey;
+
+    /** Where the context started, while it differs from that; `null` while it is its starting point or has none. */
+    readonly changedFrom: DraftingContextStart | null;
+
+    /** What the field opens holding: what the reply was asked to say before the composer opened, where it was. */
+    readonly asked?: string;
 
     /** Whether a draft is being written now, which is what keeps one press from asking twice. */
     readonly busy: boolean;
 
     /** Asks the deployment for a draft, with the act's own sentence and whatever was typed beside it. */
     readonly onDraft: (instruction: string) => void;
+
+    /** Takes one message out of the context. */
+    readonly onRemove: (storedEmailId: string) => void;
+
+    /** Puts the context back where it started. */
+    readonly onRestore: () => void;
 }) {
-    const { translate } = useLocalization();
+    const { locale, translate } = useLocalization();
     const wideWorkspace = useWideWorkspace();
-    const [written, setWritten] = useState('');
+    const [written, setWritten] = useState(asked);
     const [tone, setTone] = useState<Tone>('neutral');
+    const focusLanding = useRef<FocusLanding | null>(null);
+
+    // A ref runs on every render, so the landing is what stops a later render taking the keyboard back from wherever the
+    // reader has moved it since.
+    function landHere(element: HTMLElement | null, here: (landing: FocusLanding) => boolean): void {
+        if (element !== null && focusLanding.current !== null && here(focusLanding.current)) {
+            focusLanding.current = null;
+            element.focus();
+        }
+    }
 
     function askFor(act: DraftingAct): void {
         const chosen = tones.find((one) => one.key === tone)?.asks ?? null;
@@ -136,6 +187,9 @@ export function DraftingBlock({
                 </span>
 
                 <input
+                    ref={(element) => {
+                        landHere(element, (landing) => landing.on === 'field');
+                    }}
                     aria-label={translate('compose.aiPrompt')}
                     placeholder={translate(
                         wideWorkspace ? 'compose.aiPromptPlaceholder' : 'compose.aiPromptPlaceholderShort',
@@ -147,6 +201,17 @@ export function DraftingBlock({
                         setWritten(event.target.value);
                     }}
                 />
+
+                {/* The mark is never the only thing saying it: the line under the context row says the same in words. */}
+                {changedFrom === null ? null : (
+                    <span
+                        role="img"
+                        aria-label={translate('compose.aiContextChanged')}
+                        className="flex size-5.5 shrink-0 animate-pop-in items-center justify-center rounded-full bg-warning-soft text-warning-text ring-1 ring-warning ring-inset"
+                    >
+                        <Icon name="priority_high" className="size-icon-sm" />
+                    </span>
+                )}
             </div>
 
             <div className="flex flex-wrap items-center gap-1.75">
@@ -194,13 +259,75 @@ export function DraftingBlock({
                 </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.25 text-xs text-accent-deep">
-                <span className="max-w-full truncate rounded-sm bg-panel px-2 py-0.75">
-                    {translate('compose.aiContext', { context })}
-                </span>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-accent-deep">
+                <span className="font-semibold">{translate('compose.aiContext')}</span>
 
-                <span>{translate('compose.aiStaysLocal')}</span>
+                {context.map((message, at) => (
+                    <span
+                        key={message.storedEmailId}
+                        className="flex max-w-65 min-w-0 items-center gap-1.5 rounded-sm border border-accent-line bg-panel py-0.5 ps-1.5 pe-0.5 max-workspace:max-w-55 pointer-coarse:min-h-9"
+                    >
+                        <Icon name="mail" className="size-icon-sm shrink-0" />
+                        <span className="min-w-0 truncate">{message.subject}</span>
+
+                        <SymbolControl
+                            ref={(element) => {
+                                landHere(
+                                    element,
+                                    (landing) =>
+                                        (landing.on === 'chip' && landing.storedEmailId === message.storedEmailId) ||
+                                        (landing.on === 'firstChip' && at === 0),
+                                );
+                            }}
+                            label={translate('compose.aiContextRemove', { subject: message.subject })}
+                            className="flex shrink-0 items-center justify-center rounded-xs text-muted transition hover:bg-hover hover:text-text pointer-coarse:size-8"
+                            onPress={() => {
+                                const neighbour = context[at + 1] ?? context[at - 1];
+
+                                focusLanding.current =
+                                    neighbour === undefined
+                                        ? { on: 'field' }
+                                        : { on: 'chip', storedEmailId: neighbour.storedEmailId };
+                                onRemove(message.storedEmailId);
+                            }}
+                        >
+                            <Icon name="close" className="size-icon-xs" />
+                        </SymbolControl>
+                    </span>
+                ))}
+
+                {context.length === 0 ? <span className="text-muted">{translate(noContextSaid)}</span> : null}
+
+                {changedFrom === null ? <span className="text-muted">{translate('compose.aiStaysLocal')}</span> : null}
             </div>
+
+            {changedFrom === null ? null : (
+                <div
+                    role="status"
+                    className="flex animate-unfold-in flex-wrap items-center gap-2 text-sm text-warning-text"
+                >
+                    <span className="min-w-0 flex-1 text-pretty">
+                        {changedFrom.more === 0
+                            ? translate('compose.aiContextStartedFrom', { subject: changedFrom.subject })
+                            : translate('compose.aiContextStartedFromSeveral', {
+                                  subject: changedFrom.subject,
+                                  more: new Intl.NumberFormat(locale).format(changedFrom.more),
+                              })}
+                    </span>
+
+                    <button
+                        type="button"
+                        className="flex items-center gap-1.5 rounded-md px-2 py-1 font-semibold transition hover:bg-warning-soft"
+                        onClick={() => {
+                            focusLanding.current = { on: 'firstChip' };
+                            onRestore();
+                        }}
+                    >
+                        <Icon name="undo" className="size-icon-md" />
+                        {translate('compose.aiContextRestore')}
+                    </button>
+                </div>
+            )}
         </div>
     );
 }
@@ -214,11 +341,15 @@ export function DraftingBlock({
  */
 export function DraftingStanding({
     busy,
+    answering,
     drafted,
     onRestore,
     onAccept,
 }: {
     readonly busy: boolean;
+
+    /** Whether the message answers one, which is what the band says it is generating: a reply, or a draft. */
+    readonly answering: boolean;
 
     /** Whether the words on the screen are a draft its author has neither accepted nor restored away from. */
     readonly drafted: boolean;
@@ -235,9 +366,17 @@ export function DraftingStanding({
         return (
             <p
                 role="status"
-                className="shrink-0 border-b border-line-soft bg-sunken px-3.75 py-1.75 text-sm text-muted"
+                className="flex shrink-0 items-center gap-2.5 border-b border-accent-line bg-accent-soft px-3.75 py-2.5 text-base text-accent-deep"
             >
-                {translate('compose.aiDrafting')}
+                <Icon name="auto_awesome" className="size-icon-md shrink-0 animate-working" />
+                <span className="font-semibold">
+                    {translate(answering ? 'compose.aiGeneratingReply' : 'compose.aiDrafting')}
+                </span>
+                <span aria-hidden="true" className="-ms-1.5 flex items-center gap-0.75 pt-1">
+                    <span className="size-1 animate-rising-dot rounded-full bg-current" />
+                    <span className="size-1 animate-rising-dot-second rounded-full bg-current" />
+                    <span className="size-1 animate-rising-dot-third rounded-full bg-current" />
+                </span>
             </p>
         );
     }

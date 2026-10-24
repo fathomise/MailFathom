@@ -4,7 +4,7 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useState, type ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientSession, MailAccount, MailFathomTransport } from '@mailfathom/client-backend';
 import {
     AttachmentExchangeContext,
@@ -16,6 +16,8 @@ import { LocalizationProvider } from '../localization/Localization';
 import { TelemetryContext, noTelemetry, type ClientTelemetry } from '../telemetry/clientTelemetry';
 import { recordingTelemetry, recordsOf } from '../telemetry/telemetry.harness';
 import { ToastsProvider } from '../toasts/Toasts';
+import { WorkspaceProvider } from '../workspace/Workspace';
+import { useWorkspace, type Workspace } from '../workspace/useWorkspace';
 import { Composer } from './Composer';
 import type { ComposerOpening } from './composition';
 import { rememberComposition, rememberedComposition } from './keptComposition';
@@ -233,9 +235,22 @@ function drawComposer(
     drafts = false,
     telemetry: ClientTelemetry = noTelemetry,
     exchange: AttachmentExchange = takesNothing,
-): { closed: ReturnType<typeof vi.fn>; asked: ClientRequest[]; upload: AttachmentUpload } {
+): {
+    closed: ReturnType<typeof vi.fn>;
+    asked: ClientRequest[];
+    upload: AttachmentUpload;
+    point: (change: Partial<Workspace>) => void;
+} {
     const closed = vi.fn();
     const { transport, asked } = deployment(answers);
+    let revise: ((change: Partial<Workspace>) => void) | null = null;
+
+    // What the list beside the composer points at, moved the way a click on a row moves it.
+    function Pointing() {
+        revise = useWorkspace().revise;
+
+        return null;
+    }
 
     // The composer goes when it closes, which is what the frame does with it: `App.tsx` stops drawing a composer whose
     // send has been asked for, and a harness that kept one on the screen would be asserting against a window nobody is
@@ -255,29 +270,80 @@ function drawComposer(
         <LocalizationProvider>
             <TelemetryContext value={telemetry}>
                 <ToastsProvider>
-                    <AttachmentExchangeContext value={exchange}>
-                        <AttachmentUploadContext value={upload}>
-                            <Framed>
-                                {(onClosed) => (
-                                    <Composer
-                                        session={session}
-                                        transport={transport}
-                                        accounts={accounts}
-                                        opening={opening}
-                                        online={online}
-                                        drafts={drafts}
-                                        onClosed={onClosed}
-                                    />
-                                )}
-                            </Framed>
-                        </AttachmentUploadContext>
-                    </AttachmentExchangeContext>
+                    <WorkspaceProvider>
+                        <AttachmentExchangeContext value={exchange}>
+                            <AttachmentUploadContext value={upload}>
+                                <Pointing />
+                                <Framed>
+                                    {(onClosed) => (
+                                        <Composer
+                                            session={session}
+                                            transport={transport}
+                                            accounts={accounts}
+                                            opening={opening}
+                                            online={online}
+                                            drafts={drafts}
+                                            onClosed={onClosed}
+                                        />
+                                    )}
+                                </Framed>
+                            </AttachmentUploadContext>
+                        </AttachmentExchangeContext>
+                    </WorkspaceProvider>
                 </ToastsProvider>
             </TelemetryContext>
         </LocalizationProvider>,
     );
 
-    return { closed, asked, upload };
+    return {
+        closed,
+        asked,
+        upload,
+        point: (change) => {
+            act(() => {
+                revise?.(change);
+            });
+        },
+    };
+}
+
+// jsdom answers every media query `false`, which is the phone, where the composer is the screen and no list stands
+// beside it. A test about the list setting the context states the desktop composition.
+const declaredMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+
+afterEach(() => {
+    if (declaredMatchMedia === undefined) {
+        Reflect.deleteProperty(window, 'matchMedia');
+    } else {
+        Object.defineProperty(window, 'matchMedia', declaredMatchMedia);
+    }
+});
+
+function theDesktopComposition(): void {
+    Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: (query: string) => ({
+            media: query,
+            matches: query.includes('min-width'),
+            addEventListener: () => undefined,
+            removeEventListener: () => undefined,
+        }),
+    });
+}
+
+/** What the last drafting asked the deployment for. */
+function lastDrafting(asked: readonly ClientRequest[]): {
+    contextEmailIds: string[];
+    selection: string | null;
+    instruction: string;
+} {
+    const drafting = asked.filter((request) => request.path.endsWith('/replies/drafting')).at(-1);
+
+    return JSON.parse(drafting?.body ?? '{}') as {
+        contextEmailIds: string[];
+        selection: string | null;
+        instruction: string;
+    };
 }
 
 // The composer itself. Under jsdom the window reads narrow, where the composer stands over the whole screen and is
@@ -1132,19 +1198,21 @@ describe('Composer, a message of its own', () => {
         render(
             <LocalizationProvider>
                 <ToastsProvider>
-                    <AttachmentExchangeContext value={takesNothing}>
-                        <AttachmentUploadContext value={uploadsOneFile}>
-                            <Composer
-                                session={session}
-                                transport={transport}
-                                accounts={[work]}
-                                opening={{ kind: 'new' }}
-                                drafts={false}
-                                online
-                                onClosed={vi.fn()}
-                            />
-                        </AttachmentUploadContext>
-                    </AttachmentExchangeContext>
+                    <WorkspaceProvider>
+                        <AttachmentExchangeContext value={takesNothing}>
+                            <AttachmentUploadContext value={uploadsOneFile}>
+                                <Composer
+                                    session={session}
+                                    transport={transport}
+                                    accounts={[work]}
+                                    opening={{ kind: 'new' }}
+                                    drafts={false}
+                                    online
+                                    onClosed={vi.fn()}
+                                />
+                            </AttachmentUploadContext>
+                        </AttachmentExchangeContext>
+                    </WorkspaceProvider>
                 </ToastsProvider>
             </LocalizationProvider>,
         );
@@ -1721,14 +1789,14 @@ describe('Composer drafting', () => {
         });
 
         const drafting = asked.find((request) => request.path.endsWith('/replies/drafting'));
-        const sent = JSON.parse(drafting?.body ?? '') as { answeredEmailId: string | null; instruction: string };
+        const sent = lastDrafting(asked);
 
         expect(drafting?.method).toBe('POST');
-        expect(sent.answeredEmailId).toBe(messageId);
+        expect(sent.contextEmailIds).toStrictEqual([messageId]);
         expect(sent.instruction).toContain('ask for a 5% cap');
     });
 
-    it('names no message where the composer answers none, which is a message of its own being written', async () => {
+    it('names no message where a message of its own is written with nothing in its context', async () => {
         const { asked } = drawComposer({ kind: 'new' }, {}, [work], true, uploadsOneFile, true);
 
         fireEvent.change(await screen.findByRole('textbox', { name: 'What the draft should say' }), {
@@ -1740,9 +1808,7 @@ describe('Composer drafting', () => {
             expect(asked.some((request) => request.path.endsWith('/replies/drafting'))).toBe(true);
         });
 
-        const drafting = asked.find((request) => request.path.endsWith('/replies/drafting'));
-
-        expect((JSON.parse(drafting?.body ?? '') as { answeredEmailId: string | null }).answeredEmailId).toBeNull();
+        expect(lastDrafting(asked).contextEmailIds).toStrictEqual([]);
     });
 
     it('puts the draft in the message being written, and offers the way back to what was there', async () => {
@@ -1834,15 +1900,15 @@ describe('Composer drafting', () => {
         ).toBeDefined();
     });
 
-    // The card under a correspondence has already drafted the reply, so the composer is opened holding it: asking the
-    // deployment again would spend an allowance on words the reader has already read and chosen to keep.
-    it('opens holding the reply drafted under a correspondence, and asks for no draft of its own', async () => {
+    // The drafter at the foot of a correspondence asks what the reply should say and opens the composer on it, so the
+    // composer writes the draft the moment it has the message it answers — once, however often it renders after.
+    it('writes the reply the drafter asked for as soon as it opens, from what was typed and the passage selected', async () => {
         const { asked } = drawComposer(
             {
                 kind: 'answer',
                 answers: 'senderOnly',
                 storedEmailId: messageId,
-                drafted: 'We accept the two-hour response time.',
+                drafting: { asked: 'accept the SLA', passage: 'the response time is two hours' },
             },
             {},
             [work],
@@ -1852,15 +1918,37 @@ describe('Composer drafting', () => {
         );
 
         expect(await screen.findByText('We accept the two-hour response time.')).toBeDefined();
-        expect(asked.filter((request) => request.path.endsWith('/replies/drafting'))).toHaveLength(0);
+        expect(screen.getByText('AI draft - check the facts and tone before sending')).toBeDefined();
+        expect(asked.filter((request) => request.path.endsWith('/replies/drafting'))).toHaveLength(1);
+
+        const sent = lastDrafting(asked);
+
+        expect(sent.contextEmailIds).toStrictEqual([messageId]);
+        expect(sent.selection).toBe('the response time is two hours');
+        expect(sent.instruction).toContain('Write a reply');
+        expect(sent.instruction).toContain('accept the SLA');
+        expect(screen.getByRole('textbox', { name: 'What the draft should say' })).toHaveProperty(
+            'value',
+            'accept the SLA',
+        );
     });
 
-    // Opening the composer is not accepting the words in it: they are still a draft nobody has read in place, so the
-    // composer says so exactly as it does for one it asked for itself, and the way back is to the empty reply the
-    // author had not written anything into yet.
-    // What this tab kept for the same answer is somebody's own words, so a draft carried in from the thread takes their
-    // place the way a draft asked for here would: over them, with them as the way back, rather than instead of them.
-    it('keeps the words this tab was writing for the same answer as the way back from a draft carried in', async () => {
+    it('says a reply is being generated while the deployment writes it', async () => {
+        drawComposer(
+            { kind: 'answer', answers: 'senderOnly', storedEmailId: messageId, drafting: { asked: '', passage: null } },
+            { drafting: { status: 200, body: draftedReply() } },
+            [work],
+            true,
+            uploadsOneFile,
+            true,
+        );
+
+        expect(await screen.findByText('Generating a reply')).toBeDefined();
+    });
+
+    // What this tab kept for the same answer is somebody's own words, so a draft asked for from the drafter takes
+    // their place the way one asked for here would: over them, with them as the way back.
+    it('keeps the words this tab was writing for the same answer as the way back from the asked-for draft', async () => {
         rememberComposition({
             answering: { storedEmailId: messageId, answers: 'senderOnly' },
             continuing: null,
@@ -1873,12 +1961,7 @@ describe('Composer drafting', () => {
         });
 
         drawComposer(
-            {
-                kind: 'answer',
-                answers: 'senderOnly',
-                storedEmailId: messageId,
-                drafted: 'We accept the two-hour response time.',
-            },
+            { kind: 'answer', answers: 'senderOnly', storedEmailId: messageId, drafting: { asked: '', passage: null } },
             {},
             [work],
             true,
@@ -1893,15 +1976,12 @@ describe('Composer drafting', () => {
         expect(await screen.findByText('What I had written')).toBeDefined();
         expect(screen.queryByText('We accept the two-hour response time.')).toBeNull();
     });
+});
 
-    it('holds a reply drafted under a correspondence as a draft to accept or take back', async () => {
+describe('Composer, the context it drafts from', () => {
+    it('starts a reply from the conversation it answers, and a message of its own from nothing', async () => {
         drawComposer(
-            {
-                kind: 'answer',
-                answers: 'senderOnly',
-                storedEmailId: messageId,
-                drafted: 'We accept the two-hour response time.',
-            },
+            { kind: 'answer', answers: 'senderOnly', storedEmailId: messageId },
             {},
             [work],
             true,
@@ -1909,14 +1989,124 @@ describe('Composer drafting', () => {
             true,
         );
 
-        expect(await screen.findByText('AI draft - check the facts and tone before sending')).toBeDefined();
-        expect(screen.getByRole('button', { name: 'Accept' })).toBeDefined();
+        expect(await screen.findByRole('button', { name: 'Remove Quarterly invoice from the context' })).toBeDefined();
+        expect(await screen.findByText('Quarterly invoice')).toBeDefined();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Restore my version' }));
+        cleanup();
+        drawComposer({ kind: 'new' }, {}, [work], true, uploadsOneFile, true);
+
+        expect(await screen.findByText('none - the AI drafts from what you write above')).toBeDefined();
+    });
+
+    it('takes a message opened from the list beside it as where it started, with no warning', async () => {
+        theDesktopComposition();
+        const { asked, point } = drawComposer({ kind: 'new' }, {}, [work], true, uploadsOneFile, true);
+
+        await screen.findByText('none yet - click a message in the list to draft from it');
+        point({ selection: 'listed-1' });
+
+        expect(await screen.findByText('Quarterly invoice')).toBeDefined();
+        expect(screen.queryByRole('img', { name: 'The context changed since you started' })).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Write a draft' }));
 
         await waitFor(() => {
-            expect(screen.queryByText('We accept the two-hour response time.')).toBeNull();
+            expect(lastDrafting(asked).contextEmailIds).toStrictEqual(['listed-1']);
         });
-        expect(screen.queryByText('AI draft - check the facts and tone before sending')).toBeNull();
+    });
+
+    it('makes a selection the context, and warns that it moved from where the reply started', async () => {
+        theDesktopComposition();
+        const { asked, point } = drawComposer(
+            { kind: 'answer', answers: 'senderOnly', storedEmailId: messageId },
+            {},
+            [work],
+            true,
+            uploadsOneFile,
+            true,
+        );
+
+        await screen.findByRole('button', { name: 'Remove Quarterly invoice from the context' });
+        point({ selected: ['listed-1', 'listed-2'] });
+
+        expect(await screen.findByRole('img', { name: 'The context changed since you started' })).toBeDefined();
+        expect(screen.getAllByRole('button', { name: /^Remove .+ from the context$/ })).toHaveLength(2);
+        expect(
+            screen.getByText(
+                'This message started from “Quarterly invoice” - the context has changed since. Check it before the AI drafts.',
+            ),
+        ).toBeDefined();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Write a draft' }));
+
+        await waitFor(() => {
+            expect(lastDrafting(asked).contextEmailIds).toStrictEqual(['listed-1', 'listed-2']);
+        });
+    });
+
+    it('puts the starting context back, and the warning goes with the difference', async () => {
+        theDesktopComposition();
+        const { point } = drawComposer(
+            { kind: 'answer', answers: 'senderOnly', storedEmailId: messageId },
+            {},
+            [work],
+            true,
+            uploadsOneFile,
+            true,
+        );
+
+        await screen.findByRole('button', { name: 'Remove Quarterly invoice from the context' });
+        point({ selection: 'listed-1' });
+        fireEvent.click(await screen.findByRole('button', { name: 'Restore' }));
+
+        expect(screen.queryByRole('img', { name: 'The context changed since you started' })).toBeNull();
+        expect(screen.getAllByRole('button', { name: /^Remove .+ from the context$/ })).toHaveLength(1);
+        await waitFor(() => {
+            expect(document.activeElement).toBe(
+                screen.getByRole('button', { name: 'Remove Quarterly invoice from the context' }),
+            );
+        });
+    });
+
+    it('warns once a message is taken out of where it started', async () => {
+        drawComposer(
+            { kind: 'answer', answers: 'senderOnly', storedEmailId: messageId },
+            {},
+            [work],
+            true,
+            uploadsOneFile,
+            true,
+        );
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Remove Quarterly invoice from the context' }));
+
+        expect(screen.getByRole('img', { name: 'The context changed since you started' })).toBeDefined();
+        await waitFor(() => {
+            expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'What the draft should say' }));
+        });
+    });
+
+    it('hands the keyboard to the next chip when one of several is taken out', async () => {
+        theDesktopComposition();
+        const { point } = drawComposer({ kind: 'new' }, {}, [work], true, uploadsOneFile, true);
+
+        await screen.findByText('none yet - click a message in the list to draft from it');
+        point({ selected: ['listed-1', 'listed-2'] });
+
+        const [first, second] = await screen.findAllByRole('button', { name: /^Remove .+ from the context$/ });
+        fireEvent.click(first ?? document.body);
+
+        await waitFor(() => {
+            expect(document.activeElement).toBe(second);
+        });
+    });
+
+    it('leaves the context alone where the composer is the screen and no list stands beside it', async () => {
+        const { point } = drawComposer({ kind: 'new' }, {}, [work], true, uploadsOneFile, true);
+
+        await screen.findByText('none - the AI drafts from what you write above');
+        point({ selection: 'listed-1' });
+
+        expect(screen.queryByRole('button', { name: /^Remove .+ from the context$/ })).toBeNull();
     });
 });

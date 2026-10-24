@@ -4226,11 +4226,14 @@
       },
       "ClientReplyDraftRequest": {
         "properties": {
-          "answeredEmailId": {
-            "format": "uuid",
+          "contextEmailIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
             "type": [
               "null",
-              "string"
+              "array"
             ]
           },
           "instruction": {
@@ -4247,7 +4250,7 @@
           }
         },
         "required": [
-          "answeredEmailId",
+          "contextEmailIds",
           "selection",
           "instruction"
         ],

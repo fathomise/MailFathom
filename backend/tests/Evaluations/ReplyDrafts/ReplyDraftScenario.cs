@@ -32,7 +32,10 @@ namespace MailFathom.Evaluations.ReplyDrafts;
 /// The sources are read out of <see cref="CorpusMailbox" /> through the store's own selection and assembly — the most
 /// recent messages of the exchange up to the message answered, each message's own text under the per-message bound, its
 /// people numbered without the mailbox's own address, and, as a deployment does by default, the openings of the owner's
-/// most recent mail sent outside the conversation as the manner's samples. The brief, the turn, the request bound, and
+/// most recent mail sent outside the conversation as the manner's samples. A case whose context reaches a second
+/// conversation reads each one as the deployment reads a context message, under its share of the bound and with the
+/// manner taken from the first alone, and puts the two together through the deployment's own merge. The brief, the
+/// turn, the request bound, and
 /// the reading are the deployment's own. What it leaves out is what decides whether a drafting happens rather than what
 /// it says: the ledgers, the egress guard, and the fallback chain.
 /// </para>
@@ -41,7 +44,8 @@ namespace MailFathom.Evaluations.ReplyDrafts;
 /// reading drops whatever it cannot resolve: that it read as a draft, that every recipient it proposed is one of the
 /// numbered people, that every claim cites only messages in the turn, that no address appears in the body, and that
 /// nothing exceeds <see cref="ReplyDraft" />'s bounds. Where the ask asserts something the conversation does not carry,
-/// the draft has to mark it as a claim nothing supports. The judge grades only the prose: whether the reply does what
+/// the draft has to mark it as a claim nothing supports, and where the context reaches two conversations, the draft has
+/// to cite each of them. The judge grades only the prose: whether the reply does what
 /// was asked, in the manner asked.
 /// </para>
 /// </remarks>
@@ -57,6 +61,10 @@ namespace MailFathom.Evaluations.ReplyDrafts;
 /// conversation's language rather than the drafter's own, because the person receiving the reply reads it, unless the
 /// ask names a language outright.
 /// </param>
+/// <param name="SecondConversation">
+/// A second conversation the person chose to write from beside the first, up to and including its last message, or
+/// <see langword="null" /> where the context is the first conversation alone.
+/// </param>
 internal sealed partial record ReplyDraftScenario(
     string Name,
     IReadOnlyList<CorpusMessage> Conversation,
@@ -65,7 +73,8 @@ internal sealed partial record ReplyDraftScenario(
     bool AsksForWhatNothingSupports,
     int MinimumTaskAdherence,
     UserLanguage ReaderLanguage = UserLanguage.English,
-    UserLanguage? WritesIn = null)
+    UserLanguage? WritesIn = null,
+    IReadOnlyList<CorpusMessage>? SecondConversation = null)
 {
     /// <summary>The check that the answer read as a draft.</summary>
     public const string ReadAsADraftMetricName = "Read as a draft";
@@ -84,6 +93,9 @@ internal sealed partial record ReplyDraftScenario(
 
     /// <summary>The check that a claim the conversation does not carry is marked as one nothing supports.</summary>
     public const string MarksUnsupportedClaimMetricName = "Marks what nothing supports";
+
+    /// <summary>The check that a draft written from two conversations cites a message of each.</summary>
+    public const string CitesEveryConversationMetricName = "Cites every conversation in the context";
 
     /// <summary>Gets every drafting the agent is measured on.</summary>
     public static IReadOnlyList<ReplyDraftScenario> All { get; } =
@@ -274,6 +286,17 @@ internal sealed partial record ReplyDraftScenario(
             MinimumTaskAdherence: 4,
             UserLanguage.English,
             UserLanguage.Polish),
+
+        // A context the person chose from two conversations with one correspondent: what the reply confirms is stated
+        // in one of them and what it promises in the other, so a draft grounded in only one of them cannot do both.
+        new(
+            "ReplyDraft.FromTwoConversations",
+            CorpusMessage.ConversationUpTo(position: 94),
+            "Reply to Vasco on both matters at once: confirm that we will be in Harbour Room 2 for the berth inspection pilot meeting on Tuesday, 15 September, and that the revised BL-4827 copy naming Kestrelune Works BV goes out by 8 September.",
+            "One short message covering both.",
+            AsksForWhatNothingSupports: false,
+            MinimumTaskAdherence: 4,
+            SecondConversation: CorpusMessage.ConversationUpTo(position: 99)),
     ];
 
     /// <summary>Gets the address the mailbox belongs to and sends from, which a reply is never proposed to.</summary>
@@ -284,13 +307,31 @@ internal sealed partial record ReplyDraftScenario(
     /// <summary>Gets what every scenario is judged on.</summary>
     public static IReadOnlyList<IEvaluator> Evaluators => [new TaskAdherenceEvaluator()];
 
-    /// <summary>Reads the conversation the answered message closes, the way a deployment reads one for a drafting.</summary>
+    /// <summary>Gets the conversations the drafting is written from, the one deciding its subject and manner first.</summary>
+    public IReadOnlyList<IReadOnlyList<CorpusMessage>> Context =>
+        this.SecondConversation is { } second ? [this.Conversation, second] : [this.Conversation];
+
+    /// <summary>Reads the conversations the context closes, the way a deployment reads them for a drafting.</summary>
     /// <returns>The sources, numbered as the turn numbers them.</returns>
     public ReplyDraftSources Sources()
     {
-        var bounds = MailReplyDrafting.BoundsFor(new ReplyDraftingOptions().StyleFromSentMail);
-        var conversation = this.Conversation.ToDictionary(static message => message.Id.Value);
-        var answeredThreadId = CorpusMailbox.StoredAs(this.Conversation[^1]).EmailThreadId;
+        var styleFromSentMail = new ReplyDraftingOptions().StyleFromSentMail;
+        var context = this.Context;
+
+        return ReplyDraftSources.Merged(
+            [
+                .. context.Select((conversation, position) => SourcesOf(
+                    conversation,
+                    MailReplyDrafting.BoundsFor(styleFromSentMail, context.Count, position))),
+            ],
+            MailReplyDrafting.MaximumMessages);
+    }
+
+    /// <summary>Reads one conversation of the context as the store reads one context message's, under the bounds that read is given.</summary>
+    private static ReplyDraftSources SourcesOf(IReadOnlyList<CorpusMessage> messages, ReplyDraftBounds bounds)
+    {
+        var conversation = messages.ToDictionary(static message => message.Id.Value);
+        var answeredThreadId = CorpusMailbox.StoredAs(messages[^1]).EmailThreadId;
 
         var recent = ReplyDraftSourceStore
             .MostRecent(CorpusMailbox.Stored.Where(email => conversation.ContainsKey(email.Id)).AsQueryable(), bounds.MaximumMessages)
@@ -489,6 +530,22 @@ internal sealed partial record ReplyDraftScenario(
                 WrittenLanguage.MetricName,
                 shortfall is null,
                 shortfall is null ? $"The draft is written in {language}." : $"The draft misses its language: {shortfall}");
+        }
+
+        if (this.SecondConversation is not null)
+        {
+            var cited = draft.Claims.SelectMany(static claim => claim.Sources).ToHashSet();
+            var uncitedConversations = this.Context
+                .Select(static (conversation, position) => (conversation, position))
+                .Where(entry => !entry.conversation.Any(message => cited.Contains(message.Id)))
+                .Select(static entry => entry.position)
+                .ToList();
+
+            EvaluationMetrics.Record(
+                verdict,
+                CitesEveryConversationMetricName,
+                uncitedConversations.Count is 0,
+                uncitedConversations.Count is 0 ? $"The claims cite a message of each of the {this.Context.Count} conversations." : $"No claim cites conversation {string.Join(", ", uncitedConversations)} of the context.");
         }
     }
 }

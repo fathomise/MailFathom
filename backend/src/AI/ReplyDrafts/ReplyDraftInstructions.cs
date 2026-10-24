@@ -19,7 +19,7 @@ namespace MailFathom.AI.ReplyDrafts;
 /// </para>
 /// <para>
 /// The messages and the people are numbered in the turn and the answer cites those numbers. A model is shown no
-/// identifier and no address, so it can name no message outside this conversation and address the reply to nobody the
+/// identifier and no address, so it can name no message outside the turn and address the reply to nobody the
 /// exchange did not already carry — the numbers are positions in lists this deployment composed, which is what makes
 /// both impossible rather than unlikely.
 /// </para>
@@ -57,9 +57,14 @@ internal static class ReplyDraftInstructions
     private static string Compose(UserLanguage language) => string.Create(
         CultureInfo.InvariantCulture,
         $"""
-        You draft a reply to one email conversation from somebody's own mailbox, in their own voice. What you write is
+        You draft a reply to email correspondence from somebody's own mailbox, in their own voice. What you write is
         a draft they will read, edit, and decide about: it is not sent, it is not filed anywhere, and nothing you write
         reaches anybody until that person acts on it.
+
+        The correspondence under "The conversation" is usually one email conversation, but it may also be messages the
+        person chose from several conversations, numbered together in the order they were written. Wherever these
+        instructions say "the conversation", they mean all of those messages: ground the reply in every one of them,
+        cite any of them, and propose recipients from any of them.
 
         The turn may carry no conversation at all. That is somebody starting a message rather than answering one, and
         what they asked for is then the whole of the request: write that message, cite nothing, propose nobody, and

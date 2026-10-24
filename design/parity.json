@@ -301,6 +301,31 @@
           }
         }
       ]
+    },
+    "composer": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "New message",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "text": "Context"
+          }
+        }
+      ]
     }
   }
 }

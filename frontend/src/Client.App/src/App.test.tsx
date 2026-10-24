@@ -499,6 +499,27 @@ describe('App', () => {
         },
     );
 
+    // The drafter goes with the reading column the composer stands in, so closing that composer hands the keyboard to the
+    // AI button drawn under the same message again — never to the drafter's field, which is no longer in the document.
+    it('hands the keyboard to the AI button when a composer opened from the drafter closes', async () => {
+        renderApp(servedFrom, heldSession, deploymentAnsweringDrafting(true, { read: false }));
+        await openTheInvoice();
+
+        fireEvent.click(await screen.findByRole('button', { name: aiButton }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Draft a reply' }));
+        fireEvent.click(
+            within(screen.getByRole('form', { name: 'Draft a reply to this correspondence' })).getByRole('button', {
+                name: 'Draft a reply',
+            }),
+        );
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Close the message' }));
+
+        await waitFor(() => {
+            expect(document.activeElement).toBe(screen.getByRole('button', { name: aiButton }));
+        });
+    });
+
     // Each of these withholds the AI button from a message that would otherwise carry it, and each is asserted only
     // once the message it would have stood under is drawn — beside the case above that finds it there.
     it('takes the AI button away once a message is being written over the one that is open', async () => {

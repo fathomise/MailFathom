@@ -2737,7 +2737,7 @@ POST /api/client/replies/drafting
 Content-Type: application/json
 
 {
-  "answeredEmailId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90",
+  "contextEmailIds": [ "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90" ],
   "selection": "Could you confirm the racking is still 4 200 net?",
   "instruction": "Confirm the price and offer Tuesday at ten."
 }
@@ -2762,7 +2762,7 @@ Content-Type: application/json
 ```
 
 **What comes back is a proposal rather than a message.** Nothing on this route sends, queues, or writes to a mail
-server, and nothing is stored: the reply arrives as text in the composer or in the card under a correspondence, which
+server, and nothing is stored: the reply arrives as text in the composer, which
 its author edits, discards, or saves through [the drafts routes](#the-drafts-routes) above. Every irreversible act stays behind a person confirming it.
 
 **The read says whether this deployment drafts at all**, which is what decides whether a composer may offer the
@@ -2772,13 +2772,17 @@ holds the answer. `false` is what a deployment with no chat section answers and 
 deliberately one answer, because what a client does about either is identical and naming which would publish a
 deployment's configuration to every signed-in browser.
 
-**The request names one message and states nothing else about it.** The conversation the draft is grounded in, the
-account whose manner it is written in, the subject, and the people it may propose are all read out of the stored copy
-that identifier resolves to, so a client can state none of them and can state none of them wrongly. `selection` is the
-part of the correspondence being answered and `instruction` is what the reply should say; both are optional beside a
-message, and a request carrying neither is the ordinary one.
+**The request names its context and states nothing else about it.** `contextEmailIds` lists the messages the reply is
+written from — usually the one being answered, and at most ten, from one conversation or from several — and the
+conversations the draft is grounded in, the subject, the people it may propose, and the account whose manner it is
+written in are all read out of the stored copies those identifiers resolve to, so a client can state none of them and
+can state none of them wrongly. The first one named decides the subject and the manner. An all-zero identifier names no
+message and is dropped, a message named twice is read once where it was first named, more than ten are refused with
+`400`, and a context holding any message this user does not hold is answered `404`, as one naming a message nobody
+holds. `selection` is the part of the correspondence being answered and `instruction` is what the reply should say; both
+are optional beside a context, and a request carrying neither is the ordinary one.
 
-**`answeredEmailId` is `null` for a message that answers nothing**, which is the composer somebody opened with nothing
+**`contextEmailIds` is empty for a message that answers nothing**, which is the composer somebody opened with nothing
 in front of it. There is then no conversation to read, so `instruction` is what the message is written from and is
 required there — a request naming neither is refused with `400`, because it would be a provider call made to invent a
 message out of nothing at all. The language follows the same split: a reply is written in the language the conversation
@@ -2786,16 +2790,17 @@ it answers is written in, and a message answering none is written in the languag
 user, which [the user record](configuration-sources.md) holds. An `instruction` asking for a particular language
 outranks both, being the one thing the person said about the message themselves.
 
-**The client asks for a draft in two places, and neither reaches another screen.** The block the design draws over the
+**The client asks for a draft in two places, and both write into the composer.** The block the design draws over the
 composer's body is one — the field says what the message should be about, the act beside it says what shape it should
 take, and the two travel as one `instruction`. What comes back replaces the words in the composer with the way back
 beside them, and a draft nobody has accepted is named in the send confirmation before the message goes out. The field
-under a correspondence, unfolded from the AI button at its foot, is the other: *Draft a reply* asks for a reply to the message being read, with the fixed
-sentence *Write a reply to this message.* and whatever was typed there joined as one `instruction`, and the passage
-selected in the message as the `selection`, and draws the answer as a card under that message, even with the rest of
-the correspondence shown, that says nothing has been sent. The card is held in memory and nowhere else; *Open in composer* carries its words into the composer on that
-message without asking the deployment again, over whatever that tab was already writing for the same answer, which stays
-the way back — and *Discard draft* lets it go.
+under a correspondence, unfolded from the AI button at its foot, is the other: *Draft a reply* opens the composer
+expanded as a reply to the message being read and asks there at once, with the fixed sentence *Write a reply to this
+message.* and whatever was typed in the field joined as one `instruction`, and the passage selected in the message as
+the `selection`. Either way `contextEmailIds` is the context the composer shows as chips: a reply starts with the
+message it answers, a new message starts with none, and while the list stands beside the composer a click on a row
+makes that message the context and a selection makes the whole selection the context — so what a draft is written
+from is what the composer said it would be written from.
 
 **`supported` is published beside the sources rather than left to a client to derive.** A claim carrying none is one
 the correspondence does not back, and it is kept and marked rather than dropped, because the sentence is already in the

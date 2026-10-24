@@ -6,7 +6,6 @@ import { useEffect, type ReactElement } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
-import { ComposingContext } from '../composer/useComposing';
 import { LocalizationProvider } from '../localization/Localization';
 import {
     ReadMarkingContext,
@@ -15,7 +14,6 @@ import {
     type ReadMarking,
 } from '../readMarking/useReadMarking';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
-import { ReplyDraftingContext, type ReplyDrafting } from '../threadAgent/replyDrafting';
 import type { ReadingFoot } from '../threadAgent/ThreadAgentField';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import type { OpenConversation } from '../workspace/openConversation';
@@ -420,44 +418,6 @@ describe('Thread', () => {
         expect(await screen.findByText('The whole of what one says.')).toBeDefined();
         expect(screen.getAllByRole('listitem')).toHaveLength(3);
         expect(screen.getByRole('button', { name: 'Hide earlier messages' })).toBeDefined();
-    });
-
-    // The reply answers the message the conversation was opened at, and with the history shown that is no longer the
-    // last one drawn — so the end of the thread would put it under a later message it does not answer.
-    it('draws a reply drafted for the message it was opened at under that message, with the history shown', async () => {
-        const drafting: ReplyDrafting = {
-            draft: { answering: 'two', body: 'Thank you, the figures reconcile.' },
-            draftReply: () => undefined,
-            letGo: () => undefined,
-            holdField: () => undefined,
-            returnToField: () => undefined,
-        };
-
-        render(
-            <ComposingContext
-                value={{ offered: true, drafts: true, opening: null, compose: () => undefined, close: () => undefined }}
-            >
-                <ReplyDraftingContext value={drafting}>
-                    {inTheFrame(
-                        deploymentAnswering(pageOf(['one', 'two', 'three'])),
-                        { threadId, openAt: 'two' },
-                        true,
-                        nothingMarkedRead,
-                        false,
-                        false,
-                        'two',
-                    )}
-                </ReplyDraftingContext>
-            </ComposingContext>,
-        );
-
-        expect(await screen.findByText('The whole of what two says.')).toBeDefined();
-        fireEvent.click(screen.getByRole('button', { name: 'Show all the messages' }));
-
-        const answered = screen.getByRole('region', { name: 'Draft · local' }).closest('li');
-
-        expect(screen.getAllByRole('region', { name: 'Draft · local' })).toHaveLength(1);
-        expect(answered?.textContent).toContain('The whole of what two says.');
     });
 
     it('still hides the history from a reader who asked for it expanded and then pressed the control', async () => {

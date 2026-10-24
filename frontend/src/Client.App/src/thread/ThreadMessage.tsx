@@ -9,7 +9,6 @@ import { useLocalization } from '../localization/useLocalization';
 import { useMessageBody } from '../messageBody/useMessageBody';
 import { OpenedMessage } from '../readingPane/OpenedMessage';
 import { useAccountName } from '../shell/accountNames';
-import { ReplyDraftCard } from '../threadAgent/ReplyDraftCard';
 import type { ArrivalMark } from './threadOpening';
 
 // One message of a conversation, drawn out in full — which is the whole of what this component decides, because what a
@@ -141,8 +140,6 @@ export function ThreadMessage({
                     </p>
                 </div>
             </article>
-
-            <ReplyDraftCard under={email.id} />
         </li>
     );
 }
