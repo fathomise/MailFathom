@@ -617,6 +617,27 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
             (reading.SenderAddress, reading.Subject, reading.Body, reading.BodyCut));
     }
 
+    /// <summary>A link the Agent takes from a thread it read is traced to that thread, and one the thread does not carry is not.</summary>
+    [Fact]
+    public async Task GuardedReadingOf_AThreadCarryingALink_TracesTheAnswersLinkToIt()
+    {
+        // Arrange
+        this.tools = this.Tools(MailFathomPermission.MailRead);
+        await this.tools.GuardedReadingOfAsync(
+            MessageReading("ada@example.org", "Bays", "Book the bays at https://bays.example.test/book today."),
+            TestContext.Current.CancellationToken);
+
+        // Act
+        var links = AgentConversationAgent.LinksIn(
+            PresentationText.Create("Book at [bays](https://bays.example.test/book) or [here](https://other.example.test/)."),
+            this.tools);
+
+        // Assert
+        Assert.Equal(
+            [("https://bays.example.test/book", true), ("https://other.example.test/", false)],
+            links.Select(static link => (link.Link.Target, link.AppearsInCitedSources)));
+    }
+
     /// <summary>The scan ceiling drops what lies beyond it without failing, so a body it shortened is marked as cut rather than shown as whole.</summary>
     [Theory]
     [InlineData(40, true)]

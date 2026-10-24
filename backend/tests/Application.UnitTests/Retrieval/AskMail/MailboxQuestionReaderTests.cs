@@ -390,6 +390,23 @@ public sealed class MailboxQuestionReaderTests
         Assert.True(result.AnswerWasTruncated);
     }
 
+    /// <summary>Neutralising adds characters, so an answer the bound fitted as written is cut once it is neutralised, and says so.</summary>
+    [Fact]
+    public async Task AnswerQuestionAsync_AnAnswerNeutralisingLengthensPastTheBound_IsCutAndSaysSo()
+    {
+        // Arrange
+        var answerer = new RecordingMailQuestionAnswerer().Answering("<b>agreed</b> on it ok");
+        var reader = ReaderOver(answerer, bounds: MailAnswerBounds.Create(22, 20));
+
+        // Act
+        var result = await AnswerAsync(reader, new AskMailRequest { QuestionText = "what was agreed" });
+
+        // Assert
+        Assert.Equal(22, result.AnswerText.Length);
+        Assert.StartsWith("\\<b>agreed\\</b>", result.AnswerText, StringComparison.Ordinal);
+        Assert.True(result.AnswerWasTruncated);
+    }
+
     /// <summary>A cut that fell between the halves of a surrogate pair would publish text no serialization survives.</summary>
     [Fact]
     public async Task AnswerQuestionAsync_ACutFallingInsideASurrogatePair_TakesTheWholePair()

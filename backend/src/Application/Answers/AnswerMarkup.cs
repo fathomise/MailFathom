@@ -38,7 +38,7 @@ public static partial class AnswerMarkup
 
     /// <summary>Turns every picture an answer's Markdown would draw into something no renderer fetches.</summary>
     /// <param name="answer">The answer as the model wrote it.</param>
-    /// <returns>The answer with each Markdown picture turned into a link and each raw HTML tag escaped into text.</returns>
+    /// <returns>The answer with each Markdown picture turned into a link and each raw HTML tag, comment, declaration and processing instruction escaped into text.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="answer" /> is <see langword="null" />.</exception>
     /// <remarks>
     /// <para>
@@ -122,7 +122,9 @@ public static partial class AnswerMarkup
             yield return (inline.Index, inline.Groups["reference"].Value, Shown(inline.Groups["words"].Value));
         }
 
-        foreach (Match automatic in AutomaticLink().Matches(answer))
+        var definitions = ReferenceDefinition().Matches(answer).ToArray();
+
+        foreach (Match automatic in AutomaticLink().Matches(answer).Where(found => !Inside(found, definitions)))
         {
             var reference = automatic.Groups["reference"].Value;
 
@@ -131,14 +133,14 @@ public static partial class AnswerMarkup
                 : (automatic.Index, $"mailto:{reference}", reference);
         }
 
-        foreach (Match bare in BareAddress().Matches(answer))
+        foreach (Match bare in BareAddress().Matches(answer).Where(found => !Inside(found, definitions)))
         {
             yield return (bare.Index, Absolute(bare.Value), bare.Value);
         }
 
         var usages = ReferenceUsage().Matches(answer).ToArray();
 
-        foreach (Match definition in ReferenceDefinition().Matches(answer))
+        foreach (var definition in definitions)
         {
             var label = definition.Groups["label"].Value;
             var reference = definition.Groups["reference"].Value;
@@ -146,16 +148,23 @@ public static partial class AnswerMarkup
             // The collapsed and shortcut forms show the label itself; the full form shows its own words.
             yield return (definition.Index, reference, Shown(label));
 
-            foreach (var usage in usages.Where(candidate => string.Equals(candidate.Groups["label"].Value, label, StringComparison.OrdinalIgnoreCase)))
+            foreach (var usage in usages.Where(candidate => string.Equals(Label(candidate.Groups["label"].Value), Label(label), StringComparison.OrdinalIgnoreCase)))
             {
                 yield return (usage.Index, reference, Shown(usage.Groups["words"].Value));
             }
         }
     }
 
-    /// <summary>Reads a link's words as a renderer shows them: without inline marks, and with every escape read as what it stands for.</summary>
+    /// <summary>Reads a link's words as a renderer shows them: without inline marks, with every escape read as what it stands for, and on one line.</summary>
     private static string Shown(string words) =>
-        WebUtility.HtmlDecode(InlineMarkOrEscape().Replace(words, static found => found.Groups["escaped"].Value));
+        WhitespaceRun().Replace(WebUtility.HtmlDecode(InlineMarkOrEscape().Replace(words, static found => found.Groups["escaped"].Value)), " ").Trim();
+
+    /// <summary>Normalises a reference label as a renderer matches one: trimmed, and with each run of whitespace read as one space.</summary>
+    private static string Label(string label) => WhitespaceRun().Replace(label.Trim(), " ");
+
+    /// <summary>Whether a match starts inside one of the reference definitions, which show nothing of their own.</summary>
+    private static bool Inside(Match found, Match[] definitions) =>
+        definitions.Any(definition => found.Index >= definition.Index && found.Index < definition.Index + definition.Length);
 
     /// <summary>Every address a source's text carries, in the form an answer link's target is compared in.</summary>
     private static IEnumerable<string> AddressesIn(string source) =>
@@ -179,9 +188,11 @@ public static partial class AnswerMarkup
     [GeneratedRegex(@"!+\[")]
     private static partial Regex PictureOpening();
 
-    // A tag's opening bracket, unless a backslash already escapes it: an odd run of backslashes before it is an escape,
-    // an even one is backslashes written as text. Autolinks are left alone, because a scheme is followed by a colon.
-    [GeneratedRegex(@"(?<=(?:^|[^\\])(?:\\\\)*)<(?=/?[A-Za-z][A-Za-z0-9-]*(?:[\s/>]|$))")]
+    // The opening bracket of a tag, and of a comment, a declaration, a CDATA section or a processing instruction — each of
+    // which opens an HTML block a renderer passes through raw, escapes and all — unless a backslash already escapes it: an
+    // odd run of backslashes before it is an escape, an even one is backslashes written as text. Autolinks are left
+    // alone, because a scheme is followed by a colon.
+    [GeneratedRegex(@"(?<=(?:^|[^\\])(?:\\\\)*)<(?=/?[A-Za-z][A-Za-z0-9-]*(?:[\s/>]|$)|[!?])")]
     private static partial Regex HtmlTagOpening();
 
     // An inline link with its destination bare or in angle brackets, one level of parentheses inside it, and a title.
@@ -200,11 +211,15 @@ public static partial class AnswerMarkup
     [GeneratedRegex(@"\\(?<escaped>[!-/:-@\[-`{-~])|[*_~`]")]
     private static partial Regex InlineMarkOrEscape();
 
-    [GeneratedRegex(@"^ {0,3}\[(?<label>[^\[\]\n]+)\]:[ \t]*<?(?<reference>[^\s<>]+)>?", RegexOptions.Multiline)]
+    // A label may run over lines, and the destination may sit on the line after it.
+    [GeneratedRegex(@"^ {0,3}\[(?<label>[^\[\]]+)\]:[ \t]*(?:\r?\n[ \t]*)?<?(?<reference>[^\s<>]+)>?", RegexOptions.Multiline)]
     private static partial Regex ReferenceDefinition();
 
-    [GeneratedRegex(@"\[(?<words>[^\[\]\n]+)\]\[(?<label>[^\[\]\n]+)\]")]
+    [GeneratedRegex(@"\[(?<words>[^\[\]]+)\]\[(?<label>[^\[\]]+)\]")]
     private static partial Regex ReferenceUsage();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRun();
 
     [GeneratedRegex(@"(?:https?://|www\.)[^\s<>""'()\[\]]+", RegexOptions.IgnoreCase)]
     private static partial Regex SourceAddress();

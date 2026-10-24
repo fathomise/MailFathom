@@ -67,12 +67,15 @@ public abstract record PresentationBlock
     /// <summary>Gets the revision of this block type's contract, which is the catalogue's rather than the producer's.</summary>
     /// <remarks>
     /// Written from the catalogue, so nothing can stamp a revision it did not write, and checked on the way back in: a
-    /// plan whose block claims a revision this build does not implement is refused rather than read as though it were
-    /// this one. An earlier revision the catalogue still reads, <see cref="PresentationBlockType.EarliestReadableVersion" />
-    /// and after, is read as this one and written back at this one. Silently normalizing it would be the worst of the three answers — the members that revision added
-    /// would be dropped, and the block would present as though nothing were missing. Degrading such a block instead of
-    /// refusing the plan is a reader's decision, and a reader that has to make it reads the number out of the JSON
-    /// rather than binding to this build's catalogue.
+    /// plan whose block claims a later revision than this build implements is refused rather than read as though it were
+    /// this one. Silently normalizing such a later revision would be the worst of the three answers — the members that
+    /// revision added would be dropped, and the block would present as though nothing were missing. Degrading such a
+    /// block instead of refusing the plan is a reader's decision, and a reader that has to make it reads the number out
+    /// of the JSON rather than binding to this build's catalogue.
+    /// <para>
+    /// An earlier revision, from <see cref="PresentationBlockType.EarliestReadableVersion" /> on, is read as this one and
+    /// written back at this one, and one before that is refused like a later one.
+    /// </para>
     /// </remarks>
     public int Version
     {

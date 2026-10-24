@@ -28,6 +28,9 @@ public sealed class AnswerMarkupTests
         { "<IMG SRC=x>", "\\<IMG SRC=x>" },
         { "<picture><source srcset=x></picture>", "\\<picture>\\<source srcset=x>\\</picture>" },
         { "An escaped backslash \\\\<img src=x> is not an escape.", "An escaped backslash \\\\\\<img src=x> is not an escape." },
+        { "<!-- --><img src=\"https://cdn.example.test/p.png\">", "\\<!-- -->\\<img src=\"https://cdn.example.test/p.png\">" },
+        { "<?x?><img src=x>", "\\<?x?>\\<img src=x>" },
+        { "<!X><img src=x>", "\\<!X>\\<img src=x>" },
     };
 
     [Theory]
@@ -75,6 +78,19 @@ public sealed class AnswerMarkupTests
     [InlineData("Pay at [bank&#46;example.test](https://evil.example.test/pay).")]
     [InlineData("Pay at [~~_bank.example.test_~~](https://evil.example.test/pay).")]
     public void LinksIn_MarkedUpWordsNamingAnotherHost_AreJudgedAsTheirPlainFormIs(string answer)
+    {
+        // Act
+        var links = AnswerMarkup.LinksIn(answer, []);
+
+        // Assert
+        Assert.Equal(MailLinkDeception.DisplayedHostDiffers, Assert.Single(links).Link.Deception);
+    }
+
+    /// <summary>A reference link is paired with its definition as a renderer pairs it, so the label's spacing or the destination's line hides nothing.</summary>
+    [Theory]
+    [InlineData("Pay at [bank.example.test][ref  x].\n\n[ref x]: https://evil.example.test/pay")]
+    [InlineData("Pay at [bank.example.test][x].\n\n[x]:\n  https://evil.example.test/pay")]
+    public void LinksIn_AReferenceLinkWhoseWordsNameAnotherHost_IsJudgedAsTheRendererPairsIt(string answer)
     {
         // Act
         var links = AnswerMarkup.LinksIn(answer, []);
