@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Jobs;
 using MailFathom.Application.Jobs.Payloads;
 using MailFathom.Application.Persistence;
@@ -16,8 +17,10 @@ namespace MailFathom.Application.Folders.Local;
 /// <summary>Reads, creates, renames, moves, and deletes the folders of the caller's own accounts whose mailbox MailFathom holds.</summary>
 /// <remarks>
 /// <para>
-/// Every act is refused on an account whose mailbox is not held, whatever grant the caller carries: a mirrored
-/// account's folders are the source server's, and ADR 0007 still governs those. No act reaches a mail server.
+/// It is what <see cref="HeldMailboxCustodian" /> carries a folder act through, and no act reaches a mail server. Each
+/// act asks <see cref="MailboxCustodianResolver" /> again inside its own transaction and is refused on an account that
+/// no longer resolves to the held custodian, whatever grant the caller carries: a mirrored account's folders are the
+/// source server's, and ADR 0007 still governs those.
 /// </para>
 /// <para>
 /// The five protected folders are supplied in the same transaction as the first read or act that finds them missing, so
@@ -28,6 +31,7 @@ namespace MailFathom.Application.Folders.Local;
 public sealed class LocalMailFolderEditor
 {
     private readonly ILocalMailFolderStore store;
+    private readonly MailboxCustodianResolver custodians;
     private readonly OptimisticConcurrencyRetryPolicy concurrencyRetryPolicy;
     private readonly ILocalMailFolderChangeAuditor auditor;
     private readonly ClientSignals signals;
@@ -37,6 +41,7 @@ public sealed class LocalMailFolderEditor
 
     /// <summary>Initializes a new instance of the <see cref="LocalMailFolderEditor" /> class.</summary>
     /// <param name="store">Persists the folders.</param>
+    /// <param name="custodians">Says, inside an edit's transaction, whether the account is still held.</param>
     /// <param name="concurrencyRetryPolicy">Commits an edit, deciding again from a fresh read when another edit won.</param>
     /// <param name="auditor">Records each committed change.</param>
     /// <param name="signals">Tells the caller's open clients the folder set moved.</param>
@@ -46,6 +51,7 @@ public sealed class LocalMailFolderEditor
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public LocalMailFolderEditor(
         ILocalMailFolderStore store,
+        MailboxCustodianResolver custodians,
         OptimisticConcurrencyRetryPolicy concurrencyRetryPolicy,
         ILocalMailFolderChangeAuditor auditor,
         ClientSignals signals,
@@ -54,6 +60,7 @@ public sealed class LocalMailFolderEditor
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(custodians);
         ArgumentNullException.ThrowIfNull(concurrencyRetryPolicy);
         ArgumentNullException.ThrowIfNull(auditor);
         ArgumentNullException.ThrowIfNull(signals);
@@ -62,6 +69,7 @@ public sealed class LocalMailFolderEditor
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         this.store = store;
+        this.custodians = custodians;
         this.concurrencyRetryPolicy = concurrencyRetryPolicy;
         this.auditor = auditor;
         this.signals = signals;
@@ -70,14 +78,15 @@ public sealed class LocalMailFolderEditor
         this.timeProvider = timeProvider;
     }
 
-    /// <summary>Reads the caller's account's phase and live folders, supplying the protected folders a held account lacks.</summary>
+    /// <summary>Reads the caller's held account's live folders, supplying the protected folders it lacks.</summary>
     /// <param name="account">The caller's account.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>The holding, or <see langword="null" /> where the caller holds no such account.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold <c>mailfathom.mail.read</c>.</exception>
     /// <remarks>
     /// The protected folders are written rather than only shown, so the identities a client reads are the ones every later
-    /// act and arrival finds; a read of a hierarchy that already has them writes nothing.
+    /// act and arrival finds; a read of a hierarchy that already has them writes nothing, and neither does one of an
+    /// account that stopped being held before the write.
     /// </remarks>
     public async Task<LocalMailFolderHolding?> ReadAsync(MailAccountId account, CancellationToken cancellationToken)
     {
@@ -85,8 +94,7 @@ public sealed class LocalMailFolderEditor
 
         var holding = await this.store.ReadAsync(account, cancellationToken);
 
-        if (holding is not { Phase: MailAccountCustodyPhase.Held }
-            || holding.ToTree().MissingProtectedFolders(this.MintId).Count is 0)
+        if (holding is null || holding.ToTree().MissingProtectedFolders(this.MintId).Count is 0)
         {
             return holding;
         }
@@ -161,7 +169,7 @@ public sealed class LocalMailFolderEditor
     {
         var holding = await this.store.ReadAsync(session, account, cancellationToken);
 
-        if (holding is not { Phase: MailAccountCustodyPhase.Held })
+        if (holding is null || !await this.IsStillHeldAsync(session, account, cancellationToken))
         {
             return holding;
         }
@@ -219,7 +227,7 @@ public sealed class LocalMailFolderEditor
             return LocalMailFolderDecision.Refused(MailFolderActRefusal.AccountMissing);
         }
 
-        if (holding.Phase != MailAccountCustodyPhase.Held)
+        if (!await this.IsStillHeldAsync(session, account, cancellationToken))
         {
             return LocalMailFolderDecision.Refused(MailFolderActRefusal.AccountNotHeld);
         }
@@ -304,6 +312,17 @@ public sealed class LocalMailFolderEditor
     }
 
     private MailFolderId MintId() => MailFolderId.Mint(this.timeProvider.GetUtcNow());
+
+    /// <summary>Asks the resolver again, inside the edit's transaction, whether the account is still held.</summary>
+    /// <remarks>
+    /// The act was dispatched on a reading taken before this transaction opened, and an account switched since then must
+    /// not have a local edit committed against a hierarchy that has stopped being the truth.
+    /// </remarks>
+    private async Task<bool> IsStillHeldAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        CancellationToken cancellationToken) =>
+        (await this.custodians.ResolveAsync(session, account, cancellationToken)).PlacesMailInLocalFolders;
 
     private sealed record LocalMailFolderDecision(LocalMailFolderEdit Edit, MailFolderChangeKind? Kind)
     {

@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Folders;
@@ -26,6 +27,7 @@ using MailFathom.Host.Configuration.Mail;
 using MailFathom.Host.Hosting.Workers;
 using MailFathom.Host.UnitTests.TestDoubles;
 using MailFathom.Infrastructure.Observability;
+using MailFathom.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -261,8 +263,25 @@ public sealed class OutboxDeliveryWorkerTests
             collection.AddScoped<MailboxDestinationResolver>();
             collection.AddScoped<MailboxCopyAppender>();
 
-            // The local half of filing reads the account's phase first, and a substitute answers that no account is held,
-            // so every pass here takes the mirrored path those tests already describe.
+            // Every filing and draft act asks the resolver which custodian carries it, and a substituted custody store
+            // answers that no account is held, so every pass here takes the mirrored path those tests already describe.
+            // The resolver is composed over this collection's own ports, so the custodian files through them.
+            collection.AddSingleton(Substitute.For<IMailAccountCustodyStore>());
+            collection.AddScoped(provider => new MailboxCustodianComposition(provider.GetRequiredService<TimeProvider>())
+            {
+                Custody = provider.GetRequiredService<IMailAccountCustodyStore>(),
+                LocalFolders = provider.GetRequiredService<ILocalMailFolderStore>(),
+                Mappings = provider.GetRequiredService<IMailFolderMappingReader>(),
+                FolderResolutions = provider.GetRequiredService<IMailFolderResolutionStore>(),
+                WriteSessions = provider.GetRequiredService<IMailboxWriteSessionFactory>(),
+                Filings = provider.GetRequiredService<IOutgoingMailFilingStore>(),
+                FilingPolicies = provider.GetRequiredService<IOutgoingMailFilingPolicyReader>(),
+                OutgoingEmails = provider.GetRequiredService<IOutgoingEmailStore>(),
+                Drafts = provider.GetRequiredService<IMailDraftStore>(),
+                Contents = provider.GetRequiredService<IEmailContentStore>(),
+                PersistenceSessions = provider.GetRequiredService<IPersistenceSessionFactory>(),
+                OutboxSettings = provider.GetRequiredService<MailOutboxSettings>(),
+            }.Custodians);
             collection.AddSingleton(Substitute.For<ILocalMailFolderStore>());
             collection.AddSingleton(Substitute.For<IEmailMetadataRepository>());
             collection.AddSingleton(Substitute.For<IEmailMimeReader>());

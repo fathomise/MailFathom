@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail.Mutations;
@@ -355,6 +356,7 @@ public sealed class SetMailFlagsToolTests
 
         var folder = MailFolderResolution.FirstBindingOf(Inbox, RemoteFolderPath.Create("INBOX", '/'));
         var localFolders = Substitute.For<ILocalMailFolderStore>();
+        var custody = Substitute.For<IMailAccountCustodyStore>();
         var states = Substitute.For<ILocalEmailStateStore>();
         var auditSettings = Substitute.For<IMailboxMutationAuditSettingsReader>();
 
@@ -362,8 +364,10 @@ public sealed class SetMailFlagsToolTests
         {
             localFolders
                 .ReadAsync(Arg.Any<IPersistenceSession>(), Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>())
-                .Returns(Task.FromResult<LocalMailFolderHolding?>(
-                    new LocalMailFolderHolding(MailAccountCustodyPhase.Held, [], [])));
+                .Returns(Task.FromResult<LocalMailFolderHolding?>(new LocalMailFolderHolding([], [])));
+            custody
+                .ReadAsync(Arg.Any<IPersistenceSession>(), Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>())
+                .Returns(new MailAccountCustodyState(MailAccountCustody.HoldMailbox, MailAccountCustodyPhase.Held));
             states
                 .ReadAsync(
                     Arg.Any<IPersistenceSession>(),
@@ -398,15 +402,14 @@ public sealed class SetMailFlagsToolTests
                 StubDeploymentMailFolders.Of(participation),
                 StubMailFolderMappings.ResolvingNothing),
             targets,
-            new MailboxChangeSubmission(
-                localFolders,
-                records,
-                states,
-                LocalMailCopiers.Over(localFolders),
-                auditSettings,
-                Substitute.For<IMailboxMutationAuditEntryStore>(),
-                ClientSignalPublishers.ReachingNobody,
-                new FakeTimeProvider()),
+            new MailboxCustodianComposition(new FakeTimeProvider())
+            {
+                Custody = custody,
+                LocalFolders = localFolders,
+                Records = records,
+                States = states,
+                AuditSettings = auditSettings,
+            }.Submission,
             new OptimisticConcurrencyRetryPolicy(
                 sessionFactory,
                 new PersistenceConcurrencyOptions(),

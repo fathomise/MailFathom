@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Domain.Accounts;
@@ -30,6 +31,11 @@ namespace MailFathom.Application.Mail.Delivery.Filing;
 /// nothing. The mapping is read from configuration and costs no query, so an account without one spends nothing per
 /// pass rather than reading its outbox to discover it has nothing to mirror.
 /// </para>
+/// <para>
+/// Whether an account keeps any copy of a send on a server at all is its custodian's to answer, so each entry asks
+/// <see cref="MailboxCustodianResolver" /> and the custodian of an account whose copies are kept on a server comes back
+/// to the half of this type that keeps them.
+/// </para>
 /// </remarks>
 public sealed class OutgoingMailFilingPass
 {
@@ -51,7 +57,7 @@ public sealed class OutgoingMailFilingPass
     private readonly IMailFolderMappingReader folderMappings;
     private readonly IOutgoingMailFilingPolicyReader filingPolicies;
     private readonly IOutgoingMailFilingStore filings;
-    private readonly LocalMailFiler localFiler;
+    private readonly MailboxCustodianResolver custodians;
     private readonly TimeProvider timeProvider;
     private readonly int maxMirroredSendsPerPass;
 
@@ -61,7 +67,7 @@ public sealed class OutgoingMailFilingPass
     /// <param name="folderMappings">Answers whether this account maps a folder to the outbox role at all.</param>
     /// <param name="filingPolicies">Answers whether this account files a copy of what it sends.</param>
     /// <param name="filings">Answers which filed sent copies the folder holds a second occurrence of.</param>
-    /// <param name="localFiler">Answers whether the account is held, whose copies are filed locally by the delivery instead.</param>
+    /// <param name="custodians">Chooses whether an account keeps copies of its sends on a server at all.</param>
     /// <param name="timeProvider">Decides which sends are waiting rather than merely queued.</param>
     /// <param name="settings">Bounds how many waiting sends one pass mirrors.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
@@ -76,7 +82,7 @@ public sealed class OutgoingMailFilingPass
         IMailFolderMappingReader folderMappings,
         IOutgoingMailFilingPolicyReader filingPolicies,
         IOutgoingMailFilingStore filings,
-        LocalMailFiler localFiler,
+        MailboxCustodianResolver custodians,
         TimeProvider timeProvider,
         MailOutboxSettings settings)
     {
@@ -85,7 +91,7 @@ public sealed class OutgoingMailFilingPass
         ArgumentNullException.ThrowIfNull(folderMappings);
         ArgumentNullException.ThrowIfNull(filingPolicies);
         ArgumentNullException.ThrowIfNull(filings);
-        ArgumentNullException.ThrowIfNull(localFiler);
+        ArgumentNullException.ThrowIfNull(custodians);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(settings);
 
@@ -94,7 +100,7 @@ public sealed class OutgoingMailFilingPass
         this.folderMappings = folderMappings;
         this.filingPolicies = filingPolicies;
         this.filings = filings;
-        this.localFiler = localFiler;
+        this.custodians = custodians;
         this.timeProvider = timeProvider;
         this.maxMirroredSendsPerPass = settings.MaxDeliveriesPerPass;
     }
@@ -112,11 +118,24 @@ public sealed class OutgoingMailFilingPass
         MailAccountId account,
         CancellationToken cancellationToken)
     {
-        if (!this.MapsOutboxFolder(account) || await this.localFiler.HoldsAsync(account, cancellationToken))
+        if (!this.MapsOutboxFolder(account))
         {
             return [];
         }
 
+        var custodian = await this.custodians.ResolveAsync(account, cancellationToken);
+
+        return await custodian.MirrorWaitingSendsAsync(account, cancellationToken);
+    }
+
+    /// <summary>Appends a copy of each waiting send to the outbox folder on the account's server.</summary>
+    /// <param name="account">The account whose waiting sends are mirrored.</param>
+    /// <param name="cancellationToken">Cancels the reads and the appends.</param>
+    /// <returns>What each attempt did.</returns>
+    internal async Task<IReadOnlyList<OutgoingMailFilingResult>> MirrorWaitingSendsOnSourceAsync(
+        MailAccountId account,
+        CancellationToken cancellationToken)
+    {
         var outstanding = await this.outgoingEmails.ReadOutstandingAsync(
             account,
             this.maxMirroredSendsPerPass,
@@ -164,12 +183,24 @@ public sealed class OutgoingMailFilingPass
         MailAccountId account,
         CancellationToken cancellationToken)
     {
-        if (!this.filingPolicies.WithdrawsDuplicateSentCopy(account)
-            || await this.localFiler.HoldsAsync(account, cancellationToken))
+        if (!this.filingPolicies.WithdrawsDuplicateSentCopy(account))
         {
             return [];
         }
 
+        var custodian = await this.custodians.ResolveAsync(account, cancellationToken);
+
+        return await custodian.WithdrawDuplicatedSentCopiesAsync(account, cancellationToken);
+    }
+
+    /// <summary>Withdraws, over IMAP, the appended sent copies the provider filed a copy of its own beside.</summary>
+    /// <param name="account">The account whose sent folder is brought back to one copy of each message.</param>
+    /// <param name="cancellationToken">Cancels the read and the withdrawals.</param>
+    /// <returns>What each withdrawal did.</returns>
+    internal async Task<IReadOnlyList<OutgoingMailFilingResult>> WithdrawDuplicatedSentCopiesOnSourceAsync(
+        MailAccountId account,
+        CancellationToken cancellationToken)
+    {
         var duplicated = await this.filings.ReadDuplicatedSentCopiesAsync(
             account,
             this.timeProvider.GetUtcNow() - DuplicateSentCopyWindow,
@@ -221,12 +252,24 @@ public sealed class OutgoingMailFilingPass
         OutgoingEmailId outgoingEmailId,
         CancellationToken cancellationToken)
     {
-        if (await this.outgoingEmails.FindAsync(outgoingEmailId, cancellationToken) is not { IsTerminal: true } record
-            || await this.localFiler.HoldsAsync(record.AccountId, cancellationToken))
+        if (await this.outgoingEmails.FindAsync(outgoingEmailId, cancellationToken) is not { IsTerminal: true } record)
         {
             return [];
         }
 
+        var custodian = await this.custodians.ResolveAsync(record.AccountId, cancellationToken);
+
+        return await custodian.SettleFiledCopiesAsync(record, cancellationToken);
+    }
+
+    /// <summary>Withdraws a settled send's outbox copy and appends its sent copy, on the account's server.</summary>
+    /// <param name="record">The send, read after its attempt ended.</param>
+    /// <param name="cancellationToken">Cancels the appends and the withdrawals.</param>
+    /// <returns>What each attempt did.</returns>
+    internal async Task<IReadOnlyList<OutgoingMailFilingResult>> SettleFiledCopiesOnSourceAsync(
+        OutgoingEmailRecord record,
+        CancellationToken cancellationToken)
+    {
         var results = new List<OutgoingMailFilingResult>(capacity: 2);
 
         if (record.FindFiling(OutgoingMailFiling.Held) is { IsStanding: true })

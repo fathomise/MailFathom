@@ -711,7 +711,7 @@ public sealed class OutgoingMailFilingPassTests
                 this.Content,
                 settings,
                 this.clock,
-                this.Held?.FilerOver(this.Content));
+                this.Held);
         }
 
         /// <summary>Gets the account's local mailbox where the context was built holding it, whose phase a test may move.</summary>

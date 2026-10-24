@@ -41,6 +41,23 @@ internal sealed class MailAccountCustodyStore(MailFathomDbContext dbContext) : I
     }
 
     /// <inheritdoc />
+    public async Task<MailAccountCustodyState?> ReadAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        CancellationToken cancellationToken)
+    {
+        var sessionContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+        var accountRow = await sessionContext.MailboxAccounts.FindAsync([account.Value], cancellationToken);
+
+        return accountRow is null
+            ? null
+            : new MailAccountCustodyState(accountRow.RequestedCustody, accountRow.CustodyPhase)
+            {
+                RestoreGeneration = accountRow.RestoreGeneration,
+            };
+    }
+
+    /// <inheritdoc />
     public async Task<MailAccountCustodyState?> RequestAsync(
         IPersistenceSession session,
         MailAccountId account,

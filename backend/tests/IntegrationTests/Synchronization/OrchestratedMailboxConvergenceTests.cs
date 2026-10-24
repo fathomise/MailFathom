@@ -2,8 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Folders;
-using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Audit;
@@ -262,7 +262,7 @@ public sealed class OrchestratedMailboxConvergenceTests(MailFathomOrchestrationF
             scope.GetRequiredService<IMailboxMutationAuditTrail>(),
             new MailboxConvergenceOptions { UnknownOutcomeGrace = TimeSpan.Zero },
             TimeProvider.System,
-            scope.GetRequiredService<ILocalMailFolderStore>(),
+            scope.GetRequiredService<IMailAccountCustodyStore>(),
             scope.GetRequiredService<MailboxChangeSubmission>());
 
         return await converger.ConvergeAsync(SyntheticMailAccount.Account, cancellationToken);
@@ -340,7 +340,7 @@ public sealed class OrchestratedMailboxConvergenceTests(MailFathomOrchestrationF
             scope.GetRequiredService<IMailboxMutationAuditTrail>(),
             new MailboxConvergenceOptions(),
             TimeProvider.System,
-            scope.GetRequiredService<ILocalMailFolderStore>(),
+            scope.GetRequiredService<IMailAccountCustodyStore>(),
             scope.GetRequiredService<MailboxChangeSubmission>());
 
         return await converger.ConvergeAsync(SyntheticMailAccount.Account, cancellationToken);

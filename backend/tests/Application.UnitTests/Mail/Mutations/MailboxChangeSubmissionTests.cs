@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Mail.Mutations;
@@ -483,6 +484,22 @@ public sealed class MailboxChangeSubmissionTests
 
         // Assert
         Assert.Empty(prepared.Of(Email));
+    }
+
+    /// <summary>A rule batch naming no copy is the common case, so it costs no read of the account at all.</summary>
+    [Fact]
+    public async Task PrepareCopiesAsync_NoCopyAskedFor_ReadsNothing()
+    {
+        // Arrange
+        var custody = Substitute.For<IMailAccountCustodyStore>();
+        var submission = new MailboxCustodianComposition(new FakeTimeProvider()) { Custody = custody }.Submission;
+
+        // Act
+        var prepared = await submission.PrepareCopiesAsync(Account, [], Token);
+
+        // Assert
+        Assert.Same(PreparedLocalCopies.None, prepared);
+        await custody.DidNotReceiveWithAnyArgs().ReadAsync(default, Token);
     }
 
     /// <summary>Two rules copying one message produce two stored messages, so two payloads are placed for it.</summary>

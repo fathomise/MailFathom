@@ -28,21 +28,19 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
 
         return accountRow is null
             ? null
-            : await HoldingAsync(sessionContext.MailFolders, account, accountRow.CustodyPhase, cancellationToken);
+            : await HoldingAsync(sessionContext.MailFolders, account, cancellationToken);
     }
 
     public async Task<LocalMailFolderHolding?> ReadAsync(MailAccountId account, CancellationToken cancellationToken)
     {
         var accountIdValue = account.Value;
 
-        var phase = await dbContext.MailboxAccounts
+        var exists = await dbContext.MailboxAccounts
             .AsNoTracking()
-            .Where(row => row.Id == accountIdValue)
-            .Select(static row => (MailAccountCustodyPhase?)row.CustodyPhase)
-            .SingleOrDefaultAsync(cancellationToken);
+            .AnyAsync(row => row.Id == accountIdValue, cancellationToken);
 
-        return phase is { } found
-            ? await HoldingAsync(dbContext.MailFolders.AsNoTracking(), account, found, cancellationToken)
+        return exists
+            ? await HoldingAsync(dbContext.MailFolders.AsNoTracking(), account, cancellationToken)
             : null;
     }
 
@@ -235,21 +233,11 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
     private static async Task<LocalMailFolderHolding> HoldingAsync(
         IQueryable<MailFolderEntity> folders,
         MailAccountId account,
-        MailAccountCustodyPhase phase,
         CancellationToken cancellationToken)
     {
-        // A restoring account still keeps its mail in its own folders — the mailbox is being appended back, not handed
-        // over — so its acts are committed against the same hierarchy a held account's are. Reading none for it would
-        // leave a local change minting a second trash beside the one the mail is already in.
-        if (phase is not (MailAccountCustodyPhase.Held or MailAccountCustodyPhase.Restoring))
-        {
-            return new LocalMailFolderHolding(phase, [], []);
-        }
-
         var rows = await AccountFolders(folders, account).ToArrayAsync(cancellationToken);
 
         return new LocalMailFolderHolding(
-            phase,
             [.. rows.Where(static row => row.ErasedAt is null).Select(ToFolder)],
             [
                 .. rows

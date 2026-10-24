@@ -257,6 +257,30 @@ internal static class SynchronizationTestHost
         services.AddScoped<LocalMailCopier>();
         services.AddScoped<MailboxChangeSubmission>();
 
+        // The submission, the destination resolver, and the arrivals each ask the resolver which custodian carries an
+        // account's acts. It is composed over this host's own ports, so a mirrored account's custodian resolves its
+        // on-demand destinations through the same bindings and listing every other resolver here reads.
+        services.AddScoped(provider => new MailboxCustodianComposition(timeProvider)
+        {
+            Custody = provider.GetRequiredService<IMailAccountCustodyStore>(),
+            LocalFolders = provider.GetRequiredService<ILocalMailFolderStore>(),
+            Records = provider.GetRequiredService<IMailboxMutationRecordStore>(),
+            States = provider.GetRequiredService<ILocalEmailStateStore>(),
+            Copier = provider.GetRequiredService<LocalMailCopier>(),
+            AuditSettings = provider.GetRequiredService<IMailboxMutationAuditSettingsReader>(),
+            AuditEntries = provider.GetRequiredService<IMailboxMutationAuditEntryStore>(),
+            Mappings = provider.GetRequiredService<IMailFolderMappingReader>(),
+            FolderResolutions = provider.GetRequiredService<IMailFolderResolutionStore>(),
+            RemoteFolderCatalog = provider.GetRequiredService<IRemoteFolderCatalog>(),
+            RemoteFolderCreator = provider.GetRequiredService<IRemoteFolderCreator>(),
+            MappingChangeAuditor = provider.GetRequiredService<IMailFolderMappingChangeAuditor>(),
+            PersistenceSessions = provider.GetRequiredService<IPersistenceSessionFactory>(),
+            WriteSessions = provider.GetRequiredService<IMailboxWriteSessionFactory>(),
+            Jobs = provider.GetRequiredService<IJobStore>(),
+            Authorization = provider.GetRequiredService<AccessAuthorization>(),
+            CommitPolicy = provider.GetRequiredService<OptimisticConcurrencyRetryPolicy>(),
+        }.Custodians);
+
         // The trail and its retention pass are composed here for the same reason convergence is: a supervisor resolves
         // both from its scope. Neither is what these tests are about — the trail is off for every account they
         // configure, so both answer that there is nothing to keep and nothing to erase.

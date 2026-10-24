@@ -2,8 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Folders;
-using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Folders;
@@ -21,10 +21,8 @@ namespace MailFathom.Application.Mail.Mutations.Destinations;
 /// The two kinds of destination are answered differently, and the difference is the whole of what this type adds. A
 /// folder the account mirrors already has a binding, because the run that synchronizes it resolved the alias before it
 /// read anything, so asking the server again would repoint a binding a checkpoint hangs off. A folder the account only
-/// maps is never scheduled by a run, so nothing would ever bind it: it is resolved here, on demand, through the same
-/// resolver, the same binding record, and the same mapping-change audit a mirrored folder uses. A server that has since
-/// renamed the folder is followed exactly as it is for a mirrored folder — the binding is replaced by the next
-/// generation, with no checkpoint to invalidate, because a folder nothing mirrors has none.
+/// maps is never scheduled by a run, so what it means is the account's custodian's to answer: resolved against the
+/// server on demand where the server is still the account's, and nowhere at all where MailFathom holds the mailbox.
 /// </para>
 /// <para>
 /// Every answer is remembered for the life of this instance, which is one account run. A batch of two hundred emails
@@ -36,37 +34,27 @@ public sealed class MailboxDestinationResolver
 {
     private readonly MailFolderReferenceResolver folderReferences;
     private readonly IMailFolderResolutionStore folderResolutions;
-    private readonly MailFolderResolver folderResolver;
-    private readonly IMailTransportSecurityPolicyReader transportSecurityPolicies;
-    private readonly ILocalMailFolderStore localFolders;
+    private readonly MailboxCustodianResolver custodians;
 
     private readonly Dictionary<(MailAccountId Account, MailFolderReference Destination), MailboxDestinationResolution> answers = [];
 
     /// <summary>Initializes the resolver from the two ways a destination is turned into a folder.</summary>
     /// <param name="folderReferences">Turns the alias or the role an author named into the mapping of the account it means.</param>
     /// <param name="folderResolutions">Reads the binding a mirrored folder's run has already recorded.</param>
-    /// <param name="folderResolver">Resolves a mapped folder against what its server advertises, and records the binding.</param>
-    /// <param name="transportSecurityPolicies">Supplies the connection and authentication policy an on-demand resolution obeys.</param>
-    /// <param name="localFolders">Answers whether the account is held, where no destination is resolved against its server.</param>
+    /// <param name="custodians">Chooses who answers a folder the account maps but does not synchronize.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
     public MailboxDestinationResolver(
         MailFolderReferenceResolver folderReferences,
         IMailFolderResolutionStore folderResolutions,
-        MailFolderResolver folderResolver,
-        IMailTransportSecurityPolicyReader transportSecurityPolicies,
-        ILocalMailFolderStore localFolders)
+        MailboxCustodianResolver custodians)
     {
         ArgumentNullException.ThrowIfNull(folderReferences);
         ArgumentNullException.ThrowIfNull(folderResolutions);
-        ArgumentNullException.ThrowIfNull(folderResolver);
-        ArgumentNullException.ThrowIfNull(transportSecurityPolicies);
-        ArgumentNullException.ThrowIfNull(localFolders);
+        ArgumentNullException.ThrowIfNull(custodians);
 
         this.folderReferences = folderReferences;
         this.folderResolutions = folderResolutions;
-        this.folderResolver = folderResolver;
-        this.transportSecurityPolicies = transportSecurityPolicies;
-        this.localFolders = localFolders;
+        this.custodians = custodians;
     }
 
     /// <summary>Resolves every destination one batch of authored changes names.</summary>
@@ -152,12 +140,9 @@ public sealed class MailboxDestinationResolver
             return await this.ReadMirroredBindingAsync(account, mapping, cancellationToken);
         }
 
-        // A held account's truth is local and a folder it does not synchronize has no local folder, so there is nothing
-        // to file into — and resolving one on demand would put an IMAP listing in front of a request that must not wait
-        // on one.
-        return await this.localFolders.ReadAsync(account, cancellationToken) is { Phase: MailAccountCustodyPhase.Held }
-            ? MailboxDestinationResolution.Unmapped()
-            : await this.ResolveOnDemandAsync(account, mapping, cancellationToken);
+        var custodian = await this.custodians.ResolveAsync(account, cancellationToken);
+
+        return await custodian.ResolveUnsynchronizedDestinationAsync(account, mapping, cancellationToken);
     }
 
     /// <summary>Reads the binding the folder's own synchronization run recorded.</summary>
@@ -174,43 +159,5 @@ public sealed class MailboxDestinationResolver
         return binding is not null
             ? MailboxDestinationResolution.Resolved(new MailboxDestination(binding, IsMirrored: true, mapping.SpecialUse))
             : MailboxDestinationResolution.Unbound();
-    }
-
-    /// <summary>Resolves a folder no run schedules, at the moment it is needed as a destination.</summary>
-    /// <remarks>
-    /// A creation the server refused is reported as an unadvertised folder rather than raised, for the reason every
-    /// refusal here is a result: the folder is not there either way, and letting it out would end a pass over one
-    /// destination and end the next pass the same way, forever.
-    /// </remarks>
-    private async Task<MailboxDestinationResolution> ResolveOnDemandAsync(
-        MailAccountId account,
-        MailFolderMapping mapping,
-        CancellationToken cancellationToken)
-    {
-        var transportSecurityPolicy = this.transportSecurityPolicies.GetPolicy(account);
-
-        MailFolderResolutionResult result;
-
-        try
-        {
-            result = await this.folderResolver.ResolveAsync(
-                account,
-                mapping,
-                transportSecurityPolicy,
-                cancellationToken);
-        }
-        catch (RemoteFolderCreationRefusedException)
-        {
-            return MailboxDestinationResolution.NotAdvertised();
-        }
-
-        return result switch
-        {
-            { Outcome: MailFolderResolutionOutcome.Resolved, Resolution: { } binding } =>
-                MailboxDestinationResolution.Resolved(new MailboxDestination(binding, IsMirrored: false, mapping.SpecialUse)),
-            { Outcome: MailFolderResolutionOutcome.AdvertisedFoldersAreAmbiguous } =>
-                MailboxDestinationResolution.Ambiguous(),
-            _ => MailboxDestinationResolution.NotAdvertised(),
-        };
     }
 }
