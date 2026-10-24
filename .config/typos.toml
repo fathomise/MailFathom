@@ -66,6 +66,10 @@
 # the English prose that is the rest of this repository — the file is excluded whole instead. `en.ts` beside it stays
 # checked, being the language everything else here is written in.
 #
+# `backend/src/Application/Localization/ApplicationTexts.pl.resx` is the same kind on the service's side: the Polish
+# sentences the service writes for a person in their chosen language, beside the neutral English set in
+# `ApplicationTexts.resx`, which stays checked for the reason `en.ts` does.
+#
 # This governs the walk `typos` does when it is given a directory, and a path named on the command line is read
 # whether it says so or not — `--force-exclude` would change that and `crate-ci/typos` passes no such flag. So a run
 # over a list of files applies this entry only because something applies it: `.github/workflows/typo-check.yml` reads
@@ -101,6 +105,7 @@
 # files, refuses such an entry by widening to the whole checkout rather than guessing. Anchoring it says what is meant:
 # this one directory at the root.
 extend-exclude = [
+  'backend/src/Application/Localization/ApplicationTexts.pl.resx',
   'backend/tools/SyntheticMail/corpora/',
   '/design/',
   'frontend/pnpm-lock.yaml',
