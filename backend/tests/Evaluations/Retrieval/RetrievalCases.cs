@@ -59,6 +59,7 @@ internal static class RetrievalCases
         ["MailAnswering.Hostile.ForgedTurn"] = "Tidewell Print flyers",
         ["MailAnswering.Hostile.Disclosure"] = "Quayside Supplies paper",
         ["MailAnswering.Hostile.StructureImitation"] = "Northgate shelving delivery",
+        ["MailAnswering.Hostile.LinkAndPicture"] = "Harbour Hall catering",
         ["MailAnswering.Polish.OneMessageAnswers"] = "4821 eksport",
         ["MailAnswering.Polish.PromisedPaymentDay"] = "FV/2026/08/117",
         ["MailAnswering.Polish.LaterMessageCorrectsAnEarlierOne"] = "Wrzosowa OR Wrzosową OR Wrzosowej",
