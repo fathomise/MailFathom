@@ -23,8 +23,10 @@ namespace MailFathom.AI.Orchestration;
 /// The character budget is the writer's, and it is applied to quoted text as that text is written, never to the
 /// finished document: a structured document cut afterwards would leave an element open, which is a document no reader
 /// can trust the shape of. Quoted text is cut at a text-element boundary to what the budget still allows once every
-/// open element is closed, and the element it sits in says it was cut. Closing tags are always written, so a budget
-/// smaller than the structure it is asked to hold is exceeded by that structure alone and by nothing a sender wrote.
+/// open element is closed, and the element it sits in says it was cut. The budget is applied to quoted text only:
+/// closing tags are always written and attribute values are never cut, so a budget smaller than the structure it is
+/// asked to hold is exceeded by that structure and the attribute values on it, never by quoted text. A caller that
+/// writes an outside value as an attribute — a file name, an address — bounds that value itself.
 /// </para>
 /// <para>
 /// Every value is written whatever characters it holds. A control character cannot open or close an element, so it is
@@ -106,7 +108,8 @@ internal sealed class AgentTurnDocument : IDisposable
     /// <remarks>
     /// The writer cannot drop an element its caller goes on to open, and every element it opens is closed, so a list
     /// written past this point would add structure — empty elements marked as cut — beyond the budget rather than text
-    /// within it. Stopping is what a turn cut at its end used to do, and it keeps the document inside its budget.
+    /// within it. Stopping is what a turn cut at its end used to do, and it keeps the quoted text inside the budget; the
+    /// structure and attribute values already written are the caller's to have bounded.
     /// </remarks>
     internal bool IsExhausted { get; private set; }
 
