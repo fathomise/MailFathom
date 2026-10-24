@@ -505,11 +505,23 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.setOutbox(acc, this.outboxOf(acc).filter(x => x.id !== id));
       if (entry) this.notify("Nothing was sent to " + entry.rcpt.map(r => r.name).join(", ") + ".", { kind: "success", title: "Sending cancelled" });
     };
-    /* Dismissing takes a refused send, or one nobody knows the fate of, out of the Outbox and changes nothing else. */
+    /* Dismissing takes a refused send, or one nobody knows the fate of, out of the Outbox and changes nothing else.
+       The person cannot offer a dismissed send again, so the toast holds an Undo for as long as it stands. */
     dismissOutboxEntry = (acc, id) => {
-      const entry = this.outboxOf(acc).find(x => x.id === id);
-      this.setOutbox(acc, this.outboxOf(acc).filter(x => x.id !== id));
-      if (entry) this.notify(entry.stage === "unknown" ? "Whether it arrived stays unknown." : "It was not sent.", { title: "Taken out of Outbox" });
+      const before = this.outboxOf(acc);
+      const entry = before.find(x => x.id === id);
+      if (!entry) return;
+      this.setOutbox(acc, before.filter(x => x.id !== id));
+      const tid = this.notify("“" + entry.subject + "” is no longer listed here. Nothing else about the send changes.", {
+        title: "Taken out of Outbox", actionLabel: "Undo", ms: 8000,
+        onAction: () => {
+          this.dismissToast(tid);
+          const now = this.outboxOf(acc);
+          const ahead = before.slice(0, before.indexOf(entry)).map(x => x.id);
+          const at = now.filter(x => ahead.indexOf(x.id) >= 0).length;
+          this.setOutbox(acc, now.slice(0, at).concat([entry], now.slice(at)));
+        },
+      });
     };
     sendOutboxEntryAgain = (acc, id) => {
       this.setOutbox(acc, this.outboxOf(acc).map(x => (x.id === id ? Object.assign({}, x, { stage: "sending" }) : x)));
@@ -2930,10 +2942,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const ink = open ? "var(--onaccent)" : refused ? "var(--err-text)" : "var(--accent-d)";
         const ground = open ? (refused ? "var(--err)" : "var(--accent)") : refused ? "var(--err-soft)" : "var(--accent-soft)";
         return {
-          count: String(entries.length), title: said, open,
+          count: String(entries.length), title: said, current: open ? "true" : "false",
           run: (e) => this.openOutbox(accKey, e),
-          style: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:4px;border-radius:999px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:" + ink + ";background:" + ground + ";" +
-            (touch ? "min-width:44px;min-height:36px;margin:-8px -6px -8px 0;padding:0 10px;box-sizing:border-box;" : "height:22px;padding:0 8px 0 6px;"),
+          /* Under a finger the target is 44 x 44 around a 36 px pill, taken from the row's padding so the row keeps its height. */
+          style: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;" + (touch ? "min-width:44px;min-height:44px;margin:-12px -6px -12px 0;" : ""),
+          pillStyle: "display:inline-flex;align-items:center;justify-content:center;gap:4px;box-sizing:border-box;border-radius:999px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:" + ink + ";background:" + ground + ";" +
+            (touch ? "min-width:44px;height:36px;padding:0 10px;" : "height:22px;padding:0 8px 0 6px;"),
           iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1",
           stripStyle: "position:relative;display:flex;align-items:center;justify-content:center;height:34px;border-radius:8px;color:" + (open ? "var(--onaccent)" : ink) + ";background:" + (open ? ground : "transparent"),
           stripBadgeStyle: "position:absolute;top:2px;right:6px;min-width:16px;height:16px;padding:0 4px;box-sizing:border-box;border-radius:999px;font-size:11px;font-weight:600;line-height:16px;text-align:center;color:var(--onaccent);background:" + (refused ? "var(--err)" : "var(--accent)") + ";box-shadow:0 0 0 2px var(--sub)",
@@ -2972,7 +2986,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         outboxNothingShown: !outboxEntry,
         outboxNothingText: outboxEntries.length
           ? "Pick a message to read it. Outbox is read-only: what is here can be read, and nothing can be replied to, moved or deleted."
-          : "",
+          : "Outbox is empty, so there is nothing to read here. What went out is in Sent.",
         outboxBackShown: singlePane,
         outboxBack: () => this.setState({ mailPane: "list" }),
         outboxBackStyle: "flex:0 0 auto;width:" + (isMobile ? 48 : touch ? 44 : 34) + "px;height:" + (isMobile ? 48 : touch ? 44 : 34) + "px;display:flex;align-items:center;justify-content:center;border-radius:12px;color:var(--text2)",

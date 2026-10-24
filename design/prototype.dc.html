@@ -681,12 +681,12 @@ Project repository: https://github.com/fathomise/MailFathom
                       </sc-if>
                       <span style="{{ mb.countStyle }}">{{ mb.count }}</span>
                       <sc-if value="{{ mb.outboxMark }}" hint-placeholder-val="{{ false }}">
-                        <span role="button" tabindex="0" onClick="{{ mb.ob.run }}" data-tip-hover title="{{ mb.ob.title }}" aria-label="{{ mb.ob.title }}" aria-pressed="{{ mb.ob.open }}" style="{{ mb.ob.style }}" style-hover="cursor:pointer;filter:brightness(0.96)"><span aria-hidden="true" style="{{ mb.ob.iconStyle }}">outbox</span>{{ mb.ob.count }}</span>
+                        <span role="button" tabindex="0" onClick="{{ mb.ob.run }}" data-tip-hover title="{{ mb.ob.title }}" aria-label="{{ mb.ob.title }}" aria-current="{{ mb.ob.current }}" style="{{ mb.ob.style }}" style-hover="cursor:pointer;filter:brightness(0.96)"><span aria-hidden="true" style="{{ mb.ob.pillStyle }}"><span style="{{ mb.ob.iconStyle }}">outbox</span>{{ mb.ob.count }}</span></span>
                       </sc-if>
                     </sc-if>
                   </div>
                   <sc-if value="{{ mb.outboxStrip }}" hint-placeholder-val="{{ false }}">
-                    <div role="button" tabindex="0" onClick="{{ mb.ob.run }}" title="{{ mb.ob.title }}" aria-label="{{ mb.ob.title }}" aria-pressed="{{ mb.ob.open }}" style="{{ mb.ob.stripStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:24px;width:24px;line-height:1;text-align:center">outbox</span><span aria-hidden="true" style="{{ mb.ob.stripBadgeStyle }}">{{ mb.ob.count }}</span></div>
+                    <div role="button" tabindex="0" onClick="{{ mb.ob.run }}" title="{{ mb.ob.title }}" aria-label="{{ mb.ob.title }}" aria-current="{{ mb.ob.current }}" style="{{ mb.ob.stripStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:24px;width:24px;line-height:1;text-align:center">outbox</span><span aria-hidden="true" style="{{ mb.ob.stripBadgeStyle }}">{{ mb.ob.count }}</span></div>
                   </sc-if>
                 </sc-for>
               </sc-if>
