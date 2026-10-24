@@ -225,7 +225,7 @@ public sealed class ListAccountsToolTests
         Assert.NotEmpty(result.Accounts);
     }
 
-    /// <summary>The outbox is a member of the account rather than a folder, so its two counts arrive on the account and never among its folders.</summary>
+    /// <summary>The outbox is a member of the account rather than a folder, so its two counts arrive on the account and never among its folders — an empty outbox as two zeros rather than as an absent member.</summary>
     [Fact]
     public async Task ListAccountsAsync_ACallerThatMayReadAndSend_PublishesEachAccountsOutboxCounts()
     {
@@ -233,7 +233,9 @@ public sealed class ListAccountsToolTests
         var operations = Substitute.For<IOutboxOperationStore>();
         operations
             .CountAccountOutboxesAsync(Arg.Any<IReadOnlyCollection<MailAccountId>>(), Arg.Any<CancellationToken>())
-            .Returns([new AccountOutboxCount(Work.Id, Waiting: 2, Refused: 1)]);
+            .Returns([
+                new AccountOutboxCount(Work.Id, Waiting: 2, Refused: 1),
+                new AccountOutboxCount(Private.Id, Waiting: 0, Refused: 0)]);
         var tool = ToolOver(
             CatalogServing(Work, Private),
             [],
@@ -245,7 +247,7 @@ public sealed class ListAccountsToolTests
 
         // Assert
         Assert.Equal(
-            [("acct-1", (int?)2, (int?)1), ("acct-2", null, null)],
+            [("acct-1", (int?)2, (int?)1), ("acct-2", (int?)0, (int?)0)],
             result.Accounts.Select(account => (account.AccountId, account.Outbox?.Waiting, account.Outbox?.Refused)));
     }
 

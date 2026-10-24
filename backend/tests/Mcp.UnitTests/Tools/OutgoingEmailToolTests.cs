@@ -27,8 +27,10 @@ namespace MailFathom.Mcp.UnitTests.Tools;
 /// <remarks>
 /// Whose send a caller may reach, and when one may still be withdrawn, are the use cases' own and are proven there.
 /// What is proven here is the pair either side of them: text that names no send is refused before anything is read,
-/// and the record that comes back is published as the wire contract states — with what a mail server said about each
-/// address the caller supplied, and with nothing about the message itself.
+/// and what comes back is published in the shape the wire contract states for the caller's grants — for a caller that
+/// may only send, the record with what a mail server said about each address it supplied and nothing about the message
+/// itself, and for a caller that may also read mail, the outbox preview with the subject, the sender, the text, and the
+/// attachments beside it.
 /// </remarks>
 public sealed class OutgoingEmailToolTests
 {
@@ -196,6 +198,26 @@ public sealed class OutgoingEmailToolTests
         Assert.False(result.IsBeingTransmitted);
         Assert.Empty(result.Attachments!);
         Assert.Null(result.Text);
+    }
+
+    /// <summary>An attempt whose lease has not run out still holds the send, and the preview says so as of the outbox's own clock.</summary>
+    [Fact]
+    public async Task GetOutgoingEmailAsync_ACallerThatMayReadAndSend_PublishesASendALiveAttemptHoldsAsBeingTransmitted()
+    {
+        // Arrange
+        var store = StoreHolding(RecordAt(OutgoingEmailStage.TransmissionBegun) with
+        {
+            AttemptLeaseExpiresAt = UserOutboxes.Now.AddMinutes(1),
+        });
+        var tool = ReadingToolOver(store, assignedAccount: "work");
+
+        // Act
+        var result = await tool.GetOutgoingEmailAsync(
+            RecordId.ToString(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal((SendEmailState.Sending, (bool?)true), (result.State, result.IsBeingTransmitted));
     }
 
     /// <summary>The outbox belongs to the account, so a send of an account the caller's user is not assigned is the same answer as one nobody holds.</summary>

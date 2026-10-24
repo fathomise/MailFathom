@@ -64,6 +64,26 @@ public sealed class ListOutgoingEmailsToolTests
             Arg.Any<CancellationToken>());
     }
 
+    /// <summary>A send an attempt holds is the one a caller must not expect to withdraw, so the listing says so rather than only naming its stage.</summary>
+    [Fact]
+    public async Task ListOutgoingEmailsAsync_ASendAnAttemptHolds_PublishesItAsBeingTransmitted()
+    {
+        // Arrange
+        var held = RefusedEntry() with { Stage = OutgoingEmailStage.TransmissionBegun, IsHeldByAttempt = true };
+        var operations = OperationsAnswering(new AccountOutboxPage([held], NextCursor: null));
+        var tool = ToolOver(operations, MailFathomPermission.MailRead, MailFathomPermission.MailSend);
+
+        // Act
+        var result = await tool.ListOutgoingEmailsAsync(
+            "work",
+            OutboxStage.Sending,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        var listed = Assert.Single(result.OutgoingEmails);
+        Assert.Equal((SendEmailState.Sending, true), (listed.State, listed.IsBeingTransmitted));
+    }
+
     /// <summary>The cursor a page answers with is the one a later call presents, so it is published in the form the tool reads back.</summary>
     [Fact]
     public async Task ListOutgoingEmailsAsync_APageWithMoreAfterIt_PublishesACursorTheNextCallPresents()
