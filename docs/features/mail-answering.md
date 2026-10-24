@@ -502,9 +502,11 @@ element or open one. A message whose text closes the envelope and opens a forged
 visible, attributed to the message that sent it, and inert. A character that has no place in a document — a lone half
 of a surrogate pair — is replaced rather than allowed to fail the turn. The writer also holds a turn's
 character budget: a quoted value it has to shorten is cut at a text-element boundary, its element says so in a
-`cut="true"` attribute, and every element it opened is closed however much was cut. An operation whose agent declares a
-request bound hands that bound to the writer, and a turn whose structure still outgrows it is written again under a
-smaller budget, so the request is cut to fit rather than refused. A lookup that found nothing writes
+`cut="true"` attribute, and every element it opened is closed however much was cut. Enrichment, a conversation's state,
+contact relationships, calendar-event extraction, the day layout, and body cleanup hand their agent's request bound to
+the writer, and a turn whose structure still outgrows it is written again under a smaller budget, so the request is cut
+to fit rather than refused. Discover's composition is written with no budget, and a turn past its request bound is
+still refused. A lookup that found nothing writes
 the empty envelope rather than nothing at all, so the model reads that the mailbox was searched instead of guessing at a
 blank result.
 
