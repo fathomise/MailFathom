@@ -16,6 +16,7 @@ import { newsletterId } from '../../../../tests/fixtures/messages';
 import type { ProposalLook } from '../answerCanvas/proposalAnswering';
 import { LocalizationProvider } from '../localization/Localization';
 import type { AgentHandOver } from '../routing/agentHandOver';
+import { LinkOpenerContext } from '../shellOperations/linkOpener';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import { AgentSpace } from './AgentSpace';
 
@@ -106,15 +107,17 @@ function drawn(
 ) {
     return (
         <LocalizationProvider>
-            <WorkspaceProvider>
-                <AgentSpace
-                    session={session}
-                    transport={transport}
-                    handOver={handOver}
-                    schedule={neverPolls}
-                    onLook={onLook}
-                />
-            </WorkspaceProvider>
+            <LinkOpenerContext value={() => Promise.resolve()}>
+                <WorkspaceProvider>
+                    <AgentSpace
+                        session={session}
+                        transport={transport}
+                        handOver={handOver}
+                        schedule={neverPolls}
+                        onLook={onLook}
+                    />
+                </WorkspaceProvider>
+            </LinkOpenerContext>
         </LocalizationProvider>
     );
 }
