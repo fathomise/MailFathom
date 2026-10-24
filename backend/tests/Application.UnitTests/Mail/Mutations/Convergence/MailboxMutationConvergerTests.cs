@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Mutations;
@@ -662,7 +663,7 @@ public sealed class MailboxMutationConvergerTests
                     UnknownOutcomeGrace = unknownOutcomeGrace ?? TimeSpan.FromHours(6),
                 },
                 this.Clock,
-                localFolders ?? Substitute.For<ILocalMailFolderStore>(),
+                localFolders is InMemoryLocalMailFolderStore held ? held.Custody : Substitute.For<IMailAccountCustodyStore>(),
                 MailboxChangeSubmissions.Over(this.Store, localFolders, states));
         }
 

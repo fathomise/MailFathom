@@ -7,8 +7,6 @@ using System.Text;
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Folders;
-using MailFathom.Application.Folders.Local;
-using MailFathom.Application.Jobs;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Signals;
@@ -349,37 +347,23 @@ public sealed class MailFolderEditorTests
                 SyntheticUser.Deployment,
                 granted.Length > 0 ? granted : [MailFathomPermission.MailRead, MailFathomPermission.MailFoldersWrite]);
 
-            this.Editor = new MailFolderEditor(
-                new LocalMailFolderEditor(
-                    this.Store,
-                    new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), this.Clock),
-                    Substitute.For<ILocalMailFolderChangeAuditor>(),
-                    this.Signals,
-                    Substitute.For<IJobStore>(),
-                    authorization,
-                    this.Clock),
-                new MirroredMailFolderEditor(
-                    this.mappings,
-                    Substitute.For<IMailFolderResolutionStore>(),
-                    this.declarations,
-                    this.creator,
-                    Substitute.For<IRemoteFolderEditor>(),
-                    transportPolicies,
-                    dispositions,
-                    this.Signals,
-                    Substitute.For<IJobStore>(),
-                    authorization,
-                    new MailFolderResolver(
-                        Substitute.For<IRemoteFolderCatalog>(),
-                        Substitute.For<IRemoteFolderCreator>(),
-                        this.folderRows,
-                        Substitute.For<IMailFolderMappingChangeAuditor>(),
-                        sessionFactory,
-                        this.Signals,
-                        this.Clock)),
-                authorization,
-                this.Accounts,
-                this.Store);
+            var composition = new MailboxCustodianComposition(this.Clock)
+            {
+                Custody = this.Store.Custody,
+                LocalFolders = this.Store,
+                CommitPolicy = new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), this.Clock),
+                Signals = this.Signals,
+                Authorization = authorization,
+                Mappings = this.mappings,
+                FolderResolutions = this.folderRows,
+                Declarations = this.declarations,
+                RemoteFolderCreator = this.creator,
+                TransportPolicies = transportPolicies,
+                DeleteDispositions = dispositions,
+                PersistenceSessions = sessionFactory,
+            };
+
+            this.Editor = new MailFolderEditor(composition.Custodians, authorization, this.Accounts);
         }
 
         internal FakeTimeProvider Clock { get; } = new();

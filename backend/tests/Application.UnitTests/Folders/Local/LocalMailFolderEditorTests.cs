@@ -290,16 +290,18 @@ public sealed class LocalMailFolderEditorTests
             var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
             sessionFactory.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(_ => new CommittingSession());
 
-            this.Editor = new LocalMailFolderEditor(
-                this.Store,
-                new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), this.Clock),
-                this.Auditor,
-                this.Signals,
-                this.Jobs,
-                AccessAuthorizations.ForUserGranted(
+            this.Editor = new MailboxCustodianComposition(this.Clock)
+            {
+                Custody = this.Store.Custody,
+                LocalFolders = this.Store,
+                CommitPolicy = new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), this.Clock),
+                FolderChangeAuditor = this.Auditor,
+                Signals = this.Signals,
+                Jobs = this.Jobs,
+                Authorization = AccessAuthorizations.ForUserGranted(
                     SyntheticUser.Deployment,
                     granted.Length > 0 ? granted : [MailFathomPermission.MailRead, MailFathomPermission.MailFoldersWrite]),
-                this.Clock);
+            }.LocalFolderEditor;
         }
 
         internal FakeTimeProvider Clock { get; } = new();

@@ -31,8 +31,17 @@ internal sealed class InMemoryMailAccountCustodyStore : IMailAccountCustodyStore
     internal MailAccountCustodyState? StateOf(MailAccountId account) =>
         this.states.GetValueOrDefault(account.Value);
 
+    /// <summary>Puts an account in a state outside any switch, which is how a test arranges a phase moved underneath it.</summary>
+    internal void Place(MailAccountId account, MailAccountCustodyState state) => this.states[account.Value] = state;
+
     public Task<MailAccountCustodyState?> ReadAsync(MailAccountId account, CancellationToken cancellationToken) =>
         Task.FromResult(this.states.GetValueOrDefault(account.Value));
+
+    public Task<MailAccountCustodyState?> ReadAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        CancellationToken cancellationToken) =>
+        this.ReadAsync(account, cancellationToken);
 
     public Task<MailAccountCustodyState?> RequestAsync(
         IPersistenceSession session,

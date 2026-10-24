@@ -17,7 +17,7 @@ namespace MailFathom.Application.Folders.Local;
 /// </remarks>
 public interface ILocalMailFolderStore
 {
-    /// <summary>Reads the account's phase and folders inside the transaction a write will commit.</summary>
+    /// <summary>Reads the account's folders inside the transaction a write will commit.</summary>
     /// <param name="session">The transaction the edit commits in.</param>
     /// <param name="account">The account.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
@@ -32,7 +32,7 @@ public interface ILocalMailFolderStore
         MailAccountId account,
         CancellationToken cancellationToken);
 
-    /// <summary>Reads the account's phase and folders, joining no transaction.</summary>
+    /// <summary>Reads the account's folders, joining no transaction.</summary>
     /// <param name="account">The account.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>The holding, or <see langword="null" /> where the deployment holds no such account.</returns>

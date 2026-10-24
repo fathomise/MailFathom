@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Signals;
 using MailFathom.Domain.Accounts;
@@ -12,28 +13,38 @@ namespace MailFathom.Application.Folders.Local;
 
 /// <summary>Places a message synchronization just stored into the local folder its source folder corresponds to, on a held account.</summary>
 /// <remarks>
-/// On any other account it reads the account's phase and writes nothing, so a mirrored account's synchronization is
-/// what it was. The protected folders are supplied in the same transaction when an arrival finds them missing, for the
-/// reason an edit supplies them: the inbox and the trash are where the rules send mail that has nowhere else to go.
+/// On any other account it writes nothing, so a mirrored account's synchronization is what it was. Whether the account
+/// is held is the answer <see cref="MailboxCustodianResolver" /> gives inside the transaction that stored the message,
+/// rather than anything this type reads itself. The protected folders are supplied in the same transaction when an
+/// arrival finds them missing, for the reason an edit supplies them: the inbox and the trash are where the rules send
+/// mail that has nowhere else to go.
 /// </remarks>
 public sealed class LocalMailFolderArrivals
 {
     private readonly ILocalMailFolderStore store;
+    private readonly MailboxCustodianResolver custodians;
     private readonly ClientSignals signals;
     private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes a new instance of the <see cref="LocalMailFolderArrivals" /> class.</summary>
     /// <param name="store">Persists the folders and the placement.</param>
+    /// <param name="custodians">Says whether the account is held, which is when its arrivals land in local folders.</param>
     /// <param name="signals">Tells the account's clients that a placement created folders.</param>
     /// <param name="timeProvider">Supplies the instant a new folder's identity is minted at.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
-    public LocalMailFolderArrivals(ILocalMailFolderStore store, ClientSignals signals, TimeProvider timeProvider)
+    public LocalMailFolderArrivals(
+        ILocalMailFolderStore store,
+        MailboxCustodianResolver custodians,
+        ClientSignals signals,
+        TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(custodians);
         ArgumentNullException.ThrowIfNull(signals);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         this.store = store;
+        this.custodians = custodians;
         this.signals = signals;
         this.timeProvider = timeProvider;
     }
@@ -43,7 +54,7 @@ public sealed class LocalMailFolderArrivals
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns><see langword="true" /> when the account is held.</returns>
     public async Task<bool> HoldsAsync(MailAccountId account, CancellationToken cancellationToken) =>
-        await this.store.ReadAsync(account, cancellationToken) is { Phase: MailAccountCustodyPhase.Held };
+        await this.custodians.ResolveAsync(account, cancellationToken) is HeldMailboxCustodian;
 
     /// <summary>Places one stored message, inside the transaction that stored it.</summary>
     /// <param name="session">The transaction that stored the message.</param>
@@ -61,13 +72,18 @@ public sealed class LocalMailFolderArrivals
     {
         ArgumentNullException.ThrowIfNull(source);
 
+        // The custodian is asked first so a mirrored account's arrival costs one read of the account row, not the
+        // hierarchy as well.
+        if (await this.custodians.ResolveAsync(session, account, cancellationToken) is not HeldMailboxCustodian)
+        {
+            return false;
+        }
+
         // ponytail: the hierarchy is read once per stored message, a bounded indexed read of at most MaximumFolders live
         // rows beside the several writes that transaction already makes. Caching it across a folder run needs the store to
         // hand back the revision its own save bumped, or every later arrival in the run conflicts once; do that if a
         // held account's backfill measures this read as a real share of its cost.
-        var holding = await this.store.ReadAsync(session, account, cancellationToken);
-
-        if (holding is not { Phase: MailAccountCustodyPhase.Held })
+        if (await this.store.ReadAsync(session, account, cancellationToken) is not { } holding)
         {
             return false;
         }

@@ -30,6 +30,20 @@ public interface IMailAccountCustodyStore
     /// <returns>The state, or <see langword="null" /> where the deployment holds no such account.</returns>
     Task<MailAccountCustodyState?> ReadAsync(MailAccountId account, CancellationToken cancellationToken);
 
+    /// <summary>Reads one account's custody inside the transaction an act commits in.</summary>
+    /// <param name="session">The transaction.</param>
+    /// <param name="account">The account.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>The state, or <see langword="null" /> where the deployment holds no such account.</returns>
+    /// <remarks>
+    /// The account row is read into the transaction, so an act and the custody it was judged under commit together, and
+    /// a local folder edit later in the same transaction is conditional on the hierarchy revision this read loaded.
+    /// </remarks>
+    Task<MailAccountCustodyState?> ReadAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        CancellationToken cancellationToken);
+
     /// <summary>Writes the custody an administrator asked for, leaving the phase where it stands.</summary>
     /// <param name="session">The transaction the switch commits in.</param>
     /// <param name="account">The account.</param>

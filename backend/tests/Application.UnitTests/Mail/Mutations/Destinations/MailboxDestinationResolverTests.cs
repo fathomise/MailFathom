@@ -2,8 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Folders;
-using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Persistence;
@@ -247,9 +247,9 @@ public sealed class MailboxDestinationResolverTests
         // Arrange
         var context = new DestinationContext(new RemoteFolder(RemoteFolderPath.Create("INBOX.Spam", '.'), []));
         context.Mappings.With(Account, MappedOnlyPathTo(Junk, "INBOX.Spam"));
-        context.LocalFolders
+        context.Custody
             .ReadAsync(Account, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<LocalMailFolderHolding?>(new LocalMailFolderHolding(MailAccountCustodyPhase.Held, [], [])));
+            .Returns(new MailAccountCustodyState(MailAccountCustody.HoldMailbox, MailAccountCustodyPhase.Held));
 
         // Act
         var resolution = await context.ResolveAsync(MailFolderReference.ToAlias(Junk));
@@ -308,22 +308,19 @@ public sealed class MailboxDestinationResolverTests
             var transportSecurityPolicies = Substitute.For<IMailTransportSecurityPolicyReader>();
             transportSecurityPolicies.GetPolicy(Arg.Any<MailAccountId>()).Returns(RequiredTlsPolicy);
 
-            this.Resolver = new MailboxDestinationResolver(
-                this.Mappings.Resolver,
-                this.Bindings,
-                new MailFolderResolver(
-                    remoteFolderCatalog,
-                    Substitute.For<IRemoteFolderCreator>(),
-                    this.Bindings,
-                    mappingChangeAuditor,
-                    persistenceSessionFactory,
-                    ClientSignalPublishers.ReachingNobody,
-                    new FakeTimeProvider(new DateTimeOffset(2026, 8, 12, 9, 0, 0, TimeSpan.Zero))),
-                transportSecurityPolicies,
-                this.LocalFolders);
+            this.Resolver = new MailboxCustodianComposition(new FakeTimeProvider(new DateTimeOffset(2026, 8, 12, 9, 0, 0, TimeSpan.Zero)))
+            {
+                Custody = this.Custody,
+                Mappings = this.Mappings,
+                FolderResolutions = this.Bindings,
+                RemoteFolderCatalog = remoteFolderCatalog,
+                MappingChangeAuditor = mappingChangeAuditor,
+                PersistenceSessions = persistenceSessionFactory,
+                TransportPolicies = transportSecurityPolicies,
+            }.Destinations;
         }
 
-        internal ILocalMailFolderStore LocalFolders { get; } = Substitute.For<ILocalMailFolderStore>();
+        internal IMailAccountCustodyStore Custody { get; } = Substitute.For<IMailAccountCustodyStore>();
 
         internal StubMailFolderMappings Mappings { get; } = StubMailFolderMappings.Nothing;
 

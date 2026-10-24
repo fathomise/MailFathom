@@ -7,7 +7,6 @@ using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Folders;
-using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Destinations;
@@ -179,19 +178,17 @@ internal sealed class SpamClassificationHarness
         var transportSecurityPolicies = Substitute.For<IMailTransportSecurityPolicyReader>();
         transportSecurityPolicies.GetPolicy(Arg.Any<MailAccountId>()).Returns(TlsOnConnect);
 
-        return new MailboxDestinationResolver(
-            StubMailFolderMappings.Nothing.Resolver,
-            this.Bindings,
-            new MailFolderResolver(
-                remoteFolderCatalog,
-                Substitute.For<IRemoteFolderCreator>(),
-                this.Bindings,
-                Substitute.For<IMailFolderMappingChangeAuditor>(),
-                sessionFactory,
-                ClientSignalPublishers.ReachingNobody,
-                this.Clock),
-            transportSecurityPolicies,
-            Substitute.For<ILocalMailFolderStore>());
+        return new MailboxCustodianComposition(this.Clock)
+        {
+            Mappings = StubMailFolderMappings.Nothing,
+            FolderResolutions = this.Bindings,
+            RemoteFolderCatalog = remoteFolderCatalog,
+            RemoteFolderCreator = Substitute.For<IRemoteFolderCreator>(),
+            MappingChangeAuditor = Substitute.For<IMailFolderMappingChangeAuditor>(),
+            PersistenceSessions = sessionFactory,
+            Signals = ClientSignalPublishers.ReachingNobody,
+            TransportPolicies = transportSecurityPolicies,
+        }.Destinations;
     }
 
     /// <summary>Opens the sessions a classification writes under, every one of which commits.</summary>

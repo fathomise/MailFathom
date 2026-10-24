@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.Summaries;
@@ -124,11 +125,29 @@ internal sealed class HeldLocalMailbox
     /// <summary>Withdraws every role mapping, which is the arrangement of a folder the operator stopped mapping.</summary>
     internal void UnmapRoles() => this.mappings = StubMailFolderMappings.Nothing;
 
-    /// <summary>Builds the filer over this mailbox as it is mapped now.</summary>
+    /// <summary>Builds the filer over this mailbox as it is mapped now, with a resolver that finds the account held.</summary>
     /// <param name="contents">The payload store, which is the one the calling harness reads back.</param>
     /// <returns>The filer.</returns>
-    internal LocalMailFiler FilerOver(IEmailContentStore contents) => new(
+    internal LocalMailFiler FilerOver(IEmailContentStore contents) => this.Composing(contents).LocalFiler;
+
+    /// <summary>Composes the custodians over this mailbox, so a held account's acts reach its folders and its filer.</summary>
+    /// <param name="contents">The payload store, which is the one the calling harness reads back.</param>
+    /// <returns>The composition, with the remaining ports substituted.</returns>
+    internal MailboxCustodianComposition Composing(IEmailContentStore contents) => new(this.clock)
+    {
+        Custody = this.Folders.Custody,
+        LocalFolders = this.Folders,
+        Contents = contents,
+        LocalFilerOver = custodians => this.FilerOver(contents, custodians),
+    };
+
+    /// <summary>Builds the filer over this mailbox as it is mapped now, asking the resolver it is handed.</summary>
+    /// <param name="contents">The payload store, which is the one the calling harness reads back.</param>
+    /// <param name="custodians">The resolver of the composition the filer belongs to.</param>
+    /// <returns>The filer.</returns>
+    internal LocalMailFiler FilerOver(IEmailContentStore contents, MailboxCustodianResolver custodians) => new(
         this.Folders,
+        custodians,
         this.Emails,
         contents,
         this.mimeReader,

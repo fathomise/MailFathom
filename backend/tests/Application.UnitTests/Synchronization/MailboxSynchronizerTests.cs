@@ -245,7 +245,11 @@ public sealed class MailboxSynchronizerTests
             [MetadataOf(occurrence, 600)],
             occurrence.Uid,
             runFolder: ArchiveFolder,
-            localFolderArrivals: new LocalMailFolderArrivals(localFolders, signals, new FakeTimeProvider()));
+            localFolderArrivals: new LocalMailFolderArrivals(
+                localFolders,
+                localFolders.Composing(new FakeTimeProvider()).Custodians,
+                signals,
+                new FakeTimeProvider()));
         StubRetrievedContent(arrangement.Session, options, occurrence, 600);
 
         // Act
@@ -330,10 +334,7 @@ public sealed class MailboxSynchronizerTests
             ],
             second.Uid,
             runFolder: HeldSentFolder,
-            localFolderArrivals: new LocalMailFolderArrivals(
-                new InMemoryLocalMailFolderStore(account, MailAccountCustodyPhase.Held),
-                ClientSignalPublishers.ReachingNobody,
-                new FakeTimeProvider()));
+            localFolderArrivals: HeldArrivals(account));
         StubRetrievedContent(sent.Session, options, first, 600);
         StubRetrievedContent(sent.Session, options, second, 600);
         var filedCopy = StoredEmailId.Create(Guid.CreateVersion7(new DateTimeOffset(2026, 7, 24, 11, 0, 0, TimeSpan.Zero)));
@@ -3264,10 +3265,26 @@ public sealed class MailboxSynchronizerTests
                     classificationSettings ?? SpamClassificationSettings.Disabled,
                     ClassifiedAccount)),
             contactCollector ?? CreateCollectorThatCollectsNothing(persistenceSessionFactory, timeProvider),
-            localFolderArrivals ?? new LocalMailFolderArrivals(Substitute.For<ILocalMailFolderStore>(), ClientSignalPublishers.ReachingNobody, timeProvider),
+            localFolderArrivals ?? new LocalMailFolderArrivals(
+                Substitute.For<ILocalMailFolderStore>(),
+                new MailboxCustodianComposition(timeProvider).Custodians,
+                ClientSignalPublishers.ReachingNobody,
+                timeProvider),
             concurrencyRetryPolicy,
             timeProvider,
             options);
+    }
+
+    /// <summary>Builds the arrivals of an account MailFathom holds alone, over a store of its own.</summary>
+    private static LocalMailFolderArrivals HeldArrivals(MailAccountId account)
+    {
+        var store = new InMemoryLocalMailFolderStore(account, MailAccountCustodyPhase.Held);
+
+        return new LocalMailFolderArrivals(
+            store,
+            store.Composing(new FakeTimeProvider()).Custodians,
+            ClientSignalPublishers.ReachingNobody,
+            new FakeTimeProvider());
     }
 
     /// <summary>Builds a store whose folders hold nothing awaiting reconciliation, which is the case every forward-pass test is about.</summary>
@@ -3962,10 +3979,7 @@ public sealed class MailboxSynchronizerTests
             [MetadataOf(occurrence, 600)],
             occurrence.Uid,
             runFolder: HeldSentFolder,
-            localFolderArrivals: new LocalMailFolderArrivals(
-                new InMemoryLocalMailFolderStore(account, MailAccountCustodyPhase.Held),
-                ClientSignalPublishers.ReachingNobody,
-                new FakeTimeProvider()));
+            localFolderArrivals: HeldArrivals(account));
         StubRetrievedContent(arrangement.Session, options, occurrence, 600);
 
         return arrangement;

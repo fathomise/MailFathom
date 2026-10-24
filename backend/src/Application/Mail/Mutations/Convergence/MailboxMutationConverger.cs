@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Diagnostics.CodeAnalysis;
-using MailFathom.Application.Folders.Local;
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
@@ -49,7 +49,7 @@ public sealed class MailboxMutationConverger
     private readonly IMailboxMutationAuditTrail auditTrail;
     private readonly MailboxConvergenceOptions options;
     private readonly TimeProvider timeProvider;
-    private readonly ILocalMailFolderStore localFolders;
+    private readonly IMailAccountCustodyStore custody;
     private readonly MailboxChangeSubmission submission;
 
     /// <summary>Initializes the converger from the record store and the one path able to perform a change.</summary>
@@ -60,7 +60,7 @@ public sealed class MailboxMutationConverger
     /// <param name="auditTrail">Keeps the history a finished mutation leaves behind, where the account asked for one.</param>
     /// <param name="options">Bounds one pass and carries the unknown-outcome grace period.</param>
     /// <param name="timeProvider">Measures how long an unresolved outcome has been unresolved.</param>
-    /// <param name="localFolders">Answers whether the account is held, where no change is carried to a server.</param>
+    /// <param name="custody">Answers whether the account is held, where no change is carried to a server.</param>
     /// <param name="submission">Runs a record opened as a local erasure once its window has passed.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the configured pass bound is below one or the grace period is negative.</exception>
@@ -72,7 +72,7 @@ public sealed class MailboxMutationConverger
         IMailboxMutationAuditTrail auditTrail,
         MailboxConvergenceOptions options,
         TimeProvider timeProvider,
-        ILocalMailFolderStore localFolders,
+        IMailAccountCustodyStore custody,
         MailboxChangeSubmission submission)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -82,7 +82,7 @@ public sealed class MailboxMutationConverger
         ArgumentNullException.ThrowIfNull(auditTrail);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
-        ArgumentNullException.ThrowIfNull(localFolders);
+        ArgumentNullException.ThrowIfNull(custody);
         ArgumentNullException.ThrowIfNull(submission);
         ArgumentOutOfRangeException.ThrowIfLessThan(options.MaxMutationsPerPass, 1, nameof(options));
         ArgumentOutOfRangeException.ThrowIfLessThan(options.UnknownOutcomeGrace, TimeSpan.Zero, nameof(options));
@@ -94,7 +94,7 @@ public sealed class MailboxMutationConverger
         this.auditTrail = auditTrail;
         this.options = options;
         this.timeProvider = timeProvider;
-        this.localFolders = localFolders;
+        this.custody = custody;
         this.submission = submission;
     }
 
@@ -113,7 +113,7 @@ public sealed class MailboxMutationConverger
         MailAccountId account,
         CancellationToken cancellationToken)
     {
-        var isHeld = await this.localFolders.ReadAsync(account, cancellationToken) is { Phase: MailAccountCustodyPhase.Held };
+        var isHeld = await this.custody.ReadAsync(account, cancellationToken) is { Phase: MailAccountCustodyPhase.Held };
 
         // A held account issues no IMAP command, so a record of any other change opened before the hold, or opened by a
         // restore the hold interrupted, is work no pass on it can do. Reading only the records opened as local erasures

@@ -3,7 +3,6 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Folders;
-using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Destinations;
@@ -778,19 +777,17 @@ public sealed class SpamActionRecorderTests
         var transportSecurityPolicies = Substitute.For<IMailTransportSecurityPolicyReader>();
         transportSecurityPolicies.GetPolicy(Arg.Any<MailAccountId>()).Returns(TlsOnConnect);
 
-        return new MailboxDestinationResolver(
-            this.mappings.Resolver,
-            this.bindings,
-            new MailFolderResolver(
-                remoteFolderCatalog,
-                Substitute.For<IRemoteFolderCreator>(),
-                this.bindings,
-                Substitute.For<IMailFolderMappingChangeAuditor>(),
-                sessionFactory,
-                ClientSignalPublishers.ReachingNobody,
-                new FakeTimeProvider(EvaluatedAt)),
-            transportSecurityPolicies,
-            Substitute.For<ILocalMailFolderStore>());
+        return new MailboxCustodianComposition(new FakeTimeProvider(EvaluatedAt))
+        {
+            Mappings = this.mappings,
+            FolderResolutions = this.bindings,
+            RemoteFolderCatalog = remoteFolderCatalog,
+            RemoteFolderCreator = Substitute.For<IRemoteFolderCreator>(),
+            MappingChangeAuditor = Substitute.For<IMailFolderMappingChangeAuditor>(),
+            PersistenceSessions = sessionFactory,
+            Signals = ClientSignalPublishers.ReachingNobody,
+            TransportPolicies = transportSecurityPolicies,
+        }.Destinations;
     }
 
     private static ISpamActionOccurrenceReader ReaderOf(SpamActionOccurrence occurrence)

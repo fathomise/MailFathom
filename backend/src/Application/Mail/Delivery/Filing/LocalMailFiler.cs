@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Diagnostics.CodeAnalysis;
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Folders;
@@ -30,14 +31,16 @@ namespace MailFathom.Application.Mail.Delivery.Filing;
 /// which one is committed and the other is not, and nothing to resume between them.
 /// </para>
 /// <para>
-/// No IMAP command is issued by anything here, and nothing here decides whether an account is held on the strength of
-/// what it read before the transaction: <see cref="FileAsync" /> reads the account's phase again inside it and files
-/// nothing where the account has stopped being held.
+/// No IMAP command is issued by anything here, and nothing here decides whether an account is held: the account's
+/// custodian decides whether a copy is prepared at all, and <see cref="FileAsync" /> asks
+/// <see cref="MailboxCustodianResolver" /> again inside the transaction and files nothing where the account has stopped
+/// being held.
 /// </para>
 /// </remarks>
 public sealed class LocalMailFiler
 {
     private readonly ILocalMailFolderStore folders;
+    private readonly MailboxCustodianResolver custodians;
     private readonly IEmailMetadataRepository emails;
     private readonly IEmailContentStore contents;
     private readonly IEmailMimeReader mimeReader;
@@ -49,7 +52,8 @@ public sealed class LocalMailFiler
     private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes the filer from the stores a filed message is written through.</summary>
-    /// <param name="folders">Reads the account's phase and folders, and places and erases what is filed.</param>
+    /// <param name="folders">Reads the account's folders, and places and erases what is filed.</param>
+    /// <param name="custodians">Chooses whether a sent copy is prepared here, and says inside a filing's transaction whether the account is still held.</param>
     /// <param name="emails">Writes the stored message.</param>
     /// <param name="contents">Places and saves the message's payload, and reads a send's.</param>
     /// <param name="mimeReader">Reads the metadata the stored message is searched and threaded by.</param>
@@ -62,6 +66,7 @@ public sealed class LocalMailFiler
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
     public LocalMailFiler(
         ILocalMailFolderStore folders,
+        MailboxCustodianResolver custodians,
         IEmailMetadataRepository emails,
         IEmailContentStore contents,
         IEmailMimeReader mimeReader,
@@ -73,6 +78,7 @@ public sealed class LocalMailFiler
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(folders);
+        ArgumentNullException.ThrowIfNull(custodians);
         ArgumentNullException.ThrowIfNull(emails);
         ArgumentNullException.ThrowIfNull(contents);
         ArgumentNullException.ThrowIfNull(mimeReader);
@@ -84,6 +90,7 @@ public sealed class LocalMailFiler
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         this.folders = folders;
+        this.custodians = custodians;
         this.emails = emails;
         this.contents = contents;
         this.mimeReader = mimeReader;
@@ -94,13 +101,6 @@ public sealed class LocalMailFiler
         this.signals = signals;
         this.timeProvider = timeProvider;
     }
-
-    /// <summary>Reports whether MailFathom holds the account's mailbox alone, which is when its copies are filed here.</summary>
-    /// <param name="account">The account.</param>
-    /// <param name="cancellationToken">Propagates caller cancellation.</param>
-    /// <returns><see langword="true" /> when the account is held.</returns>
-    public async Task<bool> HoldsAsync(MailAccountId account, CancellationToken cancellationToken) =>
-        await this.folders.ReadAsync(account, cancellationToken) is { Phase: MailAccountCustodyPhase.Held };
 
     /// <summary>Reads and places a message for filing, before the transaction that files it.</summary>
     /// <param name="account">The account the message is filed for.</param>
@@ -141,7 +141,7 @@ public sealed class LocalMailFiler
             : null;
     }
 
-    /// <summary>Prepares the sent copy of a delivered message, where its account is held and files one.</summary>
+    /// <summary>Prepares the sent copy of a delivered message, where its account files one and its custodian files it locally.</summary>
     /// <param name="record">The send that was accepted.</param>
     /// <param name="cancellationToken">
     /// Stops the preparation when the host is shutting down; a cancelled preparation is recorded as a filing failure like
@@ -166,26 +166,9 @@ public sealed class LocalMailFiler
 
         try
         {
-            if (!await this.HoldsAsync(record.AccountId, cancellationToken)
-                || await this.contents.FindOutgoingContentAsync(record.Id, cancellationToken) is not { } content)
-            {
-                return null;
-            }
+            var custodian = await this.custodians.ResolveAsync(record.AccountId, cancellationToken);
 
-            if (await this.PrepareAsync(record.AccountId, OutgoingMailFiling.Sent, content.RawMime, cancellationToken)
-                is { } copy)
-            {
-                return copy;
-            }
-
-            // Recorded rather than left silent: no later pass files a held account's sent copy, so this code on the
-            // send is the only trace that one was owed.
-            await this.filings.RecordFilingFailureAsync(
-                record.Id,
-                MailFathomErrorCode.OutgoingEmailFilingDestinationUnavailable,
-                CancellationToken.None);
-
-            return null;
+            return await custodian.PrepareSentCopyAsync(record, cancellationToken);
         }
         catch (Exception failure)
         {
@@ -196,6 +179,36 @@ public sealed class LocalMailFiler
 
             return null;
         }
+    }
+
+    /// <summary>Prepares the sent copy of a delivered message from the payload the send stored, for an account whose sent copy is filed here.</summary>
+    /// <param name="record">The send that was accepted.</param>
+    /// <param name="cancellationToken">Stops the preparation when the host is shutting down.</param>
+    /// <returns>The prepared copy, or <see langword="null" /> where the send stored no payload or no bound folder plays the sent role.</returns>
+    /// <remarks>A failure is raised, for <see cref="PrepareSentCopyAsync" /> to record against the send.</remarks>
+    internal async Task<LocalMailCopy?> PrepareStoredSentCopyAsync(
+        OutgoingEmailRecord record,
+        CancellationToken cancellationToken)
+    {
+        if (await this.contents.FindOutgoingContentAsync(record.Id, cancellationToken) is not { } content)
+        {
+            return null;
+        }
+
+        if (await this.PrepareAsync(record.AccountId, OutgoingMailFiling.Sent, content.RawMime, cancellationToken)
+            is { } copy)
+        {
+            return copy;
+        }
+
+        // Recorded rather than left silent: no later pass files a held account's sent copy, so this code on the send is
+        // the only trace that one was owed.
+        await this.filings.RecordFilingFailureAsync(
+            record.Id,
+            MailFathomErrorCode.OutgoingEmailFilingDestinationUnavailable,
+            CancellationToken.None);
+
+        return null;
     }
 
     /// <summary>Files a prepared copy into the local folder playing its role, inside the transaction it belongs to.</summary>
@@ -224,8 +237,8 @@ public sealed class LocalMailFiler
     {
         ArgumentNullException.ThrowIfNull(copy);
 
-        if (await this.folders.ReadAsync(session, copy.Account, cancellationToken)
-            is not { Phase: MailAccountCustodyPhase.Held } holding)
+        if (await this.custodians.ResolveAsync(session, copy.Account, cancellationToken) is not HeldMailboxCustodian
+            || await this.folders.ReadAsync(session, copy.Account, cancellationToken) is not { } holding)
         {
             return null;
         }

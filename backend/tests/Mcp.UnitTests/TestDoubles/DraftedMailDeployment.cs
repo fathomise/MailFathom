@@ -8,26 +8,18 @@ using MailFathom.Application.EmailContent.Attachments;
 using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.EmailContent.Repair;
 using MailFathom.Application.EmailContent.Storage;
-using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Summaries;
-using MailFathom.Application.Folders;
-using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Jobs;
-using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Delivery;
 using MailFathom.Application.Mail.Delivery.Addressing;
 using MailFathom.Application.Mail.Delivery.Authoring;
 using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Drafts;
-using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Delivery.Screening;
-using MailFathom.Application.Mail.Mutations;
-using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Persistence;
-using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Access;
 using MailFathom.Mcp.Tools.Drafts;
 using MailFathom.TestSupport;
@@ -213,45 +205,13 @@ internal sealed class DraftedMailDeployment
         OptimisticConcurrencyRetryPolicy commitPolicy,
         TimeProvider clock)
     {
-        var transportSecurityPolicies = Substitute.For<IMailTransportSecurityPolicyReader>();
-        var folderResolutions = Substitute.For<IMailFolderResolutionStore>();
-        var writeSessions = Substitute.For<IMailboxWriteSessionFactory>();
-
-        var destinations = new MailboxDestinationResolver(
-            StubMailFolderMappings.Nothing.Resolver,
-            folderResolutions,
-            new MailFolderResolver(
-                Substitute.For<IRemoteFolderCatalog>(),
-                Substitute.For<IRemoteFolderCreator>(),
-                folderResolutions,
-                Substitute.For<IMailFolderMappingChangeAuditor>(),
-                persistenceSessions,
-                ClientSignalPublishers.ReachingNobody,
-                clock),
-            transportSecurityPolicies,
-            Substitute.For<ILocalMailFolderStore>());
-
-        var localFiler = new LocalMailFiler(
-            Substitute.For<ILocalMailFolderStore>(),
-            Substitute.For<IEmailMetadataRepository>(),
-            contents,
-            Substitute.For<IEmailMimeReader>(),
-            StubMailFolderMappings.Nothing,
-            folderResolutions,
-            Substitute.For<IOutgoingMailFilingPolicyReader>(),
-            Substitute.For<IOutgoingMailFilingStore>(),
-            ClientSignalPublishers.ReachingNobody,
-            clock);
-
-        return new MailDraftFiler(
-            new MailboxCopyAppender(writeSessions, destinations, contents, transportSecurityPolicies, clock),
-            localFiler,
-            writeSessions,
-            destinations,
-            drafts,
-            transportSecurityPolicies,
-            commitPolicy,
-            clock);
+        return new MailboxCustodianComposition(clock)
+        {
+            PersistenceSessions = persistenceSessions,
+            Drafts = drafts,
+            Contents = contents,
+            CommitPolicy = commitPolicy,
+        }.DraftFiler;
     }
 
     /// <summary>Builds the authoring an answer is derived through, over a mailbox holding whatever a test put in it.</summary>

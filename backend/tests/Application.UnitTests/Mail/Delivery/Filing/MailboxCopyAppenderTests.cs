@@ -6,11 +6,9 @@ using System.Security.Cryptography;
 using System.Text;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Folders;
-using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Mutations;
-using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization.Sessions;
 using MailFathom.Application.UnitTests.TestDoubles;
@@ -430,19 +428,17 @@ public sealed class MailboxCopyAppenderTests
 
         var persistenceSessions = Substitute.For<IPersistenceSessionFactory>();
 
-        var destinations = new MailboxDestinationResolver(
-            this.mappings.Resolver,
-            this.folderResolutions,
-            new MailFolderResolver(
-                Substitute.For<IRemoteFolderCatalog>(),
-                Substitute.For<IRemoteFolderCreator>(),
-                this.folderResolutions,
-                Substitute.For<IMailFolderMappingChangeAuditor>(),
-                persistenceSessions,
-                ClientSignalPublishers.ReachingNobody,
-                this.clock),
-            this.transportSecurityPolicies,
-            Substitute.For<ILocalMailFolderStore>());
+        var destinations = new MailboxCustodianComposition(this.clock)
+        {
+            Mappings = this.mappings,
+            FolderResolutions = this.folderResolutions,
+            RemoteFolderCatalog = Substitute.For<IRemoteFolderCatalog>(),
+            RemoteFolderCreator = Substitute.For<IRemoteFolderCreator>(),
+            MappingChangeAuditor = Substitute.For<IMailFolderMappingChangeAuditor>(),
+            PersistenceSessions = persistenceSessions,
+            Signals = ClientSignalPublishers.ReachingNobody,
+            TransportPolicies = this.transportSecurityPolicies,
+        }.Destinations;
 
         return new MailboxCopyAppender(
             this.writeSessions,

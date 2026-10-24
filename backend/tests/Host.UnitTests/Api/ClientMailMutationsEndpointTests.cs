@@ -3,10 +3,10 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Folders.Local;
-using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Authoring;
@@ -729,6 +729,7 @@ public sealed class ClientMailMutationsEndpointTests
     private MailboxChangeSubmission Submission(bool held)
     {
         var localFolders = Substitute.For<ILocalMailFolderStore>();
+        var custody = Substitute.For<IMailAccountCustodyStore>();
         var states = Substitute.For<ILocalEmailStateStore>();
         var auditSettings = Substitute.For<IMailboxMutationAuditSettingsReader>();
 
@@ -736,8 +737,10 @@ public sealed class ClientMailMutationsEndpointTests
         {
             localFolders
                 .ReadAsync(Arg.Any<IPersistenceSession>(), Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>())
-                .Returns(Task.FromResult<LocalMailFolderHolding?>(
-                    new LocalMailFolderHolding(MailAccountCustodyPhase.Held, [], [])));
+                .Returns(Task.FromResult<LocalMailFolderHolding?>(new LocalMailFolderHolding([], [])));
+            custody
+                .ReadAsync(Arg.Any<IPersistenceSession>(), Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>())
+                .Returns(new MailAccountCustodyState(MailAccountCustody.HoldMailbox, MailAccountCustodyPhase.Held));
             states
                 .ReadAsync(
                     Arg.Any<IPersistenceSession>(),
@@ -754,15 +757,14 @@ public sealed class ClientMailMutationsEndpointTests
             auditSettings.GetAuditSettings(Arg.Any<MailAccountId>()).Returns(MailboxMutationAuditSettings.Disabled);
         }
 
-        return new MailboxChangeSubmission(
-            localFolders,
-            this.records,
-            states,
-            LocalMailCopiers.Over(localFolders),
-            auditSettings,
-            Substitute.For<IMailboxMutationAuditEntryStore>(),
-            ClientSignalPublishers.ReachingNobody,
-            new FakeTimeProvider(RecordedAt));
+        return new MailboxCustodianComposition(new FakeTimeProvider(RecordedAt))
+        {
+            Custody = custody,
+            LocalFolders = localFolders,
+            Records = this.records,
+            States = states,
+            AuditSettings = auditSettings,
+        }.Submission;
     }
 
     /// <summary>Builds the flag-change use case the routes are given.</summary>
@@ -841,17 +843,6 @@ public sealed class ClientMailMutationsEndpointTests
     }
 
     /// <summary>Builds a destination resolver that reaches nothing, because no test here gets as far as resolving a folder.</summary>
-    private static MailboxDestinationResolver DestinationResolver() => new(
-        StubMailFolderMappings.ResolvingNothing,
-        Substitute.For<IMailFolderResolutionStore>(),
-        new MailFolderResolver(
-            Substitute.For<IRemoteFolderCatalog>(),
-            Substitute.For<IRemoteFolderCreator>(),
-            Substitute.For<IMailFolderResolutionStore>(),
-            Substitute.For<IMailFolderMappingChangeAuditor>(),
-            Substitute.For<IPersistenceSessionFactory>(),
-            ClientSignalPublishers.ReachingNobody,
-            new FakeTimeProvider(RecordedAt)),
-        Substitute.For<IMailTransportSecurityPolicyReader>(),
-        Substitute.For<ILocalMailFolderStore>());
+    private static MailboxDestinationResolver DestinationResolver() =>
+        new MailboxCustodianComposition(new FakeTimeProvider(RecordedAt)).Destinations;
 }

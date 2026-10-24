@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Diagnostics.CodeAnalysis;
+using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Destinations;
@@ -28,7 +29,8 @@ namespace MailFathom.Application.Mail.Delivery.Drafts;
 /// <para>
 /// On an account MailFathom holds alone nothing below reaches a server: the revision is filed into the local drafts folder
 /// and the message it replaced is erased in one commit, with no append and no removal, as <see cref="FileLocallyAsync" />
-/// describes.
+/// describes. Which of the two a draft is settled by is the account's custodian's choice, made in
+/// <see cref="SettleAsync" />; this type holds both halves and decides between neither.
 /// </para>
 /// <para>
 /// <b>Replacing a mirrored draft is an append followed by a removal, in that order, and the order is the safety.</b> IMAP has no
@@ -59,6 +61,7 @@ public sealed class MailDraftFiler
 {
     private readonly MailboxCopyAppender appends;
     private readonly LocalMailFiler localFiler;
+    private readonly MailboxCustodianResolver custodians;
     private readonly IMailboxWriteSessionFactory writeSessions;
     private readonly MailboxDestinationResolver destinations;
     private readonly IMailDraftStore drafts;
@@ -69,6 +72,7 @@ public sealed class MailDraftFiler
     /// <summary>Initializes the filer from the append it files through and the record it writes each copy onto.</summary>
     /// <param name="appends">Puts each revision into the drafts folder, in the order that keeps it one copy.</param>
     /// <param name="localFiler">Files each revision into the local drafts folder instead, on an account MailFathom holds alone.</param>
+    /// <param name="custodians">Chooses which of the two halves a draft is settled by.</param>
     /// <param name="writeSessions">Opens the one session able to change a mailbox, which a removal needs of its own.</param>
     /// <param name="destinations">Turns the drafts role into the folder of this account it means.</param>
     /// <param name="drafts">Keeps the durable account of every draft and every copy of one.</param>
@@ -79,6 +83,7 @@ public sealed class MailDraftFiler
     public MailDraftFiler(
         MailboxCopyAppender appends,
         LocalMailFiler localFiler,
+        MailboxCustodianResolver custodians,
         IMailboxWriteSessionFactory writeSessions,
         MailboxDestinationResolver destinations,
         IMailDraftStore drafts,
@@ -88,6 +93,7 @@ public sealed class MailDraftFiler
     {
         ArgumentNullException.ThrowIfNull(appends);
         ArgumentNullException.ThrowIfNull(localFiler);
+        ArgumentNullException.ThrowIfNull(custodians);
         ArgumentNullException.ThrowIfNull(writeSessions);
         ArgumentNullException.ThrowIfNull(destinations);
         ArgumentNullException.ThrowIfNull(drafts);
@@ -97,6 +103,7 @@ public sealed class MailDraftFiler
 
         this.appends = appends;
         this.localFiler = localFiler;
+        this.custodians = custodians;
         this.writeSessions = writeSessions;
         this.destinations = destinations;
         this.drafts = drafts;
@@ -114,7 +121,8 @@ public sealed class MailDraftFiler
     /// On a mirrored account a whole replacement is one call: the current revision is appended, and the copy it replaced
     /// is removed once the server has confirmed the new one is there. That is what leaves a user who edited a draft
     /// looking at one draft rather than at two for as long as it takes a pass to come round. On a held account the current
-    /// revision is filed locally and the message it replaced erased in the same commit, and no server is reached.
+    /// revision is filed locally and the message it replaced erased in the same commit, and no server is reached. The
+    /// account's custodian chooses which, inside the same guard, so a failure to choose is recorded like any other.
     /// </remarks>
     [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "A draft whose copy could not be settled is a draft that still exists and is still editable; raising would end the pass that was settling the drafts beside it, and every failure is classified into a recorded code and returned as an outcome instead.")]
     public async Task<MailDraftFilingResult> SettleAsync(
@@ -125,7 +133,9 @@ public sealed class MailDraftFiler
 
         try
         {
-            return await this.RunAsync(draft, cancellationToken);
+            var custodian = await this.custodians.ResolveAsync(draft.AccountId, cancellationToken);
+
+            return await custodian.SettleDraftAsync(draft, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -143,18 +153,20 @@ public sealed class MailDraftFiler
         }
     }
 
-    /// <summary>Reads and places a revision's local copy, where the account is held, before the transaction that writes the revision.</summary>
+    /// <summary>Reads and places a revision's local copy, where the account's custodian files one, before the transaction that writes the revision.</summary>
     /// <param name="account">The account the draft belongs to.</param>
     /// <param name="rawMime">The revision's message.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
-    /// <returns>The prepared copy, or <see langword="null" /> where the account is not held or no bound folder plays the drafts role.</returns>
+    /// <returns>The prepared copy, or <see langword="null" /> where the revision is appended to the server instead or no bound folder plays the drafts role.</returns>
     internal async Task<LocalMailCopy?> PrepareLocalCopyAsync(
         MailAccountId account,
         ReadOnlyMemory<byte> rawMime,
-        CancellationToken cancellationToken) =>
-        await this.localFiler.HoldsAsync(account, cancellationToken)
-            ? await this.localFiler.PrepareAsync(account, OutgoingMailFiling.Draft, rawMime, cancellationToken)
-            : null;
+        CancellationToken cancellationToken)
+    {
+        var custodian = await this.custodians.ResolveAsync(account, cancellationToken);
+
+        return await custodian.PrepareDraftCopyAsync(account, rawMime, cancellationToken);
+    }
 
     /// <summary>Files a revision's local copy and erases the one it replaces, inside the transaction that writes the revision.</summary>
     /// <param name="session">The transaction.</param>
@@ -194,14 +206,13 @@ public sealed class MailDraftFiler
     /// <param name="filed">What was filed.</param>
     internal void Announce(FiledLocalEmail filed) => this.localFiler.Announce(filed);
 
-    /// <summary>Runs whatever the stage calls for, which is at most an append followed by the removals it caused.</summary>
-    private async Task<MailDraftFilingResult> RunAsync(MailDraftRecord draft, CancellationToken cancellationToken)
+    /// <summary>Runs whatever the stage calls for against the mail server, which is at most an append followed by the removals it caused.</summary>
+    /// <param name="draft">The draft, read with its copies.</param>
+    /// <param name="cancellationToken">Cancels the commands and the writes around them.</param>
+    /// <returns>What the attempt did.</returns>
+    /// <remarks>A failure it does not classify itself is raised, for <see cref="SettleAsync" /> to record.</remarks>
+    internal async Task<MailDraftFilingResult> SettleOnSourceAsync(MailDraftRecord draft, CancellationToken cancellationToken)
     {
-        if (await this.localFiler.HoldsAsync(draft.AccountId, cancellationToken))
-        {
-            return await this.SettleLocallyAsync(draft, cancellationToken);
-        }
-
         if (draft.IsDiscarded)
         {
             return await this.DiscardAsync(draft, cancellationToken);
@@ -489,8 +500,14 @@ public sealed class MailDraftFiler
     /// Filing reads the draft again inside its transaction, so a save racing this conflicts on the draft rather than
     /// leaving two messages: whichever commits second replaces what the first filed.
     /// </para>
+    /// <para>
+    /// A failure it does not classify itself is raised, for <see cref="SettleAsync" /> to record.
+    /// </para>
     /// </remarks>
-    private async Task<MailDraftFilingResult> SettleLocallyAsync(
+    /// <param name="draft">The draft, read with its copies.</param>
+    /// <param name="cancellationToken">Cancels the reads and the writes.</param>
+    /// <returns>What the attempt did.</returns>
+    internal async Task<MailDraftFilingResult> SettleLocallyAsync(
         MailDraftRecord draft,
         CancellationToken cancellationToken)
     {

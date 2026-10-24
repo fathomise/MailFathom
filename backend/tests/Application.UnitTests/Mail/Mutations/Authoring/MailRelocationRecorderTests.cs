@@ -587,19 +587,17 @@ public sealed class MailRelocationRecorderTests
         var transportSecurityPolicies = Substitute.For<IMailTransportSecurityPolicyReader>();
         transportSecurityPolicies.GetPolicy(Arg.Any<MailAccountId>()).Returns(TlsOnConnect);
 
-        return new MailboxDestinationResolver(
-            this.mappings.Resolver,
-            this.bindings,
-            new MailFolderResolver(
-                remoteFolderCatalog,
-                Substitute.For<IRemoteFolderCreator>(),
-                this.bindings,
-                Substitute.For<IMailFolderMappingChangeAuditor>(),
-                sessionFactory,
-                ClientSignalPublishers.ReachingNobody,
-                new FakeTimeProvider(RecordedAt)),
-            transportSecurityPolicies,
-            Substitute.For<ILocalMailFolderStore>());
+        return new MailboxCustodianComposition(new FakeTimeProvider(RecordedAt))
+        {
+            Mappings = this.mappings,
+            FolderResolutions = this.bindings,
+            RemoteFolderCatalog = remoteFolderCatalog,
+            RemoteFolderCreator = Substitute.For<IRemoteFolderCreator>(),
+            MappingChangeAuditor = Substitute.For<IMailFolderMappingChangeAuditor>(),
+            PersistenceSessions = sessionFactory,
+            Signals = ClientSignalPublishers.ReachingNobody,
+            TransportPolicies = transportSecurityPolicies,
+        }.Destinations;
     }
 
     private static AuthoredMailboxTarget TargetIn(MailFolderAlias folderAlias, string? remotePath = null)

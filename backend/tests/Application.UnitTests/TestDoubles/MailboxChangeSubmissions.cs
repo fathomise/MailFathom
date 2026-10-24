@@ -7,18 +7,16 @@ using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Signals;
-using MailFathom.Domain.Accounts;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
-using NSubstitute;
 
 namespace MailFathom.Application.UnitTests.TestDoubles;
 
 /// <summary>Builds the change submission a use case writes through.</summary>
 /// <remarks>
-/// Left to its defaults, a substituted local folder store answers no holding for any account, which is the phase every
-/// account had before custody existed, so every change submitted through it is written down as a record exactly as it was
-/// before. A test about a held account hands in the stores that say otherwise.
+/// Left to its defaults, no account has a custody state, which resolves to the mirrored custodian, so every change
+/// submitted through it is written down as a record. A test about a held or a restoring account hands in the
+/// <see cref="InMemoryLocalMailFolderStore" /> that says so, whose custody the submission's resolver then reads.
 /// </remarks>
 internal static class MailboxChangeSubmissions
 {
@@ -30,26 +28,31 @@ internal static class MailboxChangeSubmissions
         IMailboxMutationAuditEntryStore? auditEntries = null,
         IMailboxMutationAuditSettingsReader? auditSettings = null,
         ClientSignals? signals = null,
+        TimeProvider? timeProvider = null) =>
+        Composing(records, localFolders, states, copier, auditEntries, auditSettings, signals, timeProvider).Submission;
+
+    internal static MailboxCustodianComposition Composing(
+        IMailboxMutationRecordStore records,
+        ILocalMailFolderStore? localFolders = null,
+        ILocalEmailStateStore? states = null,
+        LocalMailCopier? copier = null,
+        IMailboxMutationAuditEntryStore? auditEntries = null,
+        IMailboxMutationAuditSettingsReader? auditSettings = null,
+        ClientSignals? signals = null,
         TimeProvider? timeProvider = null)
     {
-        var settings = auditSettings;
+        var defaults = new MailboxCustodianComposition(timeProvider ?? new FakeTimeProvider());
 
-        if (settings is null)
+        return new MailboxCustodianComposition(defaults.Clock)
         {
-            settings = Substitute.For<IMailboxMutationAuditSettingsReader>();
-            settings.GetAuditSettings(Arg.Any<MailAccountId>()).Returns(MailboxMutationAuditSettings.Disabled);
-        }
-
-        var folders = localFolders ?? Substitute.For<ILocalMailFolderStore>();
-
-        return new MailboxChangeSubmission(
-            folders,
-            records,
-            states ?? Substitute.For<ILocalEmailStateStore>(),
-            copier ?? LocalMailCopiers.Over(folders),
-            settings,
-            auditEntries ?? Substitute.For<IMailboxMutationAuditEntryStore>(),
-            signals ?? ClientSignalPublishers.ReachingNobody,
-            timeProvider ?? new FakeTimeProvider());
+            Records = records,
+            LocalFolders = localFolders ?? defaults.LocalFolders,
+            Custody = localFolders is InMemoryLocalMailFolderStore inMemory ? inMemory.Custody : defaults.Custody,
+            States = states ?? defaults.States,
+            Copier = copier ?? LocalMailCopiers.Over(localFolders ?? defaults.LocalFolders),
+            AuditEntries = auditEntries ?? defaults.AuditEntries,
+            AuditSettings = auditSettings ?? defaults.AuditSettings,
+            Signals = signals ?? defaults.Signals,
+        };
     }
 }

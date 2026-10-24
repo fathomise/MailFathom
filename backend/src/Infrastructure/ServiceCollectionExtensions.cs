@@ -1036,6 +1036,17 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMailAccountCustodyStore, MailAccountCustodyStore>();
         services.AddScoped<IMailAccountCustodyAuditor, LoggedMailAccountCustodyAuditor>();
         services.AddScoped<MailAccountCustodySwitch>();
+
+        // Every act on a mailbox is carried by the custodian of the account's phase, and the resolver is the one reader
+        // of that phase. It takes each custodian lazily because they compose the collaborators that already do the work,
+        // and several of those reach the resolver again, so building all three eagerly would be a cycle.
+        services.AddScoped<MailboxCustodianResolver>();
+        services.AddScoped<MirroredMailboxCustodian>();
+        services.AddScoped<HeldMailboxCustodian>();
+        services.AddScoped<RestoringMailboxCustodian>();
+        services.AddScoped(provider => new Lazy<MirroredMailboxCustodian>(provider.GetRequiredService<MirroredMailboxCustodian>));
+        services.AddScoped(provider => new Lazy<HeldMailboxCustodian>(provider.GetRequiredService<HeldMailboxCustodian>));
+        services.AddScoped(provider => new Lazy<RestoringMailboxCustodian>(provider.GetRequiredService<RestoringMailboxCustodian>));
         services.AddScoped<LocalMailFolderEditor>();
         services.AddScoped<MirroredMailFolderEditor>();
         services.AddScoped<MailFolderEditor>();
@@ -1361,9 +1372,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAuthoredMailboxTargetReader, AuthoredMailboxTargetReader>();
         services.AddScoped<ILocalEmailStateStore, LocalEmailStateStore>();
 
-        // The held account's copy act, beside the submission that chooses it: it writes the second stored message a
-        // copy produces, which is why it holds the stores a message is written through rather than only the state store.
+        // The local commit both local custodians carry a change on a message through, and the copy act beside it: it
+        // writes the second stored message a copy produces, which is why it holds the stores a message is written through
+        // rather than only the state store.
         services.AddScoped<LocalMailCopier>();
+        services.AddScoped<LocalMailboxChanges>();
         services.AddScoped<MailboxChangeSubmission>();
         services.AddScoped<MailFlagChangeRecorder>();
 
@@ -1570,6 +1583,7 @@ public static class ServiceCollectionExtensions
         // scope, over every account the deployment is putting back.
         services.AddSingleton<IMailboxRestoreTelemetry, MailboxRestoreTelemetry>();
         services.AddScoped<MailboxDestinationResolver>();
+        services.AddScoped<OnDemandMailboxDestinationResolver>();
         services.AddScoped<IRemoteFolderCatalog>(provider => new MailKitRemoteFolderCatalog(
             MailKitImapClientFactory.CreateWithoutProtocolLogging,
             provider.GetRequiredService<IImapAccountSettingsProvider>(),
