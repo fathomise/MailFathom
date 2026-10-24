@@ -121,15 +121,24 @@ them if that access were ever removed.
    ```bash
    baseline=$(gh issue view <number> --repo fathomise/MailFathom --json body --jq .body \
      | sed -n '/^##* Baseline/,$p' | grep -oE '[0-9a-f]{40}' | head -n 1)
-   git log --oneline "$baseline"..<base>
+   if [ -n "$baseline" ] && git cat-file -e "$baseline^{commit}" 2>/dev/null; then
+     git log --oneline "$baseline"..<base>
+   else
+     echo 'no usable baseline: a reading of unknown age'
+   fi
    ```
 
-   Hold each commit against what the body names — a file, a type, a route, a rule, the cause of a
-   defect — and re-check in the current tree every finding one of them touched; one that changed is
-   corrected in the body and the section moved to `<base>`, so the next reader inherits the
-   current reading rather than this one. An empty list means the body is as current as the tree. An
-   issue with no section predates the rule or came from outside the project: say so in the brief,
-   and read the body as a reading of unknown age.
+   The guard is not decoration: an empty `$baseline` turns the range into `..<base>`, which git reads
+   as `HEAD..<base>`, and step 4 has already made that empty — so without it an issue with no
+   section would read as current. Hold each commit the log lists against what the body names — a
+   file, a type, a route, a rule, the cause of a defect — and re-check in the current tree every
+   finding one of them touched; one that changed is corrected in the body and the section moved to
+   `<base>`, so the next reader inherits the current reading rather than this one. In the fork role
+   the body is usually the maintainer's rather than the contributor's to edit, so the changed
+   findings and the new SHA go in the brief's `Baseline:` line instead and triage carries them into
+   the body. An empty list means the body is as current as the tree. `no usable baseline` means the
+   issue predates the rule, came from outside the project, or names a commit this clone does not
+   have: say so in the brief, and read the body as a reading of unknown age.
 
    Then read what it waits on, before it is placed and before it is claimed:
 
