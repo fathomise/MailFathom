@@ -128,12 +128,13 @@ else
 
   # What the contract suite asserts is a property of the whole tree — a licensing header in every
   # `.yml`, `.sh`, Helm template, and `SKILL.md`, a `describes:` marker resolving to something, a
-  # table-of-contents entry behind every published page — and all but one of those are carried by a
+  # table-of-contents entry behind every published page — and all but two of those are carried by a
   # file no C# change can move. Removing or moving one can, because a marker and an entry name a
-  # path, so a deletion or a rename runs the suite whatever it touched. The exception is the NUL-byte
-  # sweep, which reads every tracked text file rather than a list of extensions and therefore reads
-  # `.cs` as well: for a C#-only branch that one verdict is deferred rather than absent, which is the
-  # single place this skip withholds an answer somebody here could have wanted. `CI` runs the suite
+  # path, so a deletion or a rename runs the suite whatever it touched. The exceptions are the NUL-byte
+  # sweep and the forbidden-string sweep, which read every tracked text file rather than a list of
+  # extensions and therefore read `.cs` as well: for a C#-only branch those two verdicts are deferred
+  # rather than absent, which are the places this skip withholds an answer somebody here could have
+  # wanted. `CI` runs the suite
   # unconditionally on every pull request including a draft and on every push to `main`, which is
   # what makes skipping it here an earlier verdict withheld rather than a verdict lost: the tree a
   # merge produces is the one no pull-request run was ever shown, and that run is in the pipeline

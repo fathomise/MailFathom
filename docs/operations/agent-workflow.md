@@ -573,7 +573,7 @@ above keeps is the earlier verdict — a contract broken here is answered before
 push rather than after it — and the job is the same command against the same tree,
 so the two cannot disagree.
 
-That is also what decides when the full gate runs it. All but one invariant the
+That is also what decides when the full gate runs it. All but two invariants the
 suite asserts is carried by a file no C# change can move: a licensing header
 outside `.cs`, a `describes:` marker, a table-of-contents entry, a link. So a
 branch that only added or edited C# files has almost nothing here to break, and
