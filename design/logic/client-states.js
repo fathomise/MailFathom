@@ -43,7 +43,7 @@ MailFathomDesign.artboards.clientStates = (DCLogic, React) => {
     ["m_folders", "2.3a", "mail", "Folder column states"],
     ["m_list", "2.3b", "mail", "Message list states"],
     ["m_kind", "2.4a", "mail", "Kind of folder"],
-    ["m_roles", "2.4b", "mail", "Four more folder roles"],
+    ["m_roles", "2.4b", "mail", "Three more folder roles, and the Outbox on Sent"],
     ["m_search", "2.5", "mail", "Searching by describing"],
     ["m_pending", "2.6", "mail", "Changes not yet in the mailbox"],
     ["m_sync", "2.7", "mail", "How current the accounts are"],
@@ -67,7 +67,7 @@ MailFathomDesign.artboards.clientStates = (DCLogic, React) => {
     ["2.1", "m_verdict", "Changed", "Sender verdict", "Sits under the sender line, above the body. Warning is a notice box; healthy is one quiet line so it never competes with the message. Copy tightened."],
     ["2.2", "m_more", "Drawn", "Thread in pages and failures", "Paging control at the thread's end, partial-failure notice where the missing messages would be, whole-pane states in the “Nothing open” layout, head notes under the subject (2.2a-c)."],
     ["2.3", "m_folders", "Changed", "Folder column and list states", "Folder loading becomes a skeleton; the sentence stays for screen readers only. Failed, offline and no account drawn; the four list states drawn (2.3a-b)."],
-    ["2.4", "m_kind", "Changed", "Kind of folder, four roles", "“Kind of folder” moves to the top as a radio list (new component: a select hides what each option does); choosing a role collapses name and parent into the hint. Flagged, Important, All mail and Outbox drawn in the tree (2.4b)."],
+    ["2.4", "m_kind", "Changed", "Kind of folder, four roles", "“Kind of folder” moves to the top as a radio list (new component: a select hides what each option does); choosing a role collapses name and parent into the hint. Flagged, Important and All mail drawn in the tree, and each account's Outbox as a mark on its Sent row (2.4b)."],
     ["2.5", "m_search", "Drawn", "Searching by describing", "Both capabilities drawn. Ranking chips sit on their own row under the filter chips, set apart by icon and tint. The stage-3 note in Mail Search is updated."],
     ["2.6", "m_pending", "Changed", "Changes not yet in the mailbox", "The connection summary itself becomes the indicator and opens a panel (bottom sheet on phone). Toasts still announce each action; a failure that lands after its toast is gone raises one warning toast pointing to the panel."],
     ["2.7", "m_sync", "Drawn", "How current the accounts are", "Green dot and one sentence when every account is current, with nothing to open. Behind or stopped turns the dot amber and opens onto one row per account - its name and its state, no times."],
@@ -135,6 +135,9 @@ MailFathomDesign.artboards.clientStates = (DCLogic, React) => {
     style: "display:flex;align-items:center;gap:10px;padding:7px 12px;border-radius:8px;font-size:14px;" + (t.active ? "background:var(--accent-soft);color:var(--accent-d);font-weight:600;" : "color:var(--text2);"),
     ic: IC + "font-size:20px;width:20px;text-align:center;flex:0 0 20px",
     countStyle: "font-size:12px;" + (t.waiting ? "color:var(--warn-text)" : "color:var(--faint)"),
+    outbox: !!t.outbox, outboxCount: t.outbox || "", outboxSaid: t.outboxSaid || "",
+    outboxStyle: "flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px 0 6px;border-radius:999px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;" +
+      (t.outboxRefused ? "color:var(--err-text);background:var(--err-soft)" : "color:var(--accent-d);background:var(--accent-soft)"),
   });
 
   class Component extends DCLogic {

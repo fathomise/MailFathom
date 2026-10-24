@@ -9,7 +9,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     avatars: AVATARS, contacts: CONTACTS, contactInsights: CONTACT_AI,
     threads: THREADS, earlierMessages, threadMailBodies, threadStateSources: STATE_SRC, replyTo: HDR_REPLY_TO, cc: HDR_CC,
     mailBodies, documentPreviews, composeDrafts: COMPOSE_DRAFTS, newMessageTo: NEW_MESSAGE_TO,
-    accounts: ACCOUNTS, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, defaultReplyTo: DEFAULT_REPLY_TO, mailAccounts: MAIL_ACCOUNTS,
+    accounts: ACCOUNTS, outbox: OUTBOX, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, defaultReplyTo: DEFAULT_REPLY_TO, mailAccounts: MAIL_ACCOUNTS,
     home: HOME, savedAnswers: SAVED_ANSWERS, suggestedQuestions: SUGGESTED_QUESTIONS, sampleText: SAMPLE_TEXT,
     calendarBriefing: CALENDAR_BRIEFING, eventFromThread: EVENT_FROM_THREAD, taskCapacity: TASK_CAPACITY,
     starterChips: STARTER_CHIPS, anotherTimeReply: ANOTHER_TIME, agentScheduledEvents: AGENT_SCHEDULED,
@@ -56,7 +56,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
                         no account.
        m_list      2.3b list: empty folder, nothing matches (+ Clear filters), partial failure strip, empty while failing.
        m_kind      2.4a New folder with “Kind of folder” first; a role hides name + inside and shows the hint.
-       m_roles     2.4b tree roles Flagged (flag), Important (label_important), All mail (all_inbox), Outbox (outbox).
+       m_roles     2.4b tree roles Flagged (flag), Important (label_important), All mail (all_inbox); the Outbox (outbox) as a
+                        mark on each account's Sent row - the screen behind it is drawn here, in Mail.
        m_search    2.5  described search: filter chips, “What this search is ranked by” chips, unused-phrase note,
                         “Reading what you wrote…”, words-only placeholder.
        m_pending   2.6  pending changes in the connection summary: indicator states, panel (sheet on phone) with
@@ -469,7 +470,45 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     pickFolder = (key, label) => {
       if ((this.state.folderKey || "acc1·Inbox") === key) return;
       this.resetScroll("mail");
-      this.loadList({ folderKey: key, folderLabel: label, sel: [], sideDrawer: false });
+      this.loadList({ folderKey: key, folderLabel: label, sel: [], sideDrawer: false, outboxAcc: null, mailPane: this.state.outboxAcc ? "list" : this.state.mailPane });
+    };
+
+    /* The Outbox is read-only and holds no stored mail: what has not left an account yet. It opens from the mark on
+       that account's Sent row, and anything still going out leaves a few seconds after it is looked at - which is
+       how the prototype reaches an Outbox emptied while open. */
+    outboxOf = (acc) => ((this.state.outbox || OUTBOX)[acc] || []);
+    openOutbox = (acc, e) => {
+      if (e && e.stopPropagation) e.stopPropagation();
+      this.resetScroll("mail");
+      this.setState({ folderKey: acc + "·Outbox", folderLabel: "Outbox", outboxAcc: acc, outboxSel: null, mailPane: "list", sel: [], sideDrawer: false, swipeId: null });
+      this.outboxLeaveSoon(acc);
+    };
+    leaveOutbox = () => (this.state.outboxAcc
+      ? { outboxAcc: null, folderKey: this.state.outboxAcc + "·Sent", folderLabel: "Sent" }
+      : {});
+    setOutbox = (acc, entries, patch) => this.setState(s => Object.assign({
+      outbox: Object.assign({}, s.outbox || OUTBOX, { [acc]: entries }),
+    }, entries.some(x => x.id === s.outboxSel) ? {} : { outboxSel: null, mailPane: s.outboxAcc === acc ? "list" : s.mailPane }, patch || {}));
+    outboxLeaveSoon = (acc) => {
+      const t = setTimeout(() => {
+        const all = this.outboxOf(acc);
+        const gone = all.filter(x => x.stage === "sending");
+        if (!gone.length) return;
+        this.setOutbox(acc, all.filter(x => x.stage !== "sending"));
+        this.notify(gone.length === 1 ? "“" + gone[0].subject + "” is in Sent now." : gone.length + " messages are in Sent now.", { kind: "success", title: gone.length === 1 ? "Message sent" : "Messages sent" });
+      }, 6000);
+      this.timers.push(t);
+    };
+    pickOutboxEntry = (id) => this.setState({ outboxSel: id, mailPane: "thread" });
+    cancelOutboxEntry = (acc, id) => {
+      const entry = this.outboxOf(acc).find(x => x.id === id);
+      this.setOutbox(acc, this.outboxOf(acc).filter(x => x.id !== id));
+      if (entry) this.notify("Nothing was sent to " + entry.to + ".", { kind: "success", title: "Sending cancelled" });
+    };
+    sendOutboxEntryAgain = (acc, id) => {
+      this.setOutbox(acc, this.outboxOf(acc).map(x => (x.id === id ? Object.assign({}, x, { stage: "sending" }) : x)));
+      this.notify("It goes out again now.", { title: "Sending again" });
+      this.outboxLeaveSoon(acc);
     };
 
     pickThread = (id, e) => {
@@ -481,7 +520,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* Some threads have an unread message from the middle of the history —
          we open exactly that one, not the newest. */
       const entry = { piotr: 2 };
-      const patch = Object.assign({ threadId: id, listWide: false, mailAnswer: false, replyChooser: null, cameFrom: this.state.cameFrom && id === "contoso", mailPane: "thread", threadOpen: true, unread: unread,
+      const patch = Object.assign(this.leaveOutbox(), { threadId: id, listWide: false, mailAnswer: false, replyChooser: null, cameFrom: this.state.cameFrom && id === "contoso", mailPane: "thread", threadOpen: true, unread: unread,
         activeMsg: Object.assign({}, this.state.activeMsg, { [id]: typeof entry[id] === "number" ? entry[id] : null }),
         histOpen: Object.assign({}, this.state.histOpen, { [id]: !!this.state.autoExpand }) }, this.composeCtxPatch([id]));
       patch.msgLoading = true;
@@ -1289,7 +1328,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (tb.kind === "doc") return { screen: "mail", doc: tb.att, docZoom: 1, htmlDoc: null };
       if (tb.kind === "html") return { screen: "mail", doc: null, htmlDoc: tb.htmlDoc, htmlSrcMode: false };
       if (tb.kind === "compose") return { screen: "mail", doc: null, htmlDoc: null, compose: true };
-      return { screen: "mail", threadId: tb.id, mailPane: "thread", threadOpen: true, doc: null, htmlDoc: null };
+      return Object.assign(this.leaveOutbox(), { screen: "mail", threadId: tb.id, mailPane: "thread", threadOpen: true, doc: null, htmlDoc: null });
     };
 
     openTab = (key, patch, extra) => {
@@ -1553,7 +1592,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.setState({ notifRead: read });
       this.closeNotifCenter();
       if (!n.go) return;
-      if (n.go.thread) this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: n.go.thread, cameFrom: false, sel: [] });
+      if (n.go.thread) this.goScreen("mail", Object.assign(this.leaveOutbox(), { mailPane: "thread", threadOpen: true, threadId: n.go.thread, cameFrom: false, sel: [] }));
       else this.goScreen(n.go.screen, n.go.screen === "mail" ? { mailPane: "list" } : {});
     };
 
@@ -2218,7 +2257,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           calAdded: (s2.calAdded || []).concat(AGENT_SCHEDULED),
         }));
       } else if (a.kind === "gocal") this.setState({ screen: "cal", calView: "Day" });
-      else if (a.kind === "thread") this.setState({ screen: "mail", threadId: a.tid, mailPane: "thread", threadOpen: true, cameFrom: false });
+      else if (a.kind === "thread") this.setState(Object.assign(this.leaveOutbox(), { screen: "mail", threadId: a.tid, mailPane: "thread", threadOpen: true, cameFrom: false }));
       else if (a.kind === "planday") this.agentAsk("Plan my day");
     };
 
@@ -2831,7 +2870,98 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* Two panes in less than 1020 px: while a thread is open the list folds to a strip of senders, so the thread
          gets the width; the strip's head widens it again. A width rule — a mouse gets the same strip as a finger. */
       const foldTwoPanes = !singlePane && narrow;
-      const listStrip = foldTwoPanes && !emptyMail && !st.listWide && !selectionOn && !(st.stateBarOff);
+      /* The Outbox: one per account, read-only, holding what has not left it yet. It has no row of its own in the tree;
+         it is a mark on the account's Sent row, drawn only while something waits or was refused. */
+      const outboxAcc = st.screen === "mail" ? (st.outboxAcc || null) : null;
+      const outboxOn = !!outboxAcc;
+      const outboxAll = st.outbox || OUTBOX;
+      const OB_STAGE = {
+        refused: { order: 0, icon: "error", label: "Refused by the server", tone: "var(--err-text)" },
+        sending: { order: 1, icon: "send", label: "Sending now", tone: "var(--accent-d)" },
+        waiting: { order: 2, icon: "schedule", label: "Waiting to send", tone: "var(--muted)" },
+      };
+      const outboxMarkFor = (accKey) => {
+        const entries = outboxAll[accKey] || [];
+        if (!entries.length) return null;
+        const refused = entries.filter(x => x.stage === "refused").length;
+        const leaving = entries.length - refused;
+        const said = "Outbox - " + [leaving ? leaving + " waiting to leave" : "", refused ? refused + " refused" : ""].filter(Boolean).join(", ");
+        const open = outboxAcc === accKey;
+        const ink = open ? "var(--onaccent)" : refused ? "var(--err-text)" : "var(--accent-d)";
+        const ground = open ? (refused ? "var(--err)" : "var(--accent)") : refused ? "var(--err-soft)" : "var(--accent-soft)";
+        return {
+          count: String(entries.length), title: said, open,
+          run: (e) => this.openOutbox(accKey, e),
+          style: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:4px;border-radius:999px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:" + ink + ";background:" + ground + ";" +
+            (touch ? "min-width:44px;min-height:36px;margin:-8px -6px -8px 0;padding:0 10px;box-sizing:border-box;" : "height:22px;padding:0 8px 0 6px;"),
+          iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1",
+          stripStyle: "position:relative;display:flex;align-items:center;justify-content:center;height:34px;border-radius:8px;color:" + (open ? "var(--onaccent)" : ink) + ";background:" + (open ? ground : "transparent"),
+          stripBadgeStyle: "position:absolute;top:2px;right:6px;min-width:16px;height:16px;padding:0 4px;box-sizing:border-box;border-radius:999px;font-size:11px;font-weight:600;line-height:16px;text-align:center;color:var(--onaccent);background:" + (refused ? "var(--err)" : "var(--accent)") + ";box-shadow:0 0 0 2px var(--sub)",
+        };
+      };
+      const outboxAccount = ACCOUNTS.find(a => a.key === outboxAcc) || ACCOUNTS[0];
+      const outboxEntries = (outboxAll[outboxAcc] || []).slice().sort((a, b) => OB_STAGE[a.stage].order - OB_STAGE[b.stage].order);
+      const outboxEntry = outboxEntries.find(x => x.id === st.outboxSel) || null;
+      const outboxEntryStage = outboxEntry ? OB_STAGE[outboxEntry.stage] : OB_STAGE.waiting;
+      const outboxView = {
+        outboxListShown: outboxOn,
+        outboxHeadStyle: "flex:0 0 auto;display:flex;align-items:center;gap:" + (touch ? 8 : 9) + "px;box-sizing:border-box;" + (isMobile ? "min-height:56px;padding:6px 12px 6px 16px;" : touch ? "padding:8px 12px;" : "padding:10px 12px;") + "border-bottom:1px solid var(--line)",
+        outboxTitleStyle: isMobile ? "font-size:20px;font-weight:600;letter-spacing:-0.01em;line-height:1.2" : "font-size:16px;font-weight:600",
+        outboxAccountLabel: outboxAccount.label,
+        outboxReadOnlyStyle: "flex:0 0 auto;display:flex;align-items:flex-start;gap:8px;padding:" + (isMobile ? "10px 16px" : "9px 14px") + ";font-size:12px;line-height:1.45;color:var(--muted);background:var(--rail);border-bottom:1px solid var(--line)",
+        outboxHasEntries: outboxEntries.length > 0,
+        outboxEmpty: outboxOn && outboxEntries.length === 0,
+        outboxEmptyText: "Nothing is waiting to leave " + outboxAccount.label + " any more. What went out is in Sent.",
+        outboxEmptyBtnStyle: "display:flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:" + (touch ? 44 : 36) + "px;padding:0 16px;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px",
+        outboxGoSent: () => this.pickFolder(outboxAcc + "·Sent", "Sent"),
+        outboxRows: outboxEntries.map(x => {
+          const stg = OB_STAGE[x.stage];
+          const picked = !singlePane && outboxEntry && outboxEntry.id === x.id;
+          return {
+            to: x.to, subject: x.subject, at: x.at, stageLabel: stg.label, stageIcon: stg.icon,
+            select: () => this.pickOutboxEntry(x.id),
+            rowStyle: rowStyleFor(false, picked),
+            stageStyle: "display:flex;align-items:center;gap:5px;font-size:12px;font-weight:" + (x.stage === "refused" ? 600 : 400) + ";color:" + stg.tone,
+            stageIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:14px;line-height:1" + (x.stage === "sending" ? ";animation:mfpulse 1.6s ease-in-out infinite" : ""),
+          };
+        }),
+        outboxPaneShown: outboxOn && (!singlePane || mailPane === "thread") && !composeInPane && !docInPane && !htmlInPane,
+        outboxEntryShown: !!outboxEntry,
+        outboxNothingShown: !outboxEntry,
+        outboxNothingTitle: "Nothing open",
+        outboxNothingText: outboxEntries.length
+          ? "Pick a message to read it. Outbox is read-only: what is here can be read, and nothing can be replied to, moved or deleted."
+          : "",
+        outboxBackShown: singlePane,
+        outboxBack: () => this.setState({ mailPane: "list" }),
+        outboxBackStyle: "flex:0 0 auto;width:" + (isMobile ? 48 : touch ? 44 : 34) + "px;height:" + (isMobile ? 48 : touch ? 44 : 34) + "px;display:flex;align-items:center;justify-content:center;border-radius:12px;color:var(--text2)",
+        outboxPaneHeadStyle: "flex:0 0 auto;display:flex;align-items:center;gap:8px;min-width:0;" + (singlePane ? "padding:6px 8px 6px 8px;" : "padding:16px 24px 10px;"),
+        outboxSubject: outboxEntry ? outboxEntry.subject : "",
+        outboxSubjectStyle: singlePane ? "flex:1;min-width:0;font-size:18px;font-weight:600;line-height:1.3;letter-spacing:-0.01em;text-wrap:pretty" : "flex:1;min-width:0;font-size:20px;font-weight:600;letter-spacing:-0.01em",
+        outboxPaneBodyStyle: "flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:16px;" + (singlePane ? "padding:4px 16px 24px" : "padding:4px 24px 28px"),
+        outboxStageTitle: outboxEntry ? (outboxEntry.stage === "refused" ? "Not sent - the server refused it" : outboxEntryStage.label) : "",
+        outboxStageText: !outboxEntry ? ""
+          : outboxEntry.stage === "refused" ? outboxEntry.reason
+          : outboxEntry.stage === "sending" ? "Going out since " + outboxEntry.at + ". It can no longer be cancelled."
+          : "Handed over at " + outboxEntry.at + " and not sent yet. It goes out as soon as the mail server takes it.",
+        outboxStageIcon: outboxEntryStage.icon,
+        outboxStageBoxStyle: "display:flex;align-items:flex-start;gap:11px;border-radius:12px;padding:12px 14px;border:1px solid " +
+          (outboxEntry && outboxEntry.stage === "refused" ? "var(--err);background:var(--err-soft)" : outboxEntry && outboxEntry.stage === "sending" ? "var(--accent-line);background:var(--accent-soft)" : "var(--line);background:var(--rail)"),
+        outboxStageIconStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1;color:" + outboxEntryStage.tone +
+          (outboxEntry && outboxEntry.stage === "sending" ? ";animation:mfpulse 1.6s ease-in-out infinite" : ""),
+        outboxStageTitleStyle: "font-size:14px;font-weight:600;color:" + (outboxEntry && outboxEntry.stage === "refused" ? "var(--err-text)" : "var(--text)"),
+        outboxCanCancel: !!outboxEntry && outboxEntry.stage === "waiting",
+        outboxCanResend: !!outboxEntry && outboxEntry.stage === "refused",
+        outboxCancel: () => outboxEntry && this.cancelOutboxEntry(outboxAcc, outboxEntry.id),
+        outboxResend: () => outboxEntry && this.sendOutboxEntryAgain(outboxAcc, outboxEntry.id),
+        outboxResendStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:" + (touch ? 44 : 32) + "px;padding:0 14px;border-radius:8px;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent)",
+        outboxCancelStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:" + (touch ? 44 : 32) + "px;padding:0 14px;border-radius:8px;font-size:13px;color:var(--text2);background:var(--panel);border:1px solid var(--border2)",
+        outboxFrom: outboxAccount.address,
+        outboxTo: outboxEntry ? outboxEntry.to + " <" + outboxEntry.toMail + ">" : "",
+        outboxAt: outboxEntry ? "Handed over today, " + outboxEntry.at : "",
+        outboxBody: outboxEntry ? outboxEntry.body.map(p => ({ text: p })) : [],
+      };
+      const listStrip = foldTwoPanes && !emptyMail && !st.listWide && !selectionOn && !(st.stateBarOff) && !outboxOn;
       /* What is inside the thread pane reads the pane's own width, not the window's: the same window gives the pane
          more or less as the list is folded, dragged, or put away. These are the pane's container breakpoints. */
       const paneW = singlePane ? w - (isMobile ? 0 : railW) : w - railW - sideW - (listStrip ? 76 : listW);
@@ -3702,11 +3832,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               const active = (st.folderKey || "acc1·Inbox") === fk;
               const dragOver = st.dragOverKey === fk;
               const canNest = node.path.split("/").length < this.MAX_DEPTH;
-              const said = g.title + " - " + node.path.split("/").join(" / ") + (node.count ? " · " + node.count : "");
+              const obMark = g.key !== "all" && node.path === "Sent" ? outboxMarkFor(g.key) : null;
+              const said = g.title + " - " + node.path.split("/").join(" / ") + (node.count ? " · " + node.count : "") + (obMark ? " · " + obMark.title : "");
               const fpress = g.key === "all" ? null : this.pressFor("folder", fk, label, this.folderMenu(g.key, g.label, node.path, canNest, node.custom), undefined, said);
               return {
               ctxOpen: fpress ? fpress.ctx : noop, pressDown: fpress ? fpress.down : noop, pressUp: fpress ? fpress.up : noop,
               icon: node.icon, label: label, count: node.count, expanded: !sideCollapsed,
+              outboxMark: !!obMark && !sideCollapsed,
+              outboxStrip: !!obMark && sideCollapsed,
+              ob: obMark || {},
               title: fpress ? said : null,
               pick: () => this.pickFolder(fk, label),
               dragOver: (e) => this.dragOverFolder(fk, e),
@@ -4217,7 +4351,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
            the correspondence gets the full width (on desktop the list stays, there is room). */
         showThreadList: (!singlePane || mailPane === "list") && !(compact && st.stateBarOff && mailPane !== "list"),
         showContentPane: !singlePane || mailPane === "thread" || !!st.compose || !!st.doc,
-        showThreadPane: (!singlePane || mailPane === "thread") && !composeInPane && !docInPane && !htmlInPane && !emptyMail,
+        showThreadPane: (!singlePane || mailPane === "thread") && !composeInPane && !docInPane && !htmlInPane && !emptyMail && !outboxOn,
         showMailBack: singlePane && mailPane === "thread",
         backBtnStyle: "flex:0 0 auto;width:" + (isMobile ? 48 : touch ? 44 : 34) + "px;height:" + (isMobile ? 48 : touch ? 44 : 34) + "px;display:flex;align-items:center;justify-content:center;border-radius:12px;color:var(--text2)",
         /* One pane gives the subject a row of its own under the back button and the actions, two lines before it is cut,
@@ -4265,8 +4399,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "flex:1;display:flex;flex-direction:column;min-height:0;min-width:0"
           : "width:" + (listStrip ? 76 : listW) + "px;flex:0 0 " + (listStrip ? 76 : listW) + "px;display:flex;flex-direction:column;min-height:0" + (listStrip ? ";background:var(--sub);border-right:1px solid var(--line)" : "")),
         listStrip,
-        listFull: !listStrip,
-        listNarrowable: foldTwoPanes && !emptyMail && !!st.listWide && !selectionOn,
+        listFull: !listStrip && !outboxOn,
+        ...outboxView,
+        listNarrowable: foldTwoPanes && !emptyMail && !!st.listWide && !selectionOn && !outboxOn,
         widenList: () => this.setState({ listWide: true }),
         narrowList: () => this.setState({ listWide: false }),
         stripHeadStyle: "flex:0 0 auto;display:flex;justify-content:center;padding:8px 0;border-bottom:1px solid var(--line)",
@@ -4324,7 +4459,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
              The setting is global for mail, so it survives switching messages. */
           /* Glyph only — fullscreen/exit reads instantly, the label lives in the tooltip. */
           { icon: st.stateBarOff ? "fullscreen_exit" : "fullscreen", label: st.stateBarOff ? "Show thread panels" : "Hide panels - correspondence only", iconOnly: true, key: 1 },
-        ].map(a => ({
+        /* The Outbox takes no mail act, so its toolbar keeps the folder toggle and *New message* and nothing else. */
+        ].filter(() => !outboxOn).map(a => ({
            icon: a.icon, title: a.label, label: (tbFull && !a.iconOnly) ? a.label : "", run: mailAct[a.icon],
            style: ((tbFull && !a.iconOnly) ? tbBtn : tbIcon + ";flex:0 0 auto") +
              (a.icon === "flag" && flagOn ? ";color:var(--warn);background:var(--warn-soft)" : "") +
@@ -5229,7 +5365,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "Every open mail, attachment and new message gets its own tab above the content panel."
           : "Mail opens in the panel next to the list; a new message replaces the content panel.",
         tabsBarShown: tabsMode && tabItems.length > 0,
-        noTabsOpen: emptyMail,
+        noTabsOpen: emptyMail && !outboxOn,
         emptyMailText: tabsMode
           ? "Pick a message from the list, write a new one or ask about the whole correspondence history - each opens as a tab."
           : "Pick a message from the list, write a new one or ask about the whole correspondence history.",

@@ -21,6 +21,29 @@ MailFathomDesign.data.accounts = [
     ] },
 ];
 
+// What has not left each account yet: its Outbox, drawn as a mark on that account's Sent row while it holds anything.
+// `stage` is waiting (handed over, nothing transmitted), sending (going out now) or refused (the server would not take
+// it, with its reason in words). An account missing here has nothing waiting, so its Sent row carries no mark.
+MailFathomDesign.data.outbox = {
+  acc1: [
+    { id: "ob1", stage: "refused", to: "Anna Kowalska", toMail: "a.kowalska@contoso.example", at: "09:52",
+      subject: "Re: Contract addendum - signatures",
+      reason: "Nordwind's mail server would not take it: this account has sent as much mail as it may today. Nothing reached Anna. The limit resets at midnight.",
+      body: ["Anna,", "We accept the 2 h SLA and propose a 5% CPI cap from 2027. If that works for you, I will send the addendum for signature tomorrow.", "Best regards,\nKarolina"] },
+    { id: "ob2", stage: "sending", to: "Marta Nowak", toMail: "m.nowak@company.example", at: "10:41",
+      subject: "Budget line for Q4 renewals",
+      body: ["Marta,", "The negotiating line is the 5% cap. You can close the 2027 budget on that figure.", "Karolina"] },
+    { id: "ob3", stage: "waiting", to: "Tomasz Bąk", toMail: "t.bak@fabrikam.example", at: "10:44",
+      subject: "Re: UAT testing date",
+      body: ["Tomasz,", "12.11 works for us. Please confirm the test accounts by 02.09 so audit gets the list in time.", "Thanks,\nKarolina"] },
+  ],
+  acc2: [
+    { id: "ob4", stage: "sending", to: "Ewa Sikora", toMail: "e.sikora@adventure.example", at: "10:46",
+      subject: "Weekend support - one question",
+      body: ["Ewa,", "Is weekend support possible from October, and on what terms?", "Karolina"] },
+  ],
+};
+
 // The unified view across both accounts at the top of the folder column.
 MailFathomDesign.data.unifiedAccounts = {
   label: "All accounts", title: "Unified folders - two accounts", dot: "linear-gradient(135deg,var(--accent) 50%,#4d9aa8 50%)",

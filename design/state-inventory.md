@@ -332,12 +332,12 @@ than the 3 px accent edge it used to carry.
 |---|---|---|
 | Thread list shown | `showThreadList` | `!singlePane \|\| mailPane === "list"` |
 | Content pane shown | `showContentPane` | `!singlePane`, or the thread, composer, or document is open |
-| Thread shown | `showThreadPane` | as above, and nothing else has taken the pane |
+| Thread shown | `showThreadPane` | as above, and nothing else has taken the pane — the Outbox included (`outboxOn`) |
 | Back to the list | `showMailBack` | `singlePane && mailPane === "thread"` — phone and fold only |
 | Toolbar | `showMailToolbar` | `!selectionOn && !singlePane` |
 | Primary actions in the bar | `tbPrimaryShown` | the toolbar has room for them |
 | Resizer between panes | `showResizer` | `!singlePane && !touch && !listStrip` — a mouse drags the list between 232 and 560 px, double-click returns it to its band's width (`st.listW` back to `null`) |
-| The list as a strip, below 1020 | `listStrip` | `!singlePane && narrow && !emptyMail && !st.listWide && !selectionOn && !stateBarOff` — while a thread is open the list folds to a 76 px `--sub` column of senders: per thread a 36 px avatar in a 52 px target, the open one on `--accent-soft` inside an `--accent-line` ring, an unread one with a 10 px `--accent` dot; picking one opens its thread. The strip's head is one 44 px `left_panel_open` button titled *Show the list* |
+| The list as a strip, below 1020 | `listStrip` | `!singlePane && narrow && !emptyMail && !st.listWide && !selectionOn && !stateBarOff && !outboxOn` — while a thread is open the list folds to a 76 px `--sub` column of senders: per thread a 36 px avatar in a 52 px target, the open one on `--accent-soft` inside an `--accent-line` ring, an unread one with a 10 px `--accent` dot; picking one opens its thread. The strip's head is one 44 px `left_panel_open` button titled *Show the list* |
 | An unread row | `t.isUnread` / `fromStyle` / `subjStyle` | the sender and the subject in weight 600, a read row's in 400, the colours the same either way — weight is the one signal, as every mail client draws it, and the row carries no dot. The strip below 1020 keeps its dot, having no words to set in weight |
 | The list widened, below 1020 | `st.listWide` / `listNarrowable` | *Show the list* — the list comes back at 284 px, the thread narrows beside it, and the list's head leads with a 44 px `left_panel_close` titled *Narrow the list*; picking a thread folds it to the strip again |
 | Side list expanded | `sideExpanded` | not collapsed; collapsed is 58 px, expanded is 210 px (240 under `wide`) and draggable to 420. It starts collapsed below 1180 (`compact`) and expanded above |
@@ -357,7 +357,36 @@ An account draws six folders in the same order — Inbox, Sent, Drafts, Archive,
 draws three of them.** `STD_FOLDERS` takes a `unified` flag, and the last three carry `perAccount`:
 *All accounts* is Inbox, Sent and Drafts alone, because Archive, Spam and Trash are always opened in
 the account they live in rather than merged across accounts. Anything under either set is a folder
-the user made.
+the user made. An account's Sent row may carry one more thing, the Outbox mark — § *The Outbox* below.
+
+### The Outbox
+
+Each account has one, and it is MailFathom's own rather than a folder on the mail server: what was
+handed over to be sent from that account and has not left it yet, and what the server refused. It
+holds no stored mail, so it has **no row in the tree**. It is a mark on that account's Sent row, and
+the unified *All accounts* group carries none, because an Outbox belongs to one account. The sample
+is `outbox` in `data/prototype/workspace.js`: three entries in the work account, one in the personal
+one.
+
+| State | Flag | Reveal |
+|---|---|---|
+| The mark on Sent | `mb.outboxMark` / `mb.ob` | the account's Outbox holds anything (`outboxMarkFor`): a pill at the row's end — the `outbox` glyph and how many have not left — in accent, and in `--err-soft` with `--err-text` once anything in it was refused. Its name is its `title` and `aria-label`, *Outbox - 2 waiting to leave, 1 refused*, and the same sentence joins the row's own detail under its menu's header, so a finger reads it without the hover. 22 px tall under a mouse; under a finger 36 × 44 at least, taken from the row's padding so the row keeps its height. Filled while its Outbox is open (`aria-pressed`). Gone the moment nothing waits |
+| The mark on a folded side list | `mb.outboxStrip` | `sideCollapsed`: the strip has no room at the end of a row, so the mark stands as its own `outbox` glyph under Sent, with its count as a badge |
+| The Outbox open | `outboxOn` | the mark pressed (`openOutbox`). It takes the list's place (`outboxListShown`) and the reading pane's (`outboxPaneShown`); neither the strip below 1020 (`listStrip`) nor the thread is drawn while it is open. Picking a folder, or a thread opened from anywhere else (`leaveOutbox`), closes it |
+| Its head | `outboxHeadStyle` | *Outbox* as the title, the account under it; on the phone the title is 20 px semibold in the 56 px bar, the folders button before it, as everywhere in Mail |
+| Read-only, said | `outboxReadOnlyStyle` | one `lock` line under the head, on `--rail`, at every composition: *Read-only. What has not left yet waits here - nothing in it can be flagged, moved or deleted.* The preview ends on the same lock line. Missing actions read as the folder's nature, not a fault |
+| A row | `outboxRows` | *To* and the recipient, the time it was handed over, the subject, and its state on a line of its own — refused first, then sending, then waiting. A refused row's state is `--err-text` at weight 600; a sending row's glyph pulses. **No mail act on a row**: no checkbox, no selection, no AI summary, no hover actions, no drag, no swipe on the phone, no hold menu, and no row is a drop target. Pressing one opens it; on one pane it pushes the preview as a thread would |
+| The toolbar | `toolbarActions` | keeps the folder toggle and *New message* and drops every mail act — *Reply*, *Reply all*, *Forward*, *Archive*, *Delete*, *Flag*, *Unread*, *Move* and the panels toggle |
+| Nothing open | `outboxNothingShown` | two panes and nothing picked: the *Nothing open* layout with the `outbox` glyph and *Pick a message to read it. Outbox is read-only: what is here can be read, and nothing can be replied to, moved or deleted.* |
+| The preview | `outboxEntryShown` | the subject (with *Back* on one pane), then the state box, then *From*, *To* and *When*, then the message itself as text. Nothing in it is a mail act |
+| Waiting | `outboxCanCancel` | a neutral box: *Waiting to send* — *Handed over at 10:44 and not sent yet. It goes out as soon as the mail server takes it.* — and *Cancel sending*, which withdraws it (`cancelOutboxEntry`): the row goes and a success toast says *Nothing was sent to …* |
+| Sending | — | an accent box with a pulsing `send` glyph: *Sending now* — *Going out since 10:41. It can no longer be cancelled.* No action. In the prototype it leaves six seconds after the Outbox is opened (`outboxLeaveSoon`), with a *Message sent* toast |
+| Refused | `outboxCanResend` | the `--err` box: *Not sent - the server refused it*, then the server's reason in words — never a status code — and *Send again*, which turns it into *Sending* (`sendOutboxEntryAgain`) |
+| Emptied while open | `outboxEmpty` | the last entry leaves while the Outbox is open: the list says *Outbox is empty* — *Nothing is waiting to leave Nordwind · work any more. What went out is in Sent.* — with *Go to Sent* (`outboxGoSent`), and the mark on Sent is gone. Two panes show *Nothing open* beside it. Reached in the prototype by cancelling the waiting entry, sending the refused one again, and waiting; the personal account's Outbox empties by waiting alone |
+
+*Cancel sending* and *Send again* are the Outbox's own decisions about a send rather than mailbox
+acts, and they follow the client API that withdraws and requeues a send today. Where the decision
+record on the Outbox settles them differently, this table follows it.
 
 ### Folders the user made
 
@@ -987,7 +1016,7 @@ and *Nothing open* layout. **The one new component is the radio list in *Kind of
 | `m_folders` 2.3a | `show.m_folders` | The folder column loads as **a skeleton shaped like the tree**. *Reading mailboxes and folders…* stays only as live-region text for screen readers. Failed, offline (the last tree dimmed) and *No account configured* are drawn too. The column is in place on desktop, a drawer over the list on fold and tablet, and full screen on a phone |
 | `m_list` 2.3b | `show.m_list` | The list's empty states are centred in the column, one sentence each. *Nothing matches* names what is narrowing and offers *Clear filters*. A partial failure is a warning strip above the rows that did arrive. An empty list that also failed says the folder could not be read — never that it is empty |
 | `m_kind` 2.4a | `show.m_kind` | When a mailbox lacks a role folder, *Kind of folder* becomes **the first field**, as a radio list. Picking a role folds *Folder name* and *Inside* away and puts the hint in their place, and *An ordinary folder* brings them back. On a phone the dialog is full screen |
-| `m_roles` 2.4b | `show.m_roles` | Flagged (`flag`), Important (`label_important`), All mail (`all_inbox`) and Outbox (`outbox`) join the standard folders in reading order: what needs you, what you wrote, then everything. Outbox shows what is waiting rather than an unread count, and only while something waits |
+| `m_roles` 2.4b | `show.m_roles` | Flagged (`flag`), Important (`label_important`) and All mail (`all_inbox`) join the standard folders in reading order: what needs you, what you wrote, then everything. The Outbox is no row of its own: it is the `outbox` mark on each account's Sent row, drawn only while something waits or was refused — § *The Outbox* under Mail draws the screen behind it |
 | `m_search` 2.5 | `show.m_search` | A described search turns the sentence into two kinds of chip. Filters keep the Mail Search chip (rail tint) and decide what is in. Ranking criteria get their own labelled row in accent tint with a sort icon, and each one's × reads *Stop ranking by {criterion}*. One muted line under both names what was not used. *Reading what you wrote…* and the words-only field are drawn below |
 | `m_pending` 2.6 | `show.m_pending` | **The connection summary itself becomes the indicator**: its dot and sentence take the most urgent state, and clicking it opens a panel under it — a bottom sheet on a phone, where the summary is a chip at the right of the header. The panel lists accounts first, then changes on their way, most urgent first. Toasts still announce each action, and a failure landing after its toast is gone raises one warning toast whose action opens the panel |
 | `m_sync` 2.7 | `show.m_sync` | **Green is the whole message when every account is current**: a dot and one sentence, nothing to open. An account catching up or stopped turns the dot amber and makes the sentence a control that opens onto one row per account — its name and its state, never a time or an *oldest refresh* line |
