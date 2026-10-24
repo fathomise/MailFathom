@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useLayoutEffect, useRef, type ComponentProps } from 'react';
+import { useCallback, useLayoutEffect, useRef, type ComponentProps } from 'react';
 import { heightFor } from './fieldHeight';
 
 // Where somebody types what an AI draft should say — an instruction, their own draft of the message, or both — so the
@@ -72,22 +72,29 @@ export function GrowingField({
         };
     }, []);
 
+    // Stable for as long as the caller's ref is, so a ref that acts on attaching — focusing the field — runs when the
+    // element attaches rather than on every render.
+    const attach = useCallback(
+        (element: HTMLTextAreaElement | null) => {
+            own.current = element;
+
+            if (typeof ref === 'function') {
+                return ref(element);
+            }
+
+            if (ref !== null && ref !== undefined) {
+                ref.current = element;
+            }
+
+            return undefined;
+        },
+        [ref],
+    );
+
     return (
         <textarea
             {...field}
-            ref={(element) => {
-                own.current = element;
-
-                if (typeof ref === 'function') {
-                    return ref(element);
-                }
-
-                if (ref !== null && ref !== undefined) {
-                    ref.current = element;
-                }
-
-                return undefined;
-            }}
+            ref={attach}
             rows={1}
             value={value}
             className={`resize-none wrap-anywhere placeholder:text-ellipsis placeholder-shown:overflow-hidden placeholder-shown:whitespace-nowrap ${className}`}

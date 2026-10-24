@@ -129,9 +129,12 @@ internal sealed class ReplyDraftSourceStore(
         string? sendingNormalizedAddress,
         IReadOnlyList<string> styleSamples)
     {
+        // The order the database cut in, reversed: PostgreSQL sorts a missing date first when descending, so an undated
+        // message counts as the newest, and its uuid order is the order of the canonical text form.
         var conversation = recent
-            .OrderBy(static row => row.SentAt)
-            .ThenBy(static row => row.StoredEmailId)
+            .OrderBy(static row => row.SentAt is null)
+            .ThenBy(static row => row.SentAt)
+            .ThenBy(static row => row.StoredEmailId.ToString(), StringComparer.Ordinal)
             .ToArray();
 
         var attachmentsByMessage = attachments.ToLookup(static attachment => attachment.StoredEmailId);

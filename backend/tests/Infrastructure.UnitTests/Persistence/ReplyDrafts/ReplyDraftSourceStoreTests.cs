@@ -61,6 +61,27 @@ public sealed class ReplyDraftSourceStoreTests
         Assert.Equal([0, 1], sources.Messages.Select(static message => message.Position));
     }
 
+    /// <summary>An undated message is the newest to the database's cut, so it is numbered last rather than first.</summary>
+    [Fact]
+    public void Assemble_AnUndatedRow_IsNumberedAfterEveryDatedOne()
+    {
+        // Arrange
+        var undated = Row(sentAt: null, "undated");
+        var dated = Row(Monday, "dated");
+
+        // Act
+        var sources = ReplyDraftSourceStore.Assemble(
+            [undated, dated],
+            StoredEmailId.Create(dated.StoredEmailId),
+            [],
+            CharactersPerMessage,
+            sendingNormalizedAddress: null,
+            []);
+
+        // Assert
+        Assert.Equal(["dated", "undated"], sources.Messages.Select(static message => message.Text));
+    }
+
     /// <summary>Attachments fill what a message's own text left of its bound, in the order the message carries them, and no more.</summary>
     [Fact]
     public void Assemble_AttachmentsPastWhatTheTextLeft_AreCutToTheMessagesBound()
@@ -124,7 +145,7 @@ public sealed class ReplyDraftSourceStoreTests
         SentAt = sentAt,
     };
 
-    private static ReplyDraftSourceStore.ConversationMessageRow Row(DateTimeOffset sentAt, string text) =>
+    private static ReplyDraftSourceStore.ConversationMessageRow Row(DateTimeOffset? sentAt, string text) =>
         new(Guid.CreateVersion7(), "The racking quotation", "Karolina", "karolina@example.test", sentAt, text);
 
     private static ReplyDraftSourceStore.AttachmentRow Attachment(
