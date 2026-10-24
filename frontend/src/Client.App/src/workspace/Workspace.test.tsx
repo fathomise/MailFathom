@@ -81,7 +81,7 @@ describe('WorkspaceProvider', () => {
 
     it('opens on what the last run of this tab was looking at, so a reload returns to it', () => {
         const change: Partial<Workspace> = {
-            scope: { kind: 'folder', accountId: 'work', alias: 'INBOX' },
+            scope: { kind: 'folder', accountId: 'work', folderId: 'INBOX' },
             foldsToggled: ['account:personal'],
             selection: 'AAMkAD-42',
         };

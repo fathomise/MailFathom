@@ -38,6 +38,12 @@ public interface ILocalMailFolderStore
     /// <returns>The holding, or <see langword="null" /> where the deployment holds no such account.</returns>
     Task<LocalMailFolderHolding?> ReadAsync(MailAccountId account, CancellationToken cancellationToken);
 
+    /// <summary>Reads every live folder of the account, whichever copy of its mailbox is the truth, joining no transaction.</summary>
+    /// <param name="account">The account.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>The account's folders, empty where it has none or the deployment holds no such account.</returns>
+    Task<IReadOnlyList<LocalMailFolder>> ReadFoldersAsync(MailAccountId account, CancellationToken cancellationToken);
+
     /// <summary>Writes what an edit decided.</summary>
     /// <param name="session">The transaction the read joined.</param>
     /// <param name="account">The account.</param>
@@ -49,7 +55,7 @@ public interface ILocalMailFolderStore
         IPersistenceSession session,
         MailAccountId account,
         IReadOnlyCollection<LocalMailFolder> saved,
-        IReadOnlyCollection<LocalMailFolderId> erased,
+        IReadOnlyCollection<MailFolderId> erased,
         CancellationToken cancellationToken);
 
     /// <summary>Places a stored message in a local folder, unless it is already in one.</summary>
@@ -63,7 +69,7 @@ public interface ILocalMailFolderStore
         IPersistenceSession session,
         MailAccountId account,
         StoredEmailId email,
-        LocalMailFolderId folder,
+        MailFolderId folder,
         CancellationToken cancellationToken);
 
     /// <summary>Erases, through the cascade a stored message's erasure runs, up to a bound of the messages in the account's erased folders.</summary>
@@ -83,9 +89,9 @@ public interface ILocalMailFolderStore
     /// <param name="account">The account the message belongs to.</param>
     /// <param name="email">The message.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
-    /// <returns>The alias of the folder binding the message was stored under, or <see langword="null" /> where the account holds no such message.</returns>
+    /// <returns>The folder the message was in, or <see langword="null" /> where the account holds no such message.</returns>
     /// <remarks>A message already gone is not an error, because the act that erases it may be replaying one that already did.</remarks>
-    Task<MailFolderAlias?> EraseEmailAsync(
+    Task<MailFolderId?> EraseEmailAsync(
         IPersistenceSession session,
         MailAccountId account,
         StoredEmailId email,

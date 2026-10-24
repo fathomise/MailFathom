@@ -1067,7 +1067,7 @@ public sealed class StoredEmailResponseAuthoringTests
         var callerAuthorization = authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead);
 
         var participation = folderParticipation ?? StubMailFolderParticipation.Mapping(
-            new MailFolderIdentity(answered.Account, answered.FolderAlias));
+            new MailFolderIdentity(answered.Account, answered.Folder.Alias!.Value));
 
         return new StoredEmailResponseAuthoring(
             summaryReader ?? SummaryReaderReturning(answered),

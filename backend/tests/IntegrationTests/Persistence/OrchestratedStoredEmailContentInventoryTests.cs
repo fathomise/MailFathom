@@ -200,7 +200,7 @@ public sealed class OrchestratedStoredEmailContentInventoryTests(MailFathomOrche
                 return await dbContext.StoredEmails
                     .Where(email => email.UidValidity == occurrenceId.UidValidity.Value
                         && email.Uid == occurrenceId.Uid.Value
-                        && email.MailFolder.Alias == occurrenceId.FolderResolutionId.Alias.Value)
+                        && email.MailFolderBinding.Alias == occurrenceId.FolderResolutionId.Alias.Value)
                     .ExecuteUpdateAsync(
                         email => email.SetProperty(
                             candidate => candidate.RemoteExpungeObservedAt,

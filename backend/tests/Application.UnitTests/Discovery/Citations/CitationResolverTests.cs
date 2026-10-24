@@ -55,7 +55,7 @@ public sealed class CitationResolverTests
             (summary.StoredEmailId, SyntheticEmailSummaries.DefaultAccountId, SyntheticEmailSummaries.DefaultFolderAlias, "Renewal terms", received),
             (citation.Message!.StoredEmailId,
                 citation.Message.AccountId.Value,
-                citation.Message.FolderAlias.Value,
+                citation.Message.Folder.Path,
                 citation.Message.Subject,
                 citation.Message.ReceivedAt));
         Assert.Null(citation.Fragment);
@@ -424,7 +424,7 @@ public sealed class CitationResolverTests
         IReadOnlyList<EmailSummary> summaries)
     {
         var participation = StubMailFolderParticipation.Mapping(
-            [.. summaries.Select(summary => new MailFolderIdentity(summary.Account, summary.FolderAlias))]);
+            [.. summaries.Select(summary => new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value))]);
 
         return new MailboxScopeResolver(
             accountCatalog,

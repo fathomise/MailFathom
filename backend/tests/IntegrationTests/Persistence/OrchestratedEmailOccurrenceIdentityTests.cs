@@ -238,9 +238,9 @@ public sealed class OrchestratedEmailOccurrenceIdentityTests(MailFathomOrchestra
                 .GetRequiredService<MailFathomDbContext>()
                 .StoredEmails
                 .AsNoTracking()
-                .Where(storedEmail => storedEmail.MailFolder.MailboxAccountId == SyntheticMailAccount.AccountId.Value
-                    && storedEmail.MailFolder.Alias == alias
-                    && storedEmail.MailFolder.ResolutionGeneration == generation
+                .Where(storedEmail => storedEmail.MailFolderBinding.MailboxAccountId == SyntheticMailAccount.AccountId.Value
+                    && storedEmail.MailFolderBinding.Alias == alias
+                    && storedEmail.MailFolderBinding.ResolutionGeneration == generation
                     && storedEmail.UidValidity == uidValidity
                     && storedEmail.Uid == uid)
                 .Select(storedEmail => new StoredOccurrenceRow(

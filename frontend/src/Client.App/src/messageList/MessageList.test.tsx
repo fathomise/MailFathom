@@ -460,7 +460,7 @@ describe('MessageList', () => {
     it('asks for the folder the scope names rather than for every folder', async () => {
         const { transport, requests } = recording(wholeFolder);
 
-        renderList(transport, { scope: { kind: 'folder', accountId: 'work', alias: 'ARCHIVE-2024' } });
+        renderList(transport, { scope: { kind: 'folder', accountId: 'work', folderId: 'ARCHIVE-2024' } });
         await rows();
 
         expect(requests[0]?.path).toContain('account=work');
@@ -799,7 +799,7 @@ describe('MessageList', () => {
     });
 
     it('offers no junk control for a folder the reader has already pointed at', async () => {
-        renderList(answering(wholeFolder), { scope: { kind: 'folder', accountId: 'work', alias: 'Spam' } });
+        renderList(answering(wholeFolder), { scope: { kind: 'folder', accountId: 'work', folderId: 'Spam' } });
 
         await rows();
 

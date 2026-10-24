@@ -69,7 +69,7 @@ internal static class CorpusMailbox
         {
             Id = message.Id.Value,
             MailboxAccountId = string.Empty,
-            MailFolder = null!,
+            MailFolderBinding = null!,
             Subject = message.Subject,
             SentAt = message.ReceivedAt,
             ReceivedAt = message.ReceivedAt,

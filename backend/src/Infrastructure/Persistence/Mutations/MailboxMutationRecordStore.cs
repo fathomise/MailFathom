@@ -50,7 +50,7 @@ internal sealed class MailboxMutationRecordStore(
         ArgumentNullException.ThrowIfNull(request);
 
         var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
-        var folder = await MailFolderEntityResolver.GetRequiredAsync(
+        var folder = await MailFolderBindingResolver.GetRequiredAsync(
             writeContext,
             request.Account,
             request.Occurrence.FolderResolutionId,
@@ -76,8 +76,8 @@ internal sealed class MailboxMutationRecordStore(
 
             // Copied off the folder row this occurrence was resolved through, which is the account's own binding. A
             // change belongs to the user whose mailbox it was performed in.
-            MailFolderId = folder.Id,
-            MailFolder = folder,
+            MailFolderBindingId = folder.Id,
+            MailFolderBinding = folder,
             UidValidity = request.Occurrence.UidValidity.Value,
             Uid = request.Occurrence.Uid.Value,
             Mutation = request.Mutation.Name,
@@ -174,14 +174,14 @@ internal sealed class MailboxMutationRecordStore(
 
         var entities = await readContext.MailboxMutations
             .AsNoTracking()
-            .Include(mutation => mutation.MailFolder)
+            .Include(mutation => mutation.MailFolderBinding)
             .Where(mutation => accountValues.Contains(mutation.MailboxAccountId)
                 && identifiers.Contains(mutation.Id))
             .OrderBy(mutation => mutation.RecordedAt)
             .ThenBy(mutation => mutation.Id)
             .ToArrayAsync(cancellationToken);
 
-        return [.. entities.Select(entity => MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolder))];
+        return [.. entities.Select(entity => MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding))];
     }
 
     /// <inheritdoc />
@@ -216,7 +216,7 @@ internal sealed class MailboxMutationRecordStore(
         // the folder because rebuilding the record needs the binding its occurrence identity is made of. The caller's
         // accounts are part of the predicate so a row outside them is absent rather than read and then rejected.
         var entities = await writeContext.MailboxMutations
-            .Include(mutation => mutation.MailFolder)
+            .Include(mutation => mutation.MailFolderBinding)
             .Where(mutation => accountValues.Contains(mutation.MailboxAccountId)
                 && identifiers.Contains(mutation.Id))
             .OrderBy(mutation => mutation.RecordedAt)
@@ -238,7 +238,7 @@ internal sealed class MailboxMutationRecordStore(
             }
         }
 
-        return [.. entities.Select(entity => MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolder))];
+        return [.. entities.Select(entity => MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding))];
     }
 
     /// <inheritdoc />
@@ -266,7 +266,7 @@ internal sealed class MailboxMutationRecordStore(
         // write is part of the caller's commit, joined to the folder because rebuilding the record needs the binding,
         // and narrowed by the caller's accounts so a row outside them is absent rather than read and then rejected.
         var entities = await writeContext.MailboxMutations
-            .Include(mutation => mutation.MailFolder)
+            .Include(mutation => mutation.MailFolderBinding)
             .Where(mutation => accountValues.Contains(mutation.MailboxAccountId)
                 && identifiers.Contains(mutation.Id))
             .OrderBy(mutation => mutation.RecordedAt)
@@ -281,7 +281,7 @@ internal sealed class MailboxMutationRecordStore(
             entity.HeldUntil = null;
         }
 
-        return [.. entities.Select(entity => MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolder))];
+        return [.. entities.Select(entity => MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding))];
     }
 
     /// <inheritdoc />
@@ -379,7 +379,7 @@ internal sealed class MailboxMutationRecordStore(
         // alias and generation an occurrence identity is made of, and the remote path a resumed attempt selects.
         var entities = await readContext.MailboxMutations
             .AsNoTracking()
-            .Include(mutation => mutation.MailFolder)
+            .Include(mutation => mutation.MailFolderBinding)
             .Where(mutation => mutation.MailboxAccountId == accountValue &&
                 mutation.Stage != MailboxMutationStage.Completed &&
                 mutation.Stage != MailboxMutationStage.Cancelled &&
@@ -397,8 +397,8 @@ internal sealed class MailboxMutationRecordStore(
         return
         [
             .. entities.Select(entity => new OutstandingMailboxMutation(
-                MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolder),
-                MailFolderEntityResolver.ToResolution(entity.MailFolder))),
+                MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding),
+                MailFolderBindingResolver.ToResolution(entity.MailFolderBinding))),
         ];
     }
 
@@ -494,7 +494,7 @@ internal sealed class MailboxMutationRecordStore(
         return await TrackedEntityLookup.SinglePendingOrPersistedAsync(
             writeContext.MailboxMutations,
             writeContext.MailboxMutations,
-            mutation => mutation.MailFolderId == folderId &&
+            mutation => mutation.MailFolderBindingId == folderId &&
                 mutation.UidValidity == uidValidity &&
                 mutation.Uid == uid &&
                 mutation.RequesterOrigin == origin &&

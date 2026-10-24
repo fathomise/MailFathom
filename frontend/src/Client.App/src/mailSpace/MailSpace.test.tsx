@@ -133,7 +133,7 @@ function ChooseFolder() {
         <button
             type="button"
             onClick={() => {
-                revise({ scope: { kind: 'folder', accountId: 'work', alias: 'Invoices' } });
+                revise({ scope: { kind: 'folder', accountId: 'work', folderId: 'Invoices' } });
             }}
         >
             {chooseAFolder}

@@ -232,7 +232,7 @@ public sealed class StoredEmailStaleDerivedDataSelectionTests : IDisposable
             // on an identity: two messages both answering Guid.Empty would make the selection's narrowing unfalsifiable.
             Id = Guid.NewGuid(),
             MailboxAccountId = account.Value,
-            MailFolder = new MailFolderEntity
+            MailFolderBinding = new MailFolderBindingEntity
             {
                 MailboxAccountId = account.Value,
                 Alias = "INBOX",

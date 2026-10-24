@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Security.Cryptography;
+using System.Text;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
@@ -60,7 +62,7 @@ internal static class SyntheticEmailSummaries
         {
             StoredEmailId = StoredEmailId.Create(storedEmailId ?? Guid.CreateVersion7()),
             Account = MailAccountId.Create(accountId),
-            FolderAlias = MailFolderAlias.Create(folderAlias),
+            Folder = FolderOf(accountId, folderAlias),
             ThreadId = threadId is { } conversation ? EmailThreadId.Create(conversation) : null,
             InternetMessageId = null,
             Subject = subject,
@@ -90,6 +92,20 @@ internal static class SyntheticEmailSummaries
             MachineAuthorship = machineAuthorship ?? MachineAuthorshipAssessment.NotAssessed,
             SenderAuthenticationEvidence = senderAuthenticationEvidence ?? SenderAuthenticationEvidence.None,
         };
+
+    /// <summary>Names the folder an alias feeds by an identity derived from the account and the alias, so two summaries built for one folder agree on it.</summary>
+    /// <param name="accountId">The account the folder belongs to.</param>
+    /// <param name="folderAlias">The alias that feeds it, which is also its path.</param>
+    /// <returns>The folder as a stored message names it.</returns>
+    public static StoredEmailFolder FolderOf(string accountId, string folderAlias) =>
+        new(FolderIdOf(accountId, folderAlias), folderAlias, MailFolderAlias.Create(folderAlias));
+
+    /// <summary>Derives the identity <see cref="FolderOf" /> gives the folder an alias feeds.</summary>
+    /// <param name="accountId">The account the folder belongs to.</param>
+    /// <param name="folderAlias">The alias that feeds it.</param>
+    /// <returns>The identity.</returns>
+    public static MailFolderId FolderIdOf(string accountId, string folderAlias) =>
+        MailFolderId.Create(new Guid(SHA256.HashData(Encoding.UTF8.GetBytes($"{accountId}/{folderAlias}")).AsSpan(0, 16)));
 
     /// <summary>Builds a run of summaries one day apart, oldest first, so a test can page over a known order.</summary>
     /// <param name="count">How many summaries to build.</param>

@@ -137,11 +137,11 @@ internal static class DiscoveryPlanningInstructions
             return "one conversation, and nothing else.";
         }
 
-        if (scope.SelectedFolders.Count > 0)
+        if (scope.SelectedFolders.Count + scope.SelectedRoles.Count > 0)
         {
             return string.Create(
                 CultureInfo.InvariantCulture,
-                $"{scope.SelectedFolders.Count} folders of this mailbox.");
+                $"{scope.SelectedFolders.Count + scope.SelectedRoles.Count} folders of this mailbox.");
         }
 
         return string.Create(

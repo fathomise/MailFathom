@@ -350,7 +350,7 @@ public sealed class OrchestratedStoredEmailIndexTests(MailFathomOrchestrationFix
         return await services.InScopeAsync(
             (scope, token) => scope
                 .GetRequiredService<MailFathomDbContext>()
-                .MailFolders
+                .MailFolderBindings
                 .AsNoTracking()
                 .Where(folder => folder.MailboxAccountId == SyntheticMailAccount.AccountId.Value
                     && folder.Alias == alias
@@ -446,8 +446,8 @@ public sealed class OrchestratedStoredEmailIndexTests(MailFathomOrchestrationFix
                 .EmailSearchDocuments
                 .AsNoTracking()
                 .CountAsync(
-                    document => document.StoredEmail.MailFolder.Alias == alias
-                        && document.StoredEmail.MailFolder.ResolutionGeneration == generation,
+                    document => document.StoredEmail.MailFolderBinding.Alias == alias
+                        && document.StoredEmail.MailFolderBinding.ResolutionGeneration == generation,
                     token),
             cancellationToken);
     }

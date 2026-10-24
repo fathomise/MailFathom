@@ -100,7 +100,7 @@ internal static class ClientMailMessageEndpoint
 /// <summary>One message as the client endpoint serves it, without its body and without any file it carries.</summary>
 /// <param name="StoredEmailId">The message, as the request named it.</param>
 /// <param name="Account">The configured account the message was read from.</param>
-/// <param name="Folder">MailFathom's own name for the folder the message was read from.</param>
+/// <param name="Folder">The identity of the folder the message was read from, as the folders route names it.</param>
 /// <param name="ThreadId">The conversation the message belongs to, or <see langword="null" /> where nothing has placed it in one.</param>
 /// <param name="SizeOctets">The size the mail server reported for the whole message, which no sum over the parts reproduces.</param>
 /// <param name="Headers">What the message displays above its body.</param>
@@ -141,7 +141,7 @@ internal sealed record ClientMailMessageResponse(
         return new ClientMailMessageResponse(
             message.StoredEmailId.Value,
             message.AccountId.Value,
-            message.FolderAlias.Value,
+            message.Folder.Id.ToString(),
             message.Thread?.ThreadId.Value,
             message.SizeOctets,
             ClientMailMessageHeadersResponse.For(message.Headers),

@@ -26,7 +26,7 @@
         },
         "folders": {
           "default": null,
-          "description": "MailFathom folders the answer may be drawn from, each named by its alias, such as INBOX, or by the role it plays, written as role:Junk. Roles are Inbox, Archive, Drafts, Sent, Junk, Trash, All, Flagged, Important, and Outbox; naming one draws on whichever folder each account in scope maps with that role, whatever it is called there. Omit to draw on every folder of the accounts in scope. At most 64 may be named. An alias is MailFathom's own name for a folder and is matched without regard to case.",
+          "description": "MailFathom folders the answer may be drawn from, each named by its identity — the folderId a listed email carries, or the id list_accounts reports for each folder — or by the role it plays, written as role:Junk. Roles are Inbox, Archive, Drafts, Sent, Junk, Trash, All, Flagged, Important, and Outbox; naming one draws on whichever folder each account in scope maps with that role, whatever it is called there. Omit to draw on every folder of the accounts in scope. At most 64 may be named. A folder named any other way is refused.",
           "items": {
             "type": [
               "string",
@@ -126,8 +126,12 @@
                 },
                 "type": "array"
               },
-              "folderAlias": {
-                "description": "The MailFathom folder alias the email was read from, such as INBOX. This is MailFathom's own name for the folder rather than the path the mail server advertises.",
+              "folderId": {
+                "description": "The identity of the folder the email is in, which is what the folders argument of a mailbox tool names it by. It stays the same when the folder is renamed or moved.",
+                "type": "string"
+              },
+              "folderPath": {
+                "description": "The folder's place in its account's hierarchy, as the folder names from the top down to it joined by '/', such as INBOX or Projects/2026. It is for reading and changes when the folder is renamed or moved; name the folder by folderId.",
                 "type": "string"
               },
               "machineAuthorship": {
@@ -205,7 +209,8 @@
               "storedEmailId",
               "accountId",
               "accountDisplayName",
-              "folderAlias",
+              "folderId",
+              "folderPath",
               "senderVerification",
               "machineAuthorship",
               "attachments"
@@ -1074,8 +1079,12 @@
                     ],
                     "type": "object"
                   },
-                  "folderAlias": {
-                    "description": "The MailFathom folder alias the email was synchronized under, such as INBOX. This is MailFathom's own name for the folder rather than the path the mail server advertises.",
+                  "folderId": {
+                    "description": "The identity of the folder the email is in, which is what the folders argument of a mailbox tool names it by. It stays the same when the folder is renamed or moved.",
+                    "type": "string"
+                  },
+                  "folderPath": {
+                    "description": "The folder's place in its account's hierarchy, as the folder names from the top down to it joined by '/', such as INBOX or Projects/2026. It is for reading and changes when the folder is renamed or moved; name the folder by folderId.",
                     "type": "string"
                   },
                   "headers": {
@@ -1428,7 +1437,8 @@
                 },
                 "required": [
                   "accountId",
-                  "folderAlias",
+                  "folderId",
+                  "folderPath",
                   "sizeBytes",
                   "senderVerification",
                   "machineAuthorship",
@@ -1639,40 +1649,42 @@
                 "type": "string"
               },
               "folders": {
-                "description": "How current the local copy of each of this account's folders is, one entry per folder local state knows of. Empty when synchronization has never reached the account, which means its mail may be absent entirely rather than merely out of date.",
+                "description": "Every folder of this account, with the identity the folders argument of a mailbox tool names it by, its place in the hierarchy, its role, and how current its local copy is. Empty when the account has no folder yet, which for a mirrored account means synchronization has never reached it and its mail may be absent entirely.",
                 "items": {
-                  "description": "How current the local copy of one folder is. Every MailFathom read answers from this local copy and never contacts a mail server, so a result can be stale or incomplete and this states which.",
+                  "description": "One folder of a mail account, with the identity a request names it by, its place in the account's hierarchy, the role it plays, and how current its local copy is.",
                   "properties": {
-                    "accountDisplayName": {
-                      "description": "The display name the account is published under, which is the operator's own name for the mailbox. It is unique within that account's user in the same way the identifier is.",
+                    "folderId": {
+                      "description": "The identity of the folder, which is what folderId on an email and the folders argument of a mailbox tool name it by. It stays the same when the folder is renamed or moved.",
                       "type": "string"
                     },
-                    "accountId": {
-                      "description": "The configured MailFathom account identifier the folder belongs to, unique within that account's user rather than across the deployment.",
+                    "folderPath": {
+                      "description": "The folder's place in its account's hierarchy, as the folder names from the top down to it joined by '/', such as INBOX or Projects/2026. It is for reading and changes when the folder is renamed or moved.",
                       "type": "string"
                     },
-                    "folderAlias": {
-                      "description": "The MailFathom folder alias, such as INBOX.",
-                      "type": "string"
+                    "isSynchronized": {
+                      "description": "Whether the folder is the local copy of a folder on the mail server that synchronization keeps current. False for a folder MailFathom keeps itself, whose mail is all here and never out of date.",
+                      "type": "boolean"
                     },
-                    "synchronizedAt": {
-                      "description": "When synchronization last durably committed progress for this folder, as an ISO 8601 timestamp. Mail that arrived after it may be missing locally. Null when synchronization has never committed progress for the folder, which means its mail may be absent entirely rather than merely out of date.",
-                      "format": "date-time",
+                    "role": {
+                      "description": "The role the folder plays for its account — Inbox, Archive, Drafts, Sent, Junk, Trash, All, Flagged, Important, or Outbox — which role:<Role> names it by in the folders argument. Null for a folder that plays none.",
                       "type": [
                         "string",
                         "null"
                       ]
                     },
-                    "wasSynchronized": {
-                      "description": "Whether synchronization has ever committed progress for this folder. False means an empty or short result says nothing about what the mail server holds.",
-                      "type": "boolean"
+                    "synchronizedAt": {
+                      "description": "When synchronization last durably committed progress for this folder, as an ISO 8601 timestamp. Null when isSynchronized is false, or when synchronization has never committed progress for it, which means its mail may be absent entirely rather than merely out of date.",
+                      "format": "date-time",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
-                    "accountId",
-                    "accountDisplayName",
-                    "folderAlias",
-                    "wasSynchronized"
+                    "folderId",
+                    "folderPath",
+                    "isSynchronized"
                   ],
                   "type": "object"
                 },
@@ -1887,7 +1899,7 @@
         },
         "folders": {
           "default": null,
-          "description": "MailFathom folders to read, each named by its alias, such as INBOX, or by the role it plays, written as role:Junk. Roles are Inbox, Archive, Drafts, Sent, Junk, Trash, All, Flagged, Important, and Outbox; naming one reads whichever folder each account in scope maps with that role, whatever it is called there. Omit to read every folder of the accounts in scope. At most 64 may be named. An alias is MailFathom's own name for a folder and is matched without regard to case.",
+          "description": "MailFathom folders to read, each named by its identity — the folderId a listed email carries, or the id list_accounts reports for each folder — or by the role it plays, written as role:Junk. Roles are Inbox, Archive, Drafts, Sent, Junk, Trash, All, Flagged, Important, and Outbox; naming one reads whichever folder each account in scope maps with that role, whatever it is called there. Omit to read every folder of the accounts in scope. At most 64 may be named. A folder named any other way is refused.",
           "items": {
             "type": [
               "string",
@@ -1909,7 +1921,7 @@
         },
         "includeJunkMail": {
           "default": false,
-          "description": "Include mail in the account's junk folder, which is left out by default. Naming the junk folder in folderAliases does not include it; only this does. A cursor issued with one answer cannot be presented with the other. The result reports which answer produced it.",
+          "description": "Include mail in the account's junk folder, which is left out by default. Naming the junk folder in folders does not include it; only this does. A cursor issued with one answer cannot be presented with the other. The result reports which answer produced it.",
           "type": "boolean"
         },
         "isRemotelyFlagged": {
@@ -2053,8 +2065,12 @@
                 ],
                 "type": "string"
               },
-              "folderAlias": {
-                "description": "The MailFathom folder alias the email was synchronized under, such as INBOX. This is MailFathom's own name for the folder rather than the path the mail server advertises.",
+              "folderId": {
+                "description": "The identity of the folder the email is in, which is what the folders argument of a mailbox tool names it by. It stays the same when the folder is renamed or moved.",
+                "type": "string"
+              },
+              "folderPath": {
+                "description": "The folder's place in its account's hierarchy, as the folder names from the top down to it joined by '/', such as INBOX or Projects/2026. It is for reading and changes when the folder is renamed or moved; name the folder by folderId.",
                 "type": "string"
               },
               "internetMessageId": {
@@ -2233,7 +2249,8 @@
               "storedEmailId",
               "accountId",
               "accountDisplayName",
-              "folderAlias",
+              "folderId",
+              "folderPath",
               "senderVerification",
               "machineAuthorship",
               "toAddresses",
@@ -2259,9 +2276,19 @@
                 "description": "The configured MailFathom account identifier the folder belongs to, unique within that account's user rather than across the deployment.",
                 "type": "string"
               },
-              "folderAlias": {
-                "description": "The MailFathom folder alias, such as INBOX.",
-                "type": "string"
+              "folderId": {
+                "description": "The identity of the folder, which is what folderId on an email and the folders argument of a mailbox tool name it by. Null only for a folder synchronization has bound and not yet given a place in the account's hierarchy.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "folderPath": {
+                "description": "The folder's place in its account's hierarchy, as the folder names from the top down to it joined by '/', such as INBOX or Projects/2026. Null where folderId is.",
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "synchronizedAt": {
                 "description": "When synchronization last durably committed progress for this folder, as an ISO 8601 timestamp. Mail that arrived after it may be missing locally. Null when synchronization has never committed progress for the folder, which means its mail may be absent entirely rather than merely out of date.",
@@ -2279,7 +2306,6 @@
             "required": [
               "accountId",
               "accountDisplayName",
-              "folderAlias",
               "wasSynchronized"
             ],
             "type": "object"
@@ -2708,7 +2734,7 @@
         },
         "folders": {
           "default": null,
-          "description": "MailFathom folders to search, each named by its alias, such as INBOX, or by the role it plays, written as role:Junk. Roles are Inbox, Archive, Drafts, Sent, Junk, Trash, All, Flagged, Important, and Outbox; naming one searches whichever folder each account in scope maps with that role, whatever it is called there. Omit to search every folder of the accounts in scope. At most 64 may be named. An alias is MailFathom's own name for a folder and is matched without regard to case.",
+          "description": "MailFathom folders to search, each named by its identity — the folderId a listed email carries, or the id list_accounts reports for each folder — or by the role it plays, written as role:Junk. Roles are Inbox, Archive, Drafts, Sent, Junk, Trash, All, Flagged, Important, and Outbox; naming one searches whichever folder each account in scope maps with that role, whatever it is called there. Omit to search every folder of the accounts in scope. At most 64 may be named. A folder named any other way is refused.",
           "items": {
             "type": [
               "string",
@@ -2730,7 +2756,7 @@
         },
         "includeJunkMail": {
           "default": false,
-          "description": "Include mail in the account's junk folder, which is left out by default. Naming the junk folder in folderAliases does not include it; only this does. The result reports which answer produced it.",
+          "description": "Include mail in the account's junk folder, which is left out by default. Naming the junk folder in folders does not include it; only this does. The result reports which answer produced it.",
           "type": "boolean"
         },
         "isRemotelyFlagged": {
@@ -2834,9 +2860,19 @@
                 "description": "The configured MailFathom account identifier the folder belongs to, unique within that account's user rather than across the deployment.",
                 "type": "string"
               },
-              "folderAlias": {
-                "description": "The MailFathom folder alias, such as INBOX.",
-                "type": "string"
+              "folderId": {
+                "description": "The identity of the folder, which is what folderId on an email and the folders argument of a mailbox tool name it by. Null only for a folder synchronization has bound and not yet given a place in the account's hierarchy.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "folderPath": {
+                "description": "The folder's place in its account's hierarchy, as the folder names from the top down to it joined by '/', such as INBOX or Projects/2026. Null where folderId is.",
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "synchronizedAt": {
                 "description": "When synchronization last durably committed progress for this folder, as an ISO 8601 timestamp. Mail that arrived after it may be missing locally. Null when synchronization has never committed progress for the folder, which means its mail may be absent entirely rather than merely out of date.",
@@ -2854,7 +2890,6 @@
             "required": [
               "accountId",
               "accountDisplayName",
-              "folderAlias",
               "wasSynchronized"
             ],
             "type": "object"
@@ -3009,8 +3044,12 @@
                     ],
                     "type": "string"
                   },
-                  "folderAlias": {
-                    "description": "The MailFathom folder alias the email was synchronized under, such as INBOX. This is MailFathom's own name for the folder rather than the path the mail server advertises.",
+                  "folderId": {
+                    "description": "The identity of the folder the email is in, which is what the folders argument of a mailbox tool names it by. It stays the same when the folder is renamed or moved.",
+                    "type": "string"
+                  },
+                  "folderPath": {
+                    "description": "The folder's place in its account's hierarchy, as the folder names from the top down to it joined by '/', such as INBOX or Projects/2026. It is for reading and changes when the folder is renamed or moved; name the folder by folderId.",
                     "type": "string"
                   },
                   "internetMessageId": {
@@ -3189,7 +3228,8 @@
                   "storedEmailId",
                   "accountId",
                   "accountDisplayName",
-                  "folderAlias",
+                  "folderId",
+                  "folderPath",
                   "senderVerification",
                   "machineAuthorship",
                   "toAddresses",
@@ -3515,8 +3555,8 @@
           "description": "True when the account is held, meaning MailFathom alone keeps its mail: the change has already been applied, and recordedChanges is empty because there is nothing left to carry to a mail server.",
           "type": "boolean"
         },
-        "folderAlias": {
-          "description": "The folder alias the email is in, as MailFathom's configuration names it.",
+        "folderId": {
+          "description": "The identity of the folder the email is in, the folderId a listed email and list_accounts report it by.",
           "type": "string"
         },
         "recordedChanges": {
@@ -3554,7 +3594,7 @@
       "required": [
         "storedEmailId",
         "accountId",
-        "folderAlias",
+        "folderId",
         "applied",
         "recordedChanges"
       ],

@@ -24,7 +24,7 @@ public sealed class LocalMailFolderMailErasureHandlerTests
         MailAccountId.Create("primary");
 
     private static readonly EraseLocalMailFolderMailJobPayload FirstPass =
-        EraseLocalMailFolderMailJobPayload.For(Account, LocalMailFolderId.Create(Guid.Parse("0199a0c0-0000-7000-8000-000000000001")));
+        EraseLocalMailFolderMailJobPayload.For(Account, MailFolderId.Create(Guid.Parse("0199a0c0-0000-7000-8000-000000000001")));
 
     [Fact]
     public async Task RunAsync_APassThatLeavesNothing_ErasesUnderTheBoundAndQueuesNoOther()

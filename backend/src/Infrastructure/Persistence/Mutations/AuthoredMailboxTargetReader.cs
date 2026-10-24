@@ -54,9 +54,10 @@ internal sealed class AuthoredMailboxTargetReader(MailFathomDbContext readContex
                 email.MailboxAccountId,
                 email.UidValidity,
                 email.Uid,
-                Alias = email.MailFolder.Alias,
-                Generation = email.MailFolder.ResolutionGeneration,
-                RemotePath = email.MailFolder.RemotePath,
+                Alias = email.MailFolderBinding.Alias,
+                Generation = email.MailFolderBinding.ResolutionGeneration,
+                RemotePath = email.MailFolderBinding.RemotePath,
+                email.FolderId,
             })
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -78,6 +79,7 @@ internal sealed class AuthoredMailboxTargetReader(MailFathomDbContext readContex
                 folder.Id,
                 ImapUidValidity.Create(uidValidity),
                 ImapUid.Create(uid)),
-            folder);
+            folder,
+            MailFolderId.Create(located.FolderId));
     }
 }

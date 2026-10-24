@@ -63,7 +63,7 @@ public sealed class OrchestratedAccountOwnershipTests(MailFathomOrchestrationFix
                 // The alias as the domain stores it rather than as it is typed here: an alias is compared in one case
                 // and is written down in that case, so a row is sought by what the binding actually wrote.
                 var storedAlias = MailFolderAlias.Create(InboxAlias).Value;
-                var boundFolder = await context.MailFolders
+                var boundFolder = await context.MailFolderBindings
                     .AsNoTracking()
                     .SingleAsync(row => row.MailboxAccountId == BoundAccount && row.Alias == storedAlias, token);
 

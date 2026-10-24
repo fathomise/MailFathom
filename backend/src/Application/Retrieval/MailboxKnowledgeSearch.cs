@@ -128,7 +128,7 @@ public sealed class MailboxKnowledgeSearch : IEmailKnowledgeSearch
         {
             StoredEmailId = summary.StoredEmailId,
             AccountId = summary.Account,
-            FolderAlias = summary.FolderAlias,
+            Folder = summary.Folder,
             Subject = summary.Subject,
             ReceivedAt = summary.ReceivedAt,
             SenderVerification = summary.SenderVerification,

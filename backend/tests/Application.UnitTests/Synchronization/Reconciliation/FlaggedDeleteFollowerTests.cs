@@ -232,7 +232,6 @@ public sealed class FlaggedDeleteFollowerTests
         // Act
         await context.Follower.RetireAsync(
             Account,
-            InboxFolder.Alias,
             followed,
             DeletedEmail,
             TestContext.Current.CancellationToken);
@@ -258,7 +257,6 @@ public sealed class FlaggedDeleteFollowerTests
         // Act
         await context.Follower.RetireAsync(
             Account,
-            InboxFolder.Alias,
             followed,
             restoredAs: null,
             TestContext.Current.CancellationToken);

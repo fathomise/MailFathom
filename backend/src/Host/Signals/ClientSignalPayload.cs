@@ -9,7 +9,7 @@ namespace MailFathom.Host.Signals;
 /// <summary>One signal as it crosses to a client.</summary>
 /// <param name="Kind">The published name of what changed, which is what a client keys its handler by.</param>
 /// <param name="Account">The account the change is in, where the kind names one.</param>
-/// <param name="Folder">The folder alias the change is in, where the kind names one.</param>
+/// <param name="Folder">The identity of the folder the change is in, where the kind names one; absent, the change may be in any folder of the account.</param>
 /// <param name="Count">How many things the change covers: the mail one run committed, or how many notifications stand unread.</param>
 /// <param name="Emails">The stored identities the change names, bounded where it names any and empty otherwise.</param>
 /// <param name="Flags">Where the two server flags now stand for each email a flag change names, and empty for every other kind.</param>
@@ -58,7 +58,7 @@ internal sealed record ClientSignalPayload(
         return new ClientSignalPayload(
             signal.Kind.Name,
             signal.Account?.Value,
-            signal.Folder?.Value,
+            signal.Folder?.ToString(),
             signal.Count,
             [.. signal.Emails.Select(static email => email.Value.ToString())],
             [

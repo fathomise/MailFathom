@@ -433,7 +433,7 @@ public sealed class MailboxTimelineReaderTests
 
         // Act
         var result = await reader.ListEmailsAsync(
-            new ListEmailsRequest { Folders = [MailFolderReference.ToAlias(MailFolderAlias.Create("archive"))] },
+            new ListEmailsRequest { Folders = [MailFolderReference.ToFolder(SyntheticEmailSummaries.FolderIdOf(SyntheticEmailSummaries.DefaultAccountId, "ARCHIVE"))] },
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -628,7 +628,7 @@ public sealed class MailboxTimelineReaderTests
             new ListEmailsRequest
             {
                 Accounts = [MailAccountSelector.Create("primary")],
-                Folders = [MailFolderReference.ToAlias(MailFolderAlias.Create("ARCHIVE"))],
+                Folders = [MailFolderReference.ToFolder(SyntheticEmailSummaries.FolderIdOf(SyntheticEmailSummaries.DefaultAccountId, "ARCHIVE"))],
                 SubjectFragment = "invoice",
                 SenderAddress = "anna@example.test",
                 HasAttachments = true,

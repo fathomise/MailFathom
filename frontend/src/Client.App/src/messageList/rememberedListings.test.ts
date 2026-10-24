@@ -15,7 +15,7 @@ import {
 
 const storageKey = 'mailfathom.listings';
 const deployment = 'https://mail.example.invalid';
-const inbox: MailScope = { kind: 'folder', accountId: 'work', alias: 'INBOX' };
+const inbox: MailScope = { kind: 'folder', accountId: 'work', folderId: 'INBOX' };
 
 const kept: RememberedListing = {
     order: 'oldestFirst',
@@ -36,7 +36,7 @@ function stored(value: unknown): void {
 }
 
 function keyFor(scope: MailScope, address = deployment): string {
-    return `${address}\n${scope.kind === 'folder' ? `folder:${scope.accountId}:${scope.alias}` : scope.kind}`;
+    return `${address}\n${scope.kind === 'folder' ? `folder:${scope.accountId}:${scope.folderId}` : scope.kind}`;
 }
 
 // The store is one per file rather than one per test, so what one test kept would be what the next one read back.

@@ -31,7 +31,7 @@ public sealed class MailboxFlaggedDeleteModelTests
 
         // Assert
         Assert.True(index.IsUnique);
-        Assert.Equal(["MailFolderId", "UidValidity", "Uid"], index.Properties.Select(property => property.Name));
+        Assert.Equal(["MailFolderBindingId", "UidValidity", "Uid"], index.Properties.Select(property => property.Name));
     }
 
     /// <summary>
@@ -39,7 +39,7 @@ public sealed class MailboxFlaggedDeleteModelTests
     /// gone, since neither leaves anything a run could ask about or bring back.
     /// </summary>
     [Theory]
-    [InlineData("MailFolderId", typeof(MailFolderEntity))]
+    [InlineData("MailFolderBindingId", typeof(MailFolderBindingEntity))]
     [InlineData("StoredEmailId", typeof(StoredEmailEntity))]
     public void MailboxFlaggedDeleteModel_Reference_CascadesFromWhatItNames(string column, Type principal)
     {
@@ -70,7 +70,7 @@ public sealed class MailboxFlaggedDeleteModelTests
 
         // Assert
         Assert.Equal(
-            ["MailFolderId", "UidValidity", "RecordedAt"],
+            ["MailFolderBindingId", "UidValidity", "RecordedAt"],
             index.Properties.Select(property => property.Name));
         Assert.Equal(
             "\"ServerDisposition\" = 'FlagDeleted' AND \"Stage\" = 'Completed'"

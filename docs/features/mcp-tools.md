@@ -41,13 +41,13 @@ The division is deliberate and is what keeps a second entrypoint from bypassing 
 page-size range, the account authorization, and the cursor's authenticity belong to the use case, so this boundary
 re-states no limit of its own; [Mailbox queries](mailbox-queries.md) documents them once, where they are enforced. What
 the boundary owns is the one thing a use case cannot: turning a caller's text into an account identifier or a folder
-alias, and refusing text that names neither.
+identity or role, and refusing text that names neither.
 
 Where a table below says a tool reads every folder of the accounts in scope, "every folder" means every folder the
 deployment lets tools read: a folder configuration maps and does not withhold. A folder mapped with
 `VisibleToTools: false` and a folder **no mapping names** are both outside every mailbox tool and are never
-mentioned by one — a request naming such an alias comes back empty rather than refused, and an email of it reads as not
-found. `set_mail_flags` resolves what it may change through that same scope, so a folder no tool may read is a folder no
+mentioned by one — a request naming such a folder's identity comes back empty rather than refused, and an email of it
+reads as not found. `set_mail_flags` resolves what it may change through that same scope, so a folder no tool may read is a folder no
 tool may write. The decision is made once, where the scope a read is expressed in is resolved, and what it carries is the list of
 folders that may be read, so it holds for a tool added later without that tool doing anything, and an account whose
 configuration maps no folder reads as empty;
@@ -358,7 +358,7 @@ configured name for an account and carries nothing the caller did not already wr
 | Code | Meaning | Typical cause |
 |---|---|---|
 | `51001` | A page size outside the range the query serves | A page size of 0 or above 100, refused rather than clamped |
-| `51002` | A filter carries a value, a count, or a length the query does not accept | An unusable address, a subject fragment over 256 characters or carrying a control character, a received range that ends before it starts, more than 64 accounts or folders, an account identifier or folder alias that is blank, over 256 characters, or carrying a control character, a keyword over 64 characters or carrying a control character, a search query that is blank, over 512 characters, or carrying a control character |
+| `51002` | A filter carries a value, a count, or a length the query does not accept | An unusable address, a subject fragment over 256 characters or carrying a control character, a received range that ends before it starts, more than 64 accounts or folders, an account identifier that is blank, over 256 characters, or carrying a control character, a folder named by anything but a `folderId` or a `role:` form, a keyword over 64 characters or carrying a control character, a search query that is blank, over 512 characters, or carrying a control character |
 | `51003` | A search asked for more ranked results than a search serves | A `resultLimit` of 0 or above 50, refused rather than clamped |
 | `51004` | The call named an email with text that is no identifier this system issues | A `storedEmailIds` element, or the `storedEmailId` a flag change, a reply, or a forward names, that is blank, not a UUID, or the all-zero UUID, refused before anything is looked up |
 | `51005` | A content read named no emails, or more than one call serves | A `storedEmailIds` list that is empty or holds more than 10 entries, refused rather than truncated |
@@ -377,7 +377,7 @@ configured name for an account and carries nothing the caller did not already wr
 | `52003` | A contact listing's cursor is not one this system issued | A truncated, hand-written, or foreign `cursor`; a contact cursor is not bound to the filters, so changing `search` or `origin` mid-walk is not what produces it |
 | `53001` | The call named a mail account this deployment does not serve | An account identifier nobody configured, or one belonging to someone else — the two are deliberately one answer |
 | `53002` | The call named an email the local mailbox copy holds no row for | An email never synchronized, one expunged and collected, or one of an account this deployment stopped serving — deliberately one answer |
-| `53003` | The call named a folder by a role no folder in scope is mapped with | A `folders` element written `role:Junk` on a deployment whose accounts map no junk folder; naming the alias, or mapping the role, is what answers it |
+| `53003` | The call named a folder by a role no folder in scope is mapped with | A `folders` element written `role:Junk` on a deployment whose accounts map no junk folder; naming the folder by its `folderId`, or mapping the role, is what answers it |
 | `53004` | A recipient named by naming somebody resolved to nobody the contact book holds | No tool published today produces it: `send_email`, `reply_to_email`, and `forward_email` all take addresses, so nothing on this surface names a contact as a recipient. It is the answer the shared resolution behind those tools already gives — a contact identity or name the book does not hold, a name several contacts carry, or an address the named contact does not hold — and it is stated here because the code is allocated and the resolution is one argument shape away rather than a path that does not exist |
 | `53005` | The call named no email this deployment can answer | `reply_to_email` or `forward_email` naming an identifier nothing is held under, an email of an account this deployment no longer serves, an email in a folder the calling grant does not read, or one whose stored content is no longer readable — four situations and deliberately one answer, so a caller cannot learn from a refusal which of them it met |
 | `53006` | The call named a recipient this deployment's recipient policy does not admit | Any of the three sending tools, or `send_draft` promoting a draft, naming somebody a denied entry of `MailDelivery:RecipientPolicy` covers, or somebody outside the allowed entries where an operator wrote any; the whole message is refused rather than sent to the remaining recipients, and the answer names which half of the policy refused and never the address |
@@ -464,7 +464,7 @@ get wrong and nothing to bound.
 | `accountId` | The identifier the deployment generated for the account, unique across the whole deployment. It is what every other result reports as `accountId`, and it is stable across a change of the display name |
 | `displayName` | The readable name given to the account, unique within the set the reading user is assigned |
 | `synchronizationMode` | `polling` or `push`, stating what the operator asked to start the account's next pass |
-| `folders` | One entry per folder this deployment maps and lets tools read, in the same shape `folderFreshness` takes elsewhere: the alias, when synchronization last committed progress for it, and whether it ever has |
+| `folders` | One entry per folder of the account that tools may read, ordered by its place in the account's hierarchy: `folderId`, the identity every other tool names the folder by; `folderPath`, its names from the top of the hierarchy down joined by `/`; `role`, the role it plays or null; `isSynchronized`, whether synchronization keeps it as the copy of a folder on the mail server; and `synchronizedAt`, when synchronization last committed progress for it |
 
 **Either name may be used to select the account.** The identifier is matched exactly and the display name without regard
 to case, and configuration refuses a display name that another account the same user is assigned already carries as an
@@ -484,10 +484,18 @@ read for.
 folder against what the mail server advertises and how recent attempts went, which is an observation about a run rather
 than a property of the account.
 
-**An empty `folders` list is a statement.** It says synchronization has never reached a folder this account lets tools
-read — or that it lets them read none — which means its mail may be absent entirely rather than merely out of date, a
-distinction an empty listing cannot make for itself. `synchronizationEnabled` answers the other half: `false` means the
-timestamps below it are as current as any answer will get, because nothing is advancing them.
+**Every account lists its folders the same way, whichever copy of the mailbox is the truth.** A folder the mail server
+holds and synchronization mirrors carries `isSynchronized: true`, and a `synchronizedAt` that is null until a run has
+committed progress for it — which means its mail may be absent entirely rather than merely out of date. A folder
+MailFathom keeps itself — every folder of an account whose mail is held here, and one a person created — carries
+`isSynchronized: false`, because nothing synchronizes it and its mail is all here. `synchronizationEnabled` answers the
+other half: `false` means the timestamps below it are as current as any answer will get, because nothing is advancing
+them.
+
+**`folderId` is the folder's name in every request.** It is issued by MailFathom, it stays the same when the folder is
+renamed or moved and when an account's mail is drained into MailFathom or restored to its server, and it is what a
+listing, a search, and a content read report the folder by. `folderPath` is for reading and changes with a rename. The
+alias configuration keys a folder by is never published and never accepted.
 
 **The list is the same set every other tool reads.** It is resolved through the one scope every mailbox read is
 expressed in, so a folder mapped with `VisibleToTools: false` and a folder no mapping names are both absent from it —
@@ -517,7 +525,7 @@ Every argument is optional.
 | Argument | Type | Meaning |
 |---|---|---|
 | `accounts` | `string[]` | Accounts to read, each named by the identifier the deployment generated for it or by the display name it is published under; the identifier is unique across the deployment and the display name within the caller's assigned set. Omitted reads every account the caller is assigned; a name reaching none of them is refused with `53001` |
-| `folders` | `string[]` | Folders to read, each named by its MailFathom alias such as `INBOX` or by the role it plays, written `role:Junk`. Omitted reads every folder of the accounts in scope. Case is normalized, so a repeated spelling names one folder; a role no folder of an account in scope carries is refused with `53003` |
+| `folders` | `string[]` | Folders to read, each named by the `folderId` `list_accounts` reports or by the role it plays, written `role:Junk`. Omitted reads every folder of the accounts in scope. Text that is neither an identity nor a role, such as an alias, is refused with `51002`; a role no folder of an account in scope carries is refused with `53003` |
 | `senderAddress` | `string` | The whole address the sender must carry, in any case — not a fragment |
 | `recipientAddress` | `string` | The whole address a `To` or `Cc` recipient must carry. `Reply-To` is stored and filterable through the use case but not searched here |
 | `subjectFragment` | `string` | Text the subject must contain, case-insensitively, up to 256 characters. Wildcards a caller writes match themselves |
@@ -569,7 +577,7 @@ states whether the account's junk folder took part, and `folderFreshness` states
 covered folder is.
 
 Each summary carries the stable local identifier a content read is performed by, the account identifier and the display
-name it is published under, the folder alias, the message identifier, the conversation identifier, the subject, the sender address and display name, the sender verdict, the machine-authorship reading, the `To` addresses, the sent and received timestamps, the
+name it is published under, the folder's identity and path, the message identifier, the conversation identifier, the subject, the sender address and display name, the sender verdict, the machine-authorship reading, the `To` addresses, the sent and received timestamps, the
 size in bytes, the attachment summary, the remote flags with the time they were observed, and whether raw content is
 available locally. It is the use case's projection published as it stands, not narrowed a second time here — a boundary
 that re-decided what a listing may carry would put the privacy rule in two places and leave the one a client reads
@@ -632,7 +640,9 @@ cannot tell a folder that holds no matching mail from one whose synchronization 
 
 Per folder rather than aggregated: an entry whose `wasSynchronized` is false is the folder whose staleness a caller most
 needs to see, and collapsing the scope into one timestamp would hide which folder it belonged to. A folder the scope names
-but no run has ever reached is reported with no timestamp rather than omitted.
+but no run has ever reached is reported with no timestamp rather than omitted. Each entry names its folder by
+`folderId` and `folderPath`, as `list_accounts` does; both are null only for a folder synchronization has bound and not
+yet given a place in the account's hierarchy, which the account's next run does.
 
 ### Authorization
 
@@ -722,7 +732,7 @@ in it.
 
 | Field | Meaning |
 |---|---|
-| `accountId`, `folderAlias` | Where the email is, in MailFathom's own names |
+| `accountId`, `folderId`, `folderPath` | Where the email is: the account, the identity of the folder, and its place in the account's hierarchy |
 | `sizeBytes` | The size of the whole email as the mail server reported it |
 | `senderVerification` | The same verdict pair a listing publishes: what was established about the displayed author, and what this deployment made of them |
 | `machineAuthorship` | The same reading a listing publishes: how much the email's own text reads as machine written, as a band and a number |
@@ -888,7 +898,7 @@ how the extracts are cut, and why there is no cursor — where those are enforce
 |---|---|---|
 | `queryText` | `string` | **Required.** The text to search for, up to 512 characters, worded in the language the mail was written in. Blank is refused with `51002`, because a search with no text is a listing |
 | `accounts` | `string[]` | Accounts to search, each named by the identifier the deployment generated for it or by the display name it is published under; the identifier is unique across the deployment and the display name within the caller's assigned set. Omitted searches every account the caller is assigned; a name reaching none of them is refused with `53001` |
-| `folders` | `string[]` | Folders to search, each named by its MailFathom alias such as `INBOX` or by the role it plays, written `role:Junk`. Omitted searches every folder of the accounts in scope; a role no folder of an account in scope carries is refused with `53003` |
+| `folders` | `string[]` | Folders to search, each named by the `folderId` `list_accounts` reports or by the role it plays, written `role:Junk`. Omitted searches every folder of the accounts in scope. Text that is neither an identity nor a role, such as an alias, is refused with `51002`; a role no folder of an account in scope carries is refused with `53003` |
 | `senderAddress` | `string` | The whole address the sender must carry, in any case — not a fragment |
 | `recipientAddress` | `string` | The whole address a `To` or `Cc` recipient must carry |
 | `subjectFragment` | `string` | Text the subject must contain, case-insensitively, up to 256 characters |
@@ -1034,14 +1044,14 @@ deployment does not serve is still refused with `53001` before anything is read,
 an empty result would confirm the identifier.
 
 What that guarantee covers is worth stating exactly, because it is narrower than "a search reveals nothing". It covers
-everything outside the served scope: the account authorization is resolved before any read, and a folder alias is only
-ever matched within the accounts already resolved, so no query — matching or empty — reports on an account this
+everything outside the served scope: the account authorization is resolved before any read, and a folder is only ever
+matched within the accounts already resolved, so no query — matching or empty — reports on an account this
 deployment does not serve for this caller. It deliberately does not hide the folder names *inside* a served account.
 `folderFreshness` publishes one entry per folder in scope, and a request that names no folder therefore lists every
 folder those accounts have; that is the field doing its job rather than leaking, since a caller who cannot see which
-folders are stale cannot tell an empty result from an unsynchronized one. A caller who guesses an alias and receives no
-freshness entry has learned that no such folder exists in their own mailbox, which the unscoped call would have told
-them outright.
+folders are stale cannot tell an empty result from an unsynchronized one. A caller who guesses a folder identity and
+receives no freshness entry has learned that no such folder exists in their own mailbox, which the unscoped call would
+have told them outright.
 
 The query text is never logged and no failure message repeats it. What somebody is searching their own mailbox for is
 personal data of a particularly revealing kind, and the refusals this tool raises name the filter and its limit rather
@@ -1093,7 +1103,7 @@ touch only what they name.
 |---|---|
 | `storedEmailId` | The email the change was recorded against, which is the one the call named |
 | `accountId` | The account the change belongs to, whose next synchronization run issues a recorded change; an applied change has no mail server to reach |
-| `folderAlias` | The folder the email is in, as MailFathom's configuration names it |
+| `folderId` | The identity of the folder the email is in, as `list_accounts` reports it |
 | `applied` | `true` when the account's mailbox is one MailFathom holds itself, so the change was made to the stored email as the call committed and nothing is left to converge; `recordedChanges` is then empty |
 | `recordedChanges[]` | One entry per value asked for, in the order `seen`, `flagged`, keywords |
 | `recordedChanges[].change` | `set-seen`, `set-flagged`, `add-keywords`, `remove-keywords`, or `set-keywords` |
@@ -1800,7 +1810,7 @@ messages, search when the messages themselves are what is wanted.
 |---|---|---|
 | `question` | `string` | **Required.** The question to answer, up to 1000 characters. It is not a search query: its words are not matched against the mail, and the lookups are written by the model |
 | `accounts` | `string[]` | Accounts the answer may be drawn from, each named by the identifier the deployment generated for it or by the display name it is published under; the identifier is unique across the deployment and the display name within the caller's assigned set. Omitted draws on every account the caller is assigned; a name reaching none of them is refused with `53001` |
-| `folders` | `string[]` | Folders the answer may be drawn from, each named by its MailFathom alias such as `INBOX` or by the role it plays, written `role:Junk`. Omitted draws on every folder of the accounts in scope. Case is normalized, so a repeated spelling names one folder; a role no folder of an account in scope carries is refused with `53003` |
+| `folders` | `string[]` | Folders the answer may be drawn from, each named by the `folderId` `list_accounts` reports or by the role it plays, written `role:Junk`. Omitted draws on every folder of the accounts in scope. Text that is neither an identity nor a role, such as an alias, is refused with `51002`; a role no folder of an account in scope carries is refused with `53003` |
 
 There is no structured filter beside the scope, and that is a decision rather than an omission. A sender or a date range
 supplied here would narrow every lookup the model makes without the model knowing why its searches were returning
@@ -1828,7 +1838,7 @@ same refusals; the section above records that rule once.
 | `retrievalTruncated` | Whether the run hit this deployment's ceiling on how much mail one question may read |
 
 Each citation carries the `storedEmailId` a content read is performed by, the account identifier and the display name it
-is published under, the folder alias, the subject, the received time, `senderVerification`, `machineAuthorship`, and
+is published under, the folder's identity and path, the subject, the received time, `senderVerification`, `machineAuthorship`, and
 `attachments`. It deliberately carries
 no extract: the passage the run retrieved has already reached a model, and returning it here would put mail content into
 a response whose purpose is an answer. The subject and the received time

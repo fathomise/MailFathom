@@ -34,9 +34,13 @@ internal sealed record RetrievedEmailContent
     [Description("The configured MailFathom account identifier the email was synchronized from.")]
     public required string AccountId { get; init; }
 
-    /// <summary>Gets the folder alias the email was read from.</summary>
-    [Description("The MailFathom folder alias the email was synchronized under, such as INBOX. This is MailFathom's own name for the folder rather than the path the mail server advertises.")]
-    public required string FolderAlias { get; init; }
+    /// <summary>Gets the identity of the folder the email is in.</summary>
+    [Description("The identity of the folder the email is in, which is what the folders argument of a mailbox tool names it by. It stays the same when the folder is renamed or moved.")]
+    public required string FolderId { get; init; }
+
+    /// <summary>Gets the folder's names from the top of its account's hierarchy down to it.</summary>
+    [Description("The folder's place in its account's hierarchy, as the folder names from the top down to it joined by '/', such as INBOX or Projects/2026. It is for reading and changes when the folder is renamed or moved; name the folder by folderId.")]
+    public required string FolderPath { get; init; }
 
     /// <summary>Gets the size the mail server reported for the whole email.</summary>
     [Description("The size of the whole email in bytes, as reported by the mail server. No sum over the body and the attachments reproduces it, because it counts the headers and the MIME encoding as well.")]
@@ -92,7 +96,8 @@ internal sealed record RetrievedEmailContent
         return new RetrievedEmailContent
         {
             AccountId = content.AccountId.Value,
-            FolderAlias = content.FolderAlias.Value,
+            FolderId = content.Folder.Id.ToString(),
+            FolderPath = content.Folder.Path,
             SizeBytes = content.SizeOctets,
             SenderVerification = ReportedSenderVerification.From(content.SenderVerification),
             MachineAuthorship = ReportedMachineAuthorship.From(content.MachineAuthorship),

@@ -122,9 +122,9 @@ internal sealed class MailFathomDbContext : DbContext
 
     internal DbSet<MailboxAccountEntity> MailboxAccounts => this.Set<MailboxAccountEntity>();
 
-    internal DbSet<MailFolderEntity> MailFolders => this.Set<MailFolderEntity>();
+    internal DbSet<MailFolderBindingEntity> MailFolderBindings => this.Set<MailFolderBindingEntity>();
 
-    internal DbSet<LocalMailFolderEntity> LocalMailFolders => this.Set<LocalMailFolderEntity>();
+    internal DbSet<MailFolderEntity> MailFolders => this.Set<MailFolderEntity>();
 
     internal DbSet<StoredEmailEntity> StoredEmails => this.Set<StoredEmailEntity>();
 
@@ -302,8 +302,8 @@ internal sealed class MailFathomDbContext : DbContext
         modelBuilder.ApplyConfiguration(new AccountStoredContentConfiguration());
         modelBuilder.ApplyConfiguration(new StoredContentClaimConfiguration());
         modelBuilder.ApplyConfiguration(new MailboxAccountConfiguration());
+        modelBuilder.ApplyConfiguration(new MailFolderBindingConfiguration());
         modelBuilder.ApplyConfiguration(new MailFolderConfiguration());
-        modelBuilder.ApplyConfiguration(new LocalMailFolderConfiguration());
         modelBuilder.ApplyConfiguration(new StoredEmailConfiguration());
         modelBuilder.ApplyConfiguration(new EmailMessageContentConfiguration());
         modelBuilder.ApplyConfiguration(new EmailSearchDocumentConfiguration(this.textSearchConfiguration));

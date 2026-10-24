@@ -65,7 +65,7 @@ internal static class StoredEmailSelectionPredicate
         // Stated apart from the narrowing above rather than beside it, because the two are different statements: this
         // is the folder the caller asked to read, and that is what the scope admits and withholds whatever they asked
         // for. Both were settled before the selection was built, so nothing here decides either.
-        emails = AccountScopedMailFolders.Selecting(emails, selection.Scope.SelectedFolders);
+        emails = AccountScopedMailFolders.Selecting(emails, selection.Scope.SelectedFolders, selection.Scope.SelectedRoles);
 
         if (selection.SenderNormalizedAddress is { } senderAddress)
         {

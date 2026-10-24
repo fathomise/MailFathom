@@ -120,7 +120,7 @@ public sealed class ClientMailSearchEndpointTests
         var page = Assert.IsType<Ok<ClientMailSearchResponse>>(result.Result).Value;
         var row = Assert.Single(page!.Results);
         Assert.Equal("work", row.Account);
-        Assert.Equal("INBOX", row.Folder);
+        Assert.Equal("83ecb521-bf32-7f67-8287-e8b923809bb3", row.Folder);
         Assert.Equal("the invoice", row.Subject);
         Assert.True(row.Unread);
         Assert.Equal(["the **invoice** is attached"], row.Snippets);
@@ -276,7 +276,7 @@ public sealed class ClientMailSearchEndpointTests
     {
         StoredEmailId = StoredEmailId.Create(Guid.CreateVersion7()),
         Account = MailAccountId.Create("work"),
-        FolderAlias = MailFolderAlias.Create("INBOX"),
+        Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
         Subject = "the invoice",
         SentAt = FirstJuly,
         ReceivedAt = FirstJuly,

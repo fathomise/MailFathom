@@ -49,7 +49,7 @@ public sealed class JobPayloadDocumentTests
         ReclaimContentObjectsJobPayload.FromTheStart("sweep-of-the-occasion"),
         EraseLocalMailFolderMailJobPayload.For(
             Account,
-            LocalMailFolderId.Create(Guid.Parse("0199a0c0-0000-7000-8000-000000000002"))).Next(),
+            MailFolderId.Create(Guid.Parse("0199a0c0-0000-7000-8000-000000000002"))).Next(),
         EraseWithdrawnMailFolderMailJobPayload.For(Account, MailFolderAlias.Create("projects")).Next(),
         ExportMailboxJobPayload.For(
             Account,

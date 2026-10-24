@@ -7,6 +7,7 @@ using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Folders;
+using MailFathom.Infrastructure.Persistence.Folders;
 using Microsoft.EntityFrameworkCore;
 
 namespace MailFathom.Infrastructure.Persistence.Synchronization;
@@ -31,7 +32,7 @@ internal sealed class SynchronizationFreshnessReader(MailFathomDbContext dbConte
         // PostgreSQL performs the aggregate so the rows that cross the boundary number one per alias in scope, which is
         // the size of the result itself: the number of historical bindings behind an alias grows without a ceiling as a
         // server recreates folders, and grouping in process would make an unrelated request pay for that history.
-        var freshestBindings = await MailFoldersInScope.Within(dbContext.MailFolders.AsNoTracking(), scope)
+        var freshestBindings = await MailFoldersInScope.Within(dbContext.MailFolderBindings.AsNoTracking(), scope)
             .Select(folder => new
             {
                 folder.MailboxAccountId,
@@ -48,6 +49,13 @@ internal sealed class SynchronizationFreshnessReader(MailFathomDbContext dbConte
                 SynchronizedAt = alias.Max(binding => binding.SynchronizedAt),
             })
             .ToArrayAsync(cancellationToken);
+        string[] accountIds = [.. freshestBindings.Select(static alias => alias.MailboxAccountId).Distinct(StringComparer.Ordinal)];
+        var aliasFolders = await dbContext.MailFolders
+            .AsNoTracking()
+            .Where(folder => accountIds.Contains(folder.MailboxAccountId) && folder.Alias != null && folder.ErasedAt == null)
+            .Select(folder => new { folder.MailboxAccountId, Alias = folder.Alias!, folder.Id })
+            .ToDictionaryAsync(folder => (folder.MailboxAccountId, folder.Alias), folder => folder.Id, cancellationToken);
+        var paths = await StoredMailFolderPaths.ReadAsync(dbContext.MailFolders, accountIds, cancellationToken);
 
         // Ordered here rather than in SQL because the order is ordinal by contract, and a database's collation is not
         // something MailFathom configures.
@@ -57,7 +65,10 @@ internal sealed class SynchronizationFreshnessReader(MailFathomDbContext dbConte
                 .Select(alias => new MailboxFolderFreshness(
                     MailAccountId.Create(alias.MailboxAccountId),
                     MailFolderAlias.Create(alias.Alias),
-                    alias.SynchronizedAt))
+                    alias.SynchronizedAt,
+                    aliasFolders.TryGetValue((alias.MailboxAccountId, alias.Alias), out var folderId)
+                        ? StoredMailFolderPaths.Describe(folderId, alias.Alias, paths)
+                        : null))
                 .OrderBy(freshness => freshness.AccountId.Value, StringComparer.Ordinal)
                 .ThenBy(freshness => freshness.FolderAlias.Value, StringComparer.Ordinal),
         ];

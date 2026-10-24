@@ -329,7 +329,7 @@ public sealed class DiscoveryCompositionAgentTests
     {
         StoredEmailId = StoredEmailId.Create(Guid.CreateVersion7()),
         AccountId = Primary,
-        FolderAlias = MailFolderAlias.Create("INBOX"),
+        Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
         Subject = null,
         ReceivedAt = null,
         SenderVerification = SenderVerification.NotEstablished,

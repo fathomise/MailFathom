@@ -31,6 +31,16 @@ public sealed class StubEmailThreadReaderTests
 
     private static readonly MailFolderAlias Junk = MailFolderAlias.Create("JUNK");
 
+    private static readonly StoredEmailFolder InboxFolder = new(
+        MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-0000000000f1")),
+        "INBOX",
+        Inbox);
+
+    private static readonly StoredEmailFolder JunkFolder = new(
+        MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-0000000000f2")),
+        "JUNK",
+        Junk);
+
     private static readonly EmailThreadId Thread = EmailThreadId.Create(Guid.CreateVersion7());
 
     [Fact]
@@ -91,7 +101,7 @@ public sealed class StubEmailThreadReaderTests
         // Arrange
         var readable = Email(1);
         var elsewhere = Email(2) with { AccountId = OtherAccount };
-        var withheld = Email(3) with { FolderAlias = Junk };
+        var withheld = Email(3) with { Folder = JunkFolder };
         var reader = new StubEmailThreadReader((Thread, readable), (Thread, elsewhere), (Thread, withheld));
 
         // Act
@@ -99,6 +109,27 @@ public sealed class StubEmailThreadReaderTests
 
         // Assert
         Assert.Equal([readable], read);
+    }
+
+    /// <summary>A folder no alias feeds is one MailFathom keeps itself, so no configured admission leaves its mail out.</summary>
+    [Fact]
+    public async Task ReadEmailsAsync_AMessageInAFolderNoAliasFeeds_KeepsItInTheConversation()
+    {
+        // Arrange
+        var kept = Email(1) with
+        {
+            Folder = new StoredEmailFolder(
+                MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-0000000000f3")),
+                "Projects",
+                Alias: null),
+        };
+        var reader = new StubEmailThreadReader((Thread, kept));
+
+        // Act
+        var read = await ReadAsync(reader, Thread);
+
+        // Assert
+        Assert.Equal([kept], read);
     }
 
     /// <summary>The identity orders the answer, so a conversation reads the same whichever order a test wrote it in.</summary>
@@ -154,7 +185,7 @@ public sealed class StubEmailThreadReaderTests
     {
         StoredEmailId = StoredEmailId.Create(Guid.Parse($"0199a0c0-0000-7000-8000-{number:D12}")),
         AccountId = Account,
-        FolderAlias = Inbox,
+        Folder = InboxFolder,
     };
 
     /// <summary>Builds the scope admitting the account's inbox and withholding its junk folder, as configuration would.</summary>

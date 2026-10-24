@@ -18,9 +18,9 @@ import type { ActedMessage } from './useMailboxActs';
 
 const everythingOffered = { flags: true, moves: true, deletes: true };
 
-function folder(alias: string, role: MailFolderRole | null, path: readonly string[]): MailFolder {
+function folder(id: string, role: MailFolderRole | null, path: readonly string[]): MailFolder {
     return {
-        alias,
+        id,
         role,
         path,
         storedEmailCount: 0,
@@ -96,10 +96,10 @@ describe('destinationsFor', () => {
                 accountName: 'work',
                 ordinal: 1,
                 destinations: [
-                    { alias: 'work-inbox', name: 'INBOX', role: 'Inbox' },
-                    { alias: 'work-archive', name: 'Archive', role: 'Archive' },
-                    { alias: 'work-trash', name: 'Trash', role: 'Trash' },
-                    { alias: 'work-clients', name: 'Projects / Clients', role: null },
+                    { folderId: 'work-inbox', name: 'INBOX', role: 'Inbox' },
+                    { folderId: 'work-archive', name: 'Archive', role: 'Archive' },
+                    { folderId: 'work-trash', name: 'Trash', role: 'Trash' },
+                    { folderId: 'work-clients', name: 'Projects / Clients', role: null },
                 ],
             },
         ]);
@@ -141,15 +141,15 @@ function inWorkSent(storedEmailId: string): ActedMessage {
     return { storedEmailId, account: 'work', folder: 'work-sent', unread: false, flagged: false };
 }
 
-function offeredAliases(messages: readonly ActedMessage[]): readonly string[] {
+function offeredFolders(messages: readonly ActedMessage[]): readonly string[] {
     return destinationsFor(withDraftsAndSent, messages).flatMap((group) =>
-        group.destinations.map(({ alias }) => alias),
+        group.destinations.map(({ folderId }) => folderId),
     );
 }
 
 describe('destinationsFor, around the drafts and the sent tree', () => {
     it('offers ordinary mail every folder outside the drafts and the sent tree', () => {
-        expect(offeredAliases([inWork('message-1')])).toStrictEqual([
+        expect(offeredFolders([inWork('message-1')])).toStrictEqual([
             'work-inbox',
             'work-archive',
             'work-trash',
@@ -161,38 +161,38 @@ describe('destinationsFor, around the drafts and the sent tree', () => {
     it('offers a draft its own tree and the trash, wherever in the tree it sits', () => {
         const inDraftsClients: ActedMessage = { ...inWorkDrafts('message-2'), folder: 'work-drafts-clients' };
 
-        expect(offeredAliases([inWorkDrafts('message-1')])).toStrictEqual([
+        expect(offeredFolders([inWorkDrafts('message-1')])).toStrictEqual([
             'work-drafts',
             'work-trash',
             'work-drafts-clients',
         ]);
-        expect(offeredAliases([inDraftsClients])).toStrictEqual(offeredAliases([inWorkDrafts('message-1')]));
+        expect(offeredFolders([inDraftsClients])).toStrictEqual(offeredFolders([inWorkDrafts('message-1')]));
     });
 
     it('offers a sent message its own tree and the trash', () => {
-        expect(offeredAliases([inWorkSent('message-1')])).toStrictEqual(['work-sent', 'work-trash', 'work-sent-2026']);
+        expect(offeredFolders([inWorkSent('message-1')])).toStrictEqual(['work-sent', 'work-trash', 'work-sent-2026']);
     });
 
     it('offers a selection reaching into two trees the trash and nothing else', () => {
-        expect(offeredAliases([inWorkDrafts('message-1'), inWork('message-2')])).toStrictEqual(['work-trash']);
-        expect(offeredAliases([inWorkDrafts('message-1'), inWorkSent('message-2')])).toStrictEqual(['work-trash']);
+        expect(offeredFolders([inWorkDrafts('message-1'), inWork('message-2')])).toStrictEqual(['work-trash']);
+        expect(offeredFolders([inWorkDrafts('message-1'), inWorkSent('message-2')])).toStrictEqual(['work-trash']);
     });
 
     it('files a drop inside a tree, and nothing dropped across the edge of one', () => {
         const ordinary = [inWork('message-1')];
         const draft = [inWorkDrafts('message-2')];
         const sent = [inWorkSent('message-3')];
-        const dropping = (messages: readonly ActedMessage[], alias: string) =>
-            dropDestination(destinationsFor(withDraftsAndSent, messages), messages, 'work', alias);
+        const dropping = (messages: readonly ActedMessage[], folderId: string) =>
+            dropDestination(destinationsFor(withDraftsAndSent, messages), messages, 'work', folderId);
 
         expect(dropping(ordinary, 'work-drafts')).toBeNull();
         expect(dropping(ordinary, 'work-sent-2026')).toBeNull();
         expect(dropping(draft, 'work-clients')).toBeNull();
         expect(dropping(draft, 'work-drafts2')).toBeNull();
         expect(dropping(sent, 'work-archive')).toBeNull();
-        expect(dropping(draft, 'work-drafts-clients')?.alias).toBe('work-drafts-clients');
-        expect(dropping(sent, 'work-sent-2026')?.alias).toBe('work-sent-2026');
-        expect(dropping(sent, 'work-trash')?.alias).toBe('work-trash');
+        expect(dropping(draft, 'work-drafts-clients')?.folderId).toBe('work-drafts-clients');
+        expect(dropping(sent, 'work-sent-2026')?.folderId).toBe('work-sent-2026');
+        expect(dropping(sent, 'work-trash')?.folderId).toBe('work-trash');
     });
 });
 
@@ -236,9 +236,9 @@ describe('mayBeTakenBack', () => {
 
 describe('filesIntoTrash', () => {
     it('reads the trash as the one destination whose filing is deleting', () => {
-        expect(filesIntoTrash({ alias: 'work-trash', name: 'Trash', role: 'Trash' })).toBe(true);
-        expect(filesIntoTrash({ alias: 'work-archive', name: 'Archive', role: 'Archive' })).toBe(false);
-        expect(filesIntoTrash({ alias: 'work-clients', name: 'Projects / Clients', role: null })).toBe(false);
+        expect(filesIntoTrash({ folderId: 'work-trash', name: 'Trash', role: 'Trash' })).toBe(true);
+        expect(filesIntoTrash({ folderId: 'work-archive', name: 'Archive', role: 'Archive' })).toBe(false);
+        expect(filesIntoTrash({ folderId: 'work-clients', name: 'Projects / Clients', role: null })).toBe(false);
     });
 });
 
@@ -248,7 +248,7 @@ describe('dropDestination', () => {
 
     it('files a drop on a folder of the account the messages are in into that folder', () => {
         expect(dropDestination(offered, carried, 'work', 'work-clients')).toStrictEqual({
-            alias: 'work-clients',
+            folderId: 'work-clients',
             name: 'Projects / Clients',
             role: null,
         });
@@ -265,7 +265,7 @@ describe('dropDestination', () => {
     it('files a drop on the folder only some of them are in, since it takes the rest somewhere they are not', () => {
         const spread = [inWork('message-1'), inWorkTrash('message-2')];
 
-        expect(dropDestination(destinationsFor(wholeMailbox, spread), spread, 'work', 'work-trash')?.alias).toBe(
+        expect(dropDestination(destinationsFor(wholeMailbox, spread), spread, 'work', 'work-trash')?.folderId).toBe(
             'work-trash',
         );
     });
@@ -396,7 +396,7 @@ describe('deletesPermanently', () => {
         expect(deletesPermanently(wholeMailbox, [inWorkTrash('message-1'), inWork('message-2')])).toBe(false);
     });
 
-    it('reads a trash folder as its own account, so an alias another account uses decides nothing', () => {
+    it('reads a trash folder as its own account, so a folder another account names decides nothing', () => {
         const elsewhere: ActedMessage = {
             storedEmailId: 'message-3',
             account: 'home',

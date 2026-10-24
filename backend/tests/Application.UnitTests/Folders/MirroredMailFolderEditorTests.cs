@@ -6,6 +6,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Jobs;
 using MailFathom.Application.Mail;
+using MailFathom.Application.Persistence;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Synchronization.Sessions;
 using MailFathom.Application.UnitTests.TestDoubles;
@@ -271,6 +272,41 @@ public sealed class MirroredMailFolderEditorTests
         Assert.Equal("PROJECTS", outcome.Folder!.Id);
         Assert.Equal("Plans", outcome.Folder.Name);
         Assert.Equal(["renamed PROJECTS to Plans", "repointed PROJECTS at Plans"], deployment.Log);
+    }
+
+    /// <summary>The act's own re-read draws the tree from the folder rows, so the row moves with the act rather than a pass later.</summary>
+    [Fact]
+    public async Task MoveAsync_AFolderTheAccountDeclares_PutsItsRowWhereTheServerNowAdvertisesIt()
+    {
+        // Arrange
+        await using var deployment = new EditorDeployment();
+        deployment.Declares(
+            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')),
+            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Archive", '/')));
+        deployment.Declarations.Declared.Add(Projects);
+        deployment.RenamesTo("Archive/Projects");
+
+        // Act
+        await deployment.Editor.MoveAsync(Account, Projects, Archive, TestContext.Current.CancellationToken);
+
+        // Assert
+        var placement = Assert.Single(deployment.Bindings.Placements);
+        Assert.Equal((Account, Projects, "Archive/Projects"), (placement.Account, placement.FolderAlias, placement.RemotePath.Value));
+    }
+
+    [Fact]
+    public async Task RenameAsync_RefusedBeforeReachingTheServer_PlacesNoRow()
+    {
+        // Arrange
+        await using var deployment = new EditorDeployment();
+        deployment.Declares(MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')));
+        deployment.Declarations.Declared.Add(Projects);
+
+        // Act
+        await deployment.Editor.RenameAsync(Account, Projects, "INBOX", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(deployment.Bindings.Placements);
     }
 
     [Fact]
@@ -599,7 +635,15 @@ public sealed class MirroredMailFolderEditorTests
                 this.Jobs,
                 AccessAuthorizations.ForUserGranted(
                     SyntheticUser.Deployment,
-                    granted.Length > 0 ? granted : [MailFathomPermission.MailRead, MailFathomPermission.MailFoldersWrite]));
+                    granted.Length > 0 ? granted : [MailFathomPermission.MailRead, MailFathomPermission.MailFoldersWrite]),
+                new MailFolderResolver(
+                    Substitute.For<IRemoteFolderCatalog>(),
+                    this.RemoteCreator,
+                    this.Bindings,
+                    Substitute.For<IMailFolderMappingChangeAuditor>(),
+                    Substitute.For<IPersistenceSessionFactory>(),
+                    this.Signals,
+                    new FakeTimeProvider()));
         }
 
         internal List<string> Log { get; } = [];

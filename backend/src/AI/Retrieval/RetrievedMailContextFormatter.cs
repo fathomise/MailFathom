@@ -29,7 +29,7 @@ namespace MailFathom.AI.Retrieval;
 /// </para>
 /// <para>
 /// Each extract carries the identity it was retrieved under, unchanged: the stable local identifier an answer cites, and
-/// the account and folder alias it was read from. An answer that cannot say which message a claim came from cannot be
+/// the account and folder it is in. An answer that cannot say which message a claim came from cannot be
 /// checked, and the identity is what survives formatting to make that possible.
 /// </para>
 /// <para>
@@ -91,7 +91,7 @@ internal static class RetrievedMailContextFormatter
     /// <summary>Names the attribute carrying the account the message was read from.</summary>
     internal const string AccountAttributeName = "account";
 
-    /// <summary>Names the attribute carrying the folder alias the message was read from.</summary>
+    /// <summary>Names the attribute carrying the path of the folder the message is in.</summary>
     internal const string FolderAttributeName = "folder";
 
     /// <summary>Names the attribute carrying when the message was received.</summary>
@@ -244,7 +244,7 @@ internal static class RetrievedMailContextFormatter
 
         writer.WriteAttributeString(MessageIdAttributeName, passage.StoredEmailId.ToString());
         writer.WriteAttributeString(AccountAttributeName, passage.AccountId.Value);
-        writer.WriteAttributeString(FolderAttributeName, passage.FolderAlias.Value);
+        writer.WriteAttributeString(FolderAttributeName, passage.Folder.Path);
 
         if (passage.ReceivedAt is { } receivedAt)
         {

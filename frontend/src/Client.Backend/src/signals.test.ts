@@ -185,6 +185,18 @@ describe('parseClientSignal', () => {
         ).toStrictEqual({ kind: 'mail.changed', account: 'work', folder: 'INBOX', emails: ['m-1', 'm-2'] });
     });
 
+    it('reads a change naming no folder as one that may be in any folder of the account', () => {
+        expect(
+            parseClientSignal({ kind: 'mail.changed', account: 'work', folder: null, emails: ['m-1'] }),
+        ).toStrictEqual({ kind: 'mail.changed', account: 'work', folder: null, emails: ['m-1'] });
+        expect(parseClientSignal({ kind: 'mail.arrived', account: 'work', count: 2 })).toStrictEqual({
+            kind: 'mail.arrived',
+            account: 'work',
+            folder: null,
+            count: 2,
+        });
+    });
+
     it("reads a flag change as where each named row's flags now stand", () => {
         expect(
             parseClientSignal({
@@ -277,7 +289,10 @@ describe('parseClientSignal', () => {
         ['an array', []],
         ['a kind this client does not act on', { kind: 'mail.vanished', account: 'work' }],
         ['an arrival of nothing', { kind: 'mail.arrived', account: 'work', folder: 'INBOX', count: 0 }],
-        ['an arrival with no folder', { kind: 'mail.arrived', account: 'work', count: 4 }],
+        [
+            'an arrival naming a folder by something other than text',
+            { kind: 'mail.arrived', account: 'work', folder: 42, count: 4 },
+        ],
         ['a change whose rows are not a list', { kind: 'mail.changed', account: 'work', folder: 'I', emails: 'm-1' }],
         ['a raised notification of an unknown kind', { kind: 'notification.raised', notificationKind: 'Weather' }],
         ['a moved folder set naming no account', { kind: 'folders.changed' }],

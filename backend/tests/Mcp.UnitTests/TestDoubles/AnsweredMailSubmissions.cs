@@ -144,7 +144,10 @@ internal static class AnsweredMailSubmissions
         {
             StoredEmailId = StoredEmailId.Create(Guid.CreateVersion7()),
             Account = MailAccountId.Create(ServedAccountId),
-            FolderAlias = MailFolderAlias.Create(ReadableFolderAlias),
+            Folder = new StoredEmailFolder(
+                MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-000000000001")),
+                ReadableFolderAlias,
+                MailFolderAlias.Create(ReadableFolderAlias)),
             InternetMessageId = "<parent@example.test>",
             Subject = "Quarterly report",
             SenderAddress = AnsweredAuthorAddress,

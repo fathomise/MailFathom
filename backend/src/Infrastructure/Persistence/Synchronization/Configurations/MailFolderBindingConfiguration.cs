@@ -9,10 +9,10 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace MailFathom.Infrastructure.Persistence.Synchronization.Configurations;
 
 /// <summary>Declares the remote folders an account's mail is read from, and the alias binding an occurrence stays attributable through.</summary>
-internal sealed class MailFolderConfiguration : IEntityTypeConfiguration<MailFolderEntity>
+internal sealed class MailFolderBindingConfiguration : IEntityTypeConfiguration<MailFolderBindingEntity>
 {
     /// <inheritdoc />
-    public void Configure(EntityTypeBuilder<MailFolderEntity> entity)
+    public void Configure(EntityTypeBuilder<MailFolderBindingEntity> entity)
     {
         entity.ToTable("mail_folders");
         entity.HasKey(folder => folder.Id);
@@ -42,8 +42,15 @@ internal sealed class MailFolderConfiguration : IEntityTypeConfiguration<MailFol
         // deployment generates it. The unique index above already leads with the same column, so the constraint
         // needs no structure of its own.
         entity.HasOne(folder => folder.MailboxAccount)
-            .WithMany(account => account.MailFolders)
+            .WithMany(account => account.MailFolderBindings)
             .HasForeignKey(folder => folder.MailboxAccountId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // No action for the reason a stored message's folder reference takes none: an account's erasure removes its
+        // folders and its bindings in one statement, and nothing else removes a folder a binding still names.
+        entity.HasOne(folder => folder.Folder)
+            .WithMany()
+            .HasForeignKey(folder => folder.FolderId)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }

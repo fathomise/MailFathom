@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Security.Cryptography;
+using System.Text;
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Folders;
@@ -219,7 +221,7 @@ public sealed class MailFolderEditorTests
 
         // Assert
         Assert.Equal(MailFolderChangeKind.Created, outcome.Change);
-        Assert.Equal("PROJECTS", outcome.Folder!.Id);
+        Assert.Equal(EditorDeployment.RowIdOf(Projects).ToString(), outcome.Folder!.Id);
     }
 
     /// <summary>An account on its way back to its source is half in each place, so an act on either side would be an act against half a mailbox.</summary>
@@ -269,6 +271,7 @@ public sealed class MailFolderEditorTests
         private readonly IMailFolderMappingReader mappings = Substitute.For<IMailFolderMappingReader>();
         private readonly IRemoteFolderCreator creator = Substitute.For<IRemoteFolderCreator>();
         private readonly IMailFolderDeclarationWriter declarations = Substitute.For<IMailFolderDeclarationWriter>();
+        private readonly IMailFolderResolutionStore folderRows = Substitute.For<IMailFolderResolutionStore>();
         private IReadOnlyList<MailFolderMapping> folders = [];
 
         internal EditorDeployment(MailAccountCustodyPhase phase, params MailFathomPermission[] granted)
@@ -276,6 +279,13 @@ public sealed class MailFolderEditorTests
             this.Store = new InMemoryLocalMailFolderStore(Account, phase);
             this.Signals = new ClientSignals([new RecordingClientSignalChannel()], this.Clock);
             this.mappings.FoldersOf(Arg.Any<MailAccountId>()).Returns(_ => this.folders);
+            this.folderRows
+                .DeclareFoldersAsync(
+                    Arg.Any<IPersistenceSession>(),
+                    Arg.Any<MailAccountId>(),
+                    Arg.Any<IReadOnlyList<MailFolderMapping>>(),
+                    Arg.Any<CancellationToken>())
+                .Returns(call => this.GiveRows(call.ArgAt<IReadOnlyList<MailFolderMapping>>(2)));
             this.declarations
                 .AliasesTheAccountDeclaresAsync(Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>())
                 .Returns(_ => Task.FromResult<IReadOnlySet<MailFolderAlias>>(new HashSet<MailFolderAlias>()));
@@ -325,9 +335,18 @@ public sealed class MailFolderEditorTests
                     dispositions,
                     this.Signals,
                     Substitute.For<IJobStore>(),
-                    authorization),
+                    authorization,
+                    new MailFolderResolver(
+                        Substitute.For<IRemoteFolderCatalog>(),
+                        Substitute.For<IRemoteFolderCreator>(),
+                        this.folderRows,
+                        Substitute.For<IMailFolderMappingChangeAuditor>(),
+                        sessionFactory,
+                        this.Signals,
+                        this.Clock)),
                 authorization,
-                this.Accounts);
+                this.Accounts,
+                this.Store);
         }
 
         internal FakeTimeProvider Clock { get; } = new();
@@ -340,8 +359,36 @@ public sealed class MailFolderEditorTests
 
         internal ICallerMailAccountCatalog Accounts { get; }
 
-        /// <summary>States what the whole of configuration declares for a mirrored account.</summary>
-        internal void Declares(params MailFolderMapping[] declared) => this.folders = declared;
+        /// <summary>States what the whole of configuration declares for a mirrored account, and gives each declared folder its row.</summary>
+        internal void Declares(params MailFolderMapping[] declared)
+        {
+            this.folders = declared;
+            this.GiveRows(declared);
+        }
+
+        internal static MailFolderId RowIdOf(MailFolderAlias alias) =>
+            MailFolderId.Create(new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(alias.Value)).AsSpan(0, 16)));
+
+        /// <summary>Gives every mapping without a row one, as a run's declaration does, and says whether any was given.</summary>
+        private bool GiveRows(IEnumerable<MailFolderMapping> mappings)
+        {
+            MailFolderMapping[] missing =
+            [
+                .. mappings.Where(mapping => this.Store.Folders.All(row => row.SourceFolderAlias != mapping.Alias)),
+            ];
+
+            foreach (var mapping in missing)
+            {
+                this.Store.Add(new LocalMailFolder(
+                    RowIdOf(mapping.Alias),
+                    ParentId: null,
+                    LocalMailFolderName.Create(mapping.Alias.Value),
+                    mapping.SpecialUse,
+                    mapping.Alias));
+            }
+
+            return missing.Length > 0;
+        }
 
         /// <summary>Scripts the mail server answering a creation with the path it advertises the folder at.</summary>
         internal void CreatesAt(string advertisedPath) =>

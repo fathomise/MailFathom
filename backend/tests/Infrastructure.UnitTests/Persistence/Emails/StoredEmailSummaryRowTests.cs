@@ -36,7 +36,7 @@ public sealed class StoredEmailSummaryRowTests
         var row = RowWith(MachineAuthorshipBand.Likely, stored);
 
         // Act
-        var summary = row.ToSummary();
+        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>());
 
         // Assert
         Assert.Equal(0, summary.MachineAuthorship.Likelihood);
@@ -51,7 +51,7 @@ public sealed class StoredEmailSummaryRowTests
         var row = RowWith(MachineAuthorshipBand.Possible, 0.42);
 
         // Act
-        var summary = row.ToSummary();
+        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>());
 
         // Assert
         Assert.Equal(0.42, summary.MachineAuthorship.Likelihood);
@@ -67,7 +67,7 @@ public sealed class StoredEmailSummaryRowTests
         var row = RowWith(MachineAuthorshipBand.NotAssessed, 0.9);
 
         // Act
-        var summary = row.ToSummary();
+        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>());
 
         // Assert
         Assert.Same(MachineAuthorshipAssessment.NotAssessed, summary.MachineAuthorship);
@@ -77,6 +77,7 @@ public sealed class StoredEmailSummaryRowTests
     private static StoredEmailSummaryRow RowWith(MachineAuthorshipBand band, double likelihood) => new(
         Guid.CreateVersion7(),
         "primary",
+        Guid.CreateVersion7(),
         "INBOX",
         ThreadId: null,
         InternetMessageId: null,

@@ -11,8 +11,8 @@ namespace MailFathom.Domain.Folders;
 /// <param name="Role">The protected role the folder plays, or <see langword="null" /> for an ordinary folder.</param>
 /// <param name="SourceFolderAlias">The synchronized source folder whose arrivals this folder receives, or <see langword="null" /> where none does.</param>
 public sealed record LocalMailFolder(
-    LocalMailFolderId Id,
-    LocalMailFolderId? ParentId,
+    MailFolderId Id,
+    MailFolderId? ParentId,
     LocalMailFolderName Name,
     MailFolderSpecialUse? Role,
     MailFolderAlias? SourceFolderAlias)

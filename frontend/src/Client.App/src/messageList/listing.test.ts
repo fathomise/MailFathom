@@ -42,7 +42,7 @@ describe('queryFor', () => {
     });
 
     it('names both for one folder of one mailbox', () => {
-        const scope: MailScope = { kind: 'folder', accountId: 'work', alias: 'ARCHIVE-2024' };
+        const scope: MailScope = { kind: 'folder', accountId: 'work', folderId: 'ARCHIVE-2024' };
         const query = queryFor(scope, openingListing, null, 'forward');
 
         expect(query.account).toBe('work');
@@ -54,7 +54,7 @@ describe('queryFor', () => {
     });
 
     it('asks for junk where a scope points at one folder, so the folder somebody opened is not shown empty', () => {
-        const scope: MailScope = { kind: 'folder', accountId: 'work', alias: 'Spam' };
+        const scope: MailScope = { kind: 'folder', accountId: 'work', folderId: 'Spam' };
 
         expect(queryFor(scope, openingListing, null, 'forward').includeJunk).toBe(true);
     });

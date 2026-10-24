@@ -6,6 +6,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Jobs;
 using MailFathom.Application.Jobs.Payloads;
 using MailFathom.Application.Mail;
+using MailFathom.Application.Persistence;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Synchronization.Sessions;
 using MailFathom.Domain.Access;
@@ -52,6 +53,7 @@ public sealed class MirroredMailFolderEditor
     private readonly ClientSignals signals;
     private readonly IJobStore jobs;
     private readonly AccessAuthorization authorization;
+    private readonly MailFolderResolver folderRows;
 
     /// <summary>Initializes a new instance of the <see cref="MirroredMailFolderEditor" /> class.</summary>
     /// <param name="mappings">Reads every folder the whole of configuration declares for the account.</param>
@@ -64,6 +66,7 @@ public sealed class MirroredMailFolderEditor
     /// <param name="signals">Tells the user's open clients the folder set moved.</param>
     /// <param name="jobs">Queues the removal of a deleted folder's stored mail.</param>
     /// <param name="authorization">Decides whether the caller may act.</param>
+    /// <param name="folderRows">Gives a folder the account now declares its row, and retires the row of one it no longer does.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public MirroredMailFolderEditor(
         IMailFolderMappingReader mappings,
@@ -75,7 +78,8 @@ public sealed class MirroredMailFolderEditor
         IAuthoredFolderDeleteDispositionReader deleteDispositions,
         ClientSignals signals,
         IJobStore jobs,
-        AccessAuthorization authorization)
+        AccessAuthorization authorization,
+        MailFolderResolver folderRows)
     {
         ArgumentNullException.ThrowIfNull(mappings);
         ArgumentNullException.ThrowIfNull(bindings);
@@ -87,6 +91,7 @@ public sealed class MirroredMailFolderEditor
         ArgumentNullException.ThrowIfNull(signals);
         ArgumentNullException.ThrowIfNull(jobs);
         ArgumentNullException.ThrowIfNull(authorization);
+        ArgumentNullException.ThrowIfNull(folderRows);
 
         this.mappings = mappings;
         this.bindings = bindings;
@@ -98,6 +103,7 @@ public sealed class MirroredMailFolderEditor
         this.signals = signals;
         this.jobs = jobs;
         this.authorization = authorization;
+        this.folderRows = folderRows;
     }
 
     /// <summary>Reads the account's folders and the acts each of them allows.</summary>
@@ -190,7 +196,16 @@ public sealed class MirroredMailFolderEditor
                     this.transportPolicies.GetPolicy(account),
                     cancellationToken);
 
-                return await this.declarations.DeclareAsync(account, alias, created, role, CancellationToken.None);
+                var declared = await this.declarations.DeclareAsync(account, alias, created, role, CancellationToken.None);
+
+                if (declared.Refusal is null)
+                {
+                    await this.DeclareFolderRowsAsync(
+                        account,
+                        [.. folders, MailFolderMapping.ToRemotePath(alias, created, specialUse: role)]);
+                }
+
+                return declared;
             },
             () => new ManagedMailFolder(
                 alias.Value,
@@ -341,7 +356,16 @@ public sealed class MirroredMailFolderEditor
                         cancellationToken);
                 }
 
-                return await this.declarations.WithdrawAsync(account, folderAlias, CancellationToken.None);
+                var withdrawn = await this.declarations.WithdrawAsync(account, folderAlias, CancellationToken.None);
+
+                if (withdrawn.Refusal is null)
+                {
+                    await this.DeclareFolderRowsAsync(
+                        account,
+                        [.. acting.Folders.Where(folder => folder.Alias != folderAlias)]);
+                }
+
+                return withdrawn;
             },
             () => deleted,
             erasesStoredMail: disposition is AuthoredFolderDeleteDisposition.DeleteOnServer,
@@ -370,7 +394,14 @@ public sealed class MirroredMailFolderEditor
                     this.transportPolicies.GetPolicy(account),
                     cancellationToken);
 
-                return await this.declarations.RepointAsync(account, acting.Alias, moved, CancellationToken.None);
+                var written = await this.declarations.RepointAsync(account, acting.Alias, moved, CancellationToken.None);
+
+                if (written.Refusal is null)
+                {
+                    await this.PlaceFolderRowAsync(account, acting, moved);
+                }
+
+                return written;
             },
             () => new ManagedMailFolder(acting.Alias.Value, parentAlias, folderName.Value, Role: null, []));
 
@@ -428,6 +459,41 @@ public sealed class MirroredMailFolderEditor
             && await this.QueueStoredMailErasureAsync(account, alias);
 
         return new MailFolderActOutcome(describe(), change, Refusal: null, deferred);
+    }
+
+    /// <summary>Brings the account's folder rows in line with what it declares once an act changed that.</summary>
+    /// <remarks>
+    /// A row is what a client names a folder by, so a created folder needs one before the act is reported. A competing
+    /// writer reaching the rows first is left to win: the account's next run declares them again.
+    /// </remarks>
+    // ponytail: a created folder's row starts at the top of the hierarchy and takes its place beneath its parent on the
+    // account's next run, which binds it; project it from the created path here if that wait shows on screen.
+    private async Task DeclareFolderRowsAsync(MailAccountId account, IReadOnlyList<MailFolderMapping> declared)
+    {
+        try
+        {
+            await this.folderRows.DeclareFoldersAsync(account, declared, CancellationToken.None);
+        }
+        catch (PersistenceConcurrencyConflictException)
+        {
+            return;
+        }
+    }
+
+    /// <summary>Puts a renamed or moved folder's row where the act put the folder, so the act's own re-read draws it there.</summary>
+    /// <remarks>A competing writer reaching the row first is left to win: the account's next run places it again.</remarks>
+    private async Task PlaceFolderRowAsync(MailAccountId account, ActableFolder acting, RemoteFolderPath moved)
+    {
+        var role = acting.Folders.FirstOrDefault(folder => folder.Alias == acting.Alias)?.SpecialUse;
+
+        try
+        {
+            await this.folderRows.PlaceFolderAsync(account, acting.Alias, moved, role, CancellationToken.None);
+        }
+        catch (PersistenceConcurrencyConflictException)
+        {
+            return;
+        }
     }
 
     /// <summary>Queues the first pass over the stored mail of a folder the account no longer declares.</summary>

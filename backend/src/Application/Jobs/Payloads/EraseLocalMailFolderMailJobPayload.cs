@@ -37,7 +37,7 @@ public sealed record EraseLocalMailFolderMailJobPayload : IJobPayload
     /// <param name="account">The account.</param>
     /// <param name="folder">The folder that was erased.</param>
     /// <returns>The payload.</returns>
-    public static EraseLocalMailFolderMailJobPayload For(MailAccountId account, LocalMailFolderId folder) => new()
+    public static EraseLocalMailFolderMailJobPayload For(MailAccountId account, MailFolderId folder) => new()
     {
         AccountId = account.Value,
         FolderId = folder.Value,

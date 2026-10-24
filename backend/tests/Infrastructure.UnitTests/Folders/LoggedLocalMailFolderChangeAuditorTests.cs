@@ -27,7 +27,7 @@ public sealed class LoggedLocalMailFolderChangeAuditorTests
         // Arrange
         using var logs = new RecordingLoggerProvider();
         var auditor = CreateAuditor(logs);
-        var folder = LocalMailFolderId.Create(Guid.CreateVersion7(OccurredAt));
+        var folder = MailFolderId.Create(Guid.CreateVersion7(OccurredAt));
         var change = new LocalMailFolderChange(
             MailAccountId.Create("primary"),
             SyntheticUser.Deployment,

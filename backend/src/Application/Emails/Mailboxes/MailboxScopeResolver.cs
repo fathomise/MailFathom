@@ -178,7 +178,8 @@ public sealed class MailboxScopeResolver
 
         var resolvedScope = MailboxScope.Create(
             accountsInScope,
-            this.ResolvedFolders(accountsInScope, folders));
+            [.. folders.Select(static folder => folder.Folder).OfType<MailFolderId>()],
+            this.ResolvedRoles(accountsInScope, folders));
 
         // Read for the accounts in scope alone, because the folders of anybody else's mailbox are no part of a read
         // that cannot reach them.
@@ -223,7 +224,7 @@ public sealed class MailboxScopeResolver
 
     /// <summary>Reports whether a tool may read one email, given the mailbox it was stored from.</summary>
     /// <param name="accountId">The account the email was read from.</param>
-    /// <param name="folderAlias">The folder the email was read from.</param>
+    /// <param name="folderAlias">The alias of the folder the email is in, or <see langword="null" /> for a folder no declaration names, which no setting withholds.</param>
     /// <param name="cancellationToken">Cancels the read of the user's assignments.</param>
     /// <returns><see langword="true" /> when the user in hand is assigned that account and a mapping admits that folder to tools.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the work in hand is acting for no user, which is a refusal rather than the <see langword="false" /> a caller with nothing readable is answered with.</exception>
@@ -242,61 +243,52 @@ public sealed class MailboxScopeResolver
     /// </remarks>
     public async Task<bool> IsReadableByToolsAsync(
         MailAccountId accountId,
-        MailFolderAlias folderAlias,
+        MailFolderAlias? folderAlias,
         CancellationToken cancellationToken) =>
         this.IsReadableByTools(await this.ReadAssignedAccountsAsync(cancellationToken), accountId, folderAlias);
 
     /// <summary>Reports whether a tool may read one email, given the accounts the user in hand was already read to be assigned.</summary>
     /// <param name="assignedAccounts">The accounts <see cref="ReadAssignedAccountsAsync" /> answered, read once for every email asked about.</param>
     /// <param name="accountId">The account the email was read from.</param>
-    /// <param name="folderAlias">The folder the email was read from.</param>
+    /// <param name="folderAlias">The alias of the folder the email is in, or <see langword="null" /> for a folder no declaration names.</param>
     /// <returns>The same answer <see cref="IsReadableByToolsAsync" /> gives, without reading the assignments again.</returns>
     public bool IsReadableByTools(
         IReadOnlyList<MailAccountId> assignedAccounts,
         MailAccountId accountId,
-        MailFolderAlias folderAlias) =>
+        MailFolderAlias? folderAlias) =>
         assignedAccounts.Contains(accountId)
-        && this.folderParticipation.GetParticipation(accountId, folderAlias).IsVisibleToTools;
+        && (folderAlias is not { } declared
+            || this.folderParticipation.GetParticipation(accountId, declared).IsVisibleToTools);
 
-    /// <summary>Turns what a request named folders with into the account-and-folder pairs a query is expressed in.</summary>
+    /// <summary>Reads the roles a request named folders by, refusing one no account in scope plays.</summary>
     /// <exception cref="MailFolderRoleUnmappedException">Thrown when a role reaches no folder on any account in scope.</exception>
+    /// <exception cref="ArgumentException">Thrown when a reference names a folder by its alias, which no request may.</exception>
     /// <remarks>
-    /// A role is asked of every account in scope and answers with each of their folders, because one query reads
-    /// several mailboxes and the folder playing a role is each mailbox's own. It is refused only when no account in
-    /// scope maps it at all: refusing because one of several accounts lacks a junk folder would make a general question
-    /// unanswerable for the deployments that have the folder.
+    /// A role is read against each account's own folders when the query runs, because one query reads several mailboxes
+    /// and the folder playing a role is each mailbox's own. It is refused only when no account in scope declares it at
+    /// all: refusing because one of several accounts lacks a junk folder would make a general question unanswerable for
+    /// the deployments that have the folder.
     /// </remarks>
-    private IReadOnlyList<MailFolderIdentity> ResolvedFolders(
+    private IReadOnlyList<MailFolderSpecialUse> ResolvedRoles(
         IReadOnlyList<MailAccountId> accountsInScope,
-        IReadOnlyList<MailFolderReference> folders) =>
-        [.. folders.SelectMany(folder => this.FoldersNamedBy(accountsInScope, folder))];
-
-    /// <summary>Answers which folder of which account one reference names, as a pair per account it reaches.</summary>
-    /// <remarks>
-    /// An alias is the caller's own name and means the same folder on every account in scope, so it is paired with each
-    /// of them. A role is answered per account and paired with the account that answered, which is what keeps one
-    /// account's junk folder from admitting another account's folder of the same name.
-    /// </remarks>
-    private IReadOnlyList<MailFolderIdentity> FoldersNamedBy(
-        IReadOnlyList<MailAccountId> accountsInScope,
-        MailFolderReference folder)
+        IReadOnlyList<MailFolderReference> folders)
     {
-        if (folder.Alias is { } alias)
+        if (folders.Any(static folder => folder.Alias is not null))
         {
-            return [.. accountsInScope.Select(accountId => new MailFolderIdentity(accountId, alias))];
+            throw new ArgumentException(
+                "A read names a folder by its identity or its role, never by its alias.",
+                nameof(folders));
         }
 
-        IReadOnlyList<MailFolderIdentity> named =
-        [
-            .. accountsInScope
-                .Select(accountId => (AccountId: accountId, Mapping: this.folderReferences.TryResolve(accountId, folder)))
-                .Where(static resolution => resolution.Mapping is not null)
-                .Select(static resolution => new MailFolderIdentity(resolution.AccountId, resolution.Mapping!.Alias)),
-        ];
+        MailFolderReference[] roles = [.. folders.Where(static folder => folder.Role is not null)];
 
-        return named.Count > 0
-            ? named
-            : throw new MailFolderRoleUnmappedException(folder.Role!.Value);
+        foreach (var role in roles.Where(role =>
+            !accountsInScope.Any(accountId => this.folderReferences.TryResolve(accountId, role) is not null)))
+        {
+            throw new MailFolderRoleUnmappedException(role.Role!.Value);
+        }
+
+        return [.. roles.Select(static role => role.Role!.Value)];
     }
 
     /// <summary>Finds the assigned account text names, refusing the request when it names none.</summary>

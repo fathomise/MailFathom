@@ -11,7 +11,7 @@ namespace MailFathom.Application.Discovery.Citations;
 /// <summary>The message one resolved citation belongs to, as much of it as showing the citation in place needs.</summary>
 /// <param name="StoredEmailId">The stable local identity, which is the same one every other read names an email by.</param>
 /// <param name="AccountId">The account whose mailbox it was read from.</param>
-/// <param name="FolderAlias">MailFathom's own name for the folder it was read from.</param>
+/// <param name="Folder">The folder it is in.</param>
 /// <param name="Subject">The subject it carried, or <see langword="null" /> when it carried none.</param>
 /// <param name="SentAt">When the sender says it was sent, or <see langword="null" /> when it wrote no usable date.</param>
 /// <param name="ReceivedAt">When the last receiving hop recorded it, or <see langword="null" /> when no header carried a usable date.</param>
@@ -31,7 +31,7 @@ namespace MailFathom.Application.Discovery.Citations;
 public sealed record CitedMessage(
     StoredEmailId StoredEmailId,
     MailAccountId AccountId,
-    MailFolderAlias FolderAlias,
+    StoredEmailFolder Folder,
     string? Subject,
     DateTimeOffset? SentAt,
     DateTimeOffset? ReceivedAt);

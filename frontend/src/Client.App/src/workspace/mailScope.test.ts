@@ -17,7 +17,7 @@ import {
     type MailScope,
 } from './mailScope';
 
-const workInbox: MailScope = { kind: 'folder', accountId: 'work', alias: 'INBOX' };
+const workInbox: MailScope = { kind: 'folder', accountId: 'work', folderId: 'INBOX' };
 
 const offered: MailFolderDirectory = {
     synchronizationEnabled: true,
@@ -32,7 +32,7 @@ const offered: MailFolderDirectory = {
             },
             folders: [
                 {
-                    alias: 'INBOX',
+                    id: 'INBOX',
                     role: 'Inbox',
                     path: ['INBOX'],
                     storedEmailCount: 4213,
@@ -59,11 +59,11 @@ describe('scopeKey', () => {
 
 describe('sameScope', () => {
     it('reads two scopes pointing at one folder as the same one', () => {
-        expect(sameScope(workInbox, { kind: 'folder', accountId: 'work', alias: 'INBOX' })).toBe(true);
+        expect(sameScope(workInbox, { kind: 'folder', accountId: 'work', folderId: 'INBOX' })).toBe(true);
     });
 
     it('tells one mailbox’s inbox apart from another’s', () => {
-        expect(sameScope(workInbox, { kind: 'folder', accountId: 'personal', alias: 'INBOX' })).toBe(false);
+        expect(sameScope(workInbox, { kind: 'folder', accountId: 'personal', folderId: 'INBOX' })).toBe(false);
     });
 
     it('tells a whole mailbox apart from one folder of it', () => {
@@ -156,8 +156,8 @@ describe('scopeStillOffered', () => {
         { scope: { kind: 'account', accountId: 'work' }, still: true },
         { scope: { kind: 'account', accountId: 'personal' }, still: false },
         { scope: workInbox, still: true },
-        { scope: { kind: 'folder', accountId: 'work', alias: 'ARCHIVE-2024' }, still: false },
-        { scope: { kind: 'folder', accountId: 'personal', alias: 'INBOX' }, still: false },
+        { scope: { kind: 'folder', accountId: 'work', folderId: 'ARCHIVE-2024' }, still: false },
+        { scope: { kind: 'folder', accountId: 'personal', folderId: 'INBOX' }, still: false },
     ])('answers $still for a scope the deployment does or does not still offer', ({ scope, still }) => {
         expect(scopeStillOffered(scope, offered)).toBe(still);
     });

@@ -92,7 +92,7 @@ public sealed class GetEmailContentToolTests
         Assert.Null(email.Failure);
         var content = Assert.IsType<RetrievedEmailContent>(email.Content);
         Assert.Equal(ServedAccountId, content.AccountId);
-        Assert.Equal("INBOX", content.FolderAlias);
+        Assert.Equal("INBOX", content.FolderPath);
         Assert.Equal(4096, content.SizeBytes);
         Assert.Equal("Quarterly invoice", content.Headers.Subject);
         Assert.Equal(sentAt, content.Headers.SentAt);
@@ -1351,7 +1351,7 @@ public sealed class GetEmailContentToolTests
                 {
                     StoredEmailId = StoredEmailId.Create(Guid.CreateVersion7()),
                     AccountId = MailAccountId.Create(ServedAccountId),
-                    FolderAlias = MailFolderAlias.Create("INBOX"),
+                    Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
                     ParentStoredEmailId = ordinal > 0 ? chain[ordinal - 1].StoredEmailId : null,
                     Subject = $"Quarterly invoice {ordinal}",
                     SentAt = new DateTimeOffset(2026, 3, 1, 8, 0, 0, TimeSpan.Zero).AddMinutes(ordinal),
@@ -1409,7 +1409,7 @@ public sealed class GetEmailContentToolTests
         {
             StoredEmailId = StoredEmailId.Create(Guid.CreateVersion7()),
             Account = MailAccountId.Create(accountId),
-            FolderAlias = MailFolderAlias.Create("INBOX"),
+            Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
             InternetMessageId = "<abc@example.test>",
             Subject = "Quarterly invoice",
             SenderAddress = "billing@example.test",

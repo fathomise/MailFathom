@@ -105,7 +105,7 @@ public sealed class LocalMailFolderEditor
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold <c>mailfathom.mail.folders.write</c>.</exception>
     public Task<LocalMailFolderEditOutcome> CreateAsync(
         MailAccountId account,
-        LocalMailFolderId? parentId,
+        MailFolderId? parentId,
         string? name,
         CancellationToken cancellationToken) =>
         this.EditAsync(account, MailFolderChangeKind.Created, tree => tree.Create(this.MintId(), parentId, name), cancellationToken);
@@ -119,7 +119,7 @@ public sealed class LocalMailFolderEditor
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold <c>mailfathom.mail.folders.write</c>.</exception>
     public Task<LocalMailFolderEditOutcome> RenameAsync(
         MailAccountId account,
-        LocalMailFolderId folderId,
+        MailFolderId folderId,
         string? name,
         CancellationToken cancellationToken) =>
         this.EditAsync(account, MailFolderChangeKind.Renamed, tree => tree.Rename(folderId, name), cancellationToken);
@@ -133,8 +133,8 @@ public sealed class LocalMailFolderEditor
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold <c>mailfathom.mail.folders.write</c>.</exception>
     public Task<LocalMailFolderEditOutcome> MoveAsync(
         MailAccountId account,
-        LocalMailFolderId folderId,
-        LocalMailFolderId? parentId,
+        MailFolderId folderId,
+        MailFolderId? parentId,
         CancellationToken cancellationToken) =>
         this.EditAsync(account, MailFolderChangeKind.Moved, tree => tree.Move(folderId, parentId), cancellationToken);
 
@@ -150,7 +150,7 @@ public sealed class LocalMailFolderEditor
     /// </remarks>
     public Task<LocalMailFolderEditOutcome> DeleteAsync(
         MailAccountId account,
-        LocalMailFolderId folderId,
+        MailFolderId folderId,
         CancellationToken cancellationToken) =>
         this.EditAsync(account, MailFolderChangeKind.MovedToTrash, tree => tree.Delete(folderId), cancellationToken);
 
@@ -303,7 +303,7 @@ public sealed class LocalMailFolderEditor
         return enqueued is { Outcome: JobEnqueueOutcome.RefusedAtCapacity };
     }
 
-    private LocalMailFolderId MintId() => LocalMailFolderId.Create(Guid.CreateVersion7(this.timeProvider.GetUtcNow()));
+    private MailFolderId MintId() => MailFolderId.Mint(this.timeProvider.GetUtcNow());
 
     private sealed record LocalMailFolderDecision(LocalMailFolderEdit Edit, MailFolderChangeKind? Kind)
     {

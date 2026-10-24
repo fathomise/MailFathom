@@ -17,10 +17,10 @@ function account(id: string, displayName: string): MailAccount {
     };
 }
 
-function folder(folder: Partial<MailFolder> & Pick<MailFolder, 'alias'>): MailFolder {
+function folder(folder: Partial<MailFolder> & Pick<MailFolder, 'id'>): MailFolder {
     return {
         role: null,
-        path: [folder.alias],
+        path: [folder.id],
         storedEmailCount: 0,
         unreadEmailCount: 0,
         synchronizationState: 'Synchronized',
@@ -36,13 +36,13 @@ const directory: MailFolderDirectory = {
         {
             account: account('work', 'Work'),
             folders: [
-                folder({ alias: 'INBOX', role: 'Inbox', unreadEmailCount: 12 }),
-                folder({ alias: 'ARCHIVE', unreadEmailCount: 2 }),
+                folder({ id: 'INBOX', role: 'Inbox', unreadEmailCount: 12 }),
+                folder({ id: 'ARCHIVE', unreadEmailCount: 2 }),
             ],
         },
         {
             account: account('personal', 'Personal'),
-            folders: [folder({ alias: 'INBOX', role: 'Inbox', unreadEmailCount: 3 })],
+            folders: [folder({ id: 'INBOX', role: 'Inbox', unreadEmailCount: 3 })],
         },
     ],
 };
@@ -51,10 +51,10 @@ function marking(...marked: readonly (readonly [string, MarkedIn])[]): ReadonlyM
     return new Map(marked);
 }
 
-function unreadIn(corrected: MailFolderDirectory, account: string, alias: string): number | undefined {
+function unreadIn(corrected: MailFolderDirectory, account: string, folderId: string): number | undefined {
     return corrected.accounts
         .find((entry) => entry.account.id === account)
-        ?.folders.find((folder) => folder.alias === alias)?.unreadEmailCount;
+        ?.folders.find((folder) => folder.id === folderId)?.unreadEmailCount;
 }
 
 describe('unreadAfterMarking', () => {

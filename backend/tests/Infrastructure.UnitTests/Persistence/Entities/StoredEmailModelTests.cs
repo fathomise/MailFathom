@@ -22,7 +22,7 @@ public sealed class StoredEmailModelTests
     /// <summary>The account timeline leads with the user, because an account reference is the pair and an index cannot span a join.</summary>
     private static readonly string[] AccountTimelineColumns = ["MailboxAccountId", "ReceivedAt", "Id"];
 
-    private static readonly string[] FolderTimelineColumns = ["MailFolderId", "ReceivedAt", "Id"];
+    private static readonly string[] FolderTimelineColumns = ["MailFolderBindingId", "ReceivedAt", "Id"];
 
     [Theory]
     [InlineData(PersistenceConstraintNames.StoredEmailAccountTimelineIndexName)]
@@ -75,7 +75,7 @@ public sealed class StoredEmailModelTests
 
         // Assert
         Assert.True(index.IsUnique);
-        Assert.Equal(["MailFolderId", "UidValidity", "Uid"], index.Properties.Select(property => property.Name));
+        Assert.Equal(["MailFolderBindingId", "UidValidity", "Uid"], index.Properties.Select(property => property.Name));
     }
 
     /// <summary>
@@ -97,7 +97,7 @@ public sealed class StoredEmailModelTests
         // Assert
         Assert.True(storedEmail.FindProperty(nameof(StoredEmailEntity.UidValidity))!.IsNullable);
         Assert.True(storedEmail.FindProperty(nameof(StoredEmailEntity.Uid))!.IsNullable);
-        Assert.False(storedEmail.FindProperty(nameof(StoredEmailEntity.MailFolderId))!.IsNullable);
+        Assert.False(storedEmail.FindProperty(nameof(StoredEmailEntity.MailFolderBindingId))!.IsNullable);
         Assert.NotNull(check);
         Assert.Equal("(\"UidValidity\" IS NULL) = (\"Uid\" IS NULL)", check.Sql);
     }

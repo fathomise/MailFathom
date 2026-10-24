@@ -24,9 +24,13 @@ internal sealed record FolderCopyFreshness
     [Description("The display name the account is published under, which is the operator's own name for the mailbox. It is unique within that account's user in the same way the identifier is.")]
     public required string AccountDisplayName { get; init; }
 
-    /// <summary>Gets MailFathom's own name for the folder.</summary>
-    [Description("The MailFathom folder alias, such as INBOX.")]
-    public required string FolderAlias { get; init; }
+    /// <summary>Gets the identity of the folder, or <see langword="null" /> where synchronization has not given it one yet.</summary>
+    [Description("The identity of the folder, which is what folderId on an email and the folders argument of a mailbox tool name it by. Null only for a folder synchronization has bound and not yet given a place in the account's hierarchy.")]
+    public string? FolderId { get; init; }
+
+    /// <summary>Gets the folder's names from the top of its account's hierarchy down to it.</summary>
+    [Description("The folder's place in its account's hierarchy, as the folder names from the top down to it joined by '/', such as INBOX or Projects/2026. Null where folderId is.")]
+    public string? FolderPath { get; init; }
 
     /// <summary>Gets when progress was last committed for the folder, or <see langword="null" /> when it never was.</summary>
     [Description("When synchronization last durably committed progress for this folder, as an ISO 8601 timestamp. Mail that arrived after it may be missing locally. Null when synchronization has never committed progress for the folder, which means its mail may be absent entirely rather than merely out of date.")]
@@ -50,7 +54,8 @@ internal sealed record FolderCopyFreshness
         {
             AccountId = freshness.AccountId.Value,
             AccountDisplayName = accountNames.For(freshness.AccountId),
-            FolderAlias = freshness.FolderAlias.Value,
+            FolderId = freshness.Folder?.Id.ToString(),
+            FolderPath = freshness.Folder?.Path,
             SynchronizedAt = freshness.SynchronizedAt,
             WasSynchronized = freshness.WasSynchronized,
         };

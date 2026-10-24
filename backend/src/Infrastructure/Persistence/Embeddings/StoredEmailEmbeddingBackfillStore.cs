@@ -87,8 +87,8 @@ internal sealed class StoredEmailEmbeddingBackfillStore(
                 // A body passage rather than any passage, for the reason the predicate below narrows the same way.
                 !email.Chunks.Any(chunk => chunk.AttachmentPosition == null),
                 new StoredDerivedWorkCandidateRow(
-                    email.MailFolder.MailboxAccountId,
-                    email.MailFolder.Alias,
+                    email.MailFolderBinding.MailboxAccountId,
+                    email.MailFolderBinding.Alias,
                     email.StoredAt,
                     email.ContentAvailability,
                     email.SpamClassification == null ? null : email.SpamClassification.Verdict)))

@@ -40,19 +40,32 @@ internal sealed class StoredEmailEntity
     /// </summary>
     public required string MailboxAccountId { get; set; }
 
-    public long MailFolderId { get; set; }
+    /// <summary>Gets or sets the source binding the message was read from, which is part of its occurrence.</summary>
+    public long MailFolderBindingId { get; set; }
 
     /// <summary>
-    /// Gets or sets the local folder the message is in on an account whose mailbox MailFathom holds, or
-    /// <see langword="null" /> on an account whose folders are its source server's.
+    /// Gets or sets the folder the message is in on an account whose mailbox MailFathom holds, or
+    /// <see langword="null" /> elsewhere: the column an older build reads that folder from.
     /// </summary>
     /// <remarks>
-    /// A reference to the folder's identity rather than a copy of its path, so renaming, moving, or deleting a folder
-    /// into the trash is one row update however much mail sits beneath it.
+    /// Written equal to <see cref="FolderId" /> wherever it is written, so the two builds a rolling upgrade runs never
+    /// disagree about where a held account's message is; a trigger carries what an older build writes here onto
+    /// <see cref="FolderId" />. A later release removes it.
     /// </remarks>
     public Guid? LocalMailFolderId { get; set; }
 
-    public required MailFolderEntity MailFolder { get; set; }
+    public required MailFolderBindingEntity MailFolderBinding { get; set; }
+
+    /// <summary>Gets or sets the folder the message is in, which every folder-scoped read filters on.</summary>
+    /// <remarks>
+    /// One reference for every account in every custody phase: on a mirrored account the folder its occurrence's binding
+    /// binds, on a held account wherever the person or a rule put it. It replaces reading the folder from the binding
+    /// or from <see cref="LocalMailFolderId" />, both of which this release still writes for an older build to read.
+    /// See <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0039-one-folder-model-and-one-implementation-per-custody-phase.md">ADR 0039</see>.
+    /// </remarks>
+    public Guid FolderId { get; set; }
+
+    public MailFolderEntity Folder { get; set; } = null!;
 
     /// <summary>
     /// Gets or sets the UID space the remote occurrence was read in, or <see langword="null" /> where no mail server

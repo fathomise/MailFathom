@@ -149,7 +149,7 @@ public sealed class ClientMailBodyEndpointTests
         {
             StoredEmailId = StoredEmailId.Create(Message),
             AccountId = MailAccountId.Create("primary"),
-            FolderAlias = MailFolderAlias.Create("INBOX"),
+            Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
             Headers = new EmailContentHeaders(null, null, null, [], EmailThreadReferences.None),
             Body = EmailContentBody.EncryptedNotReadableLocally,
             Attachments = [],
@@ -211,7 +211,7 @@ public sealed class ClientMailBodyEndpointTests
         {
             StoredEmailId = StoredEmailId.Create(Message),
             AccountId = MailAccountId.Create("primary"),
-            FolderAlias = MailFolderAlias.Create("INBOX"),
+            Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
             Headers = new EmailContentHeaders(null, null, null, [], EmailThreadReferences.None),
             Body = EmailContentBody.Readable(
                 new EmailBodyRepresentation("Just words.", 11, EmailBodyTruncation.None),

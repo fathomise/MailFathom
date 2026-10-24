@@ -60,10 +60,12 @@ public sealed record MailboxScope
 
     private MailboxScope(
         IReadOnlyList<MailAccountId> accountIds,
-        IReadOnlyList<MailFolderIdentity> selectedFolders)
+        IReadOnlyList<MailFolderId> selectedFolders,
+        IReadOnlyList<MailFolderSpecialUse> selectedRoles)
     {
         this.AccountIds = accountIds;
         this.SelectedFolders = selectedFolders;
+        this.SelectedRoles = selectedRoles;
     }
 
     /// <summary>Gets the scope that names no account, no folder, and nothing readable.</summary>
@@ -82,28 +84,33 @@ public sealed record MailboxScope
     /// containment unconditionally for exactly that reason, and this scope names no folder as well.
     /// </para>
     /// </remarks>
-    public static MailboxScope NothingReadable { get; } = new([], []);
+    public static MailboxScope NothingReadable { get; } = new([], [], []);
 
     /// <summary>Gets the accounts the query is restricted to, deduplicated and ordered, or empty when the request named none.</summary>
     public IReadOnlyList<MailAccountId> AccountIds { get; }
 
-    /// <summary>Gets the folders the query is restricted to as account-and-alias pairs, deduplicated and ordered, or empty for every folder.</summary>
+    /// <summary>Gets the folders the query is restricted to by their identity, deduplicated and ordered.</summary>
     /// <remarks>
     /// <para>
-    /// A folder named by alias is paired with every account in scope, because an alias is the caller's own name and
-    /// means the same folder on each of them. A folder named by role is paired with the account that answered for it,
-    /// because a role means a different folder on each account: <c>role:Junk</c> across two accounts is two pairs
-    /// rather than two names either account might carry. Reading the aliases alone would admit a folder of the second
-    /// account that happens to share the first account's junk alias and plays no role at all — the same mistake
-    /// <c>AccountScopedMailFolders</c> exists to prevent on the admitting side.
+    /// A folder identity names one folder of one account, so it needs no pairing with the account that holds it: an
+    /// identity from an account outside <see cref="AccountIds" /> selects nothing, because the account containment is
+    /// composed whatever else narrows the query. That answer is the same one a folder holding no matching mail gives,
+    /// so naming a folder cannot tell a caller whether somebody else's folder exists.
     /// </para>
     /// <para>
-    /// An account of <see cref="AccountIds" /> that appears in no pair while the list is non-empty contributes nothing,
-    /// which is what an account mapping no folder for a named role means. That is why a query reads this against the
-    /// accounts in scope rather than against the pairs alone.
+    /// The query keeps a row in any folder this list names or in any folder playing a role <see cref="SelectedRoles" />
+    /// names; both empty selects every folder.
     /// </para>
     /// </remarks>
-    public IReadOnlyList<MailFolderIdentity> SelectedFolders { get; }
+    public IReadOnlyList<MailFolderId> SelectedFolders { get; }
+
+    /// <summary>Gets the roles whose folders the query is restricted to, deduplicated and ordered.</summary>
+    /// <remarks>
+    /// A role is read against each account's own folders, so <c>role:Junk</c> across two accounts is each account's own
+    /// junk folder. An account in scope with no folder playing the role contributes nothing, which is what a role it
+    /// does not have means.
+    /// </remarks>
+    public IReadOnlyList<MailFolderSpecialUse> SelectedRoles { get; }
 
     /// <summary>Gets the only folders a query built from this scope may return anything from, ordered, or empty when none may.</summary>
     /// <remarks>
@@ -169,8 +176,9 @@ public sealed record MailboxScope
 
     /// <summary>Creates the scope a query runs with, from identities already resolved against configuration.</summary>
     /// <param name="accountIds">The accounts the query runs against, which are the ones the caller's user is assigned when a request named none.</param>
-    /// <param name="selectedFolders">The folders the query runs against, one pair per account, with every role a request named already turned into the folder it means on that account, or <see langword="null" /> to name none.</param>
-    /// <returns>The scope, with both lists deduplicated and ordered.</returns>
+    /// <param name="selectedFolders">The folders the query runs against, or <see langword="null" /> to name none.</param>
+    /// <param name="selectedRoles">The roles whose folders the query runs against, or <see langword="null" /> to name none.</param>
+    /// <returns>The scope, with every list deduplicated and ordered.</returns>
     /// <remarks>
     /// No count limit applies to either list, and the two constants above say where the limits are enforced instead.
     /// Both lists are configuration read through a resolution rather than caller input: a deployment that serves more
@@ -179,7 +187,8 @@ public sealed record MailboxScope
     /// </remarks>
     public static MailboxScope Create(
         IEnumerable<MailAccountId>? accountIds,
-        IEnumerable<MailFolderIdentity>? selectedFolders)
+        IEnumerable<MailFolderId>? selectedFolders,
+        IEnumerable<MailFolderSpecialUse>? selectedRoles = null)
     {
         MailAccountId[] accounts =
         [
@@ -187,17 +196,12 @@ public sealed record MailboxScope
                 .DistinctBy(static accountId => accountId.Value, StringComparer.Ordinal)
                 .OrderBy(static accountId => accountId.Value, StringComparer.Ordinal),
         ];
-        MailFolderIdentity[] folders =
-        [
-            .. (selectedFolders ?? [])
-                .DistinctBy(static folder => (folder.AccountId.Value, folder.Alias.Value))
-                .OrderBy(static folder => folder.AccountId.Value, StringComparer.Ordinal)
-                .ThenBy(static folder => folder.Alias.Value, StringComparer.Ordinal),
-        ];
+        MailFolderId[] folders = [.. (selectedFolders ?? []).Distinct().OrderBy(static folder => folder.Value)];
+        MailFolderSpecialUse[] roles = [.. (selectedRoles ?? []).Distinct().Order()];
 
-        return accounts.Length is 0 && folders.Length is 0
+        return accounts.Length is 0 && folders.Length is 0 && roles.Length is 0
             ? NothingReadable
-            : new MailboxScope(accounts, folders);
+            : new MailboxScope(accounts, folders, roles);
     }
 
     /// <summary>Admits the folders configuration says a tool may read from, and nothing else.</summary>

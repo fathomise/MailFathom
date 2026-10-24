@@ -106,6 +106,8 @@ public sealed class MailFolderResolver
 
         if (currentResolution is { } binding && binding.RemotePath == advertisedPath)
         {
+            await this.ProjectFolderAsync(account, binding, mapping.SpecialUse, cancellationToken);
+
             return MailFolderResolutionResult.Resolved(binding);
         }
 
@@ -114,8 +116,83 @@ public sealed class MailFolderResolver
             : currentResolution.RepointedTo(advertisedPath);
 
         await this.RecordNewBindingAsync(account, currentResolution, newResolution, cancellationToken);
+        await this.ProjectFolderAsync(account, newResolution, mapping.SpecialUse, cancellationToken);
 
         return MailFolderResolutionResult.Resolved(newResolution);
+    }
+
+    /// <summary>Gives every folder a mirrored account declares a folder row, before any of them is synchronized.</summary>
+    /// <param name="account">The account the folders are declared on.</param>
+    /// <param name="mappings">Every folder the account declares, mirrored or not.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>A task that completes once every declared folder has a row.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="mappings" /> is <see langword="null" />.</exception>
+    /// <exception cref="PersistenceConcurrencyConflictException">Thrown when a competing run declared the same folder first.</exception>
+    /// <remarks>
+    /// A folder declared and not mirrored is never resolved by a run, and a reader still lists it and a person still
+    /// files mail into it, so it needs an identity before anything binds it. A declaration that already names a row
+    /// writes nothing.
+    /// </remarks>
+    public async Task DeclareFoldersAsync(
+        MailAccountId account,
+        IReadOnlyList<MailFolderMapping> mappings,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(mappings);
+
+        await using (var persistenceSession = await this.persistenceSessionFactory.BeginSessionAsync(cancellationToken))
+        {
+            if (!await this.resolutionStore.DeclareFoldersAsync(persistenceSession, account, mappings, cancellationToken))
+            {
+                return;
+            }
+
+            if (await persistenceSession.CommitAsync(cancellationToken) == PersistenceCommitResult.ConcurrencyConflict)
+            {
+                throw new PersistenceConcurrencyConflictException(
+                    $"The folders account {account.Value} declares were given rows by another writer before this run recorded its own.");
+            }
+        }
+
+        this.signals.Publish(ClientSignal.FoldersChanged(account));
+    }
+
+    /// <summary>Puts the row of a mirrored folder where a folder act just renamed or moved it on the server.</summary>
+    /// <param name="account">The account the folder belongs to.</param>
+    /// <param name="folderAlias">The alias of the folder the act renamed or moved.</param>
+    /// <param name="remotePath">Where the server advertises the folder now.</param>
+    /// <param name="role">The role configuration declares for the alias, or <see langword="null" /> for none.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>A task that completes once the row stands at the folder's new place.</returns>
+    /// <exception cref="PersistenceConcurrencyConflictException">Thrown when a competing run placed the same folder first.</exception>
+    public async Task PlaceFolderAsync(
+        MailAccountId account,
+        MailFolderAlias folderAlias,
+        RemoteFolderPath remotePath,
+        MailFolderSpecialUse? role,
+        CancellationToken cancellationToken)
+    {
+        await using (var persistenceSession = await this.persistenceSessionFactory.BeginSessionAsync(cancellationToken))
+        {
+            if (!await this.resolutionStore.PlaceFolderAsync(
+                persistenceSession,
+                account,
+                folderAlias,
+                remotePath,
+                role,
+                cancellationToken))
+            {
+                return;
+            }
+
+            if (await persistenceSession.CommitAsync(cancellationToken) == PersistenceCommitResult.ConcurrencyConflict)
+            {
+                throw new PersistenceConcurrencyConflictException(
+                    $"The folder {folderAlias.Value} of account {account.Value} was placed by another writer before this act recorded its own place.");
+            }
+        }
+
+        this.signals.Publish(ClientSignal.FoldersChanged(account));
     }
 
     /// <summary>Creates the folder a mapping asked to have created, and reports nothing for a mapping that asked for none.</summary>
@@ -195,6 +272,35 @@ public sealed class MailFolderResolver
         return foldersCarryingTheRole.Count > 0 || role != MailFolderSpecialUse.Inbox
             ? foldersCarryingTheRole
             : [.. advertisedFolders.Where(folder => folder.Path.Value == MandatoryInboxPath)];
+    }
+
+    /// <summary>Brings the folder row the alias names into the shape its binding gives it, before any mail is stored under the binding.</summary>
+    /// <remarks>
+    /// Run on every resolution rather than only on a new binding, because what shapes the row is more than the binding:
+    /// a declared role can change with no folder moving, and an ancestor declared later is adopted only on a pass that
+    /// looks. A folder already in shape costs two reads and writes nothing.
+    /// </remarks>
+    private async Task ProjectFolderAsync(
+        MailAccountId account,
+        MailFolderResolution resolution,
+        MailFolderSpecialUse? role,
+        CancellationToken cancellationToken)
+    {
+        await using (var persistenceSession = await this.persistenceSessionFactory.BeginSessionAsync(cancellationToken))
+        {
+            if (!await this.resolutionStore.ProjectFolderAsync(persistenceSession, account, resolution, role, cancellationToken))
+            {
+                return;
+            }
+
+            if (await persistenceSession.CommitAsync(cancellationToken) == PersistenceCommitResult.ConcurrencyConflict)
+            {
+                throw new PersistenceConcurrencyConflictException(
+                    $"The folder alias {resolution.Alias.Value} names was projected by another writer before this run recorded its own.");
+            }
+        }
+
+        this.signals.Publish(ClientSignal.FoldersChanged(account));
     }
 
     private async Task RecordNewBindingAsync(

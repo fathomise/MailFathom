@@ -2563,11 +2563,11 @@
       },
       "ClientMailFolderResponse": {
         "properties": {
-          "alias": {
-            "type": "string"
-          },
           "behind": {
             "type": "boolean"
+          },
+          "id": {
+            "type": "string"
           },
           "lastSynchronizedAt": {
             "format": "date-time",
@@ -2597,7 +2597,10 @@
             ]
           },
           "synchronizationState": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "unreadEmailCount": {
             "format": "int32",
@@ -2609,7 +2612,7 @@
           }
         },
         "required": [
-          "alias",
+          "id",
           "role",
           "path",
           "storedEmailCount",

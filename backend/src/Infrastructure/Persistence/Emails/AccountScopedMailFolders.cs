@@ -42,7 +42,9 @@ internal static class AccountScopedMailFolders
         foreach (var (accountId, aliases) in AliasesByAccount(excluded))
         {
             emails = emails.Where(email =>
-                email.MailboxAccountId != accountId || !aliases.Contains(email.MailFolder.Alias));
+                email.MailboxAccountId != accountId
+                || email.Folder.Alias == null
+                || !aliases.Contains(email.Folder.Alias));
         }
 
         return emails;
@@ -52,8 +54,8 @@ internal static class AccountScopedMailFolders
     /// <param name="folders">The bindings to narrow.</param>
     /// <param name="excluded">The folders to leave out, empty for none.</param>
     /// <returns>The narrowed query, which PostgreSQL evaluates in full.</returns>
-    internal static IQueryable<MailFolderEntity> Excluding(
-        IQueryable<MailFolderEntity> folders,
+    internal static IQueryable<MailFolderBindingEntity> Excluding(
+        IQueryable<MailFolderBindingEntity> folders,
         IReadOnlyList<MailFolderIdentity> excluded)
     {
         foreach (var (accountId, aliases) in AliasesByAccount(excluded))
@@ -70,7 +72,7 @@ internal static class AccountScopedMailFolders
     /// <param name="admitted">The folders a read may return mail from, empty when none may.</param>
     /// <returns>The narrowed query, which PostgreSQL evaluates in full.</returns>
     /// <remarks>
-    /// The same shape as <see cref="Selecting(IQueryable{StoredEmailEntity}, IReadOnlyList{MailFolderIdentity})" /> and
+    /// The same shape as <see cref="Selecting(IQueryable{StoredEmailEntity}, IReadOnlyList{MailFolderId}, IReadOnlyList{MailFolderSpecialUse})" /> and
     /// one difference that is the whole point of having two: an empty list admits nothing rather than everything. A
     /// caller's folder filter is absent when they named no folder, and configuration's admission is empty when the
     /// deployment maps no folder a tool may read — which has to mean no mail rather than all of it, since the store
@@ -86,7 +88,9 @@ internal static class AccountScopedMailFolders
         foreach (var (accountId, aliases) in AliasesByAccount(admitted))
         {
             emails = emails.Where(email =>
-                email.MailboxAccountId != accountId || aliases.Contains(email.MailFolder.Alias));
+                email.MailboxAccountId != accountId
+                || email.Folder.Alias == null
+                || aliases.Contains(email.Folder.Alias));
         }
 
         return emails;
@@ -96,8 +100,8 @@ internal static class AccountScopedMailFolders
     /// <param name="folders">The bindings to narrow.</param>
     /// <param name="admitted">The folders a read may report on, empty when none may.</param>
     /// <returns>The narrowed query, which PostgreSQL evaluates in full.</returns>
-    internal static IQueryable<MailFolderEntity> Admitting(
-        IQueryable<MailFolderEntity> folders,
+    internal static IQueryable<MailFolderBindingEntity> Admitting(
+        IQueryable<MailFolderBindingEntity> folders,
         IReadOnlyList<MailFolderIdentity> admitted)
     {
         var admittedAccounts = AccountsOf(admitted);
@@ -112,59 +116,107 @@ internal static class AccountScopedMailFolders
         return folders;
     }
 
-    /// <summary>Narrows stored emails to the folders a scope selected, each within the account that selected it.</summary>
+    /// <summary>Narrows stored emails to the folders a scope selected, by their identity or by the role they play.</summary>
     /// <param name="emails">The emails to narrow.</param>
-    /// <param name="selected">The folders to keep, empty when the request named none.</param>
+    /// <param name="selectedFolders">The folders to keep, empty when the request named none.</param>
+    /// <param name="selectedRoles">The roles whose folders to keep, empty when the request named none.</param>
     /// <returns>The narrowed query, which PostgreSQL evaluates in full.</returns>
     /// <remarks>
-    /// Two statements rather than one: the accounts that selected something at all, then one clause per such account
-    /// keeping its own aliases. The first is what makes an account of the scope that selected no folder admit nothing,
-    /// which is what an account mapping no folder for a requested role has to mean, and it is also what keeps this
-    /// narrowing from depending on a caller having applied the account filter first. The second is the same implication
-    /// the exclusions above are written as, and composes the same way, because a row belongs to one account and
-    /// therefore meets exactly one non-vacuous clause.
+    /// A folder identity names one account's folder, so it needs no account clause of its own; a role is read against
+    /// the role each account's own folder plays. Both empty keeps every folder.
     /// </remarks>
     internal static IQueryable<StoredEmailEntity> Selecting(
         IQueryable<StoredEmailEntity> emails,
-        IReadOnlyList<MailFolderIdentity> selected)
+        IReadOnlyList<MailFolderId> selectedFolders,
+        IReadOnlyList<MailFolderSpecialUse> selectedRoles)
     {
-        if (selected.Count == 0)
+        if (selectedFolders.Count == 0 && selectedRoles.Count == 0)
         {
             return emails;
         }
 
-        var selectedAccounts = AccountsOf(selected);
-        emails = emails.Where(email => selectedAccounts.Contains(email.MailboxAccountId));
+        var folderIds = FolderIdsOf(selectedFolders);
+        MailFolderSpecialUse?[] roles = [.. selectedRoles.Select(static role => (MailFolderSpecialUse?)role)];
 
-        foreach (var (accountId, aliases) in AliasesByAccount(selected))
-        {
-            emails = emails.Where(email =>
-                email.MailboxAccountId != accountId || aliases.Contains(email.MailFolder.Alias));
-        }
-
-        return emails;
+        return emails.Where(email => folderIds.Contains(email.FolderId) || roles.Contains(email.Folder.Role));
     }
 
     /// <summary>Narrows folder bindings to the folders a scope selected, read the same way as above.</summary>
     /// <param name="folders">The bindings to narrow.</param>
-    /// <param name="selected">The folders to keep, empty when the request named none.</param>
+    /// <param name="selectedFolders">The folders to keep, empty when the request named none.</param>
+    /// <param name="selectedRoles">The roles whose folders to keep, empty when the request named none.</param>
     /// <returns>The narrowed query, which PostgreSQL evaluates in full.</returns>
-    internal static IQueryable<MailFolderEntity> Selecting(
-        IQueryable<MailFolderEntity> folders,
-        IReadOnlyList<MailFolderIdentity> selected)
+    internal static IQueryable<MailFolderBindingEntity> Selecting(
+        IQueryable<MailFolderBindingEntity> folders,
+        IReadOnlyList<MailFolderId> selectedFolders,
+        IReadOnlyList<MailFolderSpecialUse> selectedRoles)
     {
-        if (selected.Count == 0)
+        if (selectedFolders.Count == 0 && selectedRoles.Count == 0)
         {
             return folders;
         }
 
-        var selectedAccounts = AccountsOf(selected);
-        folders = folders.Where(folder => selectedAccounts.Contains(folder.MailboxAccountId));
+        Guid?[] folderIds = [.. FolderIdsOf(selectedFolders).Select(static id => (Guid?)id)];
+        MailFolderSpecialUse?[] roles = [.. selectedRoles.Select(static role => (MailFolderSpecialUse?)role)];
 
-        foreach (var (accountId, aliases) in AliasesByAccount(selected))
+        return folders.Where(folder => folderIds.Contains(folder.FolderId)
+            || (folder.Folder != null && roles.Contains(folder.Folder.Role)));
+    }
+
+    /// <summary>Narrows folder rows to the folders a scope selected, read the same way as above.</summary>
+    /// <param name="folders">The folder rows to narrow.</param>
+    /// <param name="selectedFolders">The folders to keep, empty when the request named none.</param>
+    /// <param name="selectedRoles">The roles whose folders to keep, empty when the request named none.</param>
+    /// <returns>The narrowed query, which PostgreSQL evaluates in full.</returns>
+    internal static IQueryable<MailFolderEntity> Selecting(
+        IQueryable<MailFolderEntity> folders,
+        IReadOnlyList<MailFolderId> selectedFolders,
+        IReadOnlyList<MailFolderSpecialUse> selectedRoles)
+    {
+        if (selectedFolders.Count == 0 && selectedRoles.Count == 0)
+        {
+            return folders;
+        }
+
+        var folderIds = FolderIdsOf(selectedFolders);
+        MailFolderSpecialUse?[] roles = [.. selectedRoles.Select(static role => (MailFolderSpecialUse?)role)];
+
+        return folders.Where(folder => folderIds.Contains(folder.Id) || roles.Contains(folder.Role));
+    }
+
+    /// <summary>Narrows folder rows to the folders configuration admits, read the way stored emails are.</summary>
+    /// <param name="folders">The folder rows to narrow.</param>
+    /// <param name="admitted">The folders a read may report on, empty when none may.</param>
+    /// <returns>The narrowed query, which PostgreSQL evaluates in full.</returns>
+    /// <remarks>A folder no declaration names is admitted on an admitted account, because no setting withholds it.</remarks>
+    internal static IQueryable<MailFolderEntity> Admitting(
+        IQueryable<MailFolderEntity> folders,
+        IReadOnlyList<MailFolderIdentity> admitted)
+    {
+        var admittedAccounts = AccountsOf(admitted);
+        folders = folders.Where(folder => admittedAccounts.Contains(folder.MailboxAccountId));
+
+        foreach (var (accountId, aliases) in AliasesByAccount(admitted))
         {
             folders = folders.Where(folder =>
-                folder.MailboxAccountId != accountId || aliases.Contains(folder.Alias));
+                folder.MailboxAccountId != accountId || folder.Alias == null || aliases.Contains(folder.Alias));
+        }
+
+        return folders;
+    }
+
+    /// <summary>Narrows folder rows to the ones outside the excluded folders.</summary>
+    /// <param name="folders">The folder rows to narrow.</param>
+    /// <param name="excluded">The folders to leave out, empty for none.</param>
+    /// <returns>The narrowed query, which PostgreSQL evaluates in full.</returns>
+    internal static IQueryable<MailFolderEntity> Excluding(
+        IQueryable<MailFolderEntity> folders,
+        IReadOnlyList<MailFolderIdentity> excluded)
+    {
+        foreach (var (accountId, aliases) in AliasesByAccount(excluded))
+        {
+            folders = folders.Where(folder =>
+                folder.MailboxAccountId != accountId || folder.Alias == null || !aliases.Contains(folder.Alias));
         }
 
         return folders;
@@ -181,6 +233,9 @@ internal static class AccountScopedMailFolders
         string folderAlias) => decided.Any(folder =>
             StringComparer.Ordinal.Equals(folder.AccountId.Value, accountId)
             && StringComparer.Ordinal.Equals(folder.Alias.Value, folderAlias));
+
+    private static Guid[] FolderIdsOf(IReadOnlyList<MailFolderId> folders) =>
+        [.. folders.Select(static folder => folder.Value)];
 
     private static string[] AccountsOf(IReadOnlyList<MailFolderIdentity> folders) =>
     [

@@ -40,12 +40,12 @@ internal sealed class LocalEmailStateStore(TimeProvider timeProvider) : ILocalEm
         }
 
         return new LocalEmailState(
-            MailFolderEntityResolver.ToResolution(row.MailFolder),
+            MailFolderBindingResolver.ToResolution(row.MailFolderBinding),
 
             // Both columns are cleared together when the drain observes its expunge, so either one answers; reading the
             // UID alone would say nothing about which UIDVALIDITY it belonged to.
             row is { UidValidity: not null, Uid: not null },
-            row.LocalMailFolderId is { } folder ? LocalMailFolderId.Create(folder) : null,
+            MailFolderId.Create(row.FolderId),
             row.IsRemotelySeen,
             row.IsRemotelyFlagged,
             RemoteEmailKeywords.Create(row.RemoteKeywords));
@@ -64,7 +64,11 @@ internal sealed class LocalEmailStateStore(TimeProvider timeProvider) : ILocalEm
         var row = await FindAsync(session, account, email, cancellationToken)
             ?? throw new InvalidOperationException("A held account's change is written only to a message its own read found.");
 
-        row.LocalMailFolderId = state.Folder?.Value;
+        if (state.Folder is { } folder)
+        {
+            row.FolderId = folder.Value;
+            row.LocalMailFolderId = folder.Value;
+        }
         row.IsRemotelySeen = state.IsSeen;
         row.IsRemotelyFlagged = state.IsFlagged;
         row.RemoteKeywords = [.. state.Keywords.Values];
@@ -110,7 +114,7 @@ internal sealed class LocalEmailStateStore(TimeProvider timeProvider) : ILocalEm
         var accountId = account.Value;
 
         return await sessionContext.StoredEmails
-            .Include(static row => row.MailFolder)
+            .Include(static row => row.MailFolderBinding)
             .Where(row => row.Id == emailId && row.MailboxAccountId == accountId)
             .Where(StoredEmailTombstone.IsNotTombstoned)
             .SingleOrDefaultAsync(cancellationToken);

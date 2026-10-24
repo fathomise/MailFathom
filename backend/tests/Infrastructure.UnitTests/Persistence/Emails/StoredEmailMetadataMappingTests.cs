@@ -641,7 +641,7 @@ public sealed class StoredEmailMetadataMappingTests
     {
         Id = Guid.CreateVersion7(),
         MailboxAccountId = "primary",
-        MailFolder = new MailFolderEntity
+        MailFolderBinding = new MailFolderBindingEntity
         {
             MailboxAccountId = "primary",
             Alias = "inbox",

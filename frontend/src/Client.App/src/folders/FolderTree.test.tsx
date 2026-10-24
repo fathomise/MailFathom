@@ -46,7 +46,7 @@ const tree = {
             },
             folders: [
                 {
-                    alias: 'INBOX',
+                    id: 'INBOX',
                     role: 'Inbox',
                     path: ['Odebrane'],
                     storedEmailCount: 4213,
@@ -56,7 +56,7 @@ const tree = {
                     behind: false,
                 },
                 {
-                    alias: 'ARCHIVE',
+                    id: 'ARCHIVE',
                     role: 'Archive',
                     path: ['Archive'],
                     storedEmailCount: 3100,
@@ -66,7 +66,7 @@ const tree = {
                     behind: false,
                 },
                 {
-                    alias: 'ARCHIWUM',
+                    id: 'ARCHIWUM',
                     role: null,
                     path: ['Archiwum'],
                     storedEmailCount: 1200,
@@ -76,7 +76,7 @@ const tree = {
                     behind: false,
                 },
                 {
-                    alias: 'ARCHIWUM/2024',
+                    id: 'ARCHIWUM/2024',
                     role: null,
                     path: ['Archiwum', '2024'],
                     storedEmailCount: 980,
@@ -97,7 +97,7 @@ const tree = {
             },
             folders: [
                 {
-                    alias: 'INBOX',
+                    id: 'INBOX',
                     role: 'Inbox',
                     path: ['INBOX'],
                     storedEmailCount: 50,
@@ -112,8 +112,8 @@ const tree = {
 };
 
 // What the service says may be done in each mailbox, which the column reads beside the tree and which is what draws an
-// act on a row at all. Each folder is named by the identity the tree above draws as an alias, that being the one join
-// the client is given between the two routes.
+// act on a row at all. Each folder is named by the identity the tree above names it by, that being the one join the
+// client is given between the two routes.
 //
 // It is stated as the client reads it back, and the answer the deployment gives is composed from it below rather than
 // written a second time in the service's own casing: what that casing comes to is `Client.Backend`'s to prove, and a
@@ -522,7 +522,7 @@ describe('FolderTree', () => {
         await drawn();
         fireEvent.click(row(/^Work/));
 
-        expect(carried().scope).toEqual({ kind: 'folder', accountId: 'work', alias: 'INBOX' });
+        expect(carried().scope).toEqual({ kind: 'folder', accountId: 'work', folderId: 'INBOX' });
         expect(row(/^Inbox12 unread/).getAttribute('aria-selected')).toBe('true');
     });
 
@@ -534,7 +534,7 @@ describe('FolderTree', () => {
         expect(screen.queryByRole('treeitem', { name: /^All mailboxes/ })).toBeNull();
 
         await waitFor(() => {
-            expect(carried().scope).toEqual({ kind: 'folder', accountId: 'work', alias: 'INBOX' });
+            expect(carried().scope).toEqual({ kind: 'folder', accountId: 'work', folderId: 'INBOX' });
         });
 
         expect(row(/^Inbox12 unread/).getAttribute('aria-selected')).toBe('true');
@@ -559,14 +559,14 @@ describe('FolderTree', () => {
         await drawn();
         fireEvent.click(row(/^Inbox12 unread/));
 
-        expect(carried().scope).toEqual({ kind: 'folder', accountId: 'work', alias: 'INBOX' });
+        expect(carried().scope).toEqual({ kind: 'folder', accountId: 'work', folderId: 'INBOX' });
     });
 
     // What is scoped to outlives the answer it was chosen from, so the answer is also what says whether it is still
     // there. Seeded through the store rather than clicked, because a folder a reader could click is by definition one
     // the tree is still drawing.
     it.each<{ gone: string; gap: Workspace['scope'] }>([
-        { gone: 'a folder', gap: { kind: 'folder', accountId: 'work', alias: 'ARCHIVE-2019' } },
+        { gone: 'a folder', gap: { kind: 'folder', accountId: 'work', folderId: 'ARCHIVE-2019' } },
         { gone: 'a mailbox', gap: { kind: 'account', accountId: 'retired' } },
         { gone: 'the last folder playing a role', gap: { kind: 'role', role: 'Junk' } },
     ])('opens on the inbox where what was scoped to is $gone the deployment no longer offers', async ({ gap }) => {
@@ -583,7 +583,7 @@ describe('FolderTree', () => {
     });
 
     it('leaves a scope the deployment still offers exactly where it was', async () => {
-        const kept: Workspace['scope'] = { kind: 'folder', accountId: 'work', alias: 'ARCHIVE' };
+        const kept: Workspace['scope'] = { kind: 'folder', accountId: 'work', folderId: 'ARCHIVE' };
 
         window.sessionStorage.setItem('mailfathom.workspace', JSON.stringify({ ...emptyWorkspace, scope: kept }));
         renderTree(answering(JSON.stringify(tree)));
@@ -647,7 +647,7 @@ describe('FolderTree', () => {
             inbox.focus();
             fireEvent.keyDown(inbox, { key });
 
-            expect(carried().scope).toEqual({ kind: 'folder', accountId: 'work', alias: 'INBOX' });
+            expect(carried().scope).toEqual({ kind: 'folder', accountId: 'work', folderId: 'INBOX' });
         },
     );
 
@@ -737,7 +737,7 @@ describe('FolderTree', () => {
         fireEvent.keyDown(row(/^Archiwum/), { key: 'ArrowRight' });
         fireEvent.click(row(/^2024/));
 
-        expect(carried().scope).toEqual({ kind: 'folder', accountId: 'work', alias: 'ARCHIWUM/2024' });
+        expect(carried().scope).toEqual({ kind: 'folder', accountId: 'work', folderId: 'ARCHIWUM/2024' });
     });
 
     it('keeps what has been folded away in the workspace, so it survives moving between the spaces', async () => {
@@ -1081,8 +1081,8 @@ describe('FolderTree, under a drag carrying messages', () => {
             accountName: 'Work',
             ordinal: 1,
             destinations: [
-                { alias: 'INBOX', name: 'INBOX', role: 'Inbox' },
-                { alias: 'ARCHIWUM', name: 'Archiwum', role: null },
+                { folderId: 'INBOX', name: 'INBOX', role: 'Inbox' },
+                { folderId: 'ARCHIWUM', name: 'Archiwum', role: null },
             ],
         },
     ];
@@ -1128,7 +1128,7 @@ describe('FolderTree, under a drag carrying messages', () => {
         fireEvent.drop(row(/^Archiwum/));
 
         expect(perform).toHaveBeenCalledWith('move', fromWorkInbox, {
-            alias: 'ARCHIWUM',
+            folderId: 'ARCHIWUM',
             name: 'Archiwum',
             role: null,
         });
@@ -1143,7 +1143,7 @@ describe('FolderTree, under a drag carrying messages', () => {
         const intoTrash: readonly MoveDestinationGroup[] = workFolders.map((group) => ({
             ...group,
             destinations: group.destinations.map((destination) =>
-                destination.alias === 'ARCHIWUM' ? { ...destination, role: 'Trash' as const } : destination,
+                destination.folderId === 'ARCHIWUM' ? { ...destination, role: 'Trash' as const } : destination,
             ),
         }));
 

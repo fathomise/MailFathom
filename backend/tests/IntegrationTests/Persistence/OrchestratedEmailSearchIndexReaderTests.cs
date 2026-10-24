@@ -386,7 +386,7 @@ public sealed class OrchestratedEmailSearchIndexReaderTests(MailFathomOrchestrat
                 .StoredEmails
                 .AsNoTracking()
                 .CountAsync(
-                    email => email.MailFolder.Alias == alias && email.MailFolder.ResolutionGeneration == generation,
+                    email => email.MailFolderBinding.Alias == alias && email.MailFolderBinding.ResolutionGeneration == generation,
                     token),
             cancellationToken);
     }

@@ -710,7 +710,7 @@ public sealed class MailThreadBrowserTests
         {
             StoredEmailId = StoredEmailId.Create(new Guid($"00000000-0000-0000-0000-{ordinal:D12}")),
             AccountId = accountId ?? Account,
-            FolderAlias = folderAlias,
+            Folder = SyntheticEmailSummaries.FolderOf((accountId ?? Account).Value, folderAlias.Value),
             ParentStoredEmailId = answers?.StoredEmailId,
             Subject = $"Message {ordinal}",
             SentAt = DateTimeOffset.Parse(sentAt, null),
@@ -722,7 +722,7 @@ public sealed class MailThreadBrowserTests
         message.SentAt,
         message.StoredEmailId.Value,
         message.AccountId.Value,
-        message.FolderAlias.Value,
+        message.Folder.Path,
         message.Subject,
         message.SenderAddress) with
     {

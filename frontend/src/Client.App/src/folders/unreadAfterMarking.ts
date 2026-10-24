@@ -47,7 +47,7 @@ export function unreadAfterMarking(
                 // Floored at nothing rather than trusted to stay positive: a folder synchronized between the marking
                 // and this read already reports the message as read, and subtracting again would count it twice.
                 unreadEmailCount: Math.max(
-                    folder.unreadEmailCount - (markedPerFolder.get(folderKey(entry.account.id, folder.alias)) ?? 0),
+                    folder.unreadEmailCount - (markedPerFolder.get(folderKey(entry.account.id, folder.id)) ?? 0),
                     0,
                 ),
             })),
@@ -58,8 +58,8 @@ export function unreadAfterMarking(
 // A message is placed by its account and its folder together, because two mailboxes name a folder the same way and a
 // key that collided would take one account's reading off the other's count. The separator is written as an escape
 // rather than as the byte, which the repository refuses in a tracked file: a literal one makes the source binary to
-// `grep` and to `git diff`. It is that byte rather than a space or a slash because a mail server's folder alias may
-// carry either, and a separator a name can contain is a separator two different pairs can spell the same way.
+// `grep` and to `git diff`. It is that byte rather than a space or a slash because an account identifier may carry
+// either, and a separator a name can contain is a separator two different pairs can spell the same way.
 function folderKey(account: string, folder: string): string {
     return `${account}\u0000${folder}`;
 }

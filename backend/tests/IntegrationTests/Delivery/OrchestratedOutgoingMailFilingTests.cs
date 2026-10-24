@@ -288,7 +288,7 @@ public sealed class OrchestratedOutgoingMailFilingTests(MailFathomOrchestrationF
             async (scope, token) => (IReadOnlyList<StoredCopy>)await scope.GetRequiredService<MailFathomDbContext>()
                 .StoredEmails
                 .AsNoTracking()
-                .Where(storedEmail => storedEmail.MailFolder.Alias == FiledCopyFolder.Alias.Value)
+                .Where(storedEmail => storedEmail.MailFolderBinding.Alias == FiledCopyFolder.Alias.Value)
                 .Select(storedEmail => new StoredCopy(
                     storedEmail.Id,
                     storedEmail.Subject,

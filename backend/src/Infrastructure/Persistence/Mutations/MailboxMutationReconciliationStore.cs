@@ -68,7 +68,7 @@ internal sealed partial class MailboxMutationReconciliationStore(
 
         var entities = await readContext.MailboxMutations
             .AsNoTracking()
-            .Include(mutation => mutation.MailFolder)
+            .Include(mutation => mutation.MailFolderBinding)
             .Where(mutation => mutation.MailboxAccountId == accountValue
                 && placingMutations.Contains(mutation.Mutation)
                 && mutation.Stage == MailboxMutationStage.Completed
@@ -80,7 +80,7 @@ internal sealed partial class MailboxMutationReconciliationStore(
             .ThenBy(mutation => mutation.Id)
             .ToArrayAsync(cancellationToken);
 
-        return [.. entities.Select(static entity => MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolder))];
+        return [.. entities.Select(static entity => MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding))];
     }
 
     /// <inheritdoc />
@@ -123,8 +123,8 @@ internal sealed partial class MailboxMutationReconciliationStore(
         var storedValues = await readContext.MailboxMutations
             .AsNoTracking()
             .Where(mutation => mutation.MailboxAccountId == accountValue
-                && mutation.MailFolder.Alias == alias
-                && mutation.MailFolder.ResolutionGeneration == generation
+                && mutation.MailFolderBinding.Alias == alias
+                && mutation.MailFolderBinding.ResolutionGeneration == generation
                 && mutation.UidValidity == uidValidityValue
                 && changedUids.Contains(mutation.Uid)
                 && FlagWritingMutationNames.Contains(mutation.Mutation)
@@ -143,7 +143,7 @@ internal sealed partial class MailboxMutationReconciliationStore(
                     .OrderByDescending(mutation => mutation.StageChangedAt)
                     .ThenByDescending(mutation => mutation.Id)
                     .Take(probed)
-                    .Select(mutation => new { Mutation = mutation, Folder = mutation.MailFolder }),
+                    .Select(mutation => new { Mutation = mutation, Folder = mutation.MailFolderBinding }),
             })
             .ToArrayAsync(cancellationToken);
 
@@ -194,10 +194,10 @@ internal sealed partial class MailboxMutationReconciliationStore(
 
         var entities = await readContext.MailboxMutations
             .AsNoTracking()
-            .Include(mutation => mutation.MailFolder)
+            .Include(mutation => mutation.MailFolderBinding)
             .Where(mutation => mutation.MailboxAccountId == accountValue
-                && mutation.MailFolder.Alias == alias
-                && mutation.MailFolder.ResolutionGeneration == generation
+                && mutation.MailFolderBinding.Alias == alias
+                && mutation.MailFolderBinding.ResolutionGeneration == generation
                 && mutation.UidValidity == uidValidityValue
                 && sourceUids.Contains(mutation.Uid)
                 && removingMutations.Contains(mutation.Mutation))
@@ -205,7 +205,7 @@ internal sealed partial class MailboxMutationReconciliationStore(
             .ThenBy(mutation => mutation.Id)
             .ToArrayAsync(cancellationToken);
 
-        return [.. entities.Select(static entity => MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolder))];
+        return [.. entities.Select(static entity => MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding))];
     }
 
     /// <inheritdoc />
@@ -260,10 +260,10 @@ internal sealed partial class MailboxMutationReconciliationStore(
 
         var entities = await readContext.MailboxMutations
             .AsNoTracking()
-            .Include(mutation => mutation.MailFolder)
+            .Include(mutation => mutation.MailFolderBinding)
             .Where(mutation => mutation.MailboxAccountId == accountValue
-                && mutation.MailFolder.Alias == alias
-                && mutation.MailFolder.ResolutionGeneration == generation
+                && mutation.MailFolderBinding.Alias == alias
+                && mutation.MailFolderBinding.ResolutionGeneration == generation
                 && mutation.UidValidity == uidValidityValue
                 && mutation.Mutation == deleteName
                 && mutation.ServerDisposition == AuthoredDeleteServerDisposition.FlagDeleted
@@ -275,7 +275,7 @@ internal sealed partial class MailboxMutationReconciliationStore(
             .Take(maxRecordCount)
             .ToArrayAsync(cancellationToken);
 
-        return [.. entities.Select(static entity => MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolder))];
+        return [.. entities.Select(static entity => MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding))];
     }
 
     /// <inheritdoc />

@@ -19,10 +19,10 @@ namespace MailFathom.Application.UnitTests.TestDoubles;
 /// </remarks>
 internal sealed class InMemoryLocalMailFolderStore : ILocalMailFolderStore
 {
-    private readonly Dictionary<LocalMailFolderId, LocalMailFolder> folders = [];
-    private readonly HashSet<LocalMailFolderId> erased = [];
+    private readonly Dictionary<MailFolderId, LocalMailFolder> folders = [];
+    private readonly HashSet<MailFolderId> erased = [];
     private readonly HashSet<MailFolderAlias> erasedSourceAliases = [];
-    private readonly Dictionary<StoredEmailId, LocalMailFolderId> placements = [];
+    private readonly Dictionary<StoredEmailId, MailFolderId> placements = [];
     private readonly List<StoredEmailId> erasedEmails = [];
 
     internal InMemoryLocalMailFolderStore(MailAccountId account, MailAccountCustodyPhase phase)
@@ -38,13 +38,16 @@ internal sealed class InMemoryLocalMailFolderStore : ILocalMailFolderStore
 
     internal IReadOnlyCollection<LocalMailFolder> Folders => this.folders.Values;
 
-    internal IReadOnlyCollection<LocalMailFolderId> Erased => this.erased;
+    internal IReadOnlyCollection<MailFolderId> Erased => this.erased;
 
-    internal IReadOnlyDictionary<StoredEmailId, LocalMailFolderId> Placements => this.placements;
+    internal IReadOnlyDictionary<StoredEmailId, MailFolderId> Placements => this.placements;
 
     internal IReadOnlyList<StoredEmailId> ErasedEmails => this.erasedEmails;
 
     internal int SaveCount { get; private set; }
+
+    /// <summary>Gives the account a folder row outside any act, as synchronization's projection of the source would.</summary>
+    internal void Add(LocalMailFolder folder) => this.folders[folder.Id] = folder;
 
     public Task<LocalMailFolderHolding?> ReadAsync(
         IPersistenceSession session,
@@ -59,11 +62,14 @@ internal sealed class InMemoryLocalMailFolderStore : ILocalMailFolderStore
                 : new LocalMailFolderHolding(this.Phase, [], [])
             : null);
 
+    public Task<IReadOnlyList<LocalMailFolder>> ReadFoldersAsync(MailAccountId account, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<LocalMailFolder>>(account == this.Account ? [.. this.folders.Values] : []);
+
     public Task SaveAsync(
         IPersistenceSession session,
         MailAccountId account,
         IReadOnlyCollection<LocalMailFolder> saved,
-        IReadOnlyCollection<LocalMailFolderId> erased,
+        IReadOnlyCollection<MailFolderId> erased,
         CancellationToken cancellationToken)
     {
         if (account != this.Account)
@@ -95,7 +101,7 @@ internal sealed class InMemoryLocalMailFolderStore : ILocalMailFolderStore
         IPersistenceSession session,
         MailAccountId account,
         StoredEmailId email,
-        LocalMailFolderId folder,
+        MailFolderId folder,
         CancellationToken cancellationToken)
     {
         if (account == this.Account)
@@ -106,11 +112,8 @@ internal sealed class InMemoryLocalMailFolderStore : ILocalMailFolderStore
         return Task.CompletedTask;
     }
 
-    /// <summary>
-    /// Erases a placed message, answering with the placed folder's source alias, or its name where it has none, because
-    /// this double keeps no stored rows to read a binding off; a test reads which message went rather than the alias.
-    /// </summary>
-    public Task<MailFolderAlias?> EraseEmailAsync(
+    /// <summary>Erases a placed message, answering with the folder it was placed in.</summary>
+    public Task<MailFolderId?> EraseEmailAsync(
         IPersistenceSession session,
         MailAccountId account,
         StoredEmailId email,
@@ -118,14 +121,12 @@ internal sealed class InMemoryLocalMailFolderStore : ILocalMailFolderStore
     {
         if (account != this.Account || !this.placements.Remove(email, out var placedIn))
         {
-            return Task.FromResult<MailFolderAlias?>(null);
+            return Task.FromResult<MailFolderId?>(null);
         }
 
         this.erasedEmails.Add(email);
 
-        var folder = this.folders[placedIn];
-
-        return Task.FromResult<MailFolderAlias?>(folder.SourceFolderAlias ?? MailFolderAlias.Create(folder.Name.Value));
+        return Task.FromResult<MailFolderId?>(placedIn);
     }
 
     public Task<LocalMailFolderMailErasure> EraseMailOfErasedFoldersAsync(

@@ -516,7 +516,7 @@ public sealed class LocalMailFolderTreeTests
         Assert.Empty(toInbox.Saved);
     }
 
-    private static LocalMailFolderId Mint() => LocalMailFolderId.Create(Guid.NewGuid());
+    private static MailFolderId Mint() => MailFolderId.Create(Guid.NewGuid());
 
     private static LocalMailFolder Ordinary(string name) =>
         new(Mint(), ParentId: null, LocalMailFolderName.Create(name), Role: null, SourceFolderAlias: null);
@@ -546,6 +546,6 @@ public sealed class LocalMailFolderTreeTests
             Array.Empty<LocalMailFolder>(),
             static (chain, level) => [.. chain, Ordinary($"Level {level}") with { ParentId = chain.LastOrDefault()?.Id }]);
 
-    private static LocalMailFolderId InboxOf(LocalMailFolderTree tree) =>
+    private static MailFolderId InboxOf(LocalMailFolderTree tree) =>
         tree.Folders.Single(static folder => folder.Role == MailFolderSpecialUse.Inbox).Id;
 }

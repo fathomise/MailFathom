@@ -17,14 +17,14 @@ internal sealed class MailboxSourceRemovalEntity
     /// </summary>
     public required string MailboxAccountId { get; set; }
 
-    public long MailFolderId { get; set; }
+    public long MailFolderBindingId { get; set; }
 
     /// <summary>Gets or sets the binding the occurrence belongs to, which a read loads and a write need not.</summary>
     /// <remarks>
     /// Optional on the entity rather than required, because the erasure that writes this record works from stored-mail
     /// rows it read without the binding and has the foreign key in hand already. The column itself is not nullable.
     /// </remarks>
-    public MailFolderEntity? MailFolder { get; set; }
+    public MailFolderBindingEntity? MailFolderBinding { get; set; }
 
     public uint UidValidity { get; set; }
 

@@ -9,7 +9,6 @@ using MailFathom.Application.Retrieval;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authorship;
-using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.UnitTests.TestDoubles;
 
@@ -92,7 +91,7 @@ internal sealed class ScriptedEmailKnowledgeSearch : IEmailKnowledgeSearch
     {
         StoredEmailId = StoredEmailId.Create(storedEmailId ?? Guid.CreateVersion7()),
         AccountId = MailAccountId.Create("primary"),
-        FolderAlias = MailFolderAlias.Create("INBOX"),
+        Folder = SyntheticEmailSummaries.FolderOf("primary", "INBOX"),
         Subject = null,
         ReceivedAt = null,
         SenderVerification = SenderVerification.NotEstablished,

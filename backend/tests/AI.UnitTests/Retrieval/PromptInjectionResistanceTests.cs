@@ -45,7 +45,7 @@ public sealed class PromptInjectionResistanceTests
 
     private static readonly MailboxScope OnePrimaryAccount = MailboxScope.Create(
         [MailAccountId.Create("primary")],
-        [new MailFolderIdentity(MailAccountId.Create("primary"), MailFolderAlias.Create("INBOX"))]);
+        [MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3"))]);
 
     /// <summary>Gets one case per attack the corpus knows, so a property stated once covers every one of them.</summary>
     public static TheoryData<string> EveryAdversary => AdversarialMailCorpus.EveryName;

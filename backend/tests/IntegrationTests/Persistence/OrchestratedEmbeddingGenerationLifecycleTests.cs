@@ -306,8 +306,8 @@ public sealed class OrchestratedEmbeddingGenerationLifecycleTests(MailFathomOrch
         IReadOnlyList<Guid> chunkIds = await services.InScopeAsync(
             async (scope, token) => await scope.GetRequiredService<MailFathomDbContext>().EmailChunks
                 .AsNoTracking()
-                .Where(chunk => chunk.StoredEmail.MailFolder.MailboxAccountId == occurrenceId.AccountId.Value
-                    && chunk.StoredEmail.MailFolder.Alias == alias
+                .Where(chunk => chunk.StoredEmail.MailFolderBinding.MailboxAccountId == occurrenceId.AccountId.Value
+                    && chunk.StoredEmail.MailFolderBinding.Alias == alias
                     && chunk.StoredEmail.Uid == occurrenceId.Uid.Value)
                 .OrderBy(chunk => chunk.Ordinal)
                 .Select(chunk => chunk.Id)

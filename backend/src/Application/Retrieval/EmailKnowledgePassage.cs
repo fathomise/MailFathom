@@ -40,8 +40,8 @@ public sealed record EmailKnowledgePassage
     /// <summary>Gets the account whose mailbox the email was read from.</summary>
     public required MailAccountId AccountId { get; init; }
 
-    /// <summary>Gets the folder alias the email was read from.</summary>
-    public required MailFolderAlias FolderAlias { get; init; }
+    /// <summary>Gets the folder the email is in.</summary>
+    public required StoredEmailFolder Folder { get; init; }
 
     /// <summary>Gets the subject the email carried, or <see langword="null" /> when it carried none.</summary>
     public string? Subject { get; init; }

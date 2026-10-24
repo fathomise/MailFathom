@@ -29,7 +29,7 @@ public sealed class LocalMailCopierTests
 
     private static readonly StoredEmailId Copy = StoredEmailId.Create(Guid.CreateVersion7());
 
-    private static readonly LocalMailFolderId Target = LocalMailFolderId.Create(Guid.CreateVersion7());
+    private static readonly MailFolderId Target = MailFolderId.Create(Guid.CreateVersion7());
 
     private static readonly ReadOnlyMemory<byte> RawMime = "Subject: copied\r\n\r\nbody"u8.ToArray();
 

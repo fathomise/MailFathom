@@ -76,7 +76,7 @@ internal static class DerivedWorkAdmittedEmails
             var classifiedAliases = account.Select(static folder => folder.Alias.Value).ToArray();
 
             emails = emails.Where(email => email.MailboxAccountId != accountId
-                || !classifiedAliases.Contains(email.MailFolder.Alias)
+                || !classifiedAliases.Contains(email.MailFolderBinding.Alias)
                 || email.SpamClassification != null
                 || email.ContentAvailability == StoredEmailContentAvailability.ExceededSizeLimit
                 || email.StoredAt <= releasedWhenStoredBefore);

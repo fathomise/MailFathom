@@ -481,7 +481,6 @@ public sealed class MailboxSynchronizer
                 synchronizationWindow,
                 flaggedDeletes.AwaitingRestore,
                 account,
-                folder.Alias,
                 budget,
                 collection,
                 arrivalSource,
@@ -770,7 +769,6 @@ public sealed class MailboxSynchronizer
         MailSynchronizationWindow synchronizationWindow,
         IReadOnlyList<DeleteLeftFlagged> awaitingRestore,
         MailAccountId account,
-        MailFolderAlias folder,
         SynchronizationContentBudget budget,
         ContactCollectionRun collection,
         LocalMailFolderArrivalSource arrivalSource,
@@ -822,7 +820,7 @@ public sealed class MailboxSynchronizer
                 restoredAs = restored.StoredEmailId;
             }
 
-            await this.flaggedDeleteFollower.RetireAsync(account, folder, undeleted, restoredAs, cancellationToken);
+            await this.flaggedDeleteFollower.RetireAsync(account, undeleted, restoredAs, cancellationToken);
         }
     }
 

@@ -7,4 +7,4 @@ namespace MailFathom.Domain.Folders;
 /// <summary>Where a message arriving from a source folder is placed in a held account's hierarchy.</summary>
 /// <param name="Folder">The local folder the message goes into.</param>
 /// <param name="Saved">The folder placing it created, which is empty where the folder already existed.</param>
-public sealed record LocalMailFolderArrival(LocalMailFolderId Folder, IReadOnlyList<LocalMailFolder> Saved);
+public sealed record LocalMailFolderArrival(MailFolderId Folder, IReadOnlyList<LocalMailFolder> Saved);

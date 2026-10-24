@@ -137,7 +137,7 @@ public sealed class StoredEmailResponseAuthoring
         // because telling them apart would let a caller learn which mail exists by trying to answer it.
         if (summary is null || !await this.scopeResolver.IsReadableByToolsAsync(
                 summary.Account,
-                summary.FolderAlias,
+                summary.Folder.Alias,
                 cancellationToken))
         {
             return AuthoredResponse.Refused(AuthoredResponseRefusalReason.AnsweredEmailNotFound);

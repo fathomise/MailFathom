@@ -23,7 +23,7 @@ namespace MailFathom.Mcp.Tools;
 /// </remarks>
 internal static class MailboxScopeArguments
 {
-    /// <summary>The greatest length an account identifier or folder alias a caller names may carry.</summary>
+    /// <summary>The greatest length an account identifier or folder a caller names may carry.</summary>
     /// <remarks>
     /// Generous against every identifier an operator configures and short enough that a refusal cannot become a way to
     /// place a paragraph of caller-chosen text into an error message or a log line.
@@ -46,14 +46,14 @@ internal static class MailboxScopeArguments
     /// <summary>Turns the folders a caller supplied into domain values.</summary>
     /// <param name="folders">The folders the caller named, or <see langword="null" /> when it named none.</param>
     /// <returns>The named folders, empty when the caller named none.</returns>
-    /// <exception cref="MailboxQueryFilterInvalidException">Thrown when more than the accepted number are named, or one of them names neither an alias this system issues nor a role it knows.</exception>
+    /// <exception cref="MailboxQueryFilterInvalidException">Thrown when more than the accepted number are named, or one of them names neither a folder identity this system issues nor a role it knows.</exception>
     /// <remarks>
     /// Which folder of which account a role names is deliberately not settled here, exactly as which account a name
     /// selects is not: that answer belongs to the account in scope, so it is given inside the use case and text naming
     /// no folder of any of them meets the same refusal wherever it came from.
     /// </remarks>
     public static IReadOnlyList<MailFolderReference> Folders(string[]? folders) =>
-        Parse(folders, MailFolderReference.Create, MailboxScope.MaximumFolders, "folders");
+        Parse(folders, MailFolderReference.CreateNamedByCaller, MailboxScope.MaximumFolders, "folders");
 
     /// <summary>Converts one list of caller-supplied text into the domain identity it names.</summary>
     /// <remarks>

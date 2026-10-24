@@ -184,7 +184,7 @@ public sealed class MailFolderResolverTests
 
         // Assert
         Assert.Equal(1, result.Resolution!.Generation.Value);
-        await context.PersistenceSessionFactory.DidNotReceive().BeginSessionAsync(Arg.Any<CancellationToken>());
+        await context.PersistenceSession.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
         await context.MappingChangeAuditor.DidNotReceive().RecordMappingChangeAsync(Arg.Any<MailFolderMappingChange>(), Arg.Any<CancellationToken>());
     }
 

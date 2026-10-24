@@ -90,7 +90,7 @@ test('deletes a folder holding mail, and the tree, the move targets, a search, a
     await agreesTheFolderIsGone();
 });
 
-// A folder is declared under its own name and keeps that alias through a rename and a move, so every one of these
+// A folder keeps its identity through a rename and a move, so every one of these
 // readings has to place it by where it sits rather than by what it is called.
 test('makes a folder inside another, renames it, and moves it under a third, and the tree, the move targets, and a reload agree after each', async ({
     page,
@@ -142,7 +142,7 @@ test('makes a folder inside another, renames it, and moves it under a third, and
         return page.getByRole('dialog', { name: 'Edit folder' });
     };
 
-    // Made inside a folder two levels down, and drawn under the name typed rather than in the capitals of its alias.
+    // Made inside a folder two levels down, and drawn under the name typed rather than under its identity.
     await opened('Archive');
     await tree.getByRole('treeitem', { name: '2024', exact: true }).click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'New folder inside' }).click();

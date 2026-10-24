@@ -190,7 +190,7 @@ public sealed class OrchestratedMailboxSynchronizationTests(MailFathomOrchestrat
             async (scope, token) => (IReadOnlyList<string>)await scope.GetRequiredService<MailFathomDbContext>()
                 .StoredEmails
                 .AsNoTracking()
-                .Where(storedEmail => storedEmail.MailFolder.Alias == FolderMapping.Alias.Value)
+                .Where(storedEmail => storedEmail.MailFolderBinding.Alias == FolderMapping.Alias.Value)
                 .Select(storedEmail => storedEmail.Subject!)
                 .OrderBy(subject => subject)
                 .ToArrayAsync(token),

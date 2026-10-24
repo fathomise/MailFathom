@@ -451,7 +451,7 @@ public sealed class OrchestratedPersistenceSessionTests(MailFathomOrchestrationF
         return services.InScopeAsync(
             (scope, token) => scope
                 .GetRequiredService<MailFathomDbContext>()
-                .MailFolders
+                .MailFolderBindings
                 .AsNoTracking()
                 .CountAsync(
                     folder => folder.MailboxAccountId == SyntheticMailAccount.AccountId.Value

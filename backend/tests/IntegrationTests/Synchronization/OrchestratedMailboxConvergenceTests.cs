@@ -256,7 +256,6 @@ public sealed class OrchestratedMailboxConvergenceTests(MailFathomOrchestrationF
                 commitPolicy,
                 scope.GetRequiredService<IMailboxMutationAuditTrail>(),
                 ClientSignalPublishers.ReachingNobody,
-                scope.GetRequiredService<IMailFolderResolutionStore>(),
                 new MailboxMutationOptions()),
             scope.GetRequiredService<IMailTransportSecurityPolicyReader>(),
             commitPolicy,
@@ -335,7 +334,6 @@ public sealed class OrchestratedMailboxConvergenceTests(MailFathomOrchestrationF
                 commitPolicy,
                 scope.GetRequiredService<IMailboxMutationAuditTrail>(),
                 ClientSignalPublishers.ReachingNobody,
-                scope.GetRequiredService<IMailFolderResolutionStore>(),
                 new MailboxMutationOptions()),
             scope.GetRequiredService<IMailTransportSecurityPolicyReader>(),
             commitPolicy,
@@ -435,8 +433,8 @@ public sealed class OrchestratedMailboxConvergenceTests(MailFathomOrchestrationF
                 .GetRequiredService<MailFathomDbContext>()
                 .MailboxMutations
                 .AsNoTracking()
-                .Where(mutation => mutation.MailFolder.Alias == alias
-                    && mutation.MailFolder.ResolutionGeneration == generation
+                .Where(mutation => mutation.MailFolderBinding.Alias == alias
+                    && mutation.MailFolderBinding.ResolutionGeneration == generation
                     && mutation.Uid == uid)
                 .Select(mutation => new MailboxMutationRow(
                     mutation.Stage,

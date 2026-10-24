@@ -4,7 +4,6 @@
 
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.ReplyDrafts;
-using MailFathom.Application.Folders;
 using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Accounts;
@@ -37,7 +36,6 @@ namespace MailFathom.Infrastructure.Persistence.ReplyDrafts;
 [RequiresIntegrationCoverage]
 internal sealed class ReplyDraftSourceStore(
     MailFathomDbContext dbContext,
-    IMailFolderMappingReader folderMappings,
     IOutgoingSenderIdentityReader senderIdentities)
     : IReplyDraftSourceReader
 {
@@ -196,19 +194,13 @@ internal sealed class ReplyDraftSourceStore(
             return [];
         }
 
-        var accountId = MailAccountId.Create(answered.MailboxAccountId);
-
-        if (folderMappings.FindFolderPlayingRole(accountId, MailFolderSpecialUse.Sent) is not { } sentFolder)
-        {
-            return [];
-        }
-
-        var alias = sentFolder.Alias.Value;
         var answeredThreadId = answered.EmailThreadId;
 
+        // The folder playing the sent role on the account, read off the folder itself, so a held account's sent folder
+        // answers exactly as a mirrored one's does.
         return await MostRecent(
                 this.Readable(scope).Where(email => email.MailboxAccountId == answered.MailboxAccountId
-                    && email.MailFolder.Alias == alias
+                    && email.Folder.Role == MailFolderSpecialUse.Sent
                     && email.SearchDocument != null
                     && email.SearchDocument.BodyText != null
                     && (answeredThreadId == null || email.EmailThreadId != answeredThreadId)),

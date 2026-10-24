@@ -468,7 +468,7 @@ export function MailboxActsProvider({
         }
 
         const changesFlags = changesAFlag(act);
-        const filing = changesFlags ? [] : filingFor(act, messages, held.directory, destination?.alias ?? null);
+        const filing = changesFlags ? [] : filingFor(act, messages, held.directory, destination?.folderId ?? null);
         const filed = new Set(filing.map((one) => one.storedEmailId));
 
         // `filingFor` keeps the order it was given and drops only a message the act files nowhere, so the messages
@@ -523,7 +523,7 @@ export function MailboxActsProvider({
         // Where the act filed each message, read now rather than when the way back is taken: that is the folder the
         // message stands in until then, and the folders may be read again in between.
         const filedIn = new Map(
-            filingFor(act, recorded, held.directory, destination?.alias ?? null).map((filing) => [
+            filingFor(act, recorded, held.directory, destination?.folderId ?? null).map((filing) => [
                 filing.storedEmailId,
                 filing.destinationFolder,
             ]),
@@ -733,14 +733,12 @@ export function MailboxActsProvider({
         });
     }
 
-    // Which role a message's own folder plays, read out of the same tree the destinations are read from. Matched by
-    // the account as well as the alias, because an alias names a folder inside one account and two accounts may spell
-    // one the same way.
+    // Which role a message's own folder plays, read out of the same tree the destinations are read from.
     function folderRoleOf(message: ActedMessage): MailFolderRole | null {
         return (
             held.directory?.accounts
                 .find((entry) => entry.account.id === message.account)
-                ?.folders.find((folder) => folder.alias === message.folder)?.role ?? null
+                ?.folders.find((folder) => folder.id === message.folder)?.role ?? null
         );
     }
 

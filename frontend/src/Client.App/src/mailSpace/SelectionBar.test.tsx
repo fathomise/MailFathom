@@ -18,7 +18,7 @@ const drawnRows: readonly ActedMessage[] = [
     { storedEmailId: 'message-2', account: 'work', folder: 'work-inbox', unread: false, flagged: false },
 ];
 
-const clients: MoveDestination = { alias: 'work-clients', name: 'Projects / Clients', role: null };
+const clients: MoveDestination = { folderId: 'work-clients', name: 'Projects / Clients', role: null };
 const work: MoveDestinationGroup = {
     accountId: 'work',
     accountName: 'Northwind \u00b7 work',

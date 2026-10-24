@@ -22,7 +22,7 @@ import { emptyWorkspace, type Workspace } from './useWorkspace';
 const storageKey = 'mailfathom.workspace';
 
 // What a stored workspace may carry before it is read as somebody's edit rather than as this client's own writing. A
-// tree holds tens of rows, a question is a sentence, and an identifier — a message, an account, a folder alias — is a
+// tree holds tens of rows, a question is a sentence, and an identifier — a message, an account, a folder — is a
 // name the service assigned, so each of the three is far above anything the client itself writes there.
 const mostToggledFolds = 512;
 const longestQuestion = 4_096;
@@ -260,7 +260,7 @@ function scopeIn(value: unknown): MailScope | null {
 
     const record = value as Record<string, unknown>;
     const accountId = record['accountId'];
-    const alias = record['alias'];
+    const folderId = record['folderId'];
 
     switch (record['kind']) {
         case 'everything':
@@ -270,7 +270,7 @@ function scopeIn(value: unknown): MailScope | null {
         case 'account':
             return isIdentifier(accountId) ? { kind: 'account', accountId } : null;
         case 'folder':
-            return isIdentifier(accountId) && isIdentifier(alias) ? { kind: 'folder', accountId, alias } : null;
+            return isIdentifier(accountId) && isIdentifier(folderId) ? { kind: 'folder', accountId, folderId } : null;
         default:
             return null;
     }

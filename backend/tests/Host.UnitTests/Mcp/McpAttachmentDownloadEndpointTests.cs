@@ -474,7 +474,7 @@ public sealed class McpAttachmentDownloadEndpointTests
         // MailFathom is concerned and every download of it would be refused before the endpoint is reached — which is
         // not the refusal any test here is about.
         var participation = StubMailFolderParticipation.Mapping(
-            new MailFolderIdentity(summary.Account, summary.FolderAlias));
+            new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value));
 
         return new EmailAttachmentDownloadReader(
             summaryReader,
@@ -495,7 +495,7 @@ public sealed class McpAttachmentDownloadEndpointTests
     {
         StoredEmailId = StoredEmailId.Create(Guid.CreateVersion7()),
         Account = MailAccountId.Create("primary"),
-        FolderAlias = MailFolderAlias.Create("INBOX"),
+        Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
         InternetMessageId = "<abc@example.test>",
         Subject = "Quarterly invoice",
         SenderAddress = "billing@example.test",

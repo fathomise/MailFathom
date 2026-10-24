@@ -2428,11 +2428,10 @@ public sealed class MailboxSynchronizerTests
     /// <remarks>
     /// These tests are about what synchronization does once a folder is known. Resolution has tests of its own, and
     /// leaving it unbound here would make every run write a binding and consume a persistence session the assertions
-    /// about checkpoint commits are counting.
+    /// about checkpoint commits are counting. A bound folder's row is still projected on every run, so the resolver
+    /// opens its sessions from a factory of its own for the same reason.
     /// </remarks>
-    private static MailFolderResolver CreateFolderResolverBoundToInbox(
-        IPersistenceSessionFactory persistenceSessionFactory,
-        TimeProvider timeProvider)
+    private static MailFolderResolver CreateFolderResolverBoundToInbox(TimeProvider timeProvider)
     {
         var remoteFolderCatalog = Substitute.For<IRemoteFolderCatalog>();
         remoteFolderCatalog
@@ -2459,7 +2458,7 @@ public sealed class MailboxSynchronizerTests
             Substitute.For<IRemoteFolderCreator>(),
             resolutionStore,
             Substitute.For<IMailFolderMappingChangeAuditor>(),
-            persistenceSessionFactory,
+            Substitute.For<IPersistenceSessionFactory>(),
             ClientSignalPublishers.ReachingNobody,
             timeProvider);
     }
@@ -3219,7 +3218,7 @@ public sealed class MailboxSynchronizerTests
         var reconciliation = reconciliationStore ?? CreateReconciliationStoreWithNothingToDo();
 
         return new MailboxSynchronizer(
-            folderResolver ?? CreateFolderResolverBoundToInbox(persistenceSessionFactory, timeProvider),
+            folderResolver ?? CreateFolderResolverBoundToInbox(timeProvider),
             mailboxSessionFactory,
             transportSecurityPolicyReader ?? CreateTransportSecurityPolicyReader(RequiredTlsPolicy),
             CreateSynchronizationWindowReader(synchronizationWindow),

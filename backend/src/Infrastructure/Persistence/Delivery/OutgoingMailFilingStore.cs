@@ -218,7 +218,7 @@ internal sealed class OutgoingMailFilingStore(MailFathomDbContext readContext) :
                 && readContext.StoredEmails
                     .Where(StoredEmailTombstone.IsNotTombstoned)
                     .Any(stored => stored.MailboxAccountId == accountValue
-                        && stored.MailFolder.RemotePath == filing.FolderPath
+                        && stored.MailFolderBinding.RemotePath == filing.FolderPath
                         && stored.UidValidity == filing.PlacementUidValidity
                         && stored.Uid != filing.PlacementUid
                         && stored.InternetMessageId == filing.InternetMessageId))

@@ -361,7 +361,7 @@ describe('AccountMenu', () => {
     it('marks the mailbox a folder in scope belongs to, which is what the folder tree marks too', () => {
         renderMenu({
             accounts: [mailbox('work', 'Work'), mailbox('board', 'Board')],
-            scope: { kind: 'folder', accountId: 'work', alias: 'INBOX' },
+            scope: { kind: 'folder', accountId: 'work', folderId: 'INBOX' },
         });
 
         expect(screen.getByRole('button', { name: 'Work', hidden: true }).getAttribute('aria-current')).toBe('true');

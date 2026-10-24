@@ -106,4 +106,57 @@ public sealed class MailFolderReferenceTests
         Assert.Equal(first, second);
         Assert.True(first.IsSpecified);
     }
+
+    [Fact]
+    public void CreateNamedByCaller_AFolderIdentifier_NamesThatFolder()
+    {
+        // Arrange
+        var folder = MailFolderId.Create(Guid.Parse("0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7a10"));
+
+        // Act
+        var reference = MailFolderReference.CreateNamedByCaller($" {folder} ");
+
+        // Assert
+        Assert.Equal(folder, reference.Folder);
+        Assert.Null(reference.Alias);
+        Assert.Null(reference.Role);
+        Assert.Equal(folder.ToString(), reference.ToString());
+    }
+
+    [Fact]
+    public void CreateNamedByCaller_TextBehindTheRoleScheme_NamesTheRoleItSpells()
+    {
+        // Arrange, Act
+        var reference = MailFolderReference.CreateNamedByCaller("role:junk");
+
+        // Assert
+        Assert.Equal(MailFolderSpecialUse.Junk, reference.Role);
+        Assert.Null(reference.Folder);
+    }
+
+    /// <summary>An alias is configuration's name for a folder, and a surface accepting one would give every folder two names.</summary>
+    [Theory]
+    [InlineData("INBOX")]
+    [InlineData("Archive/2026")]
+    [InlineData("role:Archive,Drafts")]
+    [InlineData("")]
+    public void TryCreateNamedByCaller_TextNamingNoIdentifierAndNoRole_IsRefused(string written)
+    {
+        // Arrange, Act
+        var named = MailFolderReference.TryCreateNamedByCaller(written, out var reference);
+
+        // Assert
+        Assert.False(named);
+        Assert.False(reference.IsSpecified);
+    }
+
+    [Fact]
+    public void CreateNamedByCaller_AnAlias_IsRefusedNamingWhatItAccepts()
+    {
+        // Arrange, Act
+        var refusal = Assert.Throws<ArgumentException>(() => MailFolderReference.CreateNamedByCaller("INBOX"));
+
+        // Assert
+        Assert.Contains("folder identifier", refusal.Message, StringComparison.Ordinal);
+    }
 }

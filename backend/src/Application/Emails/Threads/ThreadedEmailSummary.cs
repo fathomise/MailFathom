@@ -37,8 +37,8 @@ public sealed record ThreadedEmailSummary
     /// <summary>Gets the account whose mailbox the message was read from.</summary>
     public required MailAccountId AccountId { get; init; }
 
-    /// <summary>Gets the folder alias the message was read from.</summary>
-    public required MailFolderAlias FolderAlias { get; init; }
+    /// <summary>Gets the folder the message is in.</summary>
+    public required StoredEmailFolder Folder { get; init; }
 
     /// <summary>Gets the message this one answers, or <see langword="null" /> when it answers none stored here.</summary>
     /// <remarks>

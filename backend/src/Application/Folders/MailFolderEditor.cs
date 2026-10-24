@@ -20,10 +20,11 @@ namespace MailFathom.Application.Folders;
 /// storage mode and then being wrong about an account that changed mode since.
 /// </para>
 /// <para>
-/// A folder is named by an identity whose shape is not part of the contract. On an account whose mailbox MailFathom
-/// holds it is the local folder's own identity; on a mirrored one it is the alias the folder is declared under. Both
-/// are read as text, and text that is neither is answered as a folder the account does not have rather than as a
-/// malformed request — a caller can only have got such a value from this surface.
+/// A folder is named by its identity whichever copy of the mailbox is the truth, which is the identity every other read
+/// reports it by. On a mirrored account the act is carried out on the folder declared under that row's alias, so a
+/// folder no alias feeds — one between declared folders on the server — is answered as one the account does not have.
+/// An identity is read as text, and text that names no folder is answered the same way rather than as a malformed
+/// request — a caller can only have got such a value from this surface.
 /// </para>
 /// <para>
 /// An account whose mailbox is being restored to its source allows nothing. Its local folders are still the truth and
@@ -43,28 +44,33 @@ public sealed class MailFolderEditor
     private readonly MirroredMailFolderEditor mirrored;
     private readonly AccessAuthorization authorization;
     private readonly ICallerMailAccountCatalog accounts;
+    private readonly ILocalMailFolderStore folders;
 
     /// <summary>Initializes a new instance of the <see cref="MailFolderEditor" /> class.</summary>
     /// <param name="local">Acts on the folders of an account whose mailbox MailFathom holds.</param>
     /// <param name="mirrored">Acts on the folders of an account whose mail server is the truth.</param>
     /// <param name="authorization">Answers which user the caller acts for.</param>
     /// <param name="accounts">Answers which accounts that user is assigned, which is what an act is narrowed to.</param>
+    /// <param name="folders">Answers which folder of a mirrored account an identity names.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public MailFolderEditor(
         LocalMailFolderEditor local,
         MirroredMailFolderEditor mirrored,
         AccessAuthorization authorization,
-        ICallerMailAccountCatalog accounts)
+        ICallerMailAccountCatalog accounts,
+        ILocalMailFolderStore folders)
     {
         ArgumentNullException.ThrowIfNull(local);
         ArgumentNullException.ThrowIfNull(mirrored);
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(accounts);
+        ArgumentNullException.ThrowIfNull(folders);
 
         this.local = local;
         this.mirrored = mirrored;
         this.authorization = authorization;
         this.accounts = accounts;
+        this.folders = folders;
     }
 
     /// <summary>Reads the account's folders and which acts each of them and the account itself allow.</summary>
@@ -89,7 +95,9 @@ public sealed class MailFolderEditor
         }
 
         return holding.Phase is MailAccountCustodyPhase.Mirrored
-            ? await this.mirrored.ReadAsync(account, cancellationToken)
+            ? Identified(
+                await this.mirrored.ReadAsync(account, cancellationToken),
+                IdsByAlias(await this.folders.ReadFoldersAsync(account, cancellationToken)))
             : DescribeHeld(holding);
     }
 
@@ -110,7 +118,7 @@ public sealed class MailFolderEditor
         this.ActAsync(
             account,
             holding => this.CreateLocallyAsync(account, holding, parentId, name, role, cancellationToken),
-            identity => TryReadParentAlias(parentId, out var parent)
+            (identity, rows) => TryReadParentAlias(rows, parentId, out var parent)
                 ? this.mirrored.CreateAsync(identity, parent, name, role, cancellationToken)
                 : Task.FromResult(MailFolderActOutcome.Refused(MailFolderActRefusal.ParentMissing)),
             cancellationToken);
@@ -131,7 +139,7 @@ public sealed class MailFolderEditor
             account,
             folderId,
             folder => this.local.RenameAsync(account, folder, name, cancellationToken),
-            (identity, alias) => this.mirrored.RenameAsync(identity, alias, name, cancellationToken),
+            (identity, alias, _) => this.mirrored.RenameAsync(identity, alias, name, cancellationToken),
             cancellationToken);
 
     /// <summary>Moves a folder, with everything beneath it, to another place in the hierarchy.</summary>
@@ -152,7 +160,7 @@ public sealed class MailFolderEditor
             folder => TryReadParent(parentId, out var parent)
                 ? this.local.MoveAsync(account, folder, parent, cancellationToken)
                 : Task.FromResult(LocalMailFolderEditOutcome.Refused(MailFolderActRefusal.ParentMissing)),
-            (identity, alias) => TryReadParentAlias(parentId, out var parent)
+            (identity, alias, rows) => TryReadParentAlias(rows, parentId, out var parent)
                 ? this.mirrored.MoveAsync(identity, alias, parent, cancellationToken)
                 : Task.FromResult(MailFolderActOutcome.Refused(MailFolderActRefusal.ParentMissing)),
             cancellationToken);
@@ -176,13 +184,13 @@ public sealed class MailFolderEditor
             account,
             folderId,
             folder => this.local.DeleteAsync(account, folder, cancellationToken),
-            (identity, alias) => this.mirrored.DeleteAsync(identity, alias, cancellationToken),
+            (identity, alias, _) => this.mirrored.DeleteAsync(identity, alias, cancellationToken),
             cancellationToken);
 
     private async Task<MailFolderActOutcome> ActAsync(
         MailAccountId account,
         Func<LocalMailFolderHolding, Task<MailFolderActOutcome>> held,
-        Func<MailAccountId, Task<MailFolderActOutcome>> mirroredAct,
+        Func<MailAccountId, IReadOnlyList<LocalMailFolder>, Task<MailFolderActOutcome>> mirroredAct,
         CancellationToken cancellationToken)
     {
         this.authorization.RequirePermission(MailFathomPermission.MailFoldersWrite);
@@ -197,7 +205,7 @@ public sealed class MailFolderEditor
         return holding switch
         {
             null => MailFolderActOutcome.Refused(MailFolderActRefusal.AccountMissing),
-            { Phase: MailAccountCustodyPhase.Mirrored } => await mirroredAct(account),
+            { Phase: MailAccountCustodyPhase.Mirrored } => await this.ActOnMirroredAsync(account, mirroredAct, cancellationToken),
             { Phase: MailAccountCustodyPhase.Held } => await held(holding),
             _ => MailFolderActOutcome.Refused(MailFolderActRefusal.AccountNotHeld),
         };
@@ -206,18 +214,41 @@ public sealed class MailFolderEditor
     private Task<MailFolderActOutcome> ActOnFolderAsync(
         MailAccountId account,
         string? folderId,
-        Func<LocalMailFolderId, Task<LocalMailFolderEditOutcome>> held,
-        Func<MailAccountId, MailFolderAlias, Task<MailFolderActOutcome>> mirroredAct,
+        Func<MailFolderId, Task<LocalMailFolderEditOutcome>> held,
+        Func<MailAccountId, MailFolderAlias, IReadOnlyList<LocalMailFolder>, Task<MailFolderActOutcome>> mirroredAct,
         CancellationToken cancellationToken) =>
         this.ActAsync(
             account,
             async holding => LocalFolderOf(folderId) is { } folder
                 ? Describe(await held(folder), holding)
                 : MailFolderActOutcome.Refused(MailFolderActRefusal.FolderMissing),
-            async identity => AliasOf(folderId) is { } alias
-                ? await mirroredAct(identity, alias)
-                : MailFolderActOutcome.Refused(MailFolderActRefusal.FolderMissing),
+            (identity, rows) => AliasIn(rows, folderId) is { } alias
+                ? mirroredAct(identity, alias, rows)
+                : Task.FromResult(MailFolderActOutcome.Refused(MailFolderActRefusal.FolderMissing)),
             cancellationToken);
+
+    /// <summary>Carries out an act on a mirrored account, and reports the folder it left by the identity a client names it by.</summary>
+    /// <remarks>
+    /// The rows are read on both sides of the act: a created folder has its row only afterwards, and a deleted one only
+    /// before.
+    /// </remarks>
+    private async Task<MailFolderActOutcome> ActOnMirroredAsync(
+        MailAccountId account,
+        Func<MailAccountId, IReadOnlyList<LocalMailFolder>, Task<MailFolderActOutcome>> act,
+        CancellationToken cancellationToken)
+    {
+        var before = await this.folders.ReadFoldersAsync(account, cancellationToken);
+        var outcome = await act(account, before);
+
+        if (outcome.Folder is not { } folder)
+        {
+            return outcome;
+        }
+
+        var after = await this.folders.ReadFoldersAsync(account, CancellationToken.None);
+
+        return outcome with { Folder = Identified(folder, IdsByAlias([.. before, .. after])) ?? folder };
+    }
 
     private async Task<MailFolderActOutcome> CreateLocallyAsync(
         MailAccountId account,
@@ -286,23 +317,53 @@ public sealed class MailFolderEditor
     // Absence of a parent is what names the top of the hierarchy, so text that names no folder must not be read as it:
     // the folder would be created or moved somewhere the request never asked for. The two readings differ only in what
     // an identity looks like on each side — an identifier a held account issued, an alias a mirrored one declares.
-    private static bool TryReadParent(string? parentId, out LocalMailFolderId? parent)
+    private static bool TryReadParent(string? parentId, out MailFolderId? parent)
     {
         parent = LocalFolderOf(parentId);
 
         return parent is not null || string.IsNullOrWhiteSpace(parentId);
     }
 
-    private static bool TryReadParentAlias(string? parentId, out MailFolderAlias? parent)
+    private static bool TryReadParentAlias(
+        IReadOnlyList<LocalMailFolder> rows,
+        string? parentId,
+        out MailFolderAlias? parent)
     {
-        parent = AliasOf(parentId);
+        parent = AliasIn(rows, parentId);
 
         return parent is not null || string.IsNullOrWhiteSpace(parentId);
     }
 
-    private static LocalMailFolderId? LocalFolderOf(string? folderId) =>
-        Guid.TryParse(folderId, out var parsed) && parsed != Guid.Empty ? LocalMailFolderId.Create(parsed) : null;
+    private static MailFolderId? LocalFolderOf(string? folderId) =>
+        Guid.TryParse(folderId, out var parsed) && parsed != Guid.Empty ? MailFolderId.Create(parsed) : null;
 
-    private static MailFolderAlias? AliasOf(string? folderId) =>
-        MailFolderAlias.TryCreate(folderId, out var alias) ? alias : null;
+    private static MailFolderAlias? AliasIn(IReadOnlyList<LocalMailFolder> rows, string? folderId) =>
+        LocalFolderOf(folderId) is { } id ? rows.FirstOrDefault(row => row.Id == id)?.SourceFolderAlias : null;
+
+    private static Dictionary<MailFolderAlias, string> IdsByAlias(IEnumerable<LocalMailFolder> rows) =>
+        rows
+            .Where(static row => row.SourceFolderAlias is not null)
+            .GroupBy(static row => (MailFolderAlias)row.SourceFolderAlias!)
+            .ToDictionary(static group => group.Key, static group => group.Last().Id.ToString());
+
+    /// <summary>Names the mirrored editor's folders by their identities, leaving out one whose row the account's next run writes.</summary>
+    private static MailFolderManagement Identified(
+        MailFolderManagement management,
+        Dictionary<MailFolderAlias, string> ids) =>
+        management with
+        {
+            Folders = [.. management.Folders.Select(folder => Identified(folder, ids)).OfType<ManagedMailFolder>()],
+        };
+
+    private static ManagedMailFolder? Identified(ManagedMailFolder folder, Dictionary<MailFolderAlias, string> ids) =>
+        MailFolderAlias.TryCreate(folder.Id, out var alias) && ids.TryGetValue(alias, out var id)
+            ? folder with
+            {
+                Id = id,
+                ParentId = MailFolderAlias.TryCreate(folder.ParentId, out var parent)
+                    && ids.TryGetValue(parent, out var parentId)
+                        ? parentId
+                        : null,
+            }
+            : null;
 }

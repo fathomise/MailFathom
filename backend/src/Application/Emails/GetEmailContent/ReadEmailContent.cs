@@ -32,8 +32,8 @@ public sealed record ReadEmailContent
     /// <summary>Gets the account whose mailbox the email was read from.</summary>
     public required MailAccountId AccountId { get; init; }
 
-    /// <summary>Gets the folder alias the email was read from, which is MailFathom's own name for that folder.</summary>
-    public required MailFolderAlias FolderAlias { get; init; }
+    /// <summary>Gets the folder the email is in.</summary>
+    public required StoredEmailFolder Folder { get; init; }
 
     /// <summary>Gets the size the mail server reported for the message.</summary>
     /// <remarks>It is the size of the whole message on the server, which no sum over the returned representations reproduces.</remarks>

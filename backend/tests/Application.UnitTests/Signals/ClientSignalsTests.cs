@@ -22,9 +22,9 @@ public sealed class ClientSignalsTests
     private static readonly MailAccountId AnotherAccount =
         MailAccountId.Create("personal");
 
-    private static readonly MailFolderAlias Inbox = MailFolderAlias.Create("inbox");
+    private static readonly MailFolderId Inbox = MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-0000000000b1"));
 
-    private static readonly MailFolderAlias Archive = MailFolderAlias.Create("archive");
+    private static readonly MailFolderId Archive = MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-0000000000a1"));
 
     /// <summary>A run that commits forty messages into one folder is one arrival, and the window is a fake clock's rather than a wait.</summary>
     [Fact]
@@ -72,8 +72,8 @@ public sealed class ClientSignalsTests
         // Assert
         Assert.Equal(2, channel.Published.Count);
         Assert.Equal(
-            [Archive.Value, Inbox.Value],
-            [.. channel.Published.Select(signal => signal.Folder!.Value.Value).Order(StringComparer.Ordinal)]);
+            [Archive.ToString(), Inbox.ToString()],
+            [.. channel.Published.Select(signal => signal.Folder!.Value.ToString()).Order(StringComparer.Ordinal)]);
     }
 
     /// <summary>Two mailboxes synchronizing at once are two statements, each naming only its own mailbox.</summary>
@@ -243,7 +243,7 @@ public sealed class ClientSignalsTests
         {
             signals.Publish(ClientSignal.MailArrived(
                 Account,
-                MailFolderAlias.Create($"folder-{scope}"),
+                MailFolderId.Create(Guid.Parse($"0199c1a2-0000-7000-8000-{scope:D12}")),
                 newEmailCount: 1));
         }
 

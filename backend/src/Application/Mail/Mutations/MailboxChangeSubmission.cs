@@ -340,7 +340,7 @@ public sealed class MailboxChangeSubmission
         // still remove the message from the source once this cascade has taken the row that said where it was.
         await this.states.EraseAsync(session, account, record.Request.StoredEmailId, cancellationToken);
 
-        return new AppliedMailboxChange(account, state.SourceFolder.Alias, record.Request.StoredEmailId, Flags: null);
+        return new AppliedMailboxChange(account, state.Folder, record.Request.StoredEmailId, Flags: null);
     }
 
     /// <summary>Tells the clients watching an account about a local change that has committed.</summary>
@@ -517,7 +517,7 @@ public sealed class MailboxChangeSubmission
         IPersistenceSession session,
         MailboxMutationRequest request,
         LocalEmailState state,
-        LocalMailFolderId target,
+        MailFolderId target,
         PreparedLocalCopy preparedCopy,
         CancellationToken cancellationToken)
     {
@@ -539,7 +539,7 @@ public sealed class MailboxChangeSubmission
         await this.AuditAsync(session, request, state, cancellationToken);
 
         return SubmittedMailboxChange.Applied(
-            new AppliedMailboxChange(request.Account, state.SourceFolder.Alias, copied.Value, Flags: null));
+            new AppliedMailboxChange(request.Account, target, copied.Value, Flags: null));
     }
 
     /// <summary>Writes the change onto the stored message, and beside it the record a restoring account owes its source.</summary>
@@ -585,7 +585,11 @@ public sealed class MailboxChangeSubmission
             : (SignalledEmailFlags?)null;
 
         return SubmittedMailboxChange.Applied(
-            new AppliedMailboxChange(request.Account, before.SourceFolder.Alias, request.StoredEmailId, flags),
+            new AppliedMailboxChange(
+                request.Account,
+                before.Folder == after.Folder ? after.Folder : null,
+                request.StoredEmailId,
+                flags),
             carried);
     }
 
@@ -617,8 +621,8 @@ public sealed class MailboxChangeSubmission
     private MailboxMutationAuditEntryId MintAuditEntryId(DateTimeOffset now) =>
         MailboxMutationAuditEntryId.Create(Guid.CreateVersion7(now));
 
-    private LocalMailFolderId MintFolderId() =>
-        LocalMailFolderId.Create(Guid.CreateVersion7(this.timeProvider.GetUtcNow()));
+    private MailFolderId MintFolderId() =>
+        MailFolderId.Mint(this.timeProvider.GetUtcNow());
 }
 
 /// <summary>What became of one submitted change.</summary>
@@ -689,11 +693,11 @@ public sealed record SubmittedMailboxChange(
 
 /// <summary>One change committed to stored state, as the clients watching its account are told about it.</summary>
 /// <param name="Account">The account the message is stored for.</param>
-/// <param name="Folder">The folder alias a client lists the message under.</param>
+/// <param name="Folder">The folder a client lists the message under, or <see langword="null" /> where the change moved it between two, which a client reads as any folder of the account.</param>
 /// <param name="Email">The message.</param>
 /// <param name="Flags">Where a flag change left the message, or <see langword="null" /> for a change that is not about a flag.</param>
 public sealed record AppliedMailboxChange(
     MailAccountId Account,
-    MailFolderAlias Folder,
+    MailFolderId? Folder,
     StoredEmailId Email,
     SignalledEmailFlags? Flags);

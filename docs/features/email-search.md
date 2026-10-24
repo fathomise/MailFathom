@@ -93,7 +93,7 @@ the same reason. It stays distinguishable from a message whose body was genuinel
 |---|---|---|
 | `QueryText` | The text to search for | refused — see below |
 | `Accounts` | The accounts to search, each named by its identifier or by its display name | every account the caller is assigned |
-| `Folders` | The folders to search, each named by its alias or by the role it plays | every folder of those accounts |
+| `Folders` | The folders to search, each named by its identity or by the role it plays | every folder of those accounts |
 | `SenderAddress` | The address the sender must carry, in any case | any sender |
 | `RecipientAddress` | The address a `To` or `Cc` recipient must carry | any recipient |
 | `SubjectFragment` | Text the stored subject must contain, compared without regard to case | any subject |

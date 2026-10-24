@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Folders;
 using MailFathom.Application.Observability;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Domain.Access;
@@ -61,36 +62,44 @@ public sealed class ListAccountsToolTests
     public async Task ListAccountsAsync_AnAccountWithASynchronizedFolder_PublishesHowCurrentTheLocalCopyIs()
     {
         // Arrange
-        var tool = ToolOver(
-            CatalogServing(Work),
-            new MailboxFolderFreshness(Work.Id, MailFolderAlias.Create("INBOX"), SynchronizedAt));
+        var inbox = SynchronizedInbox(Work);
+        var tool = ToolOver(CatalogServing(Work), inbox);
 
         // Act
         var result = await tool.ListAccountsAsync(TestContext.Current.CancellationToken);
 
         // Assert
         var folder = Assert.Single(Assert.Single(result.Accounts).Folders);
-        Assert.Equal("INBOX", folder.FolderAlias);
+        Assert.Equal(inbox.Folder!.Id.ToString(), folder.FolderId);
+        Assert.Equal("INBOX", folder.FolderPath);
         Assert.Equal(SynchronizedAt, folder.SynchronizedAt);
-        Assert.True(folder.WasSynchronized);
+        Assert.True(folder.IsSynchronized);
     }
 
-    /// <summary>A folder entry names its account the same way every other result does, so nothing has to be joined by the caller.</summary>
+    /// <summary>A folder MailFathom keeps itself is listed beside the synchronized ones, by the identity a tool names it by.</summary>
     [Fact]
-    public async Task ListAccountsAsync_AFolderEntry_CarriesTheDisplayNameOfItsOwnAccount()
+    public async Task ListAccountsAsync_AFolderNothingSynchronizes_PublishesItAsNotSynchronized()
     {
         // Arrange
-        var tool = ToolOver(
-            CatalogServing(Work),
-            new MailboxFolderFreshness(Work.Id, MailFolderAlias.Create("INBOX"), SynchronizedAt));
+        var kept = new StoredMailFolder(
+            Work.Id,
+            MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-000000000003")),
+            Alias: null,
+            Role: null,
+            ["Projects", "2026"],
+            StoredEmailCount: 0,
+            UnreadEmailCount: 0);
+        var tool = ToolOver(CatalogServing(Work), [kept]);
 
         // Act
         var result = await tool.ListAccountsAsync(TestContext.Current.CancellationToken);
 
         // Assert
         var folder = Assert.Single(Assert.Single(result.Accounts).Folders);
-        Assert.Equal("acct-1", folder.AccountId);
-        Assert.Equal("Work mail", folder.AccountDisplayName);
+        Assert.Equal(kept.Id.ToString(), folder.FolderId);
+        Assert.Equal("Projects/2026", folder.FolderPath);
+        Assert.False(folder.IsSynchronized);
+        Assert.Null(folder.SynchronizedAt);
     }
 
     /// <summary>
@@ -220,7 +229,11 @@ public sealed class ListAccountsToolTests
 
     /// <summary>Builds the one synchronized folder an account needs for its folder entries to be published at all.</summary>
     private static MailboxFolderFreshness SynchronizedInbox(ServedMailAccount account) =>
-        new(account.Id, MailFolderAlias.Create("INBOX"), SynchronizedAt);
+        new(
+            account.Id,
+            MailFolderAlias.Create("INBOX"),
+            SynchronizedAt,
+            new StoredEmailFolder(MailFolderId.Create(Guid.CreateVersion7()), "INBOX", MailFolderAlias.Create("INBOX")));
 
     /// <summary>Builds the one mailbox both users are assigned, under the identifier the deployment gave it.</summary>
     private static ServedMailAccount TheSharedMailbox() => new(
@@ -231,18 +244,41 @@ public sealed class ListAccountsToolTests
     /// <summary>Reads every name the answer published, wherever it named an account, so both halves of it are asserted on.</summary>
     private static IReadOnlyList<string> PublishedNamesOf(ListAccountsToolResult result) =>
     [
-        .. result.Accounts.SelectMany(static account =>
-            new[] { account.AccountId, account.DisplayName }.Concat(
-                account.Folders.SelectMany(static folder => new[] { folder.AccountId, folder.AccountDisplayName }))),
+        .. result.Accounts.SelectMany(static account => new[] { account.AccountId, account.DisplayName }),
     ];
 
     private static ListAccountsTool ToolOver(
         StubMailAccountCatalog catalog,
         params MailboxFolderFreshness[] folderFreshness) =>
-        new(
+        ToolOver(
+            catalog,
+            [
+                .. folderFreshness
+                    .Where(static freshness => freshness.Folder is not null)
+                    .Select(static freshness => new StoredMailFolder(
+                        freshness.AccountId,
+                        freshness.Folder!.Id,
+                        freshness.FolderAlias,
+                        Role: null,
+                        [freshness.Folder.Path],
+                        StoredEmailCount: 0,
+                        UnreadEmailCount: 0)),
+            ],
+            folderFreshness);
+
+    private static ListAccountsTool ToolOver(
+        StubMailAccountCatalog catalog,
+        IReadOnlyList<StoredMailFolder> storedFolders,
+        params MailboxFolderFreshness[] folderFreshness)
+    {
+        var folderReader = Substitute.For<IStoredMailFolderReader>();
+        folderReader.ReadAsync(Arg.Any<MailboxScope>(), Arg.Any<CancellationToken>()).Returns(storedFolders);
+
+        return new(
             new MailAccountDirectoryReader(
                 catalog,
                 new StubSynchronizationFreshnessReader(folderFreshness),
+                folderReader,
                 new MailboxScopeResolver(
                     catalog,
                     StubMailFolderParticipation.Nothing,
@@ -251,4 +287,5 @@ public sealed class ListAccountsToolTests
                 Substitute.For<IMailboxReadTelemetry>(),
                 AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead)),
             catalog);
+    }
 }

@@ -16,10 +16,10 @@ function account(id: string, displayName: string): MailAccount {
     };
 }
 
-function folder(folder: Partial<MailFolder> & Pick<MailFolder, 'alias'>): MailFolder {
+function folder(folder: Partial<MailFolder> & Pick<MailFolder, 'id'>): MailFolder {
     return {
         role: null,
-        path: [folder.alias],
+        path: [folder.id],
         storedEmailCount: 0,
         unreadEmailCount: 0,
         synchronizationState: 'Synchronized',
@@ -32,9 +32,9 @@ function folder(folder: Partial<MailFolder> & Pick<MailFolder, 'alias'>): MailFo
 const work: MailAccountFolders = {
     account: account('work', 'Work'),
     folders: [
-        folder({ alias: 'INBOX', role: 'Inbox', path: ['INBOX'], unreadEmailCount: 12, storedEmailCount: 4213 }),
-        folder({ alias: 'SENT', role: 'Sent', path: ['Wysłane'], storedEmailCount: 300 }),
-        folder({ alias: 'ARCHIVE/2024', path: ['Archiwum', '2024'], storedEmailCount: 980 }),
+        folder({ id: 'INBOX', role: 'Inbox', path: ['INBOX'], unreadEmailCount: 12, storedEmailCount: 4213 }),
+        folder({ id: 'SENT', role: 'Sent', path: ['Wysłane'], storedEmailCount: 300 }),
+        folder({ id: 'ARCHIVE/2024', path: ['Archiwum', '2024'], storedEmailCount: 980 }),
     ],
 };
 
@@ -48,8 +48,8 @@ const directory: MailFolderDirectory = {
         {
             account: account('personal', 'Personal'),
             folders: [
-                folder({ alias: 'INBOX', role: 'Inbox', path: ['INBOX'], unreadEmailCount: 3, storedEmailCount: 50 }),
-                folder({ alias: 'NEWS', path: [], synchronizationState: 'NeverSynchronized' }),
+                folder({ id: 'INBOX', role: 'Inbox', path: ['INBOX'], unreadEmailCount: 3, storedEmailCount: 50 }),
+                folder({ id: 'NEWS', path: ['News'], synchronizationState: null }),
             ],
         },
     ],
@@ -121,22 +121,20 @@ describe('folderTreeOf', () => {
         const archive = find(folderTreeOf(directory), 'level:work:["Archiwum"]');
 
         expect(archive?.name).toBe('Archiwum');
-        expect(archive?.alias).toBeNull();
+        expect(archive?.folderId).toBeNull();
     });
 
-    // A folder made inside another is declared under its own name, and neither a rename nor a move changes its alias,
-    // so an alias says nothing about where a folder is — and a held account's folders are named by nothing the tree
-    // could read a place from at all.
-    it('nests a folder by where it sits whatever its alias is', () => {
+    // Neither a rename nor a move changes a folder's identity, so the identity says nothing about where a folder is.
+    it('nests a folder by where it sits whatever its identity is', () => {
         const filed = {
             synchronizationEnabled: true,
             accounts: [
                 {
                     account: account('work', 'Work'),
                     folders: [
-                        folder({ alias: 'ARCHIVE', path: ['Archiwum'] }),
-                        folder({ alias: 'SUPPLIERS', path: ['Archiwum', 'Dostawcy'] }),
-                        folder({ alias: '0b9f3c1e', path: ['Archiwum', 'Dostawcy', '2026'] }),
+                        folder({ id: 'ARCHIVE', path: ['Archiwum'] }),
+                        folder({ id: 'SUPPLIERS', path: ['Archiwum', 'Dostawcy'] }),
+                        folder({ id: '0b9f3c1e', path: ['Archiwum', 'Dostawcy', '2026'] }),
                     ],
                 },
             ],
@@ -151,8 +149,8 @@ describe('folderTreeOf', () => {
         expect(keysOf(suppliers?.children ?? [])).toEqual(['folder:work:0b9f3c1e']);
     });
 
-    it('shows a folder nothing has bound to a remote folder under the name MailFathom knows it by', () => {
-        expect(find(folderTreeOf(directory), 'folder:personal:NEWS')?.name).toBe('NEWS');
+    it('draws a folder no source synchronizes by its own name, like any other', () => {
+        expect(find(folderTreeOf(directory), 'folder:personal:NEWS')?.name).toBe('News');
     });
 
     it('offers the special folders before the rest, in the order a reader reaches for them', () => {
@@ -162,11 +160,11 @@ describe('folderTreeOf', () => {
                 {
                     account: account('work', 'Work'),
                     folders: [
-                        folder({ alias: 'ARCHIVE', role: 'Archive', path: ['Archive'] }),
-                        folder({ alias: 'TRASH', role: 'Trash', path: ['Trash'] }),
-                        folder({ alias: 'DRAFTS', role: 'Drafts', path: ['Drafts'] }),
-                        folder({ alias: 'SENT', role: 'Sent', path: ['Sent'] }),
-                        folder({ alias: 'INBOX', role: 'Inbox', path: ['INBOX'] }),
+                        folder({ id: 'ARCHIVE', role: 'Archive', path: ['Archive'] }),
+                        folder({ id: 'TRASH', role: 'Trash', path: ['Trash'] }),
+                        folder({ id: 'DRAFTS', role: 'Drafts', path: ['Drafts'] }),
+                        folder({ id: 'SENT', role: 'Sent', path: ['Sent'] }),
+                        folder({ id: 'INBOX', role: 'Inbox', path: ['INBOX'] }),
                     ],
                 },
                 { account: account('personal', 'Personal'), folders: [] },
@@ -194,7 +192,7 @@ describe('folderTreeOf', () => {
         expect(find(folderTreeOf(directory), 'account:work')?.scope).toEqual({
             kind: 'folder',
             accountId: 'work',
-            alias: 'INBOX',
+            folderId: 'INBOX',
         });
     });
 
@@ -202,7 +200,7 @@ describe('folderTreeOf', () => {
         const inboxless = {
             synchronizationEnabled: true,
             accounts: [
-                { account: account('work', 'Work'), folders: [folder({ alias: 'NEWS', path: ['NEWS'] })] },
+                { account: account('work', 'Work'), folders: [folder({ id: 'NEWS', path: ['NEWS'] })] },
                 { account: account('personal', 'Personal'), folders: [] },
             ],
         };
@@ -228,7 +226,7 @@ describe('openingScope', () => {
         const inboxless = {
             synchronizationEnabled: true,
             accounts: [
-                { account: account('work', 'Work'), folders: [folder({ alias: 'NEWS', path: ['NEWS'] })] },
+                { account: account('work', 'Work'), folders: [folder({ id: 'NEWS', path: ['NEWS'] })] },
                 { account: account('personal', 'Personal'), folders: [] },
             ],
         };
@@ -237,13 +235,13 @@ describe('openingScope', () => {
     });
 
     it('opens on the one mailbox’s inbox where there is no row spanning every mailbox', () => {
-        expect(openingScope(alone)).toEqual({ kind: 'folder', accountId: 'work', alias: 'INBOX' });
+        expect(openingScope(alone)).toEqual({ kind: 'folder', accountId: 'work', folderId: 'INBOX' });
     });
 
     it('opens on the one mailbox itself where it plays no inbox', () => {
         const inboxless = {
             synchronizationEnabled: true,
-            accounts: [{ account: account('work', 'Work'), folders: [folder({ alias: 'NEWS', path: ['NEWS'] })] }],
+            accounts: [{ account: account('work', 'Work'), folders: [folder({ id: 'NEWS', path: ['NEWS'] })] }],
         };
 
         expect(openingScope(inboxless)).toEqual({ kind: 'account', accountId: 'work' });

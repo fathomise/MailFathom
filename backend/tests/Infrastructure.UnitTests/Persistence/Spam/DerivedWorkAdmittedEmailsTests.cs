@@ -66,7 +66,7 @@ public sealed class DerivedWorkAdmittedEmailsTests
         // Assert
         Assert.Equal(
             [("home", "JUNK"), ("work", "INBOX")],
-            admitted.AsEnumerable().Select(email => (email.MailboxAccountId, email.MailFolder.Alias)));
+            admitted.AsEnumerable().Select(email => (email.MailboxAccountId, email.MailFolderBinding.Alias)));
     }
 
     /// <summary>Placement outranks the record here too, so a scan concluding otherwise does not put junk back in the walk.</summary>
@@ -227,12 +227,19 @@ public sealed class DerivedWorkAdmittedEmailsTests
         var email = new StoredEmailEntity
         {
             MailboxAccountId = accountId,
-            MailFolder = new MailFolderEntity
+            MailFolderBinding = new MailFolderBindingEntity
             {
                 MailboxAccountId = accountId,
                 Alias = alias,
                 RemotePath = alias,
                 MailboxAccount = new MailboxAccountEntity { Id = accountId },
+            },
+            Folder = new MailFolderEntity
+            {
+                MailboxAccountId = accountId,
+                Name = alias,
+                NameKey = alias,
+                Alias = alias,
             },
             StoredAt = storedAt,
             ContentAvailability = StoredEmailContentAvailability.Available,

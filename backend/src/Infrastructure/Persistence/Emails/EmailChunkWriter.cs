@@ -315,14 +315,10 @@ internal sealed class EmailChunkWriter(
             return false;
         }
 
-        var folderAlias = storedEmail.MailFolder is { } loadedFolder
-            ? loadedFolder.Alias
-            : await dbContext.MailFolders
-                .Where(folder => folder.Id == storedEmail.MailFolderId)
-                .Select(folder => folder.Alias)
-                .SingleAsync(cancellationToken);
+        // Found rather than queried, because the folder may be the inbox the same session created for this message.
+        var folderAlias = (storedEmail.Folder ?? await dbContext.MailFolders.FindAsync([storedEmail.FolderId], cancellationToken))?.Alias;
 
-        return AccountScopedMailFolders.Contains(admitted, storedEmail.MailboxAccountId, folderAlias);
+        return folderAlias is null || AccountScopedMailFolders.Contains(admitted, storedEmail.MailboxAccountId, folderAlias);
     }
 
     private static EmailChunkEntity[] FindStaged(

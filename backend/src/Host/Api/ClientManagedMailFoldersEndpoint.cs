@@ -56,8 +56,8 @@ internal static class ClientManagedMailFoldersEndpoint
     /// <remarks>
     /// A name of <see cref="LocalMailFolderName.MaximumLength" /> characters escaped at six bytes each, an account, and
     /// the two folder identities beside it, with room to spare. Those identities are opaque text rather than a fixed
-    /// width — on a mirrored account each is the folder's alias, which carries no maximum length of its own — so this is
-    /// the bound on them: a body past it is answered <c>413</c> before the handler is reached.
+    /// width in the contract, so this is the bound on them: a body past it is answered <c>413</c> before the handler is
+    /// reached.
     /// </remarks>
     internal const int MaxWriteRequestBytes = 4096;
 

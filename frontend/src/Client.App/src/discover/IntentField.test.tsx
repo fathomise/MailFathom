@@ -133,7 +133,7 @@ function fieldStanding(as: Partial<Workspace>, recall = true): { workspace: () =
 // Everything the Mail space has in front of somebody at once: a folder, a correspondence, the message open in it, the
 // rows ticked, and a passage highlighted. None of it belongs to Discover's field.
 const mailInFront: Partial<Workspace> = {
-    scope: { kind: 'folder', accountId: 'work', alias: 'Invoices' },
+    scope: { kind: 'folder', accountId: 'work', folderId: 'Invoices' },
     conversation: { threadId: 'thread-1', openAt: null },
     selection: 'AAMkAD-42',
     selected: ['AAMkAD-42', 'AAMkAD-43'],

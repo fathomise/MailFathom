@@ -80,21 +80,17 @@ public sealed class EmailTimelineFilterTests
         Assert.Equal(first.Fingerprint, second.Fingerprint);
     }
 
-    /// <summary>A folder alias may contain the character a list is joined with, so the joined text alone cannot identify one.</summary>
+    /// <summary>A folder named by its identity and folders named by their role are different selections, so their cursors differ.</summary>
     [Fact]
-    public void Fingerprint_ScopesWhoseNamesShareTheirSeparators_DoNotMatch()
+    public void Fingerprint_AScopeNamingAFolderAndOneNamingARole_DoNotMatch()
     {
         // Arrange
-        var oneAliasCarryingTheSeparator = MailboxScope.Create(
-            accountIds: null,
-            [Folder("ARCHIVE,SENT"), Folder("TRASH")]);
-        var theSameNamesSplitDifferently = MailboxScope.Create(
-            accountIds: null,
-            [Folder("ARCHIVE"), Folder("SENT,TRASH")]);
+        var byIdentity = MailboxScope.Create(accountIds: null, [Folder(1)]);
+        var byRole = MailboxScope.Create(accountIds: null, selectedFolders: null, [MailFolderSpecialUse.Archive]);
 
         // Act
-        var first = FilterWith(scope: oneAliasCarryingTheSeparator);
-        var second = FilterWith(scope: theSameNamesSplitDifferently);
+        var first = FilterWith(scope: byIdentity);
+        var second = FilterWith(scope: byRole);
 
         // Assert
         Assert.NotEqual(first.Fingerprint, second.Fingerprint);
@@ -122,7 +118,8 @@ public sealed class EmailTimelineFilterTests
             FilterWith(scope: MailboxScope.Create(
                 [MailAccountId.Create("primary")],
                 selectedFolders: null)),
-            FilterWith(scope: MailboxScope.Create( null, [Folder("ARCHIVE")])),
+            FilterWith(scope: MailboxScope.Create(null, [Folder(1)])),
+            FilterWith(scope: MailboxScope.Create(null, selectedFolders: null, [MailFolderSpecialUse.Archive])),
             FilterWith(senderAddress: "anna@example.test"),
             FilterWith(recipientAddress: "anna@example.test"),
             FilterWith(subjectFragment: "invoice"),
@@ -144,9 +141,8 @@ public sealed class EmailTimelineFilterTests
         Assert.Equal(fingerprints.Length, fingerprints.Distinct(StringComparer.Ordinal).Count());
     }
 
-    /// <summary>Names one folder of the account these fingerprints are all written about.</summary>
-    private static MailFolderIdentity Folder(string alias) =>
-        new(MailAccountId.Create("primary"), MailFolderAlias.Create(alias));
+    private static MailFolderId Folder(int number) =>
+        MailFolderId.Create(Guid.Parse($"0199c1a2-0000-7000-8000-{number:D12}"));
 
     private static EmailTimelineFilter FilterWith(
         MailboxScope? scope = null,

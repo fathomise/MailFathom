@@ -10,8 +10,8 @@ import { LocalizationProvider } from '../localization/Localization';
 import type { MoveDestination, MoveDestinationGroup } from './mailboxDestinations';
 import { MoveChoice } from './MoveChoice';
 
-const archive: MoveDestination = { alias: 'work-archive', name: 'INBOX.Archiwum', role: 'Archive' };
-const clients: MoveDestination = { alias: 'work-clients', name: 'Projects / Clients', role: null };
+const archive: MoveDestination = { folderId: 'work-archive', name: 'INBOX.Archiwum', role: 'Archive' };
+const clients: MoveDestination = { folderId: 'work-clients', name: 'Projects / Clients', role: null };
 
 const work: MoveDestinationGroup = {
     accountId: 'work',

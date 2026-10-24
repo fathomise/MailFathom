@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Security.Cryptography;
+using System.Text;
 using MailFathom.Application.Access;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Folders;
@@ -78,6 +80,8 @@ public sealed class MailRelocationRecorderTests
 
     private readonly List<RemoteFolder> advertisedFolders = [];
 
+    private readonly List<LocalMailFolder> extraFolders = [];
+
     private readonly IAuthoredDeleteEmailDispositionReader dispositions =
         Substitute.For<IAuthoredDeleteEmailDispositionReader>();
 
@@ -98,7 +102,7 @@ public sealed class MailRelocationRecorderTests
         // Act
         var result = await recorder.RecordAsync(
             LocalEmail,
-            Archive,
+            IdOf(Archive),
             Requester,
             TestContext.Current.CancellationToken);
 
@@ -123,7 +127,7 @@ public sealed class MailRelocationRecorderTests
         var recorder = this.Recorder(TargetIn(Inbox));
 
         // Act
-        await recorder.RecordAsync(LocalEmail, Archive, Requester, TestContext.Current.CancellationToken);
+        await recorder.RecordAsync(LocalEmail, IdOf(Archive), Requester, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Null(Assert.Single(this.records.OpenedRequests).LocalDisposition);
@@ -147,7 +151,7 @@ public sealed class MailRelocationRecorderTests
         // Act
         var result = await recorder.RecordAsync(
             LocalEmail,
-            Archive,
+            IdOf(Archive),
             Requester,
             TestContext.Current.CancellationToken);
 
@@ -173,7 +177,7 @@ public sealed class MailRelocationRecorderTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            recorder.RecordAsync(LocalEmail, Archive, Requester, TestContext.Current.CancellationToken));
+            recorder.RecordAsync(LocalEmail, IdOf(Archive), Requester, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomPermission.MailMove, refusal.RequiredPermission);
@@ -191,7 +195,7 @@ public sealed class MailRelocationRecorderTests
         // Act
         var result = await recorder.RecordAsync(
             LocalEmail,
-            Archive,
+            IdOf(Archive),
             Requester,
             TestContext.Current.CancellationToken);
 
@@ -212,7 +216,7 @@ public sealed class MailRelocationRecorderTests
         // Act
         var result = await recorder.RecordAsync(
             LocalEmail,
-            Archive,
+            IdOf(Archive),
             Requester,
             TestContext.Current.CancellationToken);
 
@@ -235,7 +239,7 @@ public sealed class MailRelocationRecorderTests
         // Act
         var result = await recorder.RecordAsync(
             LocalEmail,
-            Withheld,
+            IdOf(Withheld),
             Requester,
             TestContext.Current.CancellationToken);
 
@@ -254,7 +258,7 @@ public sealed class MailRelocationRecorderTests
         // Act
         var result = await recorder.RecordAsync(
             LocalEmail,
-            Archive,
+            IdOf(Archive),
             Requester,
             TestContext.Current.CancellationToken);
 
@@ -274,7 +278,7 @@ public sealed class MailRelocationRecorderTests
         // Act
         var result = await recorder.RecordAsync(
             LocalEmail,
-            Inbox,
+            IdOf(Inbox),
             Requester,
             TestContext.Current.CancellationToken);
 
@@ -300,7 +304,7 @@ public sealed class MailRelocationRecorderTests
         // Act
         var result = await recorder.RecordAsync(
             LocalEmail,
-            Archive,
+            IdOf(Archive),
             Requester,
             TestContext.Current.CancellationToken);
 
@@ -318,27 +322,53 @@ public sealed class MailRelocationRecorderTests
         var recorder = this.Recorder(TargetIn(Inbox));
 
         // Act
-        var first = await recorder.RecordAsync(LocalEmail, Archive, Requester, TestContext.Current.CancellationToken);
-        var second = await recorder.RecordAsync(LocalEmail, Archive, Requester, TestContext.Current.CancellationToken);
+        var first = await recorder.RecordAsync(LocalEmail, IdOf(Archive), Requester, TestContext.Current.CancellationToken);
+        var second = await recorder.RecordAsync(LocalEmail, IdOf(Archive), Requester, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(1, this.records.OpenedRecordCount);
         Assert.Equal(first.RecordId, second.RecordId);
     }
 
-    /// <summary>A move with no folder named is a caller fault rather than an outcome, because there is nothing to report an answer about.</summary>
+    /// <summary>An identity no folder of the message's account carries is a destination that is not there, and writes nothing.</summary>
     [Fact]
-    public async Task RecordAsync_ADestinationNamingNoFolder_IsRefused()
+    public async Task RecordAsync_AnIdentityNoFolderOfTheAccountCarries_ReportsTheDestinationAsNotFound()
     {
         // Arrange
+        this.MapMirrored(Archive, "Archive");
         var recorder = this.Recorder(TargetIn(Inbox));
 
         // Act
-        var thrown = await Assert.ThrowsAsync<ArgumentException>(() =>
-            recorder.RecordAsync(LocalEmail, default, Requester, TestContext.Current.CancellationToken));
+        var result = await recorder.RecordAsync(
+            LocalEmail,
+            MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-0000000000c9")),
+            Requester,
+            TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal("destination", thrown.ParamName);
+        Assert.Equal(MailRelocationOutcome.DestinationNotFound, result.Outcome);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>A folder no alias feeds and no role names is not yet a destination, so a move into one writes nothing.</summary>
+    [Fact]
+    public async Task RecordAsync_AFolderNeitherAnAliasNorARoleNames_ReportsTheDestinationAsNotFound()
+    {
+        // Arrange
+        var made = new LocalMailFolder(
+            MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-0000000000ca")),
+            ParentId: null,
+            LocalMailFolderName.Create("Made by hand"),
+            Role: null,
+            SourceFolderAlias: null);
+        this.extraFolders.Add(made);
+        var recorder = this.Recorder(TargetIn(Inbox));
+
+        // Act
+        var result = await recorder.RecordAsync(LocalEmail, made.Id, Requester, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRelocationOutcome.DestinationNotFound, result.Outcome);
         Assert.Equal(0, this.records.OpenedRecordCount);
     }
 
@@ -391,7 +421,7 @@ public sealed class MailRelocationRecorderTests
         // Act
         var result = await recorder.RecordAsync(
             LocalEmail,
-            bound[into].Alias,
+            IdOf(bound[into].Alias),
             Requester,
             TestContext.Current.CancellationToken);
 
@@ -421,10 +451,10 @@ public sealed class MailRelocationRecorderTests
         var recorder = this.Recorder(TargetIn(Inbox));
 
         // Act
-        var archived = await recorder.RecordAsync(LocalEmail, Archive, Requester, TestContext.Current.CancellationToken);
+        var archived = await recorder.RecordAsync(LocalEmail, IdOf(Archive), Requester, TestContext.Current.CancellationToken);
         var draftsAfterArchiving =
             await this.bindings.GetCurrentResolutionAsync(Account, Drafts, TestContext.Current.CancellationToken);
-        var intoDrafts = await recorder.RecordAsync(LocalEmail, Drafts, Requester, TestContext.Current.CancellationToken);
+        var intoDrafts = await recorder.RecordAsync(LocalEmail, IdOf(Drafts), Requester, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(MailRelocationOutcome.Recorded, archived.Outcome);
@@ -452,7 +482,7 @@ public sealed class MailRelocationRecorderTests
         var recorder = this.Recorder(TargetIn(Inbox), runSignal: runSignal);
 
         // Act
-        await recorder.RecordAsync(LocalEmail, Archive, Requester, TestContext.Current.CancellationToken);
+        await recorder.RecordAsync(LocalEmail, IdOf(Archive), Requester, TestContext.Current.CancellationToken);
 
         // Assert
         using var waiting = runSignal.Register(Account, TestContext.Current.CancellationToken);
@@ -509,6 +539,7 @@ public sealed class MailRelocationRecorderTests
             targets,
             this.mappings.Resolver,
             this.bindings,
+            this.FolderRows(),
             this.DestinationResolver(sessions),
             this.dispositions,
             MailboxChangeSubmissions.Over(this.records),
@@ -518,6 +549,30 @@ public sealed class MailRelocationRecorderTests
                 new FakeTimeProvider(RecordedAt)),
             runSignal ?? new MailAccountRunSignal());
     }
+
+    /// <summary>Gives every folder these tests name a row, which is what a destination is named by.</summary>
+    private ILocalMailFolderStore FolderRows()
+    {
+        MailFolderAlias[] named = [Inbox, Archive, Withheld, Drafts, Sent, DraftsClients, SentClients, Trash, Projects];
+        IReadOnlyList<LocalMailFolder> rows =
+        [
+            .. named.Select(static alias => new LocalMailFolder(
+                IdOf(alias),
+                ParentId: null,
+                LocalMailFolderName.Create(alias.Value),
+                Role: null,
+                alias)),
+            .. this.extraFolders,
+        ];
+
+        var folders = Substitute.For<ILocalMailFolderStore>();
+        folders.ReadFoldersAsync(Account, Arg.Any<CancellationToken>()).Returns(rows);
+
+        return folders;
+    }
+
+    private static MailFolderId IdOf(MailFolderAlias alias) =>
+        MailFolderId.Create(new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(alias.Value)).AsSpan(0, 16)));
 
     private MailboxDestinationResolver DestinationResolver(IPersistenceSessionFactory sessionFactory)
     {
@@ -555,7 +610,8 @@ public sealed class MailRelocationRecorderTests
 
         return new AuthoredMailboxTarget(
             EmailOccurrenceId.Create(Account, folder.Id, ImapUidValidity.Create(42), ImapUid.Create(7)),
-            folder);
+            folder,
+            IdOf(folderAlias));
     }
 
     private sealed class CommittingSession : IPersistenceSession

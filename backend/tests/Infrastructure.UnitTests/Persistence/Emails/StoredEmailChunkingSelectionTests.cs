@@ -301,12 +301,19 @@ public sealed class StoredEmailChunkingSelectionTests
         var email = new StoredEmailEntity
         {
             MailboxAccountId = accountId,
-            MailFolder = new MailFolderEntity
+            MailFolderBinding = new MailFolderBindingEntity
             {
                 MailboxAccountId = accountId,
                 Alias = alias,
                 RemotePath = alias,
                 MailboxAccount = new MailboxAccountEntity { Id = accountId },
+            },
+            Folder = new MailFolderEntity
+            {
+                MailboxAccountId = accountId,
+                Name = alias,
+                NameKey = alias,
+                Alias = alias,
             },
             StoredAt = Now,
             ContentAvailability = StoredEmailContentAvailability.Available,
@@ -334,7 +341,7 @@ public sealed class StoredEmailChunkingSelectionTests
             StoredEmailId = email.Id,
             StoredEmail = email,
             MailboxAccountId = email.MailboxAccountId,
-            MailFolder = email.MailFolder,
+            MailFolderBinding = email.MailFolderBinding,
             Mutation = mutation.Name,
             RequesterIdentity = "rule:file-the-newsletters",
             RequesterOrigin = MailboxMutationOrigin.Rule,

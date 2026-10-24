@@ -21,7 +21,7 @@ const workAccount = {
 };
 
 const inbox = {
-    alias: 'INBOX',
+    id: 'INBOX',
     role: 'Inbox',
     path: ['INBOX'],
     storedEmailCount: 4213,
@@ -89,7 +89,7 @@ describe('readMailFolders', () => {
                         },
                         folders: [
                             {
-                                alias: 'INBOX',
+                                id: 'INBOX',
                                 role: 'Inbox',
                                 path: ['INBOX'],
                                 storedEmailCount: 4213,
@@ -105,27 +105,28 @@ describe('readMailFolders', () => {
         });
     });
 
-    it('reads a folder the deployment has not bound to a remote folder as one with no place on its server', async () => {
-        const unbound = {
+    it('reads a folder no source synchronizes as one with no synchronization state', async () => {
+        const kept = {
             ...inbox,
+            id: 'PROJECTS',
             role: null,
-            path: [],
-            synchronizationState: 'NeverSynchronized',
+            path: ['Projects'],
+            synchronizationState: null,
             lastSynchronizedAt: null,
-            storedEmailCount: 0,
+            storedEmailCount: 2,
             unreadEmailCount: 0,
         };
 
-        const result = await readMailFolders(session, answering({ status: 200, body: bodyOf([unbound]) }));
+        const result = await readMailFolders(session, answering({ status: 200, body: bodyOf([kept]) }));
 
         expect(result.outcome === 'read' ? result.value.accounts[0]?.folders : null).toEqual([
             {
-                alias: 'INBOX',
+                id: 'PROJECTS',
                 role: null,
-                path: [],
-                storedEmailCount: 0,
+                path: ['Projects'],
+                storedEmailCount: 2,
                 unreadEmailCount: 0,
-                synchronizationState: 'NeverSynchronized',
+                synchronizationState: null,
                 lastSynchronizedAt: null,
                 behind: false,
             },
@@ -174,7 +175,7 @@ describe('readMailFolders', () => {
             shape: 'an account entry carrying no folders array',
             body: JSON.stringify({ synchronizationEnabled: true, accounts: [{ account: workAccount }] }),
         },
-        { shape: 'a folder with no alias', body: bodyOf([{ ...inbox, alias: 42 }]) },
+        { shape: 'a folder with no identity', body: bodyOf([{ ...inbox, id: 42 }]) },
         { shape: 'a folder carrying a role this client does not know', body: bodyOf([{ ...inbox, role: 'Spam' }]) },
         { shape: 'a folder whose path is not levels', body: bodyOf([{ ...inbox, path: 'INBOX/2026' }]) },
         { shape: 'a folder whose path holds something other than a name', body: bodyOf([{ ...inbox, path: [7] }]) },
@@ -209,7 +210,7 @@ describe('readMailFolders', () => {
     });
 
     it('refuses an account carrying more folders than a mailbox has', async () => {
-        const folders = Array.from({ length: 1025 }, (_, index) => ({ ...inbox, alias: `FOLDER-${String(index)}` }));
+        const folders = Array.from({ length: 1025 }, (_, index) => ({ ...inbox, id: `FOLDER-${String(index)}` }));
 
         const result = await readMailFolders(session, answering({ status: 200, body: bodyOf(folders) }));
 

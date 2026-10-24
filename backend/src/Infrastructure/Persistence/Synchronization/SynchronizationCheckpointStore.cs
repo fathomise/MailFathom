@@ -36,9 +36,9 @@ internal sealed class SynchronizationCheckpointStore(MailFathomDbContext readCon
         var entity = await readContext.SynchronizationCheckpoints
             .AsNoTracking()
             .SingleOrDefaultAsync(
-                checkpoint => checkpoint.MailFolder.MailboxAccountId == accountId
-                    && checkpoint.MailFolder.Alias == alias
-                    && checkpoint.MailFolder.ResolutionGeneration == generation,
+                checkpoint => checkpoint.MailFolderBinding.MailboxAccountId == accountId
+                    && checkpoint.MailFolderBinding.Alias == alias
+                    && checkpoint.MailFolderBinding.ResolutionGeneration == generation,
                 cancellationToken);
 
         return entity is null ? null : CheckpointOf(entity);
@@ -56,7 +56,7 @@ internal sealed class SynchronizationCheckpointStore(MailFathomDbContext readCon
         ArgumentNullException.ThrowIfNull(checkpoint);
 
         var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
-        var folder = await MailFolderEntityResolver.GetRequiredAsync(
+        var folder = await MailFolderBindingResolver.GetRequiredAsync(
             writeContext,
             account,
             folderResolutionId,
@@ -73,7 +73,7 @@ internal sealed class SynchronizationCheckpointStore(MailFathomDbContext readCon
 
             writeContext.SynchronizationCheckpoints.Add(new SynchronizationCheckpointEntity
             {
-                MailFolder = folder,
+                MailFolderBinding = folder,
                 UidValidity = checkpoint.UidValidity.Value,
                 LastSeenUid = checkpoint.LastSeenUid?.Value,
                 SynchronizedAt = checkpoint.SynchronizedAt,
@@ -110,9 +110,9 @@ internal sealed class SynchronizationCheckpointStore(MailFathomDbContext readCon
         // Tracked rather than deleted in one statement, because the removal joins the caller's transaction and an
         // ExecuteDelete would run outside the change tracker and commit on its own.
         var checkpoints = await writeContext.SynchronizationCheckpoints
-            .Include(checkpoint => checkpoint.MailFolder)
-            .Where(checkpoint => checkpoint.MailFolder.MailboxAccountId == accountId
-                && (alias == null || checkpoint.MailFolder.Alias == alias))
+            .Include(checkpoint => checkpoint.MailFolderBinding)
+            .Where(checkpoint => checkpoint.MailFolderBinding.MailboxAccountId == accountId
+                && (alias == null || checkpoint.MailFolderBinding.Alias == alias))
             .ToArrayAsync(cancellationToken);
 
         writeContext.SynchronizationCheckpoints.RemoveRange(checkpoints);
@@ -120,7 +120,7 @@ internal sealed class SynchronizationCheckpointStore(MailFathomDbContext readCon
         return
         [
             .. checkpoints
-                .Select(checkpoint => checkpoint.MailFolder.Alias)
+                .Select(checkpoint => checkpoint.MailFolderBinding.Alias)
                 .Distinct(StringComparer.Ordinal)
                 .Order(StringComparer.Ordinal)
                 .Select(MailFolderAlias.Create),
@@ -156,7 +156,7 @@ internal sealed class SynchronizationCheckpointStore(MailFathomDbContext readCon
 
     private static async Task<SynchronizationCheckpointEntity?> FindCheckpointForAsync(
         MailFathomDbContext writeContext,
-        MailFolderEntity folder,
+        MailFolderBindingEntity folder,
         CancellationToken cancellationToken)
     {
         // EF Core fixes up the inverse navigation as soon as a checkpoint referencing this folder is tracked, which covers

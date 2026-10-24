@@ -20,10 +20,10 @@ namespace MailFathom.Host.Api;
 /// stale relative to the first.
 /// </para>
 /// <para>
-/// Each folder carries the role it plays, which is the answer a screen cannot work out for itself: special-use folders
-/// are advertised by attribute rather than by name, and the names differ per provider and per language. It carries its
-/// place in the server's hierarchy for the same reason, since MailFathom's own alias for a folder is one upper-cased
-/// configured word and a tree is not drawn from those.
+/// Each folder carries its identity and the role it plays, the second being the answer a screen cannot work out for
+/// itself: special-use folders are advertised by attribute rather than by name, and the names differ per provider and
+/// per language. Every account's folders are answered the same way whichever copy of the mailbox is the truth, so a
+/// folder somebody created on a held account is in the tree exactly as a mirrored one is.
 /// </para>
 /// <para>
 /// It costs more than the accounts route and is therefore a route of its own rather than a wider version of it.
@@ -98,7 +98,7 @@ internal sealed record ClientMailFoldersResponse(
 
 /// <summary>One of the user's accounts and the folders beneath it.</summary>
 /// <param name="Account">The account, exactly as the accounts route publishes it.</param>
-/// <param name="Folders">The account's folders, ordered by alias, empty where synchronization has reached none.</param>
+/// <param name="Folders">The account's folders, ordered by their place in its hierarchy.</param>
 /// <remarks>
 /// The account is the accounts route's own type rather than a copy of its fields, so the two routes cannot come to
 /// disagree about what an account is. That is why it is nested rather than flattened: a copy flattened for the
@@ -117,33 +117,34 @@ internal sealed record ClientMailFolderAccountResponse(
 }
 
 /// <summary>One folder of one account, as a screen drawing a tree needs it.</summary>
-/// <param name="Alias">MailFathom's own name for the folder, which is what every other route on this surface names it by.</param>
-/// <param name="Role">The role the folder plays for its account, as the role's own name, or <see langword="null" /> where configuration labels it with none.</param>
-/// <param name="Path">The folder's place on its mail server, outermost level first, and empty where nothing has bound the alias to a remote folder yet.</param>
+/// <param name="Id">The folder's MailFathom-issued identity, which is what every other route on this surface names it by.</param>
+/// <param name="Role">The role the folder plays for its account, as the role's own name, or <see langword="null" /> where it plays none.</param>
+/// <param name="Path">The folder names from the top of the account's hierarchy down to this one.</param>
 /// <param name="StoredEmailCount">How many of the folder's emails this deployment holds and would serve.</param>
-/// <param name="UnreadEmailCount">How many of those the mail server last reported without <c>\Seen</c>.</param>
-/// <param name="SynchronizationState">Whether the deployment's last attempt at the folder succeeded, failed, found no server, or has never happened, as the state's own name.</param>
+/// <param name="UnreadEmailCount">How many of those are unread.</param>
+/// <param name="SynchronizationState">Whether the deployment's last attempt at the folder succeeded, failed, found no server, or has never happened, as the state's own name, or <see langword="null" /> for a folder no source synchronizes.</param>
 /// <param name="LastSynchronizedAt">When the folder last durably took anything in, or <see langword="null" /> where it never has.</param>
 /// <param name="Behind">Whether the folder's last attempt ended with mail it had not yet taken in.</param>
 /// <remarks>
 /// <para>
-/// The path is levels rather than one string, so a client builds a tree without knowing that a mail server has a
-/// hierarchy delimiter or which character this one chose. The last level is what a person recognizes as the folder's
-/// name; the alias above it is MailFathom's own and is what a later request names the folder with.
+/// The path is levels rather than one string, so a client builds a tree without knowing that a hierarchy has a
+/// delimiter. The last level is what a person recognizes as the folder's name; the identity is what a later request
+/// names the folder with, and it outlives a rename or a move that changes the path.
 /// </para>
 /// <para>
 /// The counts are of the local copy and are meaningless without the three fields under them, which is why all six
 /// travel together. A folder still being backfilled holds fewer than the server does, and a folder whose last attempt
-/// failed holds what it held before that attempt.
+/// failed holds what it held before that attempt. A folder with no state is one MailFathom keeps itself — every folder
+/// of a held account, and one a person created — and its counts are the whole of it.
 /// </para>
 /// </remarks>
 internal sealed record ClientMailFolderResponse(
-    string Alias,
+    string Id,
     string? Role,
     IReadOnlyList<string> Path,
     int StoredEmailCount,
     int UnreadEmailCount,
-    string SynchronizationState,
+    string? SynchronizationState,
     DateTimeOffset? LastSynchronizedAt,
     bool Behind)
 {
@@ -151,12 +152,12 @@ internal sealed record ClientMailFolderResponse(
     /// <param name="folder">The folder as the use case described it.</param>
     /// <returns>The response body.</returns>
     internal static ClientMailFolderResponse For(DescribedMailFolder folder) => new(
-        folder.Alias.Value,
+        folder.Id.ToString(),
         folder.Role?.ToString(),
         folder.HierarchyLevels,
         folder.StoredEmailCount,
         folder.UnreadEmailCount,
-        folder.Freshness.State.ToString(),
-        folder.Freshness.SynchronizedAt,
-        folder.Freshness.IsBehind);
+        folder.Freshness?.State.ToString(),
+        folder.Freshness?.SynchronizedAt,
+        folder.Freshness?.IsBehind ?? false);
 }

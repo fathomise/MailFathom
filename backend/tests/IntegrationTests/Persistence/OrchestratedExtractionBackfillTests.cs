@@ -157,7 +157,7 @@ public sealed class OrchestratedExtractionBackfillTests(MailFathomOrchestrationF
             async (scope, session, token) =>
             {
                 var dbContext = scope.GetRequiredService<MailFathomDbContext>();
-                var folder = await dbContext.MailFolders.SingleAsync(
+                var folder = await dbContext.MailFolderBindings.SingleAsync(
                     candidate => candidate.MailboxAccountId == SyntheticMailAccount.AccountId.Value
                         && candidate.Alias == alias
                         && candidate.ResolutionGeneration == generation,
@@ -169,7 +169,7 @@ public sealed class OrchestratedExtractionBackfillTests(MailFathomOrchestrationF
                     {
                         Id = Guid.CreateVersion7(SyntheticEmail.SentAt.AddSeconds(index)),
                         MailboxAccountId = folder.MailboxAccountId,
-                        MailFolder = folder,
+                        MailFolderBinding = folder,
                         UidValidity = SyntheticEmail.UidValidity,
                         Uid = (uint)(2000 + index),
                         Subject = $"awaiting-extraction-{index:D2}",

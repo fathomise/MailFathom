@@ -27,6 +27,8 @@ namespace MailFathom.Application.UnitTests.Mail.Mutations;
 /// <summary>Covers the one place a change's executor is chosen, and what a held account's local commit does for each kind of change.</summary>
 public sealed class MailboxChangeSubmissionTests
 {
+    private static readonly MailFolderId InboxRow = MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-0000000000e6"));
+
     private static readonly MailAccountId Account =
         MailAccountId.Create("personal");
 
@@ -193,7 +195,7 @@ public sealed class MailboxChangeSubmissionTests
         // Arrange
         this.Store();
         var archive = new LocalMailFolder(
-            LocalMailFolderId.Create(Guid.CreateVersion7()),
+            MailFolderId.Create(Guid.CreateVersion7()),
             ParentId: null,
             LocalMailFolderName.Create("Archive"),
             Role: null,
@@ -242,7 +244,7 @@ public sealed class MailboxChangeSubmissionTests
         var submission = this.Submission();
         await submission.SubmitAsync(this.session, DeleteRequest(), null, null, Token);
         var archive = new LocalMailFolder(
-            LocalMailFolderId.Create(Guid.CreateVersion7()),
+            MailFolderId.Create(Guid.CreateVersion7()),
             ParentId: null,
             LocalMailFolderName.Create("Archive"),
             Role: null,
@@ -608,7 +610,7 @@ public sealed class MailboxChangeSubmissionTests
     {
         // Arrange
         var channel = Substitute.For<IClientSignalChannel>();
-        var change = new AppliedMailboxChange(Account, Inbox.Alias, Email, new SignalledEmailFlags(Email, true, null));
+        var change = new AppliedMailboxChange(Account, InboxRow, Email, new SignalledEmailFlags(Email, true, null));
 
         // Act
         await using (var signals = new ClientSignals([channel], new FakeTimeProvider(Now)))
@@ -621,7 +623,7 @@ public sealed class MailboxChangeSubmissionTests
             Arg.Is<ClientSignal>(signal =>
                 signal != null
                 && signal.Kind == ClientSignalKind.MailFlagsChanged
-                && signal.Folder == Inbox.Alias
+                && signal.Folder == InboxRow
                 && signal.Flags.SequenceEqual(new[] { new SignalledEmailFlags(Email, true, null) })),
             Arg.Any<CancellationToken>());
     }
@@ -632,7 +634,7 @@ public sealed class MailboxChangeSubmissionTests
     {
         // Arrange
         var channel = Substitute.For<IClientSignalChannel>();
-        var change = new AppliedMailboxChange(Account, Inbox.Alias, Email, Flags: null);
+        var change = new AppliedMailboxChange(Account, InboxRow, Email, Flags: null);
 
         // Act
         await using (var signals = new ClientSignals([channel], new FakeTimeProvider(Now)))
@@ -645,7 +647,7 @@ public sealed class MailboxChangeSubmissionTests
             Arg.Is<ClientSignal>(signal =>
                 signal != null
                 && signal.Kind == ClientSignalKind.MailChanged
-                && signal.Folder == Inbox.Alias
+                && signal.Folder == InboxRow
                 && signal.Emails.SequenceEqual(new[] { Email })),
             Arg.Any<CancellationToken>());
     }
@@ -923,7 +925,7 @@ public sealed class MailboxChangeSubmissionTests
             IsFlagged: false,
             RemoteEmailKeywords.Create(keywords ?? [])));
 
-    private LocalMailFolderId FolderWithRole(MailFolderSpecialUse role) =>
+    private MailFolderId FolderWithRole(MailFolderSpecialUse role) =>
         this.folders.Folders.Single(folder => folder.Role == role).Id;
 
     /// <summary>Places the payload one copy is committed from, which is what a caller does before its transaction.</summary>

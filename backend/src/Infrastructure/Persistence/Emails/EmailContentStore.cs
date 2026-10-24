@@ -158,9 +158,9 @@ internal sealed class EmailContentStore(
 
         // FindAsync cannot eager-load. A row still pending in this session already carries the folder it was created with,
         // so the reference is loaded only when it is genuinely absent and the pending path stays free of an extra query.
-        if (storedEmail.MailFolder is null)
+        if (storedEmail.MailFolderBinding is null)
         {
-            await dbContext.Entry(storedEmail).Reference(email => email.MailFolder).LoadAsync(cancellationToken);
+            await dbContext.Entry(storedEmail).Reference(email => email.MailFolderBinding).LoadAsync(cancellationToken);
         }
 
         EnsureOccurrenceMatches(storedEmail, occurrenceId);
@@ -654,9 +654,9 @@ internal sealed class EmailContentStore(
     {
         var matches = occurrenceId is null
             ? storedEmail.UidValidity is null
-            : storedEmail.MailFolder.MailboxAccountId == occurrenceId.AccountId.Value
-                && storedEmail.MailFolder.Alias == occurrenceId.FolderResolutionId.Alias.Value
-                && storedEmail.MailFolder.ResolutionGeneration == occurrenceId.FolderResolutionId.Generation.Value
+            : storedEmail.MailFolderBinding.MailboxAccountId == occurrenceId.AccountId.Value
+                && storedEmail.MailFolderBinding.Alias == occurrenceId.FolderResolutionId.Alias.Value
+                && storedEmail.MailFolderBinding.ResolutionGeneration == occurrenceId.FolderResolutionId.Generation.Value
                 && storedEmail.UidValidity == occurrenceId.UidValidity.Value
                 && storedEmail.Uid == occurrenceId.Uid.Value;
 

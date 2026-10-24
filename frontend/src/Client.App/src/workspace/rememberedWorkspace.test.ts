@@ -9,7 +9,7 @@ import { emptyWorkspace, type Workspace } from './useWorkspace';
 const storageKey = 'mailfathom.workspace';
 
 const kept: Workspace = {
-    scope: { kind: 'folder', accountId: 'work', alias: 'INBOX' },
+    scope: { kind: 'folder', accountId: 'work', folderId: 'INBOX' },
     foldsToggled: ['account:personal'],
     mailboxesFolded: true,
     panelsHidden: true,
@@ -235,7 +235,7 @@ describe('rememberedWorkspace', () => {
         { kind: 'everything' },
         { kind: 'role', role: 'Sent' },
         { kind: 'account', accountId: 'work' },
-        { kind: 'folder', accountId: 'work', alias: 'ARCHIVE-2024' },
+        { kind: 'folder', accountId: 'work', folderId: 'ARCHIVE-2024' },
     ])('reads back the scope %o a person had chosen', (scope) => {
         stored({ ...emptyWorkspace, scope });
 
@@ -256,17 +256,17 @@ describe('rememberedWorkspace', () => {
         },
         {
             shape: 'a folder scope naming no account',
-            value: JSON.stringify({ ...emptyWorkspace, scope: { kind: 'folder', alias: 'INBOX' } }),
+            value: JSON.stringify({ ...emptyWorkspace, scope: { kind: 'folder', folderId: 'INBOX' } }),
         },
         {
             shape: 'an account identifier longer than any the service assigned',
             value: JSON.stringify({ ...emptyWorkspace, scope: { kind: 'account', accountId: 'a'.repeat(257) } }),
         },
         {
-            shape: 'a folder alias longer than any the service assigned',
+            shape: 'a folder identity longer than any the service assigned',
             value: JSON.stringify({
                 ...emptyWorkspace,
-                scope: { kind: 'folder', accountId: 'work', alias: 'a'.repeat(257) },
+                scope: { kind: 'folder', accountId: 'work', folderId: 'a'.repeat(257) },
             }),
         },
         {

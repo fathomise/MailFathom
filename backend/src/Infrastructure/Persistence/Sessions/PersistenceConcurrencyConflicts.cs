@@ -254,8 +254,9 @@ internal static class PersistenceConcurrencyConflicts
                 or PersistenceConstraintNames.StoredSecretUserNameUniqueIndexName
                 or PersistenceConstraintNames.EmailThreadIdentifierPrimaryKeyConstraintName
                 or PersistenceConstraintNames.NotificationUnreadConditionUniqueIndexName
-                or PersistenceConstraintNames.LocalMailFolderSiblingNameUniqueIndexName
-                or PersistenceConstraintNames.LocalMailFolderRoleUniqueIndexName
+                or PersistenceConstraintNames.MailFolderSiblingNameUniqueIndexName
+                or PersistenceConstraintNames.MailFolderRoleUniqueIndexName
+                or PersistenceConstraintNames.MailFolderAliasUniqueIndexName
                 or PersistenceConstraintNames.EmailThreadStatePrimaryKeyConstraintName
                 or PersistenceConstraintNames.MailboxSourceRemovalOccurrenceUniqueIndexName
                 or PersistenceConstraintNames.MailboxFlaggedDeleteOccurrenceUniqueIndexName

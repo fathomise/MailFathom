@@ -130,7 +130,7 @@ internal static class CorpusReaders
         {
             StoredEmailId = message.Id,
             Account = CorpusKnowledgeSearch.Account,
-            FolderAlias = CorpusKnowledgeSearch.Inbox,
+            Folder = CorpusKnowledgeSearch.InboxFolder,
             ThreadId = thread,
             Subject = message.Subject,
             SentAt = message.ReceivedAt,
@@ -178,7 +178,7 @@ internal static class CorpusReaders
         {
             StoredEmailId = message.Id,
             AccountId = CorpusKnowledgeSearch.Account,
-            FolderAlias = CorpusKnowledgeSearch.Inbox,
+            Folder = CorpusKnowledgeSearch.InboxFolder,
             ParentStoredEmailId = position is 0 ? null : exchange[position - 1].Id,
             Subject = message.Subject,
             SentAt = message.ReceivedAt,

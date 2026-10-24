@@ -9,9 +9,9 @@ namespace MailFathom.Infrastructure.Persistence.Entities;
 [RequiresIntegrationCoverage]
 internal sealed class SynchronizationCheckpointEntity
 {
-    public long MailFolderId { get; set; }
+    public long MailFolderBindingId { get; set; }
 
-    public required MailFolderEntity MailFolder { get; set; }
+    public required MailFolderBindingEntity MailFolderBinding { get; set; }
 
     public uint UidValidity { get; set; }
 

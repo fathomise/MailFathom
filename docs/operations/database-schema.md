@@ -281,6 +281,20 @@ already serving:
   `mailbox_accounts` gains carry constant defaults recorded in the catalog, and the `local_mail_folders` table and its
   indexes are empty until an account is held.
 
+- **`GiveEveryMailAccountFolderRows` writes every stored message once, and is the one migration here whose window is
+  sized by the whole message table.** It gives every account folder rows — on a mirrored account one per alias it
+  binds or declares, flat and named after the source folder until the account's next run places each beneath its
+  parent, and an inbox for an account left with mail and no folder for it — then fills the
+  new `stored_emails."FolderId"` on every row from the local folder a held account placed the message in, or from the
+  row its binding is projected to, before making the column `NOT NULL`. That fill is an `UPDATE` of every row, so the
+  table is rewritten in full under a lock that blocks writes to it, and `SET NOT NULL` then scans it once more.
+  `ix_stored_emails_folder_reference_timeline` is built over the filled column, and
+  `FK_stored_emails_local_mail_folders_FolderId` is validated by a third scan. `mail_folders` gains `"FolderId"` and its
+  own foreign key, and holds one row per bound folder. Budget three passes over the message table and a rewrite of it,
+  and stop MailFathom for the window on a deployment holding a large corpus. The previous release's columns stay, and
+  this release writes `stored_emails."LocalMailFolderId"` equal to the new column where it writes it, so a replica still
+  on the previous release reads the same folder during a rolling upgrade.
+
 The first release's script creates a schema from nothing, so none of these applies to an empty database.
 
 ## Ordering a deployment

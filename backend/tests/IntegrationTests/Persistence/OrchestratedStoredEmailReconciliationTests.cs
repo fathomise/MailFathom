@@ -527,7 +527,7 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
                 .GetRequiredService<MailFathomDbContext>()
                 .StoredEmails
                 .AsNoTracking()
-                .Where(email => email.MailFolder.Alias == alias && email.MailFolder.ResolutionGeneration == generation)
+                .Where(email => email.MailFolderBinding.Alias == alias && email.MailFolderBinding.ResolutionGeneration == generation)
                 .ToArrayAsync(token),
             cancellationToken);
 

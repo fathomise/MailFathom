@@ -841,8 +841,7 @@ public sealed class ClientApiEndpointsTests
         services.AddScoped(_ => new MailFolderDirectoryReader(
             UnreachedFreshnessReader(granted),
             UnreachedScopeResolver(),
-            Substitute.For<IStoredMailFolderReader>(),
-            Substitute.For<IMailFolderMappingReader>()));
+            Substitute.For<IStoredMailFolderReader>()));
 
         // A destination is registered so the telemetry routes are mapped, because every surface-wide claim in this
         // file — the group's requirement, the CORS policy, the prefix, the published decision — has to hold over them
@@ -1009,6 +1008,7 @@ public sealed class ClientApiEndpointsTests
             new MailAccountDirectoryReader(
                 Substitute.For<ICallerMailAccountCatalog>(),
                 Substitute.For<ISynchronizationFreshnessReader>(),
+                Substitute.For<IStoredMailFolderReader>(),
                 UnreachedScopeResolver(),
                 Substitute.For<IMailboxReadTelemetry>(),
                 granted),

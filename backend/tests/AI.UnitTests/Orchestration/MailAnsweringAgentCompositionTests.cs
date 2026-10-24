@@ -32,7 +32,7 @@ public sealed class MailAnsweringAgentCompositionTests
 {
     private static readonly MailboxScope OnePrimaryAccount = MailboxScope.Create(
         [MailAccountId.Create("primary")],
-        [new MailFolderIdentity(MailAccountId.Create("primary"), MailFolderAlias.Create("INBOX"))]);
+        [MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3"))]);
 
     /// <summary>On demand rather than before every call: a question needing no mail must not drag a mailbox through a provider.</summary>
     [Fact]

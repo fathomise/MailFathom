@@ -85,7 +85,7 @@ public sealed class AskMailInjectionResistanceTests
         await tool.AskMailAsync(
             demand,
             accounts: [AnsweringDeployment.ServedAccountId],
-            folders: ["inbox"],
+            folders: ["83ecb521-bf32-7f67-8287-e8b923809bb3"],
             cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
@@ -94,7 +94,7 @@ public sealed class AskMailInjectionResistanceTests
             [MailAccountId.Create(AnsweringDeployment.ServedAccountId)],
             answerer.LastQuestion.Scope.AccountIds);
         Assert.Equal(
-            [new MailFolderIdentity(MailAccountId.Create(AnsweringDeployment.ServedAccountId), MailFolderAlias.Create("INBOX"))],
+            [MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3"))],
             answerer.LastQuestion.Scope.SelectedFolders);
     }
 
@@ -169,7 +169,7 @@ public sealed class AskMailInjectionResistanceTests
             {
                 citation.StoredEmailId,
                 citation.AccountId,
-                citation.FolderAlias,
+                citation.FolderPath,
                 citation.Subject,
             }),
             value => Assert.DoesNotContain(message.Text, value ?? string.Empty, StringComparison.Ordinal));
@@ -185,7 +185,7 @@ public sealed class AskMailInjectionResistanceTests
     {
         StoredEmailId = StoredEmailId.Create(EmailIdentityAt(position)),
         AccountId = MailAccountId.Create(AnsweringDeployment.ServedAccountId),
-        FolderAlias = MailFolderAlias.Create("INBOX"),
+        Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
         Subject = "Quarterly invoice",
         ReceivedAt = Now,
         SenderVerification = SenderVerification.NotEstablished,

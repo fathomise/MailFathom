@@ -34,13 +34,13 @@ export type MailFolderRole =
 
 /** One folder of one account, as a screen drawing a tree reads it. */
 export interface MailFolder {
-    /** MailFathom's own name for the folder, which is what every other route on this surface names it by. */
-    readonly alias: string;
+    /** The identity MailFathom issued the folder, which is what every other route on this surface names it by. */
+    readonly id: string;
 
     /** The role the folder plays, or `null` where configuration labels it with none. */
     readonly role: MailFolderRole | null;
 
-    /** The folder's place on its mail server, outermost level first, and empty where nothing has bound the alias yet. */
+    /** The folder names from the top of the account's hierarchy down to this one, outermost level first. */
     readonly path: readonly string[];
 
     /** How many of the folder's emails this deployment holds, which is not how many the mailbox has. */
@@ -49,7 +49,8 @@ export interface MailFolder {
     /** How many of those the mail server last reported without the seen flag. */
     readonly unreadEmailCount: number;
 
-    readonly synchronizationState: MailSynchronizationState;
+    /** How the deployment's last attempt at the folder went, or `null` for a folder no source synchronizes. */
+    readonly synchronizationState: MailSynchronizationState | null;
     readonly lastSynchronizedAt: string | null;
     readonly behind: boolean;
 }
@@ -182,15 +183,15 @@ function parseFolder(value: unknown): MailFolder | null {
         return null;
     }
 
-    const alias = record['alias'];
+    const id = record['id'];
     const role = record['role'] ?? null;
     const storedEmailCount = record['storedEmailCount'];
     const unreadEmailCount = record['unreadEmailCount'];
-    const synchronizationState = record['synchronizationState'];
+    const synchronizationState = record['synchronizationState'] ?? null;
     const lastSynchronizedAt = record['lastSynchronizedAt'] ?? null;
     const behind = record['behind'];
 
-    if (typeof alias !== 'string' || typeof behind !== 'boolean') {
+    if (typeof id !== 'string' || typeof behind !== 'boolean') {
         return null;
     }
 
@@ -207,7 +208,7 @@ function parseFolder(value: unknown): MailFolder | null {
         return null;
     }
 
-    if (!isSynchronizationState(synchronizationState)) {
+    if (synchronizationState !== null && !isSynchronizationState(synchronizationState)) {
         return null;
     }
 
@@ -216,7 +217,7 @@ function parseFolder(value: unknown): MailFolder | null {
     }
 
     return {
-        alias,
+        id,
         role,
         path,
         storedEmailCount,

@@ -487,7 +487,7 @@ before the tool is enabled at all. Exactly two things reach the chat endpoint th
 
 - **your question**, as you wrote it, and
 - **the extracts the run retrieved** — for each message the model looked up: the extract itself, the stable identifier,
-  the account and folder alias, the subject, and the received time.
+  the account and the folder's place in it, the subject, and the received time.
 
 Beside them travels the run's own instruction, which is a constant of the build and says nothing about your mailbox.
 Nothing else goes: not the accounts and folders in scope as a list, not whole bodies, not raw MIME, not attachments, not

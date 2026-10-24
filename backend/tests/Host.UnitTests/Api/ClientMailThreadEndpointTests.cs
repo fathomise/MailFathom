@@ -418,7 +418,7 @@ public sealed class ClientMailThreadEndpointTests
     {
         StoredEmailId = StoredEmailId.Create(Message),
         AccountId = MailAccountId.Create("work"),
-        FolderAlias = MailFolderAlias.Create("INBOX"),
+        Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
         SizeOctets = 2048,
         Headers = new EmailContentHeaders(
             "Quarterly invoice",
@@ -464,7 +464,7 @@ public sealed class ClientMailThreadEndpointTests
     {
         StoredEmailId = StoredEmailId.Create(storedEmailId ?? Guid.CreateVersion7()),
         Account = MailAccountId.Create("work"),
-        FolderAlias = MailFolderAlias.Create("INBOX"),
+        Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
         ThreadId = Conversation,
         Subject = "a subject",
         SentAt = FirstJuly,
@@ -509,7 +509,7 @@ public sealed class ClientMailThreadEndpointTests
                 {
                     StoredEmailId = summary.StoredEmailId,
                     AccountId = summary.Account,
-                    FolderAlias = summary.FolderAlias,
+                    Folder = summary.Folder,
                     Subject = summary.Subject,
                     SentAt = summary.SentAt,
                     SenderAddress = summary.SenderAddress,

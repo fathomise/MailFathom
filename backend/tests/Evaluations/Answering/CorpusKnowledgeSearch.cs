@@ -40,6 +40,12 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
     /// <summary>The folder the corpus is delivered to.</summary>
     public static readonly MailFolderAlias Inbox = MailFolderAlias.Create("INBOX");
 
+    /// <summary>The folder every corpus message is delivered to.</summary>
+    public static readonly StoredEmailFolder InboxFolder = new(
+        MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-0000000000e1")),
+        "INBOX",
+        Inbox);
+
     /// <summary>Words too common to say anything about which message a query means, in either language a question is asked in.</summary>
     /// <remarks>No Polish word here is spelt like an English one, so an English lookup matches exactly what it matched before.</remarks>
     private static readonly HashSet<string> CommonWords = new(
@@ -52,7 +58,7 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
     private readonly ConcurrentQueue<string> queries = new();
 
     /// <summary>Gets the scope every lookup of a run is answered from: the one inbox.</summary>
-    public static MailboxScope Scope { get; } = MailboxScope.Create([Account], [new MailFolderIdentity(Account, Inbox)]);
+    public static MailboxScope Scope { get; } = MailboxScope.Create([Account], [InboxFolder.Id]);
 
     /// <summary>Gets the words of every lookup this search answered, in the order they arrived.</summary>
     public IReadOnlyList<string> Queries => [.. this.queries];

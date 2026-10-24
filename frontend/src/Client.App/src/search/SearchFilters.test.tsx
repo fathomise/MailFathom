@@ -154,7 +154,7 @@ describe('SearchFilters', () => {
     });
 
     it('offers the folder somebody was looking at back, where it plays no role', () => {
-        renderFilters(askIn({ kind: 'folder', accountId: 'work', alias: 'Projects/Nordwind' }, 'invoice'));
+        renderFilters(askIn({ kind: 'folder', accountId: 'work', folderId: 'Projects/Nordwind' }, 'invoice'));
         narrowing();
 
         const chosen = screen.getByLabelText('In this folder');

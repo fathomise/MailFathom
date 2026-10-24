@@ -31,6 +31,8 @@ namespace MailFathom.Application.UnitTests.Mail.Mutations.Authoring;
 /// </remarks>
 public sealed class MailDeletionRecorderTests
 {
+    private static readonly MailFolderId StoredIn = MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-0000000000e5"));
+
     private static readonly MailAccountId Account =
         MailAccountId.Create("personal");
 
@@ -446,7 +448,8 @@ public sealed class MailDeletionRecorderTests
 
         return new AuthoredMailboxTarget(
             EmailOccurrenceId.Create(Account, folder.Id, ImapUidValidity.Create(42), ImapUid.Create(7)),
-            folder);
+            folder,
+            StoredIn);
     }
 
     private sealed class CommittingSession : IPersistenceSession

@@ -657,7 +657,7 @@ public sealed class AuthoredResponseSubmissionTests
                 MailFathomPermission.MailRead);
 
         var participation = folderParticipation ?? StubMailFolderParticipation.Mapping(
-            new MailFolderIdentity(answered.Account, answered.FolderAlias));
+            new MailFolderIdentity(answered.Account, answered.Folder.Alias!.Value));
 
         var authoring = new StoredEmailResponseAuthoring(
             summaryReader ?? SummaryReaderReturning(answered),

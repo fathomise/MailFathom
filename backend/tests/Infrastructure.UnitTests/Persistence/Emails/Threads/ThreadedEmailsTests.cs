@@ -57,7 +57,7 @@ public sealed class ThreadedEmailsTests
     {
         Id = storedEmailId,
         MailboxAccountId = "primary",
-        MailFolder = new MailFolderEntity
+        MailFolderBinding = new MailFolderBindingEntity
         {
             MailboxAccountId = "primary",
             Alias = "inbox",

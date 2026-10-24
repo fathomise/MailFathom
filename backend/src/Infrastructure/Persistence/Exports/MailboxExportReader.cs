@@ -10,6 +10,7 @@ using MailFathom.Domain.Emails;
 using MailFathom.Domain.Exports;
 using MailFathom.Domain.Folders;
 using MailFathom.Infrastructure.Persistence.Entities;
+using MailFathom.Infrastructure.Persistence.Folders;
 using Microsoft.EntityFrameworkCore;
 
 namespace MailFathom.Infrastructure.Persistence.Exports;
@@ -17,16 +18,9 @@ namespace MailFathom.Infrastructure.Persistence.Exports;
 /// <summary>Reads what an account's stored mail would produce as an export, from the metadata rather than from any payload.</summary>
 /// <remarks>
 /// <para>
-/// One account's folders come from one of two places, and which decides nothing else about the export. An account whose
-/// mailbox MailFathom holds has a hierarchy of its own, and its folders are that hierarchy's paths; a mirrored account
-/// has the folders configuration mapped, and its folders are those aliases, which have one segment each. A held
-/// account's message that has not been placed in a local folder yet falls back to the binding its occurrence names, so
-/// nothing is left out of an archive because a placement had not run.
-/// </para>
-/// <para>
-/// The inbox is read differently in the two cases for the same reason: a local hierarchy records the role, and a mapped
-/// folder records only the path an operator wrote — so a mirrored account's inbox is the mapping naming <c>INBOX</c>,
-/// which RFC 3501 requires every server to expose under that name without regard to case.
+/// An account's folders are its folder rows, whatever custody it is in, and each one is written under its path: the
+/// folder names from the top of the account down to it. The inbox is the folder playing that role. A message is written
+/// under the folder it is in, so an archive of a mailbox switched into <c>Held</c> and back describes the same folders.
 /// </para>
 /// <para>
 /// Only a message whose payload this deployment holds is counted or walked. A message recorded without content — one
@@ -37,15 +31,12 @@ namespace MailFathom.Infrastructure.Persistence.Exports;
 [RequiresIntegrationCoverage]
 internal sealed class MailboxExportReader(MailFathomDbContext dbContext) : IMailboxExportReader
 {
-    /// <summary>The folder name RFC 3501 requires every server to expose, which is how a mapped inbox is recognized.</summary>
-    private const string MandatoryInboxPath = "INBOX";
-
     /// <summary>How many messages one page of the walk reads, which bounds what the walk holds at once.</summary>
     /// <remarks>The rows are metadata rather than payloads — an identity, a folder, four flags, and a length — so a page of this size is kilobytes, and the payload each of them names is fetched and let go one at a time above.</remarks>
     private const int WalkPageSize = 500;
 
-    /// <summary>The local hierarchy's delimiter, which is MailFathom's own and is what a folder path is written with.</summary>
-    private const char LocalPathDelimiter = '/';
+    /// <summary>The delimiter a folder path is written with, which is MailFathom's own rather than any server's.</summary>
+    private const char PathDelimiter = '/';
 
     /// <inheritdoc />
     public async Task<MailboxExportMeasurement> MeasureAsync(
@@ -58,11 +49,10 @@ internal sealed class MailboxExportReader(MailFathomDbContext dbContext) : IMail
         var folders = await this.ReadFolderMapAsync(account, cancellationToken);
 
         var totals = await this.ExportableMessages(account)
-            .GroupBy(message => new { message.LocalMailFolderId, message.MailFolderId })
+            .GroupBy(message => message.FolderId)
             .Select(group => new
             {
-                group.Key.LocalMailFolderId,
-                group.Key.MailFolderId,
+                FolderId = group.Key,
                 MessageCount = group.LongCount(),
                 ByteCount = group.Sum(message => message.Content!.MimeByteLength),
             })
@@ -71,7 +61,7 @@ internal sealed class MailboxExportReader(MailFathomDbContext dbContext) : IMail
         var measured = totals
             .Select(total => new
             {
-                Folder = folders.Resolve(total.LocalMailFolderId, total.MailFolderId),
+                Folder = folders.Resolve(total.FolderId),
                 total.MessageCount,
                 total.ByteCount,
             })
@@ -123,8 +113,7 @@ internal sealed class MailboxExportReader(MailFathomDbContext dbContext) : IMail
                 .Take(WalkPageSize)
                 .Select(message => new WalkedRow(
                     message.Id,
-                    message.LocalMailFolderId,
-                    message.MailFolderId,
+                    message.FolderId,
                     message.ReceivedAt,
                     message.Content!.MimeByteLength,
                     message.IsRemotelySeen,
@@ -142,7 +131,7 @@ internal sealed class MailboxExportReader(MailFathomDbContext dbContext) : IMail
 
             foreach (var row in page)
             {
-                var folder = folders.Resolve(row.LocalMailFolderId, row.MailFolderId);
+                var folder = folders.Resolve(row.FolderId);
 
                 if (folderPath is not null && folder.Path != folderPath)
                 {
@@ -197,19 +186,13 @@ internal sealed class MailboxExportReader(MailFathomDbContext dbContext) : IMail
 
     private async Task<ExportFolderMap> ReadFolderMapAsync(MailAccountId account, CancellationToken cancellationToken)
     {
-        var local = await dbContext.LocalMailFolders
+        var rows = await dbContext.MailFolders
             .AsNoTracking()
             .Where(folder => folder.MailboxAccountId == account.Value && folder.ErasedAt == null)
-            .Select(folder => new LocalFolderRow(folder.Id, folder.ParentId, folder.Name, folder.Role))
+            .Select(folder => new FolderRow(folder.Id, folder.ParentId, folder.Name, folder.Role))
             .ToArrayAsync(cancellationToken);
 
-        var mirrored = await dbContext.MailFolders
-            .AsNoTracking()
-            .Where(folder => folder.MailboxAccountId == account.Value)
-            .Select(folder => new MirroredFolderRow(folder.Id, folder.Alias, folder.RemotePath))
-            .ToArrayAsync(cancellationToken);
-
-        return ExportFolderMap.Compose(local, mirrored);
+        return ExportFolderMap.Compose(rows);
     }
 
     private static void RequireNamedAccount(MailAccountId account)
@@ -224,8 +207,7 @@ internal sealed class MailboxExportReader(MailFathomDbContext dbContext) : IMail
 
     private sealed record WalkedRow(
         Guid Id,
-        Guid? LocalMailFolderId,
-        long MailFolderId,
+        Guid FolderId,
         DateTimeOffset? ReceivedAt,
         long ByteLength,
         bool IsSeen,
@@ -235,78 +217,33 @@ internal sealed class MailboxExportReader(MailFathomDbContext dbContext) : IMail
         IReadOnlyList<string> Keywords,
         DateTimeOffset StoredAt);
 
-    private sealed record LocalFolderRow(Guid Id, Guid? ParentId, string Name, MailFolderSpecialUse? Role);
+    private sealed record FolderRow(Guid Id, Guid? ParentId, string Name, MailFolderSpecialUse? Role);
 
-    private sealed record MirroredFolderRow(long Id, string Alias, string RemotePath);
-
-    /// <summary>Turns a message's two folder references into the one folder the archive writes it under.</summary>
+    /// <summary>Turns the folder a message is in into the folder the archive writes it under.</summary>
     private sealed class ExportFolderMap
     {
-        private readonly Dictionary<Guid, MailboxExportFolder> local;
-        private readonly Dictionary<long, MailboxExportFolder> mirrored;
+        private readonly Dictionary<Guid, MailboxExportFolder> folders;
 
-        private ExportFolderMap(
-            Dictionary<Guid, MailboxExportFolder> local,
-            Dictionary<long, MailboxExportFolder> mirrored,
-            IReadOnlyList<MailboxExportFolder> declared)
-        {
-            this.local = local;
-            this.mirrored = mirrored;
-            this.Declared = declared;
-        }
+        private ExportFolderMap(Dictionary<Guid, MailboxExportFolder> folders) => this.folders = folders;
 
         /// <summary>Gets the folders the archive carries a Maildir for, whether or not they hold anything.</summary>
-        public IReadOnlyList<MailboxExportFolder> Declared { get; }
+        public IReadOnlyList<MailboxExportFolder> Declared => [.. this.folders.Values];
 
-        public static ExportFolderMap Compose(
-            IReadOnlyList<LocalFolderRow> localRows,
-            IReadOnlyList<MirroredFolderRow> mirroredRows)
+        public static ExportFolderMap Compose(IReadOnlyList<FolderRow> rows)
         {
-            var byId = localRows.ToDictionary(row => row.Id);
+            var paths = StoredMailFolderPaths.Compose([.. rows.Select(static row => new StoredMailFolderNode(row.Id, row.ParentId, row.Name))]);
 
-            var local = localRows.ToDictionary(
-                row => row.Id,
-                row =>
-                {
-                    var segments = SegmentsOf(row, byId);
-
-                    return new MailboxExportFolder(
-                        string.Join(LocalPathDelimiter, segments),
-                        segments,
-                        row.Role == MailFolderSpecialUse.Inbox);
-                });
-
-            var mirrored = mirroredRows.ToDictionary(
-                row => row.Id,
+            return new ExportFolderMap(rows.ToDictionary(
+                static row => row.Id,
                 row => new MailboxExportFolder(
-                    row.Alias,
-                    [row.Alias],
-                    StringComparer.OrdinalIgnoreCase.Equals(row.RemotePath, MandatoryInboxPath)));
-
-            // A held account's own hierarchy is what an archive of it describes, so the bindings behind it are not
-            // declared beside it: the same mail would be offered under two folders, and the one an operator reads a
-            // held mailbox by is the local one. A mirrored account has no local hierarchy at all, so its declared
-            // folders are the mappings.
-            IReadOnlyList<MailboxExportFolder> declared = local.Count > 0
-                ? [.. local.Values]
-                : [.. mirrored.Values];
-
-            return new ExportFolderMap(local, mirrored, declared);
+                    string.Join(PathDelimiter, paths[row.Id]),
+                    paths[row.Id],
+                    row.Role == MailFolderSpecialUse.Inbox)));
         }
 
-        /// <summary>Names the folder one message is written under, preferring the local hierarchy where the account has one.</summary>
-        /// <remarks>A message of a held account that no placement has reached yet still has its binding, which is what keeps it in the archive rather than out of it.</remarks>
-        public MailboxExportFolder Resolve(Guid? localFolderId, long mirroredFolderId)
-        {
-            if (localFolderId is { } id && this.local.TryGetValue(id, out var folder))
-            {
-                return folder;
-            }
-
-            return this.mirrored.TryGetValue(mirroredFolderId, out var binding)
-                ? binding
-                : UnknownFolder;
-        }
+        /// <summary>Names the folder one message is written under.</summary>
+        public MailboxExportFolder Resolve(Guid folderId) =>
+            this.folders.TryGetValue(folderId, out var folder) ? folder : UnknownFolder;
 
         /// <summary>The folder a message whose own folder has gone is written under, so a walk never drops a message.</summary>
         /// <remarks>
@@ -314,33 +251,5 @@ internal sealed class MailboxExportReader(MailFathomDbContext dbContext) : IMail
         /// and carries nothing a person or a server chose, which is what keeps it safe to write as a path.
         /// </remarks>
         private static MailboxExportFolder UnknownFolder { get; } = new("unfiled", ["unfiled"], IsInbox: false);
-
-        private static List<string> SegmentsOf(
-            LocalFolderRow folder,
-            IReadOnlyDictionary<Guid, LocalFolderRow> byId)
-        {
-            var segments = new List<string>();
-            var current = folder;
-
-            // Bounded by the hierarchy's own depth, which the local folder tree refuses to exceed; the visited set is
-            // what keeps a row whose parent chain was corrupted from walking forever rather than reporting a folder.
-            var visited = new HashSet<Guid>();
-
-            while (visited.Add(current.Id))
-            {
-                segments.Add(current.Name);
-
-                if (current.ParentId is not { } parentId || !byId.TryGetValue(parentId, out var parent))
-                {
-                    break;
-                }
-
-                current = parent;
-            }
-
-            segments.Reverse();
-
-            return segments;
-        }
     }
 }

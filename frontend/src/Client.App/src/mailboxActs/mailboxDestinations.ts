@@ -29,10 +29,10 @@ import { changesAFlag, type ActedMessage, type MailboxAct } from './useMailboxAc
 
 /** One folder a move may name, as the dialog offering it draws it. */
 export interface MoveDestination {
-    /** MailFathom's own name for the folder, which is what the move route names it by. */
-    readonly alias: string;
+    /** The identity MailFathom issued the folder, which is what the move route names it by. */
+    readonly folderId: string;
 
-    /** What the folder is called, which is its place on the server rather than its alias. */
+    /** What the folder is called, which is its place in the account's hierarchy. */
     readonly name: string;
 
     /**
@@ -113,7 +113,7 @@ export function folderWithRole(
     account: string,
     role: MailFolderRole,
 ): string | null {
-    return foldersOf(directory, account).find((folder) => folder.role === role)?.alias ?? null;
+    return foldersOf(directory, account).find((folder) => folder.role === role)?.id ?? null;
 }
 
 /**
@@ -143,24 +143,24 @@ export function filesIntoTrash(destination: MoveDestination): boolean {
 }
 
 /**
- * The drafts or the sent folder whose tree the folder is in, by alias, or `null` where it is in neither.
+ * The drafts or the sent folder whose tree the folder is in, by identity, or `null` where it is in neither.
  *
  * A tree is the folder playing the role and every folder whose place on the server lies beneath it, read level by level
  * so that a folder called *Drafts2* is never taken for one under *Drafts*. A role folder nothing has bound yet has no
  * place to lie beneath, so its tree is itself.
  */
-function keptTreeOf(folders: readonly MailFolder[], alias: string): string | null {
-    const folder = folders.find((entry) => entry.alias === alias);
+function keptTreeOf(folders: readonly MailFolder[], folderId: string): string | null {
+    const folder = folders.find((entry) => entry.id === folderId);
 
     return folder === undefined
         ? null
-        : (folders.find((root) => (root.role === 'Drafts' || root.role === 'Sent') && within(folder, root))?.alias ??
+        : (folders.find((root) => (root.role === 'Drafts' || root.role === 'Sent') && within(folder, root))?.id ??
               null);
 }
 
 function within(folder: MailFolder, root: MailFolder): boolean {
     return (
-        folder.alias === root.alias ||
+        folder.id === root.id ||
         (root.path.length > 0 &&
             root.path.length < folder.path.length &&
             root.path.every((level, index) => folder.path[index] === level))
@@ -237,7 +237,7 @@ export function destinationsFor(
     const trees = new Set(messages.map((message) => keptTreeOf(entry.folders, message.folder)));
     const [tree] = trees;
     const admits = (folder: MailFolder): boolean =>
-        folder.role === 'Trash' || (trees.size === 1 && keptTreeOf(entry.folders, folder.alias) === tree);
+        folder.role === 'Trash' || (trees.size === 1 && keptTreeOf(entry.folders, folder.id) === tree);
 
     return [
         {
@@ -250,7 +250,7 @@ export function destinationsFor(
             ordinal: directory.accounts.length > 1 ? at + 1 : at,
             destinations: entry.folders
                 .filter(admits)
-                .map((folder) => ({ alias: folder.alias, name: nameOf(folder), role: folder.role }))
+                .map((folder) => ({ folderId: folder.id, name: nameOf(folder), role: folder.role }))
                 .sort(byOfferedOrder),
         },
     ];
@@ -267,22 +267,22 @@ export function destinationsFor(
  * @param groups What the move dialog would offer for those messages.
  * @param messages The messages being dropped.
  * @param accountId The account the folder under the drop belongs to.
- * @param alias MailFathom's own name for that folder.
+ * @param folderId The identity of that folder.
  */
 export function dropDestination(
     groups: readonly MoveDestinationGroup[],
     messages: readonly ActedMessage[],
     accountId: string,
-    alias: string,
+    folderId: string,
 ): MoveDestination | null {
-    if (messages.every((message) => message.account === accountId && message.folder === alias)) {
+    if (messages.every((message) => message.account === accountId && message.folder === folderId)) {
         return null;
     }
 
     return (
         groups
             .find((group) => group.accountId === accountId)
-            ?.destinations.find((destination) => destination.alias === alias) ?? null
+            ?.destinations.find((destination) => destination.folderId === folderId) ?? null
     );
 }
 
@@ -352,7 +352,7 @@ export function refusalFor(
 // spread across two folders of a two-folder account has two destinations that each move half of it.
 function movesSomething(directory: MailFolderDirectory, messages: readonly ActedMessage[]): boolean {
     return destinationsFor(directory, messages).some((group) =>
-        group.destinations.some((destination) => messages.some((message) => message.folder !== destination.alias)),
+        group.destinations.some((destination) => messages.some((message) => message.folder !== destination.folderId)),
     );
 }
 
@@ -412,9 +412,9 @@ function foldersOf(directory: MailFolderDirectory | null, account: string): read
     return directory?.accounts.find((entry) => entry.account.id === account)?.folders ?? [];
 }
 
-// What a folder is called: its place on the server, deepest level last, and its alias where nothing has bound one yet.
+// What a folder is called: its place in the account's hierarchy, deepest level last.
 // The whole path rather than its last level, because two folders under different parents share a leaf name and a
 // dialog offering both would be asking somebody to pick between two identical rows.
 function nameOf(folder: MailFolder): string {
-    return folder.path.length === 0 ? folder.alias : folder.path.join(' / ');
+    return folder.path.join(' / ');
 }

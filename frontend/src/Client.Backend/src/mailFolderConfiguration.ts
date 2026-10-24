@@ -42,7 +42,7 @@ const longestWriteAnswer = 32 * 1024;
 
 /** What a folder is declared as, which is the shape a configuration file states one in. */
 export interface DeclaredMailFolder {
-    /** MailFathom's own name for the folder, which nests on a slash and which every other route names it by. */
+    /** The name configuration declares the folder under, which nests on a slash; no other route names a folder by it. */
     readonly alias: string;
 
     /** Where the folder sits on its mail server, outermost level first. */

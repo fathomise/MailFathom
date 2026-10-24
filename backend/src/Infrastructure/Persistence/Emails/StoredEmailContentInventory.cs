@@ -66,8 +66,8 @@ internal sealed class StoredEmailContentInventory(MailFathomDbContext dbContext)
             .Where(StoredEmailTombstone.IsNotTombstoned)
             .Where(email => email.ContentAvailability == StoredEmailContentAvailability.AwaitingStorageHeadroom
                 && email.MailboxAccountId == mailboxAccountId
-                && email.MailFolder.Alias == alias
-                && email.MailFolder.ResolutionGeneration == generation
+                && email.MailFolderBinding.Alias == alias
+                && email.MailFolderBinding.ResolutionGeneration == generation
                 && email.UidValidity == uidValidityValue)
             .OrderBy(email => email.Uid)
             .Take(maxEmailCount)

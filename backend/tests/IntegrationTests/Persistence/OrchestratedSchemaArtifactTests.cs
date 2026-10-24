@@ -145,7 +145,7 @@ public sealed class OrchestratedSchemaArtifactTests(MailFathomOrchestrationFixtu
         // Assert
         var survivingEmail = await context.StoredEmails
             .AsNoTracking()
-            .Include(email => email.MailFolder)
+            .Include(email => email.MailFolderBinding)
             .SingleAsync(email => email.Id == storedEmailId, cancellationToken);
         var survivingContent = await context.EmailMessageContents
             .AsNoTracking()
@@ -506,7 +506,7 @@ public sealed class OrchestratedSchemaArtifactTests(MailFathomOrchestrationFixtu
         CancellationToken cancellationToken)
     {
         var account = new MailboxAccountEntity { Id = "artifact-upgrade", };
-        var folder = new MailFolderEntity
+        var folder = new MailFolderBindingEntity
         {
             MailboxAccountId = account.Id,
             MailboxAccount = account,
@@ -517,7 +517,7 @@ public sealed class OrchestratedSchemaArtifactTests(MailFathomOrchestrationFixtu
         {
             Id = Guid.CreateVersion7(),
             MailboxAccountId = account.Id,
-            MailFolder = folder,
+            MailFolderBinding = folder,
             UidValidity = 1,
             Uid = uint.MaxValue,
             Subject = "schema artifact",
@@ -529,7 +529,7 @@ public sealed class OrchestratedSchemaArtifactTests(MailFathomOrchestrationFixtu
         };
 
         context.MailboxAccounts.Add(account);
-        context.MailFolders.Add(folder);
+        context.MailFolderBindings.Add(folder);
         context.StoredEmails.Add(storedEmail);
         context.EmailMessageContents.Add(new EmailMessageContentEntity
         {

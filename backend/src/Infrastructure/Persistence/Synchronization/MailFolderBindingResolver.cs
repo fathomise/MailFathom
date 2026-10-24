@@ -18,9 +18,9 @@ namespace MailFathom.Infrastructure.Persistence.Synchronization;
 /// prevent.
 /// </remarks>
 [RequiresIntegrationCoverage]
-internal static class MailFolderEntityResolver
+internal static class MailFolderBindingResolver
 {
-    public static async Task<MailFolderEntity?> FindAsync(
+    public static async Task<MailFolderBindingEntity?> FindAsync(
         MailFathomDbContext dbContext,
         MailAccountId account,
         MailFolderResolutionId folderResolutionId,
@@ -34,15 +34,15 @@ internal static class MailFolderEntityResolver
         // user leads the alternate key exactly as it leads the index, so a binding of another user's account carrying
         // the same identifier is not a candidate at all.
         return await TrackedEntityLookup.SinglePendingOrPersistedAsync(
-            dbContext.MailFolders,
-            dbContext.MailFolders,
+            dbContext.MailFolderBindings,
+            dbContext.MailFolderBindings,
             candidate => candidate.MailboxAccountId == accountId
                 && candidate.Alias == alias
                 && candidate.ResolutionGeneration == generation,
             cancellationToken);
     }
 
-    public static async Task<MailFolderEntity> GetRequiredAsync(
+    public static async Task<MailFolderBindingEntity> GetRequiredAsync(
         MailFathomDbContext dbContext,
         MailAccountId account,
         MailFolderResolutionId folderResolutionId,
@@ -51,7 +51,7 @@ internal static class MailFolderEntityResolver
         ?? throw new InvalidOperationException(
             $"Folder alias {account.Value}/{folderResolutionId} has no recorded binding, so nothing can be stored under it.");
 
-    public static async Task<MailFolderEntity> AddAsync(
+    public static async Task<MailFolderBindingEntity> AddAsync(
         MailFathomDbContext dbContext,
         MailAccountId account,
         MailFolderResolution resolution,
@@ -68,7 +68,7 @@ internal static class MailFolderEntityResolver
         // makes the whole mail graph beneath this folder attributable without the account table being consulted at all.
         accountRow ??= AddedAccount(dbContext, account);
 
-        var folder = new MailFolderEntity
+        var folder = new MailFolderBindingEntity
         {
             MailboxAccountId = account.Value,
 
@@ -81,9 +81,99 @@ internal static class MailFolderEntityResolver
             MailboxAccount = accountRow,
         };
 
-        dbContext.MailFolders.Add(folder);
+        dbContext.MailFolderBindings.Add(folder);
 
         return folder;
+    }
+
+    /// <summary>Gets the folder mail stored under a binding is filed in.</summary>
+    /// <param name="dbContext">The session's context.</param>
+    /// <param name="binding">The binding the mail arrived under.</param>
+    /// <param name="mintFolderId">Mints the identifier of the inbox when the account has none yet.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>The folder the binding names, or the account's inbox when it names none.</returns>
+    /// <remarks>
+    /// Synchronization points a mirrored account's binding at its folder before it stores anything under it, so the
+    /// first answer is the usual one. A binding written before its folder was projected is matched to the live folder
+    /// carrying its alias, and one no folder carries — an alias whose folder was erased on a held account — files into
+    /// the inbox, which is created when the account has none yet so no message is ever left in no folder.
+    /// </remarks>
+    public static async Task<Guid> FolderForArrivalAsync(
+        MailFathomDbContext dbContext,
+        MailFolderBindingEntity binding,
+        Func<Guid> mintFolderId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(binding);
+        ArgumentNullException.ThrowIfNull(mintFolderId);
+
+        if (binding.FolderId is { } boundFolder)
+        {
+            return boundFolder;
+        }
+
+        var accountId = binding.MailboxAccountId;
+        var alias = binding.Alias;
+        var aliasFolder = await TrackedEntityLookup.SinglePendingOrPersistedAsync(
+            dbContext.MailFolders,
+            dbContext.MailFolders,
+            folder => folder.MailboxAccountId == accountId && folder.Alias == alias && folder.ErasedAt == null,
+            cancellationToken);
+
+        if (aliasFolder is not null)
+        {
+            binding.FolderId = aliasFolder.Id;
+
+            return aliasFolder.Id;
+        }
+
+        return (await InboxOfAsync(dbContext, accountId, mintFolderId, cancellationToken)).Id;
+    }
+
+    /// <summary>Gets the account's inbox, adopting a top-level folder named for it or creating one when there is none.</summary>
+    private static async Task<MailFolderEntity> InboxOfAsync(
+        MailFathomDbContext dbContext,
+        string accountId,
+        Func<Guid> mintFolderId,
+        CancellationToken cancellationToken)
+    {
+        var inboxKey = LocalMailFolderName.Inbox.ComparisonKey;
+        var inbox = await TrackedEntityLookup.SinglePendingOrPersistedAsync(
+            dbContext.MailFolders,
+            dbContext.MailFolders,
+            folder => folder.MailboxAccountId == accountId
+                && folder.Role == MailFolderSpecialUse.Inbox
+                && folder.ErasedAt == null,
+            cancellationToken)
+            ?? await TrackedEntityLookup.SinglePendingOrPersistedAsync(
+                dbContext.MailFolders,
+                dbContext.MailFolders,
+                folder => folder.MailboxAccountId == accountId
+                    && folder.ParentId == null
+                    && folder.NameKey == inboxKey
+                    && folder.ErasedAt == null,
+                cancellationToken);
+
+        if (inbox is not null)
+        {
+            inbox.Role ??= MailFolderSpecialUse.Inbox;
+
+            return inbox;
+        }
+
+        var created = new MailFolderEntity
+        {
+            Id = mintFolderId(),
+            MailboxAccountId = accountId,
+            Name = LocalMailFolderName.Inbox.Value,
+            NameKey = inboxKey,
+            Role = MailFolderSpecialUse.Inbox,
+        };
+
+        dbContext.MailFolders.Add(created);
+
+        return created;
     }
 
     /// <summary>Writes down the account row a first binding needs, under the user the caller resolved it through.</summary>
@@ -109,7 +199,7 @@ internal static class MailFolderEntityResolver
     /// the delimiter in particular is stored as text and read back as the one character it holds, and a second reading
     /// of that would be a second chance to disagree about an empty string.
     /// </remarks>
-    public static MailFolderResolution ToResolution(MailFolderEntity entity)
+    public static MailFolderResolution ToResolution(MailFolderBindingEntity entity)
     {
         ArgumentNullException.ThrowIfNull(entity);
 

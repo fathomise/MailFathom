@@ -68,7 +68,7 @@ namespace MailFathom.Infrastructure.Persistence.Users;
 /// </remarks>
 internal static class UserAccountErasure
 {
-    private const string AccountIdentifierPropertyName = nameof(MailFolderEntity.MailboxAccountId);
+    private const string AccountIdentifierPropertyName = nameof(MailFolderBindingEntity.MailboxAccountId);
 
     private const string UserPropertyName = nameof(MailDraftEntity.UserId);
 

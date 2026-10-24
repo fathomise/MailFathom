@@ -34,6 +34,6 @@ internal static class StoredMailInScope
         return emails
             .Where(StoredEmailTombstone.IsNotTombstoned)
             .Where(email => email.MailboxAccountId == account
-                && (alias == null || email.MailFolder.Alias == alias));
+                && (alias == null || email.Folder.Alias == alias));
     }
 }

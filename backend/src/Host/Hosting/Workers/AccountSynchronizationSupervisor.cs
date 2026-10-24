@@ -11,6 +11,7 @@ using MailFathom.Application.Emails.AttachmentText.Limits;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Application.Emails.ThreadStates;
+using MailFathom.Application.Folders;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Convergence;
@@ -338,6 +339,7 @@ internal sealed partial class AccountSynchronizationSupervisor
             if (!schedulingToken.IsCancellationRequested)
             {
                 convergenceFailed = await this.ConvergeOutstandingMutationsAsync(runSettings, workUnitToken);
+                await this.DeclareFoldersAsync(runSettings, account, workUnitToken);
             }
 
             await Parallel.ForEachAsync(
@@ -373,11 +375,13 @@ internal sealed partial class AccountSynchronizationSupervisor
                         // client refills the list for a folder rather than for an account. The publisher folds the
                         // statements of one folder into one, so a folder that committed its mail in several batches
                         // still reaches a screen as one arrival.
-                        if (folderRun.ResolvedFolder is { } arrivedIn)
+                        // ponytail: names no folder, which a client reads as any folder of the account; carry the
+                        // binding's folder identity on the run's outcome when a per-folder refresh is worth it.
+                        if (folderRun.ResolvedFolder is not null)
                         {
                             this.signals.Publish(ClientSignal.MailArrived(
                                 this.account,
-                                arrivedIn.Alias,
+                                folder: null,
                                 folderRun.ArrivedEmailCount));
                         }
                     }
@@ -1322,6 +1326,40 @@ internal sealed partial class AccountSynchronizationSupervisor
     /// <summary>Renders a set of rule names for one log line, which is safe because a rule name carries nothing personal.</summary>
     private static string NameList(IReadOnlyList<string> ruleNames) => string.Join(", ", ruleNames);
 
+    /// <summary>Gives every folder the account declares a folder row before any of them is synchronized.</summary>
+    /// <remarks>
+    /// A folder declared and not mirrored is never scheduled, and is still one a reader lists and a person files mail
+    /// into, so it needs an identity before any run binds it. A failure here costs a folder its row until the next run
+    /// and never the run itself: every folder that is scheduled gets its row from its own resolution anyway.
+    /// </remarks>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Declaring folders is a convenience ahead of the folder runs, and a failure in it must not cost the account its run.")]
+    private async Task DeclareFoldersAsync(
+        MailSynchronizationOptions runSettings,
+        MailSynchronizationAccountOptions account,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            MailFolderMapping[] mappings = [.. account.EffectiveFolders.Select(static folder => folder.CreateMapping())];
+
+            using var scope = this.scopeFactory.CreateScope();
+
+            scope.ServiceProvider.GetRequiredService<ScopedMailSynchronizationSettings>().UseRunSnapshot(runSettings);
+
+            await scope.ServiceProvider
+                .GetRequiredService<MailFolderResolver>()
+                .DeclareFoldersAsync(this.account, mappings, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            this.LogFolderDeclarationFailed(exception, this.account.Value);
+        }
+    }
+
     /// <summary>Synchronizes one folder in a scope of its own and reports whether it completed and what it resolved to.</summary>
     /// <remarks>
     /// The configured folder is turned into a mapping inside the guarded body rather than while the run is scheduled,
@@ -1429,12 +1467,12 @@ internal sealed partial class AccountSynchronizationSupervisor
     /// </remarks>
     private void AnnounceRelocatedArrivals(MailboxSynchronizationResult result)
     {
-        if (result.RelocatedEmails is not { Count: > 0 } carried || result.Folder is not { } landedIn)
+        if (result.RelocatedEmails is not { Count: > 0 } carried || result.Folder is null)
         {
             return;
         }
 
-        this.signals.Publish(ClientSignal.MailChanged(this.account, landedIn.Alias, carried));
+        this.signals.Publish(ClientSignal.MailChanged(this.account, folder: null, carried));
     }
 
     /// <summary>Files what a completed folder turn did, translating the run's own outcome into the one an operator reads.</summary>
@@ -1632,6 +1670,11 @@ internal sealed partial class AccountSynchronizationSupervisor
                 reconciliation.EmailsRemain);
         }
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "The folders account {AccountId} declares could not be given folder rows ahead of its run; the folders it synchronizes get theirs from their own runs, and the rest are tried again on the next run.")]
+    private partial void LogFolderDeclarationFailed(Exception exception, string accountId);
 
     /// <summary>Reports one account's run in counts and duration only; no subject, address, or fragment of a body may reach a log.</summary>
     [LoggerMessage(

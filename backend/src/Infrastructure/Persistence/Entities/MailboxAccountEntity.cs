@@ -59,5 +59,5 @@ internal sealed class MailboxAccountEntity
     /// </remarks>
     public int LocalMailFoldersRevision { get; set; }
 
-    public ICollection<MailFolderEntity> MailFolders { get; } = [];
+    public ICollection<MailFolderBindingEntity> MailFolderBindings { get; } = [];
 }

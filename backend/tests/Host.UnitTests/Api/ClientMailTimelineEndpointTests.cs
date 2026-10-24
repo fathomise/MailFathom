@@ -305,7 +305,7 @@ public sealed class ClientMailTimelineEndpointTests
 
         // Assert
         Assert.Equal("work", response.Account);
-        Assert.Equal("INBOX", response.Folder);
+        Assert.Equal("83ecb521-bf32-7f67-8287-e8b923809bb3", response.Folder);
         Assert.Equal("the release is out", response.Subject);
         Assert.Equal(FirstJuly, response.ReceivedAt);
         Assert.Equal("sender@example.test", response.SenderAddress);
@@ -430,7 +430,7 @@ public sealed class ClientMailTimelineEndpointTests
         {
             StoredEmailId = StoredEmailId.Create(Guid.CreateVersion7()),
             Account = MailAccountId.Create("work"),
-            FolderAlias = MailFolderAlias.Create("INBOX"),
+            Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
             Subject = subject,
             SentAt = FirstJuly,
             ReceivedAt = FirstJuly,

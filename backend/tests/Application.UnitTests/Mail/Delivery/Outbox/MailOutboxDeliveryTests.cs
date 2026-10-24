@@ -123,7 +123,7 @@ public sealed class MailOutboxDeliveryTests
         var filed = Assert.Single(held.Stored);
         var changed = Assert.Single(channel.Published, signal => signal.Kind == ClientSignalKind.MailChanged);
 
-        Assert.Equal(MailFolderAlias.Create("sent"), changed.Folder);
+        Assert.Equal(held.Folders.Placements[filed.Email], changed.Folder);
         Assert.Equal([filed.Email], changed.Emails);
     }
 

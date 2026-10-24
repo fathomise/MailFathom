@@ -13,7 +13,7 @@ function row(stated: Partial<FolderTreeRow>): FolderTreeRow {
         name: 'Whatever',
         role: null,
         accountId: 'work',
-        alias: null,
+        folderId: null,
         remotePath: null,
         level: 1,
         opensCollapsed: false,
@@ -31,7 +31,7 @@ const everything: ReportedFolderActs = { account: ['create'], folder: ['rename',
 const nothingOnTheFolder: ReportedFolderActs = { account: ['create'], folder: [] };
 
 const mailbox = row({ accountId: 'work' });
-const folder = row({ accountId: 'work', alias: 'PROJECTS', remotePath: ['Projects'] });
+const folder = row({ accountId: 'work', folderId: 'PROJECTS', remotePath: ['Projects'] });
 
 describe('actsOffered', () => {
     it('offers nothing on a row standing for every mailbox at once, there being no mailbox to act inside', () => {
@@ -76,7 +76,7 @@ describe('actsOffered', () => {
     });
 
     it('stops offering a folder inside at the third level of a path, which is the tree’s own ceiling', () => {
-        const deepest = row({ accountId: 'work', alias: '2026', remotePath: ['INBOX', 'Projects', '2026'] });
+        const deepest = row({ accountId: 'work', folderId: '2026', remotePath: ['INBOX', 'Projects', '2026'] });
 
         expect(actsOffered(deepest, everything)).toEqual(['markAllRead', 'editFolder', 'deleteFolder']);
     });
@@ -87,8 +87,8 @@ describe('actsOffered', () => {
         expect(actsOffered(level, everything)).toEqual([]);
     });
 
-    it('offers a folder inside one sitting a level down whatever its alias says, since the alias names no place', () => {
-        const nested = row({ accountId: 'work', alias: 'SUPPLIERS', remotePath: ['Archive', 'Suppliers'] });
+    it('offers a folder inside one sitting a level down whatever its identity says, since the identity names no place', () => {
+        const nested = row({ accountId: 'work', folderId: 'SUPPLIERS', remotePath: ['Archive', 'Suppliers'] });
 
         expect(actsOffered(nested, everything)).toContain('newFolderInside');
     });

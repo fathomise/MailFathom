@@ -140,7 +140,7 @@ public sealed class OrchestratedHybridRetrievalTests(MailFathomOrchestrationFixt
         Assert.All(lookup.Passages, passage =>
         {
             Assert.Equal(SyntheticMailAccount.AccountId, passage.AccountId);
-            Assert.Equal(MailFolderAlias.Create(FolderAlias), passage.FolderAlias);
+            Assert.Equal(MailFolderAlias.Create(FolderAlias), passage.Folder.Alias);
             Assert.NotEmpty(passage.Text);
             Assert.True(
                 passage.Text.Length <= bounds.MaximumCharactersPerPassage,

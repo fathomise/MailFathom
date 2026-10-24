@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Folders;
 using MailFathom.Application.Observability;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Domain.Access;
@@ -38,6 +39,7 @@ public sealed class MailAccountDirectoryReader
 {
     private readonly ICallerMailAccountCatalog accountCatalog;
     private readonly ISynchronizationFreshnessReader freshnessReader;
+    private readonly IStoredMailFolderReader storedFolders;
     private readonly MailboxScopeResolver scopeResolver;
     private readonly IMailboxReadTelemetry readTelemetry;
     private readonly AccessAuthorization authorization;
@@ -45,6 +47,7 @@ public sealed class MailAccountDirectoryReader
     /// <summary>Initializes the use case.</summary>
     /// <param name="accountCatalog">Describes the accounts the caller's user is assigned.</param>
     /// <param name="freshnessReader">Reads how current the local copy of each folder is.</param>
+    /// <param name="storedFolders">Reads every folder of each account, whichever copy of the mailbox is the truth.</param>
     /// <param name="scopeResolver">Answers which folders of those accounts a tool may see.</param>
     /// <param name="readTelemetry">Publishes the read as the operation it is, beside the call it happened inside.</param>
     /// <param name="authorization">Answers which principal reached this use case.</param>
@@ -52,18 +55,21 @@ public sealed class MailAccountDirectoryReader
     public MailAccountDirectoryReader(
         ICallerMailAccountCatalog accountCatalog,
         ISynchronizationFreshnessReader freshnessReader,
+        IStoredMailFolderReader storedFolders,
         MailboxScopeResolver scopeResolver,
         IMailboxReadTelemetry readTelemetry,
         AccessAuthorization authorization)
     {
         ArgumentNullException.ThrowIfNull(accountCatalog);
         ArgumentNullException.ThrowIfNull(freshnessReader);
+        ArgumentNullException.ThrowIfNull(storedFolders);
         ArgumentNullException.ThrowIfNull(scopeResolver);
         ArgumentNullException.ThrowIfNull(readTelemetry);
         ArgumentNullException.ThrowIfNull(authorization);
 
         this.accountCatalog = accountCatalog;
         this.freshnessReader = freshnessReader;
+        this.storedFolders = storedFolders;
         this.scopeResolver = scopeResolver;
         this.readTelemetry = readTelemetry;
         this.authorization = authorization;
@@ -111,12 +117,19 @@ public sealed class MailAccountDirectoryReader
         var foldersByAccount = folderFreshness
             .GroupBy(static freshness => freshness.AccountId)
             .ToDictionary(static group => group.Key, FoldersOrderedByAlias);
+        var storedFoldersByAccount = (await this.storedFolders.ReadAsync(scope, cancellationToken))
+            .ToLookup(static folder => folder.Account);
 
         read.Completed(assignedAccounts.Count);
 
         return new MailAccountDirectory(
             this.accountCatalog.SynchronizationEnabled,
-            [.. assignedAccounts.Select(account => new DescribedMailAccount(account, FoldersOf(foldersByAccount, account.Id)))]);
+            [
+                .. assignedAccounts.Select(account => new DescribedMailAccount(
+                    account,
+                    FoldersOf(foldersByAccount, account.Id),
+                    [.. storedFoldersByAccount[account.Id].OrderBy(static folder => string.Join('\u0000', folder.HierarchyLevels), StringComparer.Ordinal)])),
+            ]);
     }
 
     private static IReadOnlyList<MailboxFolderFreshness> FoldersOrderedByAlias(IGrouping<MailAccountId, MailboxFolderFreshness> group) =>

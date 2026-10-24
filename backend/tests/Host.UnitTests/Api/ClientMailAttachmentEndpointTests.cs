@@ -250,7 +250,7 @@ public sealed class ClientMailAttachmentEndpointTests
         principals.Current.Returns(AuthorizedPrincipal.CallerActingFor(SyntheticUser.Deployment, "client-key", [MailFathomPermission.MailRead]));
 
         var participation = StubMailFolderParticipation.Mapping(
-            new MailFolderIdentity(summary.Account, summary.FolderAlias));
+            new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value));
 
         return new EmailAttachmentDownloadReader(
             summaryReader,
@@ -271,7 +271,7 @@ public sealed class ClientMailAttachmentEndpointTests
     {
         StoredEmailId = StoredEmailId.Create(Message),
         Account = MailAccountId.Create("primary"),
-        FolderAlias = MailFolderAlias.Create("INBOX"),
+        Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
         InternetMessageId = "<abc@example.test>",
         Subject = "Quarterly invoice",
         SenderAddress = "billing@example.test",

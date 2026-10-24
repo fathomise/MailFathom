@@ -64,7 +64,7 @@ public sealed class ClientMailMessageEndpointTests
         // Assert
         Assert.Equal(Message, response.StoredEmailId);
         Assert.Equal("primary", response.Account);
-        Assert.Equal("INBOX", response.Folder);
+        Assert.Equal("83ecb521-bf32-7f67-8287-e8b923809bb3", response.Folder);
         Assert.Equal(Conversation, response.ThreadId);
         Assert.Equal("Quarterly invoice", response.Headers.Subject);
         Assert.Equal("abc@example.test", response.Headers.MessageId);
@@ -243,7 +243,7 @@ public sealed class ClientMailMessageEndpointTests
     {
         StoredEmailId = StoredEmailId.Create(Message),
         AccountId = MailAccountId.Create("primary"),
-        FolderAlias = MailFolderAlias.Create("INBOX"),
+        Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
         SizeOctets = 40_960,
         Headers = new EmailContentHeaders(
             "Quarterly invoice",

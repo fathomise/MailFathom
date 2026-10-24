@@ -339,7 +339,7 @@ export interface DiscoveryRunAsk {
     /** The accounts to read, by identifier or display name, and empty for every account this user holds. */
     readonly accounts: readonly string[];
 
-    /** The folders to read, by alias or as `role:Inbox`, and empty for every folder. */
+    /** The folders to read, by identity or as `role:Inbox`, and empty for every folder. */
     readonly folders: readonly string[];
 
     /** The conversation the question is about, or `null` where it is about none. */

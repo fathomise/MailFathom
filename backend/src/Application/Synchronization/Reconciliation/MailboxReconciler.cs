@@ -191,7 +191,7 @@ public sealed class MailboxReconciler
 
         var emailsRemain = window.Count == this.options.MaxReconciledEmailsPerRun;
 
-        this.AnnounceWhatMoved(account, folder.Alias, classification, outcome);
+        this.AnnounceWhatMoved(account, classification, outcome);
 
         return new MailboxReconciliationResult(
             outcome.StillPresent.Count + outcome.ConfirmedUnchanged.Count,
@@ -234,7 +234,6 @@ public sealed class MailboxReconciler
     /// </remarks>
     private void AnnounceWhatMoved(
         MailAccountId account,
-        MailFolderAlias folder,
         ReconciledWindowClassification classification,
         ReconciledFolderOutcome outcome)
     {
@@ -257,7 +256,7 @@ public sealed class MailboxReconciler
         {
             this.signals.Publish(ClientSignal.MailFlagsChanged(
                 account,
-                folder,
+                folder: null,
                 moved.Select(static observed => new SignalledEmailFlags(
                     observed.Candidate.StoredEmailId,
                     observed.Snapshot.IsSeen,
@@ -268,7 +267,7 @@ public sealed class MailboxReconciler
 
         this.signals.Publish(ClientSignal.MailChanged(
             account,
-            folder,
+            folder: null,
             moved.Select(static observed => observed.Candidate.StoredEmailId).Concat(left)));
     }
 

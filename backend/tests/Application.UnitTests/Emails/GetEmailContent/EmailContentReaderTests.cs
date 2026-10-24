@@ -72,7 +72,7 @@ public sealed class EmailContentReaderTests
             ["report.pdf"],
             content.Attachments?.Select(attachment => attachment.Description.FileName?.Value));
         Assert.Equal(summary.Account, content.AccountId);
-        Assert.Equal(summary.FolderAlias, content.FolderAlias);
+        Assert.Equal(summary.Folder, content.Folder);
         Assert.Equal(summary.RemoteFlags, content.RemoteFlags);
     }
 
@@ -874,8 +874,8 @@ public sealed class EmailContentReaderTests
             summary,
             RendererReturning(RenderingOf()),
             folderParticipation: StubMailFolderParticipation
-                .Mapping(new MailFolderIdentity(summary.Account, summary.FolderAlias))
-                .Hiding(new MailFolderIdentity(summary.Account, summary.FolderAlias)));
+                .Mapping(new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value))
+                .Hiding(new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value)));
 
         // Act
         var result = await reader.ReadContentAsync(
@@ -1900,7 +1900,7 @@ public sealed class EmailContentReaderTests
             {
                 StoredEmailId = summary.StoredEmailId,
                 AccountId = summary.Account,
-                FolderAlias = summary.FolderAlias,
+                Folder = summary.Folder,
                 ParentStoredEmailId = asAChain && ordinal > 0 ? conversation[ordinal - 1].StoredEmailId : null,
                 Subject = summary.Subject,
                 SentAt = summary.SentAt,
@@ -2016,7 +2016,7 @@ public sealed class EmailContentReaderTests
     /// </remarks>
     private static StubMailFolderParticipation MappingFoldersOf(IReadOnlyList<EmailSummary> summaries) =>
         StubMailFolderParticipation.Mapping(
-            [.. summaries.Select(summary => new MailFolderIdentity(summary.Account, summary.FolderAlias))]);
+            [.. summaries.Select(summary => new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value))]);
 
     private static IStoredEmailSummaryReader SummaryReaderReturning(EmailSummary? summary)
     {

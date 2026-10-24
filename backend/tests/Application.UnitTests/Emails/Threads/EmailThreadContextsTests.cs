@@ -8,6 +8,7 @@ using MailFathom.Application.Emails.Threads;
 using MailFathom.Application.Folders;
 using MailFathom.Application.SensitiveContent;
 using MailFathom.Application.SensitiveContent.Egress;
+using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
@@ -355,7 +356,7 @@ public sealed class EmailThreadContextsTests
         {
             StoredEmailId = StoredEmailId.Create(new Guid($"00000000-0000-0000-0000-{ordinal:D12}")),
             AccountId = Account,
-            FolderAlias = folderAlias,
+            Folder = SyntheticEmailSummaries.FolderOf(Account.Value, folderAlias.Value),
             ParentStoredEmailId = answers?.StoredEmailId,
             Subject = $"Message {ordinal}",
             SentAt = DateTimeOffset.Parse(sentAt, null),

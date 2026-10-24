@@ -209,7 +209,7 @@ internal sealed record ClientResolvedCitationResponse(
 /// <summary>The message one resolved citation belongs to.</summary>
 /// <param name="StoredEmailId">The message, as every other client route names it.</param>
 /// <param name="Account">The configured account it was read from.</param>
-/// <param name="Folder">MailFathom's own name for the folder it was read from.</param>
+/// <param name="Folder">The identity of the folder it was read from, as the folders route names it.</param>
 /// <param name="Subject">The decoded subject, or <see langword="null" /> where the message carried none.</param>
 /// <param name="SentAt">When the sender says it was sent, or <see langword="null" /> where it wrote no usable date.</param>
 /// <param name="ReceivedAt">When the last receiving hop recorded it, or <see langword="null" /> where no header carried a usable date.</param>
@@ -231,7 +231,7 @@ internal sealed record ClientCitedMessageResponse(
     internal static ClientCitedMessageResponse For(CitedMessage message) => new(
         message.StoredEmailId.Value,
         message.AccountId.Value,
-        message.FolderAlias.Value,
+        message.Folder.Id.ToString(),
         message.Subject,
         message.SentAt,
         message.ReceivedAt);

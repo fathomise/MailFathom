@@ -221,7 +221,7 @@ public sealed class SetMailFlagsToolMetadataTests
             "array",
             outputSchema.Value.GetProperty("properties").GetProperty("recordedChanges").GetProperty("type").GetString());
         Assert.Contains("changeRecordId", advertisedSchema, StringComparison.Ordinal);
-        Assert.Contains("folderAlias", advertisedSchema, StringComparison.Ordinal);
+        Assert.Contains("folderId", advertisedSchema, StringComparison.Ordinal);
     }
 
     /// <summary>Reads the types a property admits, which an argument a caller may omit states as a list rather than as one name.</summary>
