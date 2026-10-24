@@ -440,7 +440,7 @@ export class FakeDeployment {
 
         this.signal({
             kind: 'mail.flags.changed',
-            account: 'work',
+            account: deployment.workAccount.id,
             folder: facts.folder,
             flags: [{ email: storedEmailId, isSeen: flags.seen ?? null, isFlagged: flags.flagged ?? null }],
         });
@@ -450,13 +450,18 @@ export class FakeDeployment {
     changeElsewhere(storedEmailId: string, flags: WrittenFlags): void {
         const facts = this.flagsWritten(storedEmailId, flags);
 
-        this.signal({ kind: 'mail.changed', account: 'work', folder: facts.folder, emails: [storedEmailId] });
+        this.signal({
+            kind: 'mail.changed',
+            account: deployment.workAccount.id,
+            folder: facts.folder,
+            emails: [storedEmailId],
+        });
     }
 
     /** Makes a folder on the mail server from elsewhere, which the account declares and the channel says moved. */
     makeFolderElsewhere(name: string): void {
         this.folderMade({ name, parentId: null });
-        this.signal({ kind: 'folders.changed', account: 'work' });
+        this.signal({ kind: 'folders.changed', account: deployment.workAccount.id });
     }
 
     /** Moves the accounts to the corpus's troubled reading, and says an account's state moved. */

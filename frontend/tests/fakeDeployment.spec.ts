@@ -112,7 +112,10 @@ test('takes a deleted folder out of both folder routes, the mail filed in it out
     });
 
     expect(
-        ask(deployment, 'POST', '/managed-folders/deletions', { account: 'work', folderId: 'ARCHIVE/2024' }),
+        ask(deployment, 'POST', '/managed-folders/deletions', {
+            account: fixtures.workAccount.id,
+            folderId: 'ARCHIVE/2024',
+        }),
     ).toMatchObject({
         change: 'Deleted',
         folder: { id: 'ARCHIVE/2024' },
@@ -133,7 +136,10 @@ test('takes a deleted folder out of both folder routes, the mail filed in it out
     expect(searchedAgain.results.map(({ id }) => id)).not.toContain(searched);
     expect(ask(deployment, 'GET', `/messages/${searched}`)).toBe(404);
     expect(
-        ask(deployment, 'POST', '/managed-folders/deletions', { account: 'work', folderId: 'ARCHIVE/2024' }),
+        ask(deployment, 'POST', '/managed-folders/deletions', {
+            account: fixtures.workAccount.id,
+            folderId: 'ARCHIVE/2024',
+        }),
     ).toMatchObject({
         refusal: 'FolderMissing',
     });
@@ -150,21 +156,37 @@ test('answers a folder made, renamed, and moved at the place each act put it, un
     };
 
     expect(
-        ask(deployment, 'POST', '/managed-folders', { account: 'work', parentId: 'ARCHIVE/2024', name: 'Suppliers' }),
+        ask(deployment, 'POST', '/managed-folders', {
+            account: fixtures.workAccount.id,
+            parentId: 'ARCHIVE/2024',
+            name: 'Suppliers',
+        }),
     ).toMatchObject({ change: 'Created', folder: { id: 'SUPPLIERS', parentId: 'ARCHIVE/2024', name: 'Suppliers' } });
     expect(placed()).toStrictEqual(['Archive', '2024', 'Suppliers']);
 
-    ask(deployment, 'POST', '/managed-folders/renames', { account: 'work', folderId: 'SUPPLIERS', name: 'Vendors' });
+    ask(deployment, 'POST', '/managed-folders/renames', {
+        account: fixtures.workAccount.id,
+        folderId: 'SUPPLIERS',
+        name: 'Vendors',
+    });
     expect(placed()).toStrictEqual(['Archive', '2024', 'Vendors']);
 
-    ask(deployment, 'POST', '/managed-folders/moves', { account: 'work', folderId: 'SUPPLIERS', parentId: 'INBOX' });
+    ask(deployment, 'POST', '/managed-folders/moves', {
+        account: fixtures.workAccount.id,
+        folderId: 'SUPPLIERS',
+        parentId: 'INBOX',
+    });
     expect(placed()).toStrictEqual(['INBOX', 'Vendors']);
 
     const managed = ask(deployment, 'GET', '/managed-folders?account=work') as { folders: { id: string }[] };
 
     expect(managed.folders.map(({ id }) => id)).toContain('SUPPLIERS');
     expect(
-        ask(deployment, 'POST', '/managed-folders', { account: 'work', parentId: null, name: 'suppliers' }),
+        ask(deployment, 'POST', '/managed-folders', {
+            account: fixtures.workAccount.id,
+            parentId: null,
+            name: 'suppliers',
+        }),
     ).toMatchObject({ folder: { id: 'SUPPLIERS-2' } });
 });
 
@@ -228,7 +250,7 @@ test('pages the folder on from where the last page ended, and back from where it
 test('keeps a draft across saves as a revision each time, and forgets it once it is sent', () => {
     const deployment = new FakeDeployment('0.0.0');
     const composition = {
-        account: 'work',
+        account: fixtures.workAccount.id,
         subject: 'The yard',
         plainTextBody: 'Tuesday?',
         to: ['yard@example.invalid'],
@@ -253,7 +275,7 @@ test('keeps a draft across saves as a revision each time, and forgets it once it
 test('files a draft with its staged file in the drafts folder, reads it back whole, and takes it out once sent', () => {
     const deployment = new FakeDeployment('0.0.0');
     const composition = {
-        account: 'work',
+        account: fixtures.workAccount.id,
         subject: 'The yard',
         plainTextBody: 'Tuesday?',
         to: ['yard@example.invalid'],
@@ -301,7 +323,7 @@ test('files a draft with its staged file in the drafts folder, reads it back who
 test('puts a send taken back into the drafts folder as it was sent, and knows nothing of one it never queued', () => {
     const deployment = new FakeDeployment('0.0.0');
     const composition = {
-        account: 'work',
+        account: fixtures.workAccount.id,
         subject: 'The yard',
         plainTextBody: 'Tuesday?',
         to: ['yard@example.invalid'],
@@ -703,7 +725,7 @@ test('lists mail it delivered at the head of the inbox, moves both counts, and s
     expect(connection.received.at(-1)).toStrictEqual({
         type: 1,
         target: 'signal',
-        arguments: [{ kind: 'mail.arrived', account: 'work', folder: 'INBOX', count: 1 }],
+        arguments: [{ kind: 'mail.arrived', account: fixtures.workAccount.id, folder: 'INBOX', count: 1 }],
     });
     expect(listed(deployment, 'folder=INBOX').slice(0, 2)).toStrictEqual([mail.arrivingRow.id, 'message-0']);
     expect(listed(deployment, 'folder=INBOX')).toHaveLength(mail.rowsPerPage);
@@ -743,14 +765,22 @@ test('answers the folders and the accounts with what moved elsewhere, and says w
 
     deployment.makeFolderElsewhere('Receipts 2026');
 
-    expect(connection.received.at(-1)).toMatchObject({ arguments: [{ kind: 'folders.changed', account: 'work' }] });
+    expect(connection.received.at(-1)).toMatchObject({
+        arguments: [{ kind: 'folders.changed', account: fixtures.workAccount.id }],
+    });
     expect(counts(deployment, 'RECEIPTS 2026')).toStrictEqual({ stored: 0, unread: 0 });
 
     deployment.troubleTheAccounts();
 
-    expect(connection.received.at(-1)).toMatchObject({ arguments: [{ kind: 'account.state', account: 'club' }] });
+    expect(connection.received.at(-1)).toMatchObject({
+        arguments: [{ kind: 'account.state', account: fixtures.failingAccount.id }],
+    });
     expect(ask(deployment, 'GET', '/accounts')).toMatchObject({
-        accounts: [{ id: 'work' }, { id: 'club', synchronizationState: 'Failing' }, { id: 'personal' }],
+        accounts: [
+            { id: fixtures.workAccount.id },
+            { id: fixtures.failingAccount.id, synchronizationState: 'Failing' },
+            { id: fixtures.accountBehind.id },
+        ],
     });
 });
 

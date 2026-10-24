@@ -208,6 +208,7 @@ internal sealed class ServedUsers(
                 TimeZone = record.ReadingTimeZone,
                 ClientTelemetryLevel = record.ReadingClientTelemetryLevel,
                 ForcedClientTelemetry = ForcedClientTelemetry.Read(policies),
+                Organization = policies.Organization?.OrganizationId,
             },
             new HeldRevision(version, policies));
     }

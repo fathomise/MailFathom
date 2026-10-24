@@ -17,8 +17,8 @@ import {
 import { DeveloperSections, type DeveloperContext } from './DeveloperSections';
 
 // Where the developer information surface stands while it is open: in the window `developerAccess.ts` opened for it,
-// or inside the page where it opened none. It is mounted only while it is open, and what it shows begins watching as it
-// mounts and stops as it goes, so a closed surface does no work at all.
+// or inside the page where it opened none. It is mounted only while it is open and draws the record developer mode has
+// been keeping since it was switched on, so closing it stops nothing and opening it again loses nothing.
 
 export function DeveloperInformation({ context }: { readonly context: DeveloperContext }) {
     const { open, window: standing } = useDeveloperAccess();

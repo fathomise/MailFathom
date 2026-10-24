@@ -362,6 +362,34 @@ public sealed class ServedUserResolutionTests
         Assert.Equal(new ForcedClientTelemetry(Enabled: false, SettingsPolicyScope.Organization), served.ForcedClientTelemetry);
     }
 
+    /// <summary>The organization a person belongs to is the one whose policy layer their record was resolved under.</summary>
+    [Fact]
+    public async Task ResolveAsync_AUserInAnOrganization_ServesThatOrganizationWithThem()
+    {
+        // Arrange
+        this.Holding(Record(Recorded, EmptyRecord, AlexWork) with { Policies = StatedPolicies.Governing(organization: "{}") });
+
+        // Act
+        var served = await this.ResolveServedAsync(Recorded);
+
+        // Assert
+        Assert.Equal(StatedPolicies.Organization, served.Organization);
+    }
+
+    /// <summary>A person outside every organization is resolved under the deployment's layer alone, and serves none.</summary>
+    [Fact]
+    public async Task ResolveAsync_AUserInNoOrganization_ServesNone()
+    {
+        // Arrange
+        this.Holding(Record(Recorded, EmptyRecord, AlexWork));
+
+        // Act
+        var served = await this.ResolveServedAsync(Recorded);
+
+        // Assert
+        Assert.Null(served.Organization);
+    }
+
     [Fact]
     public async Task ResolveAsync_AUserNoPolicyForcesTheTelemetrySwitchOf_ServesNoForce()
     {

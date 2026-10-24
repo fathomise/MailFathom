@@ -97,7 +97,7 @@ export const clientPreferences = {
 
 /** The mailbox everything else in the corpus belongs to, up to date and with nothing to say about itself. */
 export const workAccount = {
-    id: 'work',
+    id: '0198f3a2-5c41-7b6e-9a12-4d8e6f0c2b31',
     displayName: 'Work',
     synchronizationState: 'Synchronized',
     lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
@@ -106,7 +106,7 @@ export const workAccount = {
 
 /** A mailbox whose synchronization is failing, which is what a screen draws its own failure sentence from. */
 export const failingAccount = {
-    id: 'club',
+    id: '0198f3a2-5c41-7b6e-9a12-4d8e6f0c2b32',
     displayName: 'Club',
     synchronizationState: 'Failing',
     lastSynchronizedAt: '2026-08-30T18:12:00+00:00',
@@ -120,7 +120,7 @@ export const failingAccount = {
  * what a reader is owed is that some of their mail has not arrived yet rather than that the deployment cannot reach it.
  */
 export const accountBehind = {
-    id: 'personal',
+    id: '0198f3a2-5c41-7b6e-9a12-4d8e6f0c2b33',
     displayName: 'Personal',
     synchronizationState: 'Synchronized',
     lastSynchronizedAt: '2026-08-31T06:02:00+00:00',

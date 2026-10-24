@@ -28,10 +28,9 @@ import {
 } from '../shell/useWideWorkspace';
 import {
     isPending,
-    startWatching,
-    stopWatching,
     useDeveloperRecord,
     type DeveloperRecord,
+    type HeaderLine,
     type VitalName,
     type WireRequest,
 } from './developerRecord';
@@ -42,7 +41,7 @@ import { wordBytes, wordFromNow, wordMilliseconds, wordNumber } from './develope
 // **It shows identifiers.** That is this surface's exception to the rule that no identifier reaches a reader: it is a
 // developer's tool, and an identifier is what finds the same session in the deployment's own records. It shows nothing
 // else a person wrote or was sent — no mail, no subject, no address, no display name of an account, which is often an
-// address, and no headline of a notification — and no credential.
+// address, and no headline of a notification — and no credential. Every list is drawn newest first.
 //
 // The six sections stand side by side where the window is desktop-wide and are tabs below that. Which of the two is
 // decided in script, by `sideBySide`, measured in the window that draws the surface rather than in the client's, and only
@@ -52,10 +51,14 @@ import { wordBytes, wordFromNow, wordMilliseconds, wordNumber } from './develope
 export interface DeveloperContext {
     readonly deploymentAddress: string | null;
     readonly deploymentVersion: string | null;
+
+    /** The source revision the deployment's image was built from. */
+    readonly deploymentRevision: string | null;
     readonly permissions: readonly MailFathomPermission[];
     readonly telemetryLevel: DeploymentTelemetryLevel | null;
     readonly telemetryAllowed: boolean;
     readonly person: string | null;
+    readonly organization: string | null;
     readonly credential: {
         readonly kind: 'session' | 'grant';
         readonly expiresAt: string;
@@ -116,13 +119,6 @@ export function DeveloperSections({
     const tabsId = useId();
     const [selected, setSelected] = useState<DeveloperSection>('signals');
 
-    // Watching is this surface's to begin and end: nothing is observed while it is closed.
-    useEffect(() => {
-        startWatching();
-
-        return stopWatching;
-    }, []);
-
     const bodies: Readonly<Record<DeveloperSection, ReactNode>> = {
         signals: <SignalsSection record={record} now={now} />,
         requests: <RequestsSection record={record} now={now} />,
@@ -136,7 +132,7 @@ export function DeveloperSections({
         <div className="flex h-full min-h-0 flex-col bg-panel text-text">
             <header className="flex shrink-0 items-center gap-3 border-b border-line px-4 py-3">
                 <Icon name="code" className="size-icon-lg text-muted" />
-                <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">{translate('developer.title')}</h2>
+                <h2 className="min-w-0 flex-1 truncate text-2xl font-semibold">{translate('developer.title')}</h2>
                 <SymbolControl
                     label={translate('developer.close')}
                     className="flex size-9 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-text"
@@ -154,7 +150,7 @@ export function DeveloperSections({
                             aria-labelledby={`${tabsId}-${section}-heading`}
                             className="flex min-w-0 flex-col gap-3 rounded-lg border border-line p-3.5"
                         >
-                            <h3 id={`${tabsId}-${section}-heading`} className="text-md font-semibold">
+                            <h3 id={`${tabsId}-${section}-heading`} className="text-xl font-semibold">
                                 {translate(sectionNames[section])}
                             </h3>
                             {bodies[section]}
@@ -235,7 +231,7 @@ function SectionTabs({
                     aria-selected={section === selected}
                     aria-controls={`${id}-${section}-panel`}
                     tabIndex={section === selected ? 0 : -1}
-                    className={`touch-extended shrink-0 rounded-full px-3 py-1.5 text-sm whitespace-nowrap transition ${
+                    className={`touch-extended shrink-0 rounded-full px-3 py-1.5 text-md whitespace-nowrap transition ${
                         section === selected
                             ? 'bg-accent-soft font-semibold text-accent-deep'
                             : 'text-muted hover:bg-hover hover:text-text'
@@ -253,7 +249,7 @@ function SectionTabs({
 
 /** A list of named values. */
 function Facts({ children }: { readonly children: ReactNode }) {
-    return <dl className="flex flex-col gap-1.5 text-sm">{children}</dl>;
+    return <dl className="flex flex-col gap-1.5 text-md">{children}</dl>;
 }
 
 function Fact({ name, children }: { readonly name: MessageKey; readonly children: ReactNode }) {
@@ -262,14 +258,14 @@ function Fact({ name, children }: { readonly name: MessageKey; readonly children
     return (
         <div className="flex items-baseline justify-between gap-3">
             <dt className="shrink-0 text-muted">{translate(name)}</dt>
-            <dd className="min-w-0 text-end break-all">{children}</dd>
+            <dd className="min-w-0 text-end wrap-anywhere">{children}</dd>
         </div>
     );
 }
 
 /** A value a developer reads as it was sent: an identifier, a route, a closed-set value. */
 function Literal({ children }: { readonly children: ReactNode }) {
-    return <code className="font-mono text-xs">{children}</code>;
+    return <code className="font-mono text-base">{children}</code>;
 }
 
 function Absent({ name = 'developer.nothing' }: { readonly name?: MessageKey }) {
@@ -281,7 +277,7 @@ function Absent({ name = 'developer.nothing' }: { readonly name?: MessageKey }) 
 function SubHeading({ name }: { readonly name: MessageKey }) {
     const { translate } = useLocalization();
 
-    return <h4 className="pt-1 text-xs font-semibold tracking-wide text-faint uppercase">{translate(name)}</h4>;
+    return <h4 className="pt-1 text-base font-semibold tracking-wide text-faint uppercase">{translate(name)}</h4>;
 }
 
 /** An instant, or nothing where there is none or what the deployment sent does not read as one. */
@@ -312,7 +308,7 @@ function CopyTrace({ traceId }: { readonly traceId: string }) {
             <button
                 type="button"
                 aria-label={translate('developer.copyTrace')}
-                className="shrink-0 rounded-sm px-1.5 py-0.5 text-xs text-accent hover:bg-hover"
+                className="shrink-0 rounded-sm px-1.5 py-0.5 text-base text-accent hover:bg-hover"
                 onClick={(event) => {
                     const clipboard = event.currentTarget.ownerDocument.defaultView?.navigator.clipboard;
 
@@ -360,7 +356,7 @@ function SignalsSection({ record, now }: { readonly record: DeveloperRecord; rea
             {kinds.length === 0 ? (
                 <Absent />
             ) : (
-                <dl className="flex flex-col gap-1 text-sm">
+                <dl className="flex flex-col gap-1 text-md">
                     {kinds.map(([kind, count]) => (
                         <div key={kind} className="flex justify-between gap-3">
                             <dt>
@@ -371,6 +367,9 @@ function SignalsSection({ record, now }: { readonly record: DeveloperRecord; rea
                     ))}
                 </dl>
             )}
+
+            <SubHeading name="developer.deliveries" />
+            <SignalDeliveries record={record} now={now} />
 
             <SubHeading name="developer.lastRun" />
             {signals.lastRun === null ? (
@@ -397,7 +396,7 @@ function SignalsSection({ record, now }: { readonly record: DeveloperRecord; rea
 function RequestsSection({ record, now }: { readonly record: DeveloperRecord; readonly now: number }) {
     const { translate, locale } = useLocalization();
     const pending = record.requests.filter((request) => isPending(request.phase));
-    const over = record.requests.filter((request) => !isPending(request.phase)).reverse();
+    const over = record.requests.filter((request) => !isPending(request.phase)).toReversed();
     const templates = Object.entries(record.byTemplate).sort(([first], [second]) => first.localeCompare(second));
 
     return (
@@ -406,7 +405,7 @@ function RequestsSection({ record, now }: { readonly record: DeveloperRecord; re
             {pending.length === 0 ? (
                 <Absent name="developer.nothingPending" />
             ) : (
-                <RequestList requests={pending} record={record} now={now} />
+                <RequestList requests={pending.toReversed()} record={record} now={now} />
             )}
 
             <SubHeading name="developer.recent" />
@@ -416,10 +415,10 @@ function RequestsSection({ record, now }: { readonly record: DeveloperRecord; re
             {templates.length === 0 ? (
                 <Absent />
             ) : (
-                <dl className="flex flex-col gap-1 text-sm">
+                <dl className="flex flex-col gap-1 text-md">
                     {templates.map(([template, counted]) => (
                         <div key={template} className="flex justify-between gap-3">
-                            <dt className="min-w-0 break-all">
+                            <dt className="min-w-0 wrap-anywhere">
                                 <Literal>{template}</Literal>
                             </dt>
                             <dd className="shrink-0">
@@ -457,10 +456,10 @@ function RequestList({
                 const failed = request.phase === 'failed' || (request.status !== null && request.status >= 400);
 
                 return (
-                    <li key={request.key} className="flex flex-col gap-1 rounded-md bg-sunken px-2.5 py-2 text-xs">
+                    <li key={request.key} className="flex flex-col gap-1 rounded-md bg-sunken px-2.5 py-2 text-base">
                         <div className="flex items-baseline gap-2">
                             <Literal>{request.method}</Literal>
-                            <span className="min-w-0 flex-1 break-all">
+                            <span className="min-w-0 flex-1 wrap-anywhere">
                                 <Literal>{request.path}</Literal>
                             </span>
                             <span className={failed ? 'text-error-text' : 'text-muted'}>
@@ -500,9 +499,76 @@ function RequestList({
                             )}
                         </div>
                         {request.traceId === null ? null : <CopyTrace traceId={request.traceId} />}
+                        <details className="text-muted">
+                            <summary className="cursor-pointer">{translate('developer.headers')}</summary>
+                            <HeaderList name="developer.sentHeaders" headers={request.sentHeaders} />
+                            <HeaderList name="developer.receivedHeaders" headers={request.receivedHeaders} />
+                        </details>
                     </li>
                 );
             })}
+        </ul>
+    );
+}
+
+function HeaderList({ name, headers }: { readonly name: MessageKey; readonly headers: readonly HeaderLine[] | null }) {
+    const { translate } = useLocalization();
+
+    return (
+        <>
+            <SubHeading name={name} />
+            {headers === null || headers.length === 0 ? (
+                <Absent />
+            ) : (
+                <dl className="flex flex-col gap-0.5">
+                    {headers.map((header, at) => (
+                        // A header may arrive more than once, so its place is what tells two of one name apart.
+                        <div key={`${header.name}-${String(at)}`} className="flex gap-2">
+                            <dt className="shrink-0">
+                                <Literal>{header.name}</Literal>
+                            </dt>
+                            <dd className="min-w-0 wrap-anywhere text-text">
+                                {header.value === null ? (
+                                    <span className="text-faint">{translate('developer.withheld')}</span>
+                                ) : (
+                                    <Literal>{header.value}</Literal>
+                                )}
+                            </dd>
+                        </div>
+                    ))}
+                </dl>
+            )}
+        </>
+    );
+}
+
+function SignalDeliveries({ record, now }: { readonly record: DeveloperRecord; readonly now: number }) {
+    const { translate } = useLocalization();
+    const deliveries = record.deliveries.toReversed();
+
+    return deliveries.length === 0 ? (
+        <Absent />
+    ) : (
+        <ul className="flex flex-col gap-1.5 text-base">
+            {deliveries.map((delivery) => (
+                <li key={delivery.key} className="rounded-md bg-sunken px-2.5 py-2">
+                    <details>
+                        <summary className="flex cursor-pointer justify-between gap-2">
+                            <Literal>{delivery.kind}</Literal>
+                            <span className="text-faint">
+                                <Moment at={delivery.at} now={now} />
+                            </span>
+                        </summary>
+                        {delivery.preview === null ? (
+                            <p className="pt-1 text-faint">{translate('developer.unreadSignal')}</p>
+                        ) : (
+                            <pre className="overflow-x-auto pt-1 font-mono text-base wrap-anywhere whitespace-pre-wrap">
+                                {JSON.stringify(delivery.preview, null, 2)}
+                            </pre>
+                        )}
+                    </details>
+                </li>
+            ))}
         </ul>
     );
 }
@@ -517,7 +583,7 @@ function TelemetrySection({
     readonly now: number;
 }) {
     const latestTrace = record.requests.findLast((request) => request.traceId !== null)?.traceId ?? null;
-    const latest = [...record.events].reverse().slice(0, 15);
+    const latest = record.events.toReversed();
 
     return (
         <>
@@ -537,7 +603,7 @@ function TelemetrySection({
             {latest.length === 0 ? (
                 <Absent />
             ) : (
-                <ul className="flex flex-col gap-1 text-xs">
+                <ul className="flex flex-col gap-1 text-base">
                     {latest.map((noticed) => (
                         <li key={noticed.key} className="flex flex-col gap-0.5">
                             <span className="flex justify-between gap-2">
@@ -547,7 +613,7 @@ function TelemetrySection({
                                 </span>
                             </span>
                             {Object.keys(noticed.attributes).length === 0 ? null : (
-                                <span className="break-all text-muted">
+                                <span className="wrap-anywhere text-muted">
                                     <Literal>
                                         {Object.entries(noticed.attributes)
                                             .map(
@@ -579,6 +645,9 @@ function SessionSection({ context, now }: { readonly context: DeveloperContext; 
                 <Fact name="developer.serverVersion">
                     {context.deploymentVersion === null ? <Absent /> : <Literal>{context.deploymentVersion}</Literal>}
                 </Fact>
+                <Fact name="developer.serverRevision">
+                    {context.deploymentRevision === null ? <Absent /> : <Literal>{context.deploymentRevision}</Literal>}
+                </Fact>
                 <Fact name="developer.address">
                     {context.deploymentAddress === null ? <Absent /> : <Literal>{context.deploymentAddress}</Literal>}
                 </Fact>
@@ -587,6 +656,9 @@ function SessionSection({ context, now }: { readonly context: DeveloperContext; 
                 </Fact>
                 <Fact name="developer.person">
                     {context.person === null ? <Absent /> : <Literal>{context.person}</Literal>}
+                </Fact>
+                <Fact name="developer.organization">
+                    {context.organization === null ? <Absent /> : <Literal>{context.organization}</Literal>}
                 </Fact>
                 <Fact name="developer.credential">
                     {context.credential === null ? (
@@ -611,6 +683,19 @@ function SessionSection({ context, now }: { readonly context: DeveloperContext; 
                     <Literal>{navigator.userAgent}</Literal>
                 </Fact>
             </Facts>
+
+            <SubHeading name="developer.accountIdentifiers" />
+            {context.accounts.length === 0 ? (
+                <Absent />
+            ) : (
+                <ul className="flex flex-col gap-0.5">
+                    {context.accounts.map((account) => (
+                        <li key={account.id}>
+                            <Literal>{account.id}</Literal>
+                        </li>
+                    ))}
+                </ul>
+            )}
 
             <SubHeading name="developer.permissions" />
             {context.permissions.length === 0 ? (
@@ -653,7 +738,10 @@ function DataSection({ context, now }: { readonly context: DeveloperContext; rea
             ) : (
                 <ul className="flex flex-col gap-2">
                     {context.accounts.map((account) => (
-                        <li key={account.id} className="flex flex-col gap-0.5 rounded-md bg-sunken px-2.5 py-2 text-xs">
+                        <li
+                            key={account.id}
+                            className="flex flex-col gap-0.5 rounded-md bg-sunken px-2.5 py-2 text-base"
+                        >
                             <Literal>{account.id}</Literal>
                             <span className="flex flex-wrap gap-x-3 text-muted">
                                 <Literal>{account.synchronizationState}</Literal>
@@ -683,7 +771,7 @@ function DataSection({ context, now }: { readonly context: DeveloperContext; rea
                 </Fact>
             </Facts>
             {changes.waiting.length + changes.undecided.length === 0 ? null : (
-                <ul className="flex flex-col gap-0.5 text-xs">
+                <ul className="flex flex-col gap-0.5 text-base">
                     {[...changes.waiting, ...changes.undecided].map((change) => (
                         <li key={change.recordId} className="flex flex-wrap gap-x-2">
                             <Literal>{change.act}</Literal>
@@ -784,7 +872,7 @@ function EnvironmentSection({ record }: { readonly record: DeveloperRecord }) {
             {failures.length === 0 ? (
                 <Absent />
             ) : (
-                <dl className="flex flex-col gap-1 text-sm">
+                <dl className="flex flex-col gap-1 text-md">
                     {failures.map(([region, count]) => (
                         <div key={region} className="flex justify-between gap-3">
                             <dt>

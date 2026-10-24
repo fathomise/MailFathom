@@ -923,6 +923,30 @@ public sealed class ClientApiEndpointsTests
         Assert.Null(stated);
     }
 
+    /// <summary>The organization a person belongs to is answered out of the composition this replica serves them from.</summary>
+    [Fact]
+    public void OrganizationOf_AUserInAnOrganization_AnswersThatOrganization()
+    {
+        // Arrange
+        var organization = Guid.Parse("0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f");
+        var roster = ResolvedServedUsers.Serving(
+            new ServedUser(SyntheticUser.Deployment, "alex", []) { Organization = organization });
+
+        // Act
+        var answered = ClientApiEndpoints.OrganizationOf(roster, ActingFor(SyntheticUser.Deployment));
+
+        // Assert
+        Assert.Equal(organization, answered);
+    }
+
+    /// <summary>A request naming no user belongs to no organization, which is an answer rather than a refusal on a route requiring no permission.</summary>
+    [Fact]
+    public void OrganizationOf_ARequestNamingNoUser_AnswersNothing() =>
+        Assert.Null(ClientApiEndpoints.OrganizationOf(
+            ResolvedServedUsers.Serving(
+                new ServedUser(SyntheticUser.Deployment, "alex", []) { Organization = Guid.Parse("0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f") }),
+            AuthorizedPrincipal.Caller("reader", [MailFathomPermission.MailRead])));
+
     /// <summary>A request that established no principal reads its grant as empty, and its level as the deployment's.</summary>
     [Fact]
     public void StatedTelemetryLevelOf_ARequestThatEstablishedNoPrincipal_AnswersNothing() =>

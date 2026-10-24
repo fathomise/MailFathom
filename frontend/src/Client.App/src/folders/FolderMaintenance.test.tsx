@@ -7,6 +7,7 @@ import { act, fireEvent, renderHook, screen, waitFor, within } from '@testing-li
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 import { flagsRecorded } from '../../../../tests/fixtures/changes';
+import { workAccount } from '../../../../tests/fixtures/deployment';
 import { emptyFolderPage, mailboxSize, rowsPerPage, timelinePage } from '../../../../tests/fixtures/mail';
 import { LocalizationProvider } from '../localization/Localization';
 import { ToastsProvider } from '../toasts/Toasts';
@@ -35,7 +36,7 @@ const projects: ManagedMailFolder = {
 };
 
 const work: FolderMailbox = {
-    accountId: 'work',
+    accountId: workAccount.id,
     accountName: 'Work',
     folders: [inbox, contracts, projects],
     creatableRoles: ['Trash'],
@@ -189,7 +190,7 @@ describe('FolderMaintenanceProvider', () => {
 
         await waitFor(() => {
             expect(asked(answering.requests)).toEqual([
-                { path: route, body: { account: 'work', parentId: 'PROJECTS', name: 'Contracts' } },
+                { path: route, body: { account: workAccount.id, parentId: 'PROJECTS', name: 'Contracts' } },
             ]);
         });
 
@@ -211,7 +212,9 @@ describe('FolderMaintenanceProvider', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Create folder' }));
 
         await waitFor(() => {
-            expect(asked(answering.requests)).toEqual([{ path: route, body: { account: 'work', role: 'Trash' } }]);
+            expect(asked(answering.requests)).toEqual([
+                { path: route, body: { account: workAccount.id, role: 'Trash' } },
+            ]);
         });
     });
 
@@ -270,7 +273,7 @@ describe('FolderMaintenanceProvider', () => {
             expect(asked(answering.requests)).toEqual([
                 {
                     path: `${route}/renames`,
-                    body: { account: 'work', folderId: 'CONTRACTS', name: 'Contracts 2027' },
+                    body: { account: workAccount.id, folderId: 'CONTRACTS', name: 'Contracts 2027' },
                 },
             ]);
         });
@@ -293,7 +296,7 @@ describe('FolderMaintenanceProvider', () => {
 
         await waitFor(() => {
             expect(asked(answering.requests)).toEqual([
-                { path: `${route}/moves`, body: { account: 'work', folderId: 'in', parentId: 'PROJECTS' } },
+                { path: `${route}/moves`, body: { account: workAccount.id, folderId: 'in', parentId: 'PROJECTS' } },
             ]);
         });
     });
@@ -311,7 +314,10 @@ describe('FolderMaintenanceProvider', () => {
 
         await waitFor(() => {
             expect(asked(answering.requests)).toEqual([
-                { path: `${route}/moves`, body: { account: 'work', folderId: 'CONTRACTS', parentId: 'PROJECTS' } },
+                {
+                    path: `${route}/moves`,
+                    body: { account: workAccount.id, folderId: 'CONTRACTS', parentId: 'PROJECTS' },
+                },
             ]);
         });
 
@@ -426,7 +432,7 @@ describe('FolderMaintenanceProvider', () => {
 
         await waitFor(() => {
             expect(asked(answering.requests)).toEqual([
-                { path: `${route}/deletions`, body: { account: 'work', folderId: 'CONTRACTS' } },
+                { path: `${route}/deletions`, body: { account: workAccount.id, folderId: 'CONTRACTS' } },
             ]);
         });
 
@@ -613,7 +619,7 @@ describe('FolderMaintenanceProvider, marking everything read', () => {
         const { held } = maintaining(unanswered);
 
         act(() => {
-            held().markAllRead('work', 'INBOX', 'Inbox');
+            held().markAllRead(workAccount.id, 'INBOX', 'Inbox');
         });
 
         expect(await screen.findByText('Marking everything read in Inbox…')).toBeDefined();
@@ -623,7 +629,7 @@ describe('FolderMaintenanceProvider, marking everything read', () => {
         const { held } = maintaining(mailAnswering(() => timelinePage(mailboxSize - 2)));
 
         act(() => {
-            held().markAllRead('work', 'INBOX', 'Inbox');
+            held().markAllRead(workAccount.id, 'INBOX', 'Inbox');
         });
 
         expect(await screen.findByText('All read in Inbox.')).toBeDefined();
@@ -633,7 +639,7 @@ describe('FolderMaintenanceProvider, marking everything read', () => {
         const { held } = maintaining(mailAnswering(() => emptyFolderPage));
 
         act(() => {
-            held().markAllRead('work', null, 'Work');
+            held().markAllRead(workAccount.id, null, 'Work');
         });
 
         expect(await screen.findByText('Nothing was unread in Work.')).toBeDefined();
@@ -661,7 +667,7 @@ describe('FolderMaintenanceProvider, marking everything read', () => {
             const { held } = maintaining(mailAnswering(pages));
 
             act(() => {
-                held().markAllRead('work', 'INBOX', 'Inbox');
+                held().markAllRead(workAccount.id, 'INBOX', 'Inbox');
             });
 
             expect(await screen.findByText(said(new Intl.NumberFormat('en').format(count)))).toBeDefined();
@@ -672,7 +678,7 @@ describe('FolderMaintenanceProvider, marking everything read', () => {
         const { held } = maintaining(() => Promise.reject(new Error('no route to host')));
 
         act(() => {
-            held().markAllRead('work', 'INBOX', 'Inbox');
+            held().markAllRead(workAccount.id, 'INBOX', 'Inbox');
         });
 
         expect(await screen.findByText('Not everything could be marked read in Inbox: unavailable.')).toBeDefined();
@@ -682,7 +688,7 @@ describe('FolderMaintenanceProvider, marking everything read', () => {
         const { held } = maintaining(unanswered);
 
         act(() => {
-            held().markAllRead('work', 'INBOX', 'Inbox');
+            held().markAllRead(workAccount.id, 'INBOX', 'Inbox');
         });
 
         fireEvent.click(await screen.findByRole('button', { name: 'Stop the operation' }));

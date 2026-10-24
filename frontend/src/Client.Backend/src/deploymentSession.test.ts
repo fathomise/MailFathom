@@ -47,6 +47,8 @@ describe('readDeploymentSession', () => {
                 version: '0.8.1',
                 permissions: ['mailfathom.mail.read', 'mailfathom.assistant.use'],
                 telemetryLevel: 'info',
+                revision: null,
+                organization: null,
             },
         });
     });
@@ -56,7 +58,7 @@ describe('readDeploymentSession', () => {
 
         expect(result).toEqual({
             outcome: 'read',
-            value: { version: '0.8.0', permissions: [], telemetryLevel: 'info' },
+            value: { version: '0.8.0', permissions: [], telemetryLevel: 'info', revision: null, organization: null },
         });
     });
 
@@ -80,7 +82,7 @@ describe('readDeploymentSession', () => {
 
         expect(result).toEqual({
             outcome: 'read',
-            value: { version: '0.8.0', permissions: [], telemetryLevel: level },
+            value: { version: '0.8.0', permissions: [], telemetryLevel: level, revision: null, organization: null },
         });
     });
 
@@ -92,7 +94,13 @@ describe('readDeploymentSession', () => {
 
         expect(result).toEqual({
             outcome: 'read',
-            value: { version: '0.8.0', permissions: ['mailfathom.mail.read'], telemetryLevel: 'info' },
+            value: {
+                version: '0.8.0',
+                permissions: ['mailfathom.mail.read'],
+                telemetryLevel: 'info',
+                revision: null,
+                organization: null,
+            },
         });
     });
 
@@ -117,7 +125,13 @@ describe('readDeploymentSession', () => {
 
         expect(result).toEqual({
             outcome: 'read',
-            value: { version: '0.8.0', permissions: besideTheMailbox, telemetryLevel: 'info' },
+            value: {
+                version: '0.8.0',
+                permissions: besideTheMailbox,
+                telemetryLevel: 'info',
+                revision: null,
+                organization: null,
+            },
         });
     });
 
@@ -129,7 +143,46 @@ describe('readDeploymentSession', () => {
 
         expect(result).toEqual({
             outcome: 'read',
-            value: { version: '0.8.0', permissions: [], telemetryLevel: 'info' },
+            value: { version: '0.8.0', permissions: [], telemetryLevel: 'info', revision: null, organization: null },
+        });
+    });
+
+    it.each([
+        [
+            'the revision and the organization it names',
+            'a1b2c3d',
+            '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f',
+            'a1b2c3d',
+            '0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f',
+        ],
+        ['no organization for a caller in none', 'a1b2c3d', null, 'a1b2c3d', null],
+        ['an answer naming neither as one naming nothing', undefined, undefined, null, null],
+        ['an identifier of the wrong type as nothing', 7, true, null, null],
+        ['an identifier too long to be one as nothing', 'f'.repeat(65), 'f'.repeat(65), null, null],
+    ])('reads %s', async (_, revision, organization, readRevision, readOrganization) => {
+        const result = await readDeploymentSession(
+            session,
+            answering({
+                body: JSON.stringify({
+                    service: 'MailFathom',
+                    version: '0.8.0',
+                    permissions: [],
+                    telemetry: 'info',
+                    revision,
+                    organization,
+                }),
+            }),
+        );
+
+        expect(result).toEqual({
+            outcome: 'read',
+            value: {
+                version: '0.8.0',
+                permissions: [],
+                telemetryLevel: 'info',
+                revision: readRevision,
+                organization: readOrganization,
+            },
         });
     });
 
@@ -141,7 +194,13 @@ describe('readDeploymentSession', () => {
 
         expect(result).toEqual({
             outcome: 'read',
-            value: { version: '0.8.0', permissions: ['mailfathom.mail.read'], telemetryLevel: 'info' },
+            value: {
+                version: '0.8.0',
+                permissions: ['mailfathom.mail.read'],
+                telemetryLevel: 'info',
+                revision: null,
+                organization: null,
+            },
         });
     });
 

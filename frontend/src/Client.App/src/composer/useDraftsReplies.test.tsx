@@ -16,7 +16,7 @@ import { useDraftsReplies } from './useDraftsReplies';
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic YWRh' };
 
 function offering(...permissions: DeploymentSession['permissions']): DeploymentSession {
-    return { version: '0.8.7', permissions, telemetryLevel: defaultTelemetryLevel };
+    return { version: '0.8.7', permissions, telemetryLevel: defaultTelemetryLevel, revision: null, organization: null };
 }
 
 const drafts: ClientResponse = { status: 200, body: JSON.stringify({ draftsReplies: true }), headers: {} };

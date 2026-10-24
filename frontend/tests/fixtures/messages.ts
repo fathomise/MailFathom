@@ -14,6 +14,8 @@
 // case that would tempt one: a sender who wrote no text part at all, whose message route answer says exactly that and
 // whose body still carries the words.
 
+import { workAccount } from './deployment';
+
 /** The identity the newsletter is addressed by, everywhere the corpus names one message. */
 export const newsletterId = '00000000-0000-4000-8000-000000000000';
 
@@ -202,7 +204,7 @@ export function newsletterBody({ remoteImages = false, fullHtml = false } = {}) 
 /** What the message route answers for the newsletter: everything a pane draws around a body it never carries. */
 export const newsletterMessage = {
     storedEmailId: newsletterId,
-    account: 'work',
+    account: workAccount.id,
     folder: 'INBOX',
     threadId: null,
     sizeOctets: 40_960,

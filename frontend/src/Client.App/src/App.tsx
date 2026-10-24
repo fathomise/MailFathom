@@ -537,10 +537,12 @@ export function App({
     const developerContext: DeveloperContext = {
         deploymentAddress: baseAddress,
         deploymentVersion: deploymentSession?.version ?? null,
+        deploymentRevision: deploymentSession?.revision ?? null,
         permissions: deploymentSession?.permissions ?? [],
         telemetryLevel,
         telemetryAllowed: telemetryPermitted,
         person,
+        organization: deploymentSession?.organization ?? null,
         credential:
             kept !== null
                 ? { kind: 'session', expiresAt: kept.expiresAt, issuer: null }

@@ -44,7 +44,7 @@ const systemNotifier = systemNotifierForThisApplication();
 // and everything below receives it as a value rather than registering anything of its own.
 const telemetry = clientTelemetryForThisApplication();
 
-// The developer information surface is what listens to the wire, and it hears nothing until it is opened.
+// Developer mode is what listens to the wire, and it hears nothing until the version line in Settings switches it on.
 watchRequestsWith(watchedByDeveloperRecord);
 
 const container = document.getElementById('root');

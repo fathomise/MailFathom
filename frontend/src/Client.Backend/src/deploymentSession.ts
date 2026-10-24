@@ -73,6 +73,12 @@ export interface DeploymentSession {
      * client costs a deployment serving many of them nothing.
      */
     readonly telemetryLevel: DeploymentTelemetryLevel;
+
+    /** The source revision the deployment's build was stamped with, or `null` where it named none. */
+    readonly revision: string | null;
+
+    /** The organization the caller's user belongs to, or `null` where they belong to none. */
+    readonly organization: string | null;
 }
 
 // The most names one answer may carry. The published set is smaller than this by a wide margin and may grow; what the
@@ -86,6 +92,10 @@ const mostPermissionsInAnswer = 64;
 // it turns out to be. `longestResponseBody` is the transport's backstop behind it, and this is the bound that says what
 // *this* route may answer with.
 const longestSessionBody = 4096;
+
+// The longest revision or organization identifier read. A revision is a short commit hash and an organization a UUID;
+// anything longer is not either, and is read as absent rather than refusing an answer over a diagnostic field.
+const longestIdentifier = 64;
 
 /**
  * Reads what the deployment says about itself and about the credential presented to it.
@@ -177,7 +187,19 @@ export function parseDeploymentSession(body: string): DeploymentSession | null {
     // wrong in, and it is why the field is read rather than trusted: what arrives is a string from the wire.
     const level = answered['telemetry'];
 
-    return { version, permissions, telemetryLevel: isDeploymentTelemetryLevel(level) ? level : 'off' };
+    return {
+        version,
+        permissions,
+        telemetryLevel: isDeploymentTelemetryLevel(level) ? level : 'off',
+        revision: identifierOf(answered['revision']),
+        organization: identifierOf(answered['organization']),
+    };
+}
+
+// Absent, the wrong type, or too long reads as nothing, with the leniency the level above gets and for the same reason:
+// both are read by a developer's tool and neither is worth refusing a sign-in over.
+function identifierOf(value: unknown): string | null {
+    return typeof value === 'string' && value.length > 0 && value.length <= longestIdentifier ? value : null;
 }
 
 function isClientPermission(value: string): value is MailFathomPermission {

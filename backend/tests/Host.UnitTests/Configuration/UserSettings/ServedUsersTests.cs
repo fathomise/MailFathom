@@ -431,6 +431,26 @@ public sealed class ServedUsersTests
             servedUsers.Peek(Alex)?.ForcedClientTelemetry);
     }
 
+    /// <summary>A record committed on this replica is held with the organization whose policy layer it was resolved under.</summary>
+    [Fact]
+    public void UserDocumentPublished_ARecordOfAnOrganizationMember_ServesThatUserWithTheOrganization()
+    {
+        // Arrange
+        var servedUsers = this.Cache();
+        var organization = Guid.Parse("0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f");
+
+        // Act
+        servedUsers.UserDocumentPublished(
+            Alex,
+            "user",
+            new UserAccountOptions(),
+            2,
+            GoverningSettingsPolicies.Unwritten with { Organization = SettingsPolicyDocument.Unwritten(organization) });
+
+        // Assert
+        Assert.Equal(organization, servedUsers.Peek(Alex)?.Organization);
+    }
+
     /// <summary>
     /// Reading it before the users were counted is a wiring defect rather than a deployment's problem, so it fails as
     /// one instead of answering with the identity that names nobody — which every unresolved holder would agree on.

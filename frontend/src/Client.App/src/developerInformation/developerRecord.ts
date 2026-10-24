@@ -6,6 +6,7 @@ import { useSyncExternalStore } from 'react';
 import {
     observeClientEvents,
     parseClientSignal,
+    type ClientSignal,
     type MailFathomSignalChannel,
     type ObservedClientEvent,
     type SignalStreamSchedule,
@@ -20,19 +21,25 @@ import { measureWebVitals } from './webVitals';
 // schedule, which are the only places that know the run a signal named and how long the stream is waiting. Each is a
 // wrapper the composition root applies once, so no screen records anything for it.
 //
-// **It does nothing while the surface is closed.** Watching begins when the surface opens, with an empty record, and
-// ends when it closes, which lets the record go: every wrapper below asks whether anybody is watching before it does
-// anything at all, so a closed surface costs one comparison per request. What happened before it was opened is not
-// shown, except the Web Vitals, which the platform buffers on its own, and whether the signal hub stands, which the
-// channel notes as a connection opens or ends.
+// **It does nothing until developer mode is switched on.** Watching begins when the unlock switches it on, with an
+// empty record, and goes on in the background whether the surface is open or closed, so a surface opened after
+// something went wrong shows what led up to it. Until then every wrapper below asks whether anybody is watching before
+// it does anything at all, which costs one comparison per request. The Web Vitals the platform buffered on its own and
+// whether the signal hub stands, which the channel notes as a connection opens or ends, are the two things a record
+// begun later still has from before it began.
 //
 // **It never leaves the page.** Everything here is in memory and bounded, nothing is stored and nothing is exported, so
 // it is not a second telemetry pipeline and the person's telemetry switch is not what governs it. It also holds no
-// mail: a path is kept without its query string, which is where a search phrase travels, a signal is kept by its kind
-// alone unless it names a run, and a payload, a body, and a header other than the trace context are never read.
+// mail: a path is kept without its query string, which is where a search phrase travels, a signal keeps its
+// identifiers and never a notification's two lines, a header whose value is a credential or names an attachment's
+// file keeps its name alone, and no body is ever read.
 
 /** How many of each kind of entry the record keeps, the oldest giving way first. */
-export const keptEntries = 50;
+export const keptEntries = 200;
+
+/** How many headers one side of a request keeps, and how much of each value. */
+const keptHeaders = 64;
+const longestHeaderValue = 1_024;
 
 /** Where the signal hub stands, as the last occurrence about it said. */
 export type SignalStanding = 'notYet' | 'opened' | 'dropped' | 'refused' | 'unreachable';
@@ -101,6 +108,28 @@ export interface WireRequest {
     /** What the latest answer said its body measures, where it said. */
     readonly declaredBytes: number | null;
     readonly traceId: string | null;
+
+    /** The headers the request went out with. */
+    readonly sentHeaders: readonly HeaderLine[];
+
+    /** The headers the latest answer carried, as far as the browser lets a page read them, or `null` before one arrived. */
+    readonly receivedHeaders: readonly HeaderLine[] | null;
+}
+
+/** One header, with its value withheld where it is a credential or names an attachment. */
+export interface HeaderLine {
+    readonly name: string;
+    readonly value: string | null;
+}
+
+/** One signal the hub delivered, with what it carried as far as this surface may show it. */
+export interface SignalDelivery {
+    readonly key: number;
+    readonly at: number;
+    readonly kind: string;
+
+    /** What the signal carried, or `null` where the client could not read it and so knows nothing about what it holds. */
+    readonly preview: Readonly<Record<string, unknown>> | null;
 }
 
 /** What an operation reported about a request it made: the template it asked by and how the answer was read. */
@@ -137,6 +166,7 @@ export interface DeveloperRecord {
     /** How many times each route template was answered and how many times it failed, whatever the trace. */
     readonly byTemplate: Readonly<Record<string, { readonly read: number; readonly failed: number }>>;
     readonly events: readonly NoticedEvent[];
+    readonly deliveries: readonly SignalDelivery[];
     readonly renderFailures: Readonly<Record<string, number>>;
     readonly vitals: Readonly<Partial<Record<VitalName, VitalReading>>>;
 }
@@ -156,6 +186,7 @@ const nothingYet: DeveloperRecord = {
     outcomes: {},
     byTemplate: {},
     events: [],
+    deliveries: [],
     renderFailures: {},
     vitals: {},
 };
@@ -171,8 +202,12 @@ let hub: { readonly standing: 'opened' | 'dropped'; readonly since: number } | n
 let stopMeasuring = (): void => undefined;
 const listeners = new Set<() => void>();
 
-/** Begins watching, from an empty record, which the surface does as it opens. */
+/** Begins watching, from an empty record, which switching developer mode on does. */
 export function startWatching(): void {
+    if (watching) {
+        return;
+    }
+
     current =
         hub === null
             ? nothingYet
@@ -182,7 +217,7 @@ export function startWatching(): void {
     stopMeasuring = measureWebVitals(noticeVital);
 }
 
-/** Stops watching and lets the record go, which the surface does as it closes. */
+/** Stops watching and lets the record go, which forgetting developer mode does. */
 export function stopWatching(): void {
     watching = false;
     observeClientEvents(null);
@@ -328,19 +363,56 @@ export function traceIdOf(headers: HeadersInit | undefined): string | null {
     return traceId === undefined || /^0+$/.test(traceId) ? null : traceId;
 }
 
+const withheldHeader = /authorization|cookie|token|secret|key|session|content-disposition/i;
+
+/**
+ * The headers as this surface may show them: a credential, a cookie, and anything named for a token, a secret, a key,
+ * or a session keep their name and lose their value, and so does `Content-Disposition`, whose value names an
+ * attachment's file.
+ */
+export function visibleHeaders(headers: HeadersInit | undefined): readonly HeaderLine[] {
+    return [...new Headers(headers)].slice(0, keptHeaders).map(([name, value]) => ({
+        name,
+        value: withheldHeader.test(name) ? null : value.slice(0, longestHeaderValue),
+    }));
+}
+
+/** What a signal carried as this surface may show it: everything but the two lines a notification is read by. */
+export function previewOf(signal: ClientSignal): Readonly<Record<string, unknown>> {
+    if (signal.kind !== 'notification.raised') {
+        return signal;
+    }
+
+    return { kind: signal.kind, notificationKind: signal.notificationKind, unreadCount: signal.unreadCount };
+}
+
+const longestKind = 64;
+
+function kindOf(payload: unknown): string {
+    const kind = typeof payload === 'object' && payload !== null && 'kind' in payload ? payload.kind : undefined;
+
+    return typeof kind === 'string' ? kind.slice(0, longestKind) : 'unknown';
+}
+
 function declaredBytesOf(response: Response): number | null {
     const declared = Number.parseInt(response.headers.get('content-length') ?? '', 10);
 
     return Number.isNaN(declared) ? null : declared;
 }
 
-// A request still on its way is never the one given up to the bound, because the next thing it reports would then
-// describe nothing; past the bound the oldest request that is over goes first.
+// Past the bound the oldest request that is over goes first, because one still on its way has more to report; where
+// every kept request is still on its way the oldest of them goes, so the bound holds whatever the wire is doing, and
+// what it reports afterwards finds nothing to update.
 function keptRequests(requests: readonly WireRequest[], added: WireRequest): readonly WireRequest[] {
     const next = [...requests, added];
+
+    if (next.length <= keptEntries) {
+        return next;
+    }
+
     const over = next.findIndex((request) => !isPending(request.phase));
 
-    return next.length > keptEntries && over !== -1 ? next.toSpliced(over, 1) : next;
+    return next.toSpliced(over === -1 ? 0 : over, 1);
 }
 
 /** Puts each request into the record from when it is asked for until it is over, which is the transport's watcher. */
@@ -371,6 +443,8 @@ export const watchedByDeveloperRecord: RequestWatcher = (path, init) => {
             status: null,
             declaredBytes: null,
             traceId: traceIdOf(init.headers),
+            sentHeaders: visibleHeaders(init.headers),
+            receivedHeaders: null,
         }),
     }));
 
@@ -379,7 +453,12 @@ export const watchedByDeveloperRecord: RequestWatcher = (path, init) => {
             update({ phase: 'sent', attempts: made + 1, retryAt: null });
         },
         answered: (response) => {
-            update({ phase: 'reading', status: response.status, declaredBytes: declaredBytesOf(response) });
+            update({
+                phase: 'reading',
+                status: response.status,
+                declaredBytes: declaredBytesOf(response),
+                receivedHeaders: visibleHeaders(response.headers),
+            });
         },
         retrying: (milliseconds) => {
             update({ phase: 'waitingToRetry', retryAt: Date.now() + milliseconds });
@@ -391,8 +470,8 @@ export const watchedByDeveloperRecord: RequestWatcher = (path, init) => {
 };
 
 /**
- * Puts the run a signal names into the record, which is the one thing about a signal the events do not carry, and
- * keeps whether a connection stands for a surface opened later.
+ * Puts each signal the hub delivered into the record, with what it carried and the run it names, which the events do
+ * not carry, and keeps whether a connection stands for a record begun later.
  */
 export function watchedSignalChannel(channel: MailFathomSignalChannel): MailFathomSignalChannel {
     return async (opening) => {
@@ -403,16 +482,8 @@ export function watchedSignalChannel(channel: MailFathomSignalChannel): MailFath
                 opening.dropped();
             },
             arrived: (payload) => {
-                const signal = watching ? parseClientSignal(payload) : null;
-
-                if (signal?.kind === 'run.advanced') {
-                    revise((record) => ({
-                        ...record,
-                        signals: {
-                            ...record.signals,
-                            lastRun: { run: signal.run, conversation: signal.conversation, sequence: signal.sequence },
-                        },
-                    }));
+                if (watching) {
+                    noticeDelivery(payload);
                 }
 
                 opening.arrived(payload);
@@ -428,6 +499,27 @@ export function watchedSignalChannel(channel: MailFathomSignalChannel): MailFath
             },
         };
     };
+}
+
+function noticeDelivery(payload: unknown): void {
+    const signal = parseClientSignal(payload);
+
+    revise((record) => ({
+        ...record,
+        signals:
+            signal?.kind === 'run.advanced'
+                ? {
+                      ...record.signals,
+                      lastRun: { run: signal.run, conversation: signal.conversation, sequence: signal.sequence },
+                  }
+                : record.signals,
+        deliveries: kept(record.deliveries, {
+            key: nextKey++,
+            at: Date.now(),
+            kind: signal?.kind ?? kindOf(payload),
+            preview: signal === null ? null : previewOf(signal),
+        }),
+    }));
 }
 
 /** Puts when the stream next tries into the record, which only the wait itself knows. */

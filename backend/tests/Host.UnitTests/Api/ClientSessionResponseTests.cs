@@ -103,6 +103,27 @@ public sealed class ClientSessionResponseTests
         Assert.NotEmpty(session.Version);
     }
 
+    /// <summary>The revision names the build a deployment runs more precisely than its version, which is what a developer finds the image by.</summary>
+    [Fact]
+    public void For_AnyCaller_NamesTheRevisionTheBuildWasStampedWith() =>
+        Assert.NotEmpty(ClientSessionResponse.For(principal: null, forwardsTelemetry: true, ClientTelemetryLevel.Info).Revision);
+
+    /// <summary>The caller's own organization is answered as it was handed in, and none is answered as nothing.</summary>
+    [Fact]
+    public void For_ACallerInAnOrganization_ReportsItAndNoneForACallerInNone()
+    {
+        // Arrange
+        var organization = Guid.Parse("0197f0c4-3b1a-7c2e-9d4f-5a6b7c8d9e0f");
+
+        // Act
+        var within = ClientSessionResponse.For(principal: null, forwardsTelemetry: true, ClientTelemetryLevel.Info, organization: organization);
+        var outside = ClientSessionResponse.For(principal: null, forwardsTelemetry: true, ClientTelemetryLevel.Info);
+
+        // Assert
+        Assert.Equal(organization, within.Organization);
+        Assert.Null(outside.Organization);
+    }
+
     /// <summary>
     /// What lets a client say there is nothing behind its telemetry switch, and how much this deployment asks of it.
     /// Both follow the deployment rather than the grant, so a credential granted nothing is told the same thing as one
