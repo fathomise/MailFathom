@@ -37,7 +37,7 @@ name: Fathom review
 # `Ready to merge` never did, because this workflow reads the diff and cannot see the pipeline, and
 # `Changes requested` no longer does, because it makes the same claim about a state this run cannot
 # see either. Both are decided in `Apply pull request rules`, from the review and the checks
-# together, once every pipeline outside `CodeQL` has finished;
+# together, once every check the branch rules require has finished;
 # `.github/pull-request/select-board-status.sh` holds the rules. What this workflow still writes is
 # `In review`, from the moment a review starts.
 #
@@ -762,8 +762,9 @@ jobs:
   # It preserves two statuses, and for the reason a verdict preserves them: `Done` is the merge and
   # the close, `Blocked` is the one status a hand writes about something outside the project, and a
   # review that starts on either says nothing that entitles it to erase them. This is the only status
-  # this workflow writes, and what writes over it is `Apply pull request rules`, once the review and
-  # every pipeline outside `CodeQL` have both concluded — whichever way they concluded. So the item
+  # this workflow writes, and what writes over it is `Apply pull request rules`, once every check the
+  # branch rules require has concluded and the review has too — or sooner, where a required check
+  # failed, since that is owed an answer whatever the review says. So the item
   # sits here for as long as the change is still being decided about, which is what the column says,
   # and a run that publishes no verdict leaves it here too, where a reader can see a review was asked
   # for and produced nothing.

@@ -1967,11 +1967,11 @@ the author as an assignee of up to five of the issues the change closes. On a pu
 pull requests are in — whether each still merges, whether the reviewer approved the head, and what
 its checks concluded — and writes the roadmap board where
 `.github/pull-request/select-board-status.sh` says a state earns a status: `In merge` while the merge
-queue holds the pull request; `Changes requested` for a failed check, a review that found something, a
+queue holds the pull request; `Changes requested` for a failed required check, a review that found something, a
 removal from the queue after a clean verdict, or a clean change that no longer merges; and
 `Ready to merge` where a clean verdict — an approval, or a `NO FINDINGS` comment on a change whose
 author is not a maintainer — and the checks agree and the change still merges — each verdict decided only once
-every pipeline outside `CodeQL` has finished, so none is published while one is still running — and
+every check the branch rules require has finished, so none is published while one is still running — and
 `Changes requested` from `Ready to merge` alone for a conflicting pull request nothing has a verdict
 about. The push sweeps every open pull request, a concluded pipeline decides the one it ran on, and
 the queue's `enqueued` and `dequeued` events decide the one they name. Each job runs on its own events and skips the others, which is what keeps

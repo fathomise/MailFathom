@@ -4802,6 +4802,11 @@ board_state_green_checks='[
   {"workflow": "", "name": "license/cla", "status": "COMPLETED", "conclusion": "SUCCESS"}
 ]'
 
+# The contexts the branch rules require, as `read-pull-request-state.sh` copies them onto every pull
+# request. Every fixture requires both of the checks above, so a check a fixture adds beside them is
+# one the rules do not require.
+board_state_required_checks='["Required CI", "license/cla"]'
+
 # The state a rule reads, written as a fixture rather than fetched. Every condition in that script is
 # a question about these fields alone, which is what lets a board rule be tested without a token and
 # without a pull request to reproduce it on. `approval` is `none`, `current`, `stale`, `commented`,
@@ -4821,6 +4826,7 @@ write_pull_request_state() {
   jq -n --arg mergeable "$mergeable" --arg approval "$approval" \
     --argjson checks "$checks" --argjson draft "$draft" \
     --argjson queued "$queued" --arg removed "$removed_at" \
+    --argjson required "$board_state_required_checks" \
     '{number: 1, mergeable: $mergeable, isDraft: $draft, state: "OPEN", labels: [],
       headRefOid: "head-commit", inMergeQueue: $queued,
       removedFromMergeQueueAt: (if $removed == "" then null else $removed end),
@@ -4833,7 +4839,8 @@ write_pull_request_state() {
                        submittedAt: "2026-10-17T10:00:00Z",
                        commit: (if $approval == "stale" then "older-commit" else "head-commit" end)}]
                 end),
-      checks: $checks}' \
+      checks: $checks,
+      requiredChecks: $required}' \
     > "$state_file"
 }
 
@@ -5081,16 +5088,20 @@ select_board_status_earns_nothing_from_a_withheld_approval_of_an_older_head() {
   assert_file_content '' "$output_file"
 }
 
-# Neither of those is a pipeline the merge waits on. `CodeQL` is not a required check on `main`, and
-# this workflow's own checks publish a label and a board write rather than anything about whether the
-# change builds — a rule that read them would be deciding partly from its own run.
-select_board_status_reads_neither_codeql_nor_its_own_checks() {
-  local output_file="$test_directory/select-board-status-ignored-checks"
+# A check the branch rules do not require is one the merge does not wait on, so the column waits on
+# none of them either — running or red. A documentation build running long held an item in `In merge`
+# after the queue had already let its pull request go, which is the case this exists for.
+select_board_status_reads_only_the_checks_the_rules_require() {
+  local output_file="$test_directory/select-board-status-unrequired-checks"
   local checks
 
   checks="$(
     jq -c '. + [{"workflow": "CodeQL", "name": "Analyze C#", "status": "COMPLETED", "conclusion": "FAILURE"},
                 {"workflow": "", "name": "CodeQL", "status": "COMPLETED", "conclusion": "FAILURE"},
+                {"workflow": "Publish the documentation", "name": "Build latest",
+                 "status": "IN_PROGRESS", "conclusion": ""},
+                {"workflow": "Fathom review", "name": "Fathom review",
+                 "status": "COMPLETED", "conclusion": "FAILURE"},
                 {"workflow": "Apply pull request rules",
                  "name": "Apply the board statuses the open pull requests earn",
                  "status": "IN_PROGRESS", "conclusion": ""}]' \
@@ -5100,6 +5111,40 @@ select_board_status_reads_neither_codeql_nor_its_own_checks() {
   run_select_board_status 'MERGEABLE' "$output_file" 'current' "$checks"
 
   assert_file_content $'Ready to merge\t\tDone,Blocked' "$output_file"
+
+  output_file="$test_directory/select-board-status-unrequired-checks-removed"
+
+  run_select_board_status 'MERGEABLE' "$output_file" 'current' "$checks" 'false' 'false' \
+    '2026-10-17T11:00:00Z'
+
+  assert_file_content $'Changes requested\t\tDone,Blocked' "$output_file"
+}
+
+# A required check reports on every pull request, or nothing could merge, so one missing from the
+# head has not started yet. Reading the absence as green would publish a verdict before `Required CI`
+# had even been queued.
+select_board_status_waits_for_a_required_check_that_has_not_appeared() {
+  local output_file
+  local checks
+  local approval
+
+  checks="$(jq -c '[.[] | select(.name != "Required CI")]' <<< "$board_state_green_checks")"
+
+  for approval in current commented; do
+    output_file="$test_directory/select-board-status-required-check-missing-${approval}"
+
+    run_select_board_status 'MERGEABLE' "$output_file" "$approval" "$checks"
+
+    assert_file_content '' "$output_file"
+  done
+
+  # GitHub starts no pull request workflow on a head that conflicts, so there the missing check is one
+  # that will not start, and the conflict is answered without it.
+  output_file="$test_directory/select-board-status-required-check-missing-conflicting"
+
+  run_select_board_status 'CONFLICTING' "$output_file" 'none' "$checks"
+
+  assert_file_content $'Changes requested\tReady to merge\t' "$output_file"
 }
 
 # A draft is work being written rather than a change asking for anything, and its checks are red as
@@ -5193,10 +5238,19 @@ done
 
 arguments="$*"
 
+# The branch rules the collecting script reads the required checks from. A contract states them as a
+# JSON array of contexts and this puts them back into the shape the API answers in.
+if [[ "$arguments" == *'/rules/branches/'* ]]; then
+  response="$(
+    jq -nc --argjson contexts "$(cat "$FAKE_BOARD_DIRECTORY/required-checks.json" 2>/dev/null || printf '["Required CI"]')" \
+      '[{type: "pull_request", parameters: {}},
+        {type: "required_status_checks",
+         parameters: {required_status_checks: ($contexts | map({context: ., integration_id: 15368}))}}]'
+  )"
 # `statusCheckRollup` rather than the enclosing selection, because `collect-closing-issues.sh` asks
 # for `pullRequest(number:` as well and answering it from here would hand it a pull request with no
 # closing references at all.
-if [[ "$arguments" == *'statusCheckRollup'* ]]; then
+elif [[ "$arguments" == *'statusCheckRollup'* ]]; then
   # A countdown of `UNKNOWN` answers before the settled one, which is what GitHub does after a merge:
   # it computes mergeability when asked and reports `UNKNOWN` until it has. A fake that answered at
   # once would pass whether or not the step waited at all.
@@ -5449,6 +5503,17 @@ pull_request_rules_follow_a_pull_request_into_and_out_of_the_merge_queue() {
 
   ((board_status == 0))
   assert_contains 'option=option-changes' "$board_mutations_file"
+  assert_contains 'Issue 12 moved from In merge to Changes requested' "$output_file"
+
+  # The removal is answered while a check nothing requires is still running on the head, because the
+  # merge did not wait on that check and the column does not either.
+  output_file="$test_directory/pull-request-rules-dequeued-beside-an-unrequired-run-output"
+  checks_json='[{"workflow": "CI", "name": "Required CI", "status": "COMPLETED", "conclusion": "SUCCESS"},
+                {"workflow": "Publish the documentation", "name": "Build latest", "status": "IN_PROGRESS", "conclusion": ""}]'
+
+  run_pull_request_rules_board 'MERGEABLE' 'In merge' '0' "$output_file"
+
+  ((board_status == 0))
   assert_contains 'Issue 12 moved from In merge to Changes requested' "$output_file"
 }
 
@@ -12106,7 +12171,8 @@ run_test select_board_status_earns_changes_requested_from_a_failed_check
 run_test select_board_status_earns_changes_requested_from_a_withheld_approval
 run_test select_board_status_reads_a_no_findings_comment_as_a_clean_verdict
 run_test select_board_status_earns_nothing_from_a_withheld_approval_of_an_older_head
-run_test select_board_status_reads_neither_codeql_nor_its_own_checks
+run_test select_board_status_reads_only_the_checks_the_rules_require
+run_test select_board_status_waits_for_a_required_check_that_has_not_appeared
 run_test select_board_status_asks_a_draft_only_whether_it_still_merges
 run_test select_board_status_earns_in_merge_while_the_queue_holds_the_pull_request
 run_test select_board_status_earns_changes_requested_for_a_head_the_queue_removed
