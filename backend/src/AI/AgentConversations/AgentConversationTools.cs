@@ -98,7 +98,7 @@ internal sealed class AgentConversationTools
     /// <summary>Gets every source the run has shown the model, in the order it was first shown.</summary>
     internal IReadOnlyList<PresentationCitation> Cited => [.. this.cited.Values];
 
-    /// <summary>Gets the text of every message the run has shown the model, as it was shown, which is what an answer's links are traced to.</summary>
+    /// <summary>Gets the text of every message the run has shown the model, cut where it was cut for the model, which is what an answer's links are traced to.</summary>
     /// <remarks>Every source the run shows is one its answer cites, so this is the cited mail's text: what a search returned and what a thread reading showed.</remarks>
     internal IEnumerable<string> ShownMail => [.. AnswerMarkup.TextOf(this.retrieval.Report.Passages), .. this.readBodies];
 
