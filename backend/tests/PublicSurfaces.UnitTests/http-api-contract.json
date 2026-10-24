@@ -167,6 +167,21 @@
           "Notification"
         ]
       },
+      "AnswerLink": {
+        "properties": {
+          "appearsInCitedSources": {
+            "type": "boolean"
+          },
+          "link": {
+            "$ref": "#/components/schemas/MailDocumentLink"
+          }
+        },
+        "required": [
+          "link",
+          "appearsInCitedSources"
+        ],
+        "type": "object"
+      },
       "AttachmentAvailability": {
         "enum": [
           "Stored",
@@ -9596,6 +9611,15 @@
           },
           "evidence": {
             "$ref": "#/components/schemas/PresentationEvidence"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/AnswerLink"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
           },
           "text": {
             "$ref": "#/components/schemas/PresentationText"

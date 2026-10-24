@@ -1908,11 +1908,23 @@ same refusals; the section above records that rule once.
 
 | Field | Meaning |
 |---|---|
-| `answer` | The answer, in prose, written in the language the question was asked in, whatever language the mail behind it was written in |
+| `answer` | The answer, written in the language the question was asked in, whatever language the mail behind it was written in. It may be Markdown, and it carries no picture |
+| `links` | Every link `answer` writes, at most thirty-two, each judged as a link in mail is before anybody follows it |
 | `citations` | The emails the run retrieved, one entry per email, in the order it first reached each |
 | `answerTruncated` | Whether the answer was cut to the length one response carries |
 | `citationsTruncated` | Whether the run reached more emails than `citations` names |
 | `retrievalTruncated` | Whether the run hit this deployment's ceiling on how much mail one question may read |
+
+A model reads mail anybody can send, and a message can ask it to write something into the answer that works against the
+person reading it: a picture whose address calls a stranger's host the moment a client draws it, or a link whose words
+name one host while it goes to another. So the answer's picture markup is neutralised before it is published — `![`
+loses its `!`, which leaves the picture as a link to the same address, and an HTML tag opener is escaped so it stays
+text — and links are kept, because they are often the answer. Each entry in `links` then carries the `target` the link
+goes to, the `host` as a person reads it and `asciiHost` where its ASCII form differs, `wordsNameAnotherHost` where the
+words the link shows name a different host, and `appearsInCitedEmails`, which is false where no retrieved email carries
+the address — a link the model wrote, or one a message asked it to write. A caller showing the answer to a person shows
+those facts beside the link. [The presentation plan § The eleven block types](presentation-plan.md#the-eleven-block-types)
+holds the rule, which Discover and the Agent apply to their answers too.
 
 Each citation carries the `storedEmailId` a content read is performed by, the account identifier and the display name it
 is published under, the folder's identity and path, the subject, the received time, `senderVerification`, `machineAuthorship`, and

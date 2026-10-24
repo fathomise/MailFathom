@@ -3550,7 +3550,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           time: formatMsgTime(m.ts),
           text: m.text,
           hasText: !!m.text,
-          md: (m.text ? mdView(m.text) : []).concat((m.paras || []).reduce((acc, p) => acc.concat(mdView(p.t).map(b => Object.assign({}, b, {
+          md: (m.text ? mdView(m.text, m.role === "bot" ? (m.links || {}) : null) : []).concat((m.paras || []).reduce((acc, p) => acc.concat(mdView(p.t).map(b => Object.assign({}, b, {
             style: b.style + (p.anim ? ";animation:mfmsgin 0.44s cubic-bezier(0.22,0.61,0.36,1) both" : ""),
           }))), [])),
           hasMd: !!m.text || (m.paras || []).length > 0,

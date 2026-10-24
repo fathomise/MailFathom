@@ -659,6 +659,15 @@ ordered and task lists, quotes, tables, rules and links. The template draws the 
 most of it: a bold lead-in, a quoted clause, a bulleted list with inline code, a level-two heading
 over a numbered list, a task list of the three things waiting on the reader, and italics.
 
+**A link in an answer is judged as a link in mail is** (`isJudged`). A reply's `links` map each target to the
+service's judgement, and `mdView` hands it to every run, so a link is followed by *goes to `<host>`* in 13 px
+`--muted` and by each warning that applies in 13 px `--warn-text`: *This link does not go where its words say. It
+goes to `<host>`.* where its words name another host, and *This address is in none of the messages this answer
+cites.* where the cited mail does not carry it (`linkWarnings`). A link the map does not name was judged by nobody,
+so it takes the second warning. An answer carries no picture: the service turns one into a link before the client
+sees it, so the template has nothing to draw for one. `c-links` shows both links; a mail body passes no map, so its
+links draw as before.
+
 A mail body in the simplified view now draws its runs the same way: a paragraph's or a
 list item's runs sit side by side with no whitespace between them, so only a run's own text separates
 it from the next. The template used to break a line between runs, and that break rendered as a space,
@@ -747,9 +756,10 @@ with its own `aria-label` naming the object, and on touch they stack full width 
 user's own line into the conversation, and comes back with the same proposal at a new hour, pending
 again.
 
-**The starter chips open a seeded conversation** rather than asking the question (`agentChips`). Six conversations are seeded, and two exist for states nothing else reaches:
-`c-states`, whose blocks came back loading, error, empty, partial and failed, and `c-invoice`, which
-is archived. Three chips open one of them; the fourth is *Real example*, which carries `play_arrow` and
+**The starter chips open a seeded conversation** rather than asking the question (`agentChips`). Eight conversations are seeded, and three exist for states nothing else reaches:
+`c-states`, whose blocks came back loading, error, empty, partial and failed, `c-invoice`, which
+is archived, and `c-links`, *Where are the Northwind reports?*, whose answer carries one link the cited
+mail carries and one it does not — opened from the history. Three chips open one of them; the fourth is *Real example*, which carries `play_arrow` and
 plays the script above instead of opening anything.
 
 ### States the blocks screen holds and the prototype does not

@@ -2,8 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { ReactNode } from 'react';
-import type { MailDocumentLink } from '@mailfathom/client-backend';
+import { createContext, useContext, type ReactNode } from 'react';
+import type { AnswerLink, MailDocumentLink } from '@mailfathom/client-backend';
 import Markdown, { type MarkdownToJSX } from 'markdown-to-jsx/react';
 import { useLocalization } from '../../localization/useLocalization';
 import { MessageLink } from '../../messageBody/MessageLink';
@@ -29,8 +29,10 @@ import {
 //
 // The agent reads mail anybody can send, so what could carry a sender's intent past the answer is held to what a
 // message body already holds it to: raw HTML stays text, an image renders nothing and so fetches nothing, and a link
-// is drawn the way a link in mail is — saying where it goes, warned about, and opened out of the application — or as
-// its words alone when it names no web or mail address. A heading is drawn at the design's steps without becoming a
+// is drawn the way a link in mail is — saying where it goes, warned about as the service judged it, and opened out of
+// the application — or as its words alone when it names no web or mail address. A link whose target appears in none
+// of the messages the answer cites is warned about besides, because the model or a message it read wrote it, and a
+// link the service did not judge is read as one of those. A heading is drawn at the design's steps without becoming a
 // heading, because the answer sits inside a screen whose heading order it cannot know.
 //
 // Every block is spaced by the margin below it rather than by a gap, so that the last paragraph can be drawn inline
@@ -40,7 +42,13 @@ const spaced = 'not-last:mb-3';
 
 const followedSchemes: ReadonlySet<string> = new Set(['http:', 'https:', 'mailto:']);
 
-function linkTo(href: string | undefined): MailDocumentLink | null {
+const JudgedLinks = createContext<readonly AnswerLink[]>([]);
+
+function sameTarget(target: string, href: string): boolean {
+    return URL.canParse(target) && new URL(target).href === href;
+}
+
+function judgedLinkTo(href: string | undefined, links: readonly AnswerLink[]): AnswerLink | null {
     if (href === undefined || !URL.canParse(href)) {
         return null;
     }
@@ -51,14 +59,20 @@ function linkTo(href: string | undefined): MailDocumentLink | null {
         return null;
     }
 
-    // Nobody judged this link the way the service judges one in mail, so it is always worth a warning.
-    return {
+    const unjudged: MailDocumentLink = {
         target: url.href,
         host: url.host === '' ? null : url.host,
         asciiHost: null,
         deception: 'NotApplicable',
-        worthWarningAbout: true,
+        worthWarningAbout: false,
     };
+
+    return (
+        links.find((judged) => sameTarget(judged.link.target, url.href)) ?? {
+            link: unjudged,
+            appearsInCitedSources: false,
+        }
+    );
 }
 
 interface Written {
@@ -72,9 +86,21 @@ function headingAt(level: number) {
 }
 
 function Link({ href, children }: Written & { readonly href?: string }) {
-    const link = linkTo(href);
+    const { translate } = useLocalization();
+    const judged = judgedLinkTo(href, useContext(JudgedLinks));
 
-    return link === null ? <>{children}</> : <MessageLink link={link}>{children}</MessageLink>;
+    if (judged === null) {
+        return <>{children}</>;
+    }
+
+    return (
+        <>
+            <MessageLink link={judged.link}>{children}</MessageLink>
+            {judged.appearsInCitedSources ? null : (
+                <span className="text-sm text-warning"> {translate('answer.linkNotInSources')}</span>
+            )}
+        </>
+    );
 }
 
 function Nothing() {
@@ -143,6 +169,10 @@ const options: MarkdownToJSX.Options = {
     },
 };
 
-export function AnswerText({ text }: { readonly text: string }) {
-    return <Markdown options={options}>{text}</Markdown>;
+export function AnswerText({ text, links }: { readonly text: string; readonly links: readonly AnswerLink[] }) {
+    return (
+        <JudgedLinks value={links}>
+            <Markdown options={options}>{text}</Markdown>
+        </JudgedLinks>
+    );
 }

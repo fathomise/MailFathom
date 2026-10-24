@@ -5,6 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Answers;
 using MailFathom.Application.Chat;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Retrieval.AskMail.Audit;
@@ -288,6 +289,10 @@ public sealed class MailboxQuestionReader
     /// Scanning happens before the answer is cut to what one response carries, so the published text is bounded after
     /// every placeholder is in it. Cutting first would bound a text that is not the one published.
     /// </para>
+    /// <para>
+    /// The pictures go first of all, so neither the scan nor the cut reads markup that is not published, and the links
+    /// are judged last, on the text exactly as it is published, against every passage the run showed the model.
+    /// </para>
     /// </remarks>
     private async Task<AskMailResult> PublishedAsync(
         MailAnswer answer,
@@ -299,8 +304,9 @@ public sealed class MailboxQuestionReader
 
         var answerText = await this.egressGuard.GuardAsync(
             SensitiveContentEgressPoint.McpSnippet,
-            answer.Text,
+            AnswerMarkup.WithoutPictures(answer.Text),
             cancellationToken);
+        var publishedText = Bounded(answerText, maximumAnswerCharacters);
 
         // Collapsed and counted before anything is scanned, because the count decides the truncation flag while only
         // the citations that survive the bound are published — and a subject nobody will read is a scan nobody needs.
@@ -308,11 +314,14 @@ public sealed class MailboxQuestionReader
         var citations = await this.CitedAsync(citable.Take(maximumCitations), cancellationToken);
 
         return new AskMailResult(
-            Bounded(answerText, maximumAnswerCharacters),
+            publishedText,
             citations,
             answerText.Length > maximumAnswerCharacters,
             citable.Length > maximumCitations,
-            retrieval.Degradation.HasFlag(MailAnsweringRunDegradation.RetrievalCeilingReached));
+            retrieval.Degradation.HasFlag(MailAnsweringRunDegradation.RetrievalCeilingReached))
+        {
+            Links = AnswerMarkup.LinksIn(publishedText, AnswerMarkup.TextOf(retrieval.Passages)),
+        };
     }
 
     /// <summary>Reads the passages one answer cites into citations, with the one text a citation carries scanned.</summary>

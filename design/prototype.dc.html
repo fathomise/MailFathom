@@ -1081,14 +1081,14 @@ Project repository: https://github.com/fathomise/MailFathom
                       <sc-if value="{{ m.simpleView }}" hint-placeholder-val="{{ true }}">
                         <sc-for list="{{ m.paras }}" as="p" hint-placeholder-count="2">
                           <sc-if value="{{ p.isText }}" hint-placeholder-val="{{ true }}">
-                            <div style="{{ p.style }}"><sc-for list="{{ p.runs }}" as="r" hint-placeholder-count="1"><sc-if value="{{ r.plain }}" hint-placeholder-val="{{ true }}"><span style="{{ r.style }}">{{ r.text }}</span></sc-if><sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" style="{{ r.style }}">{{ r.text }}</a></sc-if></sc-for></div>
+                            <div style="{{ p.style }}"><sc-for list="{{ p.runs }}" as="r" hint-placeholder-count="1"><sc-if value="{{ r.plain }}" hint-placeholder-val="{{ true }}"><span style="{{ r.style }}">{{ r.text }}</span></sc-if><sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" style="{{ r.style }}">{{ r.text }}</a></sc-if><sc-if value="{{ r.isJudged }}" hint-placeholder-val="{{ false }}"><span style="{{ r.noteStyle }}">{{ r.goesTo }}</span><sc-for list="{{ r.warnings }}" as="w" hint-placeholder-count="1"><span style="{{ r.warnStyle }}">{{ w.text }}</span></sc-for></sc-if></sc-for></div>
                           </sc-if>
                           <sc-if value="{{ p.isList }}" hint-placeholder-val="{{ false }}">
                             <div style="{{ p.style }}">
                               <sc-for list="{{ p.items }}" as="it" hint-placeholder-count="3">
                                 <div style="{{ it.style }}">
                                   <span style="{{ it.markerStyle }}">{{ it.marker }}</span>
-                                  <span style="{{ it.textStyle }}"><sc-for list="{{ it.runs }}" as="r" hint-placeholder-count="1"><sc-if value="{{ r.plain }}" hint-placeholder-val="{{ true }}"><span style="{{ r.style }}">{{ r.text }}</span></sc-if><sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" style="{{ r.style }}">{{ r.text }}</a></sc-if></sc-for></span>
+                                  <span style="{{ it.textStyle }}"><sc-for list="{{ it.runs }}" as="r" hint-placeholder-count="1"><sc-if value="{{ r.plain }}" hint-placeholder-val="{{ true }}"><span style="{{ r.style }}">{{ r.text }}</span></sc-if><sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" style="{{ r.style }}">{{ r.text }}</a></sc-if><sc-if value="{{ r.isJudged }}" hint-placeholder-val="{{ false }}"><span style="{{ r.noteStyle }}">{{ r.goesTo }}</span><sc-for list="{{ r.warnings }}" as="w" hint-placeholder-count="1"><span style="{{ r.warnStyle }}">{{ w.text }}</span></sc-for></sc-if></sc-for></span>
                                 </div>
                               </sc-for>
                             </div>
@@ -1546,14 +1546,14 @@ Project repository: https://github.com/fathomise/MailFathom
                   <div style="display:flex;flex-direction:column;gap:12px">
                   <sc-for list="{{ m.md }}" as="p" hint-placeholder-count="1">
                     <sc-if value="{{ p.isText }}" hint-placeholder-val="{{ true }}">
-                      <div style="{{ p.style }}"><sc-for list="{{ p.runs }}" as="r" hint-placeholder-count="1"><sc-if value="{{ r.plain }}" hint-placeholder-val="{{ true }}"><span style="{{ r.style }}">{{ r.text }}</span></sc-if><sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" style="{{ r.style }}">{{ r.text }}</a></sc-if></sc-for></div>
+                      <div style="{{ p.style }}"><sc-for list="{{ p.runs }}" as="r" hint-placeholder-count="1"><sc-if value="{{ r.plain }}" hint-placeholder-val="{{ true }}"><span style="{{ r.style }}">{{ r.text }}</span></sc-if><sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" style="{{ r.style }}">{{ r.text }}</a></sc-if><sc-if value="{{ r.isJudged }}" hint-placeholder-val="{{ false }}"><span style="{{ r.noteStyle }}">{{ r.goesTo }}</span><sc-for list="{{ r.warnings }}" as="w" hint-placeholder-count="1"><span style="{{ r.warnStyle }}">{{ w.text }}</span></sc-for></sc-if></sc-for></div>
                     </sc-if>
                     <sc-if value="{{ p.isList }}" hint-placeholder-val="{{ false }}">
                       <div style="{{ p.style }}">
                         <sc-for list="{{ p.items }}" as="it" hint-placeholder-count="3">
                           <div style="{{ it.style }}">
                             <span style="{{ it.markerStyle }}">{{ it.marker }}</span>
-                            <span style="{{ it.textStyle }}"><sc-for list="{{ it.runs }}" as="r" hint-placeholder-count="1"><sc-if value="{{ r.plain }}" hint-placeholder-val="{{ true }}"><span style="{{ r.style }}">{{ r.text }}</span></sc-if><sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" style="{{ r.style }}">{{ r.text }}</a></sc-if></sc-for></span>
+                            <span style="{{ it.textStyle }}"><sc-for list="{{ it.runs }}" as="r" hint-placeholder-count="1"><sc-if value="{{ r.plain }}" hint-placeholder-val="{{ true }}"><span style="{{ r.style }}">{{ r.text }}</span></sc-if><sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" style="{{ r.style }}">{{ r.text }}</a></sc-if><sc-if value="{{ r.isJudged }}" hint-placeholder-val="{{ false }}"><span style="{{ r.noteStyle }}">{{ r.goesTo }}</span><sc-for list="{{ r.warnings }}" as="w" hint-placeholder-count="1"><span style="{{ r.warnStyle }}">{{ w.text }}</span></sc-for></sc-if></sc-for></span>
                           </div>
                         </sc-for>
                       </div>

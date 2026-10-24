@@ -39,7 +39,7 @@ const answered: Answer = {
                     freshness: { staleness: 'Unknown', observedAt: null },
                     conflictingClaims: [],
                 },
-                answer: { text: 'The lease renews in March.', confidence: 'Moderate' },
+                answer: { text: 'The lease renews in March.', confidence: 'Moderate', links: [] },
             },
         },
     ],

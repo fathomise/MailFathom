@@ -1,6 +1,6 @@
 {
   "blockCatalogue": {
-    "answer": 1,
+    "answer": 2,
     "attachmentGallery": 1,
     "draft": 1,
     "eventProposal": 1,
@@ -124,6 +124,64 @@
                     "freshness"
                   ],
                   "type": "object"
+                },
+                "links": {
+                  "default": null,
+                  "items": {
+                    "properties": {
+                      "appearsInCitedSources": {
+                        "type": "boolean"
+                      },
+                      "link": {
+                        "properties": {
+                          "asciiHost": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "deception": {
+                            "enum": [
+                              "NotApplicable",
+                              "None",
+                              "DisplayedHostDiffers"
+                            ]
+                          },
+                          "host": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "isWorthWarningAbout": {
+                            "type": "boolean"
+                          },
+                          "target": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "target",
+                          "host",
+                          "asciiHost",
+                          "deception"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "link",
+                      "appearsInCitedSources"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
                 },
                 "text": true,
                 "type": {

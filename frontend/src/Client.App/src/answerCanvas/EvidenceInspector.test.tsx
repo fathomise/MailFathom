@@ -557,7 +557,7 @@ describe('reaching evidence from a block', () => {
         type: 'answer',
         named: 'answer',
         evidence: backed,
-        answer: { text: theAnswer, confidence: 'High' },
+        answer: { text: theAnswer, confidence: 'High', links: [] },
     };
 
     const evidenceList: AnswerBlock = {

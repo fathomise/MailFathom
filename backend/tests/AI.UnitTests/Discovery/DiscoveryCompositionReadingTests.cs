@@ -54,6 +54,29 @@ public sealed class DiscoveryCompositionReadingTests
         Assert.Equal(PresentationConfidence.High, block.Confidence);
     }
 
+    /// <summary>A picture is published as a link, and a link is traced to the extracts the answer rests on and to no other.</summary>
+    [Fact]
+    public void Read_AnAnswerWritingAPictureAndLinks_ComposesNoPictureAndTracesEveryLinkToWhatItCites()
+    {
+        // Arrange
+        const string answer = """
+            { "answer": "Sign at [the form](https://forms.example.test/sign), not [this](https://elsewhere.example.test/). ![seal](https://cdn.example.test/seal.png)", "confidence": "high", "sources": ["s1"] }
+            """;
+
+        // Act
+        var plan = Read(
+            answer,
+            DiscoveryIntent.FindFact,
+            Sources("sign at https://forms.example.test/sign by Friday", "see https://elsewhere.example.test/ too"));
+
+        // Assert
+        var block = Assert.IsType<AnswerBlock>(plan.Blocks[0]);
+        Assert.DoesNotContain("![", block.Text.Value, StringComparison.Ordinal);
+        Assert.Equal(
+            [("https://forms.example.test/sign", true), ("https://elsewhere.example.test/", false), ("https://cdn.example.test/seal.png", false)],
+            block.Links.Select(static link => (link.Link.Target, link.AppearsInCitedSources)));
+    }
+
     /// <summary>Nothing a model writes becomes a reference to mail, so a name nobody offered rests on nothing.</summary>
     [Fact]
     public void Read_AnAnswerCitingASourceNobodyOffered_RestsOnNothingAndSaysSo()

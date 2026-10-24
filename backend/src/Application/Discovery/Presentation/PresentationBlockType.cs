@@ -77,7 +77,7 @@ public readonly record struct PresentationBlockType
     #region Reading — the blocks that present what the correspondence says
 
     /// <summary>Gets the type of the block presenting one synthesized answer.</summary>
-    public static PresentationBlockType Answer { get; } = new(AnswerIdentity, version: 1);
+    public static PresentationBlockType Answer { get; } = new(AnswerIdentity, version: 2);
 
     /// <summary>Gets the type of the block presenting the messages an answer rests on.</summary>
     public static PresentationBlockType EvidenceList { get; } = new(EvidenceListIdentity, version: 1);

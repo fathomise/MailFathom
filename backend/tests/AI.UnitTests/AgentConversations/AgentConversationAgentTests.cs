@@ -159,6 +159,29 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
             (block.Evidence.Support, block.Confidence, block.Evidence.Citations.Count));
     }
 
+    /// <summary>An answer's picture is published as a link, and every link says whether the mail the Agent read carries it.</summary>
+    [Fact]
+    public async Task ComposeAsync_AnAnswerWritingAPictureAndLinks_ComposesNoPictureAndTracesEveryLinkToWhatWasRead()
+    {
+        // Arrange
+        var search = new RecordingEmailKnowledgeSearch()
+            .Returning("bays", KnowledgePassages.Create("Book the bays at https://bays.example.test/book today.", subject: "Bays"));
+        using var provider = new ScriptedProvider(
+            answering: [Searching("bays"), Answering("Book at [bays](https://bays.example.test/book) or [here](https://other.example.test/). ![map](https://cdn.example.test/map.png)")],
+            standby: []);
+
+        // Act
+        await provider.AgentOver(ChatDeclarations.Plan(maximumRequestCharacters: 100_000), search)
+            .ComposeAsync(this.Brief(), this.journal, TestContext.Current.CancellationToken);
+
+        // Assert
+        var block = Assert.IsType<AnswerBlock>(this.ComposedBlock());
+        Assert.DoesNotContain("![", block.Text.Value, StringComparison.Ordinal);
+        Assert.Equal(
+            [("https://bays.example.test/book", true), ("https://other.example.test/", false), ("https://cdn.example.test/map.png", false)],
+            block.Links.Select(static link => (link.Link.Target, link.AppearsInCitedSources)));
+    }
+
     /// <summary>
     /// Every round of the tool loop is one request, and all of them belong to the conversation — so each carries the
     /// same session, and it is not the conversation's own identifier.

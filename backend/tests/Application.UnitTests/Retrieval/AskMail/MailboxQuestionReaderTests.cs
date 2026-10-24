@@ -355,6 +355,26 @@ public sealed class MailboxQuestionReaderTests
         Assert.False(result.CitationsWereTruncated);
     }
 
+    /// <summary>The answer reaches an MCP caller with no picture to fetch, and with each link saying whether the mail carries it.</summary>
+    [Fact]
+    public async Task AnswerQuestionAsync_AnAnswerWritingAPictureAndLinks_PublishesNoPictureAndTracesEveryLink()
+    {
+        // Arrange
+        var answerer = new RecordingMailQuestionAnswerer().Answering(
+            "Pay at [the portal](https://pay.example.test/a) or [there](https://other.example.test/). ![seal](https://cdn.example.test/s.png)",
+            PassageOf(1, "Pay through https://pay.example.test/a by Friday."));
+        var reader = ReaderOver(answerer);
+
+        // Act
+        var result = await AnswerAsync(reader, new AskMailRequest { QuestionText = "where do I pay" });
+
+        // Assert
+        Assert.DoesNotContain("![", result.AnswerText, StringComparison.Ordinal);
+        Assert.Equal(
+            [("https://pay.example.test/a", true), ("https://other.example.test/", false), ("https://cdn.example.test/s.png", false)],
+            result.Links.Select(static link => (link.Link.Target, link.AppearsInCitedSources)));
+    }
+
     [Fact]
     public async Task AnswerQuestionAsync_AnAnswerLongerThanOneResponseCarries_IsCutAndSaysSo()
     {

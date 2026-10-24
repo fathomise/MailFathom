@@ -2,10 +2,12 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Answers;
+
 namespace MailFathom.Application.Retrieval.AskMail;
 
 /// <summary>What one question produced: the answer, the mail it was drawn from, and what had to be cut to publish it.</summary>
-/// <param name="AnswerText">The answer, which is never empty.</param>
+/// <param name="AnswerText">The answer, which is never empty and carries no picture.</param>
 /// <param name="Citations">The emails the run drew on, one per email, in the order it first reached each.</param>
 /// <param name="AnswerWasTruncated">Whether the answer is shorter than the model wrote it.</param>
 /// <param name="CitationsWereTruncated">Whether the run drew on more emails than are listed.</param>
@@ -28,4 +30,8 @@ public sealed record AskMailResult(
     IReadOnlyList<MailAnswerCitation> Citations,
     bool AnswerWasTruncated,
     bool CitationsWereTruncated,
-    bool RetrievalWasTruncated);
+    bool RetrievalWasTruncated)
+{
+    /// <summary>Gets every link the answer writes, each judged as a link in mail is and each saying whether the retrieved mail carries it.</summary>
+    public IReadOnlyList<AnswerLink> Links { get; init; } = [];
+}

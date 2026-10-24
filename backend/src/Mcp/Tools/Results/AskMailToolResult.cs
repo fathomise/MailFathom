@@ -4,6 +4,7 @@
 
 using System.ComponentModel;
 using MailFathom.Application.Retrieval.AskMail;
+using MailFathom.Mcp.Tools.Answering;
 
 namespace MailFathom.Mcp.Tools.Results;
 
@@ -25,8 +26,12 @@ namespace MailFathom.Mcp.Tools.Results;
 internal sealed record AskMailToolResult
 {
     /// <summary>Gets the answer the run produced.</summary>
-    [Description("The answer, in prose. It is written by a chat model from bounded extracts of the cited emails, so verify anything that matters by reading the messages it cites.")]
+    [Description("The answer, in prose that may use Markdown. It is written by a chat model from bounded extracts of the cited emails, so verify anything that matters by reading the messages it cites. It carries no picture: picture markup a message asked for is turned into a link, so rendering the answer fetches nothing on its own.")]
     public required string Answer { get; init; }
+
+    /// <summary>Gets every link the answer writes, judged.</summary>
+    [Description("Every link the answer writes, one entry per address, with what MailFathom established about each. Relay a warning to a person before they follow a link whose words name another host, whose host has an asciiHost, or which appears in none of the cited emails.")]
+    public required IReadOnlyList<AnsweredLink> Links { get; init; }
 
     /// <summary>Gets the emails the run drew on.</summary>
     [Description("The emails the run retrieved while answering, one entry per email, in the order it first reached each. These are what the run retrieved rather than what the model demonstrably used, and an empty list means the mailbox was searched and nothing was found — the answer then says so rather than being wrong.")]
@@ -68,6 +73,7 @@ internal sealed record AskMailToolResult
         return new AskMailToolResult
         {
             Answer = result.AnswerText,
+            Links = [.. result.Links.Select(AnsweredLink.From)],
             Citations =
             [
                 .. result.Citations

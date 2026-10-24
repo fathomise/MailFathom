@@ -937,7 +937,11 @@ function parseColour(value: unknown): string | null | undefined {
     return typeof value === 'string' && colourNotation.test(value) ? value : undefined;
 }
 
-function parseLink(value: unknown): MailDocumentLink | null | undefined {
+/**
+ * One link as the service judged it, `null` where the wire says there is none, and `undefined` where what arrived is not
+ * a link this client may follow.
+ */
+export function parseLink(value: unknown): MailDocumentLink | null | undefined {
     if (value === null) {
         return null;
     }

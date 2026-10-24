@@ -7,6 +7,7 @@ using System.Globalization;
 using MailFathom.AI.Retrieval;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
+using MailFathom.Application.Answers;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
 using MailFathom.Application.Discovery.Presentation.Citations;
@@ -72,6 +73,7 @@ internal sealed class AgentConversationTools
     private readonly SensitiveContentEgressGuard egressGuard;
     private readonly IReadOnlyList<MailAccountId> accounts;
     private readonly Dictionary<StoredEmailId, PresentationCitation> cited = [];
+    private readonly List<string> readBodies = [];
 
     /// <summary>Initializes the tools of one run.</summary>
     /// <param name="journal">Where every status, block, and proposal is written the moment it exists.</param>
@@ -95,6 +97,10 @@ internal sealed class AgentConversationTools
 
     /// <summary>Gets every source the run has shown the model, in the order it was first shown.</summary>
     internal IReadOnlyList<PresentationCitation> Cited => [.. this.cited.Values];
+
+    /// <summary>Gets the text of every message the run has shown the model, as it was shown, which is what an answer's links are traced to.</summary>
+    /// <remarks>Every source the run shows is one its answer cites, so this is the cited mail's text: what a search returned and what a thread reading showed.</remarks>
+    internal IEnumerable<string> ShownMail => [.. AnswerMarkup.TextOf(this.retrieval.Report.Passages), .. this.readBodies];
 
     /// <summary>Gets whether a proposal is on record from this run, which no later model may be asked to answer beside.</summary>
     internal bool HasProposed { get; private set; }
@@ -262,6 +268,9 @@ internal sealed class AgentConversationTools
     {
         var body = message.Body.PlainText.Text;
         var bounded = MailTextBounds.TruncateAtTextElementBoundary(body, MaximumBodyCharacters);
+
+        this.readBodies.Add(bounded);
+
         var sender = await this.egressGuard.GuardOptionalAsync(SensitiveContentEgressPoint.ChatPrompt, SenderOf(message)?.Address, cancellationToken);
         var subject = await this.egressGuard.GuardOptionalAsync(SensitiveContentEgressPoint.ChatPrompt, message.Headers.Subject, cancellationToken);
         var guardedBody = await this.egressGuard.GuardWithOmissionAsync(SensitiveContentEgressPoint.ChatPrompt, bounded, cancellationToken);

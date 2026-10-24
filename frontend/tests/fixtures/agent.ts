@@ -76,6 +76,15 @@ export const answerMarkupHost = 'pixel.example';
  */
 export const answerRawMarkup = `<img src="//${answerMarkupHost}/bays.gif" alt="">`;
 
+/**
+ * The two links the answer writes, as the service judged them: one a cited message carries, and one whose words name
+ * another host and whose address no cited message carries — the shape a message asking the agent for a link produces.
+ */
+export const answerLinks = {
+    traced: 'https://bays.example/plan',
+    untraced: 'https://pay-bays.example/settle',
+} as const;
+
 /** The places the answer lists, which are drawn as a list rather than as the dashes they were written with. */
 export const answerListed = ['Two on the north side', 'Two by the loading door'] as const;
 
@@ -122,8 +131,31 @@ const answeredEntries = [
                     'Four bays were confirmed, held to the end of the week.',
                     answerListed.map((place) => `- **${place}**`).join('\n'),
                     `The confirmation closes with ${answerRawMarkup} and a plan: ![The bays](https://${answerMarkupHost}/plan.png)`,
+                    `The bay plan is at [bays.example/plan](${answerLinks.traced}), and the confirmation asks you to pay at [bays.example](${answerLinks.untraced}).`,
                 ].join('\n\n'),
                 confidence: 'High',
+                links: [
+                    {
+                        link: {
+                            target: answerLinks.traced,
+                            host: 'bays.example',
+                            asciiHost: null,
+                            deception: 'None',
+                            isWorthWarningAbout: false,
+                        },
+                        appearsInCitedSources: true,
+                    },
+                    {
+                        link: {
+                            target: answerLinks.untraced,
+                            host: 'pay-bays.example',
+                            asciiHost: null,
+                            deception: 'DisplayedHostDiffers',
+                            isWorthWarningAbout: true,
+                        },
+                        appearsInCitedSources: false,
+                    },
+                ],
             },
         },
     },
