@@ -122,7 +122,9 @@ test('takes a deleted folder out of both folder routes, the mail filed in it out
         mailErasureDeferred: false,
     });
 
-    const managed = ask(deployment, 'GET', '/managed-folders?account=work') as { folders: { id: string }[] };
+    const managed = ask(deployment, 'GET', `/managed-folders?account=${fixtures.workAccount.id}`) as {
+        folders: { id: string }[];
+    };
     const folders = ask(deployment, 'GET', '/folders') as { accounts: { folders: { id: string }[] }[] };
     const searchedAgain = ask(deployment, 'GET', '/emails/search?query=renewal') as { results: { id: string }[] };
 
@@ -178,7 +180,9 @@ test('answers a folder made, renamed, and moved at the place each act put it, un
     });
     expect(placed()).toStrictEqual(['INBOX', 'Vendors']);
 
-    const managed = ask(deployment, 'GET', '/managed-folders?account=work') as { folders: { id: string }[] };
+    const managed = ask(deployment, 'GET', `/managed-folders?account=${fixtures.workAccount.id}`) as {
+        folders: { id: string }[];
+    };
 
     expect(managed.folders.map(({ id }) => id)).toContain('SUPPLIERS');
     expect(
