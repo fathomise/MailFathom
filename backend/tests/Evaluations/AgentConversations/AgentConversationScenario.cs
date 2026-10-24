@@ -1261,7 +1261,7 @@ internal sealed record AgentConversationScenario(
         var presented = AgentConversationAgent.Presentable(answer?.Text);
 
         var verdict = await scenarioRun.EvaluateAsync(
-            [new ChatMessage(ChatRole.System, AgentConversationInstructions.TextFor(this.Language)), .. messages],
+            [new ChatMessage(ChatRole.System, AgentComposition.InstructionFor(AgentConversationInstructions.TextFor(this.Language))), .. messages],
             answer ?? new ChatResponse(),
             [new IntentResolutionEvaluatorContext(offered), new TaskAdherenceEvaluatorContext(offered)],
             cancellationToken);

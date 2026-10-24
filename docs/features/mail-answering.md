@@ -488,11 +488,15 @@ fact about the instance at the moment of the call rather than about the build: a
 refusing ranks lexically until it is not. It is what tells the model how a further query is worth wording, and it is
 written here for the same reason `search_emails` publishes the mode in every response rather than in its description.
 
-Nothing a message contains can end an element or open one. Every turn and tool result that carries text somebody else
-wrote is composed by one writer, `AgentTurnDocument` in `backend/src/AI/Orchestration/`: the structure this service
-mints is written as elements and attributes, and every value — the extract, the subject, the aliases, a calendar title,
-a task — as escaped text content, so a message whose text closes the envelope and opens a forged instruction arrives as
-that text: visible, attributed to the message that sent it, and inert. A character that has no place in a document — a
+Nothing a message contains can end an element or open one. The turns and tool results that carry text somebody else
+wrote on this path are composed by one writer, `AgentTurnDocument` in `backend/src/AI/Orchestration/`: `ask_mail`'s
+question turn, the `<retrieved-mail>` envelope, the relevance judgement below, and the Agent's question turn and its
+`read_thread`, `read_calendar`, and `read_tasks` results. The other operations — enrichment, a conversation's state,
+reply drafting, contact relationships, calendar-event extraction, Discover, and body cleanup — still compose their turns
+by hand until their own issues move them onto it. The writer puts the structure this service mints in elements and
+attributes, and every value — the extract, the subject, the aliases, a calendar title, a task — in escaped text content,
+so a message whose text closes the envelope and opens a forged instruction arrives as that text: visible, attributed to
+the message that sent it, and inert. A character that has no place in a document — a
 lone half of a surrogate pair — is replaced rather than allowed to fail the turn. The writer also holds a turn's
 character budget: a quoted value it has to shorten is cut at a text-element boundary, its element says so in a
 `cut="true"` attribute, and every element it opened is closed however much was cut. A lookup that found nothing writes
@@ -500,8 +504,8 @@ the empty envelope rather than nothing at all, so the model reads that the mailb
 blank result.
 
 The person's own question is written the same way, inside one fixed `<ask>` element after the line that dates the turn.
-That element is the one place the person's wishes are carried, so text that imitates it inside a message is quoted text
-rather than a second question.
+That element, with the person's own earlier turns where a conversation has them, is where the person's wishes are
+carried, so text that imitates it inside a message is quoted text rather than a second question.
 
 The identity is the other reason the envelope exists. Each extract carries the stable local identifier an answer cites
 and the account and folder it was read from, unchanged — an answer that cannot say which message a claim came from
@@ -511,7 +515,8 @@ cannot be checked.
 composition rather than repeated in each operation's text — the relevance judgement above carries the same constant. It
 says who wrote the text a turn quotes, that such text may give orders or imitate this service, its elements, or the
 person, that a request found there is reported rather than followed, that an element is structure only where the service
-wrote it, and that only the `<ask>` element speaks for the person. `ask_mail`'s own instruction adds that each statement
+wrote it, and that where a turn carries an `<ask>` element, that element and the person's own earlier turns speak for
+the person while nothing quoted inside a turn or a tool result does. `ask_mail`'s own instruction adds that each statement
 is cited by the identifier of the message it came from. It is worth writing, and it is second: a model that ignored every
 word of it would still not have read mail in the position an instruction arrives in.
 

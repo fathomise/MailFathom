@@ -368,7 +368,7 @@ internal sealed partial record MailAnsweringScenario(
         var searchTool = retrieval.CreateSearchTool();
 
         var verdict = await scenarioRun.EvaluateAsync(
-            [new ChatMessage(ChatRole.System, MailAnsweringInstructions.Text), new ChatMessage(ChatRole.User, turn)],
+            [new ChatMessage(ChatRole.System, AgentComposition.InstructionFor(MailAnsweringInstructions.Text)), new ChatMessage(ChatRole.User, turn)],
             answer ?? new ChatResponse(),
             [
                 new IntentResolutionEvaluatorContext(searchTool),

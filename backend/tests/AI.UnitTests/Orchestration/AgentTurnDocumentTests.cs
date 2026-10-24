@@ -159,6 +159,23 @@ public sealed class AgentTurnDocumentTests
         Assert.Equal(["thread", "message", "subject"], written.Descendants().Select(static element => element.Name.LocalName));
     }
 
+    /// <summary>Mail dense in markup escapes to several characters each, and is still cut to the room left rather than far below it.</summary>
+    [Fact]
+    public void WriteQuoted_TextThatEscapesWider_IsCutToTheRoomLeftRatherThanEmptied()
+    {
+        // Arrange
+        using var document = new AgentTurnDocument(maximumCharacters: 1_100);
+
+        // Act
+        document.WriteQuoted("extract", new string('<', 1_000));
+        var output = document.Complete();
+        var extract = Parsed(output).Element("extract")!.Value;
+
+        // Assert
+        Assert.InRange(extract.Length, 200, 1_000 - 1);
+        Assert.True(output.Length <= 1_100, $"{output.Length} characters were written for a budget of 1100.");
+    }
+
     /// <summary>The clause names the element it says speaks for the person, so the two cannot drift apart.</summary>
     [Fact]
     public void DataClause_TheRule_NamesTheAskElement()

@@ -50,8 +50,9 @@ internal static class AgentComposition
     /// <param name="operationInstruction">What the operation tells the model about its task.</param>
     /// <returns>The operation's instruction followed by the data clause every operation carries.</returns>
     /// <remarks>
-    /// Also what a call that composes no agent sends as its system instruction, and what an operation recording which
-    /// policy a run was conducted under digests, so the clause is part of the policy whichever path reaches a model.
+    /// Also what the relevance judgement, a call that composes no agent, sends as its system instruction, and what an
+    /// operation recording which policy a run was conducted under digests. The image describer is the other call that
+    /// composes no agent, and it still sends its own instruction alone.
     /// </remarks>
     internal static string InstructionFor(string operationInstruction)
     {

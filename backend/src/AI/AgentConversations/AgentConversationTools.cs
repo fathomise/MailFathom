@@ -240,39 +240,41 @@ internal sealed class AgentConversationTools
             return "No message with that id is readable here.";
         }
 
-        var shown = messages.Take(MaximumThreadMessages).ToArray();
-        var bodies = shown
-            .Select(static message => message.Body.PlainText.Text)
-            .Select(static body => MailTextBounds.TruncateAtTextElementBoundary(body, MaximumBodyCharacters))
-            .ToArray();
-
-        // Each value a message's author wrote is guarded on its own, before the reading is written around it, and all of
-        // them as one publication: senders first, then subjects, then bodies.
-        var guarded = await this.egressGuard.GuardAllAsync(
-            SensitiveContentEgressPoint.ChatPrompt,
-            [
-                .. shown.Select(static message => SenderOf(message)?.Address ?? string.Empty),
-                .. shown.Select(static message => message.Headers.Subject ?? string.Empty),
-                .. bodies,
-            ],
-            cancellationToken);
         List<GuardedThreadReading> readings = [];
 
-        foreach (var (message, index) in shown.Select(static (message, index) => (message, index)))
+        foreach (var message in messages.Take(MaximumThreadMessages))
         {
-            var citation = await this.CiteAsync(message.StoredEmailId, message.Headers.Subject, cancellationToken);
-
-            readings.Add(new GuardedThreadReading(
-                message.StoredEmailId,
-                citation.Id,
-                SenderOf(message)?.Address is null ? null : guarded[index],
-                message.Headers.SentAt,
-                message.Headers.Subject is null ? null : guarded[shown.Length + index],
-                guarded[(2 * shown.Length) + index],
-                bodies[index].Length < message.Body.PlainText.Text.Length));
+            readings.Add(await this.GuardedReadingOfAsync(message, cancellationToken));
         }
 
         return AgentConversationReadings.Thread(readings);
+    }
+
+    /// <summary>Guards each value one message's author wrote, before the reading is written around it.</summary>
+    /// <remarks>
+    /// The body is marked as cut where either this tool's bound or the guard's analyzed ceiling shortened it, because
+    /// the ceiling drops what lies beyond it without failing and a reading that hid the drop would show the model a
+    /// shortened message as whole.
+    /// </remarks>
+    internal async Task<GuardedThreadReading> GuardedReadingOfAsync(
+        ReadEmailContent message,
+        CancellationToken cancellationToken)
+    {
+        var body = message.Body.PlainText.Text;
+        var bounded = MailTextBounds.TruncateAtTextElementBoundary(body, MaximumBodyCharacters);
+        var sender = await this.egressGuard.GuardOptionalAsync(SensitiveContentEgressPoint.ChatPrompt, SenderOf(message)?.Address, cancellationToken);
+        var subject = await this.egressGuard.GuardOptionalAsync(SensitiveContentEgressPoint.ChatPrompt, message.Headers.Subject, cancellationToken);
+        var guardedBody = await this.egressGuard.GuardWithOmissionAsync(SensitiveContentEgressPoint.ChatPrompt, bounded, cancellationToken);
+        var citation = await this.CiteAsync(message.StoredEmailId, message.Headers.Subject, cancellationToken);
+
+        return new GuardedThreadReading(
+            message.StoredEmailId,
+            citation.Id,
+            sender,
+            message.Headers.SentAt,
+            subject,
+            guardedBody.Text,
+            bounded.Length < body.Length || guardedBody.WasCutAtAnalyzedCeiling);
     }
 
     [Description("Shows the person the state of one conversation.")]
