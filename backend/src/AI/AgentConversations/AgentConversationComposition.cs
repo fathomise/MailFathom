@@ -8,6 +8,7 @@ using MailFathom.AI.Orchestration;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -46,22 +47,32 @@ internal static class AgentConversationComposition
     /// <param name="askedAt">When the question was asked, which is what a relative date in it is read against.</param>
     /// <param name="accounts">The accounts the model is told of, by the deployment's own names for them, or none where no tool it is offered takes one.</param>
     /// <param name="scope">What the question was asked about, where it named something.</param>
+    /// <param name="namedEmails">The messages a scope naming a merged arrival notification stands for, and none for any other scope.</param>
     /// <param name="question">The question, already guarded for egress.</param>
     /// <returns>The turn's text.</returns>
     /// <remarks>
     /// The anchor and the accounts ride on the turn rather than in the instruction, for the reason every agent here puts
     /// the anchor there: the instruction is this build's own text, the same for every run, and these change per run.
-    /// The accounts are the deployment's own names for them rather than addresses.
+    /// The accounts are the deployment's own names for them rather than addresses, and the messages are named by
+    /// identifier alone, for the model to read through its tools under the person's own grant.
     /// </remarks>
     internal static string ComposeTurn(
         DateTimeOffset askedAt,
         IEnumerable<MailAccountId> accounts,
         AgentMessageScope? scope,
+        IReadOnlyList<StoredEmailId> namedEmails,
         string question)
     {
-        var looking = scope is { Kind: AgentScopeKind.Thread, Subject: { } thread }
-            ? string.Create(CultureInfo.InvariantCulture, $"The person is looking at the conversation with id {thread}.\n")
-            : string.Empty;
+        var looking = scope switch
+        {
+            { Kind: AgentScopeKind.Thread, Subject: { } thread } =>
+                string.Create(CultureInfo.InvariantCulture, $"The person is looking at the conversation with id {thread}.\n"),
+            { Kind: AgentScopeKind.Notification } when namedEmails.Count > 0 =>
+                $"The person is asking about these messages that arrived for them, by id: {string.Join(", ", namedEmails)}.\n",
+            { Kind: AgentScopeKind.Notification } =>
+                "The person is asking about mail that arrived for them, none of which is still held.\n",
+            _ => string.Empty,
+        };
         var named = string.Join(", ", accounts.Select(static account => account.Value));
         var holding = named.Length == 0 ? string.Empty : $"The person's accounts: {named}.\n";
 

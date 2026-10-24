@@ -34,6 +34,7 @@ describe('NotificationRowMenu', () => {
                         onSelect={vi.fn()}
                         onToggleRead={vi.fn()}
                         onOpen={vi.fn()}
+                        onSummarize={null}
                         onDelete={vi.fn()}
                         onClose={vi.fn()}
                     />
@@ -42,5 +43,28 @@ describe('NotificationRowMenu', () => {
         );
 
         expect(screen.getByText(/^September 4, 2026.*1:55\sPM$/)).toBeDefined();
+    });
+
+    it('offers to summarize the messages a merged arrival stands for, and only where there is one', () => {
+        const onSummarize = vi.fn();
+
+        render(
+            <LocalizationProvider>
+                <NotificationRowMenu
+                    notification={mail}
+                    at={{ x: 20, y: 30 }}
+                    onSelect={vi.fn()}
+                    onToggleRead={vi.fn()}
+                    onOpen={vi.fn()}
+                    onSummarize={onSummarize}
+                    onDelete={vi.fn()}
+                    onClose={vi.fn()}
+                />
+            </LocalizationProvider>,
+        );
+
+        screen.getByRole('menuitem', { name: 'Summarize' }).click();
+
+        expect(onSummarize).toHaveBeenCalledOnce();
     });
 });

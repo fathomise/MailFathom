@@ -4,6 +4,8 @@
 
 using MailFathom.Application.Notifications;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Notifications;
 
 namespace MailFathom.Application.UnitTests.TestDoubles;
@@ -18,6 +20,8 @@ namespace MailFathom.Application.UnitTests.TestDoubles;
 internal sealed class InMemoryNotificationStore : INotificationStore
 {
     private readonly List<Notification> recorded = [];
+
+    private readonly Dictionary<NotificationId, RecordedArrival> arrivals = [];
 
     /// <summary>Gets the notifications this store kept, in the order they were recorded.</summary>
     public IReadOnlyList<Notification> Recorded => this.recorded;
@@ -39,6 +43,60 @@ internal sealed class InMemoryNotificationStore : INotificationStore
         this.recorded.Add(notification);
 
         return Task.FromResult(true);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<Notification>> RecordMailArrivalAsync(
+        UserId user,
+        MailAccountId account,
+        IReadOnlyList<ArrivedEmail> arrived,
+        DateTimeOffset occurredAt,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(arrived);
+
+        StandingMailArrival[] standing =
+        [
+            .. this.recorded
+                .Where(candidate => candidate.User == user
+                    && !candidate.IsRead
+                    && this.arrivals.TryGetValue(candidate.Id, out var arrival)
+                    && arrival.Account == account)
+                .Select(candidate => candidate.Target.Message is { } email
+                    ? StandingMailArrival.OfEmail(candidate.Id, email)
+                    : StandingMailArrival.Merged(
+                        candidate.Id,
+                        candidate.Statement?.Counted ?? 0,
+                        this.arrivals[candidate.Id].NamedEmails)),
+        ];
+
+        var fold = MailArrivalFold.Decide(user, account, standing, arrived, occurredAt);
+        var replaced = fold.Replaced.ToHashSet();
+
+        this.recorded.RemoveAll(candidate => replaced.Contains(candidate.Id));
+
+        foreach (var raised in fold.Raised)
+        {
+            this.recorded.Add(raised.Notification);
+            this.arrivals[raised.Notification.Id] = new RecordedArrival(account, raised.NamedEmails);
+        }
+
+        return Task.FromResult<IReadOnlyList<Notification>>([.. fold.Raised.Select(static raised => raised.Notification)]);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<StoredEmailId>?> ReadNamedEmailsAsync(
+        UserId user,
+        NotificationId notification,
+        CancellationToken cancellationToken)
+    {
+        if (!this.recorded.Any(candidate => candidate.User == user && candidate.Id == notification))
+        {
+            return Task.FromResult<IReadOnlyList<StoredEmailId>?>(null);
+        }
+
+        return Task.FromResult<IReadOnlyList<StoredEmailId>?>(
+            this.arrivals.TryGetValue(notification, out var arrival) ? arrival.NamedEmails : []);
     }
 
     /// <inheritdoc />
@@ -171,4 +229,6 @@ internal sealed class InMemoryNotificationStore : INotificationStore
 
         return Task.FromResult(expiring.Length);
     }
+
+    private sealed record RecordedArrival(MailAccountId Account, IReadOnlyList<StoredEmailId> NamedEmails);
 }

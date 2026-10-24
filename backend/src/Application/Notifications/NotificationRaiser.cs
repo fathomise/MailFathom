@@ -3,6 +3,8 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Signals;
+using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Notifications;
 
 namespace MailFathom.Application.Notifications;
@@ -58,6 +60,47 @@ public sealed class NotificationRaiser
             var unreadCount = await this.store.CountUnreadAsync(notification.User, cancellationToken);
 
             this.signals.Publish(ClientSignal.NotificationRaised(notification, unreadCount));
+        }
+
+        return true;
+    }
+
+    /// <summary>Folds one account's arrival into a user's notifications, and announces each one it raised.</summary>
+    /// <param name="user">The user told.</param>
+    /// <param name="account">The account the mail arrived in.</param>
+    /// <param name="arrived">The messages that arrived, in the order they were stored.</param>
+    /// <param name="occurredAt">When the arrival was observed.</param>
+    /// <param name="cancellationToken">Cancels the raise.</param>
+    /// <returns><see langword="true" /> when at least one notification was raised.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="arrived" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// The unread count is read once, after the fold, and every announcement carries it: a merged notification replacing
+    /// five is one new row and four fewer, which is a count no announcement made before the fold landed could state.
+    /// </remarks>
+    public async Task<bool> RecordAndAnnounceMailArrivalAsync(
+        UserId user,
+        MailAccountId account,
+        IReadOnlyList<ArrivedEmail> arrived,
+        DateTimeOffset occurredAt,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(arrived);
+
+        var raised = await this.store.RecordMailArrivalAsync(user, account, arrived, occurredAt, cancellationToken);
+
+        if (raised.Count == 0)
+        {
+            return false;
+        }
+
+        if (this.signals.Reaches)
+        {
+            var unreadCount = await this.store.CountUnreadAsync(user, cancellationToken);
+
+            foreach (var notification in raised)
+            {
+                this.signals.Publish(ClientSignal.NotificationRaised(notification, unreadCount));
+            }
         }
 
         return true;

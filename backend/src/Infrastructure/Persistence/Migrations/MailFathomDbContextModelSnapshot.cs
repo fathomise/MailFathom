@@ -2762,6 +2762,22 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.ToTable("notifications", (string)null);
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.NotificationNamedEmailEntity", b =>
+                {
+                    b.Property<Guid>("NotificationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("StoredEmailId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("NotificationId", "StoredEmailId");
+
+                    b.HasIndex("StoredEmailId")
+                        .HasDatabaseName("ix_notification_named_emails_stored_email");
+
+                    b.ToTable("notification_named_emails", (string)null);
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.OrganizationEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4788,6 +4804,21 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Navigation("TargetPersonalTask");
 
                     b.Navigation("TargetStoredEmail");
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.NotificationNamedEmailEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.NotificationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("NotificationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.StoredEmailEntity", null)
+                        .WithMany()
+                        .HasForeignKey("StoredEmailId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.OutgoingEmailContentEntity", b =>

@@ -90,13 +90,20 @@ export type NotificationTarget =
  * `parseNotification` as no statement at all rather than as a value nothing can draw.
  */
 export type NotificationCause =
-    'MailArrived' | 'SynchronizationIncomplete' | 'CredentialRefused' | 'CalendarReminderDue' | 'TaskReminderDue';
+    | 'MailArrived'
+    | 'SynchronizationIncomplete'
+    | 'CredentialRefused'
+    | 'CalendarReminderDue'
+    | 'TaskReminderDue'
+    | 'MessageArrived';
 
 /**
  * What a notification says, as the condition it was raised for and the numbers it is stated with.
  *
  * What each number means is the cause's to say, which is why they are read together and never apart. Numbers are the
- * widest thing a cause carries, so nothing a message held reaches a screen through one.
+ * widest thing a cause carries, so nothing a message held reaches a screen through one — a message that arrived is
+ * named by its sender and its subject in the row's own title and body, and `MessageArrived` counts only whether the
+ * second of those is a subject at all.
  */
 export interface NotificationStatement {
     readonly cause: NotificationCause;
@@ -176,6 +183,7 @@ const causes: readonly NotificationCause[] = [
     'CredentialRefused',
     'CalendarReminderDue',
     'TaskReminderDue',
+    'MessageArrived',
 ];
 const screens: readonly NotificationScreen[] = ['Mail', 'Settings'];
 
@@ -427,6 +435,7 @@ const countsPerCause: Readonly<Record<NotificationCause, readonly ('counted' | '
     CredentialRefused: [],
     CalendarReminderDue: ['counted'],
     TaskReminderDue: ['counted'],
+    MessageArrived: ['counted'],
 };
 
 /**

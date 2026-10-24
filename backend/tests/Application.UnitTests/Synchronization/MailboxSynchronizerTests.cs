@@ -156,7 +156,7 @@ public sealed class MailboxSynchronizerTests
 
         // Assert
         Assert.Equal(1, result.StoredEmailCount);
-        Assert.Equal(1, result.ArrivedEmailCount);
+        Assert.Single(result.ArrivedEmails);
     }
 
     /// <summary>
@@ -186,7 +186,7 @@ public sealed class MailboxSynchronizerTests
 
         // Assert
         Assert.Equal(1, result.StoredEmailCount);
-        Assert.Equal(0, result.ArrivedEmailCount);
+        Assert.Empty(result.ArrivedEmails);
     }
 
     /// <summary>
@@ -217,7 +217,7 @@ public sealed class MailboxSynchronizerTests
 
         // Assert
         Assert.Equal(1, result.StoredEmailCount);
-        Assert.Equal(0, result.ArrivedEmailCount);
+        Assert.Empty(result.ArrivedEmails);
     }
 
     /// <summary>
@@ -731,7 +731,7 @@ public sealed class MailboxSynchronizerTests
 
         // Assert
         Assert.Equal(1, result.StoredEmailCount);
-        Assert.Equal(0, result.ArrivedEmailCount);
+        Assert.Empty(result.ArrivedEmails);
         Assert.Equal(0, result.RelocatedEmailCount);
         await metadataRepository.DidNotReceiveWithAnyArgs().TryCarryToOccurrenceAsync(
             Arg.Any<IPersistenceSession>(),
@@ -3126,7 +3126,7 @@ public sealed class MailboxSynchronizerTests
 
         // Assert
         Assert.Equal(1, result.StoredEmailCount);
-        Assert.Equal(0, result.ArrivedEmailCount);
+        Assert.Empty(result.ArrivedEmails);
         await context.AssertJoinedToTheSendAsync();
     }
 
@@ -3146,7 +3146,7 @@ public sealed class MailboxSynchronizerTests
 
         // Assert
         Assert.Equal(1, result.StoredEmailCount);
-        Assert.Equal(0, result.ArrivedEmailCount);
+        Assert.Empty(result.ArrivedEmails);
         await context.AssertJoinedToTheSendAsync();
     }
 
@@ -3162,7 +3162,7 @@ public sealed class MailboxSynchronizerTests
 
         // Assert
         Assert.Equal(1, result.StoredEmailCount);
-        Assert.Equal(1, result.ArrivedEmailCount);
+        Assert.Single(result.ArrivedEmails);
         await context.AssertStoredAsArrivingMailAsync();
     }
 

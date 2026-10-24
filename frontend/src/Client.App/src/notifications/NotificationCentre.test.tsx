@@ -6,6 +6,7 @@ import { act, fireEvent, render, renderHook, screen, within } from '@testing-lib
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientNotification } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { AgentHandOverContext, type AgentHandOver } from '../routing/agentHandOver';
 import { ScreenLayersContext, useScreenLayerStack, type ScreenLayers } from '../shell/screenLayers';
 import { NotificationCentre } from './NotificationCentre';
 import type { NotificationCentre as Centre } from './useNotificationCentre';
@@ -74,7 +75,10 @@ function centre(held: Partial<Centre> = {}): Centre {
     };
 }
 
-function panel(held: Partial<Centre> = {}): { readonly current: ScreenLayers } {
+function panel(
+    held: Partial<Centre> = {},
+    handToAgent: ((handOver: AgentHandOver) => void) | null = null,
+): { readonly current: ScreenLayers } {
     // The shell around it, because the panel records itself as standing over the screen while it is shown. Its three
     // functions are the same ones for the life of the stack, so the value handed to the provider stays current
     // however the count moves.
@@ -82,9 +86,11 @@ function panel(held: Partial<Centre> = {}): { readonly current: ScreenLayers } {
 
     render(
         <LocalizationProvider>
-            <ScreenLayersContext value={result.current}>
-                <NotificationCentre centre={centre(held)} swipe={swipe} />
-            </ScreenLayersContext>
+            <AgentHandOverContext value={handToAgent}>
+                <ScreenLayersContext value={result.current}>
+                    <NotificationCentre centre={centre(held)} swipe={swipe} />
+                </ScreenLayersContext>
+            </AgentHandOverContext>
         </LocalizationProvider>,
     );
 
@@ -152,6 +158,45 @@ describe('NotificationCentre', () => {
         expect(displaced.every((name) => name.startsWith('max-workspace:') || name.startsWith('workspace:'))).toBe(
             true,
         );
+    });
+
+    describe('a merged arrival', () => {
+        const merged: ClientNotification = {
+            ...mail,
+            id: 'n-merged',
+            statement: { cause: 'MailArrived', counted: 8, outOf: null },
+            title: 'New mail',
+            body: '8 new messages arrived.',
+            source: 'Fabrikam',
+            target: { kind: 'Screen', screen: 'Mail' },
+        };
+
+        it('marks itself read, leaves the panel, and hands the Agent a question about its messages', () => {
+            const handToAgent = vi.fn<(handOver: AgentHandOver) => void>();
+
+            panel({ notifications: [merged] }, handToAgent);
+            fireEvent.click(within(rowFor('8 new messages')).getByRole('button', { name: 'Summarize' }));
+
+            expect(acts.markRead).toHaveBeenCalledWith(['n-merged'], true);
+            expect(acts.hide).toHaveBeenCalledOnce();
+            expect(handToAgent).toHaveBeenCalledWith({
+                scope: { kind: 'notification', subject: 'n-merged' },
+                title: '8 new messages · Fabrikam',
+                question: 'Summarize these 8 new messages',
+            });
+        });
+
+        it('offers no summary where nothing can take one, nor on a row about one message', () => {
+            panel({ notifications: [merged, mail] });
+
+            expect(screen.queryByRole('button', { name: 'Summarize' })).toBeNull();
+        });
+
+        it('offers a summary on no row about one message, whatever can take one', () => {
+            panel({ notifications: [mail] }, vi.fn());
+
+            expect(screen.queryByRole('button', { name: 'Summarize' })).toBeNull();
+        });
     });
 
     it('says how many arrived beside its own title', () => {

@@ -13,7 +13,7 @@ namespace MailFathom.Domain.Notifications;
 /// </remarks>
 public enum NotificationCause
 {
-    /// <summary>Mail arrived for the person while nobody was looking at the screen.</summary>
+    /// <summary>More mail arrived for the person in one account than is said a message at a time, so it is counted instead.</summary>
     MailArrived = 0,
 
     /// <summary>A synchronization run ended with folders it did not finish.</summary>
@@ -27,4 +27,7 @@ public enum NotificationCause
 
     /// <summary>A reminder somebody set against one of their own tasks' due dates has come due.</summary>
     TaskReminderDue = 4,
+
+    /// <summary>One message arrived for the person, and the notification names its sender and its subject.</summary>
+    MessageArrived = 5,
 }

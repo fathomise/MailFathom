@@ -985,6 +985,37 @@ describe('useNotificationCentre', () => {
         expect(result.current.unreadCount).toBe(4);
     });
 
+    it('reads the page for a raised notification that left the count lower, which is what merging arrivals does', async () => {
+        const signalling = deploymentSaying();
+        const standing = [
+            { ...mail, id: 'n-first' },
+            { ...mail, id: 'n-second' },
+            { ...mail, id: 'n-third' },
+        ];
+        const { transport, hold } = deployment({ unreadCount: 3, notifications: standing });
+        const { result } = centreOf(transport, session, signalling.changes);
+
+        act(() => {
+            result.current.show();
+        });
+        await settled();
+
+        hold(1, [{ ...mail, id: 'n-merged' }]);
+        await act(async () => {
+            signalling.say({
+                kind: 'notification.raised',
+                notificationKind: 'Mail',
+                headline: 'New mail',
+                secondLine: '6 new messages arrived.',
+                unreadCount: 1,
+            });
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        expect(result.current.unreadCount).toBe(1);
+        expect([...result.current.arrived]).toEqual(['n-merged']);
+    });
+
     it('reads nothing about a signal that is not about a notification', async () => {
         const signalling = deploymentSaying();
         const held = { unreadCount: 1, notifications: [mail] };

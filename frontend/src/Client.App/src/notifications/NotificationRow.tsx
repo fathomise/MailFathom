@@ -23,6 +23,10 @@ import { wordNotification } from './notificationWords';
 // acts, so each is a button with a name of its own — which is what makes both reachable from a keyboard and both
 // assertable by name. A row is never a button with a button inside it.
 //
+// **A merged arrival carries a third control, *Summarize*, under what it says.** It is a button beside the row's own
+// rather than inside it, for the reason the toggle is: it hands the messages the row stands for to the agent, which is
+// a different act from opening the mail list the row leads to.
+//
 // **How long ago is drawn and when is read.** The relative wording is what somebody scanning the list needs; the
 // instant behind it is what the `time` element carries and what a pointer resting on it says, so nothing about the
 // row's own wording has to be precise enough to act on.
@@ -36,6 +40,7 @@ export function NotificationRow({
     onOpen,
     onSelect,
     onToggleRead,
+    onSummarize,
     onPress,
 }: {
     readonly notification: ClientNotification;
@@ -59,6 +64,9 @@ export function NotificationRow({
     readonly onSelect: () => void;
     readonly onToggleRead: () => void;
 
+    /** Hands the messages a merged arrival stands for to the agent, or `null` on every row that stands for none. */
+    readonly onSummarize: (() => void) | null;
+
     /** Opens this row's menu at the point the gesture happened. */
     readonly onPress: (at: MenuPoint) => void;
 }) {
@@ -76,6 +84,7 @@ export function NotificationRow({
         says: translate(notification.read ? 'notifications.markUnread' : 'notifications.markRead'),
         onPress: onToggleRead,
     });
+    const summarizeName = translate('notifications.summarize');
 
     // A modifier held under a pointer is what picks a row out where there is no selection yet, which is the one
     // gesture a finger has no equivalent of — the row's own menu is how it reaches the same thing.
@@ -95,85 +104,104 @@ export function NotificationRow({
                 arrived ? 'animate-row-opening ' : ''
             }${selected ? 'bg-accent-soft' : notification.read ? '' : 'bg-sunken'}`}
         >
-            <button
-                type="button"
-                aria-pressed={selecting ? selected : undefined}
-                className="flex flex-1 cursor-pointer items-start gap-3 py-3.25 text-start"
-                onContextMenu={press.onContextMenu}
-                onPointerDown={(event) => {
-                    press.onPointerDown(event);
+            <span className="flex min-w-0 flex-1 flex-col">
+                <button
+                    type="button"
+                    aria-pressed={selecting ? selected : undefined}
+                    className={`flex cursor-pointer items-start gap-3 pt-3.25 text-start ${
+                        onSummarize === null ? 'pb-3.25' : 'pb-1.5'
+                    }`}
+                    onContextMenu={press.onContextMenu}
+                    onPointerDown={(event) => {
+                        press.onPointerDown(event);
 
-                    // A mouse acts as it goes down; a finger's press is not decided until it is lifted, because the
-                    // same touch may become the press that opens this row's menu.
-                    if (!pressedByFinger(event.pointerType) && event.button === 0) {
-                        pointed(event);
-                    }
-                }}
-                onPointerMove={press.onPointerMove}
-                onPointerUp={(event) => {
-                    const tapped = pressedByFinger(event.pointerType) && !press.tapSuppressed();
-
-                    press.onPointerUp();
-
-                    if (tapped) {
-                        pointed(event);
-                    }
-                }}
-                onPointerCancel={press.onPointerCancel}
-                // The keyboard reaches the row through its own activation rather than through a pointer, so the two
-                // are separate paths to the same two acts and neither is a simulation of the other.
-                onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-
-                        if (event.ctrlKey || event.metaKey || event.shiftKey || selecting) {
-                            onSelect();
-                        } else {
-                            onOpen();
+                        // A mouse acts as it goes down; a finger's press is not decided until it is lifted, because the
+                        // same touch may become the press that opens this row's menu.
+                        if (!pressedByFinger(event.pointerType) && event.button === 0) {
+                            pointed(event);
                         }
-                    }
-                }}
-            >
-                <span
-                    aria-hidden="true"
-                    className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${tone.mark}`}
-                >
-                    <Icon name={tone.icon} className="size-icon-lg" />
-                </span>
+                    }}
+                    onPointerMove={press.onPointerMove}
+                    onPointerUp={(event) => {
+                        const tapped = pressedByFinger(event.pointerType) && !press.tapSuppressed();
 
-                <span className="flex min-w-0 flex-1 flex-col gap-0.75">
-                    <span className="flex items-baseline gap-2.25">
-                        {/* Unread is weight and colour, which is how the design draws it, and a word for a
+                        press.onPointerUp();
+
+                        if (tapped) {
+                            pointed(event);
+                        }
+                    }}
+                    onPointerCancel={press.onPointerCancel}
+                    // The keyboard reaches the row through its own activation rather than through a pointer, so the two
+                    // are separate paths to the same two acts and neither is a simulation of the other.
+                    onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+
+                            if (event.ctrlKey || event.metaKey || event.shiftKey || selecting) {
+                                onSelect();
+                            } else {
+                                onOpen();
+                            }
+                        }
+                    }}
+                >
+                    <span
+                        aria-hidden="true"
+                        className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${tone.mark}`}
+                    >
+                        <Icon name={tone.icon} className="size-icon-lg" />
+                    </span>
+
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.75">
+                        <span className="flex items-baseline gap-2.25">
+                            {/* Unread is weight and colour, which is how the design draws it, and a word for a
                             reader who is looking at neither. */}
-                        <span
-                            className={`min-w-0 flex-1 text-md text-pretty ${
-                                notification.read ? 'font-medium text-text-soft' : 'font-semibold text-text'
-                            }`}
-                        >
-                            {said.title}
+                            <span
+                                className={`min-w-0 flex-1 text-md text-pretty ${
+                                    notification.read ? 'font-medium text-text-soft' : 'font-semibold text-text'
+                                }`}
+                            >
+                                {said.title}
+                            </span>
+
+                            <time
+                                {...(age === null || at === null ? {} : instantSaid.anchor)}
+                                dateTime={notification.occurredAt}
+                                className="shrink-0 text-xs whitespace-nowrap text-faint"
+                            >
+                                {age ?? at}
+                            </time>
+                            {instantSaid.tip}
                         </span>
 
-                        <time
-                            {...(age === null || at === null ? {} : instantSaid.anchor)}
-                            dateTime={notification.occurredAt}
-                            className="shrink-0 text-xs whitespace-nowrap text-faint"
-                        >
-                            {age ?? at}
-                        </time>
-                        {instantSaid.tip}
-                    </span>
+                        <span className="text-base text-pretty text-text-soft">{said.body}</span>
 
-                    <span className="text-base text-pretty text-text-soft">{said.body}</span>
-
-                    {/* The kind is what the source line falls back to, because a row says where it came from either
+                        {/* The kind is what the source line falls back to, because a row says where it came from either
                         way — and the kind is the one thing every notification has. */}
-                    <span className="pt-0.25 text-xs text-muted">
-                        {notification.source ?? translate(notificationKindLabels[notification.kind])}
+                        <span className="pt-0.25 text-xs text-muted">
+                            {notification.source ?? translate(notificationKindLabels[notification.kind])}
+                        </span>
                     </span>
-                </span>
 
-                {notification.read ? null : <span className="sr-only">{translate('notifications.unreadMark')}</span>}
-            </button>
+                    {notification.read ? null : (
+                        <span className="sr-only">{translate('notifications.unreadMark')}</span>
+                    )}
+                </button>
+
+                {/* Under the text rather than under the symbol, which is where the design hangs it: inset by the
+                symbol's width and the gap beside it. */}
+                {onSummarize === null ? null : (
+                    <button
+                        type="button"
+                        onClick={onSummarize}
+                        className="ms-11 mb-3.25 flex h-7.5 cursor-pointer items-center gap-1.75 self-start rounded-field border border-accent-line bg-accent-soft px-2.75 text-base font-semibold text-accent-deep transition hover:bg-accent-line pointer-coarse:px-3.5 pointer-coarse:text-md"
+                    >
+                        <Icon name="auto_awesome" className="size-icon-md" />
+                        {summarizeName}
+                    </button>
+                )}
+            </span>
 
             <span className="flex shrink-0 items-center gap-1.75 py-3.25">
                 {notification.read ? null : (

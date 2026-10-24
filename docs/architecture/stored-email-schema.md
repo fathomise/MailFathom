@@ -564,7 +564,7 @@ before the cascade takes the rows, so the objects go with them.
 
 ## What happened while nobody was looking
 
-`notifications` holds what a person is told about — a synchronization run that brought them mail, and the system
+`notifications` holds what a person is told about — the mail a synchronization run brought them, and the system
 conditions that run distinguishes. It belongs to the deployment rather than to a device, because the read state has to
 be the same in both heads and on a second machine, and because most of what produces a row is visible only to the
 service.
@@ -575,8 +575,8 @@ service.
 | `UserId` | The user it happened to. It is the foreign key onto `settings_accounts` with `ON DELETE CASCADE`, for the reason `client_preferences` keys the same way |
 | `Kind` | Which part of MailFathom it is about — `Mail`, `Calendar`, `Task`, or `System` — stored as text |
 | `Title`, `Body` | The two lines a row is drawn with in English, derived when the notification was produced rather than by re-reading mail when it is displayed |
-| `Cause` | The condition the row was raised for — `MailArrived`, `SynchronizationIncomplete`, `CredentialRefused`, `CalendarReminderDue`, or `TaskReminderDue` — stored as text. It is what lets a client say the row in its reader's own language, the two lines above being that same condition written out. Absent on a row written before the column existed, which is what an upgrade over existing data leaves until retention has taken those rows |
-| `Counted`, `OutOf` | The numbers the cause is stated with, whose meaning is the cause's: mail counts the messages that arrived, an unfinished run counts the folders that did not finish out of the folders it scheduled, a due reminder counts the minutes between now and what it is about — the event for `CalendarReminderDue`, nine in the morning on the due day for `TaskReminderDue` — and a refused credential counts neither |
+| `Cause` | The condition the row was raised for — `MessageArrived`, `MailArrived`, `SynchronizationIncomplete`, `CredentialRefused`, `CalendarReminderDue`, or `TaskReminderDue` — stored as text. It is what lets a client say the row in its reader's own language, the two lines above being that same condition written out. Absent on a row written before the column existed, which is what an upgrade over existing data leaves until retention has taken those rows |
+| `Counted`, `OutOf` | The numbers the cause is stated with, whose meaning is the cause's: one arrived message counts whether it carried a subject — one where it did, none where it did not — merged arrivals count the messages they stand for, an unfinished run counts the folders that did not finish out of the folders it scheduled, a due reminder counts the minutes between now and what it is about — the event for `CalendarReminderDue`, nine in the morning on the due day for `TaskReminderDue` — and a refused credential counts neither |
 | `Source` | What the source line names beyond the kind, which is an account identifier today, and absent where the kind is the whole of it |
 | `TargetKind` | Which of the five shapes opening it leads to — `Nothing`, `Message`, `Screen`, `CalendarEvent`, or `PersonalTask` — stored as text |
 | `TargetStoredEmailId` | The message a `Message` target names, and the foreign key onto `stored_emails` with `ON DELETE CASCADE`. Absent for every other shape |
@@ -587,11 +587,29 @@ service.
 | `OccurredAt` | When the thing it describes happened |
 | `IsRead` | Whether the person has read it, which is also what frees the condition to be said again |
 
-**A row carries no mail.** The one exception is a reminder's title, which is what the person called their own event and is theirs rather than a third party's; everything else is MailFathom's own sentences about a count or a condition, the
-cause and its two numbers are that same condition as a name and two counts, the
-source is an account identifier, and the key is a condition's name — so no subject, address, body fragment, filename,
-or credential material reaches the table. What still makes it derived personal data is that it says something reached
-this person's mailbox and when, which is what the two cascades and the retention bound answer for.
+**A row carries mail in one shape only.** A `MessageArrived` row's title and body are the sender and the subject of
+the one message it is about — the sender's display name, or their address where the message names none — which is
+why that row always leads to its message and goes with it through the cascade below. A reminder's title is what the
+person called their own event or task, which is theirs rather than a third party's. Everything else is MailFathom's
+own sentences about a count or a condition, the cause and its two numbers are that same condition as a name and two
+counts, the source is an account identifier, and the key is a condition's name — so no body fragment, recipient,
+filename, or credential material reaches the table. What makes every row derived personal data is that it says
+something reached this person's mailbox and when, which is what the cascades and the retention bound answer for.
+
+**Mail arrives a message at a time until an account has more than five unread, then merged.** While a person's unread
+arrival rows for one account number five or fewer, each arrived message is a row of its own. The arrival that would
+take them past five replaces them with one `MailArrived` row counting every message, and while that row stands unread
+each later arrival replaces it again with a count that includes its own; the read of what stands and the replacement
+are one transaction. `notification_named_emails` holds which messages such a merged row stands for, up to a hundred
+and the newest kept, so a question can be asked about them:
+
+| Column of `notification_named_emails` | What it records |
+|---|---|
+| `NotificationId` | The merged notification, and the foreign key onto `notifications` with `ON DELETE CASCADE`, so the pairs go with it whichever way it leaves |
+| `StoredEmailId` | One message it stands for, and the foreign key onto `stored_emails` with `ON DELETE CASCADE`, indexed by `ix_notification_named_emails_stored_email` because a message's erasure reaches the table by the message alone |
+
+The pair is the key. An erased message leaves the merged row's count as it was, because the count says how much
+arrived rather than how much is left.
 
 **Two cascades reach it, and they answer different obligations.** The user's row takes their notifications with them,
 so an erasure request never has to name this table — which matters here because the table records no mail account and

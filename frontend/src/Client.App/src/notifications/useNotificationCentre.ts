@@ -189,7 +189,11 @@ export function useNotificationCentre(
         // below is what turns an unattended count into a page read, and a hand-made refresh has bumped the token
         // itself, so leaving it armed would ask the route twice — the second answer arriving against a `known` the
         // first had already filled, which is a row that arrived and is marked as though it had always been there.
-        async function count(asksForThePage: boolean): Promise<void> {
+        //
+        // `raised` is how many rows the deployment said it wrote, which a rise alone cannot measure: an arrival that
+        // merged several standing rows into one leaves the count lower than it was, and one replacing a merged row
+        // leaves it where it was, while both are a row nobody has seen yet.
+        async function count(asksForThePage: boolean, raised = 0): Promise<void> {
             if (session === null) {
                 return;
             }
@@ -201,14 +205,15 @@ export function useNotificationCentre(
             }
 
             const before = counted.current?.session === session ? counted.current.count : null;
-            const rise = before === null ? 0 : answer.value - before;
+            const rise = Math.max(before === null ? 0 : answer.value - before, raised);
             const rose = rise > 0;
 
             counted.current = { session, count: answer.value };
             setUnreadCount(answer.value);
 
-            // Only a rise asks for the page. A count that fell is this client's own marking landing, and a count that
-            // did not move is the ordinary poll — neither is anything a reader has to be told about.
+            // Only a rise or a raise asks for the page. A count that fell on its own is this client's own marking
+            // landing, and a count that did not move is the ordinary poll — neither is anything a reader has to be told
+            // about.
             if (rose && asksForThePage) {
                 const alreadyRisen = risen.current?.session === session ? risen.current.count : 0;
 
@@ -239,7 +244,7 @@ export function useNotificationCentre(
         // number this client keeps in step on its own.
         const listening = signalledChanges.listen((signal) => {
             if (signal.kind === 'notification.raised') {
-                void count(true);
+                void count(true, 1);
             }
 
             // A refresh asks for the page and for the count, and for the count as a count alone: the page is asked for

@@ -163,7 +163,8 @@
           "Mailbox",
           "Thread",
           "CalendarEvent",
-          "DiscoveryRun"
+          "DiscoveryRun",
+          "Notification"
         ]
       },
       "AttachmentAvailability": {

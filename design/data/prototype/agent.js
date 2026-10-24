@@ -317,6 +317,18 @@
 
   const AGENT_REPLIES = [
     {
+      match: /summari[sz]e these \d+ new messages/i,
+      scope: "8 new messages · Fabrikam",
+      text: "Eight messages, and two of them want something from you today; the rest is status you can read later.",
+      bullets: [
+        "Tomasz Zieliński needs the receiving person for the 12.11 delivery today, or the slot goes to the next order.",
+        "Fabrikam's finance asks you to confirm the corrected invoice 08/2026 before Friday.",
+        "Three updates on the Q4 rollout plan - no decision asked of you.",
+        "Two delivery notes and one newsletter, nothing to act on.",
+      ],
+      blocks: [],
+    },
+    {
       match: /(plan|schedule).*(day)|plan my day/i,
       scope: "calendar · 14 new messages",
       text: "Two meetings today and one deadline tomorrow. One focus block would cover what is actually at risk.",

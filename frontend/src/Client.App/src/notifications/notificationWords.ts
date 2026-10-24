@@ -29,20 +29,29 @@ export interface NotificationWords {
 }
 
 /**
- * How each cause is titled, and which of them names the record the row is about.
+ * How each cause is titled.
  *
  * Most causes are a condition, and a condition's headline is the same sentence for everybody it happens to. A
- * reminder is the exception, whichever record it announces: what it is about is one event or one task, and what that
- * record is called is the person's own text rather than anything a catalogue could hold — so its title is a sentence
- * with the record's name in it, filled from the headline the deployment already derived. `named` is what says which
- * of the two a cause is, so a cause that gains a name fails to compile here until somebody has decided.
+ * reminder names the record it announces: what it is about is one event or one task, and what that record is called is
+ * the person's own text rather than anything a catalogue could hold — so its title is a sentence with the record's
+ * name in it, filled from the headline the deployment already derived. Mail that arrived is the other exception, in
+ * both of its shapes: one message is headed by its sender, which is the message's own words and no sentence at all,
+ * and merged arrivals are headed by how many there were. A cause whose title changes shape fails to compile here until
+ * somebody has decided which.
  */
-const causeTitles: Readonly<Record<NotificationCause, { readonly said: MessageKey; readonly named: boolean }>> = {
-    MailArrived: { said: 'notifications.said.mailArrived.title', named: false },
-    SynchronizationIncomplete: { said: 'notifications.said.synchronizationIncomplete.title', named: false },
-    CredentialRefused: { said: 'notifications.said.credentialRefused.title', named: false },
-    CalendarReminderDue: { said: 'notifications.said.calendarReminderDue.title', named: true },
-    TaskReminderDue: { said: 'notifications.said.taskReminderDue.title', named: true },
+type CauseTitle =
+    | { readonly said: MessageKey }
+    | { readonly naming: MessageKey }
+    | { readonly counted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> }
+    | { readonly sender: true };
+
+const causeTitles: Readonly<Record<NotificationCause, CauseTitle>> = {
+    MailArrived: { counted: forms('notifications.said.mailArrived.title') },
+    SynchronizationIncomplete: { said: 'notifications.said.synchronizationIncomplete.title' },
+    CredentialRefused: { said: 'notifications.said.credentialRefused.title' },
+    CalendarReminderDue: { naming: 'notifications.said.calendarReminderDue.title' },
+    TaskReminderDue: { naming: 'notifications.said.taskReminderDue.title' },
+    MessageArrived: { sender: true },
 };
 
 /**
@@ -55,11 +64,12 @@ const causeTitles: Readonly<Record<NotificationCause, { readonly said: MessageKe
 type CauseBody =
     | { readonly said: MessageKey }
     | { readonly counted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> }
-    | { readonly remaining: true };
+    | { readonly remaining: true }
+    | { readonly subject: true };
 
 const causeBodies: Readonly<Record<NotificationCause, CauseBody>> = {
-    MailArrived: { counted: forms('mailArrived') },
-    SynchronizationIncomplete: { counted: forms('synchronizationIncomplete') },
+    MailArrived: { said: 'notifications.said.mailArrived.body' },
+    SynchronizationIncomplete: { counted: forms('notifications.said.synchronizationIncomplete.body') },
     CredentialRefused: { said: 'notifications.said.credentialRefused.body' },
     // A third shape rather than a fourth set of counted forms, because a lead is said in the coarsest whole unit it
     // states exactly — minutes, hours, or days — and which of the three that is follows the number rather than the
@@ -68,6 +78,9 @@ const causeBodies: Readonly<Record<NotificationCause, CauseBody>> = {
     // long is left is the same reading whatever the lead was measured back from.
     CalendarReminderDue: { remaining: true },
     TaskReminderDue: { remaining: true },
+    // The subject is the message's own words, as its sender is; what a message without one says is the client's
+    // sentence, which is what the count is there to tell apart.
+    MessageArrived: { subject: true },
 };
 
 /**
@@ -92,32 +105,76 @@ export function wordNotification(
     // Which number the sentence is counted by is the cause's own: mail counts what arrived, and an unfinished run
     // counts against how much it scheduled, which is the number the noun in that sentence agrees with.
     const counted = statement.cause === 'SynchronizationIncomplete' ? statement.outOf : statement.counted;
-    const body = causeBodies[statement.cause];
-    const title = causeTitles[statement.cause];
+    const holes = { count: number(statement.counted, locale), outOf: number(statement.outOf, locale) };
+    const form = new Intl.PluralRules(locale).select(counted ?? 0);
 
     return {
-        title: translate(title.said, title.named ? { subject: notification.title } : undefined),
-        body:
-            'said' in body
-                ? translate(body.said)
-                : 'remaining' in body
-                  ? wordReminderRemaining(statement.counted ?? 0, locale, translate)
-                  : translate(body.counted[new Intl.PluralRules(locale).select(counted ?? 0)], {
-                        count: number(statement.counted, locale),
-                        outOf: number(statement.outOf, locale),
-                    }),
+        title: wordTitle(causeTitles[statement.cause], notification.title, form, holes, translate),
+        body: wordBody(
+            causeBodies[statement.cause],
+            notification.body,
+            statement.counted,
+            form,
+            holes,
+            locale,
+            translate,
+        ),
     };
 }
 
-/** The four forms one cause's second line is counted in, which every counted cause declares the same way. */
-function forms(cause: 'mailArrived' | 'synchronizationIncomplete'): Readonly<Record<Intl.LDMLPluralRule, MessageKey>> {
+function wordTitle(
+    title: CauseTitle,
+    headline: string,
+    form: Intl.LDMLPluralRule,
+    holes: Readonly<Record<string, string>>,
+    translate: Translate,
+): string {
+    if ('said' in title) {
+        return translate(title.said);
+    }
+
+    if ('naming' in title) {
+        return translate(title.naming, { subject: headline });
+    }
+
+    return 'counted' in title ? translate(title.counted[form], holes) : headline;
+}
+
+function wordBody(
+    body: CauseBody,
+    line: string,
+    counted: number | null,
+    form: Intl.LDMLPluralRule,
+    holes: Readonly<Record<string, string>>,
+    locale: Locale,
+    translate: Translate,
+): string {
+    if ('said' in body) {
+        return translate(body.said);
+    }
+
+    if ('remaining' in body) {
+        return wordReminderRemaining(counted ?? 0, locale, translate);
+    }
+
+    if ('subject' in body) {
+        return counted === 0 ? translate('list.noSubject') : line;
+    }
+
+    return translate(body.counted[form], holes);
+}
+
+/** The four forms one counted line is said in, which every counted line declares the same way. */
+function forms(
+    key: 'notifications.said.mailArrived.title' | 'notifications.said.synchronizationIncomplete.body',
+): Readonly<Record<Intl.LDMLPluralRule, MessageKey>> {
     return {
-        zero: `notifications.said.${cause}.body.other`,
-        one: `notifications.said.${cause}.body.one`,
-        two: `notifications.said.${cause}.body.other`,
-        few: `notifications.said.${cause}.body.few`,
-        many: `notifications.said.${cause}.body.many`,
-        other: `notifications.said.${cause}.body.other`,
+        zero: `${key}.other`,
+        one: `${key}.one`,
+        two: `${key}.other`,
+        few: `${key}.few`,
+        many: `${key}.many`,
+        other: `${key}.other`,
     };
 }
 

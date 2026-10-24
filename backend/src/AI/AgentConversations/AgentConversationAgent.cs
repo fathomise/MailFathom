@@ -181,7 +181,12 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             turn.Text)),
         new ChatMessage(
             ChatRole.User,
-            AgentConversationComposition.ComposeTurn(brief.Question.AskedAt, accounts, brief.Question.Scope, brief.Question.Text.Value)),
+            AgentConversationComposition.ComposeTurn(
+                brief.Question.AskedAt,
+                accounts,
+                brief.Question.Scope,
+                brief.NamedEmails,
+                brief.Question.Text.Value)),
     ];
 
     /// <summary>Derives the sticky session every request of one conversation is routed by.</summary>

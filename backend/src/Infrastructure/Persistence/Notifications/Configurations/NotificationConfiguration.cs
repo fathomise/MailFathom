@@ -19,11 +19,13 @@ namespace MailFathom.Infrastructure.Persistence.Notifications.Configurations;
 /// trail records an act and has to outlive what it acted on, while a notification only offers to open something.
 /// </para>
 /// <para>
-/// Nothing here is mail content. A title and a body are derived when the notification is produced and are MailFathom's
-/// own sentences about a count or a condition; the cause and its two counts are that same condition as a name and two
-/// numbers, which is what a client says in its own language; the source is an account identifier; and the
-/// deduplication key is a condition's name. What makes the row personal data is that it says something reached this
-/// person's mailbox and when, which is what the retention bound and both cascades answer for.
+/// A title and a body are derived when the notification is produced. For a notification about one arrived message
+/// they are that message's sender and subject, which is the one place mail content reaches this table and the reason
+/// such a row leads to its message and cascades with it; for every other notification they are MailFathom's own
+/// sentences about a count or a condition. The cause and its two counts are that condition as a name and two numbers,
+/// which is what a client says in its own language; the source is an account identifier; and the deduplication key is
+/// a condition's name. What makes every row personal data is that it says something reached this person's mailbox and
+/// when, which is what the retention bound and both cascades answer for.
 /// </para>
 /// </remarks>
 internal sealed class NotificationConfiguration : IEntityTypeConfiguration<NotificationEntity>

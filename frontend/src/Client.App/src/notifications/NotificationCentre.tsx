@@ -11,9 +11,11 @@ import { Icon } from '../controls/Icon';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { useAgentHandOver } from '../routing/agentHandOver';
 import { useScreenLayer } from '../shell/screenLayers';
 import { useCurrentMinute } from './notificationAge';
 import { NotificationRow } from './NotificationRow';
+import { notificationKindLabels } from './notificationKinds';
 import { NotificationRowMenu } from './NotificationRowMenu';
 import { wordNotification } from './notificationWords';
 import type { NotificationCentre as Centre, NotificationFilter } from './useNotificationCentre';
@@ -77,6 +79,15 @@ const deletingCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
     other: 'notifications.deleteManyConsequence.other',
 };
 
+const summarizeQuestions: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
+    zero: 'notifications.summarizeQuestion.other',
+    one: 'notifications.summarizeQuestion.one',
+    two: 'notifications.summarizeQuestion.other',
+    few: 'notifications.summarizeQuestion.few',
+    many: 'notifications.summarizeQuestion.many',
+    other: 'notifications.summarizeQuestion.other',
+};
+
 export function NotificationCentre({
     centre,
     swipe,
@@ -87,6 +98,7 @@ export function NotificationCentre({
     readonly swipe: PanelSwipe;
 }) {
     const { locale, translate } = useLocalization();
+    const handToAgent = useAgentHandOver();
     const now = useCurrentMinute();
     const panel = useRef<HTMLDialogElement>(null);
     const tabs = useId();
@@ -147,6 +159,37 @@ export function NotificationCentre({
 
     function toggleSelected(id: string): void {
         setSelected((held) => (held.includes(id) ? held.filter((chosen) => chosen !== id) : [...held, id]));
+    }
+
+    // Only a merged arrival stands for messages a question can be about, and only where this credential has an agent to
+    // ask. Pressing it is read as having read the row, so it marks it read before the panel goes; the conversation it
+    // opens asks for the summary in the reader's own words, which is what they see asked.
+    function summarizing(notification: ClientNotification): (() => void) | null {
+        const statement = notification.statement;
+
+        if (handToAgent === null || statement?.cause !== 'MailArrived') {
+            return null;
+        }
+
+        const count = statement.counted ?? 0;
+        const said = wordNotification(notification, locale, translate);
+        const form = new Intl.PluralRules(locale).select(count);
+
+        return () => {
+            if (!notification.read) {
+                centre.markRead([notification.id], true);
+            }
+
+            leave();
+            handToAgent({
+                scope: { kind: 'notification', subject: notification.id },
+                title: translate('notifications.summarizeContext', {
+                    arrivals: said.title,
+                    source: notification.source ?? translate(notificationKindLabels[notification.kind]),
+                }),
+                question: translate(summarizeQuestions[form], { count: new Intl.NumberFormat(locale).format(count) }),
+            });
+        };
     }
 
     // The question is put in front of every delete, one row or a selection, because a notification that has gone does
@@ -351,6 +394,7 @@ export function NotificationCentre({
                         onToggleRead={() => {
                             centre.markRead([notification.id], !notification.read);
                         }}
+                        onSummarize={summarizing(notification)}
                         onPress={(at) => {
                             setMenu({ notification, at });
                         }}
@@ -375,6 +419,7 @@ export function NotificationCentre({
                             clear();
                             centre.follow(menu.notification);
                         }}
+                        onSummarize={summarizing(menu.notification)}
                         onDelete={() => {
                             askToDelete(
                                 [menu.notification.id],

@@ -1616,6 +1616,18 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       else this.goScreen(n.go.screen, n.go.screen === "mail" ? { mailPane: "list" } : {});
     };
 
+    /* A merged arrival hands exactly its messages to the agent: read, centre closed, a new
+       conversation under the chip, and the summary asked without anybody typing it. */
+    summarizeNotif = (n, e) => {
+      if (e && e.stopPropagation) e.stopPropagation();
+      const read = Object.assign({}, this.state.notifRead || {});
+      read[n.id] = true;
+      this.setState({ notifRead: read });
+      this.closeNotifCenter();
+      this.goAgentWith(n.count + " new messages · " + n.account);
+      this.agentAsk("Summarize these " + n.count + " new messages");
+    };
+
     pushNotif = (it) => {
       const id = "in" + (this._nSeq = (this._nSeq || 0) + 1);
       const n = Object.assign({}, it, { id: id, unread: true, mins: 0 });
@@ -1673,7 +1685,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this._demoLastId = id;
       this.markUnread(id);
       this.setRowAnim(id, "in", 720);
-      this.pushNotif({ kind: "mail", title: b.mail.from + " - new message", body: b.notif,
+      this.pushNotif({ kind: "mail", title: b.mail.from, body: b.mail.subject,
         src: "Mail · " + (b.mail.org || "Inbox"), go: { screen: "mail", thread: id } });
 
       /* 2 · a thread already on the list gets a reply — the same tile updates in place */
@@ -4716,8 +4728,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               { icon: "check_box", label: "Select notifications", run: () => this.selStart("notifs", n.id) },
               { icon: unread ? "mark_email_read" : "mark_email_unread", label: unread ? "Mark as read" : "Mark as unread", run: () => this.toggleNotifRead(n) },
               { icon: "open_in_new", label: "Open source", run: () => this.openNotif(n) },
+            ].concat(n.merged ? [{ icon: "auto_awesome", label: "Summarize", run: () => this.summarizeNotif(n) }] : []).concat([
               { icon: "delete", label: "Delete notification", danger: true, run: () => this.askHide("notifs", [n.id], "Delete notification?", n.title + " will disappear from the notification centre.") },
-            ], 420, notifInstant(n.mins)),
+            ]), 420, notifInstant(n.mins)),
+            merged: !!n.merged,
+            summarize: (e) => this.summarizeNotif(n, e),
+            summarizeStyle: "align-self:flex-start;display:inline-flex;align-items:center;gap:7px;margin-top:6px;border:1px solid var(--accent-line);border-radius:10px;background:var(--accent-soft);color:var(--accent-d);font-weight:600;" +
+              (touch ? "min-height:44px;padding:0 14px;font-size:14px;" : "min-height:30px;padding:0 11px;font-size:13px;"),
+            summarizeIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;line-height:1;font-size:" + (touch ? 20 : 17) + "px",
             open: this.rowTap("notifs", n.id, () => this.openNotif(n)),
             toggleRead: (e) => this.toggleNotifRead(n, e),
             readIcon: unread ? "mark_email_read" : "mark_email_unread",
