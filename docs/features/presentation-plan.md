@@ -118,11 +118,12 @@ confirmed — nothing here can recall a message that has left the deployment.
 
 Every block carries what the correspondence does for it, and the combination is checked rather than trusted.
 
-- **Support** is one of four verdicts, and the constructor holds each to what gives it meaning:
+- **Support** is one of five verdicts, and the constructor holds each to what gives it meaning:
 
   | Verdict | What it says | What the block must carry |
   |---|---|---|
   | `Supported` | the correspondence backs what the block states, from sources known to be current | at least one citation, over a freshness that is not behind |
+  | `Cited` | the block names the sources it was written from, and nothing held it against them | at least one citation, over a freshness that is not behind |
   | `Unsupported` | nothing the run found backs it | no citation at all, because a source that backed it would make it supported |
   | `Conflicting` | the sources disagree with each other | at least two citations, and both sides of the disagreement |
   | `Stale` | it is backed, and the local copy behind it is known to be behind the mail server | at least one citation, over a freshness that says so |
@@ -139,14 +140,22 @@ fact read from a copy that is behind, and two sources that disagree. Each is wor
 value a client draws differently, and the third is worst of all resolved silently into one figure — a supplier who
 quoted twice has two figures, and an answer naming one has answered a question nobody asked.
 
+`Cited` claims less than `Supported` rather than something else. A producer that cannot hold what it wrote against its
+sources — the Agent's free-form answer, and an event or a task it proposes out of a message it names — says where the
+block came from and leaves the checking to the reader, who follows its citations, rather than claiming a backing nobody
+established.
+
 `Stale` is a verdict rather than a second axis beside the freshness, deliberately. The two invite different acts — a
 reader told a fact is unbacked asks somewhere else, and one told the mailbox is behind reconciles it — and a producer
 free to state `Supported` over a copy it also called behind would be free to state the flattering half alone.
 
 **Confidence, where a block reports one, is defined rather than taken on trust.** An `answer` block carries a band —
 high, moderate, or low — and what a model reported is capped by what its own sources allow: an unsupported answer is
-low whatever the model said, and a conflicting or stale one cannot be high. A band nothing can be read out of is read
-as moderate, so a malformed answer never arrives more confident than a well-formed one. What the bands mean is fixed by
+low whatever the model said, and a conflicting or stale one cannot be high. A cited answer keeps its band, because the
+verdict already says nothing checked it and the band says something else. A band nothing can be read out of, or none
+reported at all, is read as moderate, so a malformed answer never arrives more confident than a well-formed one. One
+rule, `PresentationConfidenceCeiling`, applies the cap for Discover and for the Agent alike; the Agent reports its band
+through a tool it calls before it answers. What the bands mean is fixed by
 the composition and not by the model: high is the sources settling the question and the answer restating them, moderate
 is a step of inference somebody may want to check, and low is the best reading of partial sources.
 

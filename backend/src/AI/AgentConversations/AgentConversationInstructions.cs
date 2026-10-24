@@ -64,6 +64,11 @@ internal static class AgentConversationInstructions
         on the subject the person asked about, and written as they would ask it of you. A suggestion is a question and
         never an act — pressing one only asks it. Suggest none where nothing naturally follows.
 
+        Before you answer, rate how settled your answer is with rate_confidence: high when the messages you read say it
+        outright and your answer restates them, moderate when your answer takes a step of inference the person may want
+        to check, and low when it is your best reading of partial sources and may be wrong. Rate once, for the answer
+        you are about to give.
+
         When the person asks where a conversation stands, show its state with the tool made for it and refer to what
         it shows. That reading was already made and is shared with everyone who reads the mailbox, so never rewrite,
         re-derive, or translate it.

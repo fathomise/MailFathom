@@ -98,10 +98,11 @@ MailFathomDesign.artboards.aiBlocks = (DCLogic, React) => {
 
   function verdictInfo(v) {
     const M = {
-      supported: { label: "supported", icon: "check_circle", bg: "var(--ok-soft)", color: "var(--ok-text)" },
-      unsupported: { label: "unsupported", icon: "cancel", bg: "var(--warn-soft)", color: "var(--warn-text)" },
-      outdated: { label: "outdated", icon: "history", bg: "var(--warn-soft)", color: "var(--warn-text)" },
-      conflicting: { label: "conflicts with another source", icon: "sync_problem", bg: "var(--warn-soft)", color: "var(--warn-text)" },
+      supported: { label: "supported", icon: "check_circle", bg: "var(--ok-soft)", color: "var(--ok-text)", tip: "The correspondence backs this, from sources that were current when it was read." },
+      cited: { label: "cited", icon: "format_quote", bg: "var(--rail)", color: "var(--muted)", tip: "The answer names the messages it was written from, and nothing checked that they back it - open a citation to see for yourself." },
+      unsupported: { label: "unsupported", icon: "cancel", bg: "var(--warn-soft)", color: "var(--warn-text)", tip: "Nothing this run found backs this - treat it as a reading rather than as a fact." },
+      outdated: { label: "outdated", icon: "history", bg: "var(--warn-soft)", color: "var(--warn-text)", tip: "This is backed, and the local copy behind it is known to be behind the mail server." },
+      conflicting: { label: "conflicts with another source", icon: "sync_problem", bg: "var(--warn-soft)", color: "var(--warn-text)", tip: "The sources disagree. Both sides are below, each with the sources that say it." },
     };
     return M[v] || M.supported;
   }
@@ -117,7 +118,7 @@ MailFathomDesign.artboards.aiBlocks = (DCLogic, React) => {
     return {
       value, hasCite, cite,
       ariaLabel: hasCite ? (fieldLabel + " “" + value + "”, row " + row.version + ": citation " + cite + (hasVerdict ? ", verdict " + vi.label : "")) : "",
-      hasVerdict, verdictLabel: vi ? vi.label : "", verdictIcon: vi ? vi.icon : "",
+      hasVerdict, verdictLabel: vi ? vi.label : "", verdictIcon: vi ? vi.icon : "", verdictTip: vi ? vi.tip : "",
       verdictChipStyle: hasVerdict ? verdictChipStyle(verdict) : "",
       verdictIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:12px;line-height:1",
       cellStyle: "font-size:14px;border-bottom:1px solid var(--line2);padding:10px " + (isLast ? "0" : "10px") + " 10px 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap",
@@ -186,7 +187,7 @@ MailFathomDesign.artboards.aiBlocks = (DCLogic, React) => {
         const sb = srcBadge(e);
         return Object.assign({}, e, {
           ariaLabel: "Evidence: " + e.source + " - " + sb.title + ", verdict " + vi.label,
-          verdictLabel: vi.label, verdictIcon: vi.icon, verdictChipStyle: verdictChipStyle(e.verdict),
+          verdictLabel: vi.label, verdictIcon: vi.icon, verdictTip: vi.tip, verdictChipStyle: verdictChipStyle(e.verdict),
           verdictIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:12px;line-height:1",
           badgeStyle: SRC_BADGE_STYLE, badgeIconStyle: SRC_BADGE_ICON_STYLE, badgeIcon: sb.icon, badgeLabel: sb.label, badgeTitle: sb.title,
         });
@@ -442,16 +443,26 @@ MailFathomDesign.artboards.aiBlocks = (DCLogic, React) => {
           { label: "hover", style: "font-size:11px;color:var(--onaccent);background:var(--accent-2);border-radius:4px;padding:2px 7px;min-width:20px;text-align:center" },
           { label: "focus (Tab)", style: "font-size:11px;color:var(--accent-d);background:var(--accent-soft);border-radius:4px;padding:2px 7px;min-width:20px;text-align:center;outline:2px solid var(--accent);outline-offset:2px" },
         ],
-        verdictLegend: ["supported", "unsupported", "outdated", "conflicting"].map(v => {
+        /* The answer's confidence band, which explains itself like a verdict does. */
+        confLabel: "high confidence",
+        confTip: "The messages say this outright, and the answer restates what they say.",
+        confChipStyle: "font-size:11px;background:var(--ok-soft);color:var(--ok-text);border-radius:12px;padding:3px 9px;display:flex;align-items:center",
+        confidenceLegend: [
+          { label: "high confidence", bg: "var(--ok-soft)", color: "var(--ok-text)", tip: "The messages say this outright, and the answer restates what they say." },
+          { label: "moderate confidence", bg: "var(--rail)", color: "var(--muted)", tip: "The messages carry this, with a step of inference you may want to check." },
+          { label: "low confidence", bg: "var(--warn-soft)", color: "var(--warn-text)", tip: "This is the best reading of partial sources, and it may be wrong." },
+        ].map(c => Object.assign({}, c, { chipStyle: "font-size:11px;background:" + c.bg + ";color:" + c.color + ";border-radius:12px;padding:3px 9px;display:flex;align-items:center" })),
+        verdictLegend: ["supported", "cited", "unsupported", "outdated", "conflicting"].map(v => {
           const vi = verdictInfo(v);
           const descs = {
             supported: "the fact agrees with the source",
+            cited: "the answer names its sources, and nothing checked them - the Agent's answers",
             unsupported: "the source does not confirm the fact",
             outdated: "the source was true but is no longer current",
             conflicting: "the source contradicts another source in the result",
           };
           return {
-            icon: vi.icon, label: vi.label, desc: descs[v],
+            icon: vi.icon, label: vi.label, desc: descs[v], tip: vi.tip,
             chipStyle: verdictChipStyle(v),
             iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:12px;line-height:1",
           };

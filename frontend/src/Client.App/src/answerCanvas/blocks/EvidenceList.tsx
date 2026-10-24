@@ -11,7 +11,8 @@ import { useLocalization, type Translate } from '../../localization/useLocalizat
 import { useReadingZone } from '../../localization/useReadingZone';
 import { AnswerBlockCard, UnrecognisedAnswerBlock } from '../AnswerBlockCard';
 import { useAnswerSources } from '../answerSources';
-import { evidenceCounts, freshnessWords, sourceKinds, sourceMediums, supportVerdicts } from './blockWording';
+import { evidenceCounts, freshnessWords, sourceKinds, sourceMediums } from './blockWording';
+import { SupportVerdictChip } from './StandingChips';
 
 // The messages an answer rests on, where the correspondence rather than a reading of it is the point. Somebody
 // scanning this is deciding which of them to open, so each entry says three things and says them without arithmetic:
@@ -44,7 +45,6 @@ export function EvidenceList({ block }: { readonly block: AnswerBlock }) {
     }
 
     const { entries, evidence } = block;
-    const verdict = supportVerdicts[evidence.support];
 
     return (
         <AnswerBlockCard
@@ -60,10 +60,7 @@ export function EvidenceList({ block }: { readonly block: AnswerBlock }) {
             note={entries.length === 0 ? translate('answer.evidenceEmpty') : undefined}
             state={entries.length === 0 ? 'empty' : 'ready'}
         >
-            <span className={`flex w-fit items-center gap-1 rounded-full px-2.25 py-0.5 text-xs ${verdict.tint}`}>
-                <Icon className="size-icon-xs" name={verdict.icon} />
-                {translate(verdict.label)}
-            </span>
+            <SupportVerdictChip support={evidence.support} />
 
             <ul className="flex flex-col">
                 {entries.map((entry, at) => (

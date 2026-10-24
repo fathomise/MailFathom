@@ -9,7 +9,8 @@ import { UnrecognisedAnswerBlock } from '../AnswerBlockCard';
 import { ProposalCard, type ProposalControl } from '../ProposalCard';
 import { useProposalAnswering } from '../proposalAnswering';
 import { Citation } from './Citation';
-import { actionImpacts, suggestedActions, supportVerdicts } from './blockWording';
+import { SupportVerdictChip } from './StandingChips';
+import { actionImpacts, suggestedActions } from './blockWording';
 
 // A next step somebody may take, and the block where the autonomy boundary this product draws becomes visible. It
 // offers rather than reports, and three things follow.
@@ -43,7 +44,6 @@ export function SuggestedAction({ block }: { readonly block: AnswerBlock }) {
     }
 
     const { evidence, suggestion } = block;
-    const verdict = supportVerdicts[evidence.support];
     const step = suggestedActions[suggestion.action];
     const confirmationRequired = mustBeConfirmed(suggestion.impact, suggestion.requiresConfirmation);
     const title = translate(step.label);
@@ -102,10 +102,7 @@ export function SuggestedAction({ block }: { readonly block: AnswerBlock }) {
             </div>
 
             <p className="flex flex-wrap items-center gap-2">
-                <span className={`flex items-center gap-1 rounded-full px-2.25 py-0.5 text-xs ${verdict.tint}`}>
-                    <Icon className="size-icon-xs" name={verdict.icon} />
-                    {translate(verdict.label)}
-                </span>
+                <SupportVerdictChip support={evidence.support} />
 
                 {evidence.citations.map((source, at) => (
                     <Citation key={source} position={at + 1} source={source} />

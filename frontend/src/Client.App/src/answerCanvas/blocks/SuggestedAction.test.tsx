@@ -128,9 +128,11 @@ describe('SuggestedAction', () => {
     it('performs nothing, offering the citations and no control that would take the step', () => {
         renderSuggestion(suggested());
 
-        const named = screen.getAllByRole('button').map((control) => control.getAttribute('aria-label'));
+        const named = screen
+            .getAllByRole('button')
+            .map((control) => control.getAttribute('aria-label') ?? control.textContent);
 
-        expect(named).toEqual(['Citation 1: Contract addendum — signatures']);
+        expect(named).toEqual(['supported', 'Citation 1: Contract addendum — signatures']);
     });
 
     it('draws another renderer’s block as an unknown block rather than as a step', () => {

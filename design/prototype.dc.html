@@ -297,7 +297,7 @@ Project repository: https://github.com/fathomise/MailFathom
             <sc-if value="{{ answerReady }}" hint-placeholder-val="{{ false }}">
               <div style="{{ blk.card }}">
                 <div style="{{ blk.head }}"><span aria-hidden="true" style="{{ blk.accentTile }}"><span style="{{ blk.glyph }}">auto_awesome</span></span><div style="{{ blk.title }}">Answer</div>
-                  <div style="font-size:11px;background:var(--ok-soft);color:var(--ok-text);border-radius:12px;padding:3px 9px">{{ confidence }}</div>
+                  <div role="button" tabIndex="0" data-tip="1" style="{{ confidenceChipStyle }}">{{ confidence }}<span role="tooltip">{{ confidenceTip }}</span></div>
                   <sc-if value="{{ gapNote }}" hint-placeholder-val="{{ false }}">
                     <div style="font-size:11px;background:var(--warn-soft);color:var(--warn);border-radius:12px;padding:3px 9px">{{ gapNote }}</div>
                   </sc-if>
@@ -1525,11 +1525,20 @@ Project repository: https://github.com/fathomise/MailFathom
                                 </sc-for>
                               </div>
                             </sc-if>
+                            <sc-if value="{{ bk.isAnswer }}" hint-placeholder-val="{{ false }}">
+                              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                                <div role="button" tabIndex="0" data-tip="1" style="{{ bk.answerConfStyle }}">{{ bk.answerConfLabel }}<span role="tooltip">{{ bk.answerConfTip }}</span></div>
+                                <div role="button" tabIndex="0" data-tip="1" style="{{ bk.citedChipStyle }}"><span style="{{ bk.citedIconStyle }}">format_quote</span>{{ bk.citedLabel }}<span role="tooltip">{{ bk.citedTip }}</span></div>
+                              </div>
+                              <div style="{{ bk.answerTextStyle }}">{{ bk.answerProse }}<sc-for list="{{ bk.answerCites }}" as="c" hint-placeholder-count="1"><span role="button" tabIndex="0" aria-label="{{ c.openAria }}" onClick="{{ c.open }}" onKeyDown="{{ c.openKey }}" style="{{ bk.citeChipStyle }}" style-hover="background:var(--accent-2);color:var(--onaccent)" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ c.n }}</span></sc-for></div>
+                              <div style="{{ bk.answerNoteStyle }}">{{ bk.citedTip }}</div>
+                            </sc-if>
                             <sc-if value="{{ bk.isEvidence }}" hint-placeholder-val="{{ false }}">
+                              <div role="button" tabIndex="0" data-tip="1" style="{{ bk.citedChipStyle }}"><span style="{{ bk.citedIconStyle }}">format_quote</span>{{ bk.citedLabel }}<span role="tooltip">{{ bk.citedTip }}</span></div>
                               <sc-for list="{{ bk.items }}" as="e" hint-placeholder-count="2">
                                 <div style="{{ e.style }}">
                                   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                                    <span style="{{ e.nStyle }}">{{ e.n }}</span>
+                                    <span role="button" tabIndex="0" aria-label="{{ e.openAria }}" onClick="{{ e.open }}" onKeyDown="{{ e.openKey }}" style="{{ e.nStyle }}" style-hover="background:var(--accent-2);color:var(--onaccent)" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ e.n }}</span>
                                     <div style="font-size:14px;font-weight:600;min-width:0">{{ e.source }}</div>
                                     <span style="{{ e.badgeStyle }}">{{ e.badge }}</span>
                                   </div>
@@ -1683,6 +1692,25 @@ Project repository: https://github.com/fathomise/MailFathom
         <div style="font-size:11px;color:var(--faint)">The agent proposes actions - nothing is sent without your approval.</div>
       </div>
       </div>
+
+      <sc-if value="{{ agentEvOpen }}" hint-placeholder-val="{{ false }}">
+        <div role="region" aria-label="Evidence" style="{{ agentEvPanelStyle }}">
+          <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid var(--line);background:var(--panel)">
+            <div role="button" tabIndex="0" aria-label="Back to the conversation" onClick="{{ closeAgentEv }}" style="font-size:13px;color:var(--muted);display:flex;align-items:center;min-height:36px" style-hover="cursor:pointer;color:var(--text)" style-focus="outline:2px solid var(--accent);outline-offset:2px"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;margin-right:5px">arrow_back</span>Evidence</div>
+            <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">{{ agentEvIndex }}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--panel)">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:16px;font-weight:600">{{ agentEvTitle }}</div><span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:500;color:var(--muted);background:var(--sub);border-radius:999px;padding:2px 8px">{{ agentEvBadge }}</span></div>
+            <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint);line-height:1.5">{{ agentEvMeta }}</div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:12px;padding:16px 18px;overflow:auto;min-height:0">
+            <div style="font-size:15px;line-height:1.55;background:var(--hl);border-left:3px solid var(--hl-line);padding:13px 15px;text-wrap:pretty">{{ agentEvQuote }}</div>
+          </div>
+          <div style="display:flex;gap:9px;flex-wrap:wrap;padding:14px 18px;border-top:1px solid var(--line);background:var(--panel)">
+            <div role="button" tabIndex="0" onClick="{{ openAgentEvMail }}" style="font-size:13px;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:9px 16px" style-hover="opacity:0.88;cursor:pointer" style-focus="outline:2px solid var(--accent);outline-offset:2px">Open in mail <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;vertical-align:-3px;margin-left:4px">arrow_forward</span></div>
+          </div>
+        </div>
+      </sc-if>
       </div>
     </div>
   </sc-if>

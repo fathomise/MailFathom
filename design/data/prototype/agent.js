@@ -222,6 +222,28 @@
       ],
     },
     {
+      id: "c-summary", title: "Summarise the addendum thread", when: "15:52",
+      ctx: "thread “Contract addendum - signatures”",
+      msgs: [
+        { role: "user", text: "Summarise", ts: atToday(15, 52) },
+        {
+          role: "bot", ts: atToday(15, 52), scope: "this thread",
+          text: "",
+          blocks: [
+            {
+              /* The Agent's answer: the same block as Discover's, with a confidence the run reported and a verdict
+                 that is always *cited* — the Agent names what it read, and nothing checked it. */
+              type: "answer", confidence: "moderate",
+              text: "Anna Kowalska accepts the 2 h response time for critical incidents and the 8% fee rise from January. She asks for your counter-proposal on the indexation cap by 28 August - the new draft names the CPI with no ceiling, so the cap is the one point still open.",
+              cites: [
+                { n: "1", source: "Contract addendum - signatures", badge: "mail", snippet: "“…we accept the 2 h response time and the new fee. Please send your proposal on the indexation cap by 28 August.”", freshness: "yesterday · Anna Kowalska" },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    {
       id: "c-thread", title: "Contract addendum - what is agreed", when: "15:40",
       ctx: "thread “Contract addendum - signatures”",
       msgs: [

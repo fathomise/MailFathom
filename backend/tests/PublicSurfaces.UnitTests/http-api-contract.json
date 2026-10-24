@@ -10013,7 +10013,8 @@
           "Supported",
           "Unsupported",
           "Conflicting",
-          "Stale"
+          "Stale",
+          "Cited"
         ]
       },
       "PresentationText": {},

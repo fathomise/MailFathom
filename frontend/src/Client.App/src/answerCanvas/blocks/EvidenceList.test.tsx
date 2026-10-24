@@ -138,13 +138,14 @@ describe('EvidenceList', () => {
     it('draws no way into a private source, there being nothing this client may open', () => {
         renderList(listing([quoted]), { sources: [], follow: vi.fn() });
 
-        expect(screen.queryByRole('button')).toBeNull();
+        // The verdict's explanation is the one control left, and it opens nothing.
+        expect(screen.getAllByRole('button').map((control) => control.textContent)).toEqual(['supported']);
     });
 
     it('draws no way into an entry whose source points at a kind this client cannot open', () => {
         renderList(listing([quoted]), { sources: [{ ...agreement, target: null }], follow: vi.fn() });
 
-        expect(screen.queryByRole('button')).toBeNull();
+        expect(screen.getAllByRole('button').map((control) => control.textContent)).toEqual(['supported']);
         expect(screen.getByText('Master agreement.pdf')).toBeDefined();
     });
 

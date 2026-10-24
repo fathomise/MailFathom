@@ -85,7 +85,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         var names = this.Tools(MailFathomPermission.MailRead).Create().Select(static tool => tool.Name);
 
         // Assert
-        Assert.Equal(["suggest_follow_ups", "search_mail", "read_thread", "show_thread_state"], names);
+        Assert.Equal(["suggest_follow_ups", "rate_confidence", "search_mail", "read_thread", "show_thread_state"], names);
     }
 
     /// <summary>The calendar and the task list are each read under a grant of their own, so holding both reading grants offers both reading tools and no way to propose onto either.</summary>
@@ -98,7 +98,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
             .Select(static tool => tool.Name);
 
         // Assert
-        Assert.Equal(["suggest_follow_ups", "read_calendar", "read_tasks"], names);
+        Assert.Equal(["suggest_follow_ups", "rate_confidence", "read_calendar", "read_tasks"], names);
     }
 
     /// <summary>A proposal is offered only where accepting it could be carried out, which for an event and a task is the grant that changes each record.</summary>
@@ -111,7 +111,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
             .Select(static tool => tool.Name);
 
         // Assert
-        Assert.Equal(["suggest_follow_ups", "propose_event", "propose_task"], names);
+        Assert.Equal(["suggest_follow_ups", "rate_confidence", "propose_event", "propose_task"], names);
     }
 
     /// <summary>Asking is not reading, so a caller holding the asking grant alone converses with a model that can read nothing of theirs.</summary>
@@ -122,7 +122,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         var names = this.Tools(MailFathomPermission.AssistantUse).Create().Select(static tool => tool.Name);
 
         // Assert
-        Assert.Equal(["suggest_follow_ups"], names);
+        Assert.Equal(["suggest_follow_ups", "rate_confidence"], names);
     }
 
     /// <summary>Which mailboxes somebody has is mail's to read, so a model answering a caller who reads none is not told their names.</summary>
@@ -166,7 +166,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         var names = this.Tools(MailFathomPermission.MailDraftsWrite, MailFathomPermission.MailSend).Create().Select(static tool => tool.Name);
 
         // Assert
-        Assert.Equal(["suggest_follow_ups", "propose_message"], names);
+        Assert.Equal(["suggest_follow_ups", "rate_confidence", "propose_message"], names);
     }
 
     /// <summary>A grant that drafts without sending proposes no mail, because accepting it could not be carried out.</summary>
@@ -230,19 +230,56 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         Assert.Equal(["Draft a reply to Ada"], this.tools.FollowUps.Select(static followUp => followUp.Value));
     }
 
-    /// <summary>A model that is replaced after suggesting leaves nothing for the answer the next one composes.</summary>
+    /// <summary>A model that is replaced after suggesting and rating leaves nothing for the answer the next one composes.</summary>
     [Fact]
-    public async Task ForgetFollowUps_AfterAModelSuggested_LeavesNoneHeld()
+    public async Task ForgetEndingReports_AfterAModelSuggestedAndRated_LeavesNothingHeld()
     {
         // Arrange
-        var tool = this.ToolNamed("suggest_follow_ups", MailFathomPermission.MailRead);
-        await tool.InvokeAsync(Suggesting("Draft a reply to Ada"), TestContext.Current.CancellationToken);
+        await this.ToolNamed("suggest_follow_ups", MailFathomPermission.MailRead)
+            .InvokeAsync(Suggesting("Draft a reply to Ada"), TestContext.Current.CancellationToken);
+        await this.ToolNamed("rate_confidence", MailFathomPermission.MailRead)
+            .InvokeAsync(Rating("high"), TestContext.Current.CancellationToken);
 
         // Act
-        this.tools.ForgetFollowUps();
+        this.tools.ForgetEndingReports();
 
         // Assert
         Assert.Empty(this.tools.FollowUps);
+        Assert.Null(this.tools.ReportedConfidence);
+    }
+
+    /// <summary>The band the model rates its answer at is held for the answer it composes and written nowhere on its own.</summary>
+    [Theory]
+    [InlineData("high", PresentationConfidence.High)]
+    [InlineData(" Moderate ", PresentationConfidence.Moderate)]
+    [InlineData("LOW", PresentationConfidence.Low)]
+    public async Task RateConfidence_ABandItNames_IsHeldAndWritesNothing(string band, PresentationConfidence expected)
+    {
+        // Arrange
+        var tool = this.ToolNamed("rate_confidence", MailFathomPermission.MailRead);
+
+        // Act
+        await tool.InvokeAsync(Rating(band), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(expected, this.tools.ReportedConfidence);
+        Assert.Empty(this.written);
+    }
+
+    /// <summary>A word naming no band is refused back to the model, and the band it rated before stands.</summary>
+    [Fact]
+    public async Task RateConfidence_AWordNamingNoBand_IsRefusedAndKeepsWhatWasHeld()
+    {
+        // Arrange
+        var tool = this.ToolNamed("rate_confidence", MailFathomPermission.MailRead);
+        await tool.InvokeAsync(Rating("low"), TestContext.Current.CancellationToken);
+
+        // Act
+        var answer = await tool.InvokeAsync(Rating("certain"), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains("high, moderate, or low", answer?.ToString(), StringComparison.Ordinal);
+        Assert.Equal(PresentationConfidence.Low, this.tools.ReportedConfidence);
     }
 
     /// <summary>A recipient list the model left out is refused back to it, and nothing is proposed.</summary>
@@ -423,7 +460,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         var proposal = Assert.Single(this.written.OfType<AgentActionProposed>());
         var citation = Assert.Single(this.tools.Cited);
         Assert.Equal(
-            ((StoredEmailId?)StoredEmailId.Create(found), PresentationSupport.Supported, citation.Id),
+            ((StoredEmailId?)StoredEmailId.Create(found), PresentationSupport.Cited, citation.Id),
             (Assert.IsType<AgentTaskRecording>(proposal.Act).SourceMessage, proposal.Block.Evidence.Support, Assert.Single(proposal.Block.Evidence.Citations)));
         Assert.DoesNotContain("cites no source", answer?.ToString(), StringComparison.Ordinal);
     }
@@ -526,6 +563,9 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
 
     private static AIFunctionArguments Suggesting(params string[] questions) =>
         new(new Dictionary<string, object?> { ["questions"] = questions });
+
+    private static AIFunctionArguments Rating(string band) =>
+        new(new Dictionary<string, object?> { ["band"] = band });
 
     private AIFunction ToolNamed(string name, params MailFathomPermission[] granted)
     {

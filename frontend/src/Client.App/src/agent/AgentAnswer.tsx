@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useMemo } from 'react';
-import type { AgentMessageScope } from '@mailfathom/client-backend';
+import type { AgentMessageScope, DeclaredSource } from '@mailfathom/client-backend';
 import { DrawnBlock } from '../answerCanvas/AnswerCanvas';
 import { answerBlockRenderers } from '../answerCanvas/answerBlocks';
 import { AnswerSourcesContext } from '../answerCanvas/answerSources';
@@ -43,13 +43,35 @@ export function AnswerScope({ scope }: { readonly scope: MessageKey }) {
  * one answer and the next is carried by them.
  *
  * @param settledThrough What was already there when the conversation was opened, which draws without animating in.
+ * @param onFollowSource What following one of this answer's sources does, which is opening it for checking.
  */
-export function AgentAnswer({ answer, settledThrough }: { readonly answer: Answer; readonly settledThrough: number }) {
+export function AgentAnswer({
+    answer,
+    settledThrough,
+    onFollowSource,
+}: {
+    readonly answer: Answer;
+    readonly settledThrough: number;
+    readonly onFollowSource: (source: DeclaredSource) => void;
+}) {
     const { translate } = useLocalization();
 
-    // Memoized against the sources alone, because every renderer reads the context and a fresh object each render would
-    // redraw the whole answer whenever anything above it rendered.
-    const declared = useMemo(() => ({ sources: answer.sources, follow: null }), [answer.sources]);
+    // Memoized against what it is composed of, because every renderer reads the context and a fresh object each render
+    // would redraw the whole answer whenever anything above it rendered. A citation names a source by the name this
+    // answer declared it under, so it is resolved here, where those names mean something.
+    const declared = useMemo(
+        () => ({
+            sources: answer.sources,
+            follow: (name: string) => {
+                const source = answer.sources.get(name);
+
+                if (source !== undefined) {
+                    onFollowSource(source);
+                }
+            },
+        }),
+        [answer.sources, onFollowSource],
+    );
 
     return (
         <article

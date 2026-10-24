@@ -17,10 +17,13 @@ import { asRecord } from './json';
 // the contract closed them over, and what each is called in a language — and which of them is drawn in a warning
 // tint — is the screen's.
 
-/** What the correspondence does for a block, which is the contract's own four-valued verdict. */
-export type BlockSupport = 'Supported' | 'Unsupported' | 'Conflicting' | 'Stale';
+/**
+ * What the correspondence does for a block, which is the contract's own five-valued verdict. `Cited` names the sources a
+ * block was written from without anything having checked that they back it.
+ */
+export type BlockSupport = 'Supported' | 'Cited' | 'Unsupported' | 'Conflicting' | 'Stale';
 
-const supports: readonly BlockSupport[] = ['Supported', 'Unsupported', 'Conflicting', 'Stale'];
+const supports: readonly BlockSupport[] = ['Supported', 'Cited', 'Unsupported', 'Conflicting', 'Stale'];
 
 /** How far an answer is worth trusting beyond the sources it names, as the band the composition capped it to. */
 export type AnswerConfidence = 'High' | 'Moderate' | 'Low';
@@ -940,6 +943,7 @@ function matchesVerdict(
 
     switch (support) {
         case 'Supported':
+        case 'Cited':
             return citations.length > 0 && freshness.staleness !== 'Stale';
 
         case 'Unsupported':

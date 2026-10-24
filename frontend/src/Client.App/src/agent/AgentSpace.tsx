@@ -15,9 +15,11 @@ import {
     type ClientFailureReason,
     type ClientResult,
     type ClientSession,
+    type DeclaredSource,
     type MailFathomTransport,
     type RunFollowingSchedule,
 } from '@mailfathom/client-backend';
+import { EvidenceInspector } from '../answerCanvas/EvidenceInspector';
 import type { ProposalLook } from '../answerCanvas/proposalAnswering';
 import { Confirmation } from '../confirmation/Confirmation';
 import { Control } from '../controls/Control';
@@ -143,6 +145,13 @@ export function AgentSpace({
     const [following, setFollowing] = useState(0);
     const [composerFocusAsked, setComposerFocusAsked] = useState(0);
 
+    // The source somebody is checking, held with the conversation it was cited in: a source belongs to the answer that
+    // cited it, so opening another conversation leaves it behind rather than standing beside answers it backs nothing in.
+    const [checking, setChecking] = useState<{
+        readonly conversation: string | null;
+        readonly source: DeclaredSource;
+    } | null>(null);
+
     // What the next question is asked about. It stays through the conversation and across switching to another until
     // somebody clears it or another space hands something else over, which is how the design holds it: the
     // chip is visible above the field, so what a question is scoped to is never something the reader cannot see.
@@ -188,6 +197,31 @@ export function AgentSpace({
 
     // Folded once per arrival rather than per render, because the thread re-measures whenever the turns change.
     const turns = useMemo(() => threadOf(followed.entries), [followed.entries]);
+    const checked = checking !== null && checking.conversation === current ? checking.source : null;
+    const inspector =
+        checked === null ? null : (
+            <EvidenceInspector
+                source={checked}
+                session={session}
+                transport={transport}
+                onDismiss={() => {
+                    setChecking(null);
+                }}
+                onOpenMessage={
+                    onLook === null
+                        ? undefined
+                        : (email) => {
+                              onLook({ kind: 'thread', email });
+                          }
+                }
+            />
+        );
+    const followSource = useCallback(
+        (source: DeclaredSource) => {
+            setChecking({ conversation: current, source });
+        },
+        [current],
+    );
     const inFlight = answerInFlight(turns);
 
     const titleOf = (conversation: string): string | null =>
@@ -498,6 +532,7 @@ export function AgentSpace({
                             settledThrough={followed.settledThrough}
                             following={following}
                             onAsk={send}
+                            onFollowSource={followSource}
                         />
                     </ProposalAnswersContext>
 
@@ -531,6 +566,16 @@ export function AgentSpace({
                         }}
                     />
                 </div>
+
+                {/* Checking a fact keeps the conversation on the screen: beside it where the desktop has room for a column,
+                    over it where it does not, and either way the citation that was pressed gets the keyboard back. */}
+                {checked === null || !desktop ? (
+                    inspector
+                ) : (
+                    <aside className="w-agent-evidence shrink-0 overflow-y-auto border-s border-line p-4">
+                        {inspector}
+                    </aside>
+                )}
             </div>
 
             <Confirmation

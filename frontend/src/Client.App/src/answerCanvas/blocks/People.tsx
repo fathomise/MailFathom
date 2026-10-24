@@ -4,14 +4,14 @@
 
 import { useState } from 'react';
 import type { AnswerBlock, PersonEntry } from '@mailfathom/client-backend';
-import { Icon } from '../../controls/Icon';
 import { SenderAvatar } from '../../controls/SenderAvatar';
 import { wordRecentInstant } from '../../localization/instants';
 import { useLocalization } from '../../localization/useLocalization';
 import { useReadingZone } from '../../localization/useReadingZone';
 import { AnswerBlockCard, UnrecognisedAnswerBlock } from '../AnswerBlockCard';
 import { Citation } from './Citation';
-import { personCounts, supportVerdicts } from './blockWording';
+import { SupportVerdictChip } from './StandingChips';
+import { personCounts } from './blockWording';
 import { citationOrder } from './citationOrder';
 
 // The people a question is about, where the answer is about somebody rather than about a message. What it draws is
@@ -40,7 +40,6 @@ export function People({ block }: { readonly block: AnswerBlock }) {
     }
 
     const { entries, evidence } = block;
-    const verdict = supportVerdicts[evidence.support];
     const positionOf = citationOrder(evidence.citations, ...entries.map((entry) => entry.sources));
 
     return (
@@ -57,10 +56,7 @@ export function People({ block }: { readonly block: AnswerBlock }) {
             note={entries.length === 0 ? translate('answer.peopleEmpty') : undefined}
             state={entries.length === 0 ? 'empty' : 'ready'}
         >
-            <span className={`flex w-fit items-center gap-1 rounded-full px-2.25 py-0.5 text-xs ${verdict.tint}`}>
-                <Icon className="size-icon-xs" name={verdict.icon} />
-                {translate(verdict.label)}
-            </span>
+            <SupportVerdictChip support={evidence.support} />
 
             <ul className="flex flex-col">
                 {entries.map((entry, at) => (

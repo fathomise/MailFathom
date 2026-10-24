@@ -16,6 +16,7 @@ using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.Discovery.Presentation;
+using MailFathom.Application.Discovery.Presentation.Blocks;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval;
@@ -115,6 +116,31 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
         Assert.Empty(followUps);
     }
 
+    /// <summary>An answer that rests on nothing is low whatever the model rated it, because the band is capped by its support.</summary>
+    [Fact]
+    public async Task ComposeAsync_AModelRatingHighOverNoSource_ComposesAnUnsupportedAnswerAtLowConfidence()
+    {
+        // Arrange
+        using var provider = new ScriptedProvider(
+            answering: [Rating("high"), Answering("Two bays were confirmed.")],
+            standby: []);
+
+        // Act
+        await provider.AgentOver(ChatDeclarations.Plan(maximumRequestCharacters: 100_000))
+            .ComposeAsync(this.Brief(), this.journal, TestContext.Current.CancellationToken);
+
+        // Assert
+        var composed = this.store.ReceivedCalls()
+            .Select(static call => call.GetArguments())
+            .Select(static arguments => arguments.OfType<AgentBlockComposed>().SingleOrDefault())
+            .OfType<AgentBlockComposed>()
+            .Single();
+        var block = Assert.IsType<AnswerBlock>(composed.Block);
+        Assert.Equal(
+            (PresentationSupport.Unsupported, PresentationConfidence.Low),
+            (block.Evidence.Support, block.Confidence));
+    }
+
     /// <summary>
     /// Every round of the tool loop is one request, and all of them belong to the conversation — so each carries the
     /// same session, and it is not the conversation's own identifier.
@@ -170,6 +196,12 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
         + "\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"call-1\","
         + "\"type\":\"function\",\"function\":{\"name\":\"suggest_follow_ups\","
         + "\"arguments\":\"{\\\"questions\\\":[\\\"" + question + "\\\"]}\"}}]},\"finish_reason\":\"tool_calls\"}]}";
+
+    private static string Rating(string band) =>
+        "{\"id\":\"chatcmpl-3\",\"object\":\"chat.completion\",\"created\":1,\"model\":\"a-chat-model\","
+        + "\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"call-2\","
+        + "\"type\":\"function\",\"function\":{\"name\":\"rate_confidence\","
+        + "\"arguments\":\"{\\\"band\\\":\\\"" + band + "\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}";
 
     private static string Answering(string text) =>
         "{\"id\":\"chatcmpl-2\",\"object\":\"chat.completion\",\"created\":1,\"model\":\"a-chat-model\","

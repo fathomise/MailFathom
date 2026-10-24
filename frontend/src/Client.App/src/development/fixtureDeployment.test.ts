@@ -135,6 +135,28 @@ describe('fixtureAnswer', () => {
         expect((resolved as Record<string, unknown>[])[1]?.['outcome']).toBe('Unresolvable');
     });
 
+    it('follows the agent’s sources, answering each whole message with the message rather than a passage of it', () => {
+        const asked = JSON.stringify({
+            citations: [
+                { kind: 'email', email: '00000000-0000-4000-8000-000000000000', fragment: null },
+                { kind: 'email', email: '00000000-0000-4000-8000-0000000000ff', fragment: null },
+            ],
+        });
+
+        const resolved = stated(answered('/citations/resolution', {}, 1, 'POST', asked))['citations'] as Record<
+            string,
+            unknown
+        >[];
+
+        expect(resolved.map((resolution) => [resolution['outcome'], resolution['fragment']])).toStrictEqual([
+            ['Resolved', null],
+            ['Unresolvable', null],
+        ]);
+        expect((resolved[0]?.['message'] as Record<string, unknown>)['storedEmailId']).toBe(
+            '00000000-0000-4000-8000-000000000000',
+        );
+    });
+
     it('challenges as MailFathom where nothing carried a credential, so a password may be typed', () => {
         const request: ClientRequest = { method: 'GET', path: `${deploymentAddress}/api/client/session`, headers: {} };
         const answer = fixtureAnswer(request, fixtureDeploymentDefaults, 1, fixtureDeploymentState());

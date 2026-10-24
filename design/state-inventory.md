@@ -190,6 +190,7 @@ composition keeps its own sizes.
 | The fold's split | Two panes in less than 1020 px leave the thread the width, under a finger and a mouse alike: while a thread is open the list folds to a strip of senders (`listStrip`), and the strip's head widens it again — § *The panes* under Mail. With nothing open the whole list stays |
 | Duplicated actions | A two-pane composition under a finger does not repeat in the thread head what the toolbar above it already carries, so the subject keeps the width |
 | Text | 12 px is the smallest size a reader is asked to read; 11 px is left to captions over something larger and to counts on a badge |
+| What a hover explains | Is reached by a tap as well: a chip that explains itself under a mouse (`[data-tip]`) shows the same sentence when tapped, drawn at 36 with a 44 target, and the sentence goes by itself 4 s later or at the next press elsewhere |
 
 ## What every artboard shares — `styles/base.css`
 
@@ -210,13 +211,14 @@ A message shown as its sender wrote it is somebody else's HTML, so the bodies in
 none of these scales and are not meant to. Neither does an opened attachment: its page is the document's own, typed in
 `data/prototype/documents.js` and sized by `docZoom`, so its lines land wherever the zoom puts them.
 
-Three reactions are stated there as well, and no rendered preview shows any of them at rest:
+Four reactions are stated there as well, and no rendered preview shows any of them at rest:
 
 | State | Selector | What happens |
 |---|---|---|
 | Pressed | `:active` on a `button` and on `role="button"`, `"tab"` and `"menuitem"` | the control scales to 0.98 over 140 ms. A list row does not: it is swiped and long-pressed, and shrinking under the finger would read as a fault |
 | Keyboard focus | `:focus-visible` on a control and on anything carrying `tabindex` | a 2 px `--accent` outline, 2 px off the edge. A text field keeps its own treatment instead — its border turns `--accent` (`style-focus`), and one drawn with no edge of its own hands the outline to the box around it, inset. The message body being written shows its caret and nothing else |
 | Less motion asked for | `prefers-reduced-motion: reduce` | every animation and transition ends at once: the pulses, the shimmer, the row and toast movement, the press itself, and every arrival and departure below |
+| A chip explaining itself | `[data-tip]` and its `role="tooltip"` child; `data-tip-dismissed` (set by `design.js`) | Every verdict chip and every confidence chip on an AI block is focusable and carries one sentence saying what its state means. A dark bubble — `--text` ground, `--panel` text, 13 px, radius 8, 7 × 10 px padding, at most 288 px wide — stands 6 px under the chip, from its start edge (the client also moves it back inside the window where it would spill). It shows under a mouse's hover, on keyboard focus, and on a tap; it goes when the pointer leaves, when focus moves on, on Escape, and 4 s after a tap. Hover is the shortcut and never the only way in |
 
 ### How a surface arrives and leaves
 
@@ -305,6 +307,7 @@ The line under the field stands only once a run is over (`runFinished`), and say
 | Proposed action | `actionReady` | `ready.action` |
 | What the sources do **not** settle | `gapNote` | the chosen plan carries a `gap` string — `PLANS.contract` and `PLANS.people` do, `PLANS.files` does not |
 | Evidence inspector open | `inspectorOpen` | a citation is pressed |
+| The confidence explained | `confidenceTip` | the answer's confidence chip — tinted by its band (`confidenceChipStyle`: high `--ok-soft`, moderate `--rail`, low `--warn-soft`) — hovered, focused or tapped; see `[data-tip]` under § *What every artboard shares* |
 | Evidence inspector closed | `inspectorClosed` | nothing selected — the resting state |
 
 Which blocks a run produces is the plan, and there are three (`PLANS`): `contract`
@@ -570,6 +573,7 @@ menu's *Tab mode* switch is turned on at a width of at least 1180 px**.
 | An answer with prose | `m.hasMd`, drawing `m.md` | the bot message carries `text`, `paras`, or both — each is read as Markdown and drawn as one list of blocks, a paragraph's blocks animating in together as it lands. `m.hasText`, `m.hasParas` and `m.paras` are still computed beside it and nothing reads them |
 | An answer still being worked | `m.working` | the message carries `working` — it draws an `autorenew` glyph and *The agent is going through your mail…* instead of prose |
 | An answer carrying blocks | `m.hasBlocks` | the message carries `blocks` |
+| An answer carrying an Answer block | `bk.isAnswer` | a block of type `answer` — seeded in *Summarise the addendum thread* (`c-summary`), a thread-scoped *Summarise*. The same chrome as Discover's answer: the `auto_awesome` accent tile, *Answer*, and *N citations*; then two chips that explain themselves (`[data-tip]`) — the confidence the run reported (`answerConfLabel`, moderate on `--rail`) and *cited* (`citedLabel`); then the prose with its citation numbers at the end of it (`answerCites`), each opening the evidence inspector (`openAgentEv`); then the verdict's sentence under it in `--muted` (`citedTip`). The Agent's answer is never *supported* |
 | Back to the conversation | `convReturnShown` | a block's `nav` row was pressed, which is what `goLook` records in `agentReturn`; the pill stands fixed over whatever screen was opened until `backToConv` is pressed |
 | History open | `historyOpen` | `!isMobile` by default, and the history control otherwise. On the phone it is a drawer from the start edge over the conversation, so **picking a conversation, *Open conversation* in its menu, or *New conversation* closes it** |
 | History close | `historyCloseShown` | `isMobile` |
@@ -666,7 +670,7 @@ Space bound and a focus outline.
 ### The answer is blocks, and three of them are actionable
 
 An answer is not prose with buttons under it. `bkView(b, key, isMobile)` draws one block,
-and the catalogue is the Discover one: `Timeline`, `Evidence`, `Thread state`, `Fact table`,
+and the catalogue is the Discover one: `Answer`, `Timeline`, `Evidence`, `Thread state`, `Fact table`,
 `Attachments`, `Draft`, `Event proposal`, `Task proposal`, `Suggested action`. What a conversation
 adds is that the last four carry controls, and therefore a phase.
 
@@ -681,6 +685,10 @@ adds is that the last four carry controls, and therefore a phase.
 | Empty | `isEmpty` | `state` is `empty` — a per-type icon in a 32 px `--sub` tile beside its sentence, `event_busy`, `task_alt`, `edit_note` or `find_in_page` |
 | Error | `isError` | `state` is `error` — a `--warn-soft` icon tile, `errorText`, and a *Try again* control that `retryBk` puts back to `ready` |
 | Editing a draft | `editing` | *Edit here* — `editBk` swaps the paragraphs for a `textarea` inside the conversation, and the controls become *Send* and *Stop editing* |
+| Cited | `citedLabel` | every `Evidence` block the Agent writes carries a *cited* chip (`format_quote`, `--rail` ground, `--muted` text) above its sources, never *supported*: the Agent names what it read, and nothing checked that it backs the answer. The chip explains itself (`citedTip`, `[data-tip]`) |
+| A source pressed | `e.open` | each source's number in an Agent `Evidence` block is a citation — a `role="button"` named *Citation n: source* — and opens the evidence inspector (`openAgentEv`); 36 px under a finger |
+| Evidence inspector open | `agentEvOpen` | a citation was pressed in the conversation in front (`agentEv` names that conversation, so opening another one leaves the source behind). From 1180 px it stands **beside** the conversation as a 380 px column with a `--line` start border, scrolling on its own (`agentEvBeside`); below that it stands **over** the conversation as the phone's full sheet Discover uses (`agentEvOver`). Header *Evidence* with a back control and *Source n*, the source's name and kind, when it was read, the passage on `--hl`, and *Open in mail*, which goes to the thread with the *Back to the conversation* pill (`goLook`). Back (`closeAgentEv`) returns the keyboard to the citation that opened it |
+| Evidence inspector closed | `!agentEvOpen` | the resting state — the Agent draws no empty evidence column |
 
 **The controls are the type's.** `Event proposal` takes *Add to calendar*, *Another time* and
 *Decline*; `Task proposal` takes *Add* and *Decline*; `Draft` takes *Send*, *Edit here* and

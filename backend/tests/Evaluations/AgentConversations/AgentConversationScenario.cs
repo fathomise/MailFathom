@@ -105,6 +105,13 @@ internal sealed record AgentConversationScenario(
     /// </remarks>
     public const string FollowUpsOnSubjectMetricName = "Follow-ups stay on the subject";
 
+    /// <summary>The check that an answer arrives rated, so the band drawn beside it is the model's rather than the default.</summary>
+    /// <remarks>
+    /// Whether the band is right is the judge's question; whether the model rated at all is a structure, and an unrated
+    /// answer is drawn at a moderate band nobody chose.
+    /// </remarks>
+    public const string RatedConfidenceMetricName = "Rated how settled the answer is";
+
     /// <summary>The check that the run ended with text a deployment presents rather than failing as an empty answer.</summary>
     public const string AnsweredMetricName = "Produced an answer";
 
@@ -1228,6 +1235,7 @@ internal sealed record AgentConversationScenario(
         this.Check(verdict, answer, presented, [.. called], store.Written);
         this.CheckRemembered(verdict, presented?.Value ?? string.Empty, summarizer.Summary);
         this.CheckFollowUps(verdict, tools.FollowUps);
+        CheckRated(verdict, presented, tools.ReportedConfidence);
         EvaluationCost.Record(verdict, modelName, modelSpend.Take(), judgeSpend.Take());
 
         return verdict;
@@ -1488,6 +1496,18 @@ internal sealed record AgentConversationScenario(
                 _ => $"Suggested off the subject: {string.Join("; ", offSubject)}.",
             });
     }
+
+    private static void CheckRated(EvaluationResult verdict, PresentationText? presented, PresentationConfidence? rated) =>
+        EvaluationMetrics.Record(
+            verdict,
+            RatedConfidenceMetricName,
+            presented is null || rated is not null,
+            (presented, rated) switch
+            {
+                (null, _) => "There was no answer to rate.",
+                (_, null) => "The answer arrived without a band, so it is drawn at one nobody chose.",
+                (_, { } band) => $"The answer was rated {band}.",
+            });
 
     /// <summary>The one language a scenario's person reads, which is what the run's status lines are written in.</summary>
     private sealed class StatedUserLanguage(UserLanguage language) : IUserLanguages

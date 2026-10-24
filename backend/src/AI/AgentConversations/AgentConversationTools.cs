@@ -105,6 +105,10 @@ internal sealed class AgentConversationTools
     /// <remarks>Held rather than written, because they belong to the answer that completes and a model that suggests and then fails has suggested nothing for the one that follows it.</remarks>
     internal IReadOnlyList<PresentationText> FollowUps { get; private set; } = [];
 
+    /// <summary>Gets the band the model last rated its answer at, or <see langword="null" /> where it rated none.</summary>
+    /// <remarks>Held for the same reason as <see cref="FollowUps" />: it describes the answer that completes, so a model that rated and then failed rated nothing for the one that follows it.</remarks>
+    internal PresentationConfidence? ReportedConfidence { get; private set; }
+
     /// <summary>Gets the accounts the model is told of: the person's where a tool it is offered takes one, and none otherwise.</summary>
     /// <remarks>
     /// Which mailboxes somebody has is read under <see cref="MailFathomPermission.MailRead" /> everywhere else, so a
@@ -129,6 +133,7 @@ internal sealed class AgentConversationTools
         List<AITool> tools =
         [
             AIFunctionFactory.Create(this.SuggestFollowUps, "suggest_follow_ups", $"Suggests up to {AgentConversationBounds.MaximumFollowUps} short questions the person could ask you next, shown under your answer. Pressing one only asks it; nothing is done."),
+            AIFunctionFactory.Create(this.RateConfidence, "rate_confidence", "Rates how settled your answer is, shown beside it: high, moderate, or low."),
         ];
 
         if (this.readers.Authorization.Permits(MailFathomPermission.MailRead))
@@ -171,8 +176,12 @@ internal sealed class AgentConversationTools
         return tools;
     }
 
-    /// <summary>Forgets what an earlier model suggested, so the answer carries only what the model that composed it suggested.</summary>
-    internal void ForgetFollowUps() => this.FollowUps = [];
+    /// <summary>Forgets what an earlier model suggested and rated, so the answer carries only what the model that composed it said of it.</summary>
+    internal void ForgetEndingReports()
+    {
+        this.FollowUps = [];
+        this.ReportedConfidence = null;
+    }
 
     /// <summary>Declares every message the search showed the model as a source, which is what an answer resting on a search cites.</summary>
     /// <param name="cancellationToken">Cancels the writes.</param>
@@ -197,6 +206,28 @@ internal sealed class AgentConversationTools
         this.FollowUps = suggested;
 
         return "Noted. They are shown under your answer once it is complete, and nothing is asked until the person presses one.";
+    }
+
+    [Description("Rates how settled your answer is.")]
+    private string RateConfidence(
+        [Description("high when the messages you read say it outright and your answer restates them; moderate when your answer takes a step of inference the person may want to check; low when it is your best reading of partial sources and may be wrong.")] string? band)
+    {
+        PresentationConfidence? rated = band?.Trim().ToUpperInvariant() switch
+        {
+            "HIGH" => PresentationConfidence.High,
+            "MODERATE" => PresentationConfidence.Moderate,
+            "LOW" => PresentationConfidence.Low,
+            _ => null,
+        };
+
+        if (rated is null)
+        {
+            return "Rate it as high, moderate, or low.";
+        }
+
+        this.ReportedConfidence = rated;
+
+        return "Noted. It is shown beside your answer.";
     }
 
     [Description("Reads one email conversation.")]
@@ -520,9 +551,11 @@ internal sealed class AgentConversationTools
         return (message, citation.Id);
     }
 
+    // Cited rather than supported: the model named the message it read the proposal out of, and nothing held the
+    // proposal against it.
     private static PresentationEvidence EvidenceOf((StoredEmailId Message, PresentationCitationId Citation)? source) =>
         source is { } read
-            ? new PresentationEvidence(PresentationSupport.Supported, [read.Citation], PresentationFreshness.Unknown)
+            ? new PresentationEvidence(PresentationSupport.Cited, [read.Citation], PresentationFreshness.Unknown)
             : PresentationEvidence.Unsupported(PresentationFreshness.Unknown);
 
     /// <summary>Says that a message the model named was not one this run had read, so that the missing source is not silent.</summary>

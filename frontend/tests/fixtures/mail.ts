@@ -200,6 +200,38 @@ export function citationResolutions(fragments: readonly string[]) {
 }
 
 /**
+ * What following a source that names a whole message answers with, one resolution per message and in the order asked.
+ *
+ * The agent cites the messages it read rather than passages cut from them, so the newsletter resolves to itself with
+ * nothing inside it named, and a message this corpus does not hold resolves to nothing at all — which is how a source
+ * that has since gone is drawn.
+ *
+ * @param emails The messages the request named, which the answer is paired against by position.
+ */
+export function messageCitationResolutions(emails: readonly string[]) {
+    return {
+        citations: emails.map((email) =>
+            email === newsletterId
+                ? {
+                      storedEmailId: email,
+                      outcome: 'Resolved',
+                      message: {
+                          storedEmailId: email,
+                          account: newsletterMessage.account,
+                          folder: newsletterMessage.folder,
+                          subject: newsletterSubject,
+                          sentAt: newsletterMessage.headers.sentAt,
+                          receivedAt: newsletterMessage.headers.receivedAt,
+                      },
+                      fragment: null,
+                      attachment: null,
+                  }
+                : { storedEmailId: email, outcome: 'Unresolvable', message: null, fragment: null, attachment: null },
+        ),
+    };
+}
+
+/**
  * What a folder holding nothing answers with.
  *
  * A screen cannot be scrolled into this state, so it is stated rather than derived: an empty folder says why it is

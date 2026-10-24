@@ -3,12 +3,12 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import type { AnswerBlock } from '@mailfathom/client-backend';
-import { Icon } from '../../controls/Icon';
 import { useLocalization } from '../../localization/useLocalization';
 import { AnswerBlockCard, UnrecognisedAnswerBlock } from '../AnswerBlockCard';
 import { AnswerText } from './AnswerText';
 import { Citation } from './Citation';
-import { citationCounts, confidenceBands, supportVerdicts } from './blockWording';
+import { ConfidenceBandChip, SupportVerdictChip } from './StandingChips';
+import { citationCounts, supportVerdicts } from './blockWording';
 
 // The synthesized answer: prose, what it is worth beyond the sources it names, and what those sources actually do for
 // it. It is the block the whole contract is shaped around, because it is the one most able to say something the
@@ -35,7 +35,6 @@ export function SynthesizedAnswer({ block }: { readonly block: AnswerBlock }) {
     }
 
     const { answer, evidence } = block;
-    const band = confidenceBands[answer.confidence];
     const verdict = supportVerdicts[evidence.support];
 
     return (
@@ -48,15 +47,12 @@ export function SynthesizedAnswer({ block }: { readonly block: AnswerBlock }) {
             state="ready"
         >
             <div className="flex flex-wrap items-center gap-2">
-                <span className={`rounded-full px-2.25 py-0.5 text-xs ${band.tint}`}>{translate(band.label)}</span>
+                <ConfidenceBandChip confidence={answer.confidence} />
 
-                <span className={`flex items-center gap-1 rounded-full px-2.25 py-0.5 text-xs ${verdict.tint}`}>
-                    <Icon className="size-icon-xs" name={verdict.icon} />
-                    {translate(verdict.label)}
-                </span>
+                <SupportVerdictChip support={evidence.support} />
             </div>
 
-            <div className="text-base leading-relaxed text-pretty [&>p:has(+span)]:inline">
+            <div className="text-xl leading-relaxed text-pretty workspace:text-answer [&>p:has(+span)]:inline">
                 <AnswerText text={answer.text} />
 
                 {evidence.citations.map((source, at) => (
@@ -66,7 +62,7 @@ export function SynthesizedAnswer({ block }: { readonly block: AnswerBlock }) {
                 ))}
             </div>
 
-            <p className="text-sm text-muted text-pretty">{translate(verdict.note)}</p>
+            <p className="text-base text-muted text-pretty">{translate(verdict.note)}</p>
 
             {evidence.conflictingClaims.length === 0 ? null : (
                 <ul aria-label={translate('answer.sides')} className="flex flex-col gap-2">

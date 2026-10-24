@@ -50,7 +50,7 @@ Project repository: https://github.com/fathomise/MailFathom
           </sc-if>
           <sc-if value="{{ bodyReady }}" hint-placeholder-val="{{ true }}">
             <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
-              <div style="font-size:11px;background:var(--ok-soft);color:var(--ok-text);border-radius:12px;padding:3px 9px">high confidence</div>
+              <div role="button" tabIndex="0" data-tip="1" style="{{ confChipStyle }}">{{ confLabel }}<span role="tooltip">{{ confTip }}</span></div>
             </div>
             <div style="font-size:16px;line-height:1.55;text-wrap:pretty">
               <sc-for list="{{ answerParts }}" as="p" hint-placeholder-count="2">
@@ -78,7 +78,7 @@ Project repository: https://github.com/fathomise/MailFathom
           <sc-if value="{{ bodyReady }}" hint-placeholder-val="{{ true }}">
             <sc-for list="{{ evidenceItems }}" as="e" hint-placeholder-count="3">
               <div role="button" tabIndex="0" aria-label="{{ e.ariaLabel }}" style="display:flex;flex-direction:column;gap:5px;border-bottom:1px solid var(--line2);padding:10px 0;cursor:pointer" style-hover="background:var(--hover)" style-focus="outline:2px solid var(--accent);outline-offset:2px">
-                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:14px;font-weight:600">{{ e.source }}</div><span title="{{ e.badgeTitle }}" style="{{ e.badgeStyle }}"><span style="{{ e.badgeIconStyle }}">{{ e.badgeIcon }}</span>{{ e.badgeLabel }}</span><div style="{{ e.verdictChipStyle }}"><span style="{{ e.verdictIconStyle }}">{{ e.verdictIcon }}</span>{{ e.verdictLabel }}</div></div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:14px;font-weight:600">{{ e.source }}</div><span title="{{ e.badgeTitle }}" style="{{ e.badgeStyle }}"><span style="{{ e.badgeIconStyle }}">{{ e.badgeIcon }}</span>{{ e.badgeLabel }}</span><div role="button" tabIndex="0" data-tip="1" style="{{ e.verdictChipStyle }}"><span style="{{ e.verdictIconStyle }}">{{ e.verdictIcon }}</span>{{ e.verdictLabel }}<span role="tooltip">{{ e.verdictTip }}</span></div></div>
                 <div style="font-size:13.5px;line-height:1.5;color:var(--text2);border-left:2px solid var(--accent-line);padding:1px 0 1px 11px;text-wrap:pretty">{{ e.snippet }}</div>
                 <div style="display:flex;gap:10px;font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint)"><span>{{ e.freshness }}</span></div>
               </div>
@@ -132,9 +132,9 @@ Project repository: https://github.com/fathomise/MailFathom
                 <div style="{{ tableHeadStyle }};padding-right:0">Indexation</div>
                 <sc-for list="{{ tableRows }}" as="r" hint-placeholder-count="4">
                   <div style="{{ r.version.cellStyle }}"><span>{{ r.version.value }}</span><sc-if value="{{ r.version.hasCite }}" hint-placeholder-val="{{ false }}"><span role="button" tabIndex="0" aria-label="{{ r.version.ariaLabel }}" style="{{ citeChipStyle }}" style-hover="background:var(--accent-2);color:var(--onaccent)" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ r.version.cite }}</span></sc-if></div>
-                  <div style="{{ r.price.cellStyle }}"><span>{{ r.price.value }}</span><sc-if value="{{ r.price.hasCite }}" hint-placeholder-val="{{ false }}"><span role="button" tabIndex="0" aria-label="{{ r.price.ariaLabel }}" style="{{ citeChipStyle }}" style-hover="background:var(--accent-2);color:var(--onaccent)" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ r.price.cite }}</span></sc-if><sc-if value="{{ r.price.hasVerdict }}" hint-placeholder-val="{{ false }}"><span style="{{ r.price.verdictChipStyle }}"><span style="{{ r.price.verdictIconStyle }}">{{ r.price.verdictIcon }}</span>{{ r.price.verdictLabel }}</span></sc-if></div>
-                  <div style="{{ r.sla.cellStyle }}"><span>{{ r.sla.value }}</span><sc-if value="{{ r.sla.hasCite }}" hint-placeholder-val="{{ false }}"><span role="button" tabIndex="0" aria-label="{{ r.sla.ariaLabel }}" style="{{ citeChipStyle }}" style-hover="background:var(--accent-2);color:var(--onaccent)" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ r.sla.cite }}</span></sc-if><sc-if value="{{ r.sla.hasVerdict }}" hint-placeholder-val="{{ false }}"><span style="{{ r.sla.verdictChipStyle }}"><span style="{{ r.sla.verdictIconStyle }}">{{ r.sla.verdictIcon }}</span>{{ r.sla.verdictLabel }}</span></sc-if></div>
-                  <div style="{{ r.index.cellStyle }}"><span>{{ r.index.value }}</span><sc-if value="{{ r.index.hasCite }}" hint-placeholder-val="{{ false }}"><span role="button" tabIndex="0" aria-label="{{ r.index.ariaLabel }}" style="{{ citeChipStyle }}" style-hover="background:var(--accent-2);color:var(--onaccent)" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ r.index.cite }}</span></sc-if><sc-if value="{{ r.index.hasVerdict }}" hint-placeholder-val="{{ false }}"><span style="{{ r.index.verdictChipStyle }}"><span style="{{ r.index.verdictIconStyle }}">{{ r.index.verdictIcon }}</span>{{ r.index.verdictLabel }}</span></sc-if></div>
+                  <div style="{{ r.price.cellStyle }}"><span>{{ r.price.value }}</span><sc-if value="{{ r.price.hasCite }}" hint-placeholder-val="{{ false }}"><span role="button" tabIndex="0" aria-label="{{ r.price.ariaLabel }}" style="{{ citeChipStyle }}" style-hover="background:var(--accent-2);color:var(--onaccent)" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ r.price.cite }}</span></sc-if><sc-if value="{{ r.price.hasVerdict }}" hint-placeholder-val="{{ false }}"><span role="button" tabIndex="0" data-tip="1" style="{{ r.price.verdictChipStyle }}"><span style="{{ r.price.verdictIconStyle }}">{{ r.price.verdictIcon }}</span>{{ r.price.verdictLabel }}<span role="tooltip">{{ r.price.verdictTip }}</span></span></sc-if></div>
+                  <div style="{{ r.sla.cellStyle }}"><span>{{ r.sla.value }}</span><sc-if value="{{ r.sla.hasCite }}" hint-placeholder-val="{{ false }}"><span role="button" tabIndex="0" aria-label="{{ r.sla.ariaLabel }}" style="{{ citeChipStyle }}" style-hover="background:var(--accent-2);color:var(--onaccent)" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ r.sla.cite }}</span></sc-if><sc-if value="{{ r.sla.hasVerdict }}" hint-placeholder-val="{{ false }}"><span role="button" tabIndex="0" data-tip="1" style="{{ r.sla.verdictChipStyle }}"><span style="{{ r.sla.verdictIconStyle }}">{{ r.sla.verdictIcon }}</span>{{ r.sla.verdictLabel }}<span role="tooltip">{{ r.sla.verdictTip }}</span></span></sc-if></div>
+                  <div style="{{ r.index.cellStyle }}"><span>{{ r.index.value }}</span><sc-if value="{{ r.index.hasCite }}" hint-placeholder-val="{{ false }}"><span role="button" tabIndex="0" aria-label="{{ r.index.ariaLabel }}" style="{{ citeChipStyle }}" style-hover="background:var(--accent-2);color:var(--onaccent)" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ r.index.cite }}</span></sc-if><sc-if value="{{ r.index.hasVerdict }}" hint-placeholder-val="{{ false }}"><span role="button" tabIndex="0" data-tip="1" style="{{ r.index.verdictChipStyle }}"><span style="{{ r.index.verdictIconStyle }}">{{ r.index.verdictIcon }}</span>{{ r.index.verdictLabel }}<span role="tooltip">{{ r.index.verdictTip }}</span></span></sc-if></div>
                 </sc-for>
               </div>
             </div>
@@ -295,10 +295,17 @@ Project repository: https://github.com/fathomise/MailFathom
             <div style="font-size:11px;color:var(--muted);font-weight:600">Verdict on a fact</div>
             <sc-for list="{{ verdictLegend }}" as="v" hint-placeholder-count="4">
               <div style="display:flex;align-items:center;gap:9px">
-                <div style="{{ v.chipStyle }}"><span style="{{ v.iconStyle }}">{{ v.icon }}</span>{{ v.label }}</div>
+                <div role="button" tabIndex="0" data-tip="1" style="{{ v.chipStyle }}"><span style="{{ v.iconStyle }}">{{ v.icon }}</span>{{ v.label }}<span role="tooltip">{{ v.tip }}</span></div>
                 <div style="font-size:12px;color:var(--muted)">{{ v.desc }}</div>
               </div>
             </sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;padding-top:8px;border-top:1px solid var(--line2)">
+            <div style="font-size:11px;color:var(--muted);font-weight:600">Confidence of an answer</div>
+            <sc-for list="{{ confidenceLegend }}" as="c" hint-placeholder-count="3">
+              <div role="button" tabIndex="0" data-tip="1" style="{{ c.chipStyle }};align-self:flex-start">{{ c.label }}<span role="tooltip">{{ c.tip }}</span></div>
+            </sc-for>
+            <div style="font-size:12px;color:var(--muted);text-wrap:pretty">Every verdict and confidence chip explains itself: hover it with a mouse, focus it with the keyboard, or tap it. The sentence goes when the pointer leaves, focus moves on, on Escape, or 4 s after a tap. Confidence says how much inference the answer takes; the verdict says what was checked.</div>
           </div>
           <div style="display:flex;flex-direction:column;gap:6px;padding-top:8px;border-top:1px solid var(--line2)">
             <div style="font-size:11px;color:var(--muted);font-weight:600">Private source</div>

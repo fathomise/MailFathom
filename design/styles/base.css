@@ -178,3 +178,29 @@ p, li, h1, h2, h3, h4 { text-wrap: pretty; }
     scroll-behavior: auto !important;
   }
 }
+
+/* A chip that explains itself — every verdict and confidence chip on an AI block. The chip is focusable and holds its
+   sentence in a `role="tooltip"` child. A mouse's hover is the shortcut; keyboard focus and a tap reach the same
+   sentence, so nothing exists only under a hover. It goes by itself: when the pointer leaves, when focus moves on, on
+   Escape (`data-tip-dismissed`, set in design.js), and 4 s after a tap. Under a finger the chip is drawn at 36 and its
+   target reaches 44 past its edge, as every chip in a wrapping group does. The client also pulls the sentence back
+   inside the window where it would spill past it. */
+[data-tip] { position: relative; cursor: help; }
+[data-tip] > [role="tooltip"] {
+  position: absolute; inset-inline-start: 0; top: calc(100% + 6px); z-index: 30;
+  width: max-content; max-width: min(288px, calc(100vw - 32px)); box-sizing: border-box;
+  padding: 7px 10px; border-radius: 8px; background: var(--text); color: var(--panel);
+  font-family: 'Geist', system-ui, sans-serif; font-size: 13px; font-weight: 400; line-height: 1.4; text-wrap: pretty;
+  box-shadow: 0 6px 18px var(--sh-2); pointer-events: none; visibility: hidden; opacity: 0;
+  transition: opacity var(--motion-fast, 120ms) ease;
+}
+@media (hover: hover) { [data-tip]:hover > [role="tooltip"] { visibility: visible; opacity: 1; } }
+[data-tip]:focus-visible:not([data-tip-dismissed]) > [role="tooltip"] { visibility: visible; opacity: 1; }
+@media (hover: none) {
+  [data-tip]:focus:not([data-tip-dismissed]) > [role="tooltip"] { visibility: visible; opacity: 1; animation: mf-tip-gone 1ms 4s forwards; }
+}
+@keyframes mf-tip-gone { to { visibility: hidden; opacity: 0; } }
+@media (pointer: coarse) {
+  [data-tip] { min-height: 36px; box-sizing: border-box; }
+  [data-tip]::after { content: ''; position: absolute; inset: -4px 0; }
+}

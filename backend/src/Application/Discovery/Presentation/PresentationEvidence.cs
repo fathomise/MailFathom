@@ -10,8 +10,8 @@ namespace MailFathom.Application.Discovery.Presentation;
 /// <remarks>
 /// <para>
 /// Every block carries one of these, which is what makes citation part of the contract rather than a habit a producer
-/// may keep. The constructor holds the support to what gives it meaning: a supported claim names at least one source, a
-/// stale one names at least one and carries a freshness saying the local copy is behind, a conflicting one names at
+/// may keep. The constructor holds the support to what gives it meaning: a supported or a cited claim names at least
+/// one source, a stale one names at least one and carries a freshness saying the local copy is behind, a conflicting one names at
 /// least two sources and both sides of the disagreement — a disagreement needs two sides — and an unsupported one names
 /// none, because a source that backed it would make it supported.
 /// </para>
@@ -125,6 +125,10 @@ public sealed record PresentationEvidence
                 "A supported block names the source that backs it.",
             PresentationSupport.Supported when freshness.Staleness is PresentationStaleness.Stale =>
                 "A backed block whose local copy is known to be behind is stale rather than supported.",
+            PresentationSupport.Cited when citations.Count == 0 =>
+                "A cited block names the sources it was written from.",
+            PresentationSupport.Cited when freshness.Staleness is PresentationStaleness.Stale =>
+                "A block whose local copy is known to be behind is stale rather than cited.",
             PresentationSupport.Unsupported when citations.Count != 0 =>
                 "A block naming a source is supported by it rather than unsupported.",
             PresentationSupport.Conflicting when citations.Count < 2 =>

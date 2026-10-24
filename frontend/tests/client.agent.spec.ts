@@ -7,6 +7,7 @@ import { expect, type Page } from '@playwright/test';
 import { holdTheClock, openSignedIn, silentAnswerInterval, test } from './client.harness';
 import type { FakeDeployment } from './fakeDeployment';
 import * as agent from './fixtures/agent';
+import * as messages from './fixtures/messages';
 
 // Asking the agent, following its answer while it is composed, deciding what it proposes, and putting a conversation
 // away and back: each is an act in the thread or the history whose outcome the next read of the conversation, or of
@@ -124,6 +125,36 @@ test('draws the answer’s Markdown as structure and fetches nothing the markup 
     await expect(threadOf(page).getByRole('img', { name: 'The bays' })).toHaveCount(0);
 
     expect(leftForTheMarkupHost).toStrictEqual([]);
+});
+
+test('follows a source the answer cites to the message it names, and from there into Mail', async ({
+    page,
+    deployment,
+}) => {
+    await openSignedIn(page, '/#/agent');
+    await conversations(page)
+        .getByRole('option', { name: /^How many bays were confirmed/u })
+        .click();
+
+    const answer = threadOf(page).getByRole('article', { name: 'Answer', exact: true });
+
+    await answer.getByRole('button', { name: 'Citation 1: A newsletter from Example' }).click();
+
+    // What the agent declared is only a name; the message behind it is read off the deployment, and the panel says the
+    // answer rests on that message as a whole because the agent cites what it read rather than a passage of it.
+    const evidence = page.getByRole('region', { name: 'Evidence' });
+
+    await expect(
+        evidence.getByText('This rests on the message itself rather than on one passage of it.'),
+    ).toBeVisible();
+    expect(deployment.requests('POST', '/citations/resolution').map(({ body }) => body)).toMatchObject([
+        { citations: [{ kind: 'email', email: messages.newsletterId }] },
+    ]);
+
+    await evidence.getByRole('button', { name: 'Open in mail' }).click();
+
+    await expect(page).toHaveURL(/#\/mail$/u);
+    await expect(page.getByRole('article').getByText(messages.newsletterSubject).first()).toBeVisible();
 });
 
 for (const [act, decision, said] of [
