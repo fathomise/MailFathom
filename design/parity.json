@@ -26,6 +26,31 @@
         }
       ]
     },
+    "mail-outbox": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Outbox - 4 waiting to leave, 1 refused",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "text": "Outbox"
+          }
+        }
+      ]
+    },
     "mail-thread": {
       "file": "prototype.dc.html",
       "properties": {
