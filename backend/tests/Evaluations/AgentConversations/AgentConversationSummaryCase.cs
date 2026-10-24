@@ -38,7 +38,7 @@ internal sealed record AgentConversationSummaryCase(
                 Person("And the other supplier?"),
                 Agent("Contoso Shelving quoted 4,950 EUR for the same twelve bays, delivery in six weeks."),
                 Person("Go with Northwind, but ask them whether installation is included."),
-                Agent("[Proposed a message \"Racking quote\" to sales@northwind.example.]"),
+                new AgentProposedMessageTurn("Racking quote", ["sales@northwind.example"]),
             ],
             ["Northwind", "4,200", "Contoso", "4,950", "installation"]),
         new(
@@ -116,7 +116,8 @@ internal sealed record AgentConversationSummaryCase(
             PreviousSummary: null,
             [
                 Person("Napisz do jolanta.mazur@bursztynowa.test z prośbą o wycenę 30 krzeseł i dodaj zadanie, żeby sprawdzić ofertę do 18 września."),
-                Agent("[Proposed a message \"Wycena krzeseł\" to jolanta.mazur@bursztynowa.test.] Zaproponowałem też zadanie „Sprawdzić ofertę na krzesła” z terminem 18 września 2026."),
+                new AgentProposedMessageTurn("Wycena krzeseł", ["jolanta.mazur@bursztynowa.test"]),
+                Agent("Zaproponowałem też zadanie „Sprawdzić ofertę na krzesła” z terminem 18 września 2026."),
                 Person("Wiadomość odrzucam, zadzwonię do niej. Zadanie zostaje, ale przesuń je na 21 września."),
                 Agent("Zaproponowałem zadanie ponownie, z terminem 21 września 2026."),
             ],
@@ -132,7 +133,7 @@ internal sealed record AgentConversationSummaryCase(
     /// <inheritdoc />
     public override string ToString() => this.Name;
 
-    private static AgentHistoryTurn Person(string text) => new(AgentMessageAuthor.Person, text);
+    private static AgentHistoryTurn Person(string text) => new AgentWrittenTurn(AgentMessageAuthor.Person, text);
 
-    private static AgentHistoryTurn Agent(string text) => new(AgentMessageAuthor.Agent, text);
+    private static AgentHistoryTurn Agent(string text) => new AgentWrittenTurn(AgentMessageAuthor.Agent, text);
 }

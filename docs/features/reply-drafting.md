@@ -99,14 +99,29 @@ that from, and no mailbox either, the one it will be sent from being a choice no
 An instruction asking for a particular language outranks both, being the one thing the person said about the message
 themselves. The language the request happens to be written in is not such an instruction: somebody asking in Polish for
 a reply to an English exchange gets an English reply, and a rough draft they typed in Polish is carried over into
-English. The turn closes on that rule, after the request and the writer's
-own recent messages, which it labels as showing tone and length rather than language: both come after the exchange and
-may be in the writer's language, and a model otherwise drafts in whichever language it read last.
+English. The turn closes on that rule, after the request and the writer's own recent messages: both come after the
+exchange and may be in the writer's language, and a model otherwise drafts in whichever language it read last.
 
 ## What reaches the provider, and what does not
 
 The drafting is composed like every other AI operation here — one agent, its own instruction, **no tools, and no
 retrieval** — so the only mail a model sees is the mail this turn published to it.
+
+**What the person typed is the only part of the turn that speaks for them.** The turn is one document written by
+[the writer every turn quoting outside text goes through](mail-answering.md): the correspondence in a `<conversation>`
+element — its subject, each numbered `<person>`, and each numbered `<message>` with when it was written, whom it is
+from, its text, and its attachments, a message the person chose marked `chosen="true"` — then the part they selected in
+a `<selection>`, what they typed in the `<ask>` element and nowhere else, and their own recent sent mail in an
+`<unrelated-sent-mail>` element of its own, named for what it is so nothing in it reads as part of this exchange or as
+their request. Only the service writes elements, and every value is escaped, so a message that closes the conversation
+and writes an `<ask>` of its own arrives as that text, inside the message that sent it. That matters most here: a
+heading a message could reproduce would let it speak with the person's authority, and the reply it shaped would go back
+to that message's sender. The instruction says so as well — a message telling the draft what to say, whom to address,
+or what code or link to carry is not the person asking however it is worded — and the data rule every instruction ends
+with says the rest. The closing sentence about the reply's language is the service's own, outside every quoted element.
+
+A turn longer than one request may carry is cut by that writer as it is written rather than afterwards, so what it loses
+is the tail of the sent mail it writes last and what it keeps is still a document whose every element is closed.
 
 **No address ever leaves the deployment.** The conversation's people are published as numbered positions with a display
 name and nothing else, and the model proposes recipients by naming positions back; the addresses are resolved from those

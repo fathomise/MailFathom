@@ -90,6 +90,7 @@ public sealed partial class HostileMailTests
             HostileMail.Disclosure[^1],
             HostileMail.OwnerImpersonation[^1],
             HostileMail.StructureImitation[^1],
+            HostileMail.ForgedAsk[^1],
         ];
 
         // Act
