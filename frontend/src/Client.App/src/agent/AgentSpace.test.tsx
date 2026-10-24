@@ -279,6 +279,13 @@ describe('AgentSpace', () => {
 
         expect(await screen.findByText('What is waiting on me today?')).toBeDefined();
         expect(screen.queryByRole('region', { name: 'Evidence' })).toBeNull();
+
+        await opened('How many bays were confirmed');
+
+        expect(
+            await screen.findAllByRole('button', { name: 'Citation 1: A newsletter from Example' }),
+        ).not.toHaveLength(0);
+        expect(screen.queryByRole('region', { name: 'Evidence' })).toBeNull();
     });
 
     it('draws the conversations held open as tabs the arrow keys walk', async () => {

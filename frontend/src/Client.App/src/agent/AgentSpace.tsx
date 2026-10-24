@@ -197,7 +197,13 @@ export function AgentSpace({
 
     // Folded once per arrival rather than per render, because the thread re-measures whenever the turns change.
     const turns = useMemo(() => threadOf(followed.entries), [followed.entries]);
-    const checked = checking !== null && checking.conversation === current ? checking.source : null;
+
+    // Let go during render rather than hide, so coming back to the conversation opens the answer and not the panel.
+    if (checking !== null && checking.conversation !== current) {
+        setChecking(null);
+    }
+
+    const checked = checking?.source ?? null;
     const checkedFrom = useRef<HTMLElement | null>(null);
     const inspector =
         checked === null ? null : (
