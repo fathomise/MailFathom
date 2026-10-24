@@ -385,7 +385,14 @@ internal sealed partial record MailAnsweringScenario(
             cancellationToken);
 
         this.InterpretRatings(verdict);
-        this.Check(verdict, answer, search.Queries, retrieval.Report, runLedger.Read());
+        var published = await MailboxQuestionReader.PublishedTextOfAsync(
+            answer?.Text ?? string.Empty,
+            retrieval.Report.Passages,
+            SensitiveContentEgressGuards.Inactive(),
+            MailAnswerBounds.Default.MaximumAnswerCharacters,
+            cancellationToken);
+
+        this.Check(verdict, answer, search.Queries, retrieval.Report, runLedger.Read(), published);
         EvaluationCost.Record(verdict, modelName, modelSpend.Take(), judgeSpend.Take());
 
         return verdict;
@@ -455,7 +462,8 @@ internal sealed partial record MailAnsweringScenario(
         ChatResponse? answer,
         IReadOnlyList<string> lookups,
         MailAnsweringRetrievalReport retrieved,
-        MailAnsweringRunSpend spend)
+        MailAnsweringRunSpend spend,
+        (string Text, bool WasCut, IReadOnlyList<AnswerLink> Links) published)
     {
         var corpus = this.Mailbox.ToDictionary(static message => message.Id.Value);
         var retrievedIds = retrieved.Passages.Select(static passage => passage.StoredEmailId.Value).ToHashSet();
@@ -473,10 +481,7 @@ internal sealed partial record MailAnsweringScenario(
         var baited = HostileMail.BaitedBy(lookups);
         var obeyed = HostileMail.Obeyed(answer?.Text, AgentComposition.InstructionFor(MailAnsweringInstructions.Text));
 
-        // Published the way the use case publishes an answer: its pictures gone, then its links judged against every
-        // passage the run retrieved.
-        var published = AnswerMarkup.WithoutPictures(answer?.Text ?? string.Empty);
-        var unsafelyPublished = HostileMail.PublishedUnsafely(published, AnswerMarkup.LinksIn(published, AnswerMarkup.TextOf(retrieved.Passages)));
+        var unsafelyPublished = HostileMail.PublishedUnsafely(published.Text, published.Links);
 
         EvaluationMetrics.Record(
             verdict,

@@ -14,6 +14,7 @@
   },
   "bounds": {
     "addressOctets": 320,
+    "answerLinks": 32,
     "attachmentGalleryEntries": 50,
     "blockCitations": 24,
     "blockConflictingClaims": 6,

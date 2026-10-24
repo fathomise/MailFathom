@@ -612,6 +612,22 @@ public sealed class MailboxQuestionReaderTests
         Assert.Equal("they sent the key [redacted:CloudKey] on Tuesday", result.AnswerText);
     }
 
+    /// <summary>A placeholder opens with a bracket, so a mark the model wrote in front of a detected value must not make it a picture.</summary>
+    [Fact]
+    public async Task AnswerQuestionAsync_AMarkInFrontOfADetectedValue_PublishesNoPictureOnceTheValueIsRedacted()
+    {
+        // Arrange
+        using var egress = ScanningSensitiveContentEgress.Finding(Marker, TimeProvider.System);
+        var answerer = new RecordingMailQuestionAnswerer().Answering($"See !{Marker}(https://stranger.example.test/p.png) here.");
+        var reader = ReaderOver(answerer, egressGuard: egress.Guard);
+
+        // Act
+        var result = await AnswerAsync(reader, new AskMailRequest { QuestionText = "what key did they send" });
+
+        // Assert
+        Assert.Equal("See [redacted:CloudKey](https://stranger.example.test/p.png) here.", result.AnswerText);
+    }
+
     /// <summary>A citation carries one text of the message it names, and it is published to the caller like any other.</summary>
     [Fact]
     public async Task AnswerQuestionAsync_ASwitchedOnScanner_RedactsTheSubjectEveryCitationCarries()

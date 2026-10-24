@@ -159,6 +159,19 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
             (block.Evidence.Support, block.Confidence, block.Evidence.Citations.Count));
     }
 
+    /// <summary>A control character between a mark and its bracket, or inside a tag, cannot rebuild what the neutralising passed over.</summary>
+    [Theory]
+    [InlineData("See !\u0001[x](https://stranger.example.test/p.png).", "See [x](https://stranger.example.test/p.png).")]
+    [InlineData("See <\u0001img src=\"https://stranger.example.test/p.png\">.", "See \\<img src=\"https://stranger.example.test/p.png\">.")]
+    public void Presentable_AControlCharacterSplittingMarkup_LeavesNoPictureOnceItIsDropped(string written, string expected)
+    {
+        // Act
+        var presented = AgentConversationAgent.Presentable(written);
+
+        // Assert
+        Assert.Equal(expected, presented?.Value);
+    }
+
     /// <summary>An answer's picture is published as a link, and every link says whether the mail the Agent read carries it.</summary>
     [Fact]
     public async Task ComposeAsync_AnAnswerWritingAPictureAndLinks_ComposesNoPictureAndTracesEveryLinkToWhatWasRead()

@@ -589,9 +589,10 @@ what make it checkable: each names a message that can then be fetched whole.
 The text is published with its picture markup neutralised and every link in it judged, on the rule
 [the presentation plan](presentation-plan.md#the-eleven-block-types) states for an answer block: a link carries what
 `MailLinkReader` established about it and whether any retrieved passage or attachment extract carries its address. The
-pictures are neutralised first, before the sensitive-content scanner below and before the cut to what one response
-carries, because neutralising adds characters; the links are judged last, so what is judged is exactly the text a caller
-receives.
+pictures are neutralised after the sensitive-content scanner below, because its placeholder opens with a bracket and a
+mark the model wrote in front of a detected value would otherwise make it a picture, and before the cut to what one
+response carries, because neutralising adds characters; the links are judged last, so what is judged is exactly the text
+a caller receives.
 
 They are what the run *retrieved*, not what the model demonstrably used. Nothing outside the model knows which of them
 it drew on, so claiming the narrower set would state something this system cannot observe.

@@ -155,7 +155,10 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     /// <summary>Turns an answer into the text a block may carry, or refuses it as no answer at all.</summary>
     /// <param name="text">The text the run's last turn carried.</param>
     /// <returns>The text a block carries, or <see langword="null" /> where none is left, which the run fails as an empty answer.</returns>
-    /// <remarks>Its pictures go before it is cut, so the cut bounds the text that is published.</remarks>
+    /// <remarks>
+    /// Its pictures go after its control characters, because dropping one between a mark and its bracket would rebuild a
+    /// picture the neutralising had already passed over, and before it is cut, so the cut bounds the text that is published.
+    /// </remarks>
     internal static PresentationText? Presentable(string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -163,7 +166,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             return null;
         }
 
-        var cleaned = new string([.. AnswerMarkup.WithoutPictures(text).Where(static character => !char.IsControl(character) || character is '\n' or '\r' or '\t')]).Trim();
+        var cleaned = AnswerMarkup.WithoutPictures(new string([.. text.Where(static character => !char.IsControl(character) || character is '\n' or '\r' or '\t')])).Trim();
         var bounded = cleaned.Length <= PresentationText.MaxLength
             ? cleaned
             : MailTextBounds.TruncateAtTextElementBoundary(cleaned, PresentationText.MaxLength);

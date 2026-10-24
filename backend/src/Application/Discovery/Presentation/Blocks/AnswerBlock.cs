@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Answers;
+using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Discovery.Presentation.Blocks;
 
@@ -14,8 +15,10 @@ namespace MailFathom.Application.Discovery.Presentation.Blocks;
 /// <para>
 /// The text is Markdown, and the links it writes are judged by the service rather than by whoever draws it: each carries
 /// the judgement a link in mail carries and whether the mail the answer cites carries it at all, so two clients cannot
-/// come to disagree about which of an answer's links deserves a warning. The text carries no picture, which
-/// <see cref="AnswerMarkup.WithoutPictures" /> sees to before the block is composed.
+/// come to disagree about which of an answer's links deserves a warning. The text carries no picture: a composer
+/// neutralises its answer before it cuts and judges it, and the block applies the same
+/// <see cref="AnswerMarkup.WithoutPictures" /> again itself, so a block read back from a revision written before the rule
+/// existed holds to it too. Applying it to a text already neutralised changes nothing.
 /// </para>
 /// </remarks>
 public sealed record AnswerBlock : PresentationBlock
@@ -36,7 +39,7 @@ public sealed record AnswerBlock : PresentationBlock
     {
         PresentationRequirement.Specified(text, nameof(text));
 
-        this.Text = text;
+        this.Text = WithoutPictures(text);
         this.Confidence = confidence;
         this.Links = PresentationRequirement.OptionalItems(links ?? [], AnswerMarkup.MaximumLinks, nameof(links));
     }
@@ -49,4 +52,14 @@ public sealed record AnswerBlock : PresentationBlock
 
     /// <summary>Gets every link the text writes, each judged and each saying whether the cited mail carries it.</summary>
     public IReadOnlyList<AnswerLink> Links { get; }
+
+    /// <summary>Neutralises a text's pictures, cutting what neutralising added past what a block may carry.</summary>
+    private static PresentationText WithoutPictures(PresentationText text)
+    {
+        var neutralised = AnswerMarkup.WithoutPictures(text.Value);
+
+        return neutralised == text.Value
+            ? text
+            : PresentationText.Create(MailTextBounds.TruncateAtTextElementBoundary(neutralised, PresentationText.MaxLength));
+    }
 }

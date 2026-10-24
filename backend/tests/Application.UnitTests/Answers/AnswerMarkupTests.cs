@@ -67,6 +67,22 @@ public sealed class AnswerMarkupTests
         Assert.True(link.Link.IsWorthWarningAbout);
     }
 
+    /// <summary>A link is judged by the words a renderer shows, so marks around the host it names change nothing.</summary>
+    [Theory]
+    [InlineData("Pay at [**bank.example.test**](https://evil.example.test/pay).")]
+    [InlineData("Pay at [`bank.example.test`](https://evil.example.test/pay).")]
+    [InlineData("Pay at [bank\\.example\\.test](https://evil.example.test/pay).")]
+    [InlineData("Pay at [bank&#46;example.test](https://evil.example.test/pay).")]
+    [InlineData("Pay at [~~_bank.example.test_~~](https://evil.example.test/pay).")]
+    public void LinksIn_MarkedUpWordsNamingAnotherHost_AreJudgedAsTheirPlainFormIs(string answer)
+    {
+        // Act
+        var links = AnswerMarkup.LinksIn(answer, []);
+
+        // Assert
+        Assert.Equal(MailLinkDeception.DisplayedHostDiffers, Assert.Single(links).Link.Deception);
+    }
+
     [Fact]
     public void LinksIn_AHostInALookalikeScript_CarriesItsAsciiForm()
     {
@@ -168,13 +184,18 @@ public sealed class AnswerMarkupTests
     public void LinksIn_MoreTargetsThanTheBound_JudgesOnlyTheFirst()
     {
         // Arrange
-        var answer = string.Join(' ', Enumerable.Range(0, AnswerMarkup.MaximumLinks + 5).Select(static at => $"https://example.test/{at}"));
+        var answer = string.Join(
+            ' ',
+            Enumerable.Range(0, AnswerMarkup.MaximumLinks + 5)
+                .Select(static at => at % 2 is 0 ? $"https://example.test/{at}" : $"[link {at}](https://example.test/{at})"));
 
         // Act
         var links = AnswerMarkup.LinksIn(answer, []);
 
         // Assert
-        Assert.Equal(AnswerMarkup.MaximumLinks, links.Count);
+        Assert.Equal(
+            Enumerable.Range(0, AnswerMarkup.MaximumLinks).Select(static at => $"https://example.test/{at}"),
+            links.Select(static link => link.Link.Target));
     }
 
     [Fact]

@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Net;
 using System.Text.RegularExpressions;
 using MailFathom.Application.EmailContent.Rendering.Document;
 using MailFathom.Application.Retrieval;
@@ -73,6 +74,11 @@ public static partial class AnswerMarkup
     /// a link up by where it goes and the honest occurrence must not vouch for the deceptive one.
     /// </para>
     /// <para>
+    /// A link's words are judged as a renderer shows them rather than as they are written: emphasis, strikethrough and
+    /// code-span marks are dropped, and backslash escapes and character references read as the characters they stand
+    /// for. Otherwise <c>[**bank.example**](…)</c> would name no host and escape the judgement its plain form gets.
+    /// </para>
+    /// <para>
     /// The cited text is compared as addresses rather than as text: an address the mail carries inside a longer one is
     /// not the same place, and an address written in a different case of the same host is.
     /// </para>
@@ -87,6 +93,7 @@ public static partial class AnswerMarkup
         return
         [
             .. WrittenLinks(answer)
+                .OrderBy(static written => written.Index)
                 .Select(static written => MailLinkReader.Read(written.Reference, written.Words))
                 .OfType<MailDocumentLink>()
                 .GroupBy(static link => link.Target, StringComparer.Ordinal)
@@ -107,12 +114,12 @@ public static partial class AnswerMarkup
         return passages.SelectMany(static passage => passage.AttachmentExtracts.Select(static extract => extract.Text).Prepend(passage.Text));
     }
 
-    /// <summary>Every link the answer writes, as the reference it names and the words it shows.</summary>
-    private static IEnumerable<(string Reference, string Words)> WrittenLinks(string answer)
+    /// <summary>Every link the answer writes, as where it is written, the reference it names, and the words it shows.</summary>
+    private static IEnumerable<(int Index, string Reference, string Words)> WrittenLinks(string answer)
     {
         foreach (Match inline in InlineLink().Matches(answer))
         {
-            yield return (inline.Groups["reference"].Value, inline.Groups["words"].Value);
+            yield return (inline.Index, inline.Groups["reference"].Value, Shown(inline.Groups["words"].Value));
         }
 
         foreach (Match automatic in AutomaticLink().Matches(answer))
@@ -120,13 +127,13 @@ public static partial class AnswerMarkup
             var reference = automatic.Groups["reference"].Value;
 
             yield return reference.Contains(':', StringComparison.Ordinal)
-                ? (reference, reference)
-                : ($"mailto:{reference}", reference);
+                ? (automatic.Index, reference, reference)
+                : (automatic.Index, $"mailto:{reference}", reference);
         }
 
         foreach (Match bare in BareAddress().Matches(answer))
         {
-            yield return (Absolute(bare.Value), bare.Value);
+            yield return (bare.Index, Absolute(bare.Value), bare.Value);
         }
 
         var usages = ReferenceUsage().Matches(answer).ToArray();
@@ -137,14 +144,18 @@ public static partial class AnswerMarkup
             var reference = definition.Groups["reference"].Value;
 
             // The collapsed and shortcut forms show the label itself; the full form shows its own words.
-            yield return (reference, label);
+            yield return (definition.Index, reference, Shown(label));
 
             foreach (var usage in usages.Where(candidate => string.Equals(candidate.Groups["label"].Value, label, StringComparison.OrdinalIgnoreCase)))
             {
-                yield return (reference, usage.Groups["words"].Value);
+                yield return (usage.Index, reference, Shown(usage.Groups["words"].Value));
             }
         }
     }
+
+    /// <summary>Reads a link's words as a renderer shows them: without inline marks, and with every escape read as what it stands for.</summary>
+    private static string Shown(string words) =>
+        WebUtility.HtmlDecode(InlineMarkOrEscape().Replace(words, static found => found.Groups["escaped"].Value));
 
     /// <summary>Every address a source's text carries, in the form an answer link's target is compared in.</summary>
     private static IEnumerable<string> AddressesIn(string source) =>
@@ -184,6 +195,10 @@ public static partial class AnswerMarkup
     // A bare address a GitHub-flavoured renderer links on its own, without the punctuation that ends the sentence after it.
     [GeneratedRegex(@"(?<![\w<\[""'/=@])(?<!\]\(\s*)(?:https?://|www\.)[^\s<]*[^\s<?!.,:;*_~'""\])]", RegexOptions.IgnoreCase)]
     private static partial Regex BareAddress();
+
+    // A backslash escape of any ASCII punctuation, which shows the character escaped, or an inline mark, which shows nothing.
+    [GeneratedRegex(@"\\(?<escaped>[!-/:-@\[-`{-~])|[*_~`]")]
+    private static partial Regex InlineMarkOrEscape();
 
     [GeneratedRegex(@"^ {0,3}\[(?<label>[^\[\]\n]+)\]:[ \t]*<?(?<reference>[^\s<>]+)>?", RegexOptions.Multiline)]
     private static partial Regex ReferenceDefinition();

@@ -10,6 +10,18 @@ import { LinkOpenerContext, type OpenLink } from '../../shellOperations/linkOpen
 import { AnswerText } from './AnswerText';
 
 const untracedWarning = 'This address is in none of the messages this answer cites.';
+const linkWarnings = [
+    untracedWarning,
+    'This link does not go where its words say.',
+    'This link is worth checking before you follow it.',
+    'which is written',
+];
+
+function expectNoLinkWarning() {
+    for (const warning of linkWarnings) {
+        expect(screen.queryByText(warning, { exact: false })).toBeNull();
+    }
+}
 
 function judged(target: string, host: string, appearsInCitedSources: boolean, deceives = false): AnswerLink {
     return {
@@ -71,13 +83,13 @@ describe('AnswerText', () => {
     });
 
     it('draws a link the service judged, and a cited message carries, saying where it goes and warning about nothing', () => {
-        const { container } = drawing('Read [the reports](https://northwind.example/reports).', [
+        drawing('Read [the reports](https://northwind.example/reports).', [
             judged('https://northwind.example/reports', 'northwind.example', true),
         ]);
 
         expect(screen.getByRole('link', { name: 'the reports' })).toBeDefined();
         expect(screen.getByText('goes to northwind.example')).toBeDefined();
-        expect(container.querySelector('.text-warning')).toBeNull();
+        expectNoLinkWarning();
     });
 
     it('warns about a link whose words name another host and whose address no cited message carries, each once', () => {
@@ -101,12 +113,10 @@ describe('AnswerText', () => {
     });
 
     it('matches a judged link by where it goes, whatever spelling of the same address the text used', () => {
-        const { container } = drawing('See <https://Northwind.example>.', [
-            judged('https://northwind.example/', 'northwind.example', true),
-        ]);
+        drawing('See <https://Northwind.example>.', [judged('https://northwind.example/', 'northwind.example', true)]);
 
         expect(screen.getByRole('link')).toBeDefined();
-        expect(container.querySelector('.text-warning')).toBeNull();
+        expectNoLinkWarning();
     });
 
     it('opens a link out of the application rather than navigating the answer to it', () => {

@@ -105,11 +105,11 @@ answer is published its picture markup is neutralised — `![` loses its `!`, so
 same address, and an HTML tag opener is escaped so it stays text — and links are kept, because they are often the
 answer. Each link the published text writes is then read with the same `MailLinkReader` a link in a message body is,
 and the block carries the result beside the text: where it goes, its host in the form a person reads and the ASCII form
-where the two differ, whether its own words name another host, and whether its address appears in any source the answer
-cites. A link whose address appears in none was written by the model or by a message it read, and a client warns about
+where the two differ, whether its own words name another host — read as a renderer shows them, so emphasis, code-span
+marks and escapes around a host change nothing — and whether its address appears in any source the answer cites. A link whose address appears in none was written by the model or by a message it read, and a client warns about
 it separately. One rule, `AnswerMarkup`, does this for Discover and for the Agent alike, and `ask_mail` publishes its
-answer through it too; at most thirty-two links are judged per answer, and an answer persisted before links were judged
-reads as one carrying none. The block type's version is `2` because of this member.
+answer through it too; at most thirty-two links are judged per answer, in the order they first appear, and an answer persisted before links were
+judged reads as one carrying none, its text neutralised as it is read, since the block applies the rule itself. The block type's version is `2` because of this member.
 
 **A fact table's columns come from a catalogue** rather than from the producer, and a column carries no heading. A
 heading is words in somebody's language and the client is localized, so a producer that shipped the word "Amount"

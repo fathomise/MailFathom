@@ -30,7 +30,7 @@ internal sealed record AskMailToolResult
     public required string Answer { get; init; }
 
     /// <summary>Gets every link the answer writes, judged.</summary>
-    [Description("Every link the answer writes, one entry per address, with what MailFathom established about each. Relay a warning to a person before they follow a link whose words name another host, whose host has an asciiHost, or which appears in none of the cited emails.")]
+    [Description("The links the answer writes, one entry per address in the order they first appear and at most thirty-two, with what MailFathom established about each. Relay a warning to a person before they follow a link whose words name another host, whose host has an asciiHost, or which appears in none of the cited emails. A link in the answer with no entry here was not judged: treat it as one that appears in no cited email.")]
     public required IReadOnlyList<AnsweredLink> Links { get; init; }
 
     /// <summary>Gets the emails the run drew on.</summary>

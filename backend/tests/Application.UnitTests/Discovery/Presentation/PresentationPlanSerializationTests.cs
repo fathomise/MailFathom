@@ -220,6 +220,7 @@ public sealed class PresentationPlanSerializationTests
         var written = JsonNode.Parse(JsonSerializer.Serialize(PresentationPlanExample.Compose(), Contract))!.AsObject();
         var answer = written["blocks"]!.AsArray()[0]!.AsObject();
         answer["version"] = 1;
+        answer["text"] = "See ![seal](https://stranger.example.test/s.png) and <img src=\"https://stranger.example.test/p.png\">.";
         answer.Remove("links");
 
         // Act
@@ -228,7 +229,23 @@ public sealed class PresentationPlanSerializationTests
         // Assert
         var block = Assert.IsType<AnswerBlock>(read?.Blocks[0]);
         Assert.Equal(PresentationBlockType.Answer.Version, block.Version);
+        Assert.Equal("See [seal](https://stranger.example.test/s.png) and \\<img src=\"https://stranger.example.test/p.png\">.", block.Text.Value);
         Assert.Empty(block.Links);
+    }
+
+    /// <summary>A revision before the earliest a block type still reads is refused, whichever block type claims it.</summary>
+    [Theory]
+    [InlineData(PresentationBlockType.AnswerIdentity)]
+    [InlineData(PresentationBlockType.TimelineIdentity)]
+    public void Deserialization_ABlockClaimingARevisionBeforeTheEarliestItReads_IsRefused(string identity)
+    {
+        // Arrange
+        var written = JsonNode.Parse(JsonSerializer.Serialize(PresentationPlanExample.Compose(), Contract))!.AsObject();
+        var block = written["blocks"]!.AsArray().Select(static node => node!.AsObject()).Single(node => node["type"]!.GetValue<string>() == identity);
+        block["version"] = PresentationBlockType.All.Single(type => type.Identity == identity).EarliestReadableVersion - 1;
+
+        // Act & Assert
+        Assert.Throws<ArgumentException>(() => JsonSerializer.Deserialize<PresentationPlan>(written.ToJsonString(), Contract));
     }
 
     /// <summary>The revision this build does implement is the one it wrote, so reading a plan it produced states it rather than omitting it.</summary>
