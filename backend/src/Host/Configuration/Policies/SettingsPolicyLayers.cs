@@ -45,7 +45,7 @@ internal sealed record SettingsPolicyLayers(SettingsPolicyStatements Deployment,
     /// a force that lifts whenever a replica cannot read it is not a force, so the caller holds the record back
     /// instead of serving it on part of what governs it.
     /// </remarks>
-    // ponytail: each reading judges the policy documents afresh, so a start composing every user under one policy
+    // Each reading judges the policy documents afresh, so a start composing every user under one policy
     // judges it once per user. Memoise by scope and version if a start over many users measures slow.
     internal static SettingsPolicyLayers? Read(
         GoverningSettingsPolicies policies,

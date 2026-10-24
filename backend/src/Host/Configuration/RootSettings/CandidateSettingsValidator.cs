@@ -56,7 +56,7 @@ internal sealed class CandidateSettingsValidator(
 
         // The records a reload of the rule set is judged against, so a write naming a mailbox no record holds is refused
         // here rather than committed as a rule set the reload would then refuse to apply.
-        // ponytail: every served record is read and bound per write; narrow to the accounts the rules name if a
+        // Every served record is read and bound per write; narrow to the accounts the rules name if a
         // deployment with many accounts measures it.
         var declaredAccounts = DeclaredMailAccounts.ReadFrom(await servedAccounts.ReadServedRecordsAsync(cancellationToken));
 

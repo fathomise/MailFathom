@@ -37,7 +37,7 @@ namespace MailFathom.Host.Configuration.Policies;
 /// and a replica that does read the policy would serve whatever it moved.
 /// </para>
 /// </remarks>
-// ponytail: an account whose effective settings a write moves is bound four times, twice for what it refuses and
+// An account whose effective settings a write moves is bound four times, twice for what it refuses and
 // twice for its columns. Read the columns off the first two bindings if a policy write over many accounts measures slow.
 [SuppressMessage(
     "Performance",

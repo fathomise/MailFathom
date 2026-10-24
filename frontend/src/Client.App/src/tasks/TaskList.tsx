@@ -23,7 +23,7 @@ import { Departing } from '../shell/Departing';
 // scrolling rather than a control at the foot. The wait for it is drawn under the rows instead of replacing them,
 // because a reader who has scrolled to the end of what is read has not left what they were reading.
 //
-// ponytail: every row read so far is in the document. The two halves page fifty at a time and the headings are runs
+// Every row read so far is in the document. The two halves page fifty at a time and the headings are runs
 // of one ordered walk, so windowing this means a window over headings and rows of two different heights rather than
 // the one height `messageRows/rowWindow.ts` is arithmetic over. Window it when a list somebody actually holds passes
 // the two hundred rows `frontend/src/AGENTS.md` names — a task list is tens of rows where a mailbox is hundreds of

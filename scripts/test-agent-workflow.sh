@@ -11091,6 +11091,41 @@ no_tracked_text_file_carries_a_nul_byte() {
   (( failures == 0 ))
 }
 
+# Two kinds of string the root `AGENTS.md` keeps out of every tracked file: the shortcut marker a
+# coding-assistant plugin writes in front of a comment, and an address on Claude's own web surfaces,
+# which names a session, an artifact, or a design project nobody reading the repository can open.
+# Each pattern is assembled from two halves so this file never carries the string it refuses, and the
+# root `AGENTS.md` is the one exemption, being where the rule is stated.
+#
+# That statement is also the floor: it carries every pattern, so a pattern that stopped matching fails
+# there instead of reading as a clean tree. `git grep` exits 1 when nothing matched and above 1 when it
+# could not search, and only the first is a pass.
+no_tracked_file_carries_a_forbidden_string() {
+  local patterns=('pony''tail' 'claude''\.ai' 'claude''usercontent\.com')
+  local pattern matches status=0 failures=0 arguments=()
+
+  for pattern in "${patterns[@]}"; do
+    arguments+=(-e "$pattern")
+    if ! grep -qiE "$pattern" "$source_repository_root/AGENTS.md"; then
+      printf 'AGENTS.md no longer states %s, so the sweep cannot show it still matches\n' "$pattern" >&2
+      failures=$(( failures + 1 ))
+    fi
+  done
+
+  matches="$(git -C "$source_repository_root" grep -n -I -i -E "${arguments[@]}" -- ':(top,exclude)AGENTS.md')" ||
+    status=$?
+
+  if (( status == 0 )); then
+    printf '%s\n' "$matches" | sed 's/^/a string AGENTS.md forbids: /' >&2
+    failures=$(( failures + 1 ))
+  elif (( status > 1 )); then
+    printf 'git grep could not sweep the tracked files (exit %s)\n' "$status" >&2
+    failures=$(( failures + 1 ))
+  fi
+
+  (( failures == 0 ))
+}
+
 # A workflow GitHub cannot parse never runs, and what it leaves instead is a failed push-event run
 # with no job on every branch that carries the file — `main` included — which attaches no check to a
 # pull request and so reaches no review and no gate. Every assertion above reads a workflow as text
@@ -12257,6 +12292,7 @@ run_test the_design_capture_refuses_a_design_with_no_runtime
 run_test the_comparison_reports_where_a_pair_differs_before_any_image_is_opened
 run_test every_skill_declares_its_license
 run_test no_tracked_text_file_carries_a_nul_byte
+run_test no_tracked_file_carries_a_forbidden_string
 run_test every_workflow_parses_as_yaml
 run_test no_two_tracked_paths_differ_only_by_case
 run_test the_client_corpus_states_what_the_contract_records

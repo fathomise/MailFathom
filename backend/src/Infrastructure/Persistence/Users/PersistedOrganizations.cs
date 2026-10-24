@@ -129,7 +129,7 @@ internal sealed class PersistedOrganizations(
     {
         ArgumentNullException.ThrowIfNull(within);
 
-        // ponytail: still reads every covered organization's short name over the wire; a SQL predicate mirroring
+        // Still reads every covered organization's short name over the wire; a SQL predicate mirroring
         // OrganizationShortName's accepted form is the upgrade if this scan is measured slow.
         var stored = ListingScope.Covering(dbContext.Organizations.AsNoTracking(), within)
             .OrderBy(organization => organization.Id)

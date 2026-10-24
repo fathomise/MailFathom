@@ -18,7 +18,7 @@ namespace MailFathom.Host.Hosting.Workers;
 /// once per message.
 /// </para>
 /// <para>
-/// ponytail: one scope per distinct account for the life of the run, which a run bounds by the messages it reads;
+/// One scope per distinct account for the life of the run, which a run bounds by the messages it reads;
 /// evict the least recently used scope if a run ever walks enough accounts for that to show in memory.
 /// </para>
 /// </remarks>

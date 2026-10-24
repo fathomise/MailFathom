@@ -21,7 +21,7 @@ import type { MessageMarkedRead } from '../readMarking/useReadMarking';
 // requests on one press. It reads at most {@link mostPagesMarkedRead} pages and reports having stopped short, which is
 // a sentence somebody can act on by asking again.
 //
-// ponytail: composed client-side out of two routes. A route on `/api/client` that marks a whole folder read is the
+// Composed client-side out of two routes. A route on `/api/client` that marks a whole folder read is the
 // upgrade, and the moment to take it is when the ceiling below is one somebody actually reaches.
 
 /** How many pages of unread mail one press reads, which is what bounds the whole act. */

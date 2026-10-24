@@ -70,7 +70,7 @@ p, li, h1, h2, h3, h4 { text-wrap: pretty; }
 /* An artboard's control is usually a `div` whose `style-hover` the runtime turns into a generated `scp…` class, and
    that class is the only mark it carries. It takes the colour transition; the press below stays with what declares
    itself a button, because a list row shrinking under a finger that is about to swipe it reads as a fault.
-   ponytail: matched by the runtime's class prefix, so a regenerated runtime that names it differently loses the
+   Matched by the runtime's class prefix, so a regenerated runtime that names it differently loses the
    transition on those controls and nothing else. Give them a role when that happens. */
 :where(button, [role="button"], [role="tab"], [role="menuitem"], [class^="scp"], [class*=" scp"]) {
   transition: scale 140ms cubic-bezier(0.16, 1, 0.3, 1), background-color 160ms ease, color 160ms ease;

@@ -324,7 +324,7 @@ export function MailboxActsProvider({
     // answer the same route and neither is derived from the other, so a shared read would be one more thing to own than
     // either surface needs today.
     //
-    // ponytail: a second reader of `/folders`. One read the whole client shares is the upgrade, and the moment to take
+    // A second reader of `/folders`. One read the whole client shares is the upgrade, and the moment to take
     // it is when a third surface needs the tree.
     //
     // A read that does not answer is said rather than dropped, and it is said once with the way out on it: without the

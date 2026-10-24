@@ -470,7 +470,7 @@ public sealed class MirroredMailFolderEditor
     /// still missing. One that loses twice is left to the account's next run, and the act reports the conflict rather
     /// than a folder it cannot name.
     /// </remarks>
-    // ponytail: a created folder's row starts at the top of the hierarchy and takes its place beneath its parent on the
+    // A created folder's row starts at the top of the hierarchy and takes its place beneath its parent on the
     // account's next run, which binds it; project it from the created path here if that wait shows on screen.
     private async Task DeclareFolderRowsAsync(MailAccountId account, IReadOnlyList<MailFolderMapping> declared)
     {

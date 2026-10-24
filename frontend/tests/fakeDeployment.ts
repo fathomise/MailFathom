@@ -1647,7 +1647,7 @@ export class FakeDeployment {
      */
     private folderPage(asked: URLSearchParams) {
         const folder = asked.get('folder');
-        // ponytail: the date and mark filters are not applied; every corpus row shares one instant and most carry no
+        // The date and mark filters are not applied; every corpus row shares one instant and most carry no
         // mark, so honour them here when a journey filters on either.
         const matches = (row: FolderRow | null): row is FolderRow =>
             row !== null &&

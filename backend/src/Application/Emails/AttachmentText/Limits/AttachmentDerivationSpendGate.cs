@@ -77,7 +77,7 @@ public sealed class AttachmentDerivationSpendGate
     /// per-user period rather than a fresh one. Admitting it instead would read attachments no caller can reach — every
     /// caller-facing scope narrows to the accounts somebody is assigned — under no per-user ceiling at all.
     /// <para>
-    /// ponytail: one indexed read per assigned user, beside a parse and a provider call that cost orders of magnitude
+    /// One indexed read per assigned user, beside a parse and a provider call that cost orders of magnitude
     /// more. A grouped read is worth writing only if a deployment assigns a mailbox widely enough for it to show.
     /// </para>
     /// </remarks>

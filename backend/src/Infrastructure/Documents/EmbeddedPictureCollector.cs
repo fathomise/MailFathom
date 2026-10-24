@@ -24,7 +24,7 @@ internal sealed class EmbeddedPictureCollector(int maxPictures)
 {
     /// <summary>The shorter side, in pixels, below which a picture is taken for a logo or an icon rather than a page.</summary>
     /// <remarks>
-    /// ponytail: a fixed floor. A narrow screenshot of one line of text falls under it and is not read; make it a
+    /// A fixed floor. A narrow screenshot of one line of text falls under it and is not read; make it a
     /// setting if such pictures turn out to matter.
     /// </remarks>
     internal const int SmallestPictureSide = 200;

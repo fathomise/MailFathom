@@ -72,7 +72,7 @@ public sealed class MailEnrichmentPass
     /// setting because it bounds this pass's latency rather than describing a deployment — what a deployment declares
     /// about the spend is the answering period's own ceilings, which every derivation is admitted against.
     /// </remarks>
-    // ponytail: one fixed bound for live mail and backfill alike, sharing the answering ceilings with questions; #2550 decides the budgets that replace it.
+    // One fixed bound for live mail and backfill alike, sharing the answering ceilings with questions; #2550 decides the budgets that replace it.
     public const int MaximumEmailsPerPass = 64;
 
     /// <summary>How many of a message's leading passages one derivation reads.</summary>

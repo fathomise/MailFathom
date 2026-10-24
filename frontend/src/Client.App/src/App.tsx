@@ -770,7 +770,7 @@ export function App({
     // What was being written when the deployment ended a sign-in, kept for whoever signs in next only where that is the
     // person who wrote it. Anybody else — or anybody at all once the tab was reloaded, which is where the record of who
     // that was goes — arrives to nothing of it, the composer included.
-    // ponytail: who wrote it is held in memory, so a reload on the sign-in screen gives the words up; keep it beside the
+    // Who wrote it is held in memory, so a reload on the sign-in screen gives the words up; keep it beside the
     // composition in the tab's store if losing them there turns out to matter.
     function offerWhatWasWrittenTo(arriving: string): void {
         if (endedFor.current !== arriving) {

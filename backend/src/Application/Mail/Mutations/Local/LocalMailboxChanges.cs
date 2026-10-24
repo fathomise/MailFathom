@@ -229,7 +229,7 @@ public sealed class LocalMailboxChanges
 
         if (request.Mutation == MailboxMutation.AddKeywords)
         {
-            // ponytail: past MaximumKeywords the set gives up its ordinally greatest value, which on a held account is
+            // Past MaximumKeywords the set gives up its ordinally greatest value, which on a held account is
             // the only copy of it; refuse an add that would pass the bound once the four requesters share an outcome for it.
             return RemoteEmailKeywords.Create(carried.Values.Concat(named));
         }

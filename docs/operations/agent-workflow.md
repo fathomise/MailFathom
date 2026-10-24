@@ -548,6 +548,15 @@ on every branch carrying the file, `main` included, and that run attaches no che
 to a pull request, so no review and no gate sees it. A plain scalar holding `: `
 reached `main` that way.
 
+A tenth sweeps every tracked text file for the two kinds of string the root
+`AGENTS.md` forbids: the shortcut marker a coding-assistant plugin writes in
+front of a comment, and an address on Claude's own web surfaces, which names a
+session, an artifact, or a design project nobody reading the repository can
+open. The root `AGENTS.md` is exempt because it states the rule, and it is also
+the case's floor: it carries every pattern, so a pattern that stopped matching
+fails there rather than reading as a clean tree. Each match is reported with its
+file and line.
+
 The suite runs in two places and the second one is not a convenience. The
 `Workflow contracts` job of `repository-contracts.yml` runs it on every pull
 request, including a draft, on every push to `main` after a merge, and on the
@@ -568,11 +577,11 @@ That is also what decides when the full gate runs it. All but one invariant the
 suite asserts is carried by a file no C# change can move: a licensing header
 outside `.cs`, a `describes:` marker, a table-of-contents entry, a link. So a
 branch that only added or edited C# files has almost nothing here to break, and
-the gate skips the suite for it. The exception is the NUL-byte sweep above, which
-reads every tracked text file rather than a list of extensions and so reads `.cs`
-too: a C#-only branch that plants one is answered by `CI` rather than by the
-local gate, which is the one verdict this skip defers instead of having nothing
-to ask for. A path the branch removed or moved runs it whatever the path was,
+the gate skips the suite for it. The exceptions are the NUL-byte sweep and the
+forbidden-string sweep above, which read every tracked text file rather than a
+list of extensions and so read `.cs` too: a C#-only branch that plants either is
+answered by `CI` rather than by the local gate, which are the two verdicts this
+skip defers instead of having nothing to ask for. A path the branch removed or moved runs it whatever the path was,
 because a marker and an entry name a path and the files that remain say nothing
 about one that left. So does a change list the script cannot determine, which is
 a repository state to fix rather than a verdict to guess at. `CI` is

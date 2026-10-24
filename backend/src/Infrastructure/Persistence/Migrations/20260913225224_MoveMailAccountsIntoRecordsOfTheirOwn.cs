@@ -76,7 +76,7 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
             // per-account erasure's own set: the tables no cascade from mailbox_accounts reaches, then mailbox_accounts
             // itself. A refresh token is sealed with the old identifier as associated data, so it cannot be carried and
             // an OAuth mailbox is consented again. A schedule for a rule names the account inside its key.
-            // ponytail: payloads already moved to object storage are not released here; a content move reclaims them.
+            // Payloads already moved to object storage are not released here; a content move reclaims them.
             migrationBuilder.Sql(
                 """
                 DELETE FROM mail_answering_audit_entries;

@@ -299,7 +299,7 @@ public sealed class LocalMailFolderEditor
 
         var erasure = EraseLocalMailFolderMailJobPayload.For(account, folder.Id);
 
-        // ponytail: queued after the commit, because the job store joins no transaction. A process ending between the two,
+        // Queued after the commit, because the job store joins no transaction. A process ending between the two,
         // or a queue already full, leaves the erased folders' mail stored and hidden until the account's next erasure
         // queues a pass, which erases every erased folder's mail rather than only its own; a full queue is reported to the
         // caller, and a sweep over accounts holding such mail is the upgrade once erasure has a schedule of its own.
