@@ -2976,9 +2976,10 @@ user. A dismissed send is out of every outbox a person reads, so offering it aga
 **Every decision here is `mailfathom.mail.send`.** Withdrawing, offering again, and dismissing a send are part of
 sending rather than powers beside it, so a credential granted to read a mailbox decides nothing here.
 
-**An open client is told when an account's outbox moves.** A send written down, one that left, one refused, and one
-withdrawn, offered again, or dismissed each raise `outbox.changed` on [the signal channel](#the-signal-channel), naming
-the account and nothing of the send, and the client reads the page again.
+**An open client is told when an account's outbox moves.** A send written down, every step a delivery attempt commits
+— transmission begun, the send delivered, refused, or left to try again — and a send withdrawn, offered again, or
+dismissed each raise `outbox.changed` on [the signal channel](#the-signal-channel), naming the account and nothing of
+the send, and the client reads the page again.
 
 ### The contact routes
 
@@ -4039,7 +4040,7 @@ record's already-derived text and reach a client entitled to read that record ov
 | `mail.changed` | Stored mail in one folder, or in every folder of one account, is no longer what a client last read, naming up to 100 of the rows |
 | `mail.flags.changed` | Nothing moved but the `\Seen` or `\Flagged` flag of up to 100 rows, and where each of those flags now stands |
 | `folders.changed` | The set of folders an account mirrors, or a held account's local folders, has moved |
-| `outbox.changed` | A send in an account's [outbox](#the-outbox-routes) was written down, left, was refused, or was withdrawn, offered again, or dismissed, naming the account and nothing of the send |
+| `outbox.changed` | A send in an account's [outbox](#the-outbox-routes) was written down, moved through a delivery attempt, or was withdrawn, offered again, or dismissed, naming the account and nothing of the send |
 | `notification.raised` | A notification was written, with its kind, its two lines, and how many now stand unread |
 | `account.state` | An account's synchronization run finished, so what a client says about it is out of date |
 | `run.advanced` | A [Discover run](../features/discovery-run.md#a-run-is-watched-rather-than-waited-for) or an [Agent conversation](#the-agent-conversation-routes) had something written, naming the run, the conversation where it is one, and the place reached — and no part of what was written |
