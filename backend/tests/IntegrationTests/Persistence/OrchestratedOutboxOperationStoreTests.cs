@@ -281,7 +281,9 @@ public sealed class OrchestratedOutboxOperationStoreTests(MailFathomOrchestratio
 
     /// <summary>
     /// An account's outbox, walked one send a page: it serves every send at an outbox stage exactly once and none that
-    /// was dismissed, names each send's recipient, and counts what it serves — refused apart from the rest.
+    /// was dismissed, delivered, or withdrawn, names each send's recipient, and counts what it serves — refused apart
+    /// from the rest. The delivered and the withdrawn send are this test's own, so the stage filter is held to rows it
+    /// arranged rather than to whatever another class left behind.
     /// </summary>
     [Fact]
     public async Task ReadAccountOutboxAsync_WalkedOneSendAPage_ServesWhatTheOutboxHoldsOnceAndCountsIt()
@@ -294,8 +296,12 @@ public sealed class OrchestratedOutboxOperationStoreTests(MailFathomOrchestratio
         var second = await EnqueueAsync(services, "outbox-operations-account-second", cancellationToken);
         var refusedKept = await EnqueueAsync(services, "outbox-operations-account-refused", cancellationToken);
         var refusedDismissed = await EnqueueAsync(services, "outbox-operations-account-dismissed", cancellationToken);
+        var delivered = await EnqueueAsync(services, "outbox-operations-account-delivered", cancellationToken);
+        var withdrawn = await EnqueueAsync(services, "outbox-operations-account-withdrawn", cancellationToken);
+        Assert.Equal(OutboxDecisionOutcome.Accepted, await CancelAsync(services, withdrawn.Id, cancellationToken));
 
         var leases = await ClaimLeasesAsync(services, ExpiredLease, cancellationToken);
+        await AdvanceAsync(services, leases[delivered.Id], delivered.Id, OutgoingEmailStage.Sent, 250, cancellationToken);
         await AdvanceAsync(services, leases[refusedKept.Id], refusedKept.Id, OutgoingEmailStage.Refused, 550, cancellationToken);
         await AdvanceAsync(
             services,
@@ -337,6 +343,8 @@ public sealed class OrchestratedOutboxOperationStoreTests(MailFathomOrchestratio
         Assert.Contains(second.Id, walkedIds);
         Assert.Contains(refusedKept.Id, walkedIds);
         Assert.DoesNotContain(refusedDismissed.Id, walkedIds);
+        Assert.DoesNotContain(delivered.Id, walkedIds);
+        Assert.DoesNotContain(withdrawn.Id, walkedIds);
         Assert.All(walked, entry => Assert.Contains(entry.Stage, OutgoingEmailRecord.OutboxStages));
 
         var firstEntry = Assert.Single(walked, entry => entry.OutgoingEmailId == first.Id);

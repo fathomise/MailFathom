@@ -26,8 +26,9 @@ namespace MailFathom.Domain.Delivery;
 /// <para>
 /// It is derived personal data of a kind mail metadata is not: an outgoing record says who this mailbox's user wrote
 /// to and when. It inherits the retention, deletion, and export obligations of the mail beside it, and the MIME it
-/// points at is erased with it. Nothing here is mail content — the addresses, the account, the requester, and the
-/// reply codes are the envelope and this system's own names for things, and the message itself stays in the content
+/// points at is erased with it. One field is mail content: the subject, kept beside the record so the outbox page can
+/// name each send, and classified as the correspondence it is. The addresses, the account, the requester, and the reply
+/// codes are the envelope and this system's own names for things, and the rest of the message stays in the content
 /// store.
 /// </para>
 /// </remarks>
