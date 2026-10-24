@@ -98,6 +98,10 @@ internal static class ReplyDraftInstructions
 
     private const string ChosenAttributeValue = "true";
 
+    private const string LanguageStatement =
+        "\nWrite the reply in the language the conversation is written in, whatever language the ask and the samples "
+        + "are in, unless the ask names a language for it.\n";
+
     /// <summary>The instruction for each language this deployment writes in, composed once per language.</summary>
     /// <remarks>Composed from the members rather than written out twice, so the set is the enumeration's and a language added to it arrives here without this file being edited.</remarks>
     private static readonly FrozenDictionary<UserLanguage, string> TextByLanguage = Enum
@@ -211,7 +215,12 @@ internal static class ReplyDraftInstructions
     {
         ArgumentNullException.ThrowIfNull(turn);
 
-        using var document = new AgentTurnDocument(maximumCharacters);
+        // The closing sentence is the service's own and never cut, so the room it takes is kept out of what the
+        // document may spend on quoted text.
+        var closing = turn.Messages.Count > 0 ? LanguageStatement : string.Empty;
+        using var document = new AgentTurnDocument(maximumCharacters is int.MaxValue
+            ? int.MaxValue
+            : Math.Max(0, maximumCharacters - closing.Length));
 
         // A turn carrying no correspondence writes no conversation element at all. An empty one would be read as an
         // exchange whose text could not be fetched, which is a different case with a different right answer, and this
@@ -239,12 +248,7 @@ internal static class ReplyDraftInstructions
         // Said last because the person's ask and their own samples come after the conversation and may be in another
         // language, and a model weighs what it read most recently: a Polish ask about an English exchange was drafted in
         // Polish until the turn itself closed on which language the reply is in.
-        if (turn.Messages.Count > 0)
-        {
-            document.WriteStatement(
-                "\nWrite the reply in the language the conversation is written in, whatever language the ask and the "
-                + "samples are in, unless the ask names a language for it.\n");
-        }
+        document.WriteStatement(closing);
 
         return document.Complete();
     }
