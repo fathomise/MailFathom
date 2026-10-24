@@ -67,17 +67,19 @@ public readonly record struct PresentationBlockType
 
     private readonly string? identity;
 
-    private PresentationBlockType(string identity, int version, bool actionable = false)
+    private PresentationBlockType(string identity, int version, bool actionable = false, int? earliestReadableVersion = null)
     {
         this.identity = identity;
         this.Version = version;
+        this.EarliestReadableVersion = earliestReadableVersion ?? version;
         this.Actionable = actionable;
     }
 
     #region Reading — the blocks that present what the correspondence says
 
     /// <summary>Gets the type of the block presenting one synthesized answer.</summary>
-    public static PresentationBlockType Answer { get; } = new(AnswerIdentity, version: 2);
+    /// <remarks>Revision 2 added the links the text writes, which a block may go without, so a block stored at revision 1 still reads.</remarks>
+    public static PresentationBlockType Answer { get; } = new(AnswerIdentity, version: 2, earliestReadableVersion: 1);
 
     /// <summary>Gets the type of the block presenting the messages an answer rests on.</summary>
     public static PresentationBlockType EvidenceList { get; } = new(EvidenceListIdentity, version: 1);
@@ -143,6 +145,15 @@ public readonly record struct PresentationBlockType
 
     /// <summary>Gets the revision of this block type's own contract, which every block of the type carries.</summary>
     public int Version { get; }
+
+    /// <summary>Gets the earliest revision of this block type a stored block may claim and still be read as this one.</summary>
+    /// <remarks>
+    /// A run's blocks and an Agent conversation's entries are stored as the JSON they were written as, so a revision
+    /// that refused every earlier one would leave each stored run and conversation unreadable after an upgrade. A
+    /// revision that only adds members a block may go without reads its predecessors and says so here; one that changes
+    /// what a member means leaves this at its own revision, and its predecessors are refused.
+    /// </remarks>
+    public int EarliestReadableVersion { get; }
 
     /// <summary>Gets whether a block of this type offers the reader something to do rather than only something to read.</summary>
     /// <remarks>

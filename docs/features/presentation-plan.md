@@ -32,7 +32,12 @@ when that block's own shape does, and for no other reason. A release that change
 
 A block's version is written from the catalogue rather than supplied by whatever composed the plan, so nothing can
 stamp a revision it did not write, and it is checked again on the way in: reading a plan whose block claims a revision
-this build does not implement is refused rather than read as though it were the revision this build knows. Degrading
+this build does not implement is refused rather than read as though it were the revision this build knows. An earlier
+revision is read where the catalogue says it still can be — a revision that only adds a member a block may go without
+reads its predecessors, because a run's blocks and an Agent conversation's entries are stored as the JSON they were
+written as, and refusing them would leave every stored run unreadable after an upgrade. An `answer` block stored at
+revision `1` therefore reads as a revision-`2` block carrying no links; a revision that changed what a member means
+would refuse its predecessors instead. Degrading
 such a block instead of refusing the plan is a decision for a reader that has chosen to make it, and a reader making it
 takes the number out of the JSON rather than binding it to a catalogue of its own.
 
