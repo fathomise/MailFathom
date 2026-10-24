@@ -12,7 +12,7 @@ public sealed class MailFolderRoleNamingTests
 {
     /// <summary>The set is narrower than the roles themselves, and each absence is a rule rather than an oversight.</summary>
     [Fact]
-    public void Creatable_TheRolesAFolderMayBeMadeFor_LeavesOutTheInboxTheViewsAndTheOutbox()
+    public void Creatable_TheRolesAFolderMayBeMadeFor_LeavesOutTheInboxAndTheViews()
     {
         // Assert
         Assert.Equal(

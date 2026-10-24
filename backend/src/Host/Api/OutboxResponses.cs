@@ -16,6 +16,10 @@ internal sealed record OutboxCancellationRequest(Guid? OutgoingEmail);
 /// <param name="RefusalRestated">Whether the caller has restated a permanent refusal, which is what a refused send needs before it is offered again.</param>
 internal sealed record OutboxRequeueRequest(Guid? OutgoingEmail, bool RefusalRestated);
 
+/// <summary>What a deployment is asked when one send is to be taken out of its account's outbox.</summary>
+/// <param name="OutgoingEmail">The identifier the outbox reading reports for the send.</param>
+internal sealed record OutboxDismissalRequest(Guid? OutgoingEmail);
+
 /// <summary>How much stands at each stage of an outbox.</summary>
 /// <param name="Stages">One count per declared stage, in the order the stages are declared.</param>
 /// <param name="OutstandingCount">How many sends nothing has finished with, which is the depth an operator means.</param>

@@ -101,6 +101,7 @@ internal sealed class OutgoingEmailStore(MailFathomDbContext readContext, TimePr
             AvailableAt = request.DueAt?.Instant ?? recordedAt,
             DueAt = request.DueAt?.Instant,
             DueZoneId = request.DueAt?.ZoneId,
+            Subject = request.Subject,
         };
 
         // Added through the navigation rather than through their own set, so the recipients are inserted with the

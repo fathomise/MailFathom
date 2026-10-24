@@ -713,9 +713,9 @@ exactly the stage [a withdrawal](#what-an-operator-sees-while-mail-is-leaving) a
 asked for by whoever wrote the message rather than by an operator: it asks for the grant that lets a caller send —
 stopping somebody's message is a decision about their correspondents exactly as sending one is — and then reaches the
 one conditional statement that writes the transition, so neither caller can withdraw a message the other could not, and
-a record an attempt holds a live lease on is refused to both. During the hold the message is also visible as a copy in
-[the mapped outbox folder](#the-copy-in-the-accounts-own-folders), and deleting that copy in a mail client cancels
-nothing — the record is the truth about what will be sent.
+a record an attempt holds a live lease on is refused to both. During the hold the message stands in
+[its account's outbox](../operations/client-endpoint.md#the-outbox-routes), which is read from the record itself, so
+what a client shows waiting is exactly what will be sent.
 
 Today the due time is a property of the application-level submission rather than an argument on an MCP tool:
 [`send_email`](mcp-tools.md#send_email) names no time, so every message a tool call submits is due at once.
@@ -958,18 +958,16 @@ answering about nothing and is dropped.
 
 SMTP files nothing. A message a submission server accepted leaves no trace in the mailbox it was sent from, so a
 deployment that only submits sends mail its user's mail client shows they never sent. **Filing** is the answer: one
-mechanism appends a copy of an outgoing message to the folder playing the role the message's own state calls for, and
-takes it back out when that state changes.
+mechanism appends a copy of an outgoing message to the folder playing the role the message's own state calls for.
 
-A message's own state is what decides both halves of that, and an outgoing message has two states worth a copy:
+A message's own state is what decides that, and an outgoing message has one state worth a copy:
 
 | The message is | The copy goes to the folder playing | And carries |
 | --- | --- | --- |
-| waiting for an instant still ahead | the **outbox** role | `\Draft`, and is withdrawn when it leaves |
 | accepted by a submission server | the **sent** role | `\Seen` |
 
-The flags travel with the role rather than being chosen by a caller, so a draft cannot be filed as read and a sent copy
-cannot arrive as unread mail somebody has to open. The copy's internal date is the instant the injected clock reports,
+The flags travel with the role rather than being chosen by a caller, so a sent copy cannot arrive as unread mail
+somebody has to open. The copy's internal date is the instant the injected clock reports,
 which is the same clock everything else in this system is stamped from.
 
 **The outgoing record stays the truth about what will be sent.** A copy in a folder is a view of it: deleting the copy
@@ -977,13 +975,13 @@ in a mail client cancels nothing, cancelling is [a command of its own](#holding-
 and nothing reads a folder to decide what to send. That is what makes the copy safe to write and safe to leave out — a
 deployment that appends nothing loses visibility and loses no mail.
 
-**No server has an outbox, so nothing looks for one.** RFC 6154 defines the special-use attributes a server may
-advertise and there is no `\Outbox` among them, because the outbox a mail client shows is that client's own local queue
-of what it has not managed to send. MailFathom's outbox is the durable record above. So the outbox role is MailFathom's
-own: it is never read off a server, a provider folder merely *named* like one plays no role — nothing here reads a
-folder's name — and a folder plays it only where an operator mapped a path to it by hand. A mapping naming the role
-with no path is refused at startup, naming the alias and the key it wants, because discovery has nothing to look for.
-Nothing is mirrored until somebody writes that mapping.
+**A message waiting to leave is filed nowhere.** RFC 6154 defines the special-use attributes a server may advertise
+and there is no `\Outbox` among them, because the outbox a mail client shows is that client's own local queue of what
+it has not managed to send. MailFathom's outbox is the durable record above, and each account's is served as
+[a read-only list beside its folders](../operations/client-endpoint.md#the-outbox-routes) rather than as a folder on
+the server: what has not left, and what was refused and nobody dismissed. No folder plays that role, a mapping naming
+`SpecialUse: Outbox` is refused at startup, and a provider folder merely *named* like an outbox is an ordinary folder —
+nothing here reads a folder's name.
 
 **The sent copy is appended after a delivery the server acknowledged, and only then.** Whether it is appended at all is
 `Delivery:FileSentCopy`, a per-account setting that defaults to on. Whether it is appended is never decided by looking
@@ -1056,13 +1054,12 @@ what changes it, including
 [creating the folder](imap-synchronization.md#a-folder-the-mapping-asked-for-is-created) where the mapping asked for
 that — and the message is untouched either way.
 
-The withdrawal of an outbox mirror reaches that copy and nothing else: `\Deleted` followed by `UID EXPUNGE` against the
-UID the append reported. A server without `UIDPLUS` leaves the copy standing rather than expunging the folder, and so
-does a copy the server never named — one copy of the user's own message in a folder they mapped, deletable with the
-gesture they would have used anyway. A mirror whose append the server never answered is left alone entirely: nobody
-knows whether that copy reached the folder, so the record goes on reporting the outcome as unknown rather than claiming
-the copy was taken back out. A sent copy is withdrawn by one thing only, which is the provider having filed its own
-beside it; nothing else takes it back out, because it is what the user keeps.
+A sent copy is withdrawn by one thing only, which is the provider having filed its own beside it; nothing else takes
+it back out, because it is what the user keeps. The withdrawal reaches that copy and nothing else: `\Deleted` followed by
+`UID EXPUNGE` against the UID the append reported. A server without `UIDPLUS` leaves the copy standing rather than
+expunging the folder, and so does a copy the server never named. A copy whose append the server never answered is left
+alone entirely: nobody knows whether it reached the folder, so the record goes on reporting the outcome as unknown
+rather than claiming the copy was taken back out.
 
 **An account whose mailbox MailFathom holds alone is filed locally, and nothing above reaches its server.** Its source
 is drained, so a copy appended there would be drained straight back, and filing would wait on IMAP for a message that
@@ -1071,9 +1068,8 @@ account's local sent folder, in the same transaction that records the delivery �
 state the account can be in, and a delivery recorded once files once. The message is placed from the stored bytes and
 searched, threaded, and listed like any other; it is bound to the source folder mapped to the sent role, and an account
 that maps none, or whose binding of it is gone by the time the delivery commits, records the delivery and files
-nothing, with the reason on the filing. Such an account has no outbox
-mirror either, because its outgoing record is its outbox, and it withdraws nothing: a mirror or a sent copy appended
-while the account was still mirrored stays in the source until the drain removes it.
+nothing, with the reason on the filing. It withdraws nothing: a sent copy appended while the account was still
+mirrored stays in the source until the drain removes it.
 
 **A copy the provider files on its own is recognised rather than stored a second time.** When synchronization meets a
 message in the held account's sent folder carrying the `Message-ID` this deployment minted for a send, and a local sent
@@ -1319,7 +1315,7 @@ is presented.
 
 Filing is split the same way again. The unit suite carries what a scripted session settles: an account that files no
 sent copy appending nothing at all, a delivered message appended from the stored bytes with `\Seen` at the clock's
-instant, a mirrored message appended with `\Draft` and never with `\Seen`, an append the server never answered not
+instant, an append the server never answered not
 being appended a second time however often the pass runs, and a failed append after a successful delivery leaving the
 record at `Sent` with a filing failure beside it and its attempt count unmoved. The adapter's own half is asserted as
 the commands it issues — the flags, the internal date, the `APPENDUID` read back, and a withdrawal that names one UID

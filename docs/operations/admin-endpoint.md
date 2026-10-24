@@ -1334,7 +1334,9 @@ Re-queueing is an explicit act on one named send and never a set — a route tha
 would be a way to send an unknown number of duplicates with one request. It gives the attempts back, so the next
 delivery pass offers the message to the addresses still outstanding and to no others. A permanently refused send needs
 the refusal restated in the body (`mfctl outbox requeue --message <id> --despite-refusal`), because the record says a
-server will not take the message and offering it again is a decision to disbelieve that rather than a retry.
+server will not take the message and offering it again is a decision to disbelieve that rather than a retry. A send
+its user dismissed from their account's [outbox](client-endpoint.md#the-outbox-routes) is offered again here and
+nowhere else, and offering it again clears the dismissal, so it is back in that outbox until it leaves.
 
 ### Erasing a folder you have stopped mirroring
 

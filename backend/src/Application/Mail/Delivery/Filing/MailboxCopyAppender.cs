@@ -16,10 +16,10 @@ namespace MailFathom.Application.Mail.Delivery.Filing;
 /// <summary>Puts one copy of a message MailFathom composed into a folder of the account it belongs to.</summary>
 /// <remarks>
 /// <para>
-/// Every copy this system files goes through here, whatever kind of message it is a copy of. A sent copy, a mirror of
-/// a message still waiting to go out, and a revision of a draft differ in the role their folder plays, the flags the
-/// copy carries, and the durable record each is written onto — and in nothing else, so the append itself is one call
-/// and a fourth kind of copy inherits it rather than restating it.
+/// Every copy this system files goes through here, whatever kind of message it is a copy of. A sent copy and a revision
+/// of a draft differ in the role their folder plays, the flags the copy carries, and the durable record each is written
+/// onto — and in nothing else, so the append itself is one call and a third kind of copy inherits it rather than
+/// restating it.
 /// </para>
 /// <para>
 /// <b>The order of the two writes is the whole of the safety here.</b> An <c>APPEND</c> issued twice is a second

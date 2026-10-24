@@ -128,6 +128,16 @@ internal sealed class OutgoingEmailEntity
     /// </remarks>
     public int? LastFilingFailureCode { get; set; }
 
+    /// <summary>Gets or sets the subject the message was composed with, or <see langword="null" /> for a row an earlier build wrote.</summary>
+    public string? Subject { get; set; }
+
+    /// <summary>Gets or sets when somebody took the send out of its account's outbox, or <see langword="null" /> while nobody has.</summary>
+    public DateTimeOffset? DismissedAt { get; set; }
+
+    /// <summary>Gets or sets the user who took it out, present exactly when <see cref="DismissedAt" /> is.</summary>
+    /// <remarks>A reference rather than a key, for the reason <see cref="UserId" /> is: erasing the user does not erase the mailbox's send.</remarks>
+    public Guid? DismissedByUserId { get; set; }
+
     /// <summary>Gets or sets the stored MIME this record points at, loaded only where a caller asked for it.</summary>
     /// <remarks>
     /// The navigation exists so the payload is erased with the record it belongs to. Nothing that lists or advances a

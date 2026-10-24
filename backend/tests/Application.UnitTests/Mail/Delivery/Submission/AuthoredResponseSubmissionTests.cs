@@ -707,7 +707,8 @@ public sealed class AuthoredResponseSubmissionTests
             granted,
             OutgoingMailGovernors.Permitting(),
             OutgoingMailScreenings.Inactive(),
-            new FakeTimeProvider(Recorded));
+            new FakeTimeProvider(Recorded),
+            ClientSignalPublishers.ReachingNobody);
     }
 
     private static AuthoredEmail ComposedMessage(IAuthoredEmailComposer composer) => (AuthoredEmail)composer

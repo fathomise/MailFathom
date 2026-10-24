@@ -16,12 +16,12 @@ using Xunit;
 
 namespace MailFathom.Host.UnitTests.Signals;
 
-/// <summary>Covers what each of the seven kinds puts on the wire, and proves that no mail travels with any of them.</summary>
+/// <summary>Covers what each of the eight kinds puts on the wire, and proves that no mail travels with any of them.</summary>
 /// <remarks>
 /// <para>
 /// One test per kind, and each asserts the payload as a whole rather than field by field, because the claim is about
 /// what does <em>not</em> cross as much as about what does: a member added later that carried a subject, an address, a
-/// body fragment, or an attachment name would leave all seven failing rather than passing beside it.
+/// body fragment, or an attachment name would leave all eight failing rather than passing beside it.
 /// </para>
 /// <para>
 /// Each arrangement then hands the composition the mail-shaped text a raise site has in hand where the kind has
@@ -140,6 +140,23 @@ public sealed class ClientSignalPayloadTests
         // Assert
         AssertPayloadIs(
             new ClientSignalPayload("folders.changed", "work", null, 0, [], [], null, null, null, null, null, 0),
+            payload);
+        AssertNothingAboutMailOrTheUserCrossed(payload);
+    }
+
+    /// <summary>A moved outbox names the account and nothing of the send, so the client re-reads the outbox it already reads.</summary>
+    [Fact]
+    public void For_OutboxChanged_RendersTheAccountAndNothingElse()
+    {
+        // Arrange
+        var signal = ClientSignal.OutboxChanged(Account);
+
+        // Act
+        var payload = ClientSignalPayload.For(signal);
+
+        // Assert
+        AssertPayloadIs(
+            new ClientSignalPayload("outbox.changed", "work", null, 0, [], [], null, null, null, null, null, 0),
             payload);
         AssertNothingAboutMailOrTheUserCrossed(payload);
     }

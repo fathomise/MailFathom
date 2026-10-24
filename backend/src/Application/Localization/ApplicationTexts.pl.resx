@@ -44,4 +44,28 @@ Project repository: https://github.com/fathomise/MailFathom
   <data name="DiscoveryMailDoesNotAnswer" xml:space="preserve">
     <value>Poczta przeczytana w tym wyszukiwaniu nie odpowiada na to pytanie.</value>
   </data>
+  <data name="OutboxFailureRefused" xml:space="preserve">
+    <value>Serwer poczty odrzucił wiadomość.</value>
+  </data>
+  <data name="OutboxFailureAttemptsExhausted" xml:space="preserve">
+    <value>Żadna z prób wysłania wiadomości się nie powiodła.</value>
+  </data>
+  <data name="OutboxFailureOutcomeUnknown" xml:space="preserve">
+    <value>Wiadomość została wysłana, ale serwer poczty nie odpowiedział, więc nie wiadomo, czy dotarła.</value>
+  </data>
+  <data name="OutboxFailureDueTimeMissed" xml:space="preserve">
+    <value>Czas, o którym wiadomość miała wyjść, minął zbyt dawno, by wysłać ją bez pytania.</value>
+  </data>
+  <data name="OutboxFailureSenderUnconfigured" xml:space="preserve">
+    <value>Konto nie ma skonfigurowanego adresu, z którego wysyła.</value>
+  </data>
+  <data name="OutboxFailureBoundExceeded" xml:space="preserve">
+    <value>Wiadomość jest większa, niż przyjmuje serwer poczty lub to wdrożenie.</value>
+  </data>
+  <data name="OutboxFailureServerUnreachable" xml:space="preserve">
+    <value>Nie udało się połączyć z serwerem poczty.</value>
+  </data>
+  <data name="OutboxFailureOther" xml:space="preserve">
+    <value>Nie udało się wysłać wiadomości.</value>
+  </data>
 </root>

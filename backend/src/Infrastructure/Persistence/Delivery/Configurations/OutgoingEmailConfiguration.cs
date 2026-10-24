@@ -18,10 +18,12 @@ namespace MailFathom.Infrastructure.Persistence.Delivery.Configurations;
 /// back" is written before the transmission rather than after it.
 /// </para>
 /// <para>
-/// Nothing here is mail content. The account, the requester identity, the reply codes, and the stage are this
-/// system's own or the server's own names for things, and the message itself is a row of its own that no query
-/// listing the outbox touches. The recipients are personal data and are the one thing on this record that could not
-/// be left out: a send cannot be resumed without knowing who is still owed it.
+/// The subject is the one column of mail content, kept here so the outbox page can name each send without reading the
+/// message, and classified as the correspondence it is. The account, the requester identity, the reply codes, and the
+/// stage are this system's own or the server's own names for things, and the message itself is a row of its own that
+/// no query listing the outbox joins; only a record written before the subject was kept has its subject read from it,
+/// one send at a time. The recipients are personal data and could not be left out: a send cannot be
+/// resumed without knowing who is still owed it.
 /// </para>
 /// </remarks>
 internal sealed class OutgoingEmailConfiguration : IEntityTypeConfiguration<OutgoingEmailEntity>
@@ -97,5 +99,21 @@ internal sealed class OutgoingEmailConfiguration : IEntityTypeConfiguration<Outg
 
         entity.HasIndex(message => new { message.RecordedAt, message.MailboxAccountId })
             .HasDatabaseName(PersistenceConstraintNames.OutgoingEmailPeriodUsageIndexName);
+
+        // Filtered to exactly what an account's outbox holds, and ordered the way its page and its count read it, so
+        // neither walks an account's whole history of delivered and withdrawn sends to find what is still waiting or
+        // was refused.
+        entity.HasIndex(message => new
+        {
+            message.MailboxAccountId,
+            message.RecordedAt,
+            message.Id,
+        })
+            .HasDatabaseName(PersistenceConstraintNames.OutgoingEmailOutboxIndexName)
+            .HasFilter(
+                $"\"{nameof(OutgoingEmailEntity.DismissedAt)}\" IS NULL AND \"{nameof(OutgoingEmailEntity.Stage)}\" IN ("
+                + $"'{nameof(OutgoingEmailStage.Recorded)}', "
+                + $"'{nameof(OutgoingEmailStage.TransmissionBegun)}', "
+                + $"'{nameof(OutgoingEmailStage.Refused)}')");
     }
 }

@@ -30,6 +30,6 @@ public enum OutgoingMailFilingStage
     /// <summary>The server accepted the append, and named where it put the copy wherever it advertises <c>UIDPLUS</c>.</summary>
     Confirmed = 1,
 
-    /// <summary>The copy has been taken back out of the folder, which only the outbox mirror ever is.</summary>
+    /// <summary>The copy has been taken back out of the folder, which a sent copy is when the provider filed one of its own beside it.</summary>
     Withdrawn = 2,
 }

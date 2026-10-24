@@ -53,4 +53,36 @@ Project repository: https://github.com/fathomise/MailFathom
     <value>The mail this run read does not answer the question.</value>
     <comment>What a Discover result says in place of an answer when the mail the run read does not answer the question.</comment>
   </data>
+  <data name="OutboxFailureRefused" xml:space="preserve">
+    <value>The mail server refused the message.</value>
+    <comment>What an outbox entry says when the mail server refused the message for good.</comment>
+  </data>
+  <data name="OutboxFailureAttemptsExhausted" xml:space="preserve">
+    <value>Every attempt to send the message failed.</value>
+    <comment>What an outbox entry says when every attempt to send the message failed.</comment>
+  </data>
+  <data name="OutboxFailureOutcomeUnknown" xml:space="preserve">
+    <value>The message went out, but the mail server never answered, so nobody knows whether it arrived.</value>
+    <comment>What an outbox entry says when the message went out and the server's answer never came back.</comment>
+  </data>
+  <data name="OutboxFailureDueTimeMissed" xml:space="preserve">
+    <value>The time the message was to leave at passed too long ago to send it without asking.</value>
+    <comment>What an outbox entry says when the time the message was to leave at passed too long ago to send it unasked.</comment>
+  </data>
+  <data name="OutboxFailureSenderUnconfigured" xml:space="preserve">
+    <value>The account has no address configured to send from.</value>
+    <comment>What an outbox entry says when the account configures no address to send from.</comment>
+  </data>
+  <data name="OutboxFailureBoundExceeded" xml:space="preserve">
+    <value>The message is larger than the mail server or this deployment accepts.</value>
+    <comment>What an outbox entry says when the message is larger than the mail server or the deployment accepts.</comment>
+  </data>
+  <data name="OutboxFailureServerUnreachable" xml:space="preserve">
+    <value>The mail server could not be reached.</value>
+    <comment>What an outbox entry says when the mail server could not be reached.</comment>
+  </data>
+  <data name="OutboxFailureOther" xml:space="preserve">
+    <value>The message could not be sent.</value>
+    <comment>What an outbox entry says about a failure it has no sentence of its own for.</comment>
+  </data>
 </root>

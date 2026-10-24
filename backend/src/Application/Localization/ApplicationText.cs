@@ -34,4 +34,28 @@ public enum ApplicationText
 
     /// <summary>What a Discover result says in place of an answer when the mail the run read does not answer the question.</summary>
     DiscoveryMailDoesNotAnswer = 8,
+
+    /// <summary>What an outbox entry says when the mail server refused the message for good.</summary>
+    OutboxFailureRefused = 9,
+
+    /// <summary>What an outbox entry says when every attempt to send the message failed.</summary>
+    OutboxFailureAttemptsExhausted = 10,
+
+    /// <summary>What an outbox entry says when the message went out and the server's answer never came back.</summary>
+    OutboxFailureOutcomeUnknown = 11,
+
+    /// <summary>What an outbox entry says when the time the message was to leave at passed too long ago to send it unasked.</summary>
+    OutboxFailureDueTimeMissed = 12,
+
+    /// <summary>What an outbox entry says when the account configures no address to send from.</summary>
+    OutboxFailureSenderUnconfigured = 13,
+
+    /// <summary>What an outbox entry says when the message is larger than the mail server or the deployment accepts.</summary>
+    OutboxFailureBoundExceeded = 14,
+
+    /// <summary>What an outbox entry says when the mail server could not be reached.</summary>
+    OutboxFailureServerUnreachable = 15,
+
+    /// <summary>What an outbox entry says about a failure it has no sentence of its own for.</summary>
+    OutboxFailureOther = 16,
 }

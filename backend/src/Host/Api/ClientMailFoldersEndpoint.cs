@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Folders;
+using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Domain.Access;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -99,21 +100,42 @@ internal sealed record ClientMailFoldersResponse(
 /// <summary>One of the user's accounts and the folders beneath it.</summary>
 /// <param name="Account">The account, exactly as the accounts route publishes it.</param>
 /// <param name="Folders">The account's folders, ordered by their place in its hierarchy.</param>
+/// <param name="Outbox">What the account's outbox holds, or <see langword="null" /> for a caller that does not hold both <c>mailfathom.mail.read</c> and <c>mailfathom.mail.send</c>.</param>
 /// <remarks>
+/// <para>
 /// The account is the accounts route's own type rather than a copy of its fields, so the two routes cannot come to
 /// disagree about what an account is. That is why it is nested rather than flattened: a copy flattened for the
 /// convenience of one screen would be four field names to keep in step with another route forever.
+/// </para>
+/// <para>
+/// The outbox is a member of the account and not one of its folders: it has no folder identity, so no route that
+/// takes a folder can name it, and it is read at <see cref="ClientOutboxEndpoints.OutboxRoute" />. A client draws it
+/// while either number is above zero.
+/// </para>
 /// </remarks>
 internal sealed record ClientMailFolderAccountResponse(
     ClientMailAccountResponse Account,
-    IReadOnlyList<ClientMailFolderResponse> Folders)
+    IReadOnlyList<ClientMailFolderResponse> Folders,
+    ClientOutboxCountResponse? Outbox)
 {
     /// <summary>Describes one account and its folders on the wire.</summary>
     /// <param name="account">The account's folders.</param>
     /// <returns>The response body.</returns>
     internal static ClientMailFolderAccountResponse For(MailAccountFolders account) => new(
         ClientMailAccountResponse.For(account.Account),
-        [.. account.Folders.Select(ClientMailFolderResponse.For)]);
+        [.. account.Folders.Select(ClientMailFolderResponse.For)],
+        account.Outbox is { } outbox ? ClientOutboxCountResponse.For(outbox) : null);
+}
+
+/// <summary>What one account's outbox holds, as the two numbers a client decides whether to draw it from.</summary>
+/// <param name="Waiting">The sends that have not left, and those whose transmission began that nobody dismissed.</param>
+/// <param name="Refused">The refused sends nobody dismissed.</param>
+internal sealed record ClientOutboxCountResponse(int Waiting, int Refused)
+{
+    /// <summary>Describes one count on the wire.</summary>
+    /// <param name="count">The count the use case read.</param>
+    /// <returns>The response body.</returns>
+    internal static ClientOutboxCountResponse For(AccountOutboxCount count) => new(count.Waiting, count.Refused);
 }
 
 /// <summary>One folder of one account, as a screen drawing a tree needs it.</summary>

@@ -412,7 +412,7 @@ internal sealed class StoredEmailEntity
     /// <summary>Gets or sets the outgoing record this email is MailFathom's own filed copy of, and <see langword="null" /> for every message it did not send.</summary>
     /// <remarks>
     /// <para>
-    /// A copy MailFathom appends to the sent or outbox folder comes back through synchronization as ordinary new mail,
+    /// A copy MailFathom appends to the sent folder comes back through synchronization as ordinary new mail,
     /// and this is what tells it apart afterwards. It is the join everything reacting to newly synchronized mail filters
     /// on: a rule conditioned on arriving mail must not fire on the user's own outgoing message the moment its copy is
     /// discovered.
