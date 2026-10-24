@@ -187,7 +187,7 @@ public sealed class AgentAnsweringTests : IAsyncDisposable
         Assert.NotNull(brief);
         Assert.Equal(
             [(AgentMessageAuthor.Person, "Who sent the quote?"), (AgentMessageAuthor.Agent, "Northwind sent it.")],
-            brief.History.Select(static turn => (turn.Author, turn.Text)));
+            brief.History.Cast<AgentWrittenTurn>().Select(static turn => (turn.Author, turn.Text)));
     }
 
     /// <summary>A period already spent ends the answer as failed before anything is composed.</summary>
@@ -276,7 +276,7 @@ public sealed class AgentAnsweringTests : IAsyncDisposable
         Assert.Equal(this.answer, compaction.MessageId);
         Assert.Equal("They asked twice about the quote.", compaction.Summary);
         Assert.NotNull(brief);
-        Assert.EndsWith("They asked twice about the quote.", Assert.Single(brief.History).Text, StringComparison.Ordinal);
+        Assert.Equal(new AgentSummaryTurn("They asked twice about the quote."), Assert.Single(brief.History));
     }
 
     /// <summary>A summariser that produced nothing does not fail the turn: it sends the newest turns that fit, and records no summary.</summary>
@@ -298,7 +298,7 @@ public sealed class AgentAnsweringTests : IAsyncDisposable
         Assert.DoesNotContain(this.written, static entry => entry is AgentConversationCompacted);
         Assert.Equal(AgentAnswerOutcome.Completed, Assert.IsType<AgentAnswerEnded>(this.written[^1]).Outcome);
         Assert.NotNull(brief);
-        Assert.Equal([new string('c', 3_000)], brief.History.Select(static turn => turn.Text));
+        Assert.Equal([new AgentWrittenTurn(AgentMessageAuthor.Person, new string('c', 3_000))], brief.History);
     }
 
     /// <summary>A conversation inside the budget is sent whole and costs no summary.</summary>

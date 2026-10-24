@@ -174,17 +174,16 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     /// <param name="accounts">The accounts the turn names, which are the ones a tool the model is offered takes.</param>
     /// <returns>The conversation, oldest turn first.</returns>
     internal static IReadOnlyList<ChatMessage> ComposeMessages(AgentAnswerBrief brief, IReadOnlyList<MailAccountId> accounts) =>
-        ComposeMessages(brief, accounts, TextsOf(brief));
+        ComposeMessages(brief, accounts, brief.History, brief.Question.Text.Value);
 
-    /// <summary>Composes the conversation from texts standing in for the ones the person and the Agent wrote, in the order <see cref="TextsOf" /> lists them.</summary>
+    /// <summary>Composes the conversation from a history and a question standing in for the ones the brief carries.</summary>
     private static IReadOnlyList<ChatMessage> ComposeMessages(
         AgentAnswerBrief brief,
         IReadOnlyList<MailAccountId> accounts,
-        IReadOnlyList<string> texts) =>
+        IReadOnlyList<AgentHistoryTurn> history,
+        string question) =>
     [
-        .. brief.History.Select((turn, index) => new ChatMessage(
-            turn.Author is AgentMessageAuthor.Person ? ChatRole.User : ChatRole.Assistant,
-            texts[index])),
+        .. history.Select(AgentHistoryDocument.MessageOf),
         new ChatMessage(
             ChatRole.User,
             AgentConversationComposition.ComposeTurn(
@@ -192,12 +191,8 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
                 accounts,
                 brief.Question.Scope,
                 brief.NamedEmails,
-                texts[^1])),
+                question)),
     ];
-
-    /// <summary>Lists every text the person or the Agent wrote: each earlier turn's, oldest first, then the question.</summary>
-    private static string[] TextsOf(AgentAnswerBrief brief) =>
-        [.. brief.History.Select(static turn => turn.Text), brief.Question.Text.Value];
 
     /// <summary>Derives the sticky session every request of one conversation is routed by.</summary>
     /// <param name="conversation">The conversation the turn belongs to.</param>
@@ -228,12 +223,13 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         IReadOnlyList<MailAccountId> accounts,
         CancellationToken cancellationToken)
     {
-        var guarded = await this.egressGuard.GuardAllAsync(
+        var history = await AgentHistoryDocument.GuardAsync(this.egressGuard, brief.History, cancellationToken);
+        var question = await this.egressGuard.GuardAsync(
             SensitiveContentEgressPoint.ChatPrompt,
-            TextsOf(brief),
+            brief.Question.Text.Value,
             cancellationToken);
 
-        return ComposeMessages(brief, accounts, guarded);
+        return ComposeMessages(brief, accounts, history, question);
     }
 
     private async Task<PresentationText> AskAsync(

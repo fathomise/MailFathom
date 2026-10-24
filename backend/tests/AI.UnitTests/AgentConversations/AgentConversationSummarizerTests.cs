@@ -32,8 +32,8 @@ public sealed class AgentConversationSummarizerTests
 
     private static readonly AgentHistoryTurn[] Turns =
     [
-        new(AgentMessageAuthor.Person, "Who sent the racking quote?"),
-        new(AgentMessageAuthor.Agent, "Northwind sent it on Monday."),
+        new AgentWrittenTurn(AgentMessageAuthor.Person, "Who sent the racking quote?"),
+        new AgentWrittenTurn(AgentMessageAuthor.Agent, "Northwind sent it on Monday."),
     ];
 
     [Fact]
@@ -48,8 +48,8 @@ public sealed class AgentConversationSummarizerTests
         // Assert
         Assert.Equal("They asked who quoted; Northwind did, on Monday.", summary);
         Assert.Contains("They talked about racking.", provider.RequestBodies[0], StringComparison.Ordinal);
-        Assert.Contains("Person: Who sent the racking quote?", provider.RequestBodies[0], StringComparison.Ordinal);
-        Assert.Contains("Agent: Northwind sent it on Monday.", provider.RequestBodies[0], StringComparison.Ordinal);
+        Assert.Contains("Who sent the racking quote?", provider.RequestBodies[0], StringComparison.Ordinal);
+        Assert.Contains("Northwind sent it on Monday.", provider.RequestBodies[0], StringComparison.Ordinal);
     }
 
     /// <summary>A provider that refused is not the turn's failure: nothing comes back, and the turn composes from what fits.</summary>
@@ -79,6 +79,25 @@ public sealed class AgentConversationSummarizerTests
         Assert.Equal(AgentConversationSummaryInstructions.MaximumSummaryLength, summary?.Length);
     }
 
+    /// <summary>An earlier summary is a model's account of mail it read, so it is scanned like the turns beside it.</summary>
+    [Fact]
+    public async Task SummarizeAsync_AnEarlierSummaryCarryingASecret_SendsTheProviderTheGuardedText()
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(Completion("A key was shared."));
+        using var egress = ScanningSensitiveContentEgress.Finding(Marker, new FakeTimeProvider());
+        using var actingFor = egress.Guard.ActingFor(await egress.ReadUserPostureAsync(TestContext.Current.CancellationToken));
+
+        // Act
+        await provider.SummarizerOver(egress.Guard).SummarizeAsync(
+            $"Earlier they shared {Marker}.",
+            Turns,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.DoesNotContain(Marker, provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
     /// <summary>A conversation can hold anything a person pasted into it, so what a deployment withholds from a provider is withheld here too.</summary>
     [Fact]
     public async Task SummarizeAsync_ATurnCarryingASecret_SendsTheProviderTheGuardedText()
@@ -91,7 +110,10 @@ public sealed class AgentConversationSummarizerTests
         // Act
         await provider.SummarizerOver(egress.Guard).SummarizeAsync(
             null,
-            [new AgentHistoryTurn(AgentMessageAuthor.Person, $"The key is {Marker}.")],
+            [
+                new AgentWrittenTurn(AgentMessageAuthor.Person, $"The key is {Marker}."),
+                new AgentProposedMessageTurn($"Rotate {Marker}", ["ops@example.test"]),
+            ],
             TestContext.Current.CancellationToken);
 
         // Assert

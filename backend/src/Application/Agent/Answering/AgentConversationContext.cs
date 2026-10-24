@@ -2,7 +2,6 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-using System.Globalization;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.Discovery.Presentation.Blocks;
 
@@ -35,10 +34,6 @@ internal sealed class AgentConversationContext
     /// <summary>The rate a conversation's size is converted at before any turn of it was charged.</summary>
     /// <remarks>Four characters to a token is the usual reading of English prose, and it is replaced by what the provider actually charged as soon as one turn has been answered.</remarks>
     internal const double DefaultTokensPerCharacter = 0.25;
-
-    /// <summary>The words a summary is introduced by, so the model reads it as its own notes rather than as something said.</summary>
-    internal const string SummaryPreamble =
-        "[A summary of this conversation before the turns that follow, written for you and never shown to the person:]\n";
 
     private readonly IReadOnlyList<PlacedTurn> turns;
     private readonly Dictionary<long, PlacedTurn> proposals;
@@ -96,7 +91,7 @@ internal sealed class AgentConversationContext
 
         return
         [
-            .. compaction is null ? [] : new[] { SummaryTurn(compaction.Summary) },
+            .. compaction is null ? [] : new AgentHistoryTurn[] { new AgentSummaryTurn(compaction.Summary) },
             .. (compaction?.Carried ?? []).Where(this.proposals.ContainsKey).Select(place => this.proposals[place].Turn),
             .. this.turns.Where(turn => turn.Place > through).Select(static turn => turn.Turn),
         ];
@@ -107,7 +102,7 @@ internal sealed class AgentConversationContext
     /// <param name="question">The question's own text.</param>
     /// <returns>The estimate, rounded up.</returns>
     internal long EstimateTokens(IEnumerable<AgentHistoryTurn> history, string question) =>
-        this.TokensOf(history.Sum(static turn => (long)turn.Text.Length) + question.Length);
+        this.TokensOf(history.Sum(static turn => (long)turn.Length) + question.Length);
 
     /// <summary>Decides what a compaction taken now would summarise, keeping the newest turns verbatim.</summary>
     /// <param name="budgetTokens">What a turn may send, in tokens.</param>
@@ -173,29 +168,24 @@ internal sealed class AgentConversationContext
         return [.. leading, .. after[^kept..].Select(static turn => turn.Turn)];
     }
 
-    private static AgentHistoryTurn SummaryTurn(string summary) =>
-        new(AgentMessageAuthor.Agent, string.Concat(SummaryPreamble, summary));
-
     /// <summary>Reads one entry into the turn it says, if it says one.</summary>
     /// <remarks>
-    /// A proposal is reduced to a line saying what was offered, so a model is never shown an act in a form it could
-    /// mistake for one it may repeat without asking; everything else a run writes is how an answer was laid out, which
-    /// the next question does not need.
+    /// A proposal is reduced to what was offered, so a model is never shown an act in a form it could mistake for one
+    /// it may repeat without asking; everything else a run writes is how an answer was laid out, which the next question
+    /// does not need.
     /// </remarks>
     private static PlacedTurn? TurnOf(AgentConversationEntry entry) => entry switch
     {
-        AgentMessageWritten message => new PlacedTurn(message.Sequence, new AgentHistoryTurn(message.Author, message.Text.Value), IsProposal: false),
+        AgentMessageWritten message => new PlacedTurn(message.Sequence, new AgentWrittenTurn(message.Author, message.Text.Value), IsProposal: false),
         AgentBlockComposed { Block: AnswerBlock answer } => new PlacedTurn(
             entry.Sequence,
-            new AgentHistoryTurn(AgentMessageAuthor.Agent, answer.Text.Value),
+            new AgentWrittenTurn(AgentMessageAuthor.Agent, answer.Text.Value),
             IsProposal: false),
         AgentActionProposed { Block: DraftBlock draft } => new PlacedTurn(
             entry.Sequence,
-            new AgentHistoryTurn(
-                AgentMessageAuthor.Agent,
-                string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"[Proposed a message \"{draft.Subject.Value}\" to {string.Join(", ", draft.Recipients.Select(static recipient => recipient.Address))}.]")),
+            new AgentProposedMessageTurn(
+                draft.Subject.Value,
+                [.. draft.Recipients.Select(static recipient => recipient.Address)]),
             IsProposal: true),
         _ => null,
     };
@@ -211,7 +201,7 @@ internal sealed class AgentConversationContext
 
         foreach (var turn in candidates.Reverse())
         {
-            characters += turn.Turn.Text.Length;
+            characters += turn.Turn.Length;
 
             if (this.TokensOf(characters) > tokens)
             {

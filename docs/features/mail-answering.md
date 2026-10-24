@@ -490,10 +490,12 @@ written here for the same reason `search_emails` publishes the mode in every res
 
 Nothing a message contains can end an element or open one. The turns and tool results that carry text somebody else
 wrote on this path are composed by one writer, `AgentTurnDocument` in `backend/src/AI/Orchestration/`: `ask_mail`'s
-question turn, the `<retrieved-mail>` envelope, the relevance judgement below, and the Agent's question turn and its
-`read_thread`, `read_calendar`, and `read_tasks` results. The other operations — enrichment, a conversation's state,
-reply drafting, contact relationships, calendar-event extraction, Discover, and body cleanup — still compose their turns
-by hand until their own issues move them onto it. Only the writer names elements and attributes, and it escapes every
+question turn, the `<retrieved-mail>` envelope, the relevance judgement below, the Agent's question turn and its
+`read_thread`, `read_calendar`, and `read_tasks` results, the Agent's earlier turns where they are not plain text the
+person or the Agent wrote, the turn a compaction of an Agent conversation reads, and
+[reply drafting](reply-drafting.md#what-reaches-the-provider-and-what-does-not)'s turn. The other operations —
+enrichment, a conversation's state, contact relationships, calendar-event extraction, Discover, and body cleanup —
+still compose their turns by hand until their own issues move them onto it. Only the writer names elements and attributes, and it escapes every
 value wherever the value sits — the extract, the subject, a calendar title, and a task as text content, and the
 account alias, the folder path, an attachment's file name, and a sender's address as attributes — so none can end an
 element or open one. A message whose text closes the envelope and opens a forged instruction arrives as that text:
@@ -507,6 +509,17 @@ blank result.
 The person's own question is written the same way, inside one fixed `<ask>` element after the line that dates the turn.
 That element, with the person's own earlier turns where a conversation has them, is where the person's wishes are
 carried, so text that imitates it inside a message is quoted text rather than a second question.
+
+An Agent conversation's earlier turns quoted mail too, so the history a turn replays keeps that mail quoted. What the
+person and the Agent wrote is replayed in the role of whoever wrote it. A summary that compaction wrote in place of the
+oldest turns is not: it is a model's account of turns that quoted mail, so it is replayed as a quoted
+`<conversation-summary>` document under a line saying who wrote it and that nobody in the conversation said it, rather
+than as the Agent's own turn — where an instruction a message slipped into it would come back as something the Agent
+concluded. A message the Agent proposed is replayed as a `<proposed-message>` whose subject and recipients are quoted
+values rather than a sentence built around them. The turn a compaction reads writes each earlier turn as a `<turn>`
+element whose `author` attribute says whether the person or the Agent wrote it, each proposal the same way, and the
+summary it folds in as a `<conversation-summary>` of its own. Every value is scanned at `ChatPrompt` as the value it is
+before any of those documents is written around it.
 
 The identity is the other reason the envelope exists. Each extract carries the stable local identifier an answer cites
 and the account and folder it was read from, unchanged — an answer that cannot say which message a claim came from

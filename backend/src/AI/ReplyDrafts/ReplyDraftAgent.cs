@@ -13,7 +13,6 @@ using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
-using MailFathom.Domain.Emails;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -178,26 +177,18 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
     /// <param name="plan">The model the turn is sent to, whose request bound the turn is cut to.</param>
     /// <param name="cancellationToken">Withdraws the scan.</param>
     /// <returns>The turn.</returns>
+    /// <remarks>
+    /// A bound rather than a refusal, applied by the document as it is written, so a bounded turn is still one whose
+    /// every element is closed.
+    /// </remarks>
     internal static async Task<string> ComposeTurnAsync(
         ReplyDraftBrief brief,
         SensitiveContentEgressGuard egressGuard,
         ChatGenerationPlan plan,
         CancellationToken cancellationToken) =>
-        Bounded(
-            ReplyDraftInstructions.ComposeDraftingTurn(
-                await GuardedTurnAsync(brief, egressGuard, cancellationToken)),
+        ReplyDraftInstructions.ComposeDraftingTurn(
+            await GuardedTurnAsync(brief, egressGuard, cancellationToken),
             plan.MaximumRequestCharacters);
-
-    /// <summary>Cuts a turn down to what one call may carry, without splitting a character in half.</summary>
-    /// <remarks>
-    /// A bound rather than a refusal, and the trade is the conversation's own derivation's: what a bounded turn loses
-    /// is the tail of the style samples the turn ends with, which cost the reply its manner rather than its meaning.
-    /// The correspondence itself was already bounded before it was read out of the store.
-    /// </remarks>
-    private static string Bounded(string turn, int maximumCharacters) =>
-        turn.Length <= maximumCharacters
-            ? turn
-            : MailTextBounds.TruncateAtTextElementBoundary(turn, maximumCharacters);
 
     /// <summary>Puts every text of the drafting through the egress guard before any of it is composed into a turn.</summary>
     /// <remarks>

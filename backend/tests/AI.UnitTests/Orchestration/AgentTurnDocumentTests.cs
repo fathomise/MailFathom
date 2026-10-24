@@ -80,6 +80,32 @@ public sealed class AgentTurnDocumentTests
         Assert.Equal("true", extract.Attribute(AgentTurnDocument.CutAttributeName)?.Value);
     }
 
+    /// <summary>Room kept for a later element is taken from what comes before it, so that element is written whole and the document stays within its budget.</summary>
+    [Fact]
+    public void Reserve_RoomForALaterElement_CutsWhatComesBeforeAndWritesTheLaterOneWhole()
+    {
+        // Arrange
+        const string Ask = "Reply to <Karolina> & thank them";
+        using var document = new AgentTurnDocument(maximumCharacters: 300);
+
+        // Act
+        document.Reserve(later => later.WriteAsk(Ask));
+        document.StartElement("conversation");
+        document.WriteQuoted("text", new string('a', 1_000));
+        document.EndElement();
+        document.Release();
+        document.WriteAsk(Ask);
+        var output = document.Complete();
+        var written = Parsed(output);
+
+        // Assert
+        Assert.InRange(output.Length, 1, 300);
+        Assert.Equal("true", written.Descendants("text").Single().Attribute(AgentTurnDocument.CutAttributeName)?.Value);
+        var ask = written.Element(AgentTurnDocument.AskElementName)!;
+        Assert.Equal(Ask, ask.Value);
+        Assert.Null(ask.Attribute(AgentTurnDocument.CutAttributeName));
+    }
+
     /// <summary>A caller writing a list is told once the budget has cut something, so it can stop rather than add empty elements past it.</summary>
     [Fact]
     public void IsExhausted_OnceTheBudgetCutQuotedText_IsTrue()
