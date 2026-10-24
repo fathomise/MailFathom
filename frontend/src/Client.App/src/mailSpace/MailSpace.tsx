@@ -57,7 +57,8 @@ import { paneArrival, usePaneMotion } from '../shell/paneMotion';
 // - *Two panes or one.* Below that width the space draws the list **or** what is open and never both, so a row that is
 //   not on the screen is not in the document either; above it the two stand side by side with a boundary to move.
 // - *The mailbox column or a drawer.* Only the desktop composition has room for a third column, so at the tablet and
-//   the fold the mailboxes stand in a drawer over the space, reached from a control in the list's own header.
+//   the fold the mailboxes stand in a drawer over the space, reached from the toolbar's lead — and from the list's own
+//   header on the phone and during a selection, where no toolbar stands.
 // - *The toolbar at all*, which is the phone question: bottom navigation already spends the foot of a phone-width
 //   window, and the toolbar's acts are on the selection bar and the message's own head there.
 //
@@ -461,10 +462,9 @@ export function MailSpace({
                         would sit on top of both, and it would move whenever either changed height. Positioned
                         against this box instead, it keeps the corner a thumb reaches whatever stands under it. */}
                     <div className="relative flex min-h-0 flex-1 flex-col">
-                        {/* The list's own head row draws the way into the drawer, at its start, wherever there is
-                            a drawer to open; the column has none, and offers nothing. */}
                         {/* The list's head opens the drawer only where no toolbar stands to lead with it: the phone,
-                            and a selection, whose bar replaces the toolbar. */}
+                            and a selection, whose bar replaces the toolbar. The column has no drawer and offers
+                            nothing. */}
                         <MailboxesDrawerContext value={desktop || toolbarDrawn ? null : openDrawer}>
                             <ListFoldContext value={listFold}>{list}</ListFoldContext>
                         </MailboxesDrawerContext>

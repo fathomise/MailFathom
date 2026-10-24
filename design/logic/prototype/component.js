@@ -2888,7 +2888,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const emptyMail = !composeInPane && !docInPane && !htmlInPane &&
         (tabsMode ? tabItems.length === 0 : (!singlePane && !st.threadOpen));
       /* Two panes in less than 1020 px: while a thread is open the list folds to a strip of senders, so the thread
-         gets the width; the strip's head widens it again. A width rule — a mouse gets the same strip as a finger. */
+         gets the width; the toolbar's list control widens it again. A width rule — a mouse gets the same strip as a finger. */
       const foldTwoPanes = !singlePane && narrow;
       /* The Outbox: one per account, read-only, holding what has not left it yet. It has no row of its own in the tree;
          it is a mark on the account's Sent row, drawn only while something waits or was refused. */
@@ -4467,12 +4467,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         listStrip,
         listFull: !listStrip && !outboxOn,
         ...outboxView,
-        /* Where the folders are a drawer and the toolbar stands — the tablet and the fold — the toolbar leads with
-           the two controls that change the view rather than the message: on the fold with a thread open the list's
-           own fold, one control for both ways, and then the drawer's opener. Holding it while the list is widened keeps
+        /* The toolbar leads with the controls that change the view rather than the message: below 1020 px with a
+           thread open the list's own fold, one control for both ways, and then the folder pane's — its show and hide
+           where it stands beside the list, its drawer's opener where it is a drawer. The strip has no head of its own,
+           so the list control is there under a mouse as well as a finger. Holding it while the list is widened keeps
            the list open as other threads are opened (`st.listKept`), drawn on `--accent-soft`; holding again lets
            it fold, and a tap narrows it and lets go of the hold. */
-        viewLeadShown: drawer && st.screen === "mail",
+        viewLeadShown: st.screen === "mail",
+        drawerOpenerShown: drawer && st.screen === "mail",
         listToggleShown: listStrip || (foldTwoPanes && !emptyMail && !!st.listWide && !selectionOn && !outboxOn),
         listToggleIcon: listStrip ? "left_panel_open" : "left_panel_close",
         listToggleLabel: listStrip ? "Show the list" : "Narrow the list",

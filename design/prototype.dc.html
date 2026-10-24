@@ -457,15 +457,16 @@ Project repository: https://github.com/fathomise/MailFathom
     </sc-if>
     <sc-if value="{{ showMailToolbar }}" hint-placeholder-val="{{ true }}">
       <div ref="{{ tbRef }}" style="{{ toolbarStyle }}">
-        <sc-if value="{{ sideToggleShown }}" hint-placeholder-val="{{ true }}">
-          <div onClick="{{ toggleSide }}" title="{{ sideToggleTitle }}" aria-label="{{ sideToggleTitle }}" style="{{ sideToggleBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">{{ sideToggleIcon }}</div>
-          <div style="width:1px;align-self:stretch;background:var(--line);margin:0 8px 0 6px"></div>
-        </sc-if>
-        <sc-if value="{{ viewLeadShown }}" hint-placeholder-val="{{ false }}">
+        <sc-if value="{{ viewLeadShown }}" hint-placeholder-val="{{ true }}">
           <sc-if value="{{ listToggleShown }}" hint-placeholder-val="{{ false }}">
             <div onClick="{{ toggleList }}" onContextMenu="{{ keepList }}" title="{{ listToggleTitle }}" aria-label="{{ listToggleLabel }}" style="{{ listToggleStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">{{ listToggleIcon }}</div>
           </sc-if>
-          <div onClick="{{ openFolders }}" title="Folders and filters" aria-label="Folders and filters" style="{{ sideToggleBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">menu</div>
+          <sc-if value="{{ sideToggleShown }}" hint-placeholder-val="{{ true }}">
+            <div onClick="{{ toggleSide }}" title="{{ sideToggleTitle }}" aria-label="{{ sideToggleTitle }}" style="{{ sideToggleBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">{{ sideToggleIcon }}</div>
+          </sc-if>
+          <sc-if value="{{ drawerOpenerShown }}" hint-placeholder-val="{{ false }}">
+            <div onClick="{{ openFolders }}" title="Folders and filters" aria-label="Folders and filters" style="{{ sideToggleBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">menu</div>
+          </sc-if>
           <div style="width:1px;align-self:stretch;background:var(--line);margin:0 8px 0 6px"></div>
         </sc-if>
         <sc-if value="{{ tbPrimaryShown }}" hint-placeholder-val="{{ true }}">
