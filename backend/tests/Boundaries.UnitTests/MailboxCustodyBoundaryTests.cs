@@ -6,6 +6,7 @@ using ArchUnitNET.Fluent;
 using ArchUnitNET.xUnitV3;
 using MailFathom.Application.Accounts.Custody;
 using MailFathom.Domain.Accounts;
+using MailFathom.Infrastructure;
 using Xunit;
 using static ArchUnitNET.Fluent.ArchRuleDefinition;
 
@@ -74,9 +75,12 @@ public sealed class MailboxCustodyBoundaryTests
         onlyThePortIsAsked.Check(CompiledBoundaries.Solution);
     }
 
-    /// <summary>The rule above passes vacuously if a type test in a method body is not seen, so the resolver's own construction of the arms must be.</summary>
+    /// <summary>
+    /// The rule above passes vacuously if a custodian named only inside a method body is not seen. The registration names
+    /// each one in a call and in no signature, field, or base type, so it must be.
+    /// </summary>
     [Fact]
-    public void ConcreteCustodians_NamedByTheResolver_AreSeenAsADependency()
+    public void ConcreteCustodians_NamedOnlyInsideAMethodBody_AreSeenAsADependency()
     {
         // Act
         var readers = Types()
@@ -85,7 +89,7 @@ public sealed class MailboxCustodyBoundaryTests
             .GetObjects(CompiledBoundaries.Solution);
 
         // Assert
-        Assert.Contains(readers, type => type.FullName.StartsWith(typeof(MailboxCustodianResolver).FullName!, StringComparison.Ordinal));
+        Assert.Contains(readers, type => type.FullName == typeof(ServiceCollectionExtensions).FullName);
     }
 
     /// <summary>The rule above passes vacuously if a phase compared in a method body is not seen, so the resolver's own comparison must be.</summary>
