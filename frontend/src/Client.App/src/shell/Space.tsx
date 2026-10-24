@@ -67,8 +67,7 @@ export function Space({
     /**
      * The conversations with the agent and the one in front, which is the Agent space and nothing else.
      *
-     * It is handed the connection and draws the one field it has at its own foot — the one the agent is told what to do
-     * in.
+     * It draws the one field it has at its own foot — the one the agent is told what to do in — and no connection.
      */
     readonly agent: ReactNode;
 
@@ -145,9 +144,9 @@ export function Space({
                 const isDiscover = name === 'discover';
                 const isAgent = name === 'agent';
 
-                // The three spaces that compose one shape: their own columns with the connection at the foot. Picking
-                // the node here rather than branching on the name three times in the markup is what
-                // keeps the choice below readable as four cases instead of six.
+                // The three spaces that compose one shape: their own columns, with no connection. Picking the node
+                // here rather than branching on the name three times in the markup is what keeps the choice below
+                // readable as four cases instead of six.
                 const ownColumns = name === 'tasks' ? tasks : name === 'people' ? people : calendar;
 
                 return (
