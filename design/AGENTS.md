@@ -15,7 +15,8 @@ defaults.**
 - The design already drawn outranks a skill. A skill settles what the artboards have not decided, and its advice on
   frameworks, libraries, and builds is not followed: an artboard takes no dependency.
 - Draw only what the client can ship under `frontend/src/AGENTS.md`.
-- These skills are for `design/` only. A client task builds from the design and opens none of them.
+- These skills are for `design/` only. The client's own code is built from the design and opens none of them; the design
+  half a client pull request carries is a design change, and is drawn with them like any other.
 
 ## Drawn for a finger at three sizes
 

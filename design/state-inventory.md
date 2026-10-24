@@ -1055,8 +1055,8 @@ clicking a preview.
 - **The application with no mailbox at all.** `const emptyApp = false;` is a constant, and
   every one of the six screen gates is `st.screen === "…" && !emptyApp`. Nothing anywhere draws the
   true branch, so **the design does not cover a deployment with no mailbox** — a session that needs
-  that screen is designing something the design has not settled, and it is drawn in `design/` first, in a
-  change of its own, rather than invented in the client. The folder column alone has one: `m_folders` in the Client States file draws
+  that screen is designing something the design has not settled, and it is drawn in `design/` — ahead of
+  the client or in the pull request that builds it — rather than invented in the client. The folder column alone has one: `m_folders` in the Client States file draws
   *No account configured*, which is the column's state and not the application's.
 - **A rejected profile photo** (`photoError`). Set only by choosing a file over 1 MB; no control in
   the prototype can produce one.
