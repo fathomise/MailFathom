@@ -377,7 +377,9 @@ public sealed class ClientReplyDraftingEndpointTests
                             0,
                             "Karolina",
                             new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero),
-                            "It is 4 200 zloty."),
+                            "It is 4 200 zloty.",
+                            IsChosen: true,
+                            Attachments: []),
                     ],
                     [new ReplyDraftParticipant(0, karolina)],
                     [])

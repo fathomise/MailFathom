@@ -2784,8 +2784,12 @@ written in are all read out of the stored copies those identifiers resolve to, s
 can state none of them wrongly. The first one named decides the subject and the manner. An all-zero identifier names no
 message and is dropped, a message named twice is read once where it was first named, more than ten are refused with
 `400`, and a context holding any message this user does not hold is answered `404`, as one naming a message nobody
-holds. `selection` is the part of the correspondence being answered and `instruction` is what the reply should say; both
-are optional beside a context, and a request carrying neither is the ordinary one.
+holds. Every context message is marked in what the provider is shown as one the person chose, and is kept there however
+old it is beside the most recent messages of its conversation, so the draft answers it rather than the latest message.
+`selection` is the part of the correspondence being answered, at most 4 000 characters, and `instruction` is whatever was
+typed about the reply — what it should say, the person's own rough version of it, or both, which the drafting tells
+apart itself — at most 4 000 characters as well; both are optional beside a context, and a request carrying neither is
+the ordinary one.
 
 **`contextEmailIds` is empty for a message that answers nothing**, which is the composer somebody opened with nothing
 in front of it. There is then no conversation to read, so `instruction` is what the message is written from and is
@@ -2796,10 +2800,12 @@ user, which [the user record](configuration-sources.md) holds. An `instruction` 
 outranks both, being the one thing the person said about the message themselves.
 
 **The client asks for a draft in two places, and both write into the composer.** The block the design draws over the
-composer's body is one — the field says what the message should be about, the act beside it says what shape it should
-take, and the two travel as one `instruction`. What comes back replaces the words in the composer with the way back
+composer's body is one — the field takes what the message should say, a rough draft of it, or both, and grows from one
+line to six as it is typed into, the act beside it says what shape it should take, and the two travel as one
+`instruction`. What comes back replaces the words in the composer with the way back
 beside them, and a draft nobody has accepted is named in the send confirmation before the message goes out. The field
-under a correspondence, unfolded from the AI button at its foot, is the other: *Draft a reply* opens the composer
+under a correspondence, unfolded from the AI button at its foot, is the other — it grows the same way, and Enter in it
+asks while Shift+Enter starts a new line: *Draft a reply* opens the composer
 expanded as a reply to the message being read and asks there at once, with the fixed sentence *Write a reply to this
 message.* and whatever was typed in the field joined as one `instruction`, and the passage selected in the message as
 the `selection`. Either way `contextEmailIds` is the context the composer shows as chips: a reply starts with the
@@ -2824,7 +2830,7 @@ somebody pressing a button the allowance has already been spent on.
 
 **Everything travels in a body**, which is why drafting is a `POST` for an operation that stores nothing: what somebody
 is asking a reply to say is as revealing as the correspondence it answers, and a query string is the part of a request
-that reaches an access log by default, here and on every proxy in front of this deployment. A body over 16 KiB is
+that reaches an access log by default, here and on every proxy in front of this deployment. A body over 32 KiB is
 refused before it is read, a request naming no message and an over-long `selection` or `instruction` are refused with
 `400`, and a refusal never echoes what was sent.
 

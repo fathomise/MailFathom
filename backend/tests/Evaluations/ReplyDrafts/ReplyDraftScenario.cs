@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using MailFathom.AI.Chat;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.ReplyDrafts;
+using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.ReplyDrafts;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
@@ -29,8 +30,9 @@ namespace MailFathom.Evaluations.ReplyDrafts;
 /// <summary>One corpus conversation put to the reply-drafting agent with an ask and a manner, and what a draft of it must hold to.</summary>
 /// <remarks>
 /// <para>
-/// The sources are read out of <see cref="CorpusMailbox" /> through the store's own selection and assembly — the most
-/// recent messages of the exchange up to the message answered, each message's own text under the per-message bound, its
+/// The sources are read out of <see cref="CorpusMailbox" /> through the store's own selection and assembly — the chosen
+/// message, marked, and the most recent others of the exchange, each message's own text under the per-message bound and
+/// any attachment the case writes onto the chosen message under what that text leaves of it, its
 /// people numbered without the mailbox's own address, and, as a deployment does by default, the openings of the owner's
 /// most recent mail sent outside the conversation as the manner's samples. A case whose context reaches a second
 /// conversation reads each one as the deployment reads a context message, under its share of the bound and with the
@@ -44,13 +46,14 @@ namespace MailFathom.Evaluations.ReplyDrafts;
 /// reading drops whatever it cannot resolve: that it read as a draft, that every recipient it proposed is one of the
 /// numbered people, that every claim cites only messages in the turn, that no address appears in the body, and that
 /// nothing exceeds <see cref="ReplyDraft" />'s bounds. Where the ask asserts something the conversation does not carry,
-/// the draft has to mark it as a claim nothing supports, and where the context reaches two conversations, the draft has
-/// to cite each of them. The judge grades only the prose: whether the reply does what
+/// the draft has to mark it as a claim nothing supports, where the context reaches two conversations, the draft has
+/// to cite each of them, where the person chose an earlier message, the draft has to cite that one, and where the case
+/// names words the person drafted or an attachment alone states, the body has to carry them. The judge grades only the prose: whether the reply does what
 /// was asked, in the manner asked.
 /// </para>
 /// </remarks>
 /// <param name="Name">The name the scenario is filed and reported under.</param>
-/// <param name="Conversation">The exchange up to and including the message being answered, oldest first.</param>
+/// <param name="Conversation">The exchange up to and including its latest message, oldest first, which is the message answered unless <paramref name="Chosen" /> names another.</param>
 /// <param name="Ask">What the person asked the reply to say.</param>
 /// <param name="Manner">How the person asked for it to be written.</param>
 /// <param name="AsksForWhatNothingSupports">Whether the ask asserts something the conversation does not carry, which the draft must then mark.</param>
@@ -65,6 +68,18 @@ namespace MailFathom.Evaluations.ReplyDrafts;
 /// A second conversation the person chose to write from beside the first, up to and including its last message, or
 /// <see langword="null" /> where the context is the first conversation alone.
 /// </param>
+/// <param name="Chosen">
+/// The message of <paramref name="Conversation" /> the person chose to answer where it is not the latest, which the
+/// draft then has to cite, or <see langword="null" /> where the latest message is the one answered.
+/// </param>
+/// <param name="RequiredWords">
+/// Words the body has to carry, each where a word begins and in any case — what the person drafted and expects kept, or
+/// a fact only an attachment states — or <see langword="null" /> where the case requires none.
+/// </param>
+/// <param name="Attachment">
+/// An attachment the chosen message carries, written by the scenario because no corpus message carries an attachment's
+/// words, or <see langword="null" /> where it carries none.
+/// </param>
 internal sealed partial record ReplyDraftScenario(
     string Name,
     IReadOnlyList<CorpusMessage> Conversation,
@@ -74,7 +89,10 @@ internal sealed partial record ReplyDraftScenario(
     int MinimumTaskAdherence,
     UserLanguage ReaderLanguage = UserLanguage.English,
     UserLanguage? WritesIn = null,
-    IReadOnlyList<CorpusMessage>? SecondConversation = null)
+    IReadOnlyList<CorpusMessage>? SecondConversation = null,
+    CorpusMessage? Chosen = null,
+    IReadOnlyList<string>? RequiredWords = null,
+    ReplyDraftScenarioAttachment? Attachment = null)
 {
     /// <summary>The check that the answer read as a draft.</summary>
     public const string ReadAsADraftMetricName = "Read as a draft";
@@ -96,6 +114,12 @@ internal sealed partial record ReplyDraftScenario(
 
     /// <summary>The check that a draft written from two conversations cites a message of each.</summary>
     public const string CitesEveryConversationMetricName = "Cites every conversation in the context";
+
+    /// <summary>The check that a draft answering a chosen message that is not the latest cites that message.</summary>
+    public const string CitesTheChosenMessageMetricName = "Cites the chosen message";
+
+    /// <summary>The check that the body carries every word the case requires.</summary>
+    public const string CarriesRequiredWordsMetricName = "Carries the required words";
 
     /// <summary>Gets every drafting the agent is measured on.</summary>
     public static IReadOnlyList<ReplyDraftScenario> All { get; } =
@@ -297,6 +321,44 @@ internal sealed partial record ReplyDraftScenario(
             AsksForWhatNothingSupports: false,
             MinimumTaskAdherence: 4,
             SecondConversation: CorpusMessage.ConversationUpTo(position: 99)),
+
+        // The person chose Ingrid's message about the goods lift, two messages before her latest one about parking, and
+        // asked only for a yes: the draft has to answer the lift booking rather than the parking it would otherwise
+        // reach for, and cite the message it answers.
+        new(
+            "ReplyDraft.AnswersAnEarlierChosenMessage",
+            CorpusMessage.ConversationUpTo(position: 110),
+            "Say that this works for us and thank her.",
+            "Two sentences.",
+            AsksForWhatNothingSupports: false,
+            MinimumTaskAdherence: 4,
+            Chosen: CorpusMessage.At(106)),
+
+        // What the person typed is their own rough reply with one instruction in it: the draft has to keep what they
+        // wrote — the permits collected with the key cards, the question about the movers' van — and carry out the
+        // instruction rather than quote it.
+        new(
+            "ReplyDraft.KeepsWhatThePersonDrafted",
+            CorpusMessage.ConversationUpTo(position: 110),
+            "thanks ingrid, four spaces is plenty for us. we'll pick up the permits together with the key cards. can we get one extra space for the movers van on the sunday? (make this sound a bit more polished)",
+            "Keep it short.",
+            AsksForWhatNothingSupports: false,
+            MinimumTaskAdherence: 4,
+            RequiredWords: ["permit", "van"]),
+
+        // The figure the person asks to accept is stated only in the attachment the chosen message carries, so a draft
+        // that names it read the attachment.
+        new(
+            "ReplyDraft.FromAnAttachment",
+            CorpusMessage.ConversationUpTo(position: 110),
+            "Tell Ingrid we accept the parking permit terms, and confirm the monthly price per permit the terms state.",
+            "Brief and friendly.",
+            AsksForWhatNothingSupports: false,
+            MinimumTaskAdherence: 4,
+            RequiredWords: ["35"],
+            Attachment: new(
+                "parking-permit-terms.pdf",
+                "Parking permit terms, Kestrel Quay, level -2\n\nBays 41 to 44 are allotted to the tenant from 30 August 2026. Each permit costs EUR 35 per month, invoiced quarterly to the tenant. A lost permit is replaced for EUR 10.")),
     ];
 
     /// <summary>Gets the address the mailbox belongs to and sends from, which a reply is never proposed to.</summary>
@@ -311,30 +373,44 @@ internal sealed partial record ReplyDraftScenario(
     public IReadOnlyList<IReadOnlyList<CorpusMessage>> Context =>
         this.SecondConversation is { } second ? [this.Conversation, second] : [this.Conversation];
 
+    /// <summary>Gets the message of each conversation of the context the person chose, in the context's order.</summary>
+    public IReadOnlyList<CorpusMessage> ChosenMessages =>
+        [.. this.Context.Select((conversation, position) => position is 0 && this.Chosen is { } chosen ? chosen : conversation[^1])];
+
     /// <summary>Reads the conversations the context closes, the way a deployment reads them for a drafting.</summary>
     /// <returns>The sources, numbered as the turn numbers them.</returns>
     public ReplyDraftSources Sources()
     {
         var styleFromSentMail = new ReplyDraftingOptions().StyleFromSentMail;
         var context = this.Context;
+        var chosen = this.ChosenMessages;
 
         return ReplyDraftSources.Merged(
             [
                 .. context.Select((conversation, position) => SourcesOf(
                     conversation,
+                    chosen[position],
+                    position is 0 ? this.Attachment : null,
                     MailReplyDrafting.BoundsFor(styleFromSentMail, context.Count, position))),
             ],
             MailReplyDrafting.MaximumMessages);
     }
 
     /// <summary>Reads one conversation of the context as the store reads one context message's, under the bounds that read is given.</summary>
-    private static ReplyDraftSources SourcesOf(IReadOnlyList<CorpusMessage> messages, ReplyDraftBounds bounds)
+    private static ReplyDraftSources SourcesOf(
+        IReadOnlyList<CorpusMessage> messages,
+        CorpusMessage chosen,
+        ReplyDraftScenarioAttachment? attachment,
+        ReplyDraftBounds bounds)
     {
         var conversation = messages.ToDictionary(static message => message.Id.Value);
         var answeredThreadId = CorpusMailbox.StoredAs(messages[^1]).EmailThreadId;
 
         var recent = ReplyDraftSourceStore
-            .MostRecent(CorpusMailbox.Stored.Where(email => conversation.ContainsKey(email.Id)).AsQueryable(), bounds.MaximumMessages)
+            .ChosenAndMostRecent(
+                CorpusMailbox.Stored.Where(email => conversation.ContainsKey(email.Id)).AsQueryable(),
+                chosen.Id,
+                bounds.MaximumMessages)
             .AsEnumerable()
             .Select(email => new ReplyDraftSourceStore.ConversationMessageRow(
                 email.Id,
@@ -353,7 +429,27 @@ internal sealed partial record ReplyDraftScenario(
             .Select(message => message.TextWithin(bounds.MaximumStyleCharactersPerMessage))
             .ToArray();
 
-        return ReplyDraftSourceStore.Assemble(recent, Owner.NormalizedAddress, styleSamples);
+        // The store reads an attachment's words already cut to the per-message bound, which is the cut taken here.
+        ReplyDraftSourceStore.AttachmentRow[] attachments = attachment is null
+            ? []
+            :
+            [
+                new(
+                    chosen.Id.Value,
+                    attachment.FileName,
+                    AttachmentTextKind.Document,
+                    attachment.Text.Length <= bounds.MaximumCharactersPerMessage
+                        ? attachment.Text
+                        : attachment.Text[..bounds.MaximumCharactersPerMessage]),
+            ];
+
+        return ReplyDraftSourceStore.Assemble(
+            recent,
+            chosen.Id,
+            attachments,
+            bounds.MaximumCharactersPerMessage,
+            Owner.NormalizedAddress,
+            styleSamples);
     }
 
     /// <summary>Puts the drafting to one model, checks the draft, has the judge grade it, and files the verdict in the run's store.</summary>
@@ -546,6 +642,34 @@ internal sealed partial record ReplyDraftScenario(
                 CitesEveryConversationMetricName,
                 uncitedConversations.Count is 0,
                 uncitedConversations.Count is 0 ? $"The claims cite a message of each of the {this.Context.Count} conversations." : $"No claim cites conversation {string.Join(", ", uncitedConversations)} of the context.");
+        }
+
+        if (this.Chosen is { } chosen)
+        {
+            var citesChosen = draft.Claims.Any(claim => claim.Sources.Contains(chosen.Id));
+
+            EvaluationMetrics.Record(
+                verdict,
+                CitesTheChosenMessageMetricName,
+                citesChosen,
+                citesChosen ? "A claim cites the message the person chose to answer." : "No claim cites the message the person chose to answer.");
+        }
+
+        if (this.RequiredWords is { } requiredWords)
+        {
+            var missing = requiredWords
+                .Where(word => !Regex.IsMatch(
+                    document?.Body ?? string.Empty,
+                    $@"\b{Regex.Escape(word)}",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+                    TimeSpan.FromSeconds(1)))
+                .ToList();
+
+            EvaluationMetrics.Record(
+                verdict,
+                CarriesRequiredWordsMetricName,
+                missing.Count is 0,
+                missing.Count is 0 ? "The body carries every word the case requires." : $"The body leaves out: {string.Join(", ", missing)}.");
         }
     }
 }

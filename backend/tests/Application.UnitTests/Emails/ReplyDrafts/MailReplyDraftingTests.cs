@@ -382,7 +382,9 @@ public sealed class MailReplyDraftingTests
                         0,
                         "Karolina",
                         new DateTimeOffset(2026, 9, 8, 9, 0, 0, TimeSpan.Zero),
-                        "The delivery is on Friday."),
+                        "The delivery is on Friday.",
+                        IsChosen: true,
+                        Attachments: []),
                 ]));
         var writer = WriterReturning(Written("We accept."));
         var drafting = CreateDrafting(sourceReader, writer);
@@ -490,7 +492,9 @@ public sealed class MailReplyDraftingTests
                     0,
                     "Karolina",
                     new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero),
-                    "It is 4 200 zloty."),
+                    "It is 4 200 zloty.",
+                    IsChosen: true,
+                    Attachments: []),
             ],
             [new ReplyDraftParticipant(0, Recipient())],
             []);

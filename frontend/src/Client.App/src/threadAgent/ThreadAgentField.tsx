@@ -4,6 +4,7 @@
 
 import { useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { ComposingContext } from '../composer/useComposing';
+import { GrowingField } from '../controls/GrowingField';
 import { Icon } from '../controls/Icon';
 import { useTip } from '../controls/useTip';
 import { useLocalization } from '../localization/useLocalization';
@@ -302,7 +303,7 @@ export function ThreadAgentField({
 
 // The field takes the keyboard as the card arrives, and only then: a ref declared once is called when the field is
 // attached and never again while it stands.
-function takeTheKeyboard(field: HTMLInputElement | null): void {
+function takeTheKeyboard(field: HTMLTextAreaElement | null): void {
     field?.focus();
 }
 
@@ -354,12 +355,13 @@ function DrafterCard({
 
             {/* The focus treatment stands on the box rather than on the field inside it: a ring drawn round a
                 transparent field inside a bordered box reads as two nested borders rather than one field that lit up. */}
-            <div className="flex min-w-0 items-center gap-2.5 rounded-full border border-accent-line bg-sunken py-1 ps-3.5 pe-1 transition focus-within:ring-3 focus-within:ring-accent-soft workspace:rounded-lg workspace:ps-3 panes:border-2 panes:border-accent panes:py-1.5 panes:ps-3.5 panes:pe-1.5">
+            {/* A 2xl radius rather than a pill below the workspace width, as the design draws it: one line still reads as
+                the pill, and a field grown to several lines stays a rounded box rather than a capsule cutting into it. */}
+            <div className="flex min-w-0 items-center gap-2.5 rounded-2xl border border-accent-line bg-sunken py-1 ps-3.5 pe-1 transition focus-within:ring-3 focus-within:ring-accent-soft workspace:rounded-lg workspace:ps-3 panes:border-2 panes:border-accent panes:py-1.5 panes:ps-3.5 panes:pe-1.5">
                 <Icon name="auto_awesome" className="size-icon-md shrink-0 text-accent-deep" />
 
-                <input
+                <GrowingField
                     ref={takeTheKeyboard}
-                    type="text"
                     aria-label={translate('threadAgent.label')}
                     placeholder={translate(twoPanes ? 'threadAgent.placeholder' : 'threadAgent.placeholderShort')}
                     value={typed}
@@ -370,6 +372,11 @@ function DrafterCard({
                         if (event.key === 'Escape') {
                             event.preventDefault();
                             onClose();
+                        } else if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                            // A text area takes Enter as a new line, so the press that asked for the draft from the one-line
+                            // field is asked for here; Shift+Enter keeps the new line.
+                            event.preventDefault();
+                            event.currentTarget.form?.requestSubmit();
                         }
                     }}
                     className="min-w-0 flex-1 bg-transparent text-md text-text outline-none placeholder:text-faint panes:text-lg"
