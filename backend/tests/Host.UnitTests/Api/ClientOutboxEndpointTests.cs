@@ -243,6 +243,7 @@ public sealed class ClientOutboxEndpointTests
         var read = Assert.IsType<Ok<ClientOutboxPreviewResponse>>(result.Result);
         Assert.Equal(mine.Value, read.Value!.OutgoingEmail);
         Assert.True(read.Value.InOutbox);
+        Assert.Equal(outgoingEmails.Read(mine).AvailableAt, read.Value.AvailableAt);
     }
 
     /// <summary>A send from a mailbox this caller is not assigned answers as one nobody made.</summary>

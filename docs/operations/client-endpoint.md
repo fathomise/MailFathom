@@ -2947,7 +2947,8 @@ most `OutboxQuery.MaximumPageSize` rows, newest first, and continues with the cu
 identifier, its account, its stage, `heldByAttempt` — whether an attempt holds it right now, which at
 `TransmissionBegun` tells a send being transmitted from one whose outcome nobody knows — up to three recipients from
 `To` (or from `Cc`, then `Bcc`, where `To` is empty) with `otherRecipientCount` for the rest, the subject, when it was
-recorded, the time it was written to leave at and the zone that time was named in, how many attempts it has taken, and
+recorded, the time it was written to leave at and the zone that time was named in, `availableAt` — the earliest a
+delivery pass may take it, which for a send left to try again is when it is tried — how many attempts it has taken, and
 the failure it stopped on as a code, a reply code, and a sentence in the reader's language.
 
 **A page and a preview are mail, so they take both grants.** Who a send is addressed to, its subject, and the message

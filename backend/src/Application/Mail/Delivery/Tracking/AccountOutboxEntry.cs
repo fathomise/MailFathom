@@ -60,6 +60,9 @@ public sealed record AccountOutboxEntry
     /// <summary>Gets the time the send was written to leave at, or <see langword="null" /> where it was written to leave at once.</summary>
     public required ZonedInstant? DueAt { get; init; }
 
+    /// <summary>Gets the earliest a delivery pass may take the send, which for a send left to try again is when it is tried again.</summary>
+    public required DateTimeOffset AvailableAt { get; init; }
+
     /// <summary>Gets how many attempts the send has taken.</summary>
     public required int AttemptCount { get; init; }
 

@@ -12,7 +12,7 @@ import { MailboxActsContext, nothingActed, type MailboxActs } from '../mailboxAc
 import { ListedMailContext, nothingListed } from '../messageList/useListedMail';
 import type { ListFold } from '../messageRows/listFold';
 import { WorkspaceProvider } from '../workspace/Workspace';
-import { useWorkspace } from '../workspace/useWorkspace';
+import { useWorkspace, type OpenOutbox } from '../workspace/useWorkspace';
 import { MailToolbar } from './MailToolbar';
 import type { StripFit } from './useStripFit';
 
@@ -22,12 +22,12 @@ const messageId = '00000000-0000-4000-8000-000000000000';
 
 const place = { storedEmailId: messageId, account: 'work', folder: 'work-inbox', unread: false, flagged: false };
 
-function Opens({ selection }: { readonly selection: string | null }) {
+function Opens({ selection, outbox }: { readonly selection: string | null; readonly outbox: OpenOutbox | null }) {
     const { revise } = useWorkspace();
 
     useEffect(() => {
-        revise({ selection });
-    }, [revise, selection]);
+        revise(outbox === null ? { selection } : { outbox });
+    }, [revise, selection, outbox]);
 
     return null;
 }
@@ -41,6 +41,7 @@ function drawToolbar(
         openMailboxes: null,
         listFold: null,
     },
+    outbox: OpenOutbox | null = null,
 ): { composed: ReturnType<typeof vi.fn> } {
     const composed = vi.fn();
     const composing: Composing = { offered, drafts: false, opening: null, compose: composed, close: () => undefined };
@@ -51,7 +52,7 @@ function drawToolbar(
                 <ListedMailContext value={{ ...nothingListed, placeOf: () => place }}>
                     <MailboxActsContext value={acts}>
                         <ComposingContext value={composing}>
-                            <Opens selection={selection} />
+                            <Opens selection={selection} outbox={outbox} />
                             <MailToolbar
                                 strip={() => undefined}
                                 fit={fit}
@@ -303,6 +304,25 @@ describe('MailToolbar', () => {
 
         expect(screen.queryByRole('button', { name: 'New message' })).toBeNull();
         expect(screen.getByRole('button', { name: 'Reply' }).textContent).toBe('Reply');
+    });
+
+    // An Outbox holds sends rather than messages in a folder, so while one is open the strip offers writing a new message
+    // and nothing that would answer, file, flag, or delete — and no panels to hide, the Outbox drawing none.
+    it('offers no mail act and no panel control while an Outbox stands in the list’s place', () => {
+        theCompositionHasTwoPanes();
+        drawToolbar(
+            true,
+            null,
+            actsOffering(() => undefined),
+            'labelled',
+            { openMailboxes: null, listFold: null },
+            { account: 'work', entry: null },
+        );
+
+        expect(screen.getAllByRole('button').map((control) => control.getAttribute('aria-label') ?? control.textContent)).toStrictEqual([
+            'Hide folders and filters',
+            'New message',
+        ]);
     });
 
     it('asks about no message at all while nothing is open, rather than about the last one that was', () => {

@@ -11625,6 +11625,8 @@ deployment.ts troubledAccounts GET /api/client/accounts
 deployment.ts inbox GET /api/client/folders
 deployment.ts archive2024 GET /api/client/folders
 deployment.ts draftsFolder GET /api/client/folders
+deployment.ts sentFolder GET /api/client/folders
+deployment.ts waitingOutbox GET /api/client/folders
 deployment.ts emptyFolder GET /api/client/folders
 deployment.ts trash GET /api/client/folders
 deployment.ts filed GET /api/client/folders
@@ -11688,6 +11690,15 @@ messages.ts newsletterBody GET /api/client/messages/{storedEmailId}/body
 messages.ts markupOnlyBody GET /api/client/messages/{storedEmailId}/body
 messages.ts newsletterMessage GET /api/client/messages/{storedEmailId}
 messages.ts markupOnlyMessage GET /api/client/messages/{storedEmailId}
+outbox.ts waitingSend GET /api/client/outbox
+outbox.ts sendingSend GET /api/client/outbox
+outbox.ts retryingSend GET /api/client/outbox
+outbox.ts unknownSend GET /api/client/outbox
+outbox.ts refusedOutgoingSend GET /api/client/outbox
+outbox.ts outboxPage GET /api/client/outbox
+outbox.ts emptyOutboxPage GET /api/client/outbox
+outbox.ts outgoingMailPreview - -
+outbox.ts outboxDecisionTaken POST /api/client/outbox/requeue
 notifications.ts notificationPage GET /api/client/notifications
 notifications.ts arrivingNotification GET /api/client/notifications
 notifications.ts emptyNotificationPage GET /api/client/notifications
@@ -11723,6 +11734,11 @@ BINDINGS
 #   the refusal by. The contract records no failure body for the send route, and an extension is not
 #   something an OpenAPI document carries at all, so what would be compared is a shape nothing wrote
 #   down. That is a gap in what the service declares rather than a defect in the fixture.
+# - `outbox.ts outgoingMailPreview` is what `GET /api/client/outbox/{outgoingEmailId}` answers
+#   to a credential that may read the Outbox. The same route answers a credential that may only send
+#   with the send's delivery record instead, and the recording keeps only the last of the two `Ok`
+#   bodies the endpoint declares, so the vocabulary it publishes for the route is the delivery
+#   record's — and every field the preview carries would read as one the contract never heard of.
 # - `mail.ts conversationRows` is the table the conversation is assembled from, and `answersRow` in
 #   it is a position in that list rather than anything the service answers with.
 # - `deployment.ts protectedResource` is the RFC 9728 document the client surface publishes at the

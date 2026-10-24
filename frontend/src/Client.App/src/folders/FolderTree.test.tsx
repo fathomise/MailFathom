@@ -1302,6 +1302,7 @@ describe('FolderTree, in a folded column', () => {
     it.each<{ signal: SignalledChange; named: string }>([
         { signal: { kind: 'refresh' }, named: 'a refresh' },
         { signal: { kind: 'folders.changed', account: 'work' }, named: 'the mapping moving' },
+        { signal: { kind: 'outbox.changed', account: 'work' }, named: 'an account’s Outbox moving' },
         { signal: { kind: 'mail.changed', account: 'work', folder: 'INBOX', emails: ['m-1'] }, named: 'mail changing' },
         {
             signal: {
@@ -1401,5 +1402,115 @@ describe('FolderTree, in a folded column', () => {
 
         await drawn();
         expect(reads()).toBe(1);
+    });
+});
+
+// An account's Outbox has no row of its own: it is a mark on that account's Sent row, drawn while anything waits.
+describe('the Outbox mark on a Sent row', () => {
+    const sent = {
+        id: 'SENT',
+        role: 'Sent',
+        path: ['Sent'],
+        storedEmailCount: 300,
+        unreadEmailCount: 0,
+        synchronizationState: 'Synchronized',
+        lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
+        behind: false,
+    };
+
+    function holding(outbox: { readonly waiting: number; readonly refused: number } | null): string {
+        const [work, personal] = tree.accounts;
+
+        return JSON.stringify({
+            ...tree,
+            accounts: [{ ...work, folders: [...(work?.folders ?? []), sent], outbox }, { ...personal, outbox: null }],
+        });
+    }
+
+    const named = 'Outbox - 4 waiting to leave, 1 refused';
+
+    // The row standing for every sent folder at once is drawn first, so the account's own is the last of them.
+    function workSent(): HTMLElement {
+        const rows = screen.getAllByRole('treeitem', { name: /^Sent/u });
+        const own = rows.at(-1);
+
+        if (own === undefined || rows.length < 2) {
+            throw new Error('The tree draws no Sent row of its own for the account.');
+        }
+
+        return own;
+    }
+
+    it('draws the mark on the account’s Sent row, named for both of the numbers its count adds up', async () => {
+        renderTree(answering(holding({ waiting: 4, refused: 1 })));
+
+        const mark = await screen.findByRole('button', { name: named });
+
+        expect(mark.textContent).toBe('5');
+        expect(within(workSent()).getByRole('button', { name: named })).toBe(mark);
+    });
+
+    it.each([
+        { outbox: { waiting: 2, refused: 0 }, said: 'Outbox - 2 waiting to leave' },
+        { outbox: { waiting: 0, refused: 1 }, said: 'Outbox - 1 refused' },
+    ])('names only the part that is there: $said', async ({ outbox, said }) => {
+        renderTree(answering(holding(outbox)));
+
+        expect(await screen.findByRole('button', { name: said })).toBeDefined();
+    });
+
+    it.each([
+        { outbox: { waiting: 0, refused: 0 }, case: 'nothing waits and nothing was refused' },
+        { outbox: null, case: 'the credential may not read what an Outbox holds' },
+    ])('draws no mark where $case', async ({ outbox }) => {
+        renderTree(answering(holding(outbox)));
+
+        await drawn();
+
+        expect(workSent()).toBeDefined();
+        expect(screen.queryByRole('button', { name: /^Outbox/u })).toBeNull();
+    });
+
+    it('opens the account’s Outbox on its Sent folder, and draws no folder as the one listed while it is open', async () => {
+        renderTree(answering(holding({ waiting: 4, refused: 1 })));
+
+        fireEvent.click(await screen.findByRole('button', { name: named }));
+
+        expect(carried().outbox).toEqual({ account: 'work', entry: null });
+        expect(carried().scope).toEqual({ kind: 'folder', accountId: 'work', folderId: 'SENT' });
+        expect(screen.getByRole('button', { name: named }).getAttribute('aria-current')).toBe('true');
+        expect(workSent().getAttribute('aria-selected')).toBe('false');
+    });
+
+    it('leaves the tree’s own keys to the tree, answering only the ones a button answers', async () => {
+        renderTree(answering(holding({ waiting: 4, refused: 1 })));
+
+        const mark = await screen.findByRole('button', { name: named });
+
+        fireEvent.keyDown(mark, { key: 'Enter' });
+
+        expect(carried().scope).not.toEqual({ kind: 'folder', accountId: 'work', folderId: 'SENT' });
+    });
+
+    it('stands under Sent with its count as a badge where the column is folded to a rail', async () => {
+        renderTree(answering(holding({ waiting: 4, refused: 1 })));
+
+        await drawn();
+        foldTheColumnAway();
+
+        const mark = await screen.findByRole('button', { name: named });
+
+        expect(mark.textContent).toBe('5');
+        expect(within(workSent()).getByRole('button', { name: named })).toBe(mark);
+    });
+
+    it('says the mark again under the Sent row’s menu header, where a finger reads it', async () => {
+        renderTree(answering(holding({ waiting: 4, refused: 1 })), true, undefined, undefined, offering().maintenance);
+
+        await screen.findByRole('button', { name: named });
+
+        expect(pressed(workSent())).toContain('Mark all as read');
+        // Beside the menu's name rather than inside the element carrying its role, which holds the items alone.
+        expect(screen.getByText(named, { selector: 'p' })).toBeDefined();
     });
 });

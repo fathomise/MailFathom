@@ -19,6 +19,8 @@ import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { DeleteQuestion } from '../mailboxActs/ActQuestions';
+import type { OutboxMarking } from '../outbox/OutboxMark';
+import { outboxCountOf } from '../outbox/outboxCounts';
 import { dropDestination, filesIntoTrash } from '../mailboxActs/mailboxDestinations';
 import { useMailboxActs, type ActedMessage } from '../mailboxActs/useMailboxActs';
 import { useReadMarking } from '../readMarking/useReadMarking';
@@ -94,7 +96,7 @@ export function FolderTree({
     readonly transport: MailFathomTransport;
     readonly online: boolean;
 }) {
-    const { translate } = useLocalization();
+    const { locale, translate } = useLocalization();
     const { workspace, revise } = useWorkspace();
     const { marked } = useReadMarking();
     const maintenance = useFolderMaintenance();
@@ -241,8 +243,9 @@ export function FolderTree({
         revise({ scope: openingScope(offered) });
     }, [answered, workspace.scope, revise]);
 
-    // Four of the six kinds move this tree, because all four move a count it draws: mail arriving in a folder, a
-    // message changing folder, the mapping itself moving, and a read mark. It re-reads under whatever is drawn rather
+    // Five kinds move this tree, because all five move a count it draws: mail arriving in a folder, a message changing
+    // folder, the mapping itself moving, a read mark, and a send entering or leaving an account's Outbox, whose mark
+    // stands on that account's Sent row. It re-reads under whatever is drawn rather
     // than replacing it, so a reader whose pointer is on a row keeps the row. A refresh reads it again the same way, for
     // the reason it reads everything again: something may have moved that nobody said.
     //
@@ -255,6 +258,7 @@ export function FolderTree({
                 if (
                     signal.kind === 'refresh' ||
                     signal.kind === 'folders.changed' ||
+                    signal.kind === 'outbox.changed' ||
                     signal.kind === 'mail.arrived' ||
                     signal.kind === 'mail.changed' ||
                     (signal.kind === 'mail.flags.changed' && signal.flags.some((stated) => stated.isSeen !== null))
@@ -331,6 +335,39 @@ export function FolderTree({
             .filter((visibleRow) => visibleRow.row.level === 1)
             .map((visibleRow, ordinal) => [visibleRow.row.key, ordinal] as const),
     );
+
+    // The mark an account's Sent row carries while its Outbox holds anything. Only the account's own Sent folder, never
+    // the row standing for every sent folder at once: an Outbox is one account's.
+    function outboxMarkingOf(row: FolderTreeRow): OutboxMarking | undefined {
+        const scope = row.scope;
+
+        if (row.role !== 'Sent' || scope?.kind !== 'folder' || groupOrdinals.has(row.key)) {
+            return undefined;
+        }
+
+        const account = directory.accounts.find((entry) => entry.account.id === scope.accountId);
+        const counted = outboxCountOf(account?.outbox ?? null, { locale, translate });
+
+        return counted === null
+            ? undefined
+            : {
+                  ...counted,
+                  open: workspace.outbox?.account === scope.accountId,
+                  onOpen: () => {
+                      setFocused(row.key);
+
+                      // Opened on that account's Sent folder, so whatever closes the Outbox — a message opened from
+                      // anywhere, the mark's own account picked again — leaves the reader where the sends went.
+                      revise({
+                          scope,
+                          outbox: { account: scope.accountId, entry: null },
+                          selection: null,
+                          conversation: null,
+                          selected: [],
+                      });
+                  },
+              };
+    }
 
     /** The folder the service's report names for a row, or `null` where it names none — including every row that is no folder. */
     function managedFolderOf(row: FolderTreeRow): ManagedMailFolder | null {
@@ -586,7 +623,8 @@ export function FolderTree({
                         position={visibleRow.position}
                         setSize={visibleRow.setSize}
                         expanded={visibleRow.expanded}
-                        selected={visibleRow.row.key === inScope}
+                        // While an Outbox stands in place of the list, no folder is what the list shows.
+                        selected={visibleRow.row.key === inScope && workspace.outbox === null}
                         focusable={visibleRow.row.key === carryingFocus?.row.key}
                         folded={workspace.mailboxesFolded}
                         groupOrdinal={groupOrdinals.get(visibleRow.row.key) ?? null}
@@ -616,6 +654,7 @@ export function FolderTree({
                         onKeyDown={(event) => {
                             onKeyDown(event, at, visibleRow);
                         }}
+                        outbox={outboxMarkingOf(visibleRow.row)}
                         onElement={(element) => {
                             if (element === null) {
                                 elements.current.delete(visibleRow.row.key);
@@ -634,6 +673,7 @@ export function FolderTree({
                     <FolderRowMenu
                         acts={actsFor(folder)}
                         header={folderRowName(folder, translate)}
+                        detail={outboxMarkingOf(folder)?.said}
                         at={at}
                         onAct={(act) => {
                             takeAct(act, folder);

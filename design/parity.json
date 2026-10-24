@@ -40,6 +40,14 @@
         {
           "click": {
             "role": "button",
+            "name": "Folders and filters",
+            "exact": true
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "role": "button",
             "name": "Outbox - 4 waiting to leave, 1 refused",
             "exact": true
           }

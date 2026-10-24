@@ -23,6 +23,7 @@ const offered: MailFolderDirectory = {
     synchronizationEnabled: true,
     accounts: [
         {
+            outbox: null,
             account: {
                 id: 'work',
                 displayName: 'Work',
@@ -98,14 +99,14 @@ describe('scopeOfAccount', () => {
 });
 
 describe('isMailFolderRole', () => {
-    it.each(['Inbox', 'Archive', 'Drafts', 'Sent', 'Junk', 'Trash', 'All', 'Flagged', 'Important', 'Outbox'])(
+    it.each(['Inbox', 'Archive', 'Drafts', 'Sent', 'Junk', 'Trash', 'All', 'Flagged', 'Important'])(
         'reads %s as a role this surface publishes',
         (role) => {
             expect(isMailFolderRole(role)).toBe(true);
         },
     );
 
-    it.each([{ value: 'Spam' }, { value: 'inbox' }, { value: 7 }, { value: null }])(
+    it.each([{ value: 'Spam' }, { value: 'Outbox' }, { value: 'inbox' }, { value: 7 }, { value: null }])(
         'refuses $value, which is not one of them',
         ({ value }) => {
             expect(isMailFolderRole(value)).toBe(false);
@@ -126,7 +127,7 @@ describe('roleRank', () => {
     });
 
     it('offers a folder playing no role after every folder that plays one', () => {
-        expect(roleRank(null)).toBeGreaterThan(roleRank('Outbox'));
+        expect(roleRank(null)).toBeGreaterThan(roleRank('All'));
     });
 });
 
@@ -173,6 +174,7 @@ describe('scopeStillOffered', () => {
                 synchronizationEnabled: true,
                 accounts: offered.accounts.map((entry) => ({
                     account: entry.account,
+                    outbox: null,
                     folders: entry.folders.map((folder) => ({ ...folder, role })),
                 })),
             };

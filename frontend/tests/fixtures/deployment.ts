@@ -180,6 +180,25 @@ const draftsFolder = {
     behind: false,
 };
 
+// The sent folder, which is where what the user sent is filed and where their Outbox is drawn: the Outbox is no folder
+// of its own, so the account says what it holds beside its folders rather than as one of them.
+const sentFolder = {
+    id: 'SENT',
+    role: 'Sent',
+    path: ['Sent'],
+    storedEmailCount: 318,
+    unreadEmailCount: 0,
+    synchronizationState: 'Synchronized',
+    lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
+    behind: false,
+};
+
+/**
+ * What the corpus mailbox's Outbox holds, as the folders route counts it: four sends still on their way and one the mail
+ * server refused, which are the five sends `outbox.ts` lists.
+ */
+export const waitingOutbox = { waiting: 4, refused: 1 };
+
 /** A folder holding nothing, which is the state a message list has to be looked at in and cannot reach by scrolling. */
 export const emptyFolder = {
     id: 'RECEIPTS',
@@ -220,12 +239,18 @@ const filed = {
 };
 
 /**
- * What the folders route answers at rest: one mailbox with an inbox, its drafts, a folder nested under another, and the
- * archive and the trash its acts file into.
+ * What the folders route answers at rest: one mailbox with an inbox, its drafts, what it sent, a folder nested under
+ * another, and the archive and the trash its acts file into, with sends still waiting in its Outbox.
  */
 export const mailFolders = {
     synchronizationEnabled: true,
-    accounts: [{ account: workAccount, folders: [inbox, draftsFolder, archive2024, filed, trash] }],
+    accounts: [
+        {
+            account: workAccount,
+            folders: [inbox, draftsFolder, sentFolder, archive2024, filed, trash],
+            outbox: waitingOutbox,
+        },
+    ],
 };
 
 /**
@@ -237,14 +262,19 @@ export const mailFolders = {
 export const troubledFolders = {
     synchronizationEnabled: true,
     accounts: [
-        { account: workAccount, folders: [inbox, draftsFolder, archive2024, emptyFolder] },
+        { account: workAccount, folders: [inbox, draftsFolder, sentFolder, archive2024, emptyFolder], outbox: waitingOutbox },
         {
             account: failingAccount,
             folders: [
                 { ...inbox, storedEmailCount: 61, unreadEmailCount: 4, synchronizationState: 'Failing', behind: true },
             ],
+            outbox: null,
         },
-        { account: accountBehind, folders: [{ ...inbox, storedEmailCount: 812, unreadEmailCount: 0, behind: true }] },
+        {
+            account: accountBehind,
+            folders: [{ ...inbox, storedEmailCount: 812, unreadEmailCount: 0, behind: true }],
+            outbox: { waiting: 0, refused: 0 },
+        },
     ],
 };
 
@@ -273,6 +303,7 @@ export const managedFolders = {
     folders: [
         { id: 'INBOX', parentId: null, name: 'INBOX', role: 'Inbox', allowedActs: [] },
         { id: 'DRAFTS', parentId: null, name: 'Drafts', role: 'Drafts', allowedActs: [] },
+        { id: 'SENT', parentId: null, name: 'Sent', role: 'Sent', allowedActs: [] },
         {
             id: 'ARCHIVE',
             parentId: null,

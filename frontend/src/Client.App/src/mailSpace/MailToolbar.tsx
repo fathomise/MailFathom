@@ -62,6 +62,10 @@ export function MailToolbar({
     const panelsHidden = workspace.panelsHidden;
     const actShape: ControlShape = fit === 'symbols' ? 'symbol' : 'labelled';
 
+    // An Outbox is read-only, so while one stands in the list's place the strip keeps the column's control and
+    // composing and drops every act on a message — and the panels toggle, which has no correspondence to give room to.
+    const outboxOpen = workspace.outbox !== null;
+
     return (
         <div
             ref={strip}
@@ -121,7 +125,9 @@ export function MailToolbar({
             {/* Answering needs something to answer, so with nothing open each of the three is drawn as what it is
                 rather than left out: a strip whose controls appear as a message is opened is one that moves under a
                 reader's cursor. */}
-            {answers.map((answering) =>
+            {outboxOpen
+                ? null
+                : answers.map((answering) =>
                 composing.offered && open !== null ? (
                     <Control
                         key={answering.icon}
@@ -144,7 +150,9 @@ export function MailToolbar({
 
             {/* The five that change the mailbox, over the one message that is open. With nothing open each of them
                 says so rather than being left out, for the reason the three answers above are drawn either way. */}
-            <MailboxActControls messages={open === null ? [] : actedMessages(listed, [open])} shape={actShape} />
+            {outboxOpen ? null : (
+                <MailboxActControls messages={open === null ? [] : actedMessages(listed, [open])} shape={actShape} />
+            )}
 
             {/* The one control in the strip that changes the view rather than the message, which is why the design
                 keeps it apart at the far edge and draws it as its symbol alone at every width. What it takes away is
@@ -155,7 +163,7 @@ export function MailToolbar({
                 all turn over together. Drawn only where the composition has two panes, because that is where the
                 design gives it something to do — a single pane keeps the head, which carries the way back to the
                 list. */}
-            {twoPanes ? (
+            {twoPanes && !outboxOpen ? (
                 <Control
                     label={translate(panelsHidden ? 'mail.showPanels' : 'mail.hidePanels')}
                     icon={panelsHidden ? 'fullscreen_exit' : 'fullscreen'}

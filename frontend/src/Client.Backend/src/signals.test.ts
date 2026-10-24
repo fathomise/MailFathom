@@ -226,6 +226,13 @@ describe('parseClientSignal', () => {
         });
     });
 
+    it('reads a moved outbox as the account whose outbox to read again', () => {
+        expect(parseClientSignal({ kind: 'outbox.changed', account: 'work' })).toStrictEqual({
+            kind: 'outbox.changed',
+            account: 'work',
+        });
+    });
+
     it('reads a raised notification as its two lines and what stands unread', () => {
         expect(
             parseClientSignal({
@@ -296,6 +303,7 @@ describe('parseClientSignal', () => {
         ['a change whose rows are not a list', { kind: 'mail.changed', account: 'work', folder: 'I', emails: 'm-1' }],
         ['a raised notification of an unknown kind', { kind: 'notification.raised', notificationKind: 'Weather' }],
         ['a moved folder set naming no account', { kind: 'folders.changed' }],
+        ['a moved outbox naming no account', { kind: 'outbox.changed' }],
         ['a flag change stating nothing', { kind: 'mail.flags.changed', account: 'work', folder: 'INBOX', flags: [] }],
         [
             'a flag change whose statement is about neither flag',

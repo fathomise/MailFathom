@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WorkspaceProvider } from './Workspace';
 import { emptyWorkspace, useWorkspace, type Workspace } from './useWorkspace';
@@ -233,6 +233,51 @@ describe('the file beside the selection', () => {
 
         expect(carried().attachment).toEqual(attachment);
         expect(carried().selection).toBe('another-message');
+    });
+});
+
+// An Outbox stands in place of the list and the pane, so whatever names something to list or read is what closes it.
+describe('the Outbox in place of the list', () => {
+    const outbox = { account: 'work', entry: null };
+    const sent = { kind: 'folder', accountId: 'work', folderId: 'sent' } as const;
+
+    it('closes the Outbox when a folder is picked, the Sent folder it was opened from included', () => {
+        applying([{ scope: sent, outbox }, { scope: sent }]);
+
+        expect(carried().outbox).toBeNull();
+        expect(carried().scope).toEqual(sent);
+    });
+
+    it('closes the Outbox when a message is opened anywhere', () => {
+        applying([{ outbox }, { selection: 'a-message' }]);
+
+        expect(carried().outbox).toBeNull();
+        expect(carried().selection).toBe('a-message');
+    });
+
+    it('leaves it open where the change is something else, such as a fold or a question', () => {
+        applying([{ outbox }, { foldsToggled: ['work'], question: 'who wrote' }, { selection: null }]);
+
+        expect(carried().outbox).toEqual(outbox);
+    });
+
+    it('leaves a revision naming the Outbox alone, because that is one being opened or moved within', () => {
+        applying([{ outbox }, { scope: sent, outbox: { account: 'work', entry: 'a-send' } }]);
+
+        expect(carried().outbox).toEqual({ account: 'work', entry: 'a-send' });
+    });
+
+    it('is not carried across a reload, which returns to the Sent folder it was opened from', () => {
+        applying([{ scope: sent, outbox }]);
+        cleanup();
+        render(
+            <WorkspaceProvider>
+                <Revisions changes={[]} />
+            </WorkspaceProvider>,
+        );
+
+        expect(carried().outbox).toBeNull();
+        expect(carried().scope).toEqual(sent);
     });
 });
 

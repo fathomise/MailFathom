@@ -31,6 +31,7 @@ function folder(folder: Partial<MailFolder> & Pick<MailFolder, 'id'>): MailFolde
 
 const work: MailAccountFolders = {
     account: account('work', 'Work'),
+    outbox: null,
     folders: [
         folder({ id: 'INBOX', role: 'Inbox', path: ['INBOX'], unreadEmailCount: 12, storedEmailCount: 4213 }),
         folder({ id: 'SENT', role: 'Sent', path: ['Wysłane'], storedEmailCount: 300 }),
@@ -47,6 +48,7 @@ const directory: MailFolderDirectory = {
         work,
         {
             account: account('personal', 'Personal'),
+            outbox: null,
             folders: [
                 folder({ id: 'INBOX', role: 'Inbox', path: ['INBOX'], unreadEmailCount: 3, storedEmailCount: 50 }),
                 folder({ id: 'NEWS', path: ['News'], synchronizationState: null }),
@@ -131,6 +133,7 @@ describe('folderTreeOf', () => {
             accounts: [
                 {
                     account: account('work', 'Work'),
+                    outbox: null,
                     folders: [
                         folder({ id: 'ARCHIVE', path: ['Archiwum'] }),
                         folder({ id: 'SUPPLIERS', path: ['Archiwum', 'Dostawcy'] }),
@@ -159,6 +162,7 @@ describe('folderTreeOf', () => {
             accounts: [
                 {
                     account: account('work', 'Work'),
+                    outbox: null,
                     folders: [
                         folder({ id: 'ARCHIVE', role: 'Archive', path: ['Archive'] }),
                         folder({ id: 'TRASH', role: 'Trash', path: ['Trash'] }),
@@ -167,7 +171,7 @@ describe('folderTreeOf', () => {
                         folder({ id: 'INBOX', role: 'Inbox', path: ['INBOX'] }),
                     ],
                 },
-                { account: account('personal', 'Personal'), folders: [] },
+                { account: account('personal', 'Personal'), outbox: null, folders: [] },
             ],
         };
 
@@ -200,8 +204,8 @@ describe('folderTreeOf', () => {
         const inboxless = {
             synchronizationEnabled: true,
             accounts: [
-                { account: account('work', 'Work'), folders: [folder({ id: 'NEWS', path: ['NEWS'] })] },
-                { account: account('personal', 'Personal'), folders: [] },
+                { account: account('work', 'Work'), outbox: null, folders: [folder({ id: 'NEWS', path: ['NEWS'] })] },
+                { account: account('personal', 'Personal'), outbox: null, folders: [] },
             ],
         };
 
@@ -226,8 +230,8 @@ describe('openingScope', () => {
         const inboxless = {
             synchronizationEnabled: true,
             accounts: [
-                { account: account('work', 'Work'), folders: [folder({ id: 'NEWS', path: ['NEWS'] })] },
-                { account: account('personal', 'Personal'), folders: [] },
+                { account: account('work', 'Work'), outbox: null, folders: [folder({ id: 'NEWS', path: ['NEWS'] })] },
+                { account: account('personal', 'Personal'), outbox: null, folders: [] },
             ],
         };
 
@@ -241,7 +245,7 @@ describe('openingScope', () => {
     it('opens on the one mailbox itself where it plays no inbox', () => {
         const inboxless = {
             synchronizationEnabled: true,
-            accounts: [{ account: account('work', 'Work'), folders: [folder({ id: 'NEWS', path: ['NEWS'] })] }],
+            accounts: [{ account: account('work', 'Work'), outbox: null, folders: [folder({ id: 'NEWS', path: ['NEWS'] })] }],
         };
 
         expect(openingScope(inboxless)).toEqual({ kind: 'account', accountId: 'work' });

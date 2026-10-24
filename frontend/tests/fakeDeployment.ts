@@ -14,6 +14,7 @@ import * as drafts from './fixtures/drafts';
 import * as mail from './fixtures/mail';
 import * as messages from './fixtures/messages';
 import * as notifications from './fixtures/notifications';
+import * as outbox from './fixtures/outbox';
 import * as tasks from './fixtures/tasks';
 
 // The deployment the browser suite signs in to: one per check, holding what the corpus says a mailbox holds and
@@ -171,6 +172,9 @@ interface FolderRow {
 /** A record the corpus or a write states, held as the JSON it travels as. */
 type Held = Readonly<Record<string, unknown>>;
 
+/** One send the Outbox lists, in the shape the corpus states one. */
+type OutboxSend = Parameters<typeof outbox.outgoingMailPreview>[0];
+
 /**
  * One folder of the mailbox's hierarchy as the management route publishes it.
  *
@@ -267,6 +271,14 @@ export class FakeDeployment {
 
     /** The drafts a send queued, by the outgoing identity it answered, until a withdrawal puts one back. */
     private readonly sendsQueued = new Map<string, { readonly draftId: string; readonly held: HeldDraft }>();
+
+    /**
+     * The corpus mailbox's Outbox as the corpus states it, with every decision taken since and every send that left.
+     *
+     * A send a check queues stands in it too, ahead of these, for as long as it is queued — which is the reading the
+     * folders route counts and the Outbox route lists, so the mark on the Sent row and the list it opens agree.
+     */
+    private outboxHeld: readonly OutboxSend[] = outbox.outboxPage.sends;
     private readonly runs = new Map<string, DiscoveryRun>();
     private readonly conversations = new Map<string, Conversation>([
         [agent.answeredConversationId, this.corpusConversation(agent.answeredConversationId, 'answered')],
@@ -462,6 +474,12 @@ export class FakeDeployment {
     makeFolderElsewhere(name: string): void {
         this.folderMade({ name, parentId: null });
         this.signal({ kind: 'folders.changed', account: deployment.workAccount.id });
+    }
+
+    /** Lets a send leave the Outbox, as a delivery the mail server took does, and says the account's Outbox moved. */
+    sendLeaves(outgoingEmail: string): void {
+        this.outboxHeld = this.outboxHeld.filter((send) => send.outgoingEmail !== outgoingEmail);
+        this.signal({ kind: 'outbox.changed', account: deployment.workAccount.id });
     }
 
     /** Moves the accounts to the corpus's troubled reading, and says an account's state moved. */
@@ -680,8 +698,14 @@ export class FakeDeployment {
                 return answering({ changes: this.recordsNamed(request.query.getAll('record')) });
             case 'POST /drafts':
                 return this.draftWritten(this.mintedIdentity(), request.body, 1);
+            case 'GET /outbox':
+                return answering({ sends: this.outboxSends(), nextCursor: null });
             case 'POST /outbox/cancellation':
-                return answering(this.sendWithdrawn(request.body));
+                return answering(this.sendCancelled(request.body));
+            case 'POST /outbox/requeue':
+                return answering(this.sendOfferedAgain(request.body));
+            case 'POST /outbox/dismissal':
+                return answering(this.sendDismissed(request.body));
             case 'GET /replies/drafting':
                 return answering(drafts.draftsReplies);
             case 'POST /replies/drafting':
@@ -743,6 +767,7 @@ export class FakeDeployment {
             default:
                 return (
                     this.telemetryAnswer(request) ??
+                    this.outboxAnswer(request, segments) ??
                     this.notificationAnswer(request, segments) ??
                     this.messageAnswer(request, segments) ??
                     this.draftAnswer(request, segments) ??
@@ -1180,6 +1205,123 @@ export class FakeDeployment {
         return { ...drafts.withdrawnSend, outgoingEmail };
     }
 
+    /** Every send the Outbox lists, newest first: what a check queued, then what the corpus holds. */
+    private outboxSends(): readonly OutboxSend[] {
+        const queued = [...this.sendsQueued].reverse().map(([outgoingEmail, { held }]) => ({
+            ...outbox.waitingSend,
+            outgoingEmail,
+            subject: typeof held.record['subject'] === 'string' ? held.record['subject'] : null,
+            recipients: (Array.isArray(held.record['recipients']) ? (held.record['recipients'] as Held[]) : []).map(
+                (recipient) => ({ address: String(recipient['address']), role: String(recipient['role']) }),
+            ),
+        }));
+
+        return [...queued, ...this.outboxHeld];
+    }
+
+    /** What the folders route counts in the Outbox: what is on its way, and what the mail server refused. */
+    private outboxCount() {
+        const sends = this.outboxSends();
+        const refused = sends.filter(({ stage }) => stage === 'Refused').length;
+
+        return { waiting: sends.length - refused, refused };
+    }
+
+    /** One send's preview, or nothing where the Outbox holds no send under that identity. */
+    private outboxAnswer({ method }: IssuedRequest, segments: readonly string[]): FakeAnswer | null {
+        const [space, id = ''] = segments;
+
+        if (space !== 'outbox' || segments.length !== 2 || method !== 'GET') {
+            return null;
+        }
+
+        const send = this.outboxSends().find(({ outgoingEmail }) => outgoingEmail === id);
+
+        return send === undefined ? { status: 404, body: '' } : answering(outbox.outgoingMailPreview(send));
+    }
+
+    /**
+     * Withdraws a send nothing has begun transmitting, which is a queued draft put back or a corpus send that no longer
+     * stands; one an attempt holds, one that went out, and one refused each answer why it could not be withdrawn.
+     */
+    private sendCancelled(body: unknown): Held {
+        const named = recordIn(body)?.['outgoingEmail'];
+        const outgoingEmail = typeof named === 'string' ? named : '';
+
+        if (this.sendsQueued.has(outgoingEmail)) {
+            return this.outboxDecided(this.sendWithdrawn(body));
+        }
+
+        const send = this.outboxHeld.find((held) => held.outgoingEmail === outgoingEmail);
+        const outcome =
+            send === undefined
+                ? 'RecordUnknown'
+                : send.heldByAttempt
+                  ? 'AttemptUnderWay'
+                  : send.stage === 'Recorded'
+                    ? 'Accepted'
+                    : 'StageDoesNotAllowIt';
+
+        if (outcome === 'Accepted') {
+            this.outboxHeld = this.outboxHeld.filter((held) => held !== send);
+        }
+
+        return this.outboxDecided({ outgoingEmail, outcome });
+    }
+
+    /** Offers a refused send, or one nobody knows the fate of, to the mail server again, as a send no attempt has reached. */
+    private sendOfferedAgain(body: unknown): Held {
+        const asked = recordIn(body);
+        const outgoingEmail = typeof asked?.['outgoingEmail'] === 'string' ? asked['outgoingEmail'] : '';
+        const send = this.outboxHeld.find((held) => held.outgoingEmail === outgoingEmail);
+        const outcome =
+            send === undefined
+                ? 'RecordUnknown'
+                : send.heldByAttempt || send.stage === 'Recorded'
+                  ? 'StageDoesNotAllowIt'
+                  : send.stage === 'Refused' && asked?.['refusalRestated'] !== true
+                    ? 'RefusalNotRestated'
+                    : 'Accepted';
+
+        if (outcome === 'Accepted') {
+            this.outboxHeld = this.outboxHeld.map((held) =>
+                held === send
+                    ? { ...held, stage: 'Recorded', attemptCount: 0, lastFailureCode: null, lastReplyCode: null, failure: null }
+                    : held,
+            );
+        }
+
+        return this.outboxDecided({ outgoingEmail, outcome });
+    }
+
+    /** Takes a refused send, or one nobody knows the fate of, out of the Outbox for good. */
+    private sendDismissed(body: unknown): Held {
+        const named = recordIn(body)?.['outgoingEmail'];
+        const outgoingEmail = typeof named === 'string' ? named : '';
+        const send = this.outboxHeld.find((held) => held.outgoingEmail === outgoingEmail);
+        const outcome =
+            send === undefined
+                ? 'RecordUnknown'
+                : send.stage === 'Refused' || send.stage === 'TransmissionBegun'
+                  ? 'Accepted'
+                  : 'StageDoesNotAllowIt';
+
+        if (outcome === 'Accepted') {
+            this.outboxHeld = this.outboxHeld.filter((held) => held !== send);
+        }
+
+        return this.outboxDecided({ outgoingEmail, outcome });
+    }
+
+    /** Says the Outbox moved once a decision about one of its sends was taken, and answers with the decision. */
+    private outboxDecided(decision: Held): Held {
+        if (decision['outcome'] === 'Accepted') {
+            this.signal({ kind: 'outbox.changed', account: deployment.workAccount.id });
+        }
+
+        return decision;
+    }
+
     /** Takes a draft out of the book and its stored message out of the drafts folder, as a send or a give-up does. */
     private draftGone(draftId: string): boolean {
         if (!this.draftsHeld.delete(draftId)) {
@@ -1524,6 +1666,7 @@ export class FakeDeployment {
             ...deployment.mailFolders,
             accounts: deployment.mailFolders.accounts.map(({ account, folders }) => ({
                 account,
+                outbox: this.outboxCount(),
                 folders: [
                     ...folders,
                     ...[...this.made].map((id) => ({

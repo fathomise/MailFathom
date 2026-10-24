@@ -35,6 +35,7 @@ const directory: MailFolderDirectory = {
     accounts: [
         {
             account: account('work', 'Work'),
+            outbox: null,
             folders: [
                 folder({ id: 'INBOX', role: 'Inbox', unreadEmailCount: 12 }),
                 folder({ id: 'ARCHIVE', unreadEmailCount: 2 }),
@@ -42,6 +43,7 @@ const directory: MailFolderDirectory = {
         },
         {
             account: account('personal', 'Personal'),
+            outbox: null,
             folders: [folder({ id: 'INBOX', role: 'Inbox', unreadEmailCount: 3 })],
         },
     ],

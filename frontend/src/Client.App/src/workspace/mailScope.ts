@@ -44,7 +44,6 @@ const roleOrder: Readonly<Record<MailFolderRole, number>> = {
     Flagged: 6,
     Important: 7,
     All: 8,
-    Outbox: 9,
 };
 
 /**
@@ -64,7 +63,6 @@ export const folderRoleLabels: Readonly<Record<MailFolderRole, MessageKey>> = {
     Flagged: 'folder.flagged',
     Important: 'folder.important',
     All: 'folder.all',
-    Outbox: 'folder.outbox',
 };
 
 /**
@@ -84,7 +82,6 @@ export const folderRoleIcons: Readonly<Record<MailFolderRole, IconName>> = {
     Flagged: 'flag',
     Important: 'label_important',
     All: 'all_inbox',
-    Outbox: 'outbox',
 };
 
 /** Whether the value is one of the roles this surface publishes. */

@@ -91,6 +91,7 @@ export function rememberWorkspace(workspace: Workspace): void {
             storageKey,
             JSON.stringify({
                 ...workspace,
+                outbox: null,
                 fragment: null,
                 fullHtml: null,
                 attachment: null,
@@ -155,6 +156,7 @@ function workspaceIn(value: unknown): Workspace | null {
         foldsToggled,
         mailboxesFolded,
         panelsHidden,
+        outbox: null,
         selection,
         conversation,
         fullHtml: null,

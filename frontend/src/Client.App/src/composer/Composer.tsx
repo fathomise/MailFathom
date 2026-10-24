@@ -25,6 +25,8 @@ import { sizeOf } from '../localization/octets';
 import { useLocalization } from '../localization/useLocalization';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
 import { useToasts, type Toast } from '../toasts/useToasts';
+import { readSentFolder } from '../outbox/sentFolder';
+import { addressOf } from '../routing/spaces';
 import { useWorkspace } from '../workspace/useWorkspace';
 import {
     anythingWritten,
@@ -211,7 +213,7 @@ export function Composer({
     // What the AI drafts from, as messages: a reply starts with the one it answers and a new message with none. The
     // first context a composition takes is where it started, and a context that differs from that as a set is what the
     // block warns about. Both are held here and nowhere else, so every way the composer closes empties them.
-    const { workspace } = useWorkspace();
+    const { workspace, revise: reviseWorkspace } = useWorkspace();
     const answered = opening.kind === 'answer' ? [opening.storedEmailId] : [];
     const [context, setContext] = useState<readonly string[]>(answered);
     const [contextStart, setContextStart] = useState<readonly string[] | null>(answered.length === 0 ? null : answered);
@@ -552,9 +554,9 @@ export function Composer({
 
         void draft.send(sending).then((outcome) => {
             if (stopped) {
-                toasts.raise(sendReport(outcome));
+                toasts.raise(sendReport(outcome, sending.account));
             } else {
-                settled(sendReport(outcome));
+                settled(sendReport(outcome, sending.account));
             }
 
             const deploymentHasIt = outcome.kind === 'queued' || outcome.kind === 'withdrawn';
@@ -568,6 +570,22 @@ export function Composer({
             } else if (!deploymentHasIt && rememberedComposition() === null) {
                 rememberComposition(written);
             }
+        });
+    }
+
+    // Opened on that account's Sent folder, as the mark on its Sent row opens it, so that whatever closes the Outbox
+    // leaves the reader where the send went. A directory that does not answer opens it over whatever was listed.
+    function showInOutbox(account: string, outgoingEmailId: string): void {
+        window.location.hash = addressOf('mail');
+
+        void readSentFolder(session, transport, account).then((sent) => {
+            reviseWorkspace({
+                ...(sent === null ? {} : { scope: sent }),
+                outbox: { account, entry: outgoingEmailId },
+                selection: null,
+                conversation: null,
+                selected: [],
+            });
         });
     }
 
@@ -587,12 +605,24 @@ export function Composer({
     // already have been closed while the send was in flight, so this is the one place the outcome is always said, and a
     // title with nothing under it would leave somebody knowing a message did not go and not why.
     //
-    // **A queued message offers no way back.** The design draws none, and this client has nothing to draw one with: the
-    // one act that would have to outlive the composer is the one the composer is gone for.
-    function sendReport(outcome: DraftStanding): Toast {
+    // **A queued message offers no way back here.** The design draws none, and this client has nothing to draw one
+    // with: the one act that would have to outlive the composer is the one the composer is gone for. What it offers
+    // instead is the send itself, in its account's Outbox, which is where withdrawing it is offered for as long as it
+    // can be.
+    function sendReport(outcome: DraftStanding, account: string): Toast {
         switch (outcome.kind) {
             case 'queued':
-                return { kind: 'success', title: translate('compose.sentTitle'), body: translate('compose.queued') };
+                return {
+                    kind: 'success',
+                    title: translate('compose.sentTitle'),
+                    body: translate('compose.queued'),
+                    action: {
+                        label: translate('compose.showInOutbox'),
+                        take: () => {
+                            showInOutbox(account, outcome.outgoingEmailId);
+                        },
+                    },
+                };
             case 'withdrawn':
                 return {
                     kind: outcome.withdrawal === 'withdrawn' ? 'success' : 'warning',

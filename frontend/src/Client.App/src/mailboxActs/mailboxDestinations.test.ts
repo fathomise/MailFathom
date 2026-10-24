@@ -35,6 +35,7 @@ function directoryOf(accounts: Record<string, readonly MailFolder[]>): MailFolde
     return {
         synchronizationEnabled: true,
         accounts: Object.entries(accounts).map(([id, folders]) => ({
+            outbox: null,
             account: {
                 id,
                 displayName: id,

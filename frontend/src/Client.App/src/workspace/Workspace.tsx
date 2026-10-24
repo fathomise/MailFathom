@@ -26,16 +26,29 @@ import { WorkspaceContext, type Workspace, type WorkspaceRevision } from './useW
 // message would otherwise each have to remember to close what it never knew was in front of it, and the one that
 // forgets is the defect.
 function withoutAStaleFront(current: Workspace, change: Partial<Workspace>): Partial<Workspace> {
-    if (change.selection === undefined || change.selection === current.selection) {
-        return change;
+    const decided = withoutAStaleOutbox(current, change);
+
+    if (decided.selection === undefined || decided.selection === current.selection) {
+        return decided;
     }
 
     return {
-        ...change,
-        conversation: change.conversation ?? null,
-        fullHtml: change.fullHtml ?? null,
-        attachment: change.attachment ?? null,
+        ...decided,
+        conversation: decided.conversation ?? null,
+        fullHtml: decided.fullHtml ?? null,
+        attachment: decided.attachment ?? null,
     };
+}
+
+// An open Outbox stands in place of the list and the pane, so whatever names a folder to list or a message to read is
+// what closes it — pressing a folder row, the same Sent row included, or a citation opening a message anywhere. A change
+// that names the Outbox itself is the one that opened it or moves within it, and is left as it was asked.
+function withoutAStaleOutbox(current: Workspace, change: Partial<Workspace>): Partial<Workspace> {
+    const leavesForMail = change.scope !== undefined || (change.selection !== undefined && change.selection !== null);
+
+    return current.outbox === null || change.outbox !== undefined || !leavesForMail
+        ? change
+        : { ...change, outbox: null };
 }
 
 export function WorkspaceProvider({ children }: { readonly children: ReactNode }) {

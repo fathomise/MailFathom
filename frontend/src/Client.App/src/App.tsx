@@ -109,6 +109,9 @@ import { useNavigationTelemetry } from './telemetry/navigationTelemetry';
 import { Thread } from './thread/Thread';
 import { ThreadAgentField, type ReadingFoot } from './threadAgent/ThreadAgentField';
 import { ToastLifetimeContext } from './toasts/useToasts';
+import { MailOutboxProvider } from './outbox/MailOutbox';
+import { OutboxList } from './outbox/OutboxList';
+import { OutboxPane } from './outbox/OutboxPane';
 import { attachmentKey, OpenAttachmentContext, type OpenedAttachment } from './workspace/openAttachment';
 import { conversationKey, type OpenConversation } from './workspace/openConversation';
 import { scopeKey } from './workspace/mailScope';
@@ -1124,6 +1127,7 @@ export function App({
                                                                                     />
                                                                                 </main>
                                                                             ) : (
+                                                                                <MailOutboxProvider session={session} transport={readMail} online={connection.online}>
                                                                                 <Space
                                                                                     // Every space this deployment offers, because every one of them is mounted: moving
                                                                                     // between them changes which is in front and takes nothing down.
@@ -1207,7 +1211,11 @@ export function App({
                                                                                     }
                                                                                     list={
                                                                                         session === null ||
-                                                                                        !readsMail ? null : (
+                                                                                        !readsMail ? null : workspace.outbox !== null ? (
+                                                                                            <MailAccountsContext value={mailAccounts}>
+                                                                                                <OutboxList outbox={workspace.outbox} />
+                                                                                            </MailAccountsContext>
+                                                                                        ) : (
                                                                                             // Both keyed by the scope, so pointing at another mailbox starts a list and a search
                                                                                             // rather than resetting either: every value below belongs to one mailbox read one way,
                                                                                             // and a search carries the mailbox it was made in as a filter it would go on showing.
@@ -1459,7 +1467,17 @@ export function App({
                                                                                         // open starts that answer rather than pouring it into the fields already on the screen.
                                                                                         written === null ||
                                                                                         session === null ? (
-                                                                                            whatIsOpen()
+                                                                                            session !== null && workspace.outbox !== null ? (
+                                                                                                <MailAccountsContext value={mailAccounts}>
+                                                                                                    <OutboxPane
+                                                                                                        session={session}
+                                                                                                        transport={readMail}
+                                                                                                        outbox={workspace.outbox}
+                                                                                                    />
+                                                                                                </MailAccountsContext>
+                                                                                            ) : (
+                                                                                                whatIsOpen()
+                                                                                            )
                                                                                         ) : (
                                                                                             <Composer
                                                                                                 key={openingKey(
@@ -1485,6 +1503,7 @@ export function App({
                                                                                         )
                                                                                     }
                                                                                 />
+                                                                                </MailOutboxProvider>
                                                                             )}
                                                                         </div>
 

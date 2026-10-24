@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { failed, failureReasonForStatus, read, type ClientResult } from './failure';
-import { asRecord } from './json';
+import { asRecord, parseEach } from './json';
 import { headersFor, routeFor, type ClientSession } from './session';
 import { spanned } from './telemetry';
 import { send, type ClientRequest, type ClientResponse, type MailFathomTransport } from './transport';
@@ -493,30 +493,6 @@ function parseDraft(body: Readonly<Record<string, unknown>> | null): MailDraft |
     return recipients === null || attachments === null
         ? null
         : { draftId, account, subject, recipients, attachments, revision, sizeOctets };
-}
-
-function parseEach<TEntry>(
-    answered: unknown,
-    most: number,
-    parse: (entry: unknown) => TEntry | null,
-): readonly TEntry[] | null {
-    if (!Array.isArray(answered) || answered.length > most) {
-        return null;
-    }
-
-    const entries: TEntry[] = [];
-
-    for (const entry of answered) {
-        const parsed = parse(entry);
-
-        if (parsed === null) {
-            return null;
-        }
-
-        entries.push(parsed);
-    }
-
-    return entries;
 }
 
 function parseRecipient(entry: unknown): MailDraftRecipient | null {

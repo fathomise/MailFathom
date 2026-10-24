@@ -54,6 +54,17 @@ export interface Workspace {
      */
     readonly panelsHidden: boolean;
 
+    /**
+     * The account whose Outbox stands in place of the list and the reading pane, and the send open in it, or `null`
+     * where no Outbox is open.
+     *
+     * Beside the scope rather than one of its kinds, because an Outbox is no folder: nothing the list, the search, or a
+     * question is asked against can be one, and a scope that could name it would be a scope every one of them had to
+     * refuse. It is opened from the Sent row it is drawn on, and picking any folder or opening any message closes it —
+     * `Workspace.tsx` holds that rule, for the reason it holds the others about what stands in front of what.
+     */
+    readonly outbox: OpenOutbox | null;
+
     /** What the person has open, once a space offers something to open. */
     readonly selection: string | null;
 
@@ -159,6 +170,14 @@ export interface Workspace {
     readonly recentSearches: readonly string[];
 }
 
+/** One account's Outbox as somebody has it open. */
+export interface OpenOutbox {
+    readonly account: string;
+
+    /** The send being read, by the identifier its send answered with, or `null` while only the list is. */
+    readonly entry: string | null;
+}
+
 export interface WorkspaceRevision {
     readonly workspace: Workspace;
 
@@ -178,6 +197,7 @@ export const emptyWorkspace: Workspace = {
     foldsToggled: [],
     mailboxesFolded: false,
     panelsHidden: false,
+    outbox: null,
     selection: null,
     conversation: null,
     fullHtml: null,
