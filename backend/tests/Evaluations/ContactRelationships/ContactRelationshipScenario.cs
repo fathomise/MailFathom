@@ -35,7 +35,7 @@ internal static class ContactRelationshipScenario
 
         var correspondence = scenario.Correspondence;
         var language = scenario.Language ?? UserLanguage.English;
-        var instruction = ContactRelationshipInstructions.TextFor(language);
+        var instruction = AgentComposition.InstructionFor(ContactRelationshipInstructions.TextFor(language));
 
         return new StructuredAnswerRequest(
             $"{Name}.{scenario.Name}",

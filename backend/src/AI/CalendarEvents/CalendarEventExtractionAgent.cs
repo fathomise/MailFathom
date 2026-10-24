@@ -13,7 +13,6 @@ using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
-using MailFathom.Domain.Emails;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -229,8 +228,10 @@ internal sealed class CalendarEventExtractionAgent : ICalendarEventExtractor
             [.. email.Passages.Select(static passage => passage.Text)],
             cancellationToken);
 
-        return Bounded(
-            CalendarEventExtractionInstructions.ComposeMailTurn(subject, receivedAt, passages),
+        return CalendarEventExtractionInstructions.ComposeMailTurn(
+            subject,
+            receivedAt,
+            passages,
             plan.MaximumRequestCharacters);
     }
 
@@ -253,24 +254,11 @@ internal sealed class CalendarEventExtractionAgent : ICalendarEventExtractor
             description.Text,
             cancellationToken);
 
-        return Bounded(
-            CalendarEventExtractionInstructions.ComposeDescriptionTurn(sentence, description.WrittenAt),
+        return CalendarEventExtractionInstructions.ComposeDescriptionTurn(
+            sentence,
+            description.WrittenAt,
             plan.MaximumRequestCharacters);
     }
-
-    /// <summary>Cuts a turn down to what one call may carry, without splitting a character in half.</summary>
-    /// <remarks>
-    /// A bound rather than a refusal, on the same reading the enrichment beside it takes: a message composed longer
-    /// than the declared endpoint accepts would be composed to that same length on every run, so refusing it would
-    /// leave the message outstanding for ever and stop the pass each time it came round. What a bounded turn costs is
-    /// the tail of the last passage, and an occasion read out of the opening of a message is still an occasion
-    /// somebody is offered. A typed sentence is bounded at five hundred characters before it ever reaches here, so
-    /// this touches it only where an operator declared an endpoint narrower than one sentence.
-    /// </remarks>
-    private static string Bounded(string turn, int maximumCharacters) =>
-        turn.Length <= maximumCharacters
-            ? turn
-            : MailTextBounds.TruncateAtTextElementBoundary(turn, maximumCharacters);
 
     /// <summary>Makes the one provider call, answering with nothing where it failed.</summary>
     /// <remarks>

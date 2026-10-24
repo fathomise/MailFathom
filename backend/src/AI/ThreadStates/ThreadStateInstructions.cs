@@ -4,7 +4,7 @@
 
 using System.Collections.Frozen;
 using System.Globalization;
-using System.Text;
+using MailFathom.AI.Orchestration;
 using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Domain.Accounts;
 
@@ -18,7 +18,7 @@ namespace MailFathom.AI.ThreadStates;
 /// describes no action and a model cannot propose one.
 /// </para>
 /// <para>
-/// The messages are numbered in the turn and the answer cites those numbers. A model is shown no identifier and can
+/// Each message carries a position in the turn and the answer cites those positions. A model is shown no identifier and can
 /// therefore name no message it was not given — a citation is a position in a list this deployment composed, which is
 /// what keeps a statement's sources inside the conversation it is about however the answer was written.
 /// </para>
@@ -30,6 +30,27 @@ namespace MailFathom.AI.ThreadStates;
 /// </remarks>
 internal static class ThreadStateInstructions
 {
+    /// <summary>Names the element the conversation is written in.</summary>
+    internal const string ThreadElementName = "thread";
+
+    /// <summary>Names the element carrying the conversation's subject, absent where it carried none.</summary>
+    internal const string SubjectElementName = "subject";
+
+    /// <summary>Names the element one message occupies.</summary>
+    internal const string MessageElementName = "message";
+
+    /// <summary>Names the attribute carrying the position a statement cites a message by.</summary>
+    internal const string PositionAttributeName = "position";
+
+    /// <summary>Names the attribute carrying when a message was written.</summary>
+    internal const string WrittenAttributeName = "written";
+
+    /// <summary>Names the element carrying the name a message was written under.</summary>
+    internal const string AuthorElementName = "author";
+
+    /// <summary>Names the element carrying what a message added.</summary>
+    internal const string TextElementName = "text";
+
     /// <summary>The instruction for each language this deployment writes in, composed once per language.</summary>
     /// <remarks>Composed from the members rather than written out twice, so the set is the enumeration's and a language added to it arrives here without this file being edited.</remarks>
     private static readonly FrozenDictionary<MailAccountLanguage, string> TextByLanguage = Enum
@@ -66,17 +87,18 @@ internal static class ThreadStateInstructions
         to say about. Put at most {EmailThreadState.MaximumEntriesPerAspect} in each array, the most important first.
 
         Every entry is an object with two required fields. "text" is the statement itself, at most
-        {ThreadStateEntry.MaximumTextLength} characters, written as one plain sentence. "messages" is an array of at most {ThreadStateEntry.MaximumSourceCount} message numbers from the
-        turn that the statement rests on, best first, and it is never empty — a statement no message supports is one to
-        omit.
+        {ThreadStateEntry.MaximumTextLength} characters, written as one plain sentence. "messages" is an array of at most
+        {ThreadStateEntry.MaximumSourceCount} numbers, each the "{PositionAttributeName}" of a <{MessageElementName}>
+        element of the turn that the statement rests on, best first, and it is never empty — a statement no message
+        supports is one to omit.
 
         An entry in "commitments" may carry two more fields. "owedBy" is the name of whoever undertook it, exactly as
         the conversation writes it, and is omitted where the conversation does not say — "we will send the revised
         figures" names nobody, and inventing a name for it would be asserting something the mail did not. A closing
         signature — a greeting, a name, a job title, an organisation — says who wrote a message, not who owes what it
         describes, so it never supplies "owedBy" on its own. "dueAt" is the date or instant it falls due as ISO 8601;
-        resolve a date stated relatively — "by Friday", "next week" — against the instant of the message that states
-        it, which the turn gives beside each message, and omit "dueAt" entirely where nothing names a date.
+        resolve a date stated relatively — "by Friday", "next week" — against the "{WrittenAttributeName}" instant of
+        the message that states it, and omit "dueAt" entirely where nothing names a date.
 
         "differences" is only for a document the conversation actually sent more than once — a quotation, a contract, a
         plan revised and returned. Each entry says how the later version differs from the one before it. A conversation
@@ -97,36 +119,75 @@ internal static class ThreadStateInstructions
     /// <summary>Composes the one turn a conversation is put to the agent as.</summary>
     /// <param name="subject">The subject, already guarded for anything the deployment withholds from a provider, or <see langword="null" /> where the conversation carried none.</param>
     /// <param name="messages">The messages in the conversation's own order, whose texts are already guarded.</param>
+    /// <param name="maximumCharacters">The most characters the turn may hold, which is the request bound of the model it is sent to.</param>
     /// <returns>The turn text.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="messages" /> is <see langword="null" />.</exception>
     /// <remarks>
-    /// The numbering is the turn's own and starts at zero, so a statement cites a position rather than anything this
+    /// <para>
+    /// The positions are the turn's own and start at zero, so a statement cites a position rather than anything this
     /// deployment stored. Each message carries when it was written, which is what makes a relative date resolvable and
     /// makes the same conversation derived again next month resolve it to the same day.
+    /// </para>
+    /// <para>
+    /// A bound rather than a refusal, and the same trade the enrichment derivation makes: a refusal here would be
+    /// permanent for this shape of the conversation, so an endpoint declared narrower than a long exchange would leave
+    /// it outstanding forever. What the bound costs is the tail of the conversation, and a statement citing a message
+    /// the model saw only part of is still a statement somebody can check. A conversation long enough for that to
+    /// matter has already been answered by <see cref="ThreadStateDerivation.TooLarge" /> before it is composed.
+    /// </para>
     /// </remarks>
-    internal static string ComposeThreadTurn(string? subject, IReadOnlyList<GuardedThreadMessage> messages)
+    internal static string ComposeThreadTurn(
+        string? subject,
+        IReadOnlyList<GuardedThreadMessage> messages,
+        int maximumCharacters = int.MaxValue)
     {
         ArgumentNullException.ThrowIfNull(messages);
 
-        var turn = new StringBuilder();
+        return AgentTurnDocument.Compose(maximumCharacters, document => WriteThread(document, subject, messages));
+    }
 
-        turn.Append(CultureInfo.InvariantCulture, $"Subject: {subject ?? "(none)"}\n\n");
+    /// <summary>Writes the conversation, stopping at the message the budget ran out in.</summary>
+    private static void WriteThread(
+        AgentTurnDocument document,
+        string? subject,
+        IReadOnlyList<GuardedThreadMessage> messages)
+    {
+        document.StartElement(ThreadElementName);
+
+        if (subject is not null)
+        {
+            document.WriteQuoted(SubjectElementName, subject);
+        }
 
         foreach (var message in messages)
         {
-            turn.Append(
-                CultureInfo.InvariantCulture,
-                $"Message {message.Position}\n");
-            turn.Append(
-                CultureInfo.InvariantCulture,
-                $"From: {message.AuthorDisplayName ?? "(unnamed)"}\n");
-            turn.Append(
-                CultureInfo.InvariantCulture,
-                $"Written: {message.SentAt?.ToString("O", CultureInfo.InvariantCulture) ?? "(unknown)"}\n");
-            turn.Append(CultureInfo.InvariantCulture, $"{message.Text}\n\n");
+            if (document.IsExhausted)
+            {
+                break;
+            }
+
+            WriteMessage(document, message);
+        }
+    }
+
+    /// <summary>Writes one message, whose position and instant are this service's and whose author and text are quoted.</summary>
+    private static void WriteMessage(AgentTurnDocument document, GuardedThreadMessage message)
+    {
+        document.StartElement(MessageElementName);
+        document.WriteAttribute(PositionAttributeName, message.Position.ToString(CultureInfo.InvariantCulture));
+
+        if (message.SentAt is { } sentAt)
+        {
+            document.WriteAttribute(WrittenAttributeName, sentAt.ToString("O", CultureInfo.InvariantCulture));
         }
 
-        return turn.ToString();
+        if (message.AuthorDisplayName is { } author)
+        {
+            document.WriteQuoted(AuthorElementName, author);
+        }
+
+        document.WriteQuoted(TextElementName, message.Text);
+        document.EndElement();
     }
 }
 

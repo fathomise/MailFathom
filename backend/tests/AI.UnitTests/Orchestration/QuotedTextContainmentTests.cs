@@ -5,16 +5,26 @@
 using System.Collections.Frozen;
 using System.Xml.Linq;
 using MailFathom.AI.AgentConversations;
+using MailFathom.AI.BodyCleanup;
+using MailFathom.AI.CalendarEvents;
+using MailFathom.AI.ContactRelationships;
+using MailFathom.AI.DayLayout;
+using MailFathom.AI.Discovery;
+using MailFathom.AI.Enrichment;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.ReplyDrafts;
 using MailFathom.AI.Retrieval;
+using MailFathom.AI.ThreadStates;
 using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
+using MailFathom.Application.Discovery.Planning;
 using MailFathom.Application.Discovery.Presentation.Citations;
+using MailFathom.Application.EmailContent.Cleaning;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Retrieval;
+using MailFathom.Application.Tasks;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Tasks;
@@ -146,6 +156,58 @@ public sealed class QuotedTextContainmentTests
             ["agent tasks: title"] = (
                 static text => AgentConversationReadings.Tasks([new GuardedTaskReading(IsCompleted: false, PersonalTaskOrigin.Proposed, DueOn: null, text)]),
                 AgentConversationReadings.TitleElementName),
+            ["enrichment: subject"] = (
+                static text => EmailEnrichmentInstructions.ComposeEnrichmentTurn(text, Now, [Harmless]),
+                MessagePassages.SubjectElementName),
+            ["enrichment: passage"] = (
+                static text => EmailEnrichmentInstructions.ComposeEnrichmentTurn(Harmless, Now, [Harmless, text]),
+                MessagePassages.PassageElementName),
+            ["calendar: passage"] = (
+                static text => CalendarEventExtractionInstructions.ComposeMailTurn(Harmless, Now, [text]),
+                MessagePassages.PassageElementName),
+            ["calendar: sentence"] = (
+                static text => CalendarEventExtractionInstructions.ComposeDescriptionTurn(text, Now),
+                AgentTurnDocument.AskElementName),
+            ["thread state: subject"] = (
+                static text => ThreadStateInstructions.ComposeThreadTurn(text, [new GuardedThreadMessage(0, Harmless, Now, Harmless)]),
+                ThreadStateInstructions.SubjectElementName),
+            ["thread state: author"] = (
+                static text => ThreadStateInstructions.ComposeThreadTurn(Harmless, [new GuardedThreadMessage(0, text, Now, Harmless)]),
+                ThreadStateInstructions.AuthorElementName),
+            ["thread state: text"] = (
+                static text => ThreadStateInstructions.ComposeThreadTurn(Harmless, [new GuardedThreadMessage(0, Harmless, Now, text)]),
+                ThreadStateInstructions.TextElementName),
+            ["relationship: subject"] = (
+                static text => ContactRelationshipInstructions.ComposeRelationshipTurn(new GuardedRelationshipTurn(
+                    [new GuardedRelationshipConversation(text, Now)],
+                    [new GuardedRelationshipDocument(Harmless, "application/pdf", Now)])),
+                ContactRelationshipInstructions.SubjectElementName),
+            ["relationship: file name"] = (
+                static text => ContactRelationshipInstructions.ComposeRelationshipTurn(new GuardedRelationshipTurn(
+                    [new GuardedRelationshipConversation(Harmless, Now)],
+                    [new GuardedRelationshipDocument(text, "application/pdf", Now)])),
+                ContactRelationshipInstructions.FileNameElementName),
+            ["day layout: task title"] = (
+                static text => DayLayoutInstructions.ComposeLayoutTurn(Day(), [text], [Harmless]),
+                DayLayoutInstructions.TitleElementName),
+            ["day layout: commitment title"] = (
+                static text => DayLayoutInstructions.ComposeLayoutTurn(Day(), [Harmless], [text]),
+                DayLayoutInstructions.TitleElementName),
+            ["outline: subject"] = (
+                static text => MailBodyCleanupInstructions.ComposeOutlineTurn(new CleanableMailBody(text, Harmless, [Block(0, Harmless)])),
+                MailBodyCleanupInstructions.SubjectElementName),
+            ["outline: block"] = (
+                static text => MailBodyCleanupInstructions.ComposeOutlineTurn(new CleanableMailBody(Harmless, Harmless, [Block(0, Harmless), Block(1, text)])),
+                MailBodyCleanupInstructions.BlockElementName),
+            ["discovery: question"] = (
+                static text => DiscoveryCompositionInstructions.ComposeCompositionTurn(text, DiscoveryIntent.FindFact, [DiscoverySource(Harmless, Harmless)]),
+                AgentTurnDocument.AskElementName),
+            ["discovery: label"] = (
+                static text => DiscoveryCompositionInstructions.ComposeCompositionTurn(Harmless, DiscoveryIntent.FindFact, [DiscoverySource(text, Harmless)]),
+                DiscoveryCompositionInstructions.LabelElementName),
+            ["discovery: extract"] = (
+                static text => DiscoveryCompositionInstructions.ComposeCompositionTurn(Harmless, DiscoveryIntent.FindFact, [DiscoverySource(Harmless, text)]),
+                DiscoveryCompositionInstructions.ExtractElementName),
         }.ToFrozenDictionary();
 
     /// <summary>Gets every composer paired with every fixture.</summary>
@@ -209,6 +271,16 @@ public sealed class QuotedTextContainmentTests
         new AgentWrittenTurn(AgentMessageAuthor.Person, turn),
         new AgentProposedMessageTurn(proposedSubject, ["anna@example.test"]),
     ];
+
+    private static DayLayoutQuestion Day() => new(
+        Now,
+        Now.AddHours(9),
+        [new DayLayoutTask(PersonalTaskId.Create(Guid.CreateVersion7()), Harmless, DueOn: null)],
+        [new DayLayoutCommitment(Harmless, Now.AddHours(1), End: null)]);
+
+    private static CleanableMailBlock Block(int index, string opening) => new(index, "paragraph", LinkCount: 0, opening);
+
+    private static DiscoveryTurnSource DiscoverySource(string label, string extract) => new("s1", label, extract, Now);
 
     private static GuardedThreadReading ThreadMessage(string subject, string body) => new(
         StoredEmailId.Create(Guid.CreateVersion7()),

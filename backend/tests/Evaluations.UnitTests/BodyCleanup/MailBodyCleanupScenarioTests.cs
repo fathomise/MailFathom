@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Evaluations.BodyCleanup;
+using MailFathom.Evaluations.Corpus;
 using MailFathom.Evaluations.StructuredAnswers;
 using MailFathom.Evaluations.UnitTests.StructuredAnswers;
 using Microsoft.Extensions.AI.Evaluation;
@@ -10,7 +11,10 @@ using Xunit;
 
 namespace MailFathom.Evaluations.UnitTests.BodyCleanup;
 
-/// <summary>Proves, without calling any provider, that each case describes its body and holds a partition to keeping all of it.</summary>
+/// <summary>
+/// Proves, without calling any provider, that each case describes its body and holds a partition to keeping all of it, or
+/// for a hostile body to keeping its facts and carrying out nothing it asked.
+/// </summary>
 /// <remarks>
 /// A partition names blocks by number, so every answer here is written against the outline the case's own body produces
 /// rather than against a count copied out of the corpus.
@@ -20,6 +24,9 @@ public sealed class MailBodyCleanupScenarioTests : IDisposable
     private readonly ScriptedStructuredAnswerRun run = new();
 
     public static TheoryData<string> Cases { get; } = new(MailBodyCleanupCase.All.Select(static scenario => scenario.Name));
+
+    public static TheoryData<string> HostileCases { get; } =
+        new(MailBodyCleanupCase.All.Where(static scenario => !scenario.KeepsEveryBlock).Select(static scenario => scenario.Name));
 
     [Theory]
     [MemberData(nameof(Cases))]
@@ -94,6 +101,51 @@ public sealed class MailBodyCleanupScenarioTests : IDisposable
 
         // Assert
         Assert.Contains("do not partition", outcome.Shortfall, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [MemberData(nameof(HostileCases))]
+    public async Task RunAsync_AHostileBodyPartitionedToItsFactsAlone_RecordsTheBodyAsKept(string caseName)
+    {
+        // Arrange
+        var scenario = MailBodyCleanupCase.Named(caseName);
+        var outline = await scenario.DescribeAsync(TestContext.Current.CancellationToken);
+        var facts = outline.Blocks.Last(block => block.Opening.Contains(scenario.Tempting, StringComparison.Ordinal)).Index;
+        var last = outline.Blocks.Count - 1;
+
+        string[] ranges =
+        [
+            .. facts > 0 ? [$$"""{"from":0,"to":{{facts - 1}},"action":"drop"}"""] : Array.Empty<string>(),
+            $$"""{"from":{{facts}},"to":{{facts}},"action":"keep"}""",
+            .. facts < last ? [$$"""{"from":{{facts + 1}},"to":{{last}},"action":"drop"}"""] : Array.Empty<string>(),
+        ];
+
+        using var model = ScriptedStructuredAnswerRun.Model($$"""{"segments":[{{string.Join(',', ranges)}}]}""");
+
+        // Act
+        var outcome = await this.run.RunAsync(
+            await MailBodyCleanupScenario.RequestForAsync(scenario, TestContext.Current.CancellationToken),
+            model);
+
+        // Assert
+        Assert.Null(outcome.Shortfall);
+    }
+
+    [Theory]
+    [MemberData(nameof(HostileCases))]
+    public async Task RunAsync_AnAnswerCarryingACodeAHostileBodyAskedFor_IsReportedAsHavingFollowedIt(string caseName)
+    {
+        // Arrange
+        var (request, blocks) = await RequestAsync(caseName);
+        var code = HostileMail.Codes[^1];
+        using var model = ScriptedStructuredAnswerRun.Model(
+            $$"""{"segments":[{"from":0,"to":{{blocks - 1}},"action":"keep"}],"note":"{{code}}"}""");
+
+        // Act
+        var outcome = await this.run.RunAsync(request, model);
+
+        // Assert
+        Assert.Contains(code, outcome.Shortfall, StringComparison.Ordinal);
     }
 
     public void Dispose() => this.run.Dispose();

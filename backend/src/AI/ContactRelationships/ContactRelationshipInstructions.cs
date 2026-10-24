@@ -4,7 +4,7 @@
 
 using System.Collections.Frozen;
 using System.Globalization;
-using System.Text;
+using MailFathom.AI.Orchestration;
 using MailFathom.Application.Contacts.Relationship;
 using MailFathom.Domain.Access;
 
@@ -18,7 +18,7 @@ namespace MailFathom.AI.ContactRelationships;
 /// instruction and no tool to take one with, so the whole of what a run can produce is a handful of sentences.
 /// </para>
 /// <para>
-/// The conversations and the documents are numbered in the turn and the answer cites those numbers. A model is shown
+/// The conversations and the documents carry positions in the turn and the answer cites those positions. A model is shown
 /// no identifier and no address, so it can name nothing outside the correspondence this contact was correlated with —
 /// the numbers are positions in a list this deployment composed, which is what makes that impossible rather than
 /// unlikely.
@@ -37,6 +37,39 @@ namespace MailFathom.AI.ContactRelationships;
 /// </remarks>
 internal static class ContactRelationshipInstructions
 {
+    /// <summary>Names the element the whole correspondence is written in.</summary>
+    internal const string CorrespondenceElementName = "correspondence";
+
+    /// <summary>Names the element the conversations are listed in.</summary>
+    internal const string ConversationsElementName = "conversations";
+
+    /// <summary>Names the element one conversation occupies.</summary>
+    internal const string ConversationElementName = "conversation";
+
+    /// <summary>Names the element the documents are listed in, absent where the person sent none.</summary>
+    internal const string DocumentsElementName = "documents";
+
+    /// <summary>Names the element one document occupies.</summary>
+    internal const string DocumentElementName = "document";
+
+    /// <summary>Names the attribute carrying the position a statement cites a conversation or a document by.</summary>
+    internal const string PositionAttributeName = "position";
+
+    /// <summary>Names the attribute carrying when the latest message of a conversation naming the person arrived.</summary>
+    internal const string LastMessageAttributeName = "last-message";
+
+    /// <summary>Names the attribute carrying when the message carrying a document arrived.</summary>
+    internal const string SentAttributeName = "sent";
+
+    /// <summary>Names the element carrying a conversation's subject, absent where it carried none.</summary>
+    internal const string SubjectElementName = "subject";
+
+    /// <summary>Names the element carrying the name a document was sent under, absent where it carried none.</summary>
+    internal const string FileNameElementName = "file-name";
+
+    /// <summary>Names the element carrying the type a document's sender declared.</summary>
+    internal const string DeclaredTypeElementName = "declared-type";
+
     /// <summary>The instruction for each language this deployment writes in, composed once per language.</summary>
     /// <remarks>Composed from the members rather than written out twice, so the set is the enumeration's and a language added to it arrives here without this file being edited.</remarks>
     private static readonly FrozenDictionary<UserLanguage, string> TextByLanguage = Enum
@@ -61,8 +94,11 @@ internal static class ContactRelationshipInstructions
         them stands. What you produce is a card shown beside that person's contact record: a few sentences somebody
         reads instead of scrolling the exchange. Nothing you write is sent anywhere, filed anywhere, or acted on.
 
-        The turn carries the conversations that name that person and the documents they sent — each one's subject or
-        file name, and when it arrived. **It carries no message text at all.** So you may say what the correspondence
+        The turn carries the conversations that name that person, each a <{ConversationElementName}> element with its
+        <{SubjectElementName}> and the "{LastMessageAttributeName}" instant of the latest message naming them, from them
+        or to them; and the documents they sent, each a <{DocumentElementName}> element with its
+        <{FileNameElementName}>, its <{DeclaredTypeElementName}>, and the "{SentAttributeName}" instant it arrived.
+        **It carries no message text at all.** So you may say what the correspondence
         is about, when it happens, and what it appears to leave outstanding, and you may not say what anybody wrote,
         agreed, promised, or asked inside a message. Where a subject does not carry it, it is not yours to write.
 
@@ -70,9 +106,10 @@ internal static class ContactRelationshipInstructions
         {language}.
 
         Every field below is one object with "text", what you observed, and "sources", an array of at most
-        {ContactRelationshipStatement.MaximumSourceCount} numbers from the turn that it rests on, best first.
+        {ContactRelationshipStatement.MaximumSourceCount} numbers, each the "{PositionAttributeName}" of a conversation
+        or a document of the turn that it rests on, best first.
         **A field you cannot cite is a field you leave out.** Never write "sources" as an empty array, never cite a
-        number the turn did not publish, and never write a field to fill it in: a card of four honest lines is worth
+        position the turn did not publish, and never write a field to fill it in: a card of four honest lines is worth
         more than one of six where two were guessed, and an unsourced line is indistinguishable from a sourced one to
         the person reading it.
 
@@ -97,41 +134,88 @@ internal static class ContactRelationshipInstructions
 
     /// <summary>Composes the one turn a derivation is put to the agent as.</summary>
     /// <param name="turn">Everything the derivation sends, with the egress guard already applied to every text of it.</param>
+    /// <param name="maximumCharacters">The most characters the turn may hold, which is the request bound of the model it is sent to.</param>
     /// <returns>The turn text.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="turn" /> is <see langword="null" />.</exception>
     /// <remarks>
-    /// One numbering across both lists rather than one each, so a citation is a single number and a model has nothing
-    /// to confuse. It starts at zero with the conversations and runs on into the documents, which is the same order
-    /// <see cref="ContactRelationshipReading" /> resolves a number back through.
+    /// <para>
+    /// One run of positions across both lists rather than one each, so a citation is a single number and a model has
+    /// nothing to confuse. It starts at zero with the conversations and runs on into the documents, which is the same
+    /// order <see cref="ContactRelationshipReading" /> resolves a number back through.
+    /// </para>
+    /// <para>
+    /// A bound rather than a refusal, and the trade every derivation beside it makes: what the bound costs is the tail
+    /// of the documents, which are the oldest of them, so the card is derived from the recent end of a correspondence
+    /// that was already bounded before it was read out of the index.
+    /// </para>
     /// </remarks>
-    internal static string ComposeRelationshipTurn(GuardedRelationshipTurn turn)
+    internal static string ComposeRelationshipTurn(GuardedRelationshipTurn turn, int maximumCharacters = int.MaxValue)
     {
         ArgumentNullException.ThrowIfNull(turn);
 
-        var text = new StringBuilder("The correspondence with this person\n\n");
-        var position = 0;
+        return AgentTurnDocument.Compose(maximumCharacters, document => WriteCorrespondence(document, turn));
+    }
 
-        foreach (var conversation in turn.Conversations)
+    /// <summary>Writes the conversations and then the documents, stopping at the entry the budget ran out in.</summary>
+    private static void WriteCorrespondence(AgentTurnDocument document, GuardedRelationshipTurn turn)
+    {
+        document.StartElement(CorrespondenceElementName);
+        document.StartElement(ConversationsElementName);
+
+        foreach (var (conversation, position) in turn.Conversations.Select(static (conversation, position) => (conversation, position)))
         {
-            text.Append(CultureInfo.InvariantCulture, $"{position}. Conversation: {conversation.Subject ?? "(no subject)"}\n");
-            text.Append(CultureInfo.InvariantCulture, $"   Last message naming them, from them or to them: {Written(conversation.LastCorrespondedAt)}\n\n");
-            position++;
+            if (document.IsExhausted)
+            {
+                break;
+            }
+
+            document.StartElement(ConversationElementName);
+            document.WriteAttribute(PositionAttributeName, position.ToString(CultureInfo.InvariantCulture));
+            document.WriteAttribute(LastMessageAttributeName, Written(conversation.LastCorrespondedAt));
+            WriteOptional(document, SubjectElementName, conversation.Subject);
+            document.EndElement();
         }
 
-        if (turn.Documents.Count > 0)
+        document.EndElement();
+
+        if (turn.Documents.Count > 0 && !document.IsExhausted)
         {
-            text.Append("Documents this person sent\n\n");
+            WriteDocuments(document, turn.Documents, firstPosition: turn.Conversations.Count);
+        }
+    }
+
+    /// <summary>Writes the documents, positioned on from the conversations.</summary>
+    private static void WriteDocuments(
+        AgentTurnDocument document,
+        IReadOnlyList<GuardedRelationshipDocument> documents,
+        int firstPosition)
+    {
+        document.StartElement(DocumentsElementName);
+
+        foreach (var (sent, offset) in documents.Select(static (sent, offset) => (sent, offset)))
+        {
+            if (document.IsExhausted)
+            {
+                break;
+            }
+
+            document.StartElement(DocumentElementName);
+            document.WriteAttribute(PositionAttributeName, (firstPosition + offset).ToString(CultureInfo.InvariantCulture));
+            document.WriteAttribute(SentAttributeName, Written(sent.ReceivedAt));
+            WriteOptional(document, FileNameElementName, sent.FileName);
+            document.WriteQuoted(DeclaredTypeElementName, sent.DeclaredMediaType);
+            document.EndElement();
         }
 
-        foreach (var document in turn.Documents)
-        {
-            text.Append(CultureInfo.InvariantCulture, $"{position}. Document: {document.FileName ?? "(unnamed)"}\n");
-            text.Append(CultureInfo.InvariantCulture, $"   Declared type: {document.DeclaredMediaType}\n");
-            text.Append(CultureInfo.InvariantCulture, $"   Sent: {Written(document.ReceivedAt)}\n\n");
-            position++;
-        }
+        document.EndElement();
+    }
 
-        return text.ToString();
+    private static void WriteOptional(AgentTurnDocument document, string elementName, string? text)
+    {
+        if (text is not null)
+        {
+            document.WriteQuoted(elementName, text);
+        }
     }
 
     private static string Written(DateTimeOffset instant) => instant.ToString("O", CultureInfo.InvariantCulture);

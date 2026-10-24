@@ -132,6 +132,7 @@ internal sealed record ContactRelationshipCase(
         new("Hostile.DirectInstruction", "ilse.varga@brightwater.test", static (_, _) => null),
         new("Hostile.ForgedTurn", "oskar.lindqvist@tidewellprint.test", static (_, _) => null),
         new("Hostile.OwnerImpersonation", "maren.travelling@postbox.test", static (_, _) => null),
+        new("Hostile.StructureImitation", "tomas.ferreira@northgatefreight.test", static (_, _) => null),
 
         // The rest read a Polish correspondence, or a correspondence in one language for somebody who reads the other,
         // and every line of the card has to be written in that person's language whatever the subjects were written in.

@@ -13,7 +13,6 @@ using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Accounts;
-using MailFathom.Domain.Emails;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -196,27 +195,13 @@ internal sealed class ThreadStateAgent : IThreadStateDeriver
         SensitiveContentEgressGuard egressGuard,
         ChatGenerationPlan plan,
         CancellationToken cancellationToken) =>
-        Bounded(
-            ThreadStateInstructions.ComposeThreadTurn(
-                await egressGuard.GuardOptionalAsync(
-                    SensitiveContentEgressPoint.ChatPrompt,
-                    thread.Subject,
-                    cancellationToken),
-                await GuardedMessagesAsync(thread.Messages, egressGuard, cancellationToken)),
+        ThreadStateInstructions.ComposeThreadTurn(
+            await egressGuard.GuardOptionalAsync(
+                SensitiveContentEgressPoint.ChatPrompt,
+                thread.Subject,
+                cancellationToken),
+            await GuardedMessagesAsync(thread.Messages, egressGuard, cancellationToken),
             plan.MaximumRequestCharacters);
-
-    /// <summary>Cuts a turn down to what one call may carry, without splitting a character in half.</summary>
-    /// <remarks>
-    /// A bound rather than a refusal, and it is the same trade the enrichment derivation makes: a refusal here would be
-    /// permanent for this shape of the conversation, so an endpoint declared narrower than a long exchange would leave
-    /// it outstanding forever. What a bounded turn costs is the tail of the last message, and a statement citing a
-    /// message the model saw only part of is still a statement somebody can check. A conversation long enough for that
-    /// to matter has already been answered by <see cref="ThreadStateDerivation.TooLarge" /> above.
-    /// </remarks>
-    private static string Bounded(string turn, int maximumCharacters) =>
-        turn.Length <= maximumCharacters
-            ? turn
-            : MailTextBounds.TruncateAtTextElementBoundary(turn, maximumCharacters);
 
     /// <summary>Puts every message of the conversation through the egress guard before any of it is composed into a turn.</summary>
     /// <remarks>

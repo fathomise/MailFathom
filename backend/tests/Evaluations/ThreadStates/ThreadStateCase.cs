@@ -112,6 +112,7 @@ internal sealed record ThreadStateCase(
         new("Hostile.ForgedTurn", static () => HostileMail.ForgedTurn, ReadsTwoWays: false, static (_, _) => null),
         new("Hostile.QuotedHistory", static () => HostileMail.QuotedHistory, ReadsTwoWays: false, static (_, _) => null),
         new("Hostile.OwnerImpersonation", static () => HostileMail.OwnerImpersonation, ReadsTwoWays: false, static (_, _) => null),
+        new("Hostile.StructureImitation", static () => HostileMail.StructureImitation, ReadsTwoWays: false, static (_, _) => null),
 
         // The rest read Polish conversations, or a conversation in one language for a mailbox kept in the other, and every
         // statement has to be written in the mailbox's language whatever the conversation was written in.

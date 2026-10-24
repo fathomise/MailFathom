@@ -143,8 +143,10 @@ extracts and nothing else about the mailbox.
 
 **The citations are minted before the model sees anything, and they are the only ones a claim may rest on.** The run
 declares one source per distinct message it retrieved, names it `s1`, `s2`, and so on, and shows the model those names —
-each over every extract the run retrieved from that message, headed by the message's subject and the day it arrived,
-which is what tells a correction from the statement it corrects.
+each as one `<source>` element carrying that name and the day the message arrived, around the message's subject and
+every extract the run retrieved from it — the day being what tells a correction from the statement it corrects. The
+element is written by the same writer as every other turn quoting mail, so an extract that closes it and opens a forged
+source arrives as text inside the source it came from.
 A name the model invents resolves to nothing, so the claim resting on it is read as resting on nothing — which is what
 makes a composed answer checkable at all. Nothing a model writes ever becomes a reference to mail.
 

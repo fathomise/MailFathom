@@ -14,7 +14,6 @@ using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
-using MailFathom.Domain.Emails;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -181,21 +180,9 @@ internal sealed class ContactRelationshipAgent : IContactRelationshipDeriver
         SensitiveContentEgressGuard egressGuard,
         ChatGenerationPlan plan,
         CancellationToken cancellationToken) =>
-        Bounded(
-            ContactRelationshipInstructions.ComposeRelationshipTurn(
-                await GuardedTurnAsync(correspondence, egressGuard, cancellationToken)),
+        ContactRelationshipInstructions.ComposeRelationshipTurn(
+            await GuardedTurnAsync(correspondence, egressGuard, cancellationToken),
             plan.MaximumRequestCharacters);
-
-    /// <summary>Cuts a turn down to what one call may carry, without splitting a character in half.</summary>
-    /// <remarks>
-    /// A bound rather than a refusal, and the trade every derivation beside it makes: what a bounded turn loses is the
-    /// tail of the documents, which are the oldest of them, so the card is derived from the recent end of a
-    /// correspondence that was already bounded before it was read out of the index.
-    /// </remarks>
-    private static string Bounded(string turn, int maximumCharacters) =>
-        turn.Length <= maximumCharacters
-            ? turn
-            : MailTextBounds.TruncateAtTextElementBoundary(turn, maximumCharacters);
 
     /// <summary>Puts every text of the correlation through the egress guard before any of it is composed into a turn.</summary>
     /// <remarks>

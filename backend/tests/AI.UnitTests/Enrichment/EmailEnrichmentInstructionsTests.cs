@@ -2,7 +2,9 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Xml.Linq;
 using MailFathom.AI.Enrichment;
+using MailFathom.AI.Orchestration;
 using MailFathom.Domain.Accounts;
 using Xunit;
 
@@ -128,9 +130,9 @@ public sealed class EmailEnrichmentInstructionsTests
         Assert.IsType<ArgumentOutOfRangeException>(refused);
     }
 
-    /// <summary>A citation is a position in the list this deployment composed, so the turn numbers them from zero.</summary>
+    /// <summary>A citation is a position in the list this deployment composed, so the turn positions the passages from zero.</summary>
     [Fact]
-    public void ComposeEnrichmentTurn_SeveralPassages_NumbersThemFromZeroInOrder()
+    public void ComposeEnrichmentTurn_SeveralPassages_PositionsThemFromZeroInOrder()
     {
         // Act
         var turn = EmailEnrichmentInstructions.ComposeEnrichmentTurn(
@@ -139,8 +141,10 @@ public sealed class EmailEnrichmentInstructionsTests
             ["the quotation is attached", "we need your answer by Friday"]);
 
         // Assert
-        Assert.Contains("Passage 0:\nthe quotation is attached", turn, StringComparison.Ordinal);
-        Assert.Contains("Passage 1:\nwe need your answer by Friday", turn, StringComparison.Ordinal);
+        Assert.Equal(
+            [("0", "the quotation is attached"), ("1", "we need your answer by Friday")],
+            Parsed(turn).Descendants(MessagePassages.PassageElementName)
+                .Select(static passage => ((string?)passage.Attribute(MessagePassages.PositionAttributeName), passage.Value)));
     }
 
     /// <summary>
@@ -154,17 +158,42 @@ public sealed class EmailEnrichmentInstructionsTests
         var turn = EmailEnrichmentInstructions.ComposeEnrichmentTurn("The racking quotation", ReceivedAt, []);
 
         // Assert
-        Assert.Contains("Arrived: 2026-09-05T09:15:00.0000000+00:00", turn, StringComparison.Ordinal);
+        Assert.Equal(
+            "2026-09-05T09:15:00.0000000+00:00",
+            (string?)Parsed(turn).Element(MessagePassages.MessageElementName)?.Attribute(MessagePassages.ArrivedAttributeName));
     }
 
+    /// <summary>Absent rather than empty, so the model reads what the message carried instead of a blank it has to tell apart from an empty subject.</summary>
     [Fact]
-    public void ComposeEnrichmentTurn_AMessageWithNoSubjectAndNoArrival_SaysSoRatherThanLeavingTheFieldEmpty()
+    public void ComposeEnrichmentTurn_AMessageWithNoSubjectAndNoArrival_WritesNeither()
     {
         // Act
-        var turn = EmailEnrichmentInstructions.ComposeEnrichmentTurn(subject: null, receivedAt: null, []);
+        var message = Parsed(EmailEnrichmentInstructions.ComposeEnrichmentTurn(subject: null, receivedAt: null, []))
+            .Element(MessagePassages.MessageElementName);
 
         // Assert
-        Assert.Contains("Subject: (none)", turn, StringComparison.Ordinal);
-        Assert.Contains("Arrived: (unknown)", turn, StringComparison.Ordinal);
+        Assert.NotNull(message);
+        Assert.Null(message.Element(MessagePassages.SubjectElementName));
+        Assert.Null(message.Attribute(MessagePassages.ArrivedAttributeName));
     }
+
+    /// <summary>The budget is the writer's, so a long message is cut inside a passage and the turn still parses, rather than being cut mid-element afterwards.</summary>
+    [Fact]
+    public void ComposeEnrichmentTurn_PassagesLongerThanTheBound_StaysWithinItAndStopsAtThePassageItCut()
+    {
+        // Arrange
+        const int Bound = 400;
+        var passages = Enumerable.Range(0, 5).Select(static ordinal => new string((char)('a' + ordinal), 200)).ToArray();
+
+        // Act
+        var turn = EmailEnrichmentInstructions.ComposeEnrichmentTurn("The racking quotation", ReceivedAt, passages, Bound);
+
+        // Assert
+        Assert.True(turn.Length <= Bound, $"The turn holds {turn.Length} characters.");
+        Assert.Equal(
+            "true",
+            (string?)Parsed(turn).Descendants(MessagePassages.PassageElementName).Last().Attribute(AgentTurnDocument.CutAttributeName));
+    }
+
+    private static XElement Parsed(string turn) => XElement.Parse($"<turn>{turn}</turn>", LoadOptions.PreserveWhitespace);
 }
