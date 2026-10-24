@@ -319,10 +319,9 @@ describe('MailToolbar', () => {
             { account: 'work', entry: null },
         );
 
-        expect(screen.getAllByRole('button').map((control) => control.getAttribute('aria-label') ?? control.textContent)).toStrictEqual([
-            'Hide folders and filters',
-            'New message',
-        ]);
+        expect(
+            screen.getAllByRole('button').map((control) => control.getAttribute('aria-label') ?? control.textContent),
+        ).toStrictEqual(['Hide folders and filters', 'New message']);
     });
 
     it('asks about no message at all while nothing is open, rather than about the last one that was', () => {

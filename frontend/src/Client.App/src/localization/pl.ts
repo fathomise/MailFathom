@@ -1080,7 +1080,8 @@ export const pl: Catalogue = {
     'outbox.nothingOpen': 'Nic nie jest otwarte',
     'outbox.nothingOpenText':
         'Wybierz wiadomość, żeby ją przeczytać. Nadawcza jest tylko do odczytu: to, co tu jest, można przeczytać, ale nie można na to odpowiedzieć, przenieść ani usunąć.',
-    'outbox.nothingOpenEmpty': 'Nadawcza jest pusta, więc nie ma tu nic do przeczytania. To, co wyszło, jest w Wysłanych.',
+    'outbox.nothingOpenEmpty':
+        'Nadawcza jest pusta, więc nie ma tu nic do przeczytania. To, co wyszło, jest w Wysłanych.',
     'outbox.back': 'Wróć do Nadawczej',
     'outbox.previewReading': 'Wczytywanie tej wiadomości…',
     'outbox.previewFailed': 'Nie udało się wczytać tej wiadomości: {reason}.',

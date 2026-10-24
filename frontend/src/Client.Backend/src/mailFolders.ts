@@ -29,7 +29,8 @@ export const mailFoldersRoute = '/folders';
  * by name, and the names differ per provider and per language. A folder configuration labelled with none carries
  * `null` here, and nothing in this package guesses one from a name.
  */
-export type MailFolderRole = 'Inbox' | 'Archive' | 'Drafts' | 'Sent' | 'Junk' | 'Trash' | 'All' | 'Flagged' | 'Important';
+export type MailFolderRole =
+    'Inbox' | 'Archive' | 'Drafts' | 'Sent' | 'Junk' | 'Trash' | 'All' | 'Flagged' | 'Important';
 
 /** One folder of one account, as a screen drawing a tree reads it. */
 export interface MailFolder {

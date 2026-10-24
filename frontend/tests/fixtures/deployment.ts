@@ -262,7 +262,11 @@ export const mailFolders = {
 export const troubledFolders = {
     synchronizationEnabled: true,
     accounts: [
-        { account: workAccount, folders: [inbox, draftsFolder, sentFolder, archive2024, emptyFolder], outbox: waitingOutbox },
+        {
+            account: workAccount,
+            folders: [inbox, draftsFolder, sentFolder, archive2024, emptyFolder],
+            outbox: waitingOutbox,
+        },
         {
             account: failingAccount,
             folders: [

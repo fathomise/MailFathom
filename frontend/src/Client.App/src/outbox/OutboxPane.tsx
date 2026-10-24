@@ -111,7 +111,16 @@ export function OutboxPane({
 
     const row = page.kind === 'read' ? page.sends.find((send) => send.outgoingEmailId === outbox.entry) : undefined;
 
-    return <OpenSend key={outbox.entry} session={session} transport={transport} outbox={outbox} entry={outbox.entry} row={row} />;
+    return (
+        <OpenSend
+            key={outbox.entry}
+            session={session}
+            transport={transport}
+            outbox={outbox}
+            entry={outbox.entry}
+            row={row}
+        />
+    );
 }
 
 function OpenSend({
@@ -200,9 +209,7 @@ function OpenSend({
 
     return (
         <article className="flex min-h-full flex-1 flex-col bg-panel">
-            <div
-                className={`flex shrink-0 items-center gap-2 ${twoPanes ? 'px-6 pt-4 pb-2.5' : 'px-2 py-1.5'}`}
-            >
+            <div className={`flex shrink-0 items-center gap-2 ${twoPanes ? 'px-6 pt-4 pb-2.5' : 'px-2 py-1.5'}`}>
                 {back}
                 <h2
                     className={`min-w-0 flex-1 font-semibold tracking-tight text-pretty ${twoPanes ? 'text-3xl' : 'text-2xl/snug'}`}
@@ -324,8 +331,15 @@ function Facts({ preview }: { readonly preview: OutgoingMailPreview }) {
     const timeZone = useReadingZone();
     const wording: OutboxWording = { locale, timeZone, translate };
 
-    const facts: readonly { readonly key: string; readonly label: string; readonly value: string; readonly said?: string }[] = [
-        ...(preview.sender === null ? [] : [{ key: 'from', label: translate('outbox.fact.from'), value: preview.sender }]),
+    const facts: readonly {
+        readonly key: string;
+        readonly label: string;
+        readonly value: string;
+        readonly said?: string;
+    }[] = [
+        ...(preview.sender === null
+            ? []
+            : [{ key: 'from', label: translate('outbox.fact.from'), value: preview.sender }]),
         ...preview.recipients.map((recipient, at) => ({
             key: `recipient-${String(at)}`,
             label: translate(roleLabels[recipient.role]),
@@ -348,7 +362,13 @@ function Facts({ preview }: { readonly preview: OutgoingMailPreview }) {
               ]),
         ...(preview.attemptCount === 0
             ? []
-            : [{ key: 'tried', label: translate('outbox.fact.tried'), value: attemptsSaid(preview.attemptCount, wording) }]),
+            : [
+                  {
+                      key: 'tried',
+                      label: translate('outbox.fact.tried'),
+                      value: attemptsSaid(preview.attemptCount, wording),
+                  },
+              ]),
     ];
 
     return (
@@ -357,7 +377,9 @@ function Facts({ preview }: { readonly preview: OutgoingMailPreview }) {
                 <div key={fact.key} className="flex min-w-0 flex-wrap gap-x-2 gap-y-0.5">
                     <dt className="w-13 shrink-0 text-muted">{fact.label}</dt>
                     <dd className="min-w-0 flex-1 basis-50 wrap-anywhere">{fact.value}</dd>
-                    {fact.said === undefined ? null : <dd className="ms-15 shrink-0 text-sm text-error-text">{fact.said}</dd>}
+                    {fact.said === undefined ? null : (
+                        <dd className="ms-15 shrink-0 text-sm text-error-text">{fact.said}</dd>
+                    )}
                 </div>
             ))}
         </dl>
@@ -382,7 +404,9 @@ function Attachments({ preview }: { readonly preview: OutgoingMailPreview }) {
                 >
                     <Icon name="description" className="size-icon-lg text-muted" />
                     <span className="flex min-w-0 flex-col gap-px">
-                        <span className="truncate text-base">{attachment.fileName ?? translate('attachment.unnamed')}</span>
+                        <span className="truncate text-base">
+                            {attachment.fileName ?? translate('attachment.unnamed')}
+                        </span>
                         <span className="text-sm text-muted">
                             {translate('outbox.attachmentMeta', {
                                 kind: kindOf(attachment.fileName, attachment.mediaType),

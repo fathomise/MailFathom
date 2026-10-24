@@ -211,7 +211,11 @@ export function MailOutboxProvider({
         const refusalRestated = standingOf(send) === 'refused';
 
         void offerOutgoingMailAgain(session, transport, send.outgoingEmailId, refusalRestated).then((result) => {
-            decided(result, { kind: 'neutral', title: translate('outbox.againTitle'), body: translate('outbox.again') });
+            decided(result, {
+                kind: 'neutral',
+                title: translate('outbox.againTitle'),
+                body: translate('outbox.again'),
+            });
         });
     }
 
@@ -263,13 +267,13 @@ export function MailOutboxProvider({
     const page: OutboxPage = !online
         ? { kind: 'offline' }
         : account === null || answered?.account !== account
-            ? { kind: 'reading' }
-            : answered.result.outcome === 'failed'
-              ? { kind: 'failed', reason: answered.result.failure.reason }
-              : {
-                    kind: 'read',
-                    sends: answered.result.value.sends.filter((send) => !hidden.includes(send.outgoingEmailId)),
-                };
+          ? { kind: 'reading' }
+          : answered.result.outcome === 'failed'
+            ? { kind: 'failed', reason: answered.result.failure.reason }
+            : {
+                  kind: 'read',
+                  sends: answered.result.value.sends.filter((send) => !hidden.includes(send.outgoingEmailId)),
+              };
 
     const outbox: MailOutbox = { page, readAgain, cancel, sendAgain, dismiss };
 

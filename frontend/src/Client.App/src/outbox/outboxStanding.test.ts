@@ -6,7 +6,14 @@ import type { OutgoingMail } from '@mailfathom/client-backend';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { catalogues, type Locale } from '../localization/locale';
 import type { Translate } from '../localization/useLocalization';
-import { addresseeOf, attemptsSaid, standingLine, standingOf, standingShapes, type OutboxWording } from './outboxStanding';
+import {
+    addresseeOf,
+    attemptsSaid,
+    standingLine,
+    standingOf,
+    standingShapes,
+    type OutboxWording,
+} from './outboxStanding';
 
 /** Reads the catalogue the way the provider does, which is a lookup and a hole filled. */
 function translating(locale: Locale): Translate {
@@ -63,9 +70,7 @@ describe('standingOf', () => {
 
 describe('standingShapes', () => {
     it('offers withdrawing a send only while no attempt has taken it, and deciding about one only once one has', () => {
-        expect(
-            Object.entries(standingShapes).map(([standing, { decisions }]) => [standing, decisions]),
-        ).toStrictEqual([
+        expect(Object.entries(standingShapes).map(([standing, { decisions }]) => [standing, decisions])).toStrictEqual([
             ['waiting', 'cancel'],
             ['scheduled', 'cancel'],
             ['retrying', 'cancel'],

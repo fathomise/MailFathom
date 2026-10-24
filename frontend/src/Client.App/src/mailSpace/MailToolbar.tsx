@@ -128,25 +128,25 @@ export function MailToolbar({
             {outboxOpen
                 ? null
                 : answers.map((answering) =>
-                composing.offered && open !== null ? (
-                    <Control
-                        key={answering.icon}
-                        label={translate(answering.label)}
-                        icon={answering.icon}
-                        shape={actShape}
-                        onPress={() => {
-                            composing.compose({ kind: 'answer', answers: answering.answer, storedEmailId: open });
-                        }}
-                    />
-                ) : (
-                    <PlannedControl
-                        key={answering.icon}
-                        label={translate(answering.label)}
-                        icon={answering.icon}
-                        shape={actShape}
-                    />
-                ),
-            )}
+                      composing.offered && open !== null ? (
+                          <Control
+                              key={answering.icon}
+                              label={translate(answering.label)}
+                              icon={answering.icon}
+                              shape={actShape}
+                              onPress={() => {
+                                  composing.compose({ kind: 'answer', answers: answering.answer, storedEmailId: open });
+                              }}
+                          />
+                      ) : (
+                          <PlannedControl
+                              key={answering.icon}
+                              label={translate(answering.label)}
+                              icon={answering.icon}
+                              shape={actShape}
+                          />
+                      ),
+                  )}
 
             {/* The five that change the mailbox, over the one message that is open. With nothing open each of them
                 says so rather than being left out, for the reason the three answers above are drawn either way. */}

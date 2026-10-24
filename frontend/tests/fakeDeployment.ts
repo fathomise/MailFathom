@@ -1286,7 +1286,14 @@ export class FakeDeployment {
         if (outcome === 'Accepted') {
             this.outboxHeld = this.outboxHeld.map((held) =>
                 held === send
-                    ? { ...held, stage: 'Recorded', attemptCount: 0, lastFailureCode: null, lastReplyCode: null, failure: null }
+                    ? {
+                          ...held,
+                          stage: 'Recorded',
+                          attemptCount: 0,
+                          lastFailureCode: null,
+                          lastReplyCode: null,
+                          failure: null,
+                      }
                     : held,
             );
         }

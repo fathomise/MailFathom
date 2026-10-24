@@ -245,7 +245,9 @@ describe('openingScope', () => {
     it('opens on the one mailbox itself where it plays no inbox', () => {
         const inboxless = {
             synchronizationEnabled: true,
-            accounts: [{ account: account('work', 'Work'), outbox: null, folders: [folder({ id: 'NEWS', path: ['NEWS'] })] }],
+            accounts: [
+                { account: account('work', 'Work'), outbox: null, folders: [folder({ id: 'NEWS', path: ['NEWS'] })] },
+            ],
         };
 
         expect(openingScope(inboxless)).toEqual({ kind: 'account', accountId: 'work' });

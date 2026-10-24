@@ -192,7 +192,10 @@ describe('readMailFolders', () => {
         { shape: 'a folder playing the outbox, which no folder does', body: bodyOf([{ ...inbox, role: 'Outbox' }]) },
         {
             shape: 'an outbox that is not two counts',
-            body: JSON.stringify({ synchronizationEnabled: true, accounts: [{ account: workAccount, folders: [], outbox: 3 }] }),
+            body: JSON.stringify({
+                synchronizationEnabled: true,
+                accounts: [{ account: workAccount, folders: [], outbox: 3 }],
+            }),
         },
         {
             shape: 'an outbox counting a fraction of a send',

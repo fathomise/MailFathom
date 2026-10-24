@@ -168,7 +168,9 @@ describe('the Outbox list', () => {
         expect(rows.map((row) => row.textContent)).toStrictEqual([
             expect.stringMatching(/^Tot\.bak@fabrikam\.example.*Re: UAT testing dateWaiting to send$/u),
             expect.stringMatching(/^Tom\.nowak@company\.example.*Budget line for Q4 renewalsSending now$/u),
-            expect.stringMatching(/^Top\.zielinski@company\.example \+1.*Re: rollout scheduleTrying again at .* · 2 attempts$/u),
+            expect.stringMatching(
+                /^Top\.zielinski@company\.example \+1.*Re: rollout scheduleTrying again at .* · 2 attempts$/u,
+            ),
             expect.stringMatching(/Re: proposed terms for 2027Outcome unknown · 1 attempt$/u),
             expect.stringMatching(/Re: Contract addendum - signaturesRefused by the server · 1 attempt$/u),
         ]);
@@ -191,7 +193,9 @@ describe('the Outbox list', () => {
         drawing(deployment([]).transport);
 
         expect(await screen.findByText('Outbox is empty')).toBeDefined();
-        expect(screen.getByText('Outbox is empty, so there is nothing to read here. What went out is in Sent.')).toBeDefined();
+        expect(
+            screen.getByText('Outbox is empty, so there is nothing to read here. What went out is in Sent.'),
+        ).toBeDefined();
 
         fireEvent.click(screen.getByRole('button', { name: 'Go to Sent' }));
 
@@ -269,7 +273,9 @@ describe('the Outbox preview', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'Cancel sending' }));
 
         expect(await screen.findByText('Nothing was sent to t.bak@fabrikam.example.')).toBeDefined();
-        expect(held.posted('/outbox/cancellation')).toStrictEqual([{ outgoingEmail: outbox.waitingSend.outgoingEmail }]);
+        expect(held.posted('/outbox/cancellation')).toStrictEqual([
+            { outgoingEmail: outbox.waitingSend.outgoingEmail },
+        ]);
         await waitFor(() => {
             expect(within(screen.getByRole('list', { name: 'Outbox' })).queryByText('Re: UAT testing date')).toBeNull();
         });
@@ -291,7 +297,9 @@ describe('the Outbox preview', () => {
         expect(await screen.findByText('Not sent - the server refused it')).toBeDefined();
         expect(screen.getByText(outbox.refusedOutgoingSend.failure)).toBeDefined();
         expect(screen.getAllByText('Not taken')).toHaveLength(2);
-        expect(screen.getByRole('list', { name: 'Files this message carries' }).textContent).toContain('Addendum-3-signed.pdf');
+        expect(screen.getByRole('list', { name: 'Files this message carries' }).textContent).toContain(
+            'Addendum-3-signed.pdf',
+        );
 
         fireEvent.click(screen.getByRole('button', { name: 'Send again' }));
 
@@ -309,12 +317,16 @@ describe('the Outbox preview', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
 
         expect(await screen.findByText('Taken out of Outbox')).toBeDefined();
-        expect(within(screen.getByRole('list', { name: 'Outbox' })).queryByText('Re: proposed terms for 2027')).toBeNull();
+        expect(
+            within(screen.getByRole('list', { name: 'Outbox' })).queryByText('Re: proposed terms for 2027'),
+        ).toBeNull();
         expect(screen.getByText('Nothing open')).toBeDefined();
 
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
 
-        expect(await within(screen.getByRole('list', { name: 'Outbox' })).findByText('Re: proposed terms for 2027')).toBeDefined();
+        expect(
+            await within(screen.getByRole('list', { name: 'Outbox' })).findByText('Re: proposed terms for 2027'),
+        ).toBeDefined();
         expect(held.posted('/outbox/dismissal')).toStrictEqual([]);
     });
 
@@ -327,7 +339,9 @@ describe('the Outbox preview', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'Close' }));
 
         await waitFor(() => {
-            expect(held.posted('/outbox/dismissal')).toStrictEqual([{ outgoingEmail: outbox.unknownSend.outgoingEmail }]);
+            expect(held.posted('/outbox/dismissal')).toStrictEqual([
+                { outgoingEmail: outbox.unknownSend.outgoingEmail },
+            ]);
         });
     });
 
@@ -346,7 +360,9 @@ describe('the Outbox preview', () => {
         await waitFor(() => {
             expect(held.pageReads()).toBe(readsBefore + 1);
         });
-        expect(within(screen.getByRole('list', { name: 'Outbox' })).queryByText('Re: proposed terms for 2027')).toBeNull();
+        expect(
+            within(screen.getByRole('list', { name: 'Outbox' })).queryByText('Re: proposed terms for 2027'),
+        ).toBeNull();
     });
 
     it('puts focus on what the pane draws once the send it stood on has left', async () => {

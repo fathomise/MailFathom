@@ -1423,7 +1423,10 @@ describe('the Outbox mark on a Sent row', () => {
 
         return JSON.stringify({
             ...tree,
-            accounts: [{ ...work, folders: [...(work?.folders ?? []), sent], outbox }, { ...personal, outbox: null }],
+            accounts: [
+                { ...work, folders: [...(work?.folders ?? []), sent], outbox },
+                { ...personal, outbox: null },
+            ],
         });
     }
 

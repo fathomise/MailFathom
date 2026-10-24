@@ -87,7 +87,6 @@ const attemptCounts: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
     other: 'outbox.attempts.other',
 };
 
-
 /** What wording a send needs: the language, the reader's zone, and the catalogue. */
 export interface OutboxWording {
     readonly locale: Locale;
@@ -125,7 +124,11 @@ export function standingTitle(
     return stageWords(standing, send, wording);
 }
 
-function stageWords(standing: OutboxStanding, send: OutgoingMail | OutgoingMailPreview, wording: OutboxWording): string {
+function stageWords(
+    standing: OutboxStanding,
+    send: OutgoingMail | OutgoingMailPreview,
+    wording: OutboxWording,
+): string {
     return wording.translate(lineKeys[standing], {
         leaves: leavesAt(send.dueAt, wording),
         at: timeOf(send.availableAt, wording),
@@ -178,7 +181,9 @@ export function addresseeOf(
     const first = recipients[0]?.address ?? '';
     const more = recipients.length - 1 + others;
 
-    return more > 0 ? translate('outbox.andOthers', { first, count: new Intl.NumberFormat(locale).format(more) }) : first;
+    return more > 0
+        ? translate('outbox.andOthers', { first, count: new Intl.NumberFormat(locale).format(more) })
+        : first;
 }
 
 /** The ink each tone draws a state's glyph and line in. */
