@@ -136,11 +136,16 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         }
 
         var cited = tools.Cited.Take(PresentationEvidence.MaxCitations).Select(static citation => citation.Id).ToArray();
+        // Cited rather than supported, because the answer is the model's own prose over what it was shown and nothing
+        // held it against those sources; a reader checks it by following them.
         var evidence = cited.Length is 0
             ? PresentationEvidence.Unsupported(PresentationFreshness.Unknown)
-            : new PresentationEvidence(PresentationSupport.Supported, cited, PresentationFreshness.Unknown);
+            : new PresentationEvidence(PresentationSupport.Cited, cited, PresentationFreshness.Unknown);
+        var confidence = PresentationConfidenceCeiling.Cap(
+            tools.ReportedConfidence ?? PresentationConfidence.Moderate,
+            evidence.Support);
 
-        await journal.ComposeAsync(new AnswerBlock(evidence, answer, PresentationConfidence.Moderate), cancellationToken);
+        await journal.ComposeAsync(new AnswerBlock(evidence, answer, confidence), cancellationToken);
 
         AgentConversationEvents.LogAnswered(this.logger, this.plan.Endpoint.Alias, cited.Length);
 
@@ -221,7 +226,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     {
         // Against this model's own bounds, and before the scan, so a conversation refused by a ceiling costs no scan.
         ChatRequestBounds.RequireForAttempt(messages, model);
-        tools.ForgetFollowUps();
+        tools.ForgetEndingReports();
 
         var guarded = await this.GuardAsync(messages, cancellationToken);
 

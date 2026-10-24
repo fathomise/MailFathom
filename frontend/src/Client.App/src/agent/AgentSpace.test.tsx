@@ -11,6 +11,7 @@ import type {
     RunFollowingSchedule,
 } from '@mailfathom/client-backend';
 import * as agent from '../../../../tests/fixtures/agent';
+import { messageCitationResolutions } from '../../../../tests/fixtures/mail';
 import { newsletterId } from '../../../../tests/fixtures/messages';
 import type { ProposalLook } from '../answerCanvas/proposalAnswering';
 import { LocalizationProvider } from '../localization/Localization';
@@ -60,6 +61,14 @@ function deploymentAnswering(posting: { readonly status: number; readonly body: 
         asked,
         transport: (request) => {
             asked.push(request);
+
+            if (request.path.endsWith('/citations/resolution')) {
+                return Promise.resolve({
+                    status: 200,
+                    body: JSON.stringify(messageCitationResolutions([newsletterId])),
+                    headers: {},
+                });
+            }
 
             if (request.method === 'POST') {
                 const run = request.path.includes('/runs/') ? agent.composingQuestionId : agent.answeredQuestionId;
@@ -243,6 +252,40 @@ describe('AgentSpace', () => {
 
         expect(screen.queryByRole('toolbar')).toBeNull();
         expect(document.activeElement?.getAttribute('role')).toBe('option');
+    });
+
+    it('hands the keyboard back to the citation once the source it opened is put down', async () => {
+        screenOf(deploymentAnswering().transport);
+
+        await opened('How many bays were confirmed');
+        const [citation] = await screen.findAllByRole('button', { name: 'Citation 1: A newsletter from Example' });
+        citation?.focus();
+        fireEvent.click(citation ?? document.body);
+        fireEvent.click(await screen.findByRole('button', { name: 'Back to the answer' }));
+
+        expect(screen.queryByRole('region', { name: 'Evidence' })).toBeNull();
+        expect(document.activeElement).toBe(citation);
+    });
+
+    it('leaves a source behind with the conversation it was cited in', async () => {
+        screenOf(deploymentAnswering().transport);
+
+        await opened('How many bays were confirmed');
+        const [citation] = await screen.findAllByRole('button', { name: 'Citation 1: A newsletter from Example' });
+        fireEvent.click(citation ?? document.body);
+        expect(await screen.findByRole('region', { name: 'Evidence' })).toBeDefined();
+
+        await opened('What is waiting on me today');
+
+        expect(await screen.findByText('What is waiting on me today?')).toBeDefined();
+        expect(screen.queryByRole('region', { name: 'Evidence' })).toBeNull();
+
+        await opened('How many bays were confirmed');
+
+        expect(
+            await screen.findAllByRole('button', { name: 'Citation 1: A newsletter from Example' }),
+        ).not.toHaveLength(0);
+        expect(screen.queryByRole('region', { name: 'Evidence' })).toBeNull();
     });
 
     it('draws the conversations held open as tabs the arrow keys walk', async () => {

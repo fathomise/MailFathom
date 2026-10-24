@@ -196,8 +196,14 @@ export const pl: Catalogue = {
     'answer.confidenceHigh': 'wysoka pewność',
     'answer.confidenceModerate': 'umiarkowana pewność',
     'answer.confidenceLow': 'niska pewność',
+    'answer.confidenceHighNote': 'Wiadomości mówią to wprost, a odpowiedź powtarza to, co w nich jest.',
+    'answer.confidenceModerateNote': 'Wiadomości to niosą, ale z krokiem wnioskowania, który warto sprawdzić.',
+    'answer.confidenceLowNote': 'To najlepsze odczytanie niepełnych źródeł i może być błędne.',
     'answer.supported': 'potwierdzone',
     'answer.supportedNote': 'Korespondencja to potwierdza – ze źródeł aktualnych w chwili odczytu.',
+    'answer.cited': 'ze źródłami',
+    'answer.citedNote':
+        'Odpowiedź wskazuje wiadomości, z których powstała, ale nic nie sprawdziło, czy je potwierdzają – otwórz cytowanie, żeby to ocenić.',
     'answer.unsupported': 'niepotwierdzone',
     'answer.unsupportedNote':
         'Nic, co znalazło to uruchomienie, tego nie potwierdza – potraktuj to jako odczyt, nie jako fakt.',

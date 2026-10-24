@@ -4,13 +4,13 @@
 
 import { useId, useState } from 'react';
 import type { AnswerBlock } from '@mailfathom/client-backend';
-import { Icon } from '../../controls/Icon';
 import { useLocalization } from '../../localization/useLocalization';
 import { UnrecognisedAnswerBlock } from '../AnswerBlockCard';
 import { ProposalCard, type ProposalControl } from '../ProposalCard';
 import { useProposalAnswering } from '../proposalAnswering';
 import { Citation } from './Citation';
-import { draftDispositions, supportVerdicts } from './blockWording';
+import { SupportVerdictChip } from './StandingChips';
+import { draftDispositions } from './blockWording';
 
 // Text to be sent, where the answer to a question is a message rather than a fact about one. Everything about how this
 // is drawn follows from one property of the contract: a plan carries a draft and never an act, and the set the
@@ -66,7 +66,6 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
     }
 
     const { draft, evidence } = block;
-    const verdict = supportVerdicts[evidence.support];
     const body = typed ?? draft.body;
     const to = addressedTo(draft.recipients, locale);
     const changed = typed !== null && typed !== draft.body;
@@ -137,10 +136,7 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
                     {translate(draftDispositions[draft.disposition])}
                 </span>
 
-                <span className={`flex items-center gap-1 rounded-full px-2.25 py-0.5 text-xs ${verdict.tint}`}>
-                    <Icon className="size-icon-xs" name={verdict.icon} />
-                    {translate(verdict.label)}
-                </span>
+                <SupportVerdictChip support={evidence.support} />
             </div>
 
             <div className="flex flex-col gap-2 rounded-md border border-line bg-sunken px-3.75 py-3.25">

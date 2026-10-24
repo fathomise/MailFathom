@@ -1899,7 +1899,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const bstate = (st.bkState || {})[key] || b.state || "ready";
       const editRaw = (st.bkEdit || {})[key];
       const editing = typeof editRaw === "string";
-      const LABEL = { timeline: "Timeline", evidence: "Evidence", threadstate: "Thread state", facttable: "Fact table", attachments: "Attachments", draft: "Draft", event: "Event proposal", task: "Task proposal", action: "Suggested action" };
+      const LABEL = { answer: "Answer", timeline: "Timeline", evidence: "Evidence", threadstate: "Thread state", facttable: "Fact table", attachments: "Attachments", draft: "Draft", event: "Event proposal", task: "Task proposal", action: "Suggested action" };
       const declined = phase === "declined";
       const accepted = phase === "accepted";
       const failed = accepted && !!b.failed;
@@ -1973,13 +1973,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
       return {
         label: LABEL[b.type] || "Block",
-        meta: b.meta || "",
+        meta: b.type === "answer" ? (b.cites || []).length + ((b.cites || []).length === 1 ? " citation" : " citations") : b.meta || "",
         /* The thread itself is flat, so the blocks carry the separation: they sit on panel with a
            visible edge instead of melting into the page. */
         cardStyle: BLK.card(isMobile, tone) + (b.anim ? "animation:mfblkin 0.52s cubic-bezier(0.22,0.61,0.36,1) both;" : ""),
         headStyle: BLK.head,
         icon: BLK_ICON[b.type] || "widgets",
-        tileStyle: BLK.tile(tone),
+        tileStyle: BLK.tile(b.type === "answer" ? "accent" : tone),
         glyphStyle: BLK.glyph,
         labelStyle: BLK.title,
         metaStyle: BLK.meta,
@@ -2020,6 +2020,31 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
         isTimeline: b.type === "timeline",
         isEvidence: b.type === "evidence",
+        /* The Agent's answer (`isAnswer`): confidence and *cited*, each explaining itself (`[data-tip]`), the prose with
+           its citations at the end of it, and the verdict's sentence under it. */
+        isAnswer: b.type === "answer",
+        answerProse: b.text || "",
+        answerTextStyle: "font-size:" + (isMobile ? 16 : 17) + "px;line-height:1.6;color:var(--text);text-wrap:pretty",
+        answerConfLabel: (b.confidence || "moderate") + " confidence",
+        answerConfTip: ({
+          high: "The messages say this outright, and the answer restates what they say.",
+          moderate: "The messages carry this, with a step of inference you may want to check.",
+          low: "This is the best reading of partial sources, and it may be wrong.",
+        })[b.confidence || "moderate"],
+        answerConfStyle: "display:flex;align-items:center;font-size:11px;border-radius:12px;padding:3px 9px;" + (b.confidence === "high"
+          ? "background:var(--ok-soft);color:var(--ok-text)"
+          : b.confidence === "low" ? "background:var(--warn-soft);color:var(--warn-text)" : "background:var(--rail);color:var(--muted)"),
+        answerCites: (b.cites || []).map(e => ({
+          n: e.n, open: () => this.openAgentEv(e), openKey: keyer(() => this.openAgentEv(e)),
+          openAria: "Citation " + e.n + ": " + e.source + " - opens the source",
+        })),
+        citeChipStyle: "display:inline-flex;align-items:center;justify-content:center;min-width:" + (isMobile ? 36 : 20) + "px;height:" + (isMobile ? 36 : 20) + "px;box-sizing:border-box;margin-left:4px;vertical-align:" + (isMobile ? "middle" : "1px") + ";font-size:11px;color:var(--accent-d);background:var(--accent-soft);border-radius:4px;padding:2px 7px;cursor:pointer",
+        answerNoteStyle: "font-size:13px;color:var(--muted);text-wrap:pretty",
+        /* The Agent's sources are what it read, not something checked against what it wrote: cited, never supported. */
+        citedLabel: "cited",
+        citedTip: "The answer names the messages it was written from, and nothing checked that they back it - open a citation to see for yourself.",
+        citedChipStyle: "align-self:flex-start;display:flex;align-items:center;gap:4px;font-size:11px;background:var(--rail);color:var(--muted);border-radius:12px;padding:2px 8px",
+        citedIconStyle: icon(12, "inherit"),
         isThreadState: b.type === "threadstate",
         isTable: b.type === "facttable",
         isFiles: b.type === "attachments",
@@ -2037,10 +2062,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           detailStyle: BLK.tlDetail,
         })) : b.type === "evidence" ? (b.items || []).map((e, i) => ({
           n: e.n, source: e.source, snippet: e.snippet, freshness: e.freshness,
+          open: () => this.openAgentEv(e), openKey: keyer(() => this.openAgentEv(e)),
+          openAria: "Citation " + e.n + ": " + e.source + " - opens the source",
           isPrivate: !!e.private, hasSnippet: !e.private && !!e.snippet,
           badge: e.badge,
           style: "display:flex;flex-direction:column;gap:7px;padding:" + (i ? 12 : 2) + "px 0 12px 0;" + (i ? "border-top:1px solid var(--line2);" : ""),
-          nStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;box-sizing:border-box;border-radius:6px;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--accent-d);background:var(--accent-soft)",
+          nStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-width:" + (isMobile ? 36 : 20) + "px;height:" + (isMobile ? 36 : 20) + "px;padding:0 5px;box-sizing:border-box;border-radius:6px;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--accent-d);background:var(--accent-soft);cursor:pointer",
           badgeStyle: "font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:500;color:var(--muted);background:var(--sub);border-radius:999px;padding:2px 8px;white-space:nowrap",
           /* The quote and its provenance line up under the source's name rather than under its number. */
           privStyle: "margin-left:" + (isMobile ? 0 : 28) + "px;font-size:13px;line-height:1.5;color:var(--faint);font-style:italic;text-wrap:pretty",
@@ -2153,6 +2180,19 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         text: ANOTHER_TIME.text,
         blocks: [Object.assign({}, b, { phase: "pending", when: ANOTHER_TIME.when, conflict: "" })],
       }]))), Math.max(400, (this.props.streamDelay ?? 550))));
+    };
+
+    /* A source an Agent answer cites, opened for checking: beside the conversation on the desktop, over it below that.
+       It belongs to the conversation it was cited in, and closing it hands the keyboard back to the pressed citation. */
+    openAgentEv = (e) => {
+      this._agentEvOpener = typeof document !== "undefined" ? document.activeElement : null;
+      this.setState({ agentEv: { conv: this.state.convId || null, n: e.n, source: e.source, badge: e.badge, snippet: e.snippet, freshness: e.freshness } });
+    };
+    closeAgentEv = () => {
+      const opener = this._agentEvOpener;
+      this._agentEvOpener = null;
+      this.setState({ agentEv: null });
+      if (opener && opener.focus) setTimeout(() => opener.focus(), 0);
     };
 
     /* Going to look at a thread or the calendar must not lose the place in the conversation. */
@@ -2496,6 +2536,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         this.setState({ ev: e.n });
       };
       const evObj = plan && st.ev ? plan.evidence.find(x => x.n === st.ev) : null;
+      const agentEvObj = st.agentEv && st.agentEv.conv === (st.convId || null) ? st.agentEv : null;
       const thread = THREADS.find(t => t.id === st.threadId) || THREADS[0];
       const threadAddr = msgAddrRows(thread, (msgsFor(thread) || [])[0] || { from: thread.from, mine: false }, msgsFor(thread) || []);
       const flags = st.flags || {};
@@ -3469,6 +3510,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         runFinished: hasRun && st.phase === "done",
         runMeta: plan ? plan.meta : "",
         confidence: plan ? plan.confidence : "",
+        confidenceChipStyle: "display:flex;align-items:center;font-size:11px;border-radius:12px;padding:3px 9px;" + (plan && plan.confidence === "high confidence"
+          ? "background:var(--ok-soft);color:var(--ok-text)"
+          : plan && plan.confidence === "low confidence" ? "background:var(--warn-soft);color:var(--warn-text)" : "background:var(--rail);color:var(--muted)"),
+        /* Every confidence chip explains its band (base.css `[data-tip]`). */
+        confidenceTip: plan ? ({
+          "high confidence": "The messages say this outright, and the answer restates what they say.",
+          "moderate confidence": "The messages carry this, with a step of inference you may want to check.",
+          "low confidence": "This is the best reading of partial sources, and it may be wrong.",
+        })[plan.confidence] || "" : "",
         gapNote: plan && plan.gap ? plan.gap : false,
         answerReady: !!ready.answer,
         answerParts: plan ? plan.parts.map(p => ({ text: p.text, cite: p.cite, open: openEv(p.cite) })) : [],
@@ -3511,6 +3561,22 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         inspectorSupports: evObj ? evObj.supports : "",
         inspectorMail: evObj ? evObj.mail : "",
         openInMail: () => this.setState({ screen: "mail", threadId: "contoso", cameFrom: true, fromCite: st.ev, mailAnswer: false, mailPane: "thread", threadOpen: true }),
+
+        /* The Agent's evidence inspector (`agentEvOpen`): beside the conversation as a 380 px column from 1180 px up
+           (`agentEvBeside`), over it as the phone's full sheet below (`agentEvOver`). */
+        agentEvOpen: !!agentEvObj,
+        agentEvBeside: !!agentEvObj && !isMobile && !compact,
+        agentEvOver: !!agentEvObj && (isMobile || compact),
+        agentEvPanelStyle: !isMobile && !compact
+          ? "width:380px;flex:0 0 380px;display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--line);background:var(--sub)"
+          : "position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;background:var(--sub)",
+        agentEvIndex: agentEvObj ? "Source " + agentEvObj.n : "",
+        agentEvTitle: agentEvObj ? agentEvObj.source : "",
+        agentEvBadge: agentEvObj ? agentEvObj.badge : "",
+        agentEvMeta: agentEvObj ? agentEvObj.freshness : "",
+        agentEvQuote: agentEvObj ? agentEvObj.snippet : "",
+        closeAgentEv: this.closeAgentEv,
+        openAgentEvMail: () => { this.setState({ agentEv: null }); this.goLook({ kind: "thread", tid: "contoso" }); },
 
         sideExpanded: !sideCollapsed,
         sideCollapsed,

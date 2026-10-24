@@ -159,7 +159,7 @@ internal static class DiscoveryCompositionReading
             ? written
             : PresentationText.Create(ApplicationTexts.GetText(ApplicationText.DiscoveryMailDoesNotAnswer, language));
 
-        return new AnswerBlock(evidence, text, ConfidenceOf(document?.Confidence, support));
+        return new AnswerBlock(evidence, text, PresentationConfidenceCeiling.Cap(document?.Confidence, support));
     }
 
     /// <summary>Composes the course of events, or nothing where the model named none this run can stand behind.</summary>
@@ -324,31 +324,6 @@ internal static class DiscoveryCompositionReading
         return freshness.Of(cited).Staleness is PresentationStaleness.Stale
             ? PresentationSupport.Stale
             : PresentationSupport.Supported;
-    }
-
-    /// <summary>Reads the band a model reported and caps it at what its own sources allow.</summary>
-    /// <remarks>
-    /// The cap is the whole definition of the value and it is applied here rather than asked for: a model reporting a
-    /// settled answer over a contradiction, over sources that are all behind, or over no source at all is reporting
-    /// its own fluency. An unreadable band is read as moderate rather than as high, so a malformed answer never
-    /// arrives more confident than a well-formed one.
-    /// </remarks>
-    private static PresentationConfidence ConfidenceOf(string? reported, PresentationSupport support)
-    {
-        var band = reported?.Trim().ToUpperInvariant() switch
-        {
-            "HIGH" => PresentationConfidence.High,
-            "LOW" => PresentationConfidence.Low,
-            _ => PresentationConfidence.Moderate,
-        };
-
-        return support switch
-        {
-            PresentationSupport.Unsupported => PresentationConfidence.Low,
-            PresentationSupport.Conflicting or PresentationSupport.Stale =>
-                band is PresentationConfidence.High ? PresentationConfidence.Moderate : band,
-            _ => band,
-        };
     }
 
     /// <summary>Reads the sides of a disagreement, keeping only the ones that name sources the answer rests on.</summary>

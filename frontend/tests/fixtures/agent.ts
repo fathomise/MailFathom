@@ -117,7 +117,7 @@ const answeredEntries = [
             messageId: answeredQuestionId,
             block: {
                 type: 'answer',
-                evidence: { support: 'Supported', citations: ['c-1'], freshness: current },
+                evidence: { support: 'Cited', citations: ['c-1'], freshness: current },
                 text: [
                     'Four bays were confirmed, held to the end of the week.',
                     answerListed.map((place) => `- **${place}**`).join('\n'),
@@ -134,7 +134,7 @@ const answeredEntries = [
             messageId: answeredQuestionId,
             block: {
                 type: 'eventProposal',
-                evidence: { support: 'Supported', citations: ['c-1'], freshness: current },
+                evidence: { support: 'Cited', citations: ['c-1'], freshness: current },
                 title: 'Walk through the four bays',
                 start: '2026-09-02T09:00:00+00:00',
                 end: '2026-09-02T10:00:00+00:00',
@@ -149,7 +149,7 @@ const answeredEntries = [
             messageId: answeredQuestionId,
             block: {
                 type: 'taskProposal',
-                evidence: { support: 'Supported', citations: ['c-1'], freshness: current },
+                evidence: { support: 'Cited', citations: ['c-1'], freshness: current },
                 title: 'Confirm the bays in writing',
                 dueOn: '2026-09-04',
             },

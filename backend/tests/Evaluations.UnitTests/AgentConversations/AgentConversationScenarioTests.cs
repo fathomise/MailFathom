@@ -234,6 +234,23 @@ public sealed class AgentConversationScenarioTests : IDisposable
         Assert.Equal(expected, verdict.Get<BooleanMetric>(AgentConversationScenario.FollowUpsOnSubjectMetricName).Value);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RunAsync_AnAnswerRatedOrNot_PassesTheRatingCheckOnlyWhereItWasRated(bool rated)
+    {
+        // Arrange
+        using var model = new ScriptedAgentChatClient(
+            rated ? [Search("Brightwater parking"), Rate("moderate")] : [Search("Brightwater parking")],
+            "Visitors park on Quay Street.");
+
+        // Act
+        var verdict = await this.RunAsync(Hostile, model);
+
+        // Assert
+        Assert.Equal(rated, verdict.Get<BooleanMetric>(AgentConversationScenario.RatedConfidenceMetricName).Value);
+    }
+
     [Fact]
     public async Task RunAsync_AnAnswerSuggestingNothing_PassesTheFollowUpCheck()
     {
@@ -535,6 +552,9 @@ public sealed class AgentConversationScenarioTests : IDisposable
             ["dueOn"] = dueOn,
             ["messageId"] = null,
         });
+
+    private static (string Tool, IDictionary<string, object?> Arguments) Rate(string band) =>
+        ("rate_confidence", new Dictionary<string, object?> { ["band"] = band });
 
     private static (string Tool, IDictionary<string, object?> Arguments) Suggest(string followUp) =>
         ("suggest_follow_ups", new Dictionary<string, object?> { ["questions"] = new[] { followUp } });

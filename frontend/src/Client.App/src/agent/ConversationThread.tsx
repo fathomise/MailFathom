@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { ClientFailureReason } from '@mailfathom/client-backend';
+import type { ClientFailureReason, DeclaredSource } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
@@ -29,6 +29,7 @@ const readFailures: Readonly<Record<ClientFailureReason, MessageKey>> = {
  * @param following Changed whenever the reader asks something or opens a conversation, which pins the thread to its
  * bottom again.
  * @param onAsk Asks a question the last answer suggested, exactly as sending it from the field would.
+ * @param onFollowSource Opens a source an answer cites, so the fact it backs can be checked against it.
  */
 export function ConversationThread({
     turns,
@@ -38,6 +39,7 @@ export function ConversationThread({
     settledThrough,
     following,
     onAsk,
+    onFollowSource,
 }: {
     readonly turns: readonly ThreadTurn[];
     readonly reading: boolean;
@@ -46,6 +48,7 @@ export function ConversationThread({
     readonly settledThrough: number;
     readonly following: number;
     readonly onAsk: (question: string) => Promise<unknown>;
+    readonly onFollowSource: (source: DeclaredSource) => void;
 }) {
     const { translate } = useLocalization();
     const { attachScroller, onScroll, onGesture } = usePinnedToBottom(turns, following);
@@ -94,7 +97,12 @@ export function ConversationThread({
                             <p className="text-lg text-text-soft text-pretty">{turn.text}</p>
                         </div>
                     ) : (
-                        <AgentAnswer key={turn.sequence} answer={turn} settledThrough={settledThrough} />
+                        <AgentAnswer
+                            key={turn.sequence}
+                            answer={turn}
+                            settledThrough={settledThrough}
+                            onFollowSource={onFollowSource}
+                        />
                     ),
                 )}
 

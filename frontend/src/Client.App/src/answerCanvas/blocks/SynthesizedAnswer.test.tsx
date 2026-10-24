@@ -64,7 +64,9 @@ describe('SynthesizedAnswer', () => {
 
         expect(screen.getAllByRole('listitem')).toHaveLength(2);
         expect(screen.getByText('March').tagName).toBe('STRONG');
-        expect(screen.getByRole('list').nextElementSibling?.contains(screen.getByRole('button'))).toBe(true);
+        expect(
+            screen.getByRole('list').nextElementSibling?.contains(screen.getByRole('button', { name: /Citation 1/u })),
+        ).toBe(true);
     });
 
     it.each([
@@ -82,6 +84,11 @@ describe('SynthesizedAnswer', () => {
     it.each([
         ['Supported', 'supported', 'The correspondence backs this, from sources that were current when it was read.'],
         [
+            'Cited',
+            'cited',
+            'The answer names the messages it was written from, and nothing checked that they back it - open a citation to see for yourself.',
+        ],
+        [
             'Unsupported',
             'unsupported',
             'Nothing this run found backs this - treat it as a reading rather than as a fact.',
@@ -95,8 +102,8 @@ describe('SynthesizedAnswer', () => {
     ] as const)('draws a %s answer as that state where the answer is', (support, chip, note) => {
         renderAnswer(answering({ ...backed, support }));
 
-        expect(screen.getByText(chip)).toBeDefined();
-        expect(screen.getByText(note)).toBeDefined();
+        expect(screen.getByRole('button', { name: chip })).toBeDefined();
+        expect(screen.getByText(note, { selector: 'p' })).toBeDefined();
     });
 
     it('draws both sides of a disagreement rather than resolving them into one sentence', () => {

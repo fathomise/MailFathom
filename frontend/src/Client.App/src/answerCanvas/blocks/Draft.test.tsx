@@ -104,7 +104,7 @@ describe('Draft', () => {
     it('offers no way to send it, sending belonging to the surface that governs sending', () => {
         renderDraft(drafted());
 
-        expect(controlsOffered()).toEqual(['Citation 1: Contract addendum — signatures', 'Edit the text']);
+        expect(controlsOffered()).toEqual(['supported', 'Citation 1: Contract addendum — signatures', 'Edit the text']);
     });
 
     it('offers no way to send it while the text is open either, which is where a Send would be added', () => {
@@ -112,7 +112,7 @@ describe('Draft', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Edit the text' }));
 
-        expect(controlsOffered()).toEqual(['Citation 1: Contract addendum — signatures', 'Stop editing']);
+        expect(controlsOffered()).toEqual(['supported', 'Citation 1: Contract addendum — signatures', 'Stop editing']);
     });
 
     it('shows what the draft was written from, so it can be checked before anybody puts their name to it', () => {

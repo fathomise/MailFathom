@@ -192,6 +192,11 @@
     --text-claim: 1.1875rem;
     --text-claim--line-height: 1.35;
 
+    /* The other one: an answer's own prose, which the design sets a step above `xl` and looser, so the sentence a
+       question was asked for reads as the thing on the screen rather than as one more line about it. Its leading is the
+       block's own, set where the prose is drawn. */
+    --text-answer: 1.0625rem;
+
     /* The design's corners, closed the same way: 4, 6, 8, 12, 16 and 24 pixels, beside the full round a circle and a
        pill take. */
     --radius-*: initial;
@@ -440,6 +445,10 @@
     --container-agent-answer: 56.25rem;
     --container-agent-thread: 83.875rem;
     --container-agent-tab: 13.75rem;
+
+    /* The column a source an answer cites opens in, beside the conversation on the desktop composition — the design's
+       380-pixel evidence column. Narrower windows open the source over the conversation instead. */
+    --spacing-agent-evidence: 23.75rem;
 
     /* What a dialog asking a question is drawn at, and what it is held inside on a screen narrower than that: the
        design draws every such dialog at one width on the desktop and, on the phone, as a card with the same margin

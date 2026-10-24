@@ -80,7 +80,7 @@ MailFathomDesign.data.plans = {
     ],
   },
   people: {
-    confidence: "medium confidence",
+    confidence: "moderate confidence",
     gap: "no email confirmation from the board",
     meta: "18 messages, 3 people",
     action: "Ask the board to confirm the approval in writing?",

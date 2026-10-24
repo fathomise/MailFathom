@@ -41,12 +41,13 @@ export interface SupportVerdict {
 const warned = 'bg-warning-soft text-warning-text';
 
 /**
- * What each of the contract's four verdicts is called and drawn as.
+ * What each of the contract's five verdicts is called and drawn as.
  *
- * Three of the four are drawn in the warning tint, and that is the point of the set rather than an oversight: a fact
+ * Three of the five are drawn in the warning tint, and that is the point of the set rather than an oversight: a fact
  * nothing backs, a fact read from a copy known to be behind, and two sources that disagree are each a reason to look
  * before acting, and drawing two of them as though they were as settled as the first would be the silent resolution
- * the contract exists to refuse.
+ * the contract exists to refuse. A cited block is neutral rather than either: it names what it was written from and
+ * claims nothing about whether that backs it, so it is neither settled nor a defect.
  */
 export const supportVerdicts: Readonly<Record<BlockSupport, SupportVerdict>> = {
     Supported: {
@@ -54,6 +55,12 @@ export const supportVerdicts: Readonly<Record<BlockSupport, SupportVerdict>> = {
         note: 'answer.supportedNote',
         icon: 'check_circle',
         tint: 'bg-healthy-soft text-healthy-text',
+    },
+    Cited: {
+        label: 'answer.cited',
+        note: 'answer.citedNote',
+        icon: 'format_quote',
+        tint: 'bg-rail text-muted',
     },
     Unsupported: {
         label: 'answer.unsupported',
@@ -76,7 +83,7 @@ export const supportVerdicts: Readonly<Record<BlockSupport, SupportVerdict>> = {
 };
 
 /**
- * What each confidence band is called and drawn as.
+ * What each confidence band is called and drawn as, and what it means where somebody asks.
  *
  * The design draws the high band and no other, so the two beneath it are drawn in the shape it gives that one:
  * a chip in the same place, tinted by what the band actually says. Moderate is neutral rather than warned — a step of
@@ -84,11 +91,15 @@ export const supportVerdicts: Readonly<Record<BlockSupport, SupportVerdict>> = {
  * partial sources is exactly the answer worth looking behind.
  */
 export const confidenceBands: Readonly<
-    Record<AnswerConfidence, { readonly label: MessageKey; readonly tint: string }>
+    Record<AnswerConfidence, { readonly label: MessageKey; readonly note: MessageKey; readonly tint: string }>
 > = {
-    High: { label: 'answer.confidenceHigh', tint: 'bg-healthy-soft text-healthy-text' },
-    Moderate: { label: 'answer.confidenceModerate', tint: 'bg-rail text-muted' },
-    Low: { label: 'answer.confidenceLow', tint: warned },
+    High: {
+        label: 'answer.confidenceHigh',
+        note: 'answer.confidenceHighNote',
+        tint: 'bg-healthy-soft text-healthy-text',
+    },
+    Moderate: { label: 'answer.confidenceModerate', note: 'answer.confidenceModerateNote', tint: 'bg-rail text-muted' },
+    Low: { label: 'answer.confidenceLow', note: 'answer.confidenceLowNote', tint: warned },
 };
 
 /** What a source is, said as the design's own two kinds: a message, or a file that came with one. */

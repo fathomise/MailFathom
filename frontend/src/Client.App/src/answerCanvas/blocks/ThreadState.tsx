@@ -9,7 +9,6 @@ import type {
     ThreadCommitment,
     ThreadStatement,
 } from '@mailfathom/client-backend';
-import { Icon } from '../../controls/Icon';
 import { SenderAvatar } from '../../controls/SenderAvatar';
 import type { MessageKey } from '../../localization/en';
 import { wordInstant } from '../../localization/instants';
@@ -17,7 +16,8 @@ import { useLocalization } from '../../localization/useLocalization';
 import { useReadingZone } from '../../localization/useReadingZone';
 import { AnswerBlockCard, UnrecognisedAnswerBlock } from '../AnswerBlockCard';
 import { Citation } from './Citation';
-import { participantCounts, supportVerdicts } from './blockWording';
+import { SupportVerdictChip } from './StandingChips';
+import { participantCounts } from './blockWording';
 import { citationOrder } from './citationOrder';
 
 // Where a conversation stands, as a block of an answer: who is taking part, what they settled, what they left open, and
@@ -41,7 +41,6 @@ export function ThreadState({ block }: { readonly block: AnswerBlock }) {
     }
 
     const { evidence, standing } = block;
-    const verdict = supportVerdicts[evidence.support];
     const said = standing.agreements.length + standing.openQuestions.length + standing.commitments.length;
 
     return (
@@ -61,10 +60,7 @@ export function ThreadState({ block }: { readonly block: AnswerBlock }) {
             note={said === 0 ? translate('threadStanding.empty') : undefined}
             state={said === 0 ? 'empty' : 'ready'}
         >
-            <span className={`flex w-fit items-center gap-1 rounded-full px-2.25 py-0.5 text-xs ${verdict.tint}`}>
-                <Icon className="size-icon-xs" name={verdict.icon} />
-                {translate(verdict.label)}
-            </span>
+            <SupportVerdictChip support={evidence.support} />
 
             <ConversationStandingBody citations={evidence.citations} standing={standing} />
         </AnswerBlockCard>

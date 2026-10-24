@@ -329,7 +329,13 @@ function answerFor(
     }
 
     if (route === '/citations/resolution') {
-        return answering(mail.citationResolutions(fragmentsIn(request.body)));
+        const wholeMessages = messagesIn(request.body);
+
+        return answering(
+            wholeMessages === null
+                ? mail.citationResolutions(fragmentsIn(request.body))
+                : mail.messageCitationResolutions(wholeMessages),
+        );
     }
 
     if (route === '/preferences') {
@@ -752,6 +758,24 @@ function fragmentsIn(body: string | undefined): readonly string[] {
     return citations
         .map((citation) => (citation as Record<string, unknown> | null)?.['fragment'])
         .filter((fragment): fragment is string => typeof fragment === 'string');
+}
+
+// The messages a citation request named, where every source it followed names a whole message rather than a passage of
+// one, which is how the agent cites; `null` for a request naming anything else.
+function messagesIn(body: string | undefined): readonly string[] | null {
+    const citations = recordIn(body)?.['citations'];
+
+    if (!Array.isArray(citations) || citations.length === 0) {
+        return null;
+    }
+
+    const named = citations
+        .map((citation) => citation as Record<string, unknown> | null)
+        .filter((citation) => citation?.['kind'] === 'email')
+        .map((citation) => citation?.['email'])
+        .filter((email): email is string => typeof email === 'string');
+
+    return named.length === citations.length ? named : null;
 }
 
 /** What a request body states, where it states an object at all. */

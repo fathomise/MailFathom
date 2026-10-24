@@ -652,8 +652,15 @@ export class FakeDeployment {
                 return answering(mail.readsPhrases);
             case 'POST /emails/search/phrasing':
                 return answering(mail.phraseReading);
-            case 'POST /citations/resolution':
-                return answering(mail.citationResolutions(fragmentsIn(request.body)));
+            case 'POST /citations/resolution': {
+                const wholeMessages = messagesIn(request.body);
+
+                return answering(
+                    wholeMessages === null
+                        ? mail.citationResolutions(fragmentsIn(request.body))
+                        : mail.messageCitationResolutions(wholeMessages),
+                );
+            }
             case 'POST /mutations/flags':
                 return answering({ results: this.flagged(request.body) });
             case 'POST /mutations/moves':
@@ -2229,4 +2236,16 @@ function fragmentsIn(body: unknown): readonly string[] {
     return listIn(body, 'citations')
         .map((citation) => citation['fragment'])
         .filter((fragment): fragment is string => typeof fragment === 'string');
+}
+
+// The messages a citation request named, where every source it followed names a whole message rather than a passage of
+// one, which is how the agent cites; `null` for a request naming anything else.
+function messagesIn(body: unknown): readonly string[] | null {
+    const citations = listIn(body, 'citations');
+    const named = citations
+        .filter((citation) => citation['kind'] === 'email')
+        .map((citation) => citation['email'])
+        .filter((email): email is string => typeof email === 'string');
+
+    return citations.length > 0 && named.length === citations.length ? named : null;
 }

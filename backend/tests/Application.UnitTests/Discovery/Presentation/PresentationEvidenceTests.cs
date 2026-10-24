@@ -30,6 +30,39 @@ public sealed class PresentationEvidenceTests
             PresentationFreshness.CurrentAt(ObservedAt)));
     }
 
+    /// <summary>A cited block names what it was written from, so naming nothing is not a cited block.</summary>
+    [Fact]
+    public void Constructor_CitedWithNoCitation_IsRefused()
+    {
+        // Act, Assert
+        Assert.Throws<ArgumentException>(() => new PresentationEvidence(
+            PresentationSupport.Cited,
+            [],
+            PresentationFreshness.Unknown));
+    }
+
+    /// <summary>A cited block read from a copy known to be behind is stale, which says the more useful thing.</summary>
+    [Fact]
+    public void Constructor_CitedOverAStaleCopy_IsRefused()
+    {
+        // Act, Assert
+        Assert.Throws<ArgumentException>(() => new PresentationEvidence(
+            PresentationSupport.Cited,
+            [First],
+            PresentationFreshness.StaleSince(ObservedAt)));
+    }
+
+    /// <summary>A block naming the sources it was written from, with nothing having checked them, holds as cited.</summary>
+    [Fact]
+    public void Constructor_CitedWithACitation_KeepsTheVerdict()
+    {
+        // Act
+        var evidence = new PresentationEvidence(PresentationSupport.Cited, [First], PresentationFreshness.Unknown);
+
+        // Assert
+        Assert.Equal(PresentationSupport.Cited, evidence.Support);
+    }
+
     /// <summary>A block naming a source is supported by it, whatever the producer called the state.</summary>
     [Fact]
     public void Constructor_UnsupportedWithACitation_IsRefused()

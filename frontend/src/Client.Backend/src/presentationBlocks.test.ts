@@ -119,6 +119,7 @@ describe('parseBlockEvidence', () => {
 
     it.each([
         ['a supported block backed by nothing', { citations: [] }],
+        ['a cited block naming no source', { support: 'Cited', citations: [] }],
         ['a supported block read from a copy known to be behind', { freshness: { staleness: 'Stale' } }],
         ['an unsupported block naming the source it is supposed not to have', { support: 'Unsupported' }],
         [
@@ -135,6 +136,10 @@ describe('parseBlockEvidence', () => {
         ],
     ])('refuses %s, which says two things at once', (_case, over) => {
         expect(parseBlockEvidence(evidence(over))).toBeNull();
+    });
+
+    it('reads a block that names the sources it was written from without anything having checked them', () => {
+        expect(parseBlockEvidence(evidence({ support: 'Cited' }))?.support).toBe('Cited');
     });
 
     it('refuses a verdict this contract does not carry rather than reading it as a settled one', () => {

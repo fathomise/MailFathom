@@ -125,9 +125,9 @@ describe('People', () => {
     it('draws no row as a control, there being nowhere on this canvas to open a person', () => {
         renderPeople(found([anna]));
 
-        // The citation is the one control a row carries, so anything else drawn as a button would be an affordance
-        // with no act behind it.
-        expect(screen.getAllByRole('button')).toHaveLength(1);
+        // The citation is the one control a row carries, and the verdict's explanation the one the block carries, so
+        // anything else drawn as a button would be an affordance with no act behind it.
+        expect(screen.getAllByRole('button')).toHaveLength(2);
     });
 
     it('says a block that found nobody found nobody, rather than drawing an empty card', () => {

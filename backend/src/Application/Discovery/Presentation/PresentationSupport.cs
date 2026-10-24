@@ -9,18 +9,23 @@ namespace MailFathom.Application.Discovery.Presentation;
 /// <summary>Says what the correspondence does for what a block states.</summary>
 /// <remarks>
 /// <para>
-/// The four members are the reason a plan can be honest. Without them the only way to present a fact nothing backs is
+/// The members are the reason a plan can be honest. Without them the only way to present a fact nothing backs is
 /// to present it as though something did, the only way to present two sources that disagree is to pick one, and the
 /// only way to present a fact whose every source is behind the mail server is to present it as current. All three are
 /// states a run reaches routinely over years of mail, and all three are worse as prose inside an answer than as a value
 /// a client can draw differently.
 /// </para>
 /// <para>
-/// They partition rather than overlap, which is what lets a client draw one of four things and never guess between two.
+/// They partition rather than overlap, which is what lets a client draw one of them and never guess between two.
 /// <see cref="Stale" /> is the member that reads like a second axis and is not: freshness says how current the data
 /// behind a block was, and this says what that currency does to the claim. A backed block whose freshness is stale is
 /// <see cref="Stale" /> and never <see cref="Supported" />, because a reader deciding from three sources that all
 /// stopped being current on Tuesday is in a different position from one reading three current ones.
+/// </para>
+/// <para>
+/// <see cref="Cited" /> is the one member that claims less than the others rather than something different: it names
+/// what a block was written from and says nothing checked that those sources back it. A producer that cannot hold a
+/// block against its sources says that, rather than <see cref="Supported" />.
 /// </para>
 /// </remarks>
 [JsonConverter(typeof(JsonStringEnumConverter<PresentationSupport>))]
@@ -42,4 +47,13 @@ public enum PresentationSupport
     /// this deployment has not taken in yet.
     /// </remarks>
     Stale = 3,
+
+    /// <summary>The block names the sources it was written from, and nothing checked that they back what it states.</summary>
+    /// <remarks>
+    /// Told apart from <see cref="Supported" /> because the two promise different things. A supported block was held
+    /// against its sources by whatever composed it; a cited one says where it came from and leaves the holding to the
+    /// reader, who checks it by following its citations — which is what a conversational agent's free-form answer can
+    /// honestly offer.
+    /// </remarks>
+    Cited = 4,
 }
