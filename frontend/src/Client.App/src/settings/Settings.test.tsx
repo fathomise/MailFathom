@@ -6,6 +6,7 @@ import { act, fireEvent, render, screen, within, type RenderResult } from '@test
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { largestPortraitOctets } from '@mailfathom/client-backend';
 import type { TelemetryForwarding } from '../deployment/telemetryForwarding';
+import { swipeDistance } from '../controls/swipeAcross';
 import { lockDeveloperInformation, pressesToUnlock } from '../developerInformation/developerAccess';
 import { DeveloperInformationButton } from '../developerInformation/DeveloperInformationButton';
 import { LocalizationProvider } from '../localization/Localization';
@@ -58,6 +59,13 @@ const named: OwnProfileInForce = {
 
 /** The ordinary case: a deployment that answered, and forwards what this client records to itself. */
 const forwardedTo: TelemetryForwarding = { answered: true, destination: 'https://mail.example' };
+
+/** A finger landing on what the tabs show and swiped a whole swipe to the left. */
+function swipeLeftAcross(surface: Element): void {
+    fireEvent.pointerDown(surface, { pointerId: 1, pointerType: 'touch', clientX: 300, clientY: 200 });
+    fireEvent.pointerMove(surface, { pointerId: 1, pointerType: 'touch', clientX: 300 - swipeDistance, clientY: 200 });
+    fireEvent.pointerUp(surface, { pointerId: 1, pointerType: 'touch', clientX: 300 - swipeDistance, clientY: 200 });
+}
 
 function renderSettings({
     profile = named,
@@ -219,6 +227,14 @@ describe('Settings', () => {
         renderSettings();
 
         expect(screen.getByRole('dialog', { name: 'Settings' })).toBeDefined();
+    });
+
+    it('opens the next section on one pane when a finger is swiped to the left across the one open', () => {
+        renderSettings();
+
+        swipeLeftAcross(screen.getByRole('tabpanel'));
+
+        expect(screen.getByRole('tab', { name: 'Notifications', selected: true })).toBeDefined();
     });
 
     it('draws the name this deployment records the person under', () => {
