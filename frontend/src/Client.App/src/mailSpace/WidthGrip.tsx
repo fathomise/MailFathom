@@ -146,9 +146,18 @@ export function WidthGrip({
                     anchor.onPointerDown(event);
                     beginDrag(event);
                 }}
-                onPointerMove={moveGrip}
-                onPointerUp={endDrag}
-                onPointerCancel={endDrag}
+                onPointerMove={(event) => {
+                    anchor.onPointerMove(event);
+                    moveGrip(event);
+                }}
+                onPointerUp={(event) => {
+                    anchor.onPointerUp();
+                    endDrag(event);
+                }}
+                onPointerCancel={(event) => {
+                    anchor.onPointerCancel();
+                    endDrag(event);
+                }}
                 onDoubleClick={() => {
                     onChosen(startingWidth);
                 }}

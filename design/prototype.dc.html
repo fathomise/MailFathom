@@ -672,7 +672,7 @@ Project repository: https://github.com/fathomise/MailFathom
               </sc-if>
               <sc-if value="{{ g.open }}" hint-placeholder-val="{{ true }}">
                 <sc-for list="{{ g.folders }}" as="mb" hint-placeholder-count="3">
-                  <div onClick="{{ mb.pick }}" onContextMenu="{{ mb.ctxOpen }}" onTouchStart="{{ mb.pressDown }}" onTouchEnd="{{ mb.pressUp }}" onTouchMove="{{ mb.pressUp }}" onDragOver="{{ mb.dragOver }}" onDragEnter="{{ mb.dragOver }}" onDragLeave="{{ mb.dragLeave }}" onDrop="{{ mb.drop }}" title="{{ mb.title }}" style="{{ mb.style }}" style-hover="cursor:pointer;background:var(--hover)">
+                  <div onClick="{{ mb.pick }}" onContextMenu="{{ mb.ctxOpen }}" onTouchStart="{{ mb.pressDown }}" onTouchEnd="{{ mb.pressUp }}" onTouchMove="{{ mb.pressUp }}" data-tip-hover onDragOver="{{ mb.dragOver }}" onDragEnter="{{ mb.dragOver }}" onDragLeave="{{ mb.dragLeave }}" onDrop="{{ mb.drop }}" title="{{ mb.title }}" style="{{ mb.style }}" style-hover="cursor:pointer;background:var(--hover)">
                     <span style="{{ mb.iconStyle }}">{{ mb.icon }}</span>
                     <sc-if value="{{ mb.expanded }}" hint-placeholder-val="{{ true }}">
                       <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ mb.label }}</span>

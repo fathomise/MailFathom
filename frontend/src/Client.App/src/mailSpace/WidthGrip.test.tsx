@@ -2,8 +2,9 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { pressOpensAfter } from '../contextMenu/rowPress';
 import { LocalizationProvider } from '../localization/Localization';
 import { WidthGrip } from './WidthGrip';
 import { listWidthStep, narrowestList, startingListWidth, widestList } from './listWidth';
@@ -104,6 +105,22 @@ describe('WidthGrip', () => {
 
         expect(moved).toHaveBeenCalledWith(460);
         expect(chosen).toHaveBeenCalledWith(480);
+    });
+
+    it('says nothing over a finger dragging the boundary, however long the drag takes', () => {
+        vi.useFakeTimers();
+        const { grip } = renderGrip();
+
+        fireEvent.pointerDown(grip, { pointerId: 1, pointerType: 'touch', clientX: 600, clientY: 10 });
+        fireEvent.pointerMove(grip, { pointerId: 1, pointerType: 'touch', clientX: 660, clientY: 10 });
+        act(() => {
+            vi.advanceTimersByTime(pressOpensAfter);
+        });
+        fireEvent.pointerUp(grip, { pointerId: 1, pointerType: 'touch', clientX: 680, clientY: 10 });
+        const afterDrag = screen.queryByRole('tooltip');
+        vi.useRealTimers();
+
+        expect(afterDrag).toBeNull();
     });
 
     it('ignores a second pointer arriving mid-drag, so two fingers cannot fight over one boundary', () => {
