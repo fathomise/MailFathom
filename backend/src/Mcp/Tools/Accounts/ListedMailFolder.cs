@@ -27,7 +27,7 @@ internal sealed record ListedMailFolder
     public required string FolderPath { get; init; }
 
     /// <summary>Gets the role the folder plays, or <see langword="null" /> for none.</summary>
-    [Description("The role the folder plays for its account — Inbox, Archive, Drafts, Sent, Junk, Trash, All, Flagged, Important, or Outbox — which role:<Role> names it by in the folders argument. Null for a folder that plays none.")]
+    [Description("The role the folder plays for its account — Inbox, Archive, Drafts, Sent, Junk, Trash, All, Flagged, or Important — which role:<Role> names it by in the folders argument. Null for a folder that plays none.")]
     public string? Role { get; init; }
 
     /// <summary>Gets whether a source server's copy of the folder is synchronized into it.</summary>

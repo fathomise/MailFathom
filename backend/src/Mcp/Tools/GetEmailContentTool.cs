@@ -109,7 +109,7 @@ internal sealed class GetEmailContentTool(EmailContentReader emailContentReader)
         + "marker means material of that kind stood there and was withheld, it is never message text, and asking again "
         + "returns the same marker. Nothing stored is rewritten by it.")]
     public async Task<GetEmailContentToolResult> GetEmailContentAsync(
-        [Description("The storedEmailIds a listing or a search returned, at most 10, each named at most once. Each is a UUID and does not change when the mail server renumbers or moves the message. Results come back in the order given, and the call is refused rather than truncated when it names more than 10. Omit it entirely when naming threadId instead.")]
+        [Description("The storedEmailIds a listing or a search returned, at most 10, each named at most once. Each is a UUID and does not change when the mail server renumbers or moves the message. Results come back in the order given, and the call is refused rather than truncated when it names more than 10. Omit it entirely when naming threadId instead. An outgoingEmailId names no stored email: read a message that has not left with get_outgoing_email instead.")]
         IReadOnlyList<string>? storedEmailIds = null,
         [Description("The threadId a listing, a search, or an earlier read returned, to read that whole conversation instead of naming its messages. Its messages come back in the conversation's own order, bounded to 10 per call, and unreadThreadMessages names the rest so a second call asks for them directly. Omit it entirely when naming storedEmailIds instead.")]
         string? threadId = null,

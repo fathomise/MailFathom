@@ -4,6 +4,7 @@
 
 using System.ComponentModel;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Mail.Delivery.Tracking;
 
 namespace MailFathom.Mcp.Tools.Results;
 
@@ -27,16 +28,26 @@ internal sealed record ListAccountsToolResult
     /// <summary>Publishes the directory the use case read.</summary>
     /// <param name="directory">The user's accounts to publish.</param>
     /// <param name="accountNames">Reads the name each account is published under.</param>
+    /// <param name="outboxCounts">How much each account's outbox holds, or <see langword="null" /> where the caller may not read the outbox.</param>
     /// <returns>The wire representation of <paramref name="directory" />.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="directory" /> or <paramref name="accountNames" /> is <see langword="null" />.</exception>
-    public static ListAccountsToolResult From(MailAccountDirectory directory, PublishedAccountNames accountNames)
+    public static ListAccountsToolResult From(
+        MailAccountDirectory directory,
+        PublishedAccountNames accountNames,
+        IReadOnlyList<AccountOutboxCount>? outboxCounts)
     {
         ArgumentNullException.ThrowIfNull(directory);
         ArgumentNullException.ThrowIfNull(accountNames);
 
         return new ListAccountsToolResult
         {
-            Accounts = [.. directory.Accounts.Select(account => ListedMailAccount.From(account, accountNames))],
+            Accounts =
+            [
+                .. directory.Accounts.Select(account => ListedMailAccount.From(
+                    account,
+                    accountNames,
+                    outboxCounts?.FirstOrDefault(count => count.AccountId == account.Account.Id))),
+            ],
             SynchronizationEnabled = directory.SynchronizationEnabled,
         };
     }

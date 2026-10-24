@@ -123,6 +123,7 @@ public static class McpServiceCollectionExtensions
             .WithTools<SendDraftTool>(McpToolContractSerialization.Options)
             .WithTools<GetOutgoingEmailTool>(McpToolContractSerialization.Options)
             .WithTools<CancelOutgoingEmailTool>(McpToolContractSerialization.Options)
+            .WithTools<ListOutgoingEmailsTool>(McpToolContractSerialization.Options)
             .WithTools<AskMailTool>(McpToolContractSerialization.Options)
             .WithTools<ListContactsTool>(McpToolContractSerialization.Options)
             .WithTools<GetContactTool>(McpToolContractSerialization.Options)

@@ -824,7 +824,9 @@ The operational consequences are the ones that always applied to an unauthentica
   two need — it lets them answer the user's correspondents and pass the user's mail and its attachments on to
   strangers. It carries `get_outgoing_email` and `cancel_outgoing_email` with it, so the same reach reads back what the
   sends it made were answered with and stops one before it leaves; those two are confined to what the calling principal
-  queued, which on an endpoint that admits everybody as one identity confines nothing. It carries `send_draft` too, so
+  queued, which on an endpoint that admits everybody as one identity confines nothing. Beside the reading half it
+  carries `list_outgoing_emails` and the outbox preview too, so the same reach lists every message an account has not
+  sent yet, whoever queued it, with its recipients, subject, and text. It carries `send_draft` too, so
   a message the user wrote and did not send is one call from having been sent. Nothing takes any of it back.
   `mailfathom.mail.drafts.write` is the mildest of the four writing halves and still not nothing: through `save_draft`,
   `update_draft`, and `delete_draft` it lets anyone who can reach the port put a message into the user's own Drafts

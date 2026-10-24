@@ -393,8 +393,8 @@ least fourteen tools — `list_accounts`, `list_emails`,
 this process, and as destructive because a keyword replacement states the whole set; and `send_email`,
 `reply_to_email`, and `forward_email`, which announce
 themselves the same way and are destructive on the other ground — each takes nothing away and nothing takes it back.
-Beside those, `get_outgoing_email` reports what became of a message one of them queued and advertises itself as
-read-only, and `cancel_outgoing_email` stops one that has not left yet, advertising itself as destructive and — unlike
+Beside those, `get_outgoing_email` reports what became of a message one of them queued and `list_outgoing_emails`
+lists what an account has not sent yet, both advertising themselves as read-only, and `cancel_outgoing_email` stops one that has not left yet, advertising itself as destructive and — unlike
 the sending tools — as confined to this process, since stopping a message reaches nobody. Then `save_draft`,
 `update_draft`, and `delete_draft`, which write a message into your own Drafts folder and send nothing, and
 `send_draft`, which sends what one of them holds and announces itself exactly as `send_email` does. Then the six contact

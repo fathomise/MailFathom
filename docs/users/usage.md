@@ -2,23 +2,23 @@
 
 <!-- describes: backend/src/Mcp/Tools/** -->
 
-MailFathom publishes twenty-one MCP tools, and together they are the whole surface: an agent can see which mailboxes
+MailFathom publishes twenty-two MCP tools, and together they are the whole surface: an agent can see which mailboxes
 exist, list mail, read one message, search, ask a question, mark and label a message, send a message, reply to or
-forward one it already holds, find out what became of a message it sent and stop one that has not left yet, write a
+forward one it already holds, find out what became of a message it sent and stop one that has not left yet, list what an account has not sent yet, write a
 message into your Drafts folder and edit, delete, or send that, and keep the
 deployment's own contact book — nothing else. This
 page is the user's view of that surface: what each tool answers, what every result carries, what the deliberate limits
 are, and how to read a failure. The full contracts — every argument, every field, every bound — live in
 [MCP tools](../features/mcp-tools.md) and the feature pages it links, and this page does not restate them.
 
-Fourteen of the fifteen mailbox tools are always within the deployment's reach. `ask_mail` needs a chat model and an embedding
+Fifteen of the sixteen mailbox tools are always within the deployment's reach. `ask_mail` needs a chat model and an embedding
 model configured and working, so a deployment that has neither does not offer it at all; its absence from a tool listing
 is that deployment saying it cannot answer questions rather than something being broken. The three sending tools are
 always offered to a caller granted them and refuse the call where the account behind the message has no sending
 configuration, because whether a
 particular mailbox can send is a question about that account rather than about the deployment.
 
-Which of the twenty-one *you* are offered is a second question, and its answer is what your roles grant, kept to what the
+Which of the twenty-two *you* are offered is a second question, and its answer is what your roles grant, kept to what the
 credential you connected with names. A tool that grant does not permit is absent from the listing, and calling it anyway is answered as though no such
 tool existed — nothing names the permission that was missing, so a shorter tool list than this page describes is a
 question for whoever configured the deployment:
@@ -71,6 +71,11 @@ same refusal whether nothing carries that name or somebody else's mailbox does.
 Each account also lists its folders with the same freshness statement a listing carries, and the result says whether
 synchronization is running at all. An account with no folders listed has never been synchronized, which is a different
 thing from a mailbox that holds nothing.
+
+Where you may both read and send mail, each account also carries an `outbox` with two counts: `waiting`, the messages
+queued or being sent, and `refused`, the ones a mail server refused that nobody has decided about yet. The outbox is not
+one of the folders and is read-only; [`list_outgoing_emails`](#list_outgoing_emails--what-an-account-has-not-sent-yet)
+lists it. Without both grants the member is absent rather than zero.
 
 Nothing about how MailFathom reaches a mailbox is returned: no server, no port, no user name, no credential.
 
@@ -372,8 +377,10 @@ send is a second message in somebody's mailbox, and that is exactly the mistake 
 `state`, how many delivery attempts it has taken, what a mail server has said about each person you addressed it to
 including the reply code, and the five-digit code the last attempt failed on if one has. It reads a record this
 deployment already holds and contacts no mail server, so the answer is as fresh as the last delivery pass rather than a
-live check. Nothing about the message itself comes back — no subject, no body, no attachments — because you already have
-what you sent.
+live check. With the sending grant alone, nothing about the message itself comes back — no subject, no body, no
+attachments — because you already have what you sent. A credential that may also read mail gets the outbox preview
+instead: the same answer plus the subject, the address it is sent as, its text, and its attachments, for any message an
+account of yours has not sent yet.
 
 `cancel_outgoing_email` takes the same identifier and stops the message while it is still waiting. **It cannot recall a
 message that has already been transmitted.** The window is between the send being written down and the first byte going
@@ -382,15 +389,30 @@ destroyed rather than paused: nothing reschedules it, no later call brings it ba
 queueing it again with a fresh `idempotencyKey`. Cancelling something already cancelled succeeds and does nothing
 twice, so repeating the call after a timeout is safe.
 
-**There is no listing of what a mailbox has sent.** Both tools answer about one identifier at a time and nothing on this
-surface enumerates outgoing mail, which is why keeping the identifier a send answered with is worth doing — an
-identifier you did not keep is a send nothing on this surface reaches. The view of the whole outbox belongs to whoever
-runs the deployment, through `mfctl outbox`, and is reached with an administrative credential rather than with yours.
+**With the sending grant alone, you can only reach what you queued.** A message some other credential sent reads as not
+found, in exactly the same words as an identifier nothing is held under — `53007` for both, so an identifier alone never
+establishes that this mailbox sent something. Both take `mailfathom.mail.send`, the sending grant rather than the
+reading one: what this mailbox has written to whom is not something a credential given the mailbox to read is thereby
+told. `cancel_outgoing_email` keeps that limit whatever else you may do: it withdraws only your own sends.
 
-**You can only reach what you queued.** A message some other credential sent reads as not found, in exactly the same
-words as an identifier nothing is held under — `53007` for both, so an identifier alone never establishes that this
-mailbox sent something. Both take `mailfathom.mail.send`, the sending grant rather than the reading one: what this
-mailbox has written to whom is not something a credential given the mailbox to read is thereby told.
+## `list_outgoing_emails` — what an account has not sent yet
+
+Each account has an **outbox**: everything queued, being sent, or refused by a mail server, newest first, whoever
+queued it — you, the person, or a rule. A refused message stays there until the person decides about it in the client,
+so this is where to look when somebody asks what has not gone out or what bounced. Name the account, and optionally one
+stage — `queued`, `sending`, or `refused`; each entry carries its `outgoingEmailId`, up to three recipients and how many
+more there are, the subject, when it was queued and when it was written to leave at, how many attempts it has taken,
+and the failure it stopped on, as a code and in words. `list_accounts` says how many messages each account has waiting
+and refused, so you know when there is anything to list.
+
+**The outbox is read-only, and it is not a folder.** Its entries are not emails: `get_email_content`, `set_mail_flags`,
+and every tool that takes an email identifier refuse an `outgoingEmailId`, and `role:Outbox` in a `folders` argument is
+refused with a message pointing here. Read one entry in full with `get_outgoing_email`; `cancel_outgoing_email` is the
+one thing a tool can do about one, for a message you queued and only while it waits. Sending a refused message again
+and dismissing it are the person's, in the client.
+
+It needs both `mailfathom.mail.read` and `mailfathom.mail.send`: the entries name recipients and subjects, which are the
+account's correspondence, so a credential that may only send is offered the tool and refused by it.
 
 ## The draft tools — writing a message and leaving it for you
 

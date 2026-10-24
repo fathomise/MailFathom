@@ -188,6 +188,27 @@ public sealed class ListEmailsToolTests
         Assert.Equal(MailFolderSpecialUse.Junk, failure.Role);
     }
 
+    /// <summary>The outbox is an account's not-yet-sent mail rather than a folder, so naming it here points the caller at the tool that reads it.</summary>
+    [Theory]
+    [InlineData("role:Outbox")]
+    [InlineData(" ROLE: outbox ")]
+    public async Task ListEmailsAsync_TheOutboxNamedAsARole_IsRefusedNamingTheToolThatReadsIt(string outbox)
+    {
+        // Arrange
+        var timeline = new StubStoredEmailTimelineReader();
+        var tool = ToolOver(timeline);
+
+        // Act
+        var failure = await Assert.ThrowsAsync<MailboxQueryFilterInvalidException>(
+            () => tool.ListEmailsAsync(folders: ["role:Inbox", outbox], cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomErrorCode.MailboxQueryFilterInvalid, failure.ErrorCode);
+        Assert.Equal("folders", failure.FilterName);
+        Assert.Contains(ListOutgoingEmailsTool.ToolName, failure.Message, StringComparison.Ordinal);
+        Assert.Equal(0, timeline.ReadCount);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]

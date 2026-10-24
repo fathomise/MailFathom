@@ -2,9 +2,12 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Folders;
+using MailFathom.Application.Mail.Delivery.Operations;
+using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Application.Observability;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Domain.Access;
@@ -217,9 +220,55 @@ public sealed class ListAccountsToolTests
             .ToArray();
 
         Assert.Equal(
-            ["AccountId", "DisplayName", "Folders", "SynchronizationMode"],
+            ["AccountId", "DisplayName", "Folders", "Outbox", "SynchronizationMode"],
             [.. publishedPropertyNames.Order(StringComparer.Ordinal)]);
         Assert.NotEmpty(result.Accounts);
+    }
+
+    /// <summary>The outbox is a member of the account rather than a folder, so its two counts arrive on the account and never among its folders.</summary>
+    [Fact]
+    public async Task ListAccountsAsync_ACallerThatMayReadAndSend_PublishesEachAccountsOutboxCounts()
+    {
+        // Arrange
+        var operations = Substitute.For<IOutboxOperationStore>();
+        operations
+            .CountAccountOutboxesAsync(Arg.Any<IReadOnlyCollection<MailAccountId>>(), Arg.Any<CancellationToken>())
+            .Returns([new AccountOutboxCount(Work.Id, Waiting: 2, Refused: 1)]);
+        var tool = ToolOver(
+            CatalogServing(Work, Private),
+            [],
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead, MailFathomPermission.MailSend),
+            operations);
+
+        // Act
+        var result = await tool.ListAccountsAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            [("acct-1", (int?)2, (int?)1), ("acct-2", null, null)],
+            result.Accounts.Select(account => (account.AccountId, account.Outbox?.Waiting, account.Outbox?.Refused)));
+    }
+
+    /// <summary>A caller that may not read the outbox is not told its size, so the member is absent rather than zero and nothing is counted.</summary>
+    [Fact]
+    public async Task ListAccountsAsync_ACallerThatMayOnlyRead_PublishesNoOutboxAndCountsNothing()
+    {
+        // Arrange
+        var operations = Substitute.For<IOutboxOperationStore>();
+        var tool = ToolOver(
+            CatalogServing(Work),
+            [],
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            operations);
+
+        // Act
+        var result = await tool.ListAccountsAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(result.Accounts.Single().Outbox);
+        await operations.DidNotReceive().CountAccountOutboxesAsync(
+            Arg.Any<IReadOnlyCollection<MailAccountId>>(),
+            Arg.Any<CancellationToken>());
     }
 
     private static StubMailAccountCatalog CatalogServing(params ServedMailAccount[] servedAccounts) => new()
@@ -269,6 +318,19 @@ public sealed class ListAccountsToolTests
     private static ListAccountsTool ToolOver(
         StubMailAccountCatalog catalog,
         IReadOnlyList<StoredMailFolder> storedFolders,
+        params MailboxFolderFreshness[] folderFreshness) =>
+        ToolOver(
+            catalog,
+            storedFolders,
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            Substitute.For<IOutboxOperationStore>(),
+            folderFreshness);
+
+    private static ListAccountsTool ToolOver(
+        StubMailAccountCatalog catalog,
+        IReadOnlyList<StoredMailFolder> storedFolders,
+        AccessAuthorization authorization,
+        IOutboxOperationStore outboxOperations,
         params MailboxFolderFreshness[] folderFreshness)
     {
         var folderReader = Substitute.For<IStoredMailFolderReader>();
@@ -285,7 +347,8 @@ public sealed class ListAccountsToolTests
                     StubDeploymentMailFolders.None,
                     StubMailFolderMappings.ResolvingNothing),
                 Substitute.For<IMailboxReadTelemetry>(),
-                AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead)),
-            catalog);
+                authorization),
+            catalog,
+            UserOutboxes.Over(catalog, authorization, operations: outboxOperations));
     }
 }

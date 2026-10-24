@@ -5,6 +5,7 @@
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Domain.Access;
 using MailFathom.Mcp.Tools.Categories;
 using MailFathom.Mcp.Tools.Results;
@@ -15,6 +16,7 @@ namespace MailFathom.Mcp.Tools;
 /// <summary>Publishes the <c>list_accounts</c> tool over the <see cref="MailAccountDirectoryReader" /> use case.</summary>
 /// <param name="mailAccountDirectoryReader">Reads the served accounts and their synchronization freshness.</param>
 /// <param name="accountCatalog">Names the accounts a result publishes, which is the outward half of what the scope arguments do inward.</param>
+/// <param name="outbox">Counts what each account has not sent yet, for a caller that may read the outbox.</param>
 /// <remarks>
 /// <para>
 /// The tool translates and nothing more. It takes no argument at all, calls the use case, and maps its answer onto the
@@ -43,7 +45,8 @@ namespace MailFathom.Mcp.Tools;
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "The MCP server materializes this tool type per tool call.")]
 internal sealed class ListAccountsTool(
     MailAccountDirectoryReader mailAccountDirectoryReader,
-    ICallerMailAccountCatalog accountCatalog)
+    ICallerMailAccountCatalog accountCatalog,
+    UserOutbox outbox)
 {
     /// <summary>The name the tool is advertised and called under.</summary>
     /// <remarks>Snake case because it is the naming the Model Context Protocol tool ecosystem uses; the C# member naming stops at the boundary.</remarks>
@@ -76,13 +79,22 @@ internal sealed class ListAccountsTool(
         + "name can name a different mailbox under another user: store the identifier to remember a mailbox, and never "
         + "compare a display name with one that came from another user or another deployment. Also reports "
         + "how current the local copy of each folder is and whether synchronization is running at all, which is what "
-        + "tells an empty answer about a mailbox apart from a mailbox nothing has synchronized. Reads the local copy "
+        + "tells an empty answer about a mailbox apart from a mailbox nothing has synchronized. Where you may both "
+        + "read and send mail, each account also says how many messages it has not sent yet and how many were "
+        + "refused: that outbox is not a folder and is read-only, and list_outgoing_emails lists it. Reads the local copy "
         + "only: it never contacts a mail server, and it returns no mail, no mail server address, no user name, and no "
         + "credential.")]
     public async Task<ListAccountsToolResult> ListAccountsAsync(CancellationToken cancellationToken = default)
     {
         var directory = await mailAccountDirectoryReader.ReadAsync(cancellationToken);
 
-        return ListAccountsToolResult.From(directory, await PublishedAccountNames.FromAsync(accountCatalog, cancellationToken));
+        var outboxCounts = outbox.MayReadOutbox
+            ? await outbox.CountAsync([.. directory.Accounts.Select(account => account.Account.Id)], cancellationToken)
+            : null;
+
+        return ListAccountsToolResult.From(
+            directory,
+            await PublishedAccountNames.FromAsync(accountCatalog, cancellationToken),
+            outboxCounts);
     }
 }

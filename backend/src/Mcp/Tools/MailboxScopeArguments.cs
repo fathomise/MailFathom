@@ -51,9 +51,28 @@ internal static class MailboxScopeArguments
     /// Which folder of which account a role names is deliberately not settled here, exactly as which account a name
     /// selects is not: that answer belongs to the account in scope, so it is given inside the use case and text naming
     /// no folder of any of them meets the same refusal wherever it came from.
+    /// <para>
+    /// <c>role:Outbox</c> is refused on its own terms rather than as an unknown role. The outbox is an account's
+    /// not-yet-sent mail rather than a folder, and a caller that asks for it here is told which tool reads it instead of
+    /// being told the role does not exist.
+    /// </para>
     /// </remarks>
     public static IReadOnlyList<MailFolderReference> Folders(string[]? folders) =>
-        Parse(folders, MailFolderReference.CreateNamedByCaller, MailboxScope.MaximumFolders, "folders");
+        Parse(
+            folders,
+            folder => NamesTheOutbox(folder)
+                ? throw MailboxQueryFilterInvalidException.NamesTheOutbox("folders", ListOutgoingEmailsTool.ToolName)
+                : MailFolderReference.CreateNamedByCaller(folder),
+            MailboxScope.MaximumFolders,
+            "folders");
+
+    private static bool NamesTheOutbox(string folder)
+    {
+        var trimmed = folder.Trim();
+
+        return trimmed.StartsWith(MailFolderReference.RoleScheme, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(trimmed[MailFolderReference.RoleScheme.Length..].Trim(), "Outbox", StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>Converts one list of caller-supplied text into the domain identity it names.</summary>
     /// <remarks>

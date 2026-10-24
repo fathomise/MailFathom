@@ -75,6 +75,23 @@ public sealed class MailboxQueryFilterInvalidException : MailFathomException
     public static MailboxQueryFilterInvalidException NotAUsableIdentifier(string filterName) =>
         new(NotAUsableIdentifierMessage(filterName), filterName);
 
+    /// <summary>Refuses a folder filter that names the outbox, which is an account's not-yet-sent mail rather than a folder.</summary>
+    /// <param name="filterName">How this assembly names the filter, for example <c>folders</c>.</param>
+    /// <param name="outboxReading">What a caller reads the outbox with instead, as the adapter that refuses it names it.</param>
+    /// <returns>The failure to raise.</returns>
+    /// <remarks>
+    /// It is refused on its own terms rather than as a role that does not exist, so a caller that asked for the outbox
+    /// learns where it is read rather than concluding there is none. Both names come from the adapter's own constants,
+    /// never from the request.
+    /// </remarks>
+    public static MailboxQueryFilterInvalidException NamesTheOutbox(string filterName, string outboxReading) => new(
+        string.Format(
+            CultureInfo.InvariantCulture,
+            "The mailbox query {0} filter names the outbox, which is not a folder; {1} reads what an account has not sent yet.",
+            filterName,
+            outboxReading),
+        filterName);
+
     private static string NotAUsableIdentifierMessage(string filterName) => string.Format(
         CultureInfo.InvariantCulture,
         "The mailbox query {0} filter names a value this system does not issue.",
