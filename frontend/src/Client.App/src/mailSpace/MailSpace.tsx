@@ -230,11 +230,10 @@ export function MailSpace({
     // two places: the names in the strip, and — once composing no longer fits beside them — the floating control over
     // the list, which is this space's to draw. The selection bar measures itself; nothing outside it moves. The controls
     // that change the view — the mailbox column's, or the drawer's and the fold's list — stand ahead of composing as
-    // one child of the strip at every width the toolbar is drawn at. An open Outbox takes every act off the strip, so
-    // composing fits again where it did not beside them.
+    // one child of the strip at every width the toolbar is drawn at.
     const { strip: toolbarStrip, fit: toolbarFit } = useStripFit(
         true,
-        `${locale}:${String(desktop)}:${String(listFold !== null)}:${String(workspace.outbox === null)}`,
+        `${locale}:${String(desktop)}:${String(listFold !== null)}`,
         1,
     );
     const toolbarDrawn = !selecting && wide;

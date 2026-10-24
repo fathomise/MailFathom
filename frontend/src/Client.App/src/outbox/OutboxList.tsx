@@ -40,7 +40,7 @@ export function OutboxList({ outbox }: { readonly outbox: OpenOutbox }) {
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2 desktop:gap-2.25 desktop:py-2.5 max-workspace:min-h-14 max-workspace:py-1.5 max-workspace:ps-4">
+            <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2 workspace:bg-sunken desktop:gap-2.25 desktop:py-2.5 max-workspace:min-h-14 max-workspace:py-1.5 max-workspace:ps-4">
                 {openMailboxes === null ? null : (
                     <SurfaceControl label={translate('mailboxes.open')} icon="menu" edged onActivate={openMailboxes} />
                 )}
@@ -53,7 +53,7 @@ export function OutboxList({ outbox }: { readonly outbox: OpenOutbox }) {
                 </div>
             </div>
 
-            <p className="flex shrink-0 items-start gap-2 border-b border-line bg-rail px-4 py-2.5 text-sm text-muted workspace:px-3.5 workspace:py-2.25">
+            <p className="flex shrink-0 items-start gap-2 border-b border-line bg-rail px-4 py-2.5 text-sm leading-4.25 text-muted workspace:px-3.5 workspace:py-2.25">
                 <Icon name="lock" className="mt-px size-icon-sm" />
                 <span className="text-pretty">{translate('outbox.readOnly')}</span>
             </p>

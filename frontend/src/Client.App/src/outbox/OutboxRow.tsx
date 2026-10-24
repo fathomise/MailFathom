@@ -50,18 +50,18 @@ export function OutboxRow({
             >
                 <span className="flex min-w-0 items-center gap-2">
                     <span className="shrink-0 text-sm text-muted">{translate('outbox.to')}</span>
-                    <span className="min-w-0 flex-1 truncate text-md/snug font-semibold">
+                    <span className="min-w-0 flex-1 truncate text-md leading-4.5 font-semibold">
                         {addresseeOf(send.recipients, send.otherRecipientCount, wording)}
                     </span>
                     <ReceivedAt at={send.recordedAt} />
                 </span>
 
-                <span className="truncate text-base/snug text-text-soft">
+                <span className="truncate text-base leading-4.25 text-text-soft">
                     {send.subject ?? translate('message.noSubject')}
                 </span>
 
                 <span
-                    className={`flex min-w-0 items-center gap-1.25 text-sm/snug ${decisive ? 'font-semibold' : ''} ${toneInk[shape.tone]}`}
+                    className={`flex min-w-0 items-center gap-1.25 text-sm leading-4 ${decisive ? 'font-semibold' : ''} ${toneInk[shape.tone]}`}
                 >
                     <Icon name={shape.icon} className={`size-icon-xs ${shape.moving ? 'animate-working' : ''}`} />
                     <span className="truncate">{standingLine(standing, send, wording)}</span>
