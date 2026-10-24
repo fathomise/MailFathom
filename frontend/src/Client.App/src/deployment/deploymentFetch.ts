@@ -52,18 +52,56 @@ export type DeploymentFetch = <TAnswer>(
 ) => Promise<TAnswer>;
 
 /**
+ * What one request says about itself as it moves through the transport: waiting for a place, on the wire, waiting out a
+ * retry, and how it ended. The developer information surface is what listens, and it is told nothing about a body.
+ */
+export interface RequestWatch {
+    /** The request took a place and went on the wire, as the attempt counted from zero. */
+    readonly sent: (made: number) => void;
+
+    /** An answer arrived, which is read next unless it is one the transport retries. */
+    readonly answered: (response: Response) => void;
+
+    /** The transport is waiting that long before the next attempt. */
+    readonly retrying: (milliseconds: number) => void;
+
+    /** The request is over: its answer was read, it failed, or whoever made it abandoned it. */
+    readonly ended: (outcome: 'read' | 'failed' | 'abandoned') => void;
+}
+
+/** Begins watching one request, at the moment it is asked for and before it has a place on the wire. */
+export type RequestWatcher = (path: string, init: RequestInit) => RequestWatch;
+
+/** What a request reports to while nothing is listening, which is nowhere. */
+export const unwatched: RequestWatch = {
+    sent: () => undefined,
+    answered: () => undefined,
+    retrying: () => undefined,
+    ended: () => undefined,
+};
+
+let watchingTheWire: RequestWatcher = () => unwatched;
+
+/** Names what is told where each request the application makes has got to, which the composition root does once. */
+export function watchRequestsWith(watcher: RequestWatcher): void {
+    watchingTheWire = watcher;
+}
+
+/**
  * Composes the one way this client reaches its deployment out of the three things it cannot decide for itself.
  *
  * @param fetching How one request goes on the wire.
  * @param pausing How a wait before a retry is spent.
  * @param drawing Where the spread between retries comes from, a value in `[0, 1)`.
  * @param most How many requests may be in flight at once.
+ * @param watching What is told where each request has got to.
  */
 export function deploymentFetchOver(
     fetching: Fetching,
     pausing: Pausing,
     drawing: () => number,
     most: number = mostRequestsInFlight,
+    watching: RequestWatcher = () => unwatched,
 ): DeploymentFetch {
     let inFlight = 0;
     const waiting: (() => void)[] = [];
@@ -113,56 +151,72 @@ export function deploymentFetchOver(
 
     return async (path, init, answered, retriedByCaller = false) => {
         const method = init.method ?? 'GET';
+        const watch = watching(path, init);
 
-        for (let made = 0; ; made += 1) {
-            const delayAfter = (answer: Response | null): number | null =>
-                retriedByCaller
-                    ? null
-                    : retryDelay(
-                          method,
-                          answer === null
-                              ? null
-                              : { status: answer.status, headers: Object.fromEntries(answer.headers) },
-                          made,
-                          drawing(),
-                      );
+        try {
+            for (let made = 0; ; made += 1) {
+                const delayAfter = (answer: Response | null): number | null =>
+                    retriedByCaller
+                        ? null
+                        : retryDelay(
+                              method,
+                              answer === null
+                                  ? null
+                                  : { status: answer.status, headers: Object.fromEntries(answer.headers) },
+                              made,
+                              drawing(),
+                          );
 
-            await acquire(init.signal);
+                await acquire(init.signal);
+                watch.sent(made);
 
-            let response: Response;
+                let response: Response;
 
-            try {
-                response = await fetching(path, init);
-            } catch (failure) {
-                release();
+                try {
+                    response = await fetching(path, init);
+                } catch (failure) {
+                    release();
 
-                // An abandoned request is the caller's act rather than a failure, so it ends the attempts at once.
-                const delay = init.signal?.aborted === true ? null : delayAfter(null);
+                    // An abandoned request is the caller's act rather than a failure, so it ends the attempts at once.
+                    const delay = init.signal?.aborted === true ? null : delayAfter(null);
+
+                    if (delay === null) {
+                        throw failure;
+                    }
+
+                    watch.retrying(delay);
+                    await pausing(delay, init.signal);
+
+                    continue;
+                }
+
+                watch.answered(response);
+
+                const delay = delayAfter(response);
 
                 if (delay === null) {
-                    throw failure;
+                    try {
+                        const answer = await answered(response);
+
+                        watch.ended('read');
+
+                        return answer;
+                    } finally {
+                        release();
+                    }
                 }
 
+                // The place is given up for the wait, so what the deployment is refusing this request for is not also
+                // what holds back every other request this client has to make.
+                release();
+                void response.body?.cancel();
+                watch.retrying(delay);
                 await pausing(delay, init.signal);
-
-                continue;
             }
+        } catch (failure) {
+            watch.ended(init.signal?.aborted === true ? 'abandoned' : 'failed');
 
-            const delay = delayAfter(response);
-
-            if (delay === null) {
-                try {
-                    return await answered(response);
-                } finally {
-                    release();
-                }
-            }
-
-            // The place is given up for the wait, so what the deployment is refusing this request for is not also
-            // what holds back every other request this client has to make.
-            release();
-            void response.body?.cancel();
-            await pausing(delay, init.signal);
+            throw failure;
         }
     };
 }
@@ -199,4 +253,6 @@ export const fetchFromDeployment: DeploymentFetch = deploymentFetchOver(
     (path, init) => fetch(path, init),
     pauseFor,
     Math.random,
+    mostRequestsInFlight,
+    (path, init) => watchingTheWire(path, init),
 );

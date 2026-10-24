@@ -38,6 +38,8 @@ import { reachDeployment, signIn } from './signIn';
 import {
     defaultTelemetryLevel,
     isDeploymentTelemetryLevel,
+    observeClientEvents,
+    recordClientEvent,
     recordDownTo,
     reported,
     severityOf,
@@ -46,6 +48,7 @@ import {
     telemetryName,
     worthRecording,
     writeClientEvent,
+    type ObservedClientEvent,
 } from './telemetry';
 import type { ClientRequest, MailFathomTransport } from './transport';
 
@@ -551,6 +554,49 @@ describe('what this client asks a deployment that asked for nothing to keep', ()
             'render_failed',
             'signals_unreachable',
         ]);
+    });
+});
+
+describe('what an observer inside the process hears', () => {
+    let heard: ObservedClientEvent[];
+
+    beforeEach(() => {
+        heard = [];
+        observeClientEvents((occurrence) => {
+            heard.push(occurrence);
+        });
+    });
+
+    afterEach(() => {
+        observeClientEvents(null);
+    });
+
+    it('hears an occurrence the floor refuses to record, and nothing is recorded', () => {
+        recordDownTo('off');
+
+        writeClientEvent({ event: 'signals_opened' });
+
+        expect(heard.map((occurrence) => occurrence.event)).toEqual(['signals_opened']);
+        expect(records.getFinishedLogRecords()).toHaveLength(0);
+    });
+
+    it('hears nothing about a record whoever wrote it had already noticed', () => {
+        recordClientEvent({ event: 'session_started' });
+
+        expect(heard).toHaveLength(0);
+        expect(records.getFinishedLogRecords()).toHaveLength(1);
+    });
+
+    it('hears a request once, joined to the trace it was made under', async () => {
+        await reported(
+            'GET /accounts',
+            () => Promise.resolve('read'),
+            () => null,
+        );
+
+        expect(heard).toHaveLength(1);
+        expect(heard[0]?.event).toBe('request_completed');
+        expect(heard[0]?.traceId).toBe(onlySpan().spanContext().traceId);
     });
 });
 

@@ -88,6 +88,11 @@ head is, in full, is that record; how one is built is
 - **A link in a message opens in your own browser**, not in the application's window. The shell asks the desktop for
   `http`, `https`, and `mailto` addresses and for nothing else, which is the whole of what the window may ask the
   opener for; a window that navigated to a sender's page would have replaced the client with it.
+- **It opens one other window, and only that one.** The developer information surface opens in a window of its own
+  under a mouse, once it has been unlocked from the version line in *Settings* — five quick presses, which a reload
+  forgets. That window is a blank document the main window draws into, so it holds no capability of its own and
+  reaches nothing the main window does not. The shell builds the main window itself rather than from the
+  configuration so that it can answer such a request, and it refuses every other request the page makes for a window.
 - **It tells you when something arrives and the window is not in front of you**, through the operating system's own
   notification rather than through anything of its own. What it says is how many arrived and of what kind — *2 new
   messages*, *1 calendar reminder* — and never a sender, a subject, a fragment of a body, an attachment name, or an

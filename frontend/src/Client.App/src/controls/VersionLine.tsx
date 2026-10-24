@@ -20,23 +20,34 @@ import { useLocalization } from '../localization/useLocalization';
 export function VersionLine({
     deploymentVersion,
     className,
+    onPress,
 }: {
     /** What the deployment answered it is running, or `null` while nothing has answered — which is every sign-in. */
     readonly deploymentVersion: string | null;
 
     readonly className?: string;
+
+    /**
+     * What a press on the line does, where it does anything. The settings screen counts them toward unlocking the
+     * developer information surface; the line is then a button, so the count has a keyboard path as well as a pointer.
+     */
+    readonly onPress?: () => void;
 }) {
     const { translate } = useLocalization();
+    const running = `${translate('shell.title')} ${
+        deploymentVersion === null
+            ? translate('shell.clientVersion', { client: __MAILFATHOM_VERSION__ })
+            : translate('shell.versions', {
+                  client: __MAILFATHOM_VERSION__,
+                  deployment: deploymentVersion,
+              })
+    }`;
 
-    return (
-        <p className={className}>
-            {translate('shell.title')}{' '}
-            {deploymentVersion === null
-                ? translate('shell.clientVersion', { client: __MAILFATHOM_VERSION__ })
-                : translate('shell.versions', {
-                      client: __MAILFATHOM_VERSION__,
-                      deployment: deploymentVersion,
-                  })}
-        </p>
+    return onPress === undefined ? (
+        <p className={className}>{running}</p>
+    ) : (
+        <button type="button" className={className} onClick={onPress}>
+            {running}
+        </button>
     );
 }

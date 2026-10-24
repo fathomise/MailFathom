@@ -16,6 +16,7 @@ import { SpaceOverflow } from './SpaceOverflow';
 
 const handedTheAccount = 'The account control this sheet was handed.';
 const handedTheRefresh = 'The refresh this sheet was handed.';
+const handedTheDeveloper = 'The developer control this sheet was handed.';
 
 function renderOverflow(
     spaces: readonly Space[] = ['tasks', 'calendar'],
@@ -31,6 +32,7 @@ function renderOverflow(
                     current={current}
                     account={<button>{handedTheAccount}</button>}
                     refresh={<button>{handedTheRefresh}</button>}
+                    developer={<button>{handedTheDeveloper}</button>}
                 />
             </ScreenLayersContext>
         </LocalizationProvider>,
@@ -117,6 +119,20 @@ describe('SpaceOverflow', () => {
 
         expect(document.getElementById('space-overflow')?.contains(account)).toBe(true);
         expect(lastRow?.compareDocumentPosition(account)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+
+    it('stands the developer control it was handed in the sheet, after the places and before the account', () => {
+        renderOverflow();
+
+        const developer = screen.getByRole('button', { name: handedTheDeveloper, hidden: true });
+
+        expect(document.getElementById('space-overflow')?.contains(developer)).toBe(true);
+        expect(screen.getAllByRole('link', { hidden: true }).at(-1)?.compareDocumentPosition(developer)).toBe(
+            Node.DOCUMENT_POSITION_FOLLOWING,
+        );
+        expect(
+            developer.compareDocumentPosition(screen.getByRole('button', { name: handedTheAccount, hidden: true })),
+        ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     });
 
     // The sheet stands over the screen, so the back gesture reaches it before it navigates and a change of destination

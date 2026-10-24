@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 
 // The widths and heights a component has to ask about rather than compose against. A stylesheet answers a size question
 // for anything CSS can lay out two ways from one tree, and that is almost everything; what it cannot do is decide
@@ -12,15 +12,21 @@ import { useSyncExternalStore } from 'react';
 // breakpoint stays one decision. Width and height are separate axes and no query here reads both, or the window's
 // orientation or aspect: upright and on its side are each one width band beside one height band.
 
-function windowSize(token: string, fallback: string, condition: (size: string) => string, unanswered: boolean) {
+function windowSize(
+    token: string,
+    fallback: string,
+    condition: (size: string) => string,
+    unanswered: boolean,
+    view: Window = window,
+) {
     function query(): MediaQueryList | null {
-        if (typeof window.matchMedia !== 'function') {
+        if (typeof view.matchMedia !== 'function') {
             return null;
         }
 
         const size = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
 
-        return window.matchMedia(condition(size === '' ? fallback : size));
+        return view.matchMedia(condition(size === '' ? fallback : size));
     }
 
     return {
@@ -69,7 +75,8 @@ function pointerIsCoarse() {
 const atLeastWide = (width: string) => `(min-width: ${width})`;
 const workspaceWidth = windowSize('--breakpoint-workspace', '43.75rem', atLeastWide, true);
 const paneWidth = windowSize('--breakpoint-panes', '51.25rem', atLeastWide, true);
-const desktopWidth = windowSize('--breakpoint-desktop', '73.75rem', atLeastWide, true);
+const desktopBandIn = (view: Window) => windowSize('--breakpoint-desktop', '73.75rem', atLeastWide, true, view);
+const desktopWidth = desktopBandIn(window);
 const roomyWidth = windowSize('--breakpoint-roomy', '63.75rem', atLeastWide, true);
 const lowHeight = windowSize('--window-height-low', '30rem', (height) => `(height < ${height})`, false);
 const tallHeight = windowSize('--window-height-tall', '60rem', (height) => `(height >= ${height})`, false);
@@ -120,6 +127,13 @@ export function useRoomyComposition(): boolean {
  */
 export function useDesktopComposition(): boolean {
     return useSyncExternalStore(desktopWidth.watch, desktopWidth.matches);
+}
+
+/** Whether a window the client draws into beside its own is in the desktop composition, measured in that window. */
+export function useDesktopCompositionIn(view: Window): boolean {
+    const band = useMemo(() => desktopBandIn(view), [view]);
+
+    return useSyncExternalStore(band.watch, band.matches);
 }
 
 /**

@@ -6,6 +6,8 @@ import { act, fireEvent, render, screen, within, type RenderResult } from '@test
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { largestPortraitOctets } from '@mailfathom/client-backend';
 import type { TelemetryForwarding } from '../deployment/telemetryForwarding';
+import { lockDeveloperInformation, pressesToUnlock } from '../developerInformation/developerAccess';
+import { DeveloperInformationButton } from '../developerInformation/DeveloperInformationButton';
 import { LocalizationProvider } from '../localization/Localization';
 import { chooseSystemNotifications } from '../preferences/systemNotifications';
 import { TelemetryContext, noTelemetry, type ClientTelemetry } from '../telemetry/clientTelemetry';
@@ -205,6 +207,11 @@ function choose(picture: File): void {
 // taken back between tests rather than carried into the next one as a decision somebody made.
 afterEach(() => {
     window.localStorage.removeItem(deviceKeys.systemNotifications);
+});
+
+// The unlock lasts as long as the page, which in a test file is every test after the one that pressed for it.
+afterEach(() => {
+    lockDeveloperInformation();
 });
 
 describe('Settings', () => {
@@ -631,7 +638,7 @@ describe('Settings', () => {
             const navigation = within(screen.getByRole('navigation', { name: 'Settings sections' }));
 
             expect(screen.queryByRole('tablist')).toBeNull();
-            expect(navigation.getAllByRole('button').map((button) => button.textContent)).toEqual([
+            expect(navigation.getAllByRole('listitem').map((section) => section.textContent)).toEqual([
                 'Profile',
                 'Notifications',
                 'Application',
@@ -672,7 +679,7 @@ describe('Settings', () => {
 
             const navigation = within(screen.getByRole('navigation', { name: 'Settings sections' }));
 
-            expect(navigation.getAllByRole('button').map((button) => button.textContent)).toEqual(['Application']);
+            expect(navigation.getAllByRole('listitem').map((section) => section.textContent)).toEqual(['Application']);
             expect(navigation.queryByText('You')).toBeNull();
             expect(screen.getByRole('region', { name: 'Profile' })).toBeDefined();
         });
@@ -687,7 +694,7 @@ describe('Settings', () => {
 
             expect(screen.getByText('No section matches.')).toBeDefined();
             expect(
-                within(screen.getByRole('navigation', { name: 'Settings sections' })).queryAllByRole('button'),
+                within(screen.getByRole('navigation', { name: 'Settings sections' })).queryAllByRole('listitem'),
             ).toHaveLength(0);
         });
 
@@ -698,6 +705,27 @@ describe('Settings', () => {
             expect(
                 within(screen.getByRole('navigation', { name: 'Settings sections' })).getByText(/server 0\.9\.0/u),
             ).toBeDefined();
+        });
+
+        it('unlocks the developer information surface after a quick run of presses on what is running', () => {
+            theCompositionHasTwoPanes();
+            renderSettings({ deploymentVersion: '0.9.0' });
+
+            const running = within(screen.getByRole('navigation', { name: 'Settings sections' })).getByRole('button', {
+                name: /server 0\.9\.0/u,
+            });
+
+            for (let press = 0; press < pressesToUnlock; press += 1) {
+                fireEvent.click(running);
+            }
+
+            render(
+                <LocalizationProvider>
+                    <DeveloperInformationButton />
+                </LocalizationProvider>,
+            );
+
+            expect(screen.getByRole('button', { name: 'Developer information' })).toBeDefined();
         });
     });
 

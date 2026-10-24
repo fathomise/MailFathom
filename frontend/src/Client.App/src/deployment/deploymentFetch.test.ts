@@ -5,7 +5,7 @@
 import { waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { mostRetries } from '@mailfathom/client-backend';
-import { deploymentFetchOver, type Fetching, type Pausing } from './deploymentFetch';
+import { deploymentFetchOver, type Fetching, type Pausing, type RequestWatcher } from './deploymentFetch';
 
 // Everything this module cannot decide arrives as a function, so a test hands over the wire, the wait, and the spread
 // rather than patching `fetch` or installing a clock: what is proven is the order of attempts and the waits between
@@ -275,5 +275,66 @@ describe('deploymentFetchOver', () => {
 
         finishes[1]?.();
         await last;
+    });
+
+    it('tells its watcher where each request has got to, retries included', async () => {
+        const wire = wireAnswering(throttled, answered);
+        const wait = waitsRecorded();
+        const told: string[] = [];
+        const watching: RequestWatcher = (path) => {
+            told.push(`asked ${path}`);
+
+            return {
+                sent: (made) => {
+                    told.push(`sent ${String(made)}`);
+                },
+                answered: (response) => {
+                    told.push(`answered ${String(response.status)}`);
+                },
+                retrying: (milliseconds) => {
+                    told.push(`retrying ${String(milliseconds)}`);
+                },
+                ended: (outcome) => {
+                    told.push(`ended ${outcome}`);
+                },
+            };
+        };
+
+        await deploymentFetchOver(wire.fetching, wait.pausing, () => 0.5, 6, watching)('/contacts', {}, statusOf);
+
+        expect(told).toEqual([
+            'asked /contacts',
+            'sent 0',
+            'answered 429',
+            'retrying 250',
+            'sent 1',
+            'answered 200',
+            'ended read',
+        ]);
+    });
+
+    it('tells its watcher a request failed once nothing answered it', async () => {
+        const wire = wireRefusingFirst(mostRetries + 1);
+        const wait = waitsRecorded();
+        const ended: string[] = [];
+
+        await expect(
+            deploymentFetchOver(
+                wire.fetching,
+                wait.pausing,
+                () => 0.5,
+                6,
+                () => ({
+                    sent: () => undefined,
+                    answered: () => undefined,
+                    retrying: () => undefined,
+                    ended: (outcome) => {
+                        ended.push(outcome);
+                    },
+                }),
+            )('/contacts', { method: 'GET' }, statusOf),
+        ).rejects.toThrow();
+
+        expect(ended).toEqual(['failed']);
     });
 });
