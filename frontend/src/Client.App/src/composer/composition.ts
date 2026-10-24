@@ -44,15 +44,24 @@ export type ComposerOpening =
           readonly storedEmailId: string;
 
           /**
-           * A draft the deployment already wrote for this answer, where it was written before the composer opened.
+           * The draft asked for before the composer opened, which it starts writing the moment it has opened.
            *
-           * The field under a correspondence drafts a reply in the thread, and *Open in composer* carries that draft
-           * here rather than asking for a second one: the composer opens holding its words, as a draft nobody has
-           * accepted yet. Absent for every other way of answering, which opens on an empty message as it always has.
+           * The drafter at the foot of a correspondence asks what the reply should say and opens the composer on the
+           * answer, so the draft is written where it can be edited and sent rather than in a card in front of it.
+           * Absent for every other way of answering, which opens on an empty message as it always has.
            */
-          readonly drafted?: string;
+          readonly drafting?: ReplyDraftAsked;
       }
     | { readonly kind: 'draft'; readonly storedEmailId: string };
+
+/** What a reply was asked to say before the composer opened on it. */
+export interface ReplyDraftAsked {
+    /** What was typed into the drafter, which may be nothing: the press alone asks for a reply. */
+    readonly asked: string;
+
+    /** The words selected in the message being answered, or `null` where none were. */
+    readonly passage: string | null;
+}
 
 /** What the author has written, and what it is being written against. */
 export interface Composition {

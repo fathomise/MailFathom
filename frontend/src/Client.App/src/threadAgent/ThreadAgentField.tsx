@@ -2,7 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { ComposingContext } from '../composer/useComposing';
 import { Icon } from '../controls/Icon';
 import { useTip } from '../controls/useTip';
 import { useLocalization } from '../localization/useLocalization';
@@ -13,13 +14,13 @@ import { useScreenLayer } from '../shell/screenLayers';
 import { useDesktopComposition, useTwoPanes } from '../shell/useWideWorkspace';
 import { fragmentBeingRead } from '../workspace/selectedFragment';
 import { useWorkspace } from '../workspace/useWorkspace';
-import { useReplyDrafting } from './replyDrafting';
 
 // The one AI entry point at the foot of a correspondence, as the design draws it there and nowhere else: a floating
 // `auto_awesome` button at the reading column's bottom corner that unfolds two choices above it — *Draft a reply*,
 // which opens the reply drafter, and *Ask*, which hands the conversation to the agent. The drafter, once open, is a card
-// hanging over the bottom of the thread with a field, a press that drafts a reply, and — where the composition has
-// room — a row saying what the draft is about and where it stays. It is not Discover's field and shares nothing with it.
+// hanging over the bottom of the thread with a field asking what the reply should say, its press, and — where the
+// composition has room — a row saying what the draft is about and where it stays. It is not Discover's field and shares
+// nothing with it.
 //
 // **It stands at the foot of the thread, stuck to the bottom of the column's scroller**, so the room it takes is the
 // thread's bottom clearance rather than a padding measured beside it: the last line of the thread scrolls clear of the
@@ -30,8 +31,9 @@ import { useReplyDrafting } from './replyDrafting';
 // workspace, and the frame mounts a fresh one for each message that is opened: a sentence written under one message is
 // not a sentence about the next, and opening another message closes the drafter with it.
 //
-// **The press drafts in place and closes the card.** A reply is asked for here and drawn inside the thread as a card the
-// reader checks before anything else happens to it, so nothing here sends; *Ask* is the one choice that navigates.
+// **The press opens the composer and closes the card.** The reply composer opens on the message being read and starts
+// the draft there with what was typed and any passage selected above, so the draft is written where it is edited and
+// sent rather than in a card in front of it; nothing here sends.
 
 /**
  * The AI button a message or a conversation draws as the last thing in it, given the conversation an *Ask* hands over —
@@ -54,7 +56,9 @@ export function ThreadAgentField({
 }) {
     const { translate } = useLocalization();
     const { workspace } = useWorkspace();
-    const drafting = useReplyDrafting();
+    // Read where it is offered rather than required: a reading surface drawn with no composer behind it offers *Ask*
+    // alone, exactly as a deployment that drafts nothing does.
+    const composing = useContext(ComposingContext);
     const handToAgent = useAgentHandOver();
     const twoPanes = useTwoPanes();
     const desktop = useDesktopComposition();
@@ -64,7 +68,7 @@ export function ThreadAgentField({
     const [open, setOpen] = useState(false);
     const [typed, setTyped] = useState('');
 
-    const draftingOffered = drafts && drafting !== null;
+    const draftingOffered = drafts && composing !== null;
     const asking =
         handToAgent === null || thread === null
             ? null
@@ -77,22 +81,8 @@ export function ThreadAgentField({
     const buttonFocusOwed = useRef(false);
     const choiceFocusOwed = useRef(false);
 
-    // The field is held while the drafter is open, so a draft discarded with the drafter open puts the keyboard on the
-    // field rather than on the button that is not drawn; and it takes the keyboard as the card arrives, and only then.
-    const holdField = drafting?.holdField;
-    const holdTheField = useCallback(
-        (field: HTMLInputElement | null) => {
-            if (field !== null) {
-                holdField?.(field);
-                field.focus();
-            }
-        },
-        [holdField],
-    );
-
     const passage = fragmentBeingRead(workspace);
     const answering = workspace.selection;
-    const busy = drafting?.draft?.body === null && drafting.draft.answering === answering;
 
     function close(clearingTheScreen = false): void {
         buttonFocusOwed.current = !clearingTheScreen;
@@ -141,13 +131,20 @@ export function ThreadAgentField({
         setChoosing(false);
     }
 
+    // The composer takes the keyboard as it opens, so the card folding owes the button nothing.
     function draftAReply(): void {
-        if (drafting === null || answering === null || busy) {
+        if (composing === null || answering === null) {
             return;
         }
 
-        drafting.draftReply(answering, typed, passage?.text ?? null);
-        close();
+        composing.compose({
+            kind: 'answer',
+            answers: 'senderOnly',
+            storedEmailId: answering,
+            drafting: { asked: typed, passage: passage?.text ?? null },
+        });
+        setTyped('');
+        close(true);
     }
 
     const chooserName = useTip({
@@ -245,7 +242,6 @@ export function ThreadAgentField({
                         {...chooserName.anchor}
                         ref={(element) => {
                             chooserName.anchor.ref(element);
-                            drafting?.holdField(element);
 
                             if (element !== null && buttonFocusOwed.current) {
                                 buttonFocusOwed.current = false;
@@ -268,7 +264,6 @@ export function ThreadAgentField({
                 {() => (
                     <DrafterCard
                         typed={typed}
-                        busy={busy}
                         passageChosen={passage !== null}
                         passageText={passage?.text}
                         twoPanes={twoPanes}
@@ -278,7 +273,6 @@ export function ThreadAgentField({
                         onClose={() => {
                             close();
                         }}
-                        holdTheField={holdTheField}
                     />
                 )}
             </Departing>
@@ -286,9 +280,14 @@ export function ThreadAgentField({
     );
 }
 
+// The field takes the keyboard as the card arrives, and only then: a ref declared once is called when the field is
+// attached and never again while it stands.
+function takeTheKeyboard(field: HTMLInputElement | null): void {
+    field?.focus();
+}
+
 function DrafterCard({
     typed,
-    busy,
     passageChosen,
     passageText,
     twoPanes,
@@ -296,10 +295,8 @@ function DrafterCard({
     onType,
     onDraft,
     onClose,
-    holdTheField,
 }: {
     readonly typed: string;
-    readonly busy: boolean;
     readonly passageChosen: boolean;
     readonly passageText: string | undefined;
     readonly twoPanes: boolean;
@@ -307,7 +304,6 @@ function DrafterCard({
     readonly onType: (typed: string) => void;
     readonly onDraft: () => void;
     readonly onClose: () => void;
-    readonly holdTheField: (field: HTMLInputElement | null) => void;
 }) {
     const { translate } = useLocalization();
     const leaving = useContext(DepartureContext);
@@ -342,7 +338,7 @@ function DrafterCard({
                 <Icon name="auto_awesome" className="size-icon-md shrink-0 text-accent-deep" />
 
                 <input
-                    ref={holdTheField}
+                    ref={takeTheKeyboard}
                     type="text"
                     aria-label={translate('threadAgent.label')}
                     placeholder={translate(twoPanes ? 'threadAgent.placeholder' : 'threadAgent.placeholderShort')}
@@ -359,12 +355,9 @@ function DrafterCard({
                     className="min-w-0 flex-1 bg-transparent text-md text-text outline-none placeholder:text-faint panes:text-lg"
                 />
 
-                {/* `aria-disabled` rather than `disabled` while a reply is being written, so the control somebody just
-                    pressed keeps their focus; the handler is what refuses the second press. */}
                 <button
                     type="submit"
-                    aria-disabled={busy}
-                    className="flex min-h-11 shrink-0 items-center justify-center rounded-full bg-accent px-4.5 text-md font-semibold whitespace-nowrap text-on-accent transition hover:bg-accent-strong aria-disabled:opacity-60 workspace:h-7.5 workspace:min-h-0 workspace:rounded-sm workspace:px-3.25 workspace:text-base panes:h-9 panes:px-4"
+                    className="flex min-h-11 shrink-0 items-center justify-center rounded-full bg-accent px-4.5 text-md font-semibold whitespace-nowrap text-on-accent transition hover:bg-accent-strong workspace:h-7.5 workspace:min-h-0 workspace:rounded-sm workspace:px-3.25 workspace:text-base panes:h-9 panes:px-4"
                 >
                     {translate(twoPanes ? 'threadAgent.draftReply' : 'threadAgent.draftReplyShort')}
                 </button>

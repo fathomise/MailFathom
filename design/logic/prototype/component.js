@@ -538,7 +538,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* Some threads have an unread message from the middle of the history —
          we open exactly that one, not the newest. */
       const entry = { piotr: 2 };
-      const patch = Object.assign(this.leaveOutbox(), { threadId: id, listWide: false, mailAnswer: false, replyChooser: null, cameFrom: this.state.cameFrom && id === "contoso", mailPane: "thread", threadOpen: true, unread: unread,
+      const patch = Object.assign(this.leaveOutbox(), { threadId: id, listWide: false, mailAnswer: false, replyDock: null, replyChooser: null, cameFrom: this.state.cameFrom && id === "contoso", mailPane: "thread", threadOpen: true, unread: unread,
         activeMsg: Object.assign({}, this.state.activeMsg, { [id]: typeof entry[id] === "number" ? entry[id] : null }),
         histOpen: Object.assign({}, this.state.histOpen, { [id]: !!this.state.autoExpand }) }, this.composeCtxPatch([id]));
       patch.msgLoading = true;
@@ -677,9 +677,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       else this.setState(patch);
     };
 
-    /* *Draft a reply* goes straight to the reply composer and writes the AI draft into its editor there. */
+    /* The drafter's own press: the card folds, and the reply composer opens with the AI draft already being written
+       into its editor from what was asked in the card. */
     draftReply = () => {
       this.pendingAiWrite = true;
+      this.setState({ replyDock: null });
       this.startReply("reply", [this.state.threadId]);
     };
 
@@ -700,7 +702,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        The held value is read by the whole render, so anything else gated on the same key (the FAB waits on
        `compose`) follows it 240 ms late; a per-surface snapshot is the upgrade if that ever shows. */
     static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "sideDrawer", "compose", "settings",
-      "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyChooser",
+      "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock", "replyChooser",
       "newTask", "newEvent", "newContact", "filtersOpen",
       "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk"];
     static MOTION_PANES = ["mailPane", "peoplePane"];
@@ -750,7 +752,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        going back across one closes everything still standing, the way the client's change of destination does.
        Steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
     static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
-      "more", "aiSum", "moveFor", "newFolder", "remFor", "event", "ctxMenu", "replyChooser"];
+      "more", "aiSum", "moveFor", "newFolder", "remFor", "event", "ctxMenu", "replyDock", "replyChooser"];
 
     backSteps = (state) => {
       const FR = FRAMES[this.props.layout ?? "auto"] || null;
@@ -1452,7 +1454,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     goScreen = (id, patch) => {
       /* The first entry into mail starts with an empty panel; after that the open message
          is remembered for the session (in-memory state - gone when the app closes). */
-      const p = Object.assign({ screen: id, replyChooser: null }, patch || {});
+      const p = Object.assign({ screen: id, replyDock: null, replyChooser: null }, patch || {});
       /* Entering mail from another screen = fetching the list from the server. */
       if (id === "mail" && this.state.screen !== "mail") {
         if (p.mailPane === "thread") { p.msgLoading = true; this.loadMsg(); }
@@ -4450,7 +4452,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             ? "width:" + (isMobile ? 48 : touch ? 44 : 34) + "px;height:" + (isMobile ? 48 : touch ? 44 : 34) + "px;display:flex;align-items:center;justify-content:center;border-radius:" + (touch ? 12 : 8) + "px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : "--text2") + ");font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1"
             : "display:flex;align-items:center;padding:5px 8px;border-radius:8px;font-size:13px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : "--muted") + ")",
         })),
-        backToList: () => this.setState({ mailPane: "list", replyChooser: null }),
+        backToList: () => this.setState({ mailPane: "list", replyDock: null, replyChooser: null }),
         threadListStyle: "position:relative;" + (singlePane
           ? "flex:1;display:flex;flex-direction:column;min-height:0;min-width:0"
           : "width:" + (listStrip ? 76 : listW) + "px;flex:0 0 " + (listStrip ? 76 : listW) + "px;display:flex;flex-direction:column;min-height:0" + (listStrip ? ";background:var(--sub);border-right:1px solid var(--line)" : "")),
@@ -4766,12 +4768,32 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* Condensed view: only the correspondence remains. On a narrow screen the header stays —
            mieszka w nim przycisk powrotu do listy. */
         showThreadHead: !st.stateBarOff || singlePane,
-        replyFabShown: !st.stateBarOff,
+        /* *Draft a reply* first asks what the reply should say: a card hanging over the bottom of the thread with a
+           field and its press, and only that press opens the reply composer and starts the draft in it. */
+        replyFabShown: !st.stateBarOff && !st.replyDock,
+        replyDockOpen: !st.stateBarOff && !!st.replyDock,
+        closeReplyDock: () => this.setState({ replyDock: null }),
+        draftReplyFromDock: this.draftReply,
+        showComposerChips: !singlePane && !paneCompact,
+        askThreadLabel: singlePane ? "Draft" : "Draft a reply",
+        composerPlaceholder: singlePane ? "Describe the reply…" : "Describe the reply you want to send…",
+        composerBarStyle: "flex:1;min-width:0;display:flex;align-items:center;gap:10px;border:" + (singlePane ? "1px solid var(--accent-line)" : "2px solid var(--accent)") + ";background:var(--sub);border-radius:" + (isMobile ? 999 : 12) + "px;padding:" + (isMobile ? "4px 4px 4px 14px" : singlePane ? "4px 4px 4px 12px" : "6px 6px 6px 14px"),
+        composerPhStyle: "flex:1;min-width:0;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:" + (singlePane ? 14 : 15) + "px",
+        askThreadBtnStyle: "display:flex;align-items:center;justify-content:center;flex:0 0 auto;white-space:nowrap;color:var(--onaccent);background:var(--accent);font-weight:600;border-radius:" + (isMobile ? 999 : 7) + "px;" + (isMobile
+          ? "min-height:44px;padding:0 18px;font-size:14px;"
+          : touch ? "min-height:44px;padding:0 16px;font-size:13px;"
+          : "height:" + (singlePane ? 30 : 36) + "px;padding:0 " + (singlePane ? 13 : 16) + "px;font-size:13px;"),
+        /* A round close badge hanging off the drafter's top-right corner. On touch it sits higher and the
+           card carries more room above its row, so the badge never lands on *Draft*. */
+        replyDockCloseStyle: "position:absolute;z-index:1;display:flex;align-items:center;justify-content:center;border-radius:50%;color:var(--text2);background:var(--panel);border:1px solid var(--line);box-shadow:0 4px 12px var(--sh-2);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;line-height:1;" +
+          (touch ? "top:-19px;right:-4px;width:32px;height:32px;font-size:18px;" : "top:-11px;right:-11px;width:26px;height:26px;font-size:16px;"),
+        composerStyle: "position:absolute;z-index:16;display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 44px var(--sh-3),0 2px 8px var(--sh-2);" +
+          (singlePane ? "left:10px;right:10px;bottom:10px;padding:" + (touch ? "16px 8px 8px" : "8px") : "left:18px;right:18px;bottom:16px;padding:12px"),
         /* The one AI entry point of a thread: a floating glyph pinned to the pane's bottom-right corner, over the
            thread rather than in it, so it stays put however far the conversation scrolls. Pressing it unfolds two
            choices above it, *Draft a reply* and *Ask*, and turns the glyph into a close; Escape, back, a press
            outside or a choice folds them again. */
-        replyChooserOpen: !st.stateBarOff && !!st.replyChooser,
+        replyChooserOpen: !st.stateBarOff && !st.replyDock && !!st.replyChooser,
         toggleReplyChooser: () => this.setState(s => ({ replyChooser: s.replyChooser ? null : true })),
         closeReplyChooser: () => this.setState({ replyChooser: null }),
         replyFabIcon: st.replyChooser ? "close" : "auto_awesome",
@@ -4782,7 +4804,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           (isMobile ? "right:16px;bottom:84px;" : "right:" + (singlePane ? 16 : 22) + "px;bottom:" + (singlePane ? 72 : 76) + "px;"),
         replyChoiceStyle: "display:flex;align-items:center;gap:10px;white-space:nowrap;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 26px var(--sh-3),0 2px 6px var(--sh-2);font-weight:600;" +
           (touch ? "min-height:48px;padding:0 18px 0 14px;font-size:15px;" : "height:40px;padding:0 16px 0 12px;font-size:14px;"),
-        chooseDraftReply: () => { this.setState({ replyChooser: null }); this.draftReply(); },
+        chooseDraftReply: () => this.setState({ replyDock: true, replyChooser: null }),
         chooseAskThread: () => { this.setState({ replyChooser: null }); this.goAgentWith("thread “" + thread.subject + "”"); },
         /* A reading that predates the conversation's newest message: a message joined or left after
            the state was derived, so the reading is held back instead of being shown out of date. */
@@ -4802,7 +4824,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           "What the other side expects from me",
           "Draft a reply for me",
         ].map(q => ({ label: q, run: q === "Draft a reply for me"
-          ? () => { this.setState({ threadSheet: false }); this.draftReply(); }
+          ? () => this.setState({ threadSheet: false, replyDock: true })
           : () => this.setState({ threadSheet: false, mailAnswer: true }) })),
         goAgentBtnStyle: "display:flex;align-items:center;justify-content:center;gap:9px;border:1px solid var(--accent-line);border-radius:12px;background:var(--accent-soft);color:var(--accent-d);font-weight:600;" +
           (touch ? "min-height:50px;padding:0 14px;font-size:14px" : "min-height:40px;padding:0 14px;font-size:13px"),
@@ -4861,8 +4883,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         stateToggleLabel: st.stateOpen ? "hide" : "3 fields",
         /* The bottom padding keeps the last line of the thread clear of the floating reply button. */
         threadBodyStyle: singlePane
-          ? "flex:1;display:flex;flex-direction:column;gap:10px;padding:12px 12px " + (st.stateBarOff ? 12 : 84) + "px;overflow:auto;min-height:0"
-          : "flex:1;display:flex;flex-direction:column;gap:12px;padding:18px " + readPad(22) + " " + (st.stateBarOff ? 18 : 86) + "px;overflow:auto;min-height:0",
+          ? "flex:1;display:flex;flex-direction:column;gap:10px;padding:12px 12px " + (st.stateBarOff ? 12 : st.replyDock ? 96 : 84) + "px;overflow:auto;min-height:0"
+          : "flex:1;display:flex;flex-direction:column;gap:12px;padding:18px " + readPad(22) + " " + (st.stateBarOff ? 18 : st.replyDock ? 150 : 86) + "px;overflow:auto;min-height:0",
         backBannerStyle: isMobile
           ? "display:flex;flex-direction:column;gap:3px;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);padding:9px 14px"
           : "display:flex;align-items:center;gap:10px;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);padding:10px 22px",

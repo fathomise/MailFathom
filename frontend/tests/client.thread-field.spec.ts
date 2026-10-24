@@ -8,7 +8,7 @@ import { declaredVersion, openSignedIn, test } from './client.harness';
 import * as deployment from './fixtures/deployment';
 
 // The reply drafter under an open message, and what becomes of the reply it asks for: journeys across the components
-// the frame composes around it — the list that opens a message, the card in the thread, and the composer.
+// the frame composes around it — the list that opens a message, the drafter, and the composer it opens.
 
 const drafterName = 'Draft a reply to this correspondence';
 const aiButton = 'Draft a reply or ask about this thread';
@@ -41,9 +41,9 @@ async function openMailWritingDrafts(page: Page): Promise<void> {
     await openSignedIn(page, '/#/mail');
 }
 
-// The seam only the whole client proves: the composer is handed the draft the card already holds rather than asking
-// the deployment for a second one, and drafting takes the reader nowhere.
-test('drafts a reply under the message it answers, and opens the composer holding it without asking again', async ({
+// The seam only the whole client proves: the drafter under a message hands what was typed to the composer, which opens
+// as the reply and writes the draft into its own editor, asking the deployment once and taking the reader nowhere.
+test('opens the reply composer from the drafter and writes the asked-for draft into it', async ({
     page,
     deployment: served,
 }) => {
@@ -54,18 +54,47 @@ test('drafts a reply under the message it answers, and opens the composer holdin
     await page.getByRole('textbox', { name: drafterName }).fill('confirm the price');
     await page.getByRole('form', { name: drafterName }).getByRole('button', { name: 'Draft a reply' }).click();
 
-    const card = page.getByRole('region', { name: 'Draft · local' });
-    await expect(card).toContainText('4 200 net still stands');
-    await expect(page).toHaveURL(/#\/mail$/u);
-
-    await card.getByRole('button', { name: 'Open in composer' }).click();
-
+    await expect(page.getByRole('form', { name: drafterName })).toBeHidden();
     await expect(page.getByRole('textbox', { name: 'Message' })).toContainText('4 200 net still stands');
-    await expect(card).toBeHidden();
+    await expect(page.getByText('AI draft - check the facts and tone before sending')).toBeVisible();
+    await expect(page).toHaveURL(/#\/mail$/u);
 
     const draftings = served.requests('POST', '/replies/drafting');
     expect(draftings).toHaveLength(1);
-    expect(draftings[0]?.body).toMatchObject({ instruction: 'Write a reply to this message. confirm the price' });
+    expect(draftings[0]?.body).toMatchObject({
+        contextEmailIds: ['message-0'],
+        instruction: 'Write a reply to this message. confirm the price',
+    });
+});
+
+// The other seam: the list beside an open reply is what the AI drafts from, so a row clicked there moves the context,
+// the composer says it moved from where the reply started, and the next draft is asked from what the chips show.
+test('moves the reply’s context to a message clicked in the list, warns, and puts it back on Restore', async ({
+    page,
+    deployment: served,
+}) => {
+    await openMailWritingDrafts(page);
+    const rows = page.getByRole('listbox', { name: 'Messages' }).getByRole('option');
+
+    await rows.first().click();
+    await openTheDrafter(page);
+    await page.getByRole('form', { name: drafterName }).getByRole('button', { name: 'Draft a reply' }).click();
+    await expect(page.getByRole('textbox', { name: 'Message' })).toContainText('4 200 net still stands');
+
+    await rows.nth(1).click();
+
+    const warning = page.getByRole('img', { name: 'The context changed since you started' });
+    await expect(warning).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Reply' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Write a draft' }).click();
+    await expect.poll(() => served.requests('POST', '/replies/drafting').length).toBe(2);
+    expect(served.requests('POST', '/replies/drafting')[1]?.body).toMatchObject({ contextEmailIds: ['message-1'] });
+
+    await page.getByRole('button', { name: 'Restore', exact: true }).click();
+
+    await expect(warning).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Remove from the context' })).toHaveCount(1);
 });
 
 // What is typed under one message is about that message, so opening another row of the list closes the drafter and

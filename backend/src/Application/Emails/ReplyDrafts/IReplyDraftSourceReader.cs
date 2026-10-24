@@ -23,7 +23,7 @@ namespace MailFathom.Application.Emails.ReplyDrafts;
 public interface IReplyDraftSourceReader
 {
     /// <summary>Reads the conversation of one message the scope admits, with the manner its own account writes in.</summary>
-    /// <param name="answeredEmailId">The message being answered, whose conversation and account decide everything read here.</param>
+    /// <param name="answeredEmailId">The message the drafting is written from — the one being answered, or one of several a context names — whose conversation and account decide everything read here.</param>
     /// <param name="scope">The accounts and folders configuration admits.</param>
     /// <param name="bounds">How much of the conversation and how much of the account's sent mail travels.</param>
     /// <param name="cancellationToken">Cancels the read.</param>

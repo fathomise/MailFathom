@@ -107,9 +107,7 @@ import { useSignals } from './signals/useSignals';
 import { useTelemetry } from './telemetry/clientTelemetry';
 import { useNavigationTelemetry } from './telemetry/navigationTelemetry';
 import { Thread } from './thread/Thread';
-import { ReplyDraftingContext } from './threadAgent/replyDrafting';
 import { ThreadAgentField, type ReadingFoot } from './threadAgent/ThreadAgentField';
-import { useReplyDraftingState } from './threadAgent/useReplyDraftingState';
 import { ToastLifetimeContext } from './toasts/useToasts';
 import { attachmentKey, OpenAttachmentContext, type OpenedAttachment } from './workspace/openAttachment';
 import { conversationKey, type OpenConversation } from './workspace/openConversation';
@@ -468,11 +466,6 @@ export function App({
         }),
         [writesMail, drafts, written],
     );
-
-    // The reply the field under a correspondence asked for. Held here because the two things that read it are a
-    // scroller apart — the field at the foot of the reading column and the card at the end of the thread — and this is
-    // the nearest place both are composed from.
-    const replyDrafting = useReplyDraftingState(signedInAs, session, readMail);
 
     // What the whole client is blocked on, held here for the reason above and one more: the surface covers everything
     // this frame draws, so nothing below it could own the state without owning what is drawn over it as well. The
@@ -916,25 +909,23 @@ export function App({
         // other three uncontained.
         return (
             <Containment drawing={whatTheColumnDraws(workspace)} region="reading_pane">
-                <ReplyDraftingContext value={replyDrafting}>
-                    <MailAccountsContext value={mailAccounts}>
-                        <OpenMail
-                            session={session}
-                            transport={readMail}
-                            conversation={workspace.conversation}
-                            fullHtml={workspace.fullHtml}
-                            attachment={workspace.attachment}
-                            storedEmailId={workspace.selection}
-                            online={connection.online}
-                            inTabs={inTabs}
-                            expandWholeThread={preferences.expandWholeThread}
-                            onShowFullHtml={openTabs.openFullHtml}
-                            onCloseFullHtml={openTabs.closeFullHtml}
-                            onCloseAttachment={openTabs.closeAttachment}
-                            foot={readingFoot}
-                        />
-                    </MailAccountsContext>
-                </ReplyDraftingContext>
+                <MailAccountsContext value={mailAccounts}>
+                    <OpenMail
+                        session={session}
+                        transport={readMail}
+                        conversation={workspace.conversation}
+                        fullHtml={workspace.fullHtml}
+                        attachment={workspace.attachment}
+                        storedEmailId={workspace.selection}
+                        online={connection.online}
+                        inTabs={inTabs}
+                        expandWholeThread={preferences.expandWholeThread}
+                        onShowFullHtml={openTabs.openFullHtml}
+                        onCloseFullHtml={openTabs.closeFullHtml}
+                        onCloseAttachment={openTabs.closeAttachment}
+                        foot={readingFoot}
+                    />
+                </MailAccountsContext>
             </Containment>
         );
     }

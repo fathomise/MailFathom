@@ -9,7 +9,7 @@ text, what it asserts and what backs each assertion, and the people it proposes 
 instead of reconstructing an exchange.
 
 **It produces a local artifact and takes no act.** Nothing here sends, queues, appends to a mail server, or stores
-anything at all: the reply arrives as text in the composer or in a card under the correspondence it answers, and saving
+anything at all: the reply arrives as text in the composer, and saving
 it as a draft or sending it stays where those acts already are —
 [Mail delivery § A message that is written and not sent](mail-delivery.md#a-message-that-is-written-and-not-sent)
 is the half that writes to a mailbox. That is what makes a wrong draft cost an edit rather than a retraction.
@@ -20,7 +20,7 @@ is the half that writes to a mailbox. That is what makes a wrong draft cost an e
 |---|---|
 | **Body** | The reply as plain text, at most 8 000 characters. |
 | **Claims** | What the reply asserts, at most twelve, in the order it was written. |
-| **Proposed recipients** | The people the draft suggests it goes to, at most ten, every one of them named by the conversation itself. |
+| **Proposed recipients** | The people the draft suggests it goes to, at most ten, every one of them named by the correspondence itself. |
 
 A **claim** is one sentence of the reply plus the messages backing it — at most four, best first, spelled as the
 presentation plan spells a citation target, so following one is the same
@@ -40,17 +40,24 @@ adds none on its own.
 
 ## What it is written from
 
-One read of the store resolves everything, out of the single message the request names:
+A request names its **context**: the messages somebody chose to write from — usually the one they are answering, and
+at most ten, from one conversation or from several. Each is resolved by one read of the store, and the reads are put
+together into one correspondence; with a single message that is exactly the one read below.
 
-- **The conversation**, at most the twenty most recent messages, at most 4 000 characters of each — the bound
-  [a conversation's state](thread-state.md) reads a message under, because it is the same text: what a message added,
-  with the history it quoted trimmed off. A reply answers where an exchange got to, so the recent end of it is what
-  grounds a draft; the opening of a long exchange is what its derived state is for.
-- **The way the account writes**, at most six of its own recent sent messages, at most 1 200 characters of each, taken
-  from the folder playing the `Sent` role and never from the conversation being answered. Shorter than a message of the
-  exchange because what is read out of it is a manner rather than a meaning — how somebody opens, how they sign off,
-  whether they write in paragraphs or in lines. An operator who turned that derivation off leaves the bound at zero and
-  the draft is written from the conversation alone.
+- **The conversation** of each context message, at most the twenty most recent messages, at most 4 000 characters of
+  each — the bound [a conversation's state](thread-state.md) reads a message under, because it is the same text: what a
+  message added, with the history it quoted trimmed off. A reply answers where an exchange got to, so the recent end of
+  it is what grounds a draft; the opening of a long exchange is what its derived state is for. A context of several
+  messages shares the twenty between them, each read taking an even share, so it costs a provider what one long
+  conversation does. The merged correspondence carries each message once — two chosen messages of one conversation read
+  the same exchange — in the order the messages were written, numbered afresh, and keeps the most recent twenty if it is
+  still longer; the people are carried once each, by address.
+- **The way the account writes** — the account of the first context message, and only that one, so a context reaching
+  two accounts is still written in one voice — at most six of its own recent sent messages, at most 1 200 characters of
+  each, taken from the folder playing the `Sent` role and never from the conversation being answered. Shorter than a
+  message of the exchange because what is read out of it is a manner rather than a meaning — how somebody opens, how
+  they sign off, whether they write in paragraphs or in lines. An operator who turned that derivation off leaves the
+  bound at zero and the draft is written from the conversation alone.
 - **What the person typed**, which is optional and is two separate things: a *selection*, the part of the
   correspondence they are actually answering, at most 4 000 characters; and an *instruction*, what they want said, at
   most 1 000 characters. Somebody writing more than that is writing the reply, which is the work they asked to be
@@ -59,7 +66,8 @@ One read of the store resolves everything, out of the single message the request
 The correspondence is read across every account this user holds, with no folder narrowing and junk included, which is
 the scope the conversation screen itself reads under: a reply is answered across an exchange rather than inside a
 folder. A message that scope does not admit is a message this deployment has none of, and the request is answered as
-one naming a message nobody holds.
+one naming a message nobody holds — and so is a context naming several messages, one of which the scope does not
+admit, because drafting from the rest would report that the missing one exists somewhere else.
 
 **A request naming no message is the composer with nothing behind it**, which is somebody starting a message rather
 than answering one. There is then no conversation to read and no manner to derive, so nothing above is read at all: the
@@ -108,8 +116,9 @@ looking at:
 | This deployment drafts no reply — no chat endpoint, or the operator turned it off | `drafted: false`, and the capability read said so before anybody pressed anything |
 | The provider was unreachable, refused, or answered something unreadable | `drafted: false` |
 | The conversation has no readable text stored | `drafted: false` |
-| This user holds no such message, or holds no mail account at all | `404` |
+| This user does not hold every message the context names, or holds no mail account at all | `404` |
 | A request naming neither a message nor an instruction, which asks for a message out of nothing | `400` |
+| A context naming more than ten messages | `400` |
 | The deployment has spent what its operator allows a provider for the period | `429` |
 
 The spend ceiling is the one failure that travels, because falling back there would leave somebody pressing a button
@@ -132,4 +141,4 @@ deliberately asked for.
 the two keys, and [the client endpoint](../operations/client-endpoint.md#the-reply-drafting-routes) the two routes it is
 published on. Both are published under `mailfathom.assistant.use` rather than under the reading grant, because that is what
 drafting does: mail leaves this deployment for a chat provider. The one that drafts asks for `mailfathom.mail.read`
-beneath it as well, because the message being answered is mail the caller has to be allowed to read before a model is.
+beneath it as well, because the messages it is written from are mail the caller has to be allowed to read before a model is.

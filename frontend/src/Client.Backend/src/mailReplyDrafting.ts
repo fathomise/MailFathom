@@ -81,10 +81,14 @@ export type MailReplyDrafting =
 /** The answer a deployment that writes no draft gives, which leaves the composer as it was. */
 export const nothingDrafted: MailReplyDrafting = { outcome: 'notDrafted' };
 
-/** What one drafting asks for: the message being answered, if any, and what its author wants said. */
+/** What one drafting asks for: the messages it is written from, if any, and what its author wants said. */
 export interface MailReplyDraftRequest {
-    /** The message being answered, or `null` where the message being written answers none. */
-    readonly answeredEmailId: string | null;
+    /**
+     * The messages the draft is written from, in the order the composer shows them, and empty where it is written from
+     * nothing but what its author asked for. A reply starts with the message it answers; each one stands for its
+     * conversation.
+     */
+    readonly contextEmailIds: readonly string[];
 
     /** The part of the correspondence being answered, or `null` to answer it as a whole. */
     readonly selection: string | null;
@@ -103,6 +107,9 @@ export const longestDraftInstruction = 1_000;
 
 /** The greatest selection the service reads, on the same terms as the instruction above. */
 export const longestDraftSelection = 4_000;
+
+/** The most messages one drafting is written from, on the same terms as the instruction above. */
+export const mostDraftContextMessages = 10;
 
 // A draft is a message and a handful of short claims, so this is generous against what the route answers and exists
 // for the answer that is not a draft at all.
@@ -153,11 +160,11 @@ export function draftsMailReplies(
 }
 
 /**
- * Drafts one message out of the conversation it answers, or out of what its author asked for.
+ * Drafts one message out of the conversations its context names, or out of what its author asked for.
  *
  * @param session The address to reach and the finished header value to present.
  * @param transport How the request goes out.
- * @param request The message being answered, if any, and the two texts beside it.
+ * @param request The messages the draft is written from, if any, and the two texts beside it.
  * @returns The draft, the two shapes of having none, or why the answer never arrived.
  */
 export function draftMailReply(
@@ -171,7 +178,7 @@ export function draftMailReply(
             path: routeFor(session, mailReplyDraftingRoute),
             headers: { ...headersFor(session), 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                answeredEmailId: request.answeredEmailId,
+                contextEmailIds: request.contextEmailIds.slice(0, mostDraftContextMessages),
                 selection: shortened(request.selection, longestDraftSelection),
                 instruction: shortened(request.instruction, longestDraftInstruction),
             }),

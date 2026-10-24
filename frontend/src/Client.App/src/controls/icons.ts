@@ -102,6 +102,7 @@ export const iconNames = [
     'pending_actions',
     'person',
     'person_add',
+    'priority_high',
     'progress_activity',
     'radio_button_unchecked',
     'refresh',
@@ -121,6 +122,7 @@ export const iconNames = [
     'topic',
     'tune',
     'unarchive',
+    'undo',
     'visibility',
     'warning',
 ] as const;

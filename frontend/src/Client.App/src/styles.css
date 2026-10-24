@@ -498,6 +498,27 @@
         }
     }
 
+    /* The three dots the composer's drafting band draws in place of an ellipsis, each rising in turn: one keyframe
+       and three starts a beat apart, stated here so the band names none of its own. Under `prefers-reduced-motion`
+       the rule at the foot of this file stands them still. */
+    --animate-rising-dot: rising-dot 1.2s ease-in-out infinite;
+    --animate-rising-dot-second: rising-dot 1.2s ease-in-out 0.15s infinite;
+    --animate-rising-dot-third: rising-dot 1.2s ease-in-out 0.3s infinite;
+
+    @keyframes rising-dot {
+        0%,
+        78%,
+        100% {
+            opacity: 0.25;
+            transform: translateY(0);
+        }
+
+        38% {
+            opacity: 1;
+            transform: translateY(-3px);
+        }
+    }
+
     /* How something arrives in an Agent conversation while somebody is watching it: a turn, a status line and the
        proposed next steps rise into place, and a block rises a little further and a little slower, because it is the
        larger thing landing. Both are the design's own, and neither plays for history that was already there

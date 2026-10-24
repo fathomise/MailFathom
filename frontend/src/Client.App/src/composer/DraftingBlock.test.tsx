@@ -5,23 +5,51 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { LocalizationProvider } from '../localization/Localization';
-import { DraftingBlock, DraftingStanding } from './DraftingBlock';
+import { DraftingBlock, DraftingStanding, type DraftingContextStart } from './DraftingBlock';
 
 // What the block asks for, which is the one thing a screen cannot see: the acts and the tone are a sentence composed
 // here and sent as one instruction, and what somebody typed is the rest of it. The wording of each act is asserted by
 // what it contains rather than word for word, so an instruction reworded for the writer does not fail a test about
 // the control that sends it.
 
-function drawBlock(busy = false): { drafted: ReturnType<typeof vi.fn> } {
+const invoice = { storedEmailId: 'm1', subject: 'Quarterly invoice' };
+
+function drawBlock(
+    busy = false,
+    {
+        context = [invoice],
+        changedFrom = null,
+        asked,
+    }: {
+        context?: readonly { storedEmailId: string; subject: string }[];
+        changedFrom?: DraftingContextStart | null;
+        asked?: string;
+    } = {},
+): {
+    drafted: ReturnType<typeof vi.fn>;
+    removed: ReturnType<typeof vi.fn>;
+    restored: ReturnType<typeof vi.fn>;
+} {
     const drafted = vi.fn();
+    const removed = vi.fn();
+    const restored = vi.fn();
 
     render(
         <LocalizationProvider>
-            <DraftingBlock context="Quarterly invoice" busy={busy} onDraft={drafted} />
+            <DraftingBlock
+                context={context}
+                noContextSaid="compose.aiContextNone"
+                changedFrom={changedFrom}
+                {...(asked === undefined ? {} : { asked })}
+                busy={busy}
+                onDraft={drafted}
+                onRemove={removed}
+                onRestore={restored}
+            />
         </LocalizationProvider>,
     );
 
-    return { drafted };
+    return { drafted, removed, restored };
 }
 
 describe('DraftingBlock', () => {
@@ -36,8 +64,53 @@ describe('DraftingBlock', () => {
             expect(screen.getByRole('radio', { name: tone })).toBeDefined();
         }
 
-        expect(screen.getByText('Context: Quarterly invoice')).toBeDefined();
+        expect(screen.getByText('Quarterly invoice')).toBeDefined();
         expect(screen.getByText('the draft stays local until you send it')).toBeDefined();
+    });
+
+    it('takes a message out of the context from its chip', () => {
+        const { removed } = drawBlock();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Remove from the context' }));
+
+        expect(removed).toHaveBeenCalledExactlyOnceWith('m1');
+    });
+
+    it('says how to give it a context while it holds none', () => {
+        drawBlock(false, { context: [] });
+
+        expect(screen.getByText('none yet - click a message in the list to draft from it')).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Remove from the context' })).toBeNull();
+    });
+
+    it('marks a context that changed in the field and in words, and offers the way back', () => {
+        const { restored } = drawBlock(false, { changedFrom: { subject: 'Quarterly invoice', more: 2 } });
+
+        expect(screen.getByRole('img', { name: 'The context changed since you started' })).toBeDefined();
+        expect(screen.getByRole('status').textContent).toContain(
+            'This message started from “Quarterly invoice” and 2 more - the context has changed since.',
+        );
+        expect(screen.queryByText('the draft stays local until you send it')).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+
+        expect(restored).toHaveBeenCalledOnce();
+    });
+
+    it('draws no mark while the context is where it started', () => {
+        drawBlock();
+
+        expect(screen.queryByRole('img', { name: 'The context changed since you started' })).toBeNull();
+        expect(screen.queryByRole('status')).toBeNull();
+    });
+
+    it('opens holding what the reply was asked to say before the composer opened', () => {
+        drawBlock(false, { asked: 'accept the SLA' });
+
+        expect(screen.getByRole('textbox', { name: 'What the draft should say' })).toHaveProperty(
+            'value',
+            'accept the SLA',
+        );
     });
 
     // jsdom answers every width query `false`, which is the phone.
@@ -125,15 +198,25 @@ describe('DraftingBlock', () => {
 });
 
 describe('DraftingStanding', () => {
-    it('says a draft is being written, and offers nothing to act on while it is', () => {
+    it('says a reply is being generated, and offers nothing to act on while it is', () => {
         render(
             <LocalizationProvider>
-                <DraftingStanding busy drafted onRestore={vi.fn()} onAccept={vi.fn()} />
+                <DraftingStanding busy answering drafted onRestore={vi.fn()} onAccept={vi.fn()} />
             </LocalizationProvider>,
         );
 
-        expect(screen.getByRole('status')).toHaveProperty('textContent', 'AI is drafting…');
+        expect(screen.getByRole('status')).toHaveProperty('textContent', 'Generating a reply');
         expect(screen.queryByRole('button', { name: 'Accept' })).toBeNull();
+    });
+
+    it('says a new message is being drafted rather than a reply', () => {
+        render(
+            <LocalizationProvider>
+                <DraftingStanding busy answering={false} drafted={false} onRestore={vi.fn()} onAccept={vi.fn()} />
+            </LocalizationProvider>,
+        );
+
+        expect(screen.getByRole('status')).toHaveProperty('textContent', 'Drafting');
     });
 
     it('offers the way back and the way forward once a draft stands', () => {
@@ -142,7 +225,7 @@ describe('DraftingStanding', () => {
 
         render(
             <LocalizationProvider>
-                <DraftingStanding busy={false} drafted onRestore={restored} onAccept={accepted} />
+                <DraftingStanding busy={false} answering drafted onRestore={restored} onAccept={accepted} />
             </LocalizationProvider>,
         );
 
@@ -156,7 +239,7 @@ describe('DraftingStanding', () => {
     it('says nothing where no draft has been written and none is being written', () => {
         render(
             <LocalizationProvider>
-                <DraftingStanding busy={false} drafted={false} onRestore={vi.fn()} onAccept={vi.fn()} />
+                <DraftingStanding busy={false} answering drafted={false} onRestore={vi.fn()} onAccept={vi.fn()} />
             </LocalizationProvider>,
         );
 

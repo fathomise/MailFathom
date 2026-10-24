@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Globalization;
 using MailFathom.AI.Chat;
 using MailFathom.Application.Emails.ReplyDrafts;
 using MailFathom.Evaluations.Corpus;
@@ -126,7 +127,8 @@ public sealed class ReplyDraftScenarioTests : IDisposable
         var readings = ReplyDraftScenario.All.Select(static scenario =>
         {
             var sources = scenario.Sources();
-            var wrote = scenario.Conversation
+            var wrote = scenario.Context
+                .SelectMany(static conversation => conversation)
                 .Select(static message => message.Sender)
                 .Where(static sender => sender != CorpusMailbox.OwnerAddress)
                 .Select(static sender => sender.ToUpperInvariant())
@@ -138,7 +140,8 @@ public sealed class ReplyDraftScenarioTests : IDisposable
                 AnswersCorrespondent: scenario.Conversation[^1].Sender != CorpusMailbox.OwnerAddress,
                 Wrote: wrote,
                 Numbered: sources.Participants.Select(static person => person.Address.NormalizedAddress).Order(StringComparer.Ordinal).ToArray(),
-                Answered: sources.Messages[^1].StoredEmailId == scenario.Conversation[^1].Id);
+                Answered: scenario.Context.All(conversation =>
+                    sources.Messages.Any(message => message.StoredEmailId == conversation[^1].Id)));
         });
 
         // Assert
@@ -158,6 +161,45 @@ public sealed class ReplyDraftScenarioTests : IDisposable
 
         // Assert
         Assert.True(sources.Participants.Count > 1, $"{sources.Participants.Count} participant(s) numbered.");
+    }
+
+    /// <summary>A context of two conversations is one correspondence, numbered as the turn numbers it.</summary>
+    [Fact]
+    public void Sources_AContextOfTwoConversations_NumbersBothInTheOrderTheyWereWritten()
+    {
+        // Arrange
+        var scenario = Named("ReplyDraft.FromTwoConversations");
+
+        // Act
+        var sources = scenario.Sources();
+
+        // Assert
+        Assert.Equal(Enumerable.Range(0, sources.Messages.Count), sources.Messages.Select(static message => message.Position));
+        Assert.Equal(sources.Messages.OrderBy(static message => message.SentAt), sources.Messages);
+        Assert.All(scenario.Context, conversation => Assert.Contains(
+            sources.Messages,
+            message => conversation.Any(written => written.Id == message.StoredEmailId)));
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public async Task RunAsync_ADraftFromTwoConversations_PassesOnlyWhereItCitesEachOfThem(bool citesBoth, bool expected)
+    {
+        // Arrange
+        var scenario = Named("ReplyDraft.FromTwoConversations");
+        var sources = scenario.Sources();
+        var positions = scenario.Context
+            .Select(conversation => sources.Messages.Single(message => message.StoredEmailId == conversation[^1].Id).Position)
+            .ToArray();
+        var cited = citesBoth ? string.Join(',', positions) : positions[0].ToString(CultureInfo.InvariantCulture);
+        using var model = Model($$"""{"body":"Harbour Room 2 on 15 September suits us, and the revised BL-4827 goes out by 8 September.","claims":[{"text":"The meeting is in Harbour Room 2 on 15 September, and the revised BL-4827 is due by 8 September.","messages":[{{cited}}]}],"recipients":[0]}""");
+
+        // Act
+        var verdict = await this.RunAsync(scenario, model);
+
+        // Assert
+        Assert.Equal(expected, verdict.Get<BooleanMetric>(ReplyDraftScenario.CitesEveryConversationMetricName).Value);
     }
 
     public void Dispose() => this.store.Delete(recursive: true);
