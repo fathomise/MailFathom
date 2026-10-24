@@ -6,8 +6,12 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.Chat;
 using MailFathom.Application.Discovery.Presentation;
+using MailFathom.Application.Notifications;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.Signals;
+using MailFathom.Domain.Access;
+using MailFathom.Domain.Emails;
+using MailFathom.Domain.Notifications;
 
 namespace MailFathom.Application.Agent.Answering;
 
@@ -47,6 +51,7 @@ public sealed class AgentAnswering
     private readonly IAgentConversationSummarizer? summarizer;
     private readonly AgentContextBudget contextBudget;
     private readonly IMailAnsweringSpendLedger spendLedger;
+    private readonly INotificationStore notifications;
     private readonly ClientSignals signals;
     private readonly IUserLanguages languages;
     private readonly TimeProvider timeProvider;
@@ -57,6 +62,7 @@ public sealed class AgentAnswering
     /// <param name="summarizer">Summarises a conversation that outgrew the budget, or <see langword="null" /> where no chat endpoint was declared.</param>
     /// <param name="contextBudget">What one turn may send before its earlier part is compacted.</param>
     /// <param name="spendLedger">Admits the run against the deployment's period.</param>
+    /// <param name="notifications">Names the messages a question scoped to an arrival notification is about.</param>
     /// <param name="signals">Announces each write.</param>
     /// <param name="languages">Resolves the person's language.</param>
     /// <param name="timeProvider">Stamps each write and measures the run's ceiling on time.</param>
@@ -67,6 +73,7 @@ public sealed class AgentAnswering
         IAgentConversationSummarizer? summarizer,
         AgentContextBudget contextBudget,
         IMailAnsweringSpendLedger spendLedger,
+        INotificationStore notifications,
         ClientSignals signals,
         IUserLanguages languages,
         TimeProvider timeProvider)
@@ -74,6 +81,7 @@ public sealed class AgentAnswering
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(contextBudget);
         ArgumentNullException.ThrowIfNull(spendLedger);
+        ArgumentNullException.ThrowIfNull(notifications);
         ArgumentNullException.ThrowIfNull(signals);
         ArgumentNullException.ThrowIfNull(languages);
         ArgumentNullException.ThrowIfNull(timeProvider);
@@ -83,6 +91,7 @@ public sealed class AgentAnswering
         this.summarizer = summarizer;
         this.contextBudget = contextBudget;
         this.spendLedger = spendLedger;
+        this.notifications = notifications;
         this.signals = signals;
         this.languages = languages;
         this.timeProvider = timeProvider;
@@ -200,15 +209,27 @@ public sealed class AgentAnswering
 
         // The scope the conversation stands under rides on the question's own turn rather than in the history, so the
         // context it was opened from is stated verbatim on every turn and is never left for a summary to paraphrase.
+        var scope = question.Scope ?? earlier.Context.ScopeInForce;
         var brief = new AgentAnswerBrief(
-            question with { Scope = question.Scope ?? earlier.Context.ScopeInForce },
+            question with { Scope = scope },
             this.languages.LanguageOf(question.User),
-            history);
+            history)
+        {
+            NamedEmails = await this.ReadNamedEmailsAsync(question.User, scope, cancellationToken),
+        };
 
         var followUps = await this.composer.ComposeAsync(brief, journal, cancellationToken);
 
         await journal.CompleteAsync(followUps, cancellationToken);
     }
+
+    private async Task<IReadOnlyList<StoredEmailId>> ReadNamedEmailsAsync(
+        UserId user,
+        AgentMessageScope? scope,
+        CancellationToken cancellationToken) =>
+        scope is { Kind: AgentScopeKind.Notification, Subject: { } notification }
+            ? await this.notifications.ReadNamedEmailsAsync(user, NotificationId.Create(notification), cancellationToken) ?? []
+            : [];
 
     /// <summary>Composes the history the turn sends, compacting the conversation first where it has outgrown the budget.</summary>
     /// <param name="question">The question the turn answers, whose answer records the compaction.</param>

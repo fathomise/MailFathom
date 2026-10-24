@@ -4,7 +4,9 @@
 
 using System.Globalization;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Emails.Summaries;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Notifications;
 
 namespace MailFathom.Application.Notifications;
@@ -17,15 +19,16 @@ namespace MailFathom.Application.Notifications;
 /// reason the record exists.
 /// </para>
 /// <para>
-/// Mail is reported once per run rather than once per message. A run that commits forty messages is one arrival to the
-/// person who was away from the screen, and forty rows would bury every other kind of notification under one
-/// mailbox's traffic. The count is the run's, and the row leads to the mailbox rather than to any one message,
-/// because there is no one message a run is about.
+/// Mail is reported a message at a time while an account's unread arrivals are few, and as one merged notification
+/// once they are not: <see cref="MailArrivalFold" /> is that rule. A notification about one message names its sender
+/// and its subject and leads to it, because what a person away from the screen wants to know is whether anything that
+/// arrived needs them; forty such rows would bury every other kind of notification under one mailbox's traffic, which
+/// is what the merged one is for.
 /// </para>
 /// <para>
-/// Nothing composed here reads mail. A count, an account identifier, and a fixed sentence are what a row carries, so
-/// no subject, address, body fragment, filename, or credential can reach the record, a log, or a telemetry event
-/// through this path.
+/// The sender and the subject are the only things read from mail here, and only for an arrival small enough to be said
+/// a message at a time. No body fragment, recipient, filename, or credential reaches the record through this path, and
+/// neither the sender nor the subject reaches a log or a telemetry event.
 /// </para>
 /// <para>
 /// Every raise states its condition twice, in the two forms a notification is read in. The statement is the condition
@@ -50,62 +53,70 @@ public sealed class SynchronizationNotifications
 {
     private readonly NotificationRaiser raiser;
     private readonly IMailAccountAssignments assignments;
+    private readonly IStoredEmailSummaryReader summaries;
     private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes the producer from the record it raises into.</summary>
     /// <param name="raiser">Keeps what is raised and announces it to whatever the person has open.</param>
     /// <param name="assignments">Answers who a condition about one mailbox is about.</param>
+    /// <param name="summaries">Reads who sent an arrived message and what it is about.</param>
     /// <param name="timeProvider">Stamps a notification with when the run observed what it describes.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     public SynchronizationNotifications(
         NotificationRaiser raiser,
         IMailAccountAssignments assignments,
+        IStoredEmailSummaryReader summaries,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(raiser);
         ArgumentNullException.ThrowIfNull(assignments);
+        ArgumentNullException.ThrowIfNull(summaries);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         this.raiser = raiser;
         this.assignments = assignments;
+        this.summaries = summaries;
         this.timeProvider = timeProvider;
     }
 
-    /// <summary>Reports the mail one run committed, as one notification for the run.</summary>
+    /// <summary>Reports the mail one run committed, folded into what each assigned user already holds for the account.</summary>
     /// <param name="account">The account the run was over.</param>
-    /// <param name="newMessageCount">How many messages the run committed locally.</param>
+    /// <param name="arrivedEmails">The messages the run committed that were mail arriving for the person, in the order it stored them.</param>
     /// <param name="cancellationToken">Cancels the raise.</param>
-    /// <returns><see langword="true" /> when a notification was kept.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="newMessageCount" /> is negative.</exception>
+    /// <returns><see langword="true" /> when a notification was raised for anybody.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="arrivedEmails" /> is <see langword="null" />.</exception>
     /// <remarks>
     /// A run that committed nothing says nothing: an empty run is the ordinary case and is not an event anybody was
-    /// away from the screen for. Arrival is deduplicated like every other condition, so a standing unread arrival
-    /// keeps the count of the run that raised it and a later run's mail adds no second row: what the row says is that
-    /// mail arrived rather than how much is waiting, and the mailbox answers the second question when it is opened.
+    /// away from the screen for. A message the run committed and somebody erased before this report reads it is still
+    /// counted, but named by no sender, because it was news whether or not it is still there.
     /// </remarks>
-    public Task<bool> ReportArrivedMailAsync(
+    public async Task<bool> ReportArrivedMailAsync(
         MailAccountId account,
-        int newMessageCount,
+        IReadOnlyList<StoredEmailId> arrivedEmails,
         CancellationToken cancellationToken)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(newMessageCount);
+        ArgumentNullException.ThrowIfNull(arrivedEmails);
 
-        if (newMessageCount == 0)
+        if (arrivedEmails.Count == 0)
         {
-            return Task.FromResult(false);
+            return false;
         }
 
-        return this.RecordAsync(
-            account,
-            NotificationKind.Mail,
-            title: "New mail",
-            body: newMessageCount == 1
-                ? "1 new message arrived."
-                : string.Create(CultureInfo.InvariantCulture, $"{newMessageCount} new messages arrived."),
-            NotificationStatement.MailArrived(newMessageCount),
-            NotificationTarget.ToScreen(NotificationScreen.Mail),
-            condition: "mail-arrived",
-            cancellationToken);
+        var arrived = await this.ReadArrivedAsync(arrivedEmails, cancellationToken);
+        var occurredAt = this.timeProvider.GetUtcNow();
+        var anyRaised = false;
+
+        foreach (var user in await this.assignments.ReadUsersAssignedToAsync(account, cancellationToken))
+        {
+            anyRaised |= await this.raiser.RecordAndAnnounceMailArrivalAsync(
+                user,
+                account,
+                arrived,
+                occurredAt,
+                cancellationToken);
+        }
+
+        return anyRaised;
     }
 
     /// <summary>Reports a run that ended with folders it did not finish.</summary>
@@ -166,6 +177,27 @@ public sealed class SynchronizationNotifications
             NotificationTarget.ToScreen(NotificationScreen.Settings),
             condition: "credential-refused",
             cancellationToken);
+
+    // Only an arrival small enough to be said a message at a time is read for its senders and subjects: a larger one is
+    // merged whatever the person already holds, so reading it would fetch names nobody is shown.
+    private async Task<IReadOnlyList<ArrivedEmail>> ReadArrivedAsync(
+        IReadOnlyList<StoredEmailId> arrivedEmails,
+        CancellationToken cancellationToken)
+    {
+        if (arrivedEmails.Count > MailArrivalFold.MaximumSeparateArrivals)
+        {
+            return [.. arrivedEmails.Select(static email => new ArrivedEmail(email, sender: null, subject: null))];
+        }
+
+        var read = await this.summaries.ReadSummariesAsync(arrivedEmails, cancellationToken);
+
+        return
+        [
+            .. arrivedEmails.Select(email => read.TryGetValue(email, out var summary)
+                ? new ArrivedEmail(email, summary.SenderDisplayName ?? summary.SenderAddress, summary.Subject)
+                : new ArrivedEmail(email, sender: null, subject: null)),
+        ];
+    }
 
     private async Task<bool> RecordAsync(
         MailAccountId account,

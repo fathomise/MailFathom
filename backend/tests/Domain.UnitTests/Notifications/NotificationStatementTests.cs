@@ -23,6 +23,21 @@ public sealed class NotificationStatementTests
         Assert.Null(statement.OutOf);
     }
 
+    /// <summary>One message counts whether it carried a subject, which is what tells a client to word a missing one itself.</summary>
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public void MessageArrived_AMessageWithOrWithoutASubject_CountsTheSubject(bool carriesSubject, int expectedCount)
+    {
+        // Arrange, Act
+        var statement = NotificationStatement.MessageArrived(carriesSubject);
+
+        // Assert
+        Assert.Equal(NotificationCause.MessageArrived, statement.Cause);
+        Assert.Equal(expectedCount, statement.Counted);
+        Assert.Null(statement.OutOf);
+    }
+
     /// <summary>An unfinished run counts the folders it did not finish against the folders it scheduled.</summary>
     [Fact]
     public void SynchronizationIncomplete_ARunThatLeftFoldersUnfinished_CountsThemAgainstWhatItScheduled()

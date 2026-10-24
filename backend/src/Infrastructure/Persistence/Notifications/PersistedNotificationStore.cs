@@ -7,7 +7,10 @@ using MailFathom.Application.Notifications;
 using MailFathom.Application.Persistence;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Notifications;
+using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Sessions;
 using Microsoft.EntityFrameworkCore;
 
@@ -45,6 +48,49 @@ internal sealed class PersistedNotificationStore(
         return commitPolicy.CommitAsync(
             (session, token) => StageAsync(session, notification, token),
             cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<Notification>> RecordMailArrivalAsync(
+        UserId user,
+        MailAccountId account,
+        IReadOnlyList<ArrivedEmail> arrived,
+        DateTimeOffset occurredAt,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(arrived);
+
+        return commitPolicy.CommitAsync(
+            (session, token) => StageMailArrivalAsync(session, user, account, arrived, occurredAt, token),
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<StoredEmailId>?> ReadNamedEmailsAsync(
+        UserId user,
+        NotificationId notification,
+        CancellationToken cancellationToken)
+    {
+        var userValue = user.Value;
+        var identifier = notification.Value;
+
+        var held = await readContext.Notifications
+            .AsNoTracking()
+            .AnyAsync(candidate => candidate.UserId == userValue && candidate.Id == identifier, cancellationToken);
+
+        if (!held)
+        {
+            return null;
+        }
+
+        var named = await readContext.NotificationNamedEmails
+            .AsNoTracking()
+            .Where(pair => pair.NotificationId == identifier)
+            .OrderBy(pair => pair.StoredEmailId)
+            .Select(pair => pair.StoredEmailId)
+            .ToArrayAsync(cancellationToken);
+
+        return [.. named.Select(StoredEmailId.Create)];
     }
 
     /// <inheritdoc />
@@ -242,6 +288,104 @@ internal sealed class PersistedNotificationStore(
         stored.IsRead = isRead;
 
         return NotificationReadOutcome.Applied;
+    }
+
+    // What stands is read inside the transaction the fold is written in, and the rows it replaces are deleted by a
+    // statement before the replacement is inserted: the merged notification an arrival replaces names the same
+    // condition as the one replacing it, and the partial unique index would refuse the two standing together for the
+    // instant a single save would hold both.
+    private static async Task<IReadOnlyList<Notification>> StageMailArrivalAsync(
+        IPersistenceSession session,
+        UserId user,
+        MailAccountId account,
+        IReadOnlyList<ArrivedEmail> arrived,
+        DateTimeOffset occurredAt,
+        CancellationToken cancellationToken)
+    {
+        var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+        var standing = await ReadStandingMailArrivalsAsync(writeContext, user, account, cancellationToken);
+        var fold = MailArrivalFold.Decide(user, account, standing, arrived, occurredAt);
+
+        if (fold.IsEmpty)
+        {
+            return [];
+        }
+
+        if (fold.Replaced.Count > 0)
+        {
+            var replacedIds = fold.Replaced.Select(static notification => notification.Value).ToArray();
+
+            await writeContext.Notifications
+                .Where(notification => replacedIds.Contains(notification.Id))
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+
+        foreach (var raised in fold.Raised)
+        {
+            writeContext.Notifications.Add(NotificationMapping.ToEntity(raised.Notification));
+            writeContext.NotificationNamedEmails.AddRange(raised.NamedEmails.Select(email => new NotificationNamedEmailEntity
+            {
+                NotificationId = raised.Notification.Id.Value,
+                StoredEmailId = email.Value,
+            }));
+        }
+
+        return [.. fold.Raised.Select(static raised => raised.Notification)];
+    }
+
+    // A merged notification is found by the condition it stands under, and one about a single message by the account
+    // its message is stored in, since the source line a row carries is a label that an outsized account identifier
+    // leaves empty. A row a build that kept no cause wrote under the merged condition is a merged one counting what it
+    // said it counted, or one message where it said nothing.
+    private static async Task<IReadOnlyList<StandingMailArrival>> ReadStandingMailArrivalsAsync(
+        MailFathomDbContext writeContext,
+        UserId user,
+        MailAccountId account,
+        CancellationToken cancellationToken)
+    {
+        var userValue = user.Value;
+        var accountValue = account.Value;
+        var mergedCondition = MailArrivalFold.MergedConditionFor(account).Value;
+
+        var rows = await writeContext.Notifications
+            .AsNoTracking()
+            .Where(notification => notification.UserId == userValue
+                && !notification.IsRead
+                && (notification.DeduplicationKey == mergedCondition
+                    || (notification.Cause == NotificationCause.MessageArrived
+                        && notification.TargetStoredEmail!.MailboxAccountId == accountValue)))
+            .Select(notification => new
+            {
+                notification.Id,
+                notification.Counted,
+                notification.TargetStoredEmailId,
+                Merged = notification.DeduplicationKey == mergedCondition,
+            })
+            .ToArrayAsync(cancellationToken);
+
+        // A stored email's identifier is a version 7 UUID minted when it was stored, so ordering by it is ordering by
+        // arrival, which is what lets the fold keep the newest when a merged row outgrows what it may name.
+        var mergedIds = rows.Where(static row => row.Merged).Select(static row => row.Id).ToArray();
+        var named = mergedIds.Length == 0
+            ? []
+            : await writeContext.NotificationNamedEmails
+                .AsNoTracking()
+                .Where(pair => mergedIds.Contains(pair.NotificationId))
+                .OrderBy(pair => pair.StoredEmailId)
+                .ToArrayAsync(cancellationToken);
+        var namedByNotification = named.ToLookup(
+            static pair => pair.NotificationId,
+            static pair => StoredEmailId.Create(pair.StoredEmailId));
+
+        return
+        [
+            .. rows.Select(row => row.Merged || row.TargetStoredEmailId is not { } email
+                ? StandingMailArrival.Merged(
+                    NotificationId.Create(row.Id),
+                    row.Counted ?? 1,
+                    [.. namedByNotification[row.Id]])
+                : StandingMailArrival.OfEmail(NotificationId.Create(row.Id), StoredEmailId.Create(email))),
+        ];
     }
 
     private static async Task<bool> StageAsync(

@@ -335,6 +335,31 @@ public sealed class AgentConversationScenarioTests : IDisposable
     }
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RunAsync_ASummaryOfAMergedArrivalReadOrOnlySearched_PassesTheToolAndEvidenceChecksOnlyWhereItReadThem(bool reads)
+    {
+        // Arrange
+        var scenario = Named("Agent.Notification.SummarisesTheMessagesThatArrived");
+        (string Tool, IDictionary<string, object?> Arguments)[] calls = reads
+            ? [.. (scenario.Arrived ?? []).Select(static message => ReadThread(message.Id.ToString()))]
+            : [Search("new messages")];
+        var answer = reads
+            ? "Emil collects the archive boxes, and the move is on 30 August."
+            : "Two new messages arrived.";
+        using var model = new ScriptedAgentChatClient(calls, answer);
+
+        // Act
+        var verdict = await this.RunAsync(scenario, model);
+
+        // Assert
+        Assert.Equal(
+            (reads, reads),
+            (verdict.Get<BooleanMetric>(AgentConversationScenario.CalledTheToolsAskedForMetricName).Value,
+                verdict.Get<BooleanMetric>(AgentConversationScenario.CarriesEvidenceMetricName).Value));
+    }
+
+    [Theory]
     [InlineData("Agent.Propose.Reply", "reply", null, true)]
     [InlineData("Agent.Propose.Reply", "forward", "someone.else@example.test", false)]
     [InlineData("Agent.Propose.Forward", "forward", "reception@example.test", true)]

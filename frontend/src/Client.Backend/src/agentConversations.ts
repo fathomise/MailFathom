@@ -68,7 +68,7 @@ export interface AgentConversationSummary {
 
 /** What a person's question was about, where they asked it from a screen that carries one. */
 export interface AgentMessageScope {
-    readonly kind: 'mailbox' | 'thread' | 'calendarEvent' | 'discoveryRun';
+    readonly kind: 'mailbox' | 'thread' | 'calendarEvent' | 'discoveryRun' | 'notification';
     readonly subject: string | null;
 }
 
@@ -522,6 +522,7 @@ const scopeKinds: Readonly<Record<string, AgentMessageScope['kind'] | undefined>
     Thread: 'thread',
     CalendarEvent: 'calendarEvent',
     DiscoveryRun: 'discoveryRun',
+    Notification: 'notification',
 };
 
 function parseEntry(value: unknown): AgentConversationEntry | null {
@@ -608,6 +609,7 @@ const wireScopeKinds: Readonly<Record<AgentMessageScope['kind'], string>> = {
     thread: 'Thread',
     calendarEvent: 'CalendarEvent',
     discoveryRun: 'DiscoveryRun',
+    notification: 'Notification',
 };
 
 interface WireScope {

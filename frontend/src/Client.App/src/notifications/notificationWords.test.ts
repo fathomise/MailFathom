@@ -42,27 +42,58 @@ function translating(locale: Locale): Translate {
 }
 
 describe('wordNotification', () => {
-    it('says arrived mail in English, counting what the run committed', () => {
-        expect(said({ cause: 'MailArrived', counted: 3, outOf: null }, 'en')).toEqual({
-            title: 'New mail',
-            body: '3 new messages arrived.',
+    it('says merged arrivals in English, counting every message they stand for', () => {
+        expect(said({ cause: 'MailArrived', counted: 8, outOf: null }, 'en')).toEqual({
+            title: '8 new messages',
+            body: 'More than five arrived unread, so they are gathered here.',
         });
     });
 
-    // Polish inflects both the verb and the noun by the count, which is what `Intl.PluralRules` selects between and
-    // what a hand-written plural would get wrong for every number but the one it was written for. Which form it lands
-    // on is named as the entry rather than as the words that entry holds: the catalogue is the one place Polish prose
-    // is written, and a copy of a sentence here would be a second place to keep it in step. The title beside it stays
-    // literal, so the whole assertion is still that the Polish catalogue reached the screen rather than the English.
+    // Polish inflects the noun by the count, which is what `Intl.PluralRules` selects between and what a hand-written
+    // plural would get wrong for every number but the one it was written for. Which form it lands on is named as the
+    // entry rather than as the words that entry holds: the catalogue is the one place Polish prose is written, and a
+    // copy of a sentence here would be a second place to keep it in step. The body beside it stays literal, so the
+    // whole assertion is still that the Polish catalogue reached the screen rather than the English.
     it.each([
-        [1, 'notifications.said.mailArrived.body.one'],
-        [3, 'notifications.said.mailArrived.body.few'],
-        [12, 'notifications.said.mailArrived.body.many'],
-    ] as const)('says arrived mail in Polish in the form its count takes: %i', (count, form) => {
+        [6, 'notifications.said.mailArrived.title.many'],
+        [22, 'notifications.said.mailArrived.title.few'],
+    ] as const)('says merged arrivals in Polish in the form their count takes: %i', (count, form) => {
         expect(said({ cause: 'MailArrived', counted: count, outOf: null }, 'pl')).toEqual({
-            title: 'Nowa poczta',
-            body: translating('pl')(form, { count: digits.format(count) }),
+            title: translating('pl')(form, { count: digits.format(count) }),
+            body: 'Nieprzeczytanych przyszło więcej niż pięć, więc są zebrane tutaj.',
         });
+    });
+
+    // One message's row is its sender and its subject, which are the message's own words rather than a sentence, so
+    // both languages draw them as they arrived — and only a missing subject is the client's to say.
+    it.each(['en', 'pl'] as const)('says one arrived message in %s as its sender and its subject', (locale) => {
+        const message: ClientNotification = {
+            ...englishArrival,
+            title: 'Anna Kowalska',
+            body: 'Re: Contract addendum',
+            target: { kind: 'Message', storedEmailId: '0197a3c0-0000-7000-8000-000000000003' },
+            statement: { cause: 'MessageArrived', counted: 1, outOf: null },
+        };
+
+        expect(wordNotification(message, locale, translating(locale))).toEqual({
+            title: 'Anna Kowalska',
+            body: 'Re: Contract addendum',
+        });
+    });
+
+    it.each([
+        ['en', 'No subject'],
+        ['pl', 'Bez tematu'],
+    ] as const)('says a message that carried no subject in %s in its reader’s language', (locale, body) => {
+        const message: ClientNotification = {
+            ...englishArrival,
+            title: 'Anna Kowalska',
+            body: 'No subject',
+            target: { kind: 'Message', storedEmailId: '0197a3c0-0000-7000-8000-000000000003' },
+            statement: { cause: 'MessageArrived', counted: 0, outOf: null },
+        };
+
+        expect(wordNotification(message, locale, translating(locale)).body).toBe(body);
     });
 
     it('says an unfinished run in English, against how much it had scheduled', () => {

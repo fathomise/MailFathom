@@ -1250,6 +1250,7 @@ public static class ServiceCollectionExtensions
             provider.GetService<IAgentConversationSummarizer>(),
             answeringBudget.Context,
             provider.GetRequiredService<IMailAnsweringSpendLedger>(),
+            provider.GetRequiredService<INotificationStore>(),
             provider.GetRequiredService<ClientSignals>(),
             provider.GetRequiredService<IUserLanguages>(),
             provider.GetRequiredService<TimeProvider>()));

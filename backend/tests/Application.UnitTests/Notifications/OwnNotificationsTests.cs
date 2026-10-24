@@ -6,6 +6,8 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Notifications;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Notifications;
 using MailFathom.TestSupport;
 using Xunit;
@@ -415,6 +417,20 @@ public sealed class OwnNotificationsTests
 
         public Task<bool> RecordAsync(Notification notification, CancellationToken cancellationToken) =>
             Task.FromResult(true);
+
+        public Task<IReadOnlyList<Notification>> RecordMailArrivalAsync(
+            UserId user,
+            MailAccountId account,
+            IReadOnlyList<ArrivedEmail> arrived,
+            DateTimeOffset occurredAt,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Notification>>([]);
+
+        public Task<IReadOnlyList<StoredEmailId>?> ReadNamedEmailsAsync(
+            UserId user,
+            NotificationId notification,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StoredEmailId>?>(null);
 
         public Task<IReadOnlyList<Notification>> ReadPageAsync(
             UserId user,

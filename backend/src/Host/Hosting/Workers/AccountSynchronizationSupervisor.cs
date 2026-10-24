@@ -313,7 +313,7 @@ internal sealed partial class AccountSynchronizationSupervisor
             .ToArray();
         var resolvedFolders = new ConcurrentBag<MailFolderResolution>();
         var failedFolderCount = 0;
-        var arrivedEmailCount = 0;
+        var arrivedEmails = new ConcurrentQueue<StoredEmailId>();
         var credentialRefused = false;
         var convergenceFailed = false;
 
@@ -367,9 +367,12 @@ internal sealed partial class AccountSynchronizationSupervisor
                         resolvedFolders.Add(resolvedFolder);
                     }
 
-                    if (folderRun.ArrivedEmailCount > 0)
+                    if (folderRun.ArrivedEmails.Count > 0)
                     {
-                        Interlocked.Add(ref arrivedEmailCount, folderRun.ArrivedEmailCount);
+                        foreach (var arrivedEmail in folderRun.ArrivedEmails)
+                        {
+                            arrivedEmails.Enqueue(arrivedEmail);
+                        }
 
                         // Said here rather than with the run's report, so an arrival reaches a screen while the rest of
                         // the account is still synchronizing. The publisher folds the statements of one account into
@@ -382,7 +385,7 @@ internal sealed partial class AccountSynchronizationSupervisor
                             this.signals.Publish(ClientSignal.MailArrived(
                                 this.account,
                                 folder: null,
-                                folderRun.ArrivedEmailCount));
+                                folderRun.ArrivedEmails.Count));
                         }
                     }
 
@@ -417,7 +420,7 @@ internal sealed partial class AccountSynchronizationSupervisor
                         runSettings,
                         scheduledFolders.Length,
                         failedFolderCount,
-                        arrivedEmailCount,
+                        [.. arrivedEmails],
                         credentialRefused,
                         token),
                 ];
@@ -817,10 +820,10 @@ internal sealed partial class AccountSynchronizationSupervisor
     /// <summary>Tells this account's user what the run observed that they were not at the screen for.</summary>
     /// <remarks>
     /// <para>
-    /// Last, and after every pass that can still commit mail, so the count reported is the run's whole arrival rather
-    /// than whatever had landed when the report was composed. It is one notification for the run and never one per
-    /// message, which is the record's own rule rather than this worker's choice: a run that commits forty messages is
-    /// one arrival to somebody who was away.
+    /// Last, and after every pass that can still commit mail, so what is reported is the run's whole arrival rather
+    /// than whatever had landed when the report was composed. How many notifications that arrival becomes is the
+    /// record's own rule rather than this worker's choice: a message apiece while an account's unread arrivals are few,
+    /// and one merged notification once they are not.
     /// </para>
     /// <para>
     /// A failure never fails the run. A notification is a report about work that is already committed, so backing the
@@ -834,7 +837,7 @@ internal sealed partial class AccountSynchronizationSupervisor
         MailSynchronizationOptions runSettings,
         int scheduledFolderCount,
         int failedFolderCount,
-        int arrivedEmailCount,
+        IReadOnlyList<StoredEmailId> arrivedEmails,
         bool credentialRefused,
         CancellationToken cancellationToken)
     {
@@ -846,7 +849,7 @@ internal sealed partial class AccountSynchronizationSupervisor
 
             var notifications = scope.ServiceProvider.GetRequiredService<SynchronizationNotifications>();
 
-            await notifications.ReportArrivedMailAsync(this.account, arrivedEmailCount, cancellationToken);
+            await notifications.ReportArrivedMailAsync(this.account, arrivedEmails, cancellationToken);
 
             // The two system conditions are reported separately rather than as one worst outcome, because they ask the
             // person for different things: a refused credential is theirs to repair, and an incomplete run is theirs
@@ -1410,7 +1413,7 @@ internal sealed partial class AccountSynchronizationSupervisor
             this.RecordFolderRun(folder, result);
             this.AnnounceRelocatedArrivals(result);
 
-            return new FolderRunOutcome(Succeeded: true, result.Folder, result.ArrivedEmailCount);
+            return new FolderRunOutcome(Succeeded: true, result.Folder, result.ArrivedEmails);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -2158,7 +2161,7 @@ internal sealed partial class AccountSynchronizationSupervisor
     /// <summary>States what one folder's turn through a run produced.</summary>
     /// <param name="Succeeded">Whether the folder completed, which excludes a deferral and an unexpected failure alike.</param>
     /// <param name="ResolvedFolder">The binding the folder ran under, or <see langword="null" /> when the alias resolved to none.</param>
-    /// <param name="ArrivedEmailCount">How many of the folder's stored occurrences were mail arriving for the person, which is what the run reports as arrived mail.</param>
+    /// <param name="ArrivedEmails">The folder's stored occurrences that were mail arriving for the person, which is what the run reports as arrived mail.</param>
     /// <param name="CredentialRefused">
     /// Whether the mail server refused the account's credential, which is the one failure here that a later run cannot
     /// clear on its own and is therefore reported to the person rather than only waited out.
@@ -2166,14 +2169,14 @@ internal sealed partial class AccountSynchronizationSupervisor
     private readonly record struct FolderRunOutcome(
         bool Succeeded,
         MailFolderResolution? ResolvedFolder,
-        int ArrivedEmailCount = 0,
+        IReadOnlyList<StoredEmailId> ArrivedEmails,
         bool CredentialRefused = false)
     {
         /// <summary>Gets the outcome of a folder that neither completed nor left a binding worth watching.</summary>
-        internal static FolderRunOutcome Failed => new(Succeeded: false, ResolvedFolder: null);
+        internal static FolderRunOutcome Failed => new(Succeeded: false, ResolvedFolder: null, ArrivedEmails: []);
 
         /// <summary>Gets the outcome of a folder the mail server would not let this account reach at all.</summary>
         internal static FolderRunOutcome CredentialWasRefused =>
-            new(Succeeded: false, ResolvedFolder: null, ArrivedEmailCount: 0, CredentialRefused: true);
+            new(Succeeded: false, ResolvedFolder: null, ArrivedEmails: [], CredentialRefused: true);
     }
 }

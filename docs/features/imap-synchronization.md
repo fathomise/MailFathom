@@ -243,28 +243,38 @@ Everything else a run stores is still stored, still indexed, and still searchabl
 arrival that it is left out of. A mailbox's first runs therefore backfill years of history without announcing it, which
 is what the narrowing is chiefly for.
 
-**One notification for the run is the rule rather than this worker's choice.** A run that commits forty messages is one
-arrival to somebody who was away, and forty rows would bury every other kind of notification under one mailbox's
-traffic. A run whose arrival count is zero says nothing at all — a run that stored nothing, a run that stored only
-outside the inbox, and a run that stored only mail already read are the same silence — and neither does a run that
-finished every folder it scheduled.
+**A few messages are said one at a time, and more than five as one.** While an account's unread arrivals number five or
+fewer, each message is a notification of its own, naming who sent it and what it is about and leading to it, because
+what somebody away from the screen wants to know is whether anything that arrived needs them. The arrival that would
+take them past five replaces every one of those with a single notification counting them all, and while that one stands
+unread each later arrival replaces it again with a count that includes its own — raised anew, so it is newest in the
+centre and announced like any other. Reading it ends the merge. A run that commits forty messages is therefore still one
+row to somebody who was away, and forty would bury every other kind of notification under one mailbox's traffic. The
+rule is counted per person and per account, so one busy account never folds another's mail into its count. A run whose
+arrival is empty says nothing at all — a run that stored nothing, a run that stored only outside the inbox, and a run
+that stored only mail already read are the same silence — and neither does a run that finished every folder it
+scheduled.
 
 **A condition already standing unread is not said twice.** Each notification names the condition it was raised for, and
 the schema refuses a second unread row for the same one — so an account whose credential is refused on every run for a
 week leaves one statement rather than a week of them, and reading it frees the condition to be said again if it recurs.
 [The deduplication index](../architecture/stored-email-schema.md#what-happened-while-nobody-was-looking) is where that
-is enforced. Arrived mail is one of those conditions, so a standing unread arrival keeps the count of the run that
-raised it: a later run bringing more mail adds no second row and does not restate the first one's number. What the row
-says is that mail arrived rather than how much is waiting, which the mailbox itself answers when the row is opened.
+is enforced. Each arrived message is one of those conditions, so a message reported twice is said once, and so is each
+account's merged arrival — which is why a later arrival replaces it rather than standing beside it.
 
-**Nothing in a notification is read from mail.** The condition it was raised for, the counts stating it, an account
-identifier, and the service's own English sentence are what a row carries, so no subject, address, body fragment,
-filename, or credential material can reach it. What makes it derived
-personal data anyway is that it says something reached this person's mailbox and when, which the thirty-day retention
-bound and the two cascades answer for; the bound is swept on each account's own run beside the audit-trail retention
-passes.
+**A notification about one message is the only one that reads mail, and it reads two things.** Its headline is the
+sender — the name they gave, else the address they wrote from — and its second line the subject, both shortened to the
+row's bounds. Every other notification carries the condition it was raised for, the counts stating it, an account
+identifier, and the service's own English sentence, and no notification carries a recipient, a body fragment, a
+filename, or credential material. A merged arrival is not read at all: the messages it stands for are named by
+identifier, the newest hundred of them, so [asking the Agent about it](../operations/client-endpoint.md#the-agent-conversation-routes)
+reads them under the asker's own identity. Neither the sender nor the subject reaches a log or telemetry, and the
+operating system's own notification stays a count by kind. What makes every row derived personal data is that it says
+something reached this person's mailbox and when, and for one about a message who sent it and what about, which the
+thirty-day retention bound and the cascades from the message answer for; the bound is swept on each account's own run
+beside the audit-trail retention passes.
 
-**Reporting never fails a run.** It happens after every pass that can still commit mail, so the count is the run's whole
+**Reporting never fails a run.** It happens after every pass that can still commit mail, so what is reported is the run's whole
 arrival rather than whatever had landed when the report was composed, and a failure there is logged without putting the
 account into backoff — fetching an account's mail less often because a report could not be written would answer the
 wrong problem with the wrong remedy. Nothing is replayed either: what the next run says is what that run observed,

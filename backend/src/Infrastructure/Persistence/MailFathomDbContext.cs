@@ -252,6 +252,8 @@ internal sealed class MailFathomDbContext : DbContext
 
     internal DbSet<NotificationEntity> Notifications => this.Set<NotificationEntity>();
 
+    internal DbSet<NotificationNamedEmailEntity> NotificationNamedEmails => this.Set<NotificationNamedEmailEntity>();
+
     internal DbSet<PersonalTaskEntity> PersonalTasks => this.Set<PersonalTaskEntity>();
 
     internal DbSet<DiscoveryRunEntity> DiscoveryRuns => this.Set<DiscoveryRunEntity>();
@@ -364,6 +366,7 @@ internal sealed class MailFathomDbContext : DbContext
         modelBuilder.ApplyConfiguration(new JobScheduleConfiguration());
         modelBuilder.ApplyConfiguration(new WorkLeaseConfiguration());
         modelBuilder.ApplyConfiguration(new NotificationConfiguration());
+        modelBuilder.ApplyConfiguration(new NotificationNamedEmailConfiguration());
         modelBuilder.ApplyConfiguration(new PersonalTaskConfiguration());
         modelBuilder.ApplyConfiguration(new DiscoveryRunConfiguration());
         modelBuilder.ApplyConfiguration(new DiscoveryRunEventConfiguration());

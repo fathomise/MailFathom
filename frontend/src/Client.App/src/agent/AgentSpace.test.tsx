@@ -510,6 +510,30 @@ describe('AgentSpace', () => {
         });
     });
 
+    it('asks the question a hand-over carries on its own, once, under the context it names', async () => {
+        const { transport, asked } = deploymentAnswering();
+        const { rerender } = render(drawn(transport));
+        const summarizing: AgentHandOver = {
+            scope: { kind: 'notification', subject: '0198f4a1-0000-7000-8000-00000000c001' },
+            title: '8 new messages · Fabrikam',
+            question: 'Summarize these 8 new messages',
+        };
+
+        rerender(drawn(transport, summarizing));
+
+        await waitFor(() => {
+            expect(asked.filter((request) => request.method === 'POST')).toHaveLength(1);
+        });
+        rerender(drawn(transport, summarizing));
+
+        expect(screen.getByText('Context: 8 new messages · Fabrikam')).toBeDefined();
+        expect(asked.filter((request) => request.method === 'POST')).toHaveLength(1);
+        expect(JSON.parse(asked.find((request) => request.method === 'POST')?.body ?? '{}')).toMatchObject({
+            text: 'Summarize these 8 new messages',
+            scope: { kind: 'Notification', subject: summarizing.scope.subject },
+        });
+    });
+
     it('asks about everything again once the context is cleared', async () => {
         const { transport, asked } = deploymentAnswering();
         const { rerender } = render(drawn(transport));

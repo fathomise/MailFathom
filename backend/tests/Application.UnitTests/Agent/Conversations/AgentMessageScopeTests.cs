@@ -6,6 +6,7 @@ using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.Discovery.Streaming;
 using MailFathom.Domain.Calendar;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Notifications;
 using Xunit;
 
 namespace MailFathom.Application.UnitTests.Agent.Conversations;
@@ -69,6 +70,21 @@ public sealed class AgentMessageScopeTests
         // Assert
         Assert.Equal(AgentScopeKind.DiscoveryRun, scope.Kind);
         Assert.Equal(run.Value, scope.Subject);
+    }
+
+    /// <summary>A question asked from a notification names the notification, whose messages the service resolves.</summary>
+    [Fact]
+    public void Notification_AQuestionAskedFromAMergedArrival_NamesThatNotification()
+    {
+        // Arrange
+        var notification = NotificationId.Create(Guid.CreateVersion7());
+
+        // Act
+        var scope = AgentMessageScope.Notification(notification);
+
+        // Assert
+        Assert.Equal(AgentScopeKind.Notification, scope.Kind);
+        Assert.Equal(notification.Value, scope.Subject);
     }
 
     /// <summary>A question about everything that named one thing would be a narrowing nothing asked for.</summary>

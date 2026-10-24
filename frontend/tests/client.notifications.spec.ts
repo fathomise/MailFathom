@@ -88,7 +88,7 @@ test('goes to the space a notification names, and the centre and the bell agree 
     await openCentre(page);
 
     await centre(page)
-        .getByRole('button', { name: /4 new messages arrived/u })
+        .getByRole('button', { name: /8 new messages/u })
         .click();
 
     await expect(centre(page)).toBeHidden();
@@ -103,7 +103,7 @@ test('goes to the space a notification names, and the centre and the bell agree 
     await expect(bell(page)).toHaveAccessibleName('1 unread notification');
     await openCentre(page);
     await showAll(page);
-    await expect(row(page, '4 new messages arrived.')).not.toContainText('Unread');
+    await expect(row(page, '8 new messages')).not.toContainText('Unread');
 });
 
 test('marks one notification and then the rest read, and the bell holds nothing unread across a reload', async ({
@@ -145,7 +145,7 @@ test('deletes a notification from its own menu, and it stays gone from the centr
     await openCentre(page);
 
     await centre(page)
-        .getByRole('button', { name: /4 new messages arrived/u })
+        .getByRole('button', { name: /8 new messages/u })
         .click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Delete notification' }).click();
 
@@ -153,7 +153,7 @@ test('deletes a notification from its own menu, and it stays gone from the centr
 
     await question.getByRole('button', { name: 'Delete' }).click();
 
-    await expect(row(page, '4 new messages arrived.')).toHaveCount(0);
+    await expect(row(page, '8 new messages')).toHaveCount(0);
     await expect(bell(page)).toHaveAccessibleName('1 unread notification');
     await expect
         .poll(() => deployment.requests('POST', '/notifications/deletions'))
@@ -167,5 +167,38 @@ test('deletes a notification from its own menu, and it stays gone from the centr
     await expect(centre(page).getByRole('listitem')).toHaveCount(
         notifications.notificationPage.notifications.length - 1,
     );
-    await expect(row(page, '4 new messages arrived.')).toHaveCount(0);
+    await expect(row(page, '8 new messages')).toHaveCount(0);
+});
+
+test('summarizes a merged arrival in the Agent space, asking about the messages it stands for and marking it read', async ({
+    page,
+    deployment,
+}) => {
+    await openSignedIn(page);
+    await openCentre(page);
+
+    await row(page, '8 new messages').getByRole('button', { name: 'Summarize' }).click();
+
+    await expect(centre(page)).toBeHidden();
+    await expect(page.getByRole('main', { name: 'Agent' })).toBeVisible();
+    await expect(page.getByText('Context: 8 new messages · Work')).toBeVisible();
+    await expect(bell(page)).toHaveAccessibleName('1 unread notification');
+    await expect
+        .poll(() =>
+            deployment.issued
+                .filter(
+                    ({ method, route }) =>
+                        method === 'POST' && /^\/agent\/conversations\/[^/]+\/messages$/u.test(route),
+                )
+                .map(({ body }) => body),
+        )
+        .toMatchObject([
+            {
+                text: 'Summarize these 8 new messages',
+                scope: { kind: 'Notification', subject: notifications.notificationId },
+            },
+        ]);
+    await expect
+        .poll(() => deployment.requests('POST', `/notifications/${notifications.notificationId}/read-state`))
+        .toMatchObject([{ body: { read: true } }]);
 });

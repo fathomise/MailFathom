@@ -3038,6 +3038,9 @@ Project repository: https://github.com/fathomise/MailFathom
               </div>
               <div style="font-size:13px;line-height:1.45;color:var(--text2);text-wrap:pretty">{{ n.body }}</div>
               <div style="font-size:11px;color:var(--muted);padding-top:1px">{{ n.src }}</div>
+              <sc-if value="{{ n.merged }}" hint-placeholder-val="{{ false }}">
+                <div onClick="{{ n.summarize }}" style="{{ n.summarizeStyle }}" style-hover="cursor:pointer;background:var(--accent-line)"><span style="{{ n.summarizeIconStyle }}">auto_awesome</span><span>Summarize</span></div>
+              </sc-if>
             </div>
             <div style="flex:0 0 auto;display:flex;align-items:center;gap:7px;padding-top:1px">
               <sc-if value="{{ n.unread }}" hint-placeholder-val="{{ false }}">

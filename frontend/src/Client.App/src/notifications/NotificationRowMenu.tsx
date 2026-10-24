@@ -19,6 +19,9 @@ import { useReadingZone } from '../localization/useReadingZone';
 // own menu states. One item the design draws is absent under it: *open the source*, on a notification that
 // names no target, because there is nothing to open.
 //
+// **A merged arrival offers *Summarize* beside opening it**, the same act as the control drawn on the row, because a
+// finger holding the row is asking what it can do with it.
+//
 // **Deleting is last and drawn as what it is.** It takes a row out of the centre for good, so it sits apart from the
 // three acts above it and the question in front of it is the panel's rather than this menu's — a menu that closes as it
 // is chosen from cannot also hold a dialog open.
@@ -29,6 +32,7 @@ export function NotificationRowMenu({
     onSelect,
     onToggleRead,
     onOpen,
+    onSummarize,
     onDelete,
     onClose,
 }: {
@@ -42,6 +46,9 @@ export function NotificationRowMenu({
 
     /** Reads it and goes where it leads, which is what the row's own press does. */
     readonly onOpen: () => void;
+
+    /** Hands the messages a merged arrival stands for to the agent, or `null` on every row that stands for none. */
+    readonly onSummarize: (() => void) | null;
 
     /** Asks the panel to put the question in front of removing this row for good. */
     readonly onDelete: () => void;
@@ -61,6 +68,9 @@ export function NotificationRowMenu({
         ...(notification.target.kind === 'Nothing'
             ? []
             : [{ icon: 'open_in_new' as const, label: translate('notifications.openSource'), choose: onOpen }]),
+        ...(onSummarize === null
+            ? []
+            : [{ icon: 'auto_awesome' as const, label: translate('notifications.summarize'), choose: onSummarize }]),
         { icon: 'delete', label: translate('notifications.delete'), destroys: true, choose: onDelete },
     ];
 

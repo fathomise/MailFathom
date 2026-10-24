@@ -3,6 +3,8 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Notifications;
 
 namespace MailFathom.Application.Notifications;
@@ -26,6 +28,41 @@ public interface INotificationStore
     /// suppressed forever by the first statement about it.
     /// </remarks>
     Task<bool> RecordAsync(Notification notification, CancellationToken cancellationToken);
+
+    /// <summary>Folds one account's arrival into a user's unread arrival notifications for it, by <see cref="MailArrivalFold" />'s rule.</summary>
+    /// <param name="user">The user told.</param>
+    /// <param name="account">The account the mail arrived in.</param>
+    /// <param name="arrived">The messages that arrived, in the order they were stored.</param>
+    /// <param name="occurredAt">When the arrival was observed.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>The notifications the fold raised, which is none where every message already stands.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="arrived" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// The read of what stands and the write that replaces it are one transaction, because the rule is decided against
+    /// what stands: an arrival folded against a list the person changed in between would count a notification they had
+    /// already read, or leave two merged ones standing for one account.
+    /// </remarks>
+    Task<IReadOnlyList<Notification>> RecordMailArrivalAsync(
+        UserId user,
+        MailAccountId account,
+        IReadOnlyList<ArrivedEmail> arrived,
+        DateTimeOffset occurredAt,
+        CancellationToken cancellationToken);
+
+    /// <summary>Reads the messages one of a user's merged arrival notifications names.</summary>
+    /// <param name="user">The user whose notification is read, which is what scopes the read.</param>
+    /// <param name="notification">The notification.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The messages it names, newest last, or <see langword="null" /> where the user holds no such notification.</returns>
+    /// <remarks>
+    /// A notification that names nothing — one about a single message, a reminder, or a merged one whose messages have
+    /// all been erased — answers an empty list rather than <see langword="null" />, which is kept for a notification
+    /// another user holds or nobody does, so neither is told apart from the other.
+    /// </remarks>
+    Task<IReadOnlyList<StoredEmailId>?> ReadNamedEmailsAsync(
+        UserId user,
+        NotificationId notification,
+        CancellationToken cancellationToken);
 
     /// <summary>Reads one bounded page of a user's notifications, newest first.</summary>
     /// <param name="user">The user whose notifications are read.</param>

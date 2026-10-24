@@ -19,6 +19,7 @@ using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.Signals;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Notifications;
 using MailFathom.Evaluations.Answering;
 using MailFathom.Evaluations.Corpus;
 using MailFathom.Evaluations.Costing;
@@ -120,6 +121,10 @@ internal sealed record AgentConversationScenario(
 
     /// <summary>The instant every question is asked at, a Monday, fixed for the reason every evaluation input is.</summary>
     private static readonly DateTimeOffset AskedAt = new(2026, 9, 14, 12, 0, 0, TimeSpan.Zero);
+
+    /// <summary>The merged arrival a case asking from the bell asks about, fixed for the reason every evaluation input is.</summary>
+    private static readonly NotificationId ArrivalNotification =
+        NotificationId.Create(new Guid("0199c0de-0000-7000-8000-000000000001"));
 
     /// <summary>The tools that read something, one of which an answer resting on evidence has to have called.</summary>
     private static readonly HashSet<string> ReadingTools =
@@ -242,6 +247,19 @@ internal sealed record AgentConversationScenario(
             KestrelQuaySubject)
         {
             Conversation = PersonalAgenda.KestrelQuayMove,
+            Calls = ["read_thread"],
+        },
+        new(
+            "Agent.Notification.SummarisesTheMessagesThatArrived",
+
+            // What the bell's Summarize asks: the messages a merged arrival stands for are named by identifier on the
+            // turn, from two unrelated conversations, and nothing else says what they are about.
+            "Summarize these new messages",
+            UserLanguage.English,
+            ["Emil", "30 August"],
+            [.. KestrelQuaySubject, .. ArchiveBoxSubject])
+        {
+            Arrived = [PersonalAgenda.KestrelQuayMove[^1], PersonalAgenda.ArchiveBoxes[^1]],
             Calls = ["read_thread"],
         },
         new(
@@ -1025,6 +1043,9 @@ internal sealed record AgentConversationScenario(
     /// <summary>Gets the conversation the person is looking at when they ask, or <see langword="null" /> where they ask about the whole mailbox.</summary>
     public IReadOnlyList<CorpusMessage>? Conversation { get; init; }
 
+    /// <summary>Gets the messages a merged arrival notification stands for, where the person asks from one rather than from a conversation.</summary>
+    public IReadOnlyList<CorpusMessage>? Arrived { get; init; }
+
     /// <summary>Gets the permissions the person's grant carries, which decide which tools are offered.</summary>
     public IReadOnlyList<MailFathomPermission> Grant { get; init; } =
     [
@@ -1205,7 +1226,10 @@ internal sealed record AgentConversationScenario(
             throw new InvalidOperationException($"{this.Name} leaves nothing to compact within {budget} tokens.");
         }
 
-        var brief = new AgentAnswerBrief(question, this.Language, history);
+        var brief = new AgentAnswerBrief(question, this.Language, history)
+        {
+            NamedEmails = [.. (this.Arrived ?? []).Select(static message => message.Id)],
+        };
         var tools = new AgentConversationTools(
             journal,
             retrieval,
@@ -1301,7 +1325,7 @@ internal sealed record AgentConversationScenario(
             PresentationText.Create(this.Question),
             this.Conversation is { } conversation
                 ? new AgentMessageScope(AgentScopeKind.Thread, CorpusReaders.ThreadOf(conversation).Value)
-                : null,
+                : this.Arrived is null ? null : AgentMessageScope.Notification(ArrivalNotification),
             AgentMessageId.New(),
             OpenedAt: 1,
             AskedAt);

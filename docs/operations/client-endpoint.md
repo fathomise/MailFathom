@@ -3218,13 +3218,15 @@ holds** — so nothing here reports whether such a notification exists.
 **A row carries what a list draws and stops there**: the kind, what the notification says, a headline, a second line,
 what the source line names beyond the kind, where opening it leads, when the thing it describes happened, and whether
 it has been read. Everything a row draws was derived when the notification was produced, so drawing the centre
-re-reads no mail — and no mail body, no address, and no attachment reaches these answers at any size. The
-deduplication key is absent: it is the rule's own name for a condition rather than anything a screen renders.
+re-reads no mail — and no mail body, no recipient, and no attachment reaches these answers at any size. A row about
+one arrived message is the one place mail's own words appear, its sender and its subject, for the reason given below.
+The deduplication key is absent: it is the rule's own name for a condition rather than anything a screen renders.
 
 **What a notification says is a condition and its numbers, and the sentence is the client's.** `statement` carries a
-`cause` — `MailArrived`, `SynchronizationIncomplete`, `CredentialRefused`, `CalendarReminderDue`, or
+`cause` — `MailArrived`, `MessageArrived`, `SynchronizationIncomplete`, `CredentialRefused`, `CalendarReminderDue`, or
 `TaskReminderDue` — beside
-`counted` and `outOf`, whose meaning is the cause's to give: mail counts the messages that arrived, an unfinished run
+`counted` and `outOf`, whose meaning is the cause's to give: merged mail counts the messages that arrived, one arrived
+message counts whether it carried a subject — so a client words a missing one itself — an unfinished run
 counts the folders that did not finish out of the folders it scheduled, a due reminder counts the minutes between now
 and the event, and a refused credential counts nothing. A client turns that into a
 sentence in whatever language its reader has, which is why the service sends no sentence of its own for it to
@@ -3270,9 +3272,19 @@ with a `taskId` — the last two being what a [due reminder](../features/reminde
 the record it is about. A row carrying a shape a client does not recognize leads nowhere rather than being drawn as an
 error.
 
-**A reminder is the one row whose headline names a record.** `title` is what the person called their own event or
-their own task, because there is nothing else a reminder is about and no catalogue could hold it, so a client fills it
-into its own sentence rather than replacing it. Everything else about the record stays on the record.
+**Two kinds of row carry a headline no catalogue could hold.** A reminder's `title` is what the person called their own
+event or their own task, because there is nothing else a reminder is about, so a client fills it into its own sentence
+rather than replacing it. A `MessageArrived` row's `title` is who sent the message — the name they gave, else the
+address they wrote from — and its `body` the subject, which a client draws as it arrives, while `counted` at zero tells
+it the message carried none. Everything else about either record stays on the record.
+
+**Mail is announced a message at a time while it is few, and as one row once it is not**, per person and per account.
+While an account's unread arrivals number five or fewer, each message is a `MessageArrived` row leading to it. The
+arrival that would take them past five replaces every one of those rows with a single `MailArrived` row counting them
+all and leading to the mail screen, and while that row stands unread each later arrival replaces it again with a count
+that includes its own — a new row with a new identifier, newest in the centre and signalled like any other. Reading it
+ends the merge, so what arrives next starts again a message at a time. A merged row stands for the messages it counts,
+up to the newest hundred of them, which is what [asking the Agent about it](#the-agent-conversation-routes) reads.
 
 **A notification is kept for thirty days and no longer**, and one pointing at a message is erased with that message.
 Both are the record's own bounds rather than these routes', so a centre that reaches back no further has aged out
@@ -3788,7 +3800,10 @@ Location: /api/client/agent/conversations/0199a2c4-5e6f-7a1b-8c2d-3e4f5a6b7c8d
 
 The question and the opening of the answer to it — the run — are written together, and the run's identifier is the
 answer's. A repeated `messageId` answers with what the first post wrote. `scope` is `Mailbox` with no subject, or
-`Thread`, `CalendarEvent`, or `DiscoveryRun` naming the one it was asked about, and may be left out. A question asked
+`Thread`, `CalendarEvent`, `DiscoveryRun`, or `Notification` naming the one it was asked about, and may be left out. A
+`Notification` scope is a merged arrival: the Agent is handed the messages that row stands for, read under the asker's
+own identity, and a notification the asker does not hold — or one that stands for none — hands it nothing, exactly as
+one that never existed. A question asked
 while an answer is still being composed is `409`, and so is one into a full conversation — 5 000 visible entries, or
 50 000 entries of the whole record, the last two of each kept for an answer's ending and the agent's note after a stop,
 so a running answer can always be stopped —

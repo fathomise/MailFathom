@@ -36,7 +36,7 @@ public sealed record NotificationStatement
     /// <summary>Gets how many the count above is out of, and <see langword="null" /> where the cause counts against nothing.</summary>
     public int? OutOf { get; }
 
-    /// <summary>States that mail arrived, counting the messages one run committed.</summary>
+    /// <summary>States that mail arrived, counting the messages one merged notification stands for.</summary>
     /// <param name="messageCount">How many messages arrived.</param>
     /// <returns>The statement.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="messageCount" /> is negative.</exception>
@@ -46,6 +46,17 @@ public sealed record NotificationStatement
 
         return new NotificationStatement(NotificationCause.MailArrived, messageCount, outOf: null);
     }
+
+    /// <summary>States that one message arrived, counting whether it carried a subject.</summary>
+    /// <param name="carriesSubject">Whether the message carried a subject line, which is what the row's body then is.</param>
+    /// <returns>The statement, counting one where the message carried a subject and none where it did not.</returns>
+    /// <remarks>
+    /// The sender and the subject are the row's own headline and body, as a reminder's title is, because they are the
+    /// message's words rather than a sentence with a language. What a subject-less message's body says is a sentence,
+    /// though, so the count is what tells a client to say it in its reader's language instead of drawing the English.
+    /// </remarks>
+    public static NotificationStatement MessageArrived(bool carriesSubject) =>
+        new(NotificationCause.MessageArrived, carriesSubject ? 1 : 0, outOf: null);
 
     /// <summary>States that a run did not finish every folder it scheduled.</summary>
     /// <param name="failedFolderCount">How many of the run's folders did not finish.</param>

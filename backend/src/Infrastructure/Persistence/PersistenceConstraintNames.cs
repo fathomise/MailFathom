@@ -777,6 +777,9 @@ internal static class PersistenceConstraintNames
     /// </remarks>
     internal const string NotificationTimelineIndexName = "ix_notifications_user_occurred";
 
+    /// <summary>The index a message's erasure reaches the merged notifications naming it through.</summary>
+    internal const string NotificationNamedEmailStoredEmailIndexName = "ix_notification_named_emails_stored_email";
+
     /// <summary>The order the spent client assertions are aged out through.</summary>
     /// <remarks>
     /// Stated because nothing else says why the column is indexed at all: no query reads a spent assertion, and the one
