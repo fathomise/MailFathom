@@ -257,7 +257,7 @@ public sealed class MailAnsweringAuditTrailTests : IDisposable
     {
         StoredEmailId = StoredEmailId.Create(EmailIdentityAt(position)),
         AccountId = accountId,
-        FolderAlias = MailFolderAlias.Create("inbox"),
+        Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("caadbcff-ec90-7811-8a56-42fc15e5aa67")), "inbox", MailFolderAlias.Create("inbox")),
         Subject = "Quarterly invoice",
         ReceivedAt = StartedAt,
         SenderVerification = SenderVerification.NotEstablished,

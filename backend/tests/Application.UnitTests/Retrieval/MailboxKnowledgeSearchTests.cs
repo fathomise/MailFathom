@@ -19,7 +19,6 @@ using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails.Authentication;
-using MailFathom.Domain.Folders;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -103,7 +102,7 @@ public sealed class MailboxKnowledgeSearchTests
 
         Assert.Equal(matched.StoredEmailId, passage.StoredEmailId);
         Assert.Equal(MailAccountId.Create("secondary"), passage.AccountId);
-        Assert.Equal(MailFolderAlias.Create("ARCHIVE"), passage.FolderAlias);
+        Assert.Equal(SyntheticEmailSummaries.FolderOf("secondary", "ARCHIVE"), passage.Folder);
         Assert.Equal("the invoice", passage.Subject);
         Assert.Equal(FirstJuly, passage.ReceivedAt);
         Assert.Equal("the invoice is attached", passage.Text);
@@ -437,11 +436,7 @@ public sealed class MailboxKnowledgeSearchTests
         var search = SearchOver(index);
         var scope = MailboxScope.Create(
             EveryServedAccount,
-            [
-                new MailFolderIdentity(
-                    MailAccountId.Create(SyntheticEmailSummaries.DefaultAccountId),
-                    MailFolderAlias.Create("ARCHIVE")),
-            ]);
+            [inArchive.Folder.Id]);
 
         // Act
         var passages = (await search.FindPassagesAsync(

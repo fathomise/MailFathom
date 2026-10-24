@@ -79,7 +79,7 @@ const folders = JSON.stringify({
             },
             folders: [
                 {
-                    alias: 'work-inbox',
+                    id: 'work-inbox',
                     role: 'Inbox',
                     path: ['INBOX'],
                     storedEmailCount: 0,
@@ -89,7 +89,7 @@ const folders = JSON.stringify({
                     behind: false,
                 },
                 {
-                    alias: 'work-archive',
+                    id: 'work-archive',
                     role: 'Archive',
                     path: ['Archive'],
                     storedEmailCount: 0,
@@ -99,7 +99,7 @@ const folders = JSON.stringify({
                     behind: false,
                 },
                 {
-                    alias: 'work-drafts',
+                    id: 'work-drafts',
                     role: 'Drafts',
                     path: ['Drafts'],
                     storedEmailCount: 0,
@@ -109,7 +109,7 @@ const folders = JSON.stringify({
                     behind: false,
                 },
                 {
-                    alias: 'work-trash',
+                    id: 'work-trash',
                     role: 'Trash',
                     path: ['Trash'],
                     storedEmailCount: 0,
@@ -338,7 +338,7 @@ async function pass(milliseconds: number): Promise<void> {
 }
 
 /** A folder chosen in the move dialog, which is what asking a move again has to name a second time. */
-const chosen: MoveDestination = { alias: 'work-archive', name: 'Archive', role: 'Archive' };
+const chosen: MoveDestination = { folderId: 'work-archive', name: 'Archive', role: 'Archive' };
 
 afterEach(() => {
     vi.useRealTimers();
@@ -631,7 +631,7 @@ describe('MailboxActsProvider', () => {
             expect(held().refusalOf('delete', [invoice])).toBeNull();
         });
 
-        perform(held, 'move', [invoice], { alias: 'work-trash', name: 'Trash', role: 'Trash' });
+        perform(held, 'move', [invoice], { folderId: 'work-trash', name: 'Trash', role: 'Trash' });
 
         await screen.findByText('Moved to the trash');
 

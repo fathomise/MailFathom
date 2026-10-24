@@ -36,7 +36,7 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
         var row = await dbContext.StoredEmails
             .AsNoTracking()
             .Where(email => email.Id == storedEmailId && email.MailboxAccountId == mailboxAccountId)
-            .Select(email => new { email.MailboxAccountId, email.MailFolder.Alias })
+            .Select(email => new { email.MailboxAccountId, email.MailFolderBinding.Alias })
             .SingleOrDefaultAsync(cancellationToken);
 
         return row is null
@@ -70,8 +70,8 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
         var row = await dbContext.StoredEmails
             .AsNoTracking()
             .Where(email => email.MailboxAccountId == mailboxAccountId
-                && email.MailFolder.Alias == alias
-                && email.MailFolder.ResolutionGeneration == generation
+                && email.MailFolderBinding.Alias == alias
+                && email.MailFolderBinding.ResolutionGeneration == generation
                 && email.UidValidity == uidValidity
                 && email.Uid == uid)
             .Select(email => new { email.Id })
@@ -107,7 +107,7 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
         var emails = dbContext.StoredEmails
             .AsNoTracking()
             .Where(email => email.MailboxAccountId == mailboxAccountId
-                && aliases.Contains(email.MailFolder.Alias));
+                && aliases.Contains(email.MailFolderBinding.Alias));
 
         if (resumeAfter is { } position)
         {
@@ -119,7 +119,7 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
         var rows = await emails
             .OrderBy(email => email.Id)
             .Take(batchSize)
-            .Select(email => new { email.Id, email.MailFolder.Alias })
+            .Select(email => new { email.Id, email.MailFolderBinding.Alias })
             .ToArrayAsync(cancellationToken);
 
         return

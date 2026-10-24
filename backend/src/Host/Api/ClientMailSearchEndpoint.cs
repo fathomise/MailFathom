@@ -70,7 +70,7 @@ internal static class ClientMailSearchEndpoint
     /// <summary>Searches the acting user's mail, or reports what was wrong with the request.</summary>
     /// <param name="query">The text to search for, which every search carries.</param>
     /// <param name="account">The account to search, by its identifier or its display name, or <see langword="null" /> for every account the user is assigned.</param>
-    /// <param name="folder">The folder to search, by its alias or as <c>role:Inbox</c>, or <see langword="null" /> for every folder.</param>
+    /// <param name="folder">The folder to search, by the identity the folders route reports or as <c>role:Inbox</c>, or <see langword="null" /> for every folder.</param>
     /// <param name="includeJunk">Whether the junk folder takes part, which it does not unless the request asks.</param>
     /// <param name="sender">The address the sender must carry, or <see langword="null" /> for any sender.</param>
     /// <param name="recipient">The address a <c>To</c> or <c>Cc</c> recipient must carry, or <see langword="null" /> for any recipient.</param>
@@ -190,7 +190,7 @@ internal static class ClientMailSearchEndpoint
         try
         {
             accounts = account is null ? [] : [MailAccountSelector.Create(account)];
-            folders = folder is null ? [] : [MailFolderReference.Create(folder)];
+            folders = folder is null ? [] : [MailFolderReference.CreateNamedByCaller(folder)];
 
             return true;
         }
@@ -249,7 +249,7 @@ internal sealed record ClientMailSearchResponse(
 /// <summary>One search result: the row a list draws, and what says why the row is there.</summary>
 /// <param name="Id">The stable local identity of the email, which every later request names it by.</param>
 /// <param name="Account">The account the email was read from, as the accounts route names it.</param>
-/// <param name="Folder">The folder alias the email was read from, as the folders route names it.</param>
+/// <param name="Folder">The identity of the folder the email was read from, as the folders route names it.</param>
 /// <param name="ThreadId">The conversation the email belongs to, or <see langword="null" /> where nothing has placed it in one.</param>
 /// <param name="Subject">The subject, or <see langword="null" /> where the message carried none.</param>
 /// <param name="ReceivedAt">When the last receiving hop recorded the message, or <see langword="null" /> where no header carried a usable date.</param>
@@ -320,7 +320,7 @@ internal sealed record ClientMailSearchResultResponse(
     internal static ClientMailSearchResultResponse For(BrowsedSearchResult result) => new(
         result.Email.StoredEmailId.Value,
         result.Email.Account.Value,
-        result.Email.FolderAlias.Value,
+        result.Email.Folder.Id.ToString(),
         result.Email.ThreadId?.Value,
         result.Email.Subject,
         result.Email.ReceivedAt,

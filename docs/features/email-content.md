@@ -5,7 +5,7 @@
 MailFathom serves the content of the emails one call names, from its local copy. `EmailContentReader` is the second read
 use case: it takes the stable local identifiers a listing returned and answers for each of them with normalized headers,
 the body as plain text, optionally a sanitized HTML representation, attachment counts, every attachment described and
-optionally carrying a short-lived link that fetches it, the source account and folder alias, and the remote flag
+optionally carrying a short-lived link that fetches it, the source account and folder, and the remote flag
 snapshot.
 
 It reaches no mail server. That is structural rather than a rule someone keeps: the use case is constructed from a
@@ -115,7 +115,7 @@ fact whether it named one email or ten.
 
 | Field | Meaning |
 |---|---|
-| `StoredEmailId`, `AccountId`, `FolderAlias` | Where the email is, in MailFathom's own names |
+| `StoredEmailId`, `AccountId`, `Folder` | Where the email is, in MailFathom's own names: the folder carries its identity, which every request names it by, and its place in the account's hierarchy |
 | `SizeOctets` | The size the mail server reported for the whole message |
 | `Headers` | Subject, sent and received timestamps, every participant under its header role, and the thread identifiers |
 | `Body` | The representations, or the reason there are none |

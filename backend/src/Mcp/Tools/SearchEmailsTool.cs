@@ -67,7 +67,7 @@ internal sealed class SearchEmailsTool(
     /// <summary>Searches the local mailbox copy for text and returns one bounded ranked window.</summary>
     /// <param name="queryText">The text to search for.</param>
     /// <param name="accounts">The accounts to search, named by identifier or display name, or none to search every account the caller's user owns.</param>
-    /// <param name="folders">The folders to search, each named by alias or by role, or none to search every folder of those accounts.</param>
+    /// <param name="folders">The folders to search, each named by its identity or by role, or none to search every folder of those accounts.</param>
     /// <param name="senderAddress">The address the sender must carry.</param>
     /// <param name="recipientAddress">The address a <c>To</c> or <c>Cc</c> recipient must carry.</param>
     /// <param name="subjectFragment">Text the subject must contain.</param>
@@ -81,7 +81,7 @@ internal sealed class SearchEmailsTool(
     /// <param name="includeJunkMail">Whether the account's junk folder takes part in the search.</param>
     /// <param name="cancellationToken">Cancels the search when the caller disconnects or the host shuts down.</param>
     /// <returns>The ranked window, how it was retrieved, and how current each covered folder is.</returns>
-    /// <exception cref="MailboxQueryFilterInvalidException">Thrown when text naming an account or a folder alias is not a value this system could have issued.</exception>
+    /// <exception cref="MailboxQueryFilterInvalidException">Thrown when text naming an account or a folder is not a value this system could have issued.</exception>
     /// <exception cref="MailFathomException">
     /// Raised by the use case for a query text, a filter, a result count, or an account it refuses. The call-tool filter
     /// turns every one of them into the coded result a client reads, so this tool neither catches nor re-describes any.
@@ -119,7 +119,7 @@ internal sealed class SearchEmailsTool(
         string queryText,
         [Description("MailFathom accounts to search, each named by the identifier the deployment generated for it or by the display name it is published under; the identifier is unique across the deployment and the display name within your own accounts. Omit to search every account you may read; call list_accounts to see what they are. At most 64 may be named, and a name that resolves to none of them is refused rather than answered with an empty window — the same refusal whether nothing carries that name or it names a mailbox that is not yours.")]
         string[]? accounts = null,
-        [Description("MailFathom folders to search, each named by its alias, such as INBOX, or by the role it plays, written as role:Junk. Roles are Inbox, Archive, Drafts, Sent, Junk, Trash, All, Flagged, Important, and Outbox; naming one searches whichever folder each account in scope maps with that role, whatever it is called there. Omit to search every folder of the accounts in scope. At most 64 may be named. An alias is MailFathom's own name for a folder and is matched without regard to case.")]
+        [Description("MailFathom folders to search, each named by its identity — the folderId a listed email carries, or the id list_accounts reports for each folder — or by the role it plays, written as role:Junk. Roles are Inbox, Archive, Drafts, Sent, Junk, Trash, All, Flagged, Important, and Outbox; naming one searches whichever folder each account in scope maps with that role, whatever it is called there. Omit to search every folder of the accounts in scope. At most 64 may be named. A folder named any other way is refused.")]
         string[]? folders = null,
         [Description(MailboxFilterDescriptions.SenderAddress)]
         string? senderAddress = null,
@@ -141,7 +141,7 @@ internal sealed class SearchEmailsTool(
         bool? hasAttachments = null,
         [Description("How many ranked results to return, from 1 to 50. Omit to take the default of 20. A value outside the range is refused rather than clamped, so a window is never smaller than it claims to be.")]
         int? resultLimit = null,
-        [Description("Include mail in the account's junk folder, which is left out by default. Naming the junk folder in folderAliases does not include it; only this does. The result reports which answer produced it.")]
+        [Description("Include mail in the account's junk folder, which is left out by default. Naming the junk folder in folders does not include it; only this does. The result reports which answer produced it.")]
         bool includeJunkMail = false,
         CancellationToken cancellationToken = default)
     {

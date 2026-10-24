@@ -71,7 +71,7 @@ public interface ILocalEmailStateStore
 public sealed record LocalEmailState(
     MailFolderResolution SourceFolder,
     bool HoldsSourceOccurrence,
-    LocalMailFolderId? Folder,
+    MailFolderId? Folder,
     bool IsSeen,
     bool IsFlagged,
     RemoteEmailKeywords Keywords);

@@ -86,4 +86,38 @@ internal sealed class InMemoryMailFolderResolutionStore : IMailFolderResolutionS
 
         return Task.CompletedTask;
     }
+
+    /// <summary>Stages nothing, because this double keeps bindings and no folder rows.</summary>
+    public Task<bool> DeclareFoldersAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        IReadOnlyList<MailFolderMapping> mappings,
+        CancellationToken cancellationToken) =>
+        Task.FromResult(false);
+
+    /// <summary>Gets every place a folder act asked a folder row to be put at, in the order it asked.</summary>
+    internal List<(MailAccountId Account, MailFolderAlias FolderAlias, RemoteFolderPath RemotePath, MailFolderSpecialUse? Role)> Placements { get; } = [];
+
+    /// <summary>Records the place and stages nothing, because this double keeps bindings and no folder rows.</summary>
+    public Task<bool> PlaceFolderAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        MailFolderAlias folderAlias,
+        RemoteFolderPath remotePath,
+        MailFolderSpecialUse? role,
+        CancellationToken cancellationToken)
+    {
+        this.Placements.Add((account, folderAlias, remotePath, role));
+
+        return Task.FromResult(false);
+    }
+
+    /// <summary>Stages nothing, because this double keeps bindings and no folder rows.</summary>
+    public Task<bool> ProjectFolderAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        MailFolderResolution resolution,
+        MailFolderSpecialUse? role,
+        CancellationToken cancellationToken) =>
+        Task.FromResult(false);
 }

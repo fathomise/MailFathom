@@ -37,8 +37,8 @@ public sealed record EmailSummary
     /// </remarks>
     public required MailAccountId Account { get; init; }
 
-    /// <summary>Gets the folder alias the email was read from, which is MailFathom's own name for that folder.</summary>
-    public required MailFolderAlias FolderAlias { get; init; }
+    /// <summary>Gets the folder the email is in.</summary>
+    public required StoredEmailFolder Folder { get; init; }
 
     /// <summary>Gets the conversation the email belongs to, or <see langword="null" /> when nothing has placed it in one.</summary>
     /// <remarks>

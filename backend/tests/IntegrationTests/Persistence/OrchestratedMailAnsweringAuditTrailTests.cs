@@ -160,7 +160,7 @@ public sealed class OrchestratedMailAnsweringAuditTrailTests(MailFathomOrchestra
     {
         StoredEmailId = storedEmailId,
         AccountId = SyntheticMailAccount.AccountId,
-        FolderAlias = Inbox.Alias,
+        Folder = new StoredEmailFolder(MailFolderId.Create(Guid.CreateVersion7()), Inbox.RemotePath.Value, Inbox.Alias),
         Subject = "Quarterly invoice",
         ReceivedAt = Clock.GetUtcNow(),
         SenderVerification = SenderVerification.NotEstablished,

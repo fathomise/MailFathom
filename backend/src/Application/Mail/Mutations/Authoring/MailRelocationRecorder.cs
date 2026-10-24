@@ -5,6 +5,7 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Folders;
+using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization;
@@ -61,6 +62,7 @@ public sealed class MailRelocationRecorder
     private readonly IAuthoredMailboxTargetReader targets;
     private readonly MailFolderReferenceResolver folderReferences;
     private readonly IMailFolderResolutionStore bindings;
+    private readonly ILocalMailFolderStore folders;
     private readonly MailboxDestinationResolver destinations;
     private readonly IAuthoredDeleteEmailDispositionReader deleteDispositions;
     private readonly MailboxChangeSubmission submission;
@@ -73,6 +75,7 @@ public sealed class MailRelocationRecorder
     /// <param name="targets">Answers where the named email currently is.</param>
     /// <param name="folderReferences">Answers which folder of the account plays the drafts role and which the sent role.</param>
     /// <param name="bindings">Answers where on the server those two folders were last found.</param>
+    /// <param name="folders">Answers which folder of the account a folder identity names.</param>
     /// <param name="destinations">Turns the folder a caller named into the folder on the server it currently means.</param>
     /// <param name="deleteDispositions">Answers what the account keeps locally of mail that leaves the mirror for good.</param>
     /// <param name="submission">Records the move, or commits it where the account is held.</param>
@@ -85,6 +88,7 @@ public sealed class MailRelocationRecorder
         IAuthoredMailboxTargetReader targets,
         MailFolderReferenceResolver folderReferences,
         IMailFolderResolutionStore bindings,
+        ILocalMailFolderStore folders,
         MailboxDestinationResolver destinations,
         IAuthoredDeleteEmailDispositionReader deleteDispositions,
         MailboxChangeSubmission submission,
@@ -96,6 +100,7 @@ public sealed class MailRelocationRecorder
         ArgumentNullException.ThrowIfNull(targets);
         ArgumentNullException.ThrowIfNull(folderReferences);
         ArgumentNullException.ThrowIfNull(bindings);
+        ArgumentNullException.ThrowIfNull(folders);
         ArgumentNullException.ThrowIfNull(destinations);
         ArgumentNullException.ThrowIfNull(deleteDispositions);
         ArgumentNullException.ThrowIfNull(submission);
@@ -107,6 +112,7 @@ public sealed class MailRelocationRecorder
         this.targets = targets;
         this.folderReferences = folderReferences;
         this.bindings = bindings;
+        this.folders = folders;
         this.destinations = destinations;
         this.deleteDispositions = deleteDispositions;
         this.submission = submission;
@@ -116,12 +122,11 @@ public sealed class MailRelocationRecorder
 
     /// <summary>Writes down one move, against the email and the folder a caller named.</summary>
     /// <param name="storedEmailId">The email to move, as a listing, a search, or a read returned it.</param>
-    /// <param name="destination">MailFathom's own name for the folder to move it into.</param>
+    /// <param name="destination">The identity of the folder to move it into.</param>
     /// <param name="requester">The invocation asking, which is what decides whether asking again is the same request.</param>
     /// <param name="cancellationToken">Cancels the resolution and the write.</param>
     /// <returns>The record that was opened, or the reason none was.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="requester" /> is <see langword="null" />.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="destination" /> names no folder.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the moving grant.</exception>
     /// <remarks>
     /// The destination is resolved before the commit is opened, because resolving a folder the account maps and does not
@@ -129,21 +134,15 @@ public sealed class MailRelocationRecorder
     /// </remarks>
     public async Task<AuthoredMailRelocationResult> RecordAsync(
         StoredEmailId storedEmailId,
-        MailFolderAlias destination,
+        MailFolderId destination,
         MailboxMutationRequester requester,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(requester);
 
         // The grant is asked for before the destination is read at all, so a caller that holds nothing is refused as
-        // unauthorized rather than told its argument was malformed. Today's one entry point filters an empty alias
-        // before this is reached, which is exactly why the order has to be stated here rather than relied on there.
+        // unauthorized rather than told whether the folder it named exists.
         this.authorization.RequirePermission(MailFathomPermission.MailMove);
-
-        if (string.IsNullOrEmpty(destination.Value))
-        {
-            throw new ArgumentException("A move names the folder it files into.", nameof(destination));
-        }
 
         var target = await this.targets.FindAsync(storedEmailId, cancellationToken);
 
@@ -160,16 +159,17 @@ public sealed class MailRelocationRecorder
             return AuthoredMailRelocationResult.NotRecorded(MailRelocationOutcome.MessageNotFound);
         }
 
-        if (!this.scopeResolver.IsReadableByTools(
-                assignedAccounts,
-                target.Occurrence.AccountId,
-                destination))
+        var account = target.Occurrence.AccountId;
+        var named = (await this.folders.ReadFoldersAsync(account, cancellationToken))
+            .FirstOrDefault(folder => folder.Id == destination);
+
+        if (named is null
+            || ReferenceTo(named) is not { } reference
+            || !this.scopeResolver.IsReadableByTools(assignedAccounts, account, named.SourceFolderAlias))
         {
             return AuthoredMailRelocationResult.NotRecorded(MailRelocationOutcome.DestinationNotFound);
         }
 
-        var account = target.Occurrence.AccountId;
-        var reference = MailFolderReference.ToAlias(destination);
         var resolved = await this.destinations.ResolveAsync(account, [reference], cancellationToken);
 
         if (resolved.Find(reference).Destination is not { } folder)
@@ -242,6 +242,18 @@ public sealed class MailRelocationRecorder
                 return AuthoredMailRelocationResult.NotRecorded(MailRelocationOutcome.MessageNotFound);
         }
     }
+
+    /// <summary>Names a folder the way the destination resolver finds it, or nothing where it cannot be filed into yet.</summary>
+    /// <remarks>
+    /// A folder a source binding feeds is named by that binding's alias and a protected one by its role, which reaches
+    /// the same folder on a held account and the folder on the server on a mirrored one.
+    /// </remarks>
+    // ponytail: a folder somebody created on a held account carries neither, so it is not yet a destination; filing by
+    // the folder itself arrives with the custodian that owns a held account's moves (#2579).
+    private static MailFolderReference? ReferenceTo(LocalMailFolder folder) =>
+        folder.SourceFolderAlias is { } alias ? MailFolderReference.ToAlias(alias)
+        : folder.Role is { } role ? MailFolderReference.ToRole(role)
+        : null;
 
     /// <summary>Reads where the account's drafts folder and sent folder were last found, without asking the mail server.</summary>
     /// <remarks>

@@ -5,10 +5,10 @@
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Retrieval;
+using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authorship;
-using MailFathom.Domain.Folders;
 using Xunit;
 
 namespace MailFathom.Application.UnitTests.Retrieval;
@@ -55,7 +55,7 @@ public sealed class EmailKnowledgeLookupTests
     {
         StoredEmailId = StoredEmailId.Create(Guid.CreateVersion7()),
         AccountId = MailAccountId.Create("work"),
-        FolderAlias = MailFolderAlias.Create("inbox"),
+        Folder = SyntheticEmailSummaries.FolderOf("work", "inbox"),
         SenderVerification = SenderVerification.NotEstablished,
         MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
         Text = "the invoice is attached",

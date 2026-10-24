@@ -25,51 +25,31 @@ public sealed class StoredMailFolderReaderCommandTests
 
     /// <summary>The whole read has to reach the database, which is what a query that fell back to this process would not do.</summary>
     [Fact]
-    public void NewestBindingsIn_AScopeNamingOneAccount_TranslatesToOneCommand()
+    public void FoldersIn_AScopeNamingOneAccount_TranslatesToOneCommandOverTheFolderRows()
     {
         // Act
-        var command = CommandFor(StoredMailFolderReader.NewestBindingsIn);
+        var command = CommandFor(static (context, scope) => StoredMailFolderReader.FoldersIn(context.MailFolders, scope));
 
         // Assert
-        Assert.Contains("mail_folders", command, StringComparison.Ordinal);
-        Assert.Contains(nameof(MailFolderEntity.RemotePath), command, StringComparison.Ordinal);
-        Assert.Contains(nameof(MailFolderEntity.HierarchyDelimiter), command, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// The current binding is the alias's highest generation, and PostgreSQL is what decides it. A maximum computed in
-    /// this process would have to read every generation an alias has ever had, which is the history this shape exists
-    /// to leave in the database.
-    /// </summary>
-    [Fact]
-    public void NewestBindingsIn_Always_AsksPostgreSqlForTheHighestGenerationOfEachAlias()
-    {
-        // Act
-        var command = CommandFor(StoredMailFolderReader.NewestBindingsIn);
-
-        // Assert
-        Assert.Contains("max(", command, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(nameof(MailFolderEntity.ResolutionGeneration), command, StringComparison.Ordinal);
+        Assert.Contains("local_mail_folders", command, StringComparison.Ordinal);
+        Assert.Contains(nameof(MailFolderEntity.ParentId), command, StringComparison.Ordinal);
     }
 
     /// <summary>The scope is what keeps a caller out of another user's folders, so it has to be in the command rather than applied afterwards.</summary>
-    /// <remarks>
-    /// The user is asserted beside the account because the account identifier alone stops naming one account once two users may
-    /// each declare it, and a narrowing that lost the user would then answer one user's folder tree with another's bindings in it.
-    /// </remarks>
     [Fact]
-    public void NewestBindingsIn_AScopeNamingOneAccount_NarrowsToItInTheCommand()
+    public void FoldersIn_AScopeNamingOneAccount_NarrowsToItsLiveFoldersInTheCommand()
     {
         // Act
-        var command = CommandFor(StoredMailFolderReader.NewestBindingsIn);
+        var command = CommandFor(static (context, scope) => StoredMailFolderReader.FoldersIn(context.MailFolders, scope));
 
         // Assert
         Assert.Contains(nameof(MailFolderEntity.MailboxAccountId), NarrowingIn(command), StringComparison.Ordinal);
+        Assert.Contains(nameof(MailFolderEntity.ErasedAt), NarrowingIn(command), StringComparison.Ordinal);
     }
 
     /// <summary>The counts are one grouped aggregate over the mail, which is the whole reason this is a query and not a walk.</summary>
     [Fact]
-    public void FolderCountsIn_Always_GroupsTheMailByAccountAndAliasInPostgreSql()
+    public void FolderCountsIn_Always_GroupsTheMailByFolderInPostgreSql()
     {
         // Act
         var command = CommandFor(StoredMailFolderReader.FolderCountsIn);
@@ -126,7 +106,7 @@ public sealed class StoredMailFolderReaderCommandTests
     /// <summary>Builds the scope every caller-facing read resolves to, over one account and its one admitted folder.</summary>
     private static MailboxScope ScopeOverOneAccount()
     {
-        var inbox = new MailFolderIdentity(Work, MailFolderAlias.Create("inbox"));
+        var inbox = MailFolderId.Create(Guid.Parse("caadbcff-ec90-7811-8a56-42fc15e5aa67"));
 
         return MailboxScope.Create([Work], [inbox]);
     }

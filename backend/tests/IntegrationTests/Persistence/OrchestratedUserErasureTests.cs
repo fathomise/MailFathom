@@ -80,7 +80,7 @@ public sealed class OrchestratedUserErasureTests(MailFathomOrchestrationFixture 
     /// </remarks>
     private static readonly Guid[] QuiescedAccounts = [Guid.Parse(ErasedAccount)];
 
-    private const string AccountIdentifierPropertyName = nameof(MailFolderEntity.MailboxAccountId);
+    private const string AccountIdentifierPropertyName = nameof(MailFolderBindingEntity.MailboxAccountId);
 
     /// <summary>The one address in the erased user's book, in a domain no other class here writes into.</summary>
     private const string ErasedUserContactAddress = "correspondent@user-erasure.contacts.test";
@@ -478,7 +478,7 @@ public sealed class OrchestratedUserErasureTests(MailFathomOrchestrationFixture 
         var account = new MailboxAccountEntity { Id = ErasedAccount, };
 
         AssignAccountTo(context, ErasedAccount, userId, now);
-        var folder = new MailFolderEntity
+        var folder = new MailFolderBindingEntity
         {
             MailboxAccountId = account.Id,
             MailboxAccount = account,
@@ -495,7 +495,7 @@ public sealed class OrchestratedUserErasureTests(MailFathomOrchestrationFixture 
         {
             Id = Guid.CreateVersion7(),
             MailboxAccountId = account.Id,
-            MailFolder = folder,
+            MailFolderBinding = folder,
             UidValidity = 1,
             Uid = 1,
             Subject = "user erasure",
@@ -529,7 +529,7 @@ public sealed class OrchestratedUserErasureTests(MailFathomOrchestrationFixture 
         };
 
         context.MailboxAccounts.Add(account);
-        context.MailFolders.Add(folder);
+        context.MailFolderBindings.Add(folder);
         context.EmailThreads.Add(thread);
         context.StoredEmails.Add(storedEmail);
         context.OutgoingEmails.Add(outgoingEmail);
@@ -556,7 +556,7 @@ public sealed class OrchestratedUserErasureTests(MailFathomOrchestrationFixture 
             StoredEmailId = storedEmail.Id,
             StoredEmail = storedEmail,
             MailboxAccountId = account.Id,
-            MailFolder = folder,
+            MailFolderBinding = folder,
             UidValidity = 1,
             Uid = 1,
             Mutation = "SetSeen",
@@ -692,7 +692,7 @@ public sealed class OrchestratedUserErasureTests(MailFathomOrchestrationFixture 
             ClaimedByteCount = RepresentativeRawMime.Length,
             ExpiresAt = now,
         });
-        context.LocalMailFolders.Add(new LocalMailFolderEntity
+        context.MailFolders.Add(new MailFolderEntity
         {
             Id = Guid.CreateVersion7(),
             MailboxAccountId = account.Id,
@@ -728,7 +728,7 @@ public sealed class OrchestratedUserErasureTests(MailFathomOrchestrationFixture 
         {
             Id = Guid.CreateVersion7(),
             MailboxAccountId = account.Id,
-            MailFolderId = folder.Id,
+            MailFolderBindingId = folder.Id,
             UidValidity = 1,
             Uid = 1,
             StoredEmailId = storedEmail.Id,
@@ -738,7 +738,7 @@ public sealed class OrchestratedUserErasureTests(MailFathomOrchestrationFixture 
         {
             Id = Guid.CreateVersion7(),
             MailboxAccountId = account.Id,
-            MailFolder = folder,
+            MailFolderBinding = folder,
             UidValidity = 1,
             Uid = 2,
             RecordedAt = now,
@@ -896,7 +896,7 @@ public sealed class OrchestratedUserErasureTests(MailFathomOrchestrationFixture 
         var account = new MailboxAccountEntity { Id = SurvivingAccount, };
 
         AssignAccountTo(context, SurvivingAccount, userId, now);
-        var folder = new MailFolderEntity
+        var folder = new MailFolderBindingEntity
         {
             MailboxAccountId = account.Id,
             MailboxAccount = account,
@@ -913,7 +913,7 @@ public sealed class OrchestratedUserErasureTests(MailFathomOrchestrationFixture 
         {
             Id = Guid.CreateVersion7(),
             MailboxAccountId = account.Id,
-            MailFolder = folder,
+            MailFolderBinding = folder,
             UidValidity = 1,
             Uid = 1,
             Subject = "user erasure bystander",
@@ -924,7 +924,7 @@ public sealed class OrchestratedUserErasureTests(MailFathomOrchestrationFixture 
         };
 
         context.MailboxAccounts.Add(account);
-        context.MailFolders.Add(folder);
+        context.MailFolderBindings.Add(folder);
         context.EmailThreads.Add(thread);
         context.StoredEmails.Add(storedEmail);
 

@@ -9,8 +9,8 @@ using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
-using MailFathom.Domain.Folders;
 using MailFathom.Infrastructure.Persistence.Entities;
+using MailFathom.Infrastructure.Persistence.Folders;
 
 namespace MailFathom.Infrastructure.Persistence.Emails;
 
@@ -38,7 +38,8 @@ namespace MailFathom.Infrastructure.Persistence.Emails;
 internal sealed record StoredEmailSummaryRow(
     Guid Id,
     string MailboxAccountId,
-    string FolderAlias,
+    Guid FolderId,
+    string? FolderAlias,
     Guid? ThreadId,
     string? InternetMessageId,
     string? Subject,
@@ -79,7 +80,8 @@ internal sealed record StoredEmailSummaryRow(
         new StoredEmailSummaryRow(
             email.Id,
             email.MailboxAccountId,
-            email.MailFolder.Alias,
+            email.FolderId,
+            email.Folder.Alias,
             email.EmailThreadId,
             email.InternetMessageId,
             email.Subject,
@@ -115,13 +117,38 @@ internal sealed record StoredEmailSummaryRow(
             email.MachineAuthorshipSignals,
             email.MachineAuthorshipProfileRevision);
 
+    /// <summary>Rebuilds the summaries of a set of rows, naming each one's folder by its path.</summary>
+    /// <param name="rows">The rows, in the order the summaries are wanted in.</param>
+    /// <param name="folders">The folder rows the paths are read from, untracked.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>One summary per row, in the same order.</returns>
+    /// <remarks>
+    /// The paths are one more query, over the folders of the accounts the rows came from, rather than columns of the
+    /// summary projection: a path is a walk up a parent chain of any depth, which no single translated expression reads.
+    /// </remarks>
+    public static async Task<IReadOnlyList<EmailSummary>> ToSummariesAsync(
+        IReadOnlyCollection<StoredEmailSummaryRow> rows,
+        IQueryable<MailFolderEntity> folders,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+
+        var paths = await StoredMailFolderPaths.ReadAsync(
+            folders,
+            [.. rows.Select(static row => row.MailboxAccountId)],
+            cancellationToken);
+
+        return [.. rows.Select(row => row.ToSummary(paths))];
+    }
+
     /// <summary>Turns the returned columns into the application read model.</summary>
+    /// <param name="folderPaths">The path of every folder of the row's account, keyed by folder identity, which names the row's folder.</param>
     /// <returns>The summary, with every domain value object built by its own factory.</returns>
-    public EmailSummary ToSummary() => new()
+    internal EmailSummary ToSummary(IReadOnlyDictionary<Guid, IReadOnlyList<string>> folderPaths) => new()
     {
         StoredEmailId = StoredEmailId.Create(this.Id),
         Account = MailAccountId.Create(this.MailboxAccountId),
-        FolderAlias = MailFolderAlias.Create(this.FolderAlias),
+        Folder = StoredMailFolderPaths.Describe(this.FolderId, this.FolderAlias, folderPaths),
         ThreadId = this.ThreadId is { } threadId ? EmailThreadId.Create(threadId) : null,
         InternetMessageId = this.InternetMessageId,
         Subject = this.Subject,

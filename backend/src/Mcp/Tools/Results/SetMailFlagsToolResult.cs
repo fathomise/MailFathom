@@ -32,9 +32,9 @@ internal sealed record SetMailFlagsToolResult
     [Description("The account the email belongs to. Its next synchronization run is what issues a recorded change to the mail server; an applied change has no mail server to reach.")]
     public required string AccountId { get; init; }
 
-    /// <summary>Gets the operator's own name for the folder the email is in.</summary>
-    [Description("The folder alias the email is in, as MailFathom's configuration names it.")]
-    public required string FolderAlias { get; init; }
+    /// <summary>Gets the identity of the folder the email is in.</summary>
+    [Description("The identity of the folder the email is in, the folderId a listed email and list_accounts report it by.")]
+    public required string FolderId { get; init; }
 
     /// <summary>Gets whether the change was applied to a held account's mail rather than written down for a mail server.</summary>
     [Description("True when the account is held, meaning MailFathom alone keeps its mail: the change has already been applied, and recordedChanges is empty because there is nothing left to carry to a mail server.")]
@@ -56,7 +56,7 @@ internal sealed record SetMailFlagsToolResult
         {
             StoredEmailId = result.StoredEmailId.ToString(),
             AccountId = result.AccountId.Value,
-            FolderAlias = result.FolderAlias.Value,
+            FolderId = result.Folder.ToString(),
             Applied = result.IsApplied,
             RecordedChanges =
             [

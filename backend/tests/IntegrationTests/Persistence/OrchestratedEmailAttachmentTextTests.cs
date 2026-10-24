@@ -276,8 +276,8 @@ public sealed class OrchestratedEmailAttachmentTextTests(MailFathomOrchestration
             async (scope, token) => StoredEmailId.Create(
                 await scope.GetRequiredService<MailFathomDbContext>().StoredEmails
                     .AsNoTracking()
-                    .Where(email => email.MailFolder.MailboxAccountId == occurrenceId.AccountId.Value
-                        && email.MailFolder.Alias == alias
+                    .Where(email => email.MailFolderBinding.MailboxAccountId == occurrenceId.AccountId.Value
+                        && email.MailFolderBinding.Alias == alias
                         && email.UidValidity == occurrenceId.UidValidity.Value
                         && email.Uid == occurrenceId.Uid.Value)
                     .Select(email => email.Id)

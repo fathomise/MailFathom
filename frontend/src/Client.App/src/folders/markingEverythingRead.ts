@@ -48,7 +48,7 @@ export interface MarkedEverythingRead {
  *
  * @param session Who is asking and where.
  * @param transport How a request reaches the deployment.
- * @param scope The account, and the folder inside it by alias or `null` for every folder the account has.
+ * @param scope The account, and the folder inside it by identity or `null` for every folder the account has.
  * @returns What the press came to.
  */
 export async function markEverythingRead(

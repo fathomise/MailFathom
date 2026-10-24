@@ -189,7 +189,7 @@ public sealed class MailFlagChangeRecorder
         return new AuthoredMailFlagChangeResult(
             change.StoredEmailId,
             target.Occurrence.AccountId,
-            target.Folder.Alias,
+            target.StoredIn,
             opened,
             IsApplied: applied.Count > 0);
     }

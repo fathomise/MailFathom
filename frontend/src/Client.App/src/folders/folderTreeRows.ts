@@ -16,12 +16,11 @@ import { everything, roleRank, rolesAcrossAccounts, scopeKey, type MailScope } f
 // each account carries its own folders, nested by where each of them sits. And a folder that plays a role is placed by
 // that role rather than by its name, because a name is whatever a provider chose in whatever language.
 //
-// **The nesting is the path's and not the alias's.** The path is where the folder sits — the levels the service
-// answered, outermost first, which is what a folder act moves and what a reload reads back. An alias is MailFathom's own
-// name for a folder and is what every route names it by, but it says nothing about where the folder is: a folder made
-// inside another is declared under its own name, and neither a rename nor a move changes its alias, so a tree nested by
-// alias would draw every folder somebody filed as if it sat at the top. The alias is what a row is keyed and acted on
-// by, whatever an account's folders happen to be called, and it decides nothing about the shape of the tree.
+// **The nesting is the path's and not the identity's.** The path is where the folder sits — the levels the service
+// answered, outermost first, which is what a folder act moves and what a reload reads back. The identity is what
+// MailFathom issued the folder and what every route names it by, but it says nothing about where the folder is: neither
+// a rename nor a move changes it. The identity is what a row is keyed and acted on by, whatever an account's folders
+// happen to be called, and it decides nothing about the shape of the tree.
 
 /** How many levels a mailbox nests, counted from its top: `Inbox/Projects/2026` and no further. */
 export const deepestFolder = 3;
@@ -56,8 +55,8 @@ export interface FolderTreeRow {
      */
     readonly accountId: string | null;
 
-    /** The alias this row stands for, whole, or `null` for a row standing for no one folder of one account. */
-    readonly alias: string | null;
+    /** The identity of the folder this row stands for, or `null` for a row standing for no one folder of one account. */
+    readonly folderId: string | null;
 
     /** The folder's place on its mail server, or `null` where this row stands for no folder the service named. */
     readonly remotePath: readonly string[] | null;
@@ -152,7 +151,7 @@ export function openingScope(directory: MailFolderDirectory): MailScope {
 
     return inbox === undefined
         ? { kind: 'account', accountId: only.account.id }
-        : { kind: 'folder', accountId: only.account.id, alias: inbox.alias };
+        : { kind: 'folder', accountId: only.account.id, folderId: inbox.id };
 }
 
 /**
@@ -218,7 +217,7 @@ function everythingRow(directory: MailFolderDirectory): FolderTreeRow {
         name: '',
         role: null,
         accountId: null,
-        alias: null,
+        folderId: null,
         remotePath: null,
         level: 1,
         opensCollapsed: false,
@@ -239,7 +238,7 @@ function roleRow(role: MailFolderRole, folders: readonly MailFolder[]): FolderTr
         name: '',
         role,
         accountId: null,
-        alias: null,
+        folderId: null,
         remotePath: null,
         level: 2,
         opensCollapsed: false,
@@ -255,11 +254,11 @@ function accountRow(entry: MailAccountFolders): FolderTreeRow {
 
     return {
         key: scopeKey(whole),
-        scope: inbox === undefined ? whole : { kind: 'folder', accountId: entry.account.id, alias: inbox.alias },
+        scope: inbox === undefined ? whole : { kind: 'folder', accountId: entry.account.id, folderId: inbox.id },
         name: entry.account.displayName,
         role: null,
         accountId: entry.account.id,
-        alias: null,
+        folderId: null,
         remotePath: null,
         level: 1,
         opensCollapsed: false,
@@ -273,7 +272,7 @@ function folderRows(entry: MailAccountFolders): readonly FolderTreeRow[] {
     const levels = new Map<string, PathLevel>();
 
     for (const folder of entry.folders) {
-        const [outermost, ...rest] = placeOf(folder);
+        const [outermost, ...rest] = folder.path;
 
         if (outermost !== undefined) {
             place(levels, outermost, rest, folder);
@@ -281,13 +280,6 @@ function folderRows(entry: MailAccountFolders): readonly FolderTreeRow[] {
     }
 
     return [...levels.values()].map((level) => rowOfLevel(level, entry.account.id, [], 2)).sort(bySiblingOrder);
-}
-
-// Where a folder sits, which is its path. A folder found by the role it plays that no pass has reached yet has no path
-// at all, and it sits at the top under the name MailFathom knows it by — the one place it can be drawn without
-// guessing where a mail server would put it.
-function placeOf(folder: MailFolder): readonly string[] {
-    return folder.path.length > 0 ? folder.path : [folder.alias];
 }
 
 // Walks a folder's path down the levels built so far, adding what is missing, and binds the folder to the last of
@@ -323,7 +315,7 @@ function rowOfLevel(level: PathLevel, accountId: string, above: readonly string[
             name: level.name,
             role: null,
             accountId,
-            alias: null,
+            folderId: null,
             remotePath: null,
             level: depth,
             opensCollapsed: true,
@@ -342,7 +334,7 @@ function folderRow(
     depth: number,
     children: readonly FolderTreeRow[],
 ): FolderTreeRow {
-    const scope: MailScope = { kind: 'folder', accountId, alias: folder.alias };
+    const scope: MailScope = { kind: 'folder', accountId, folderId: folder.id };
 
     return {
         key: scopeKey(scope),
@@ -350,7 +342,7 @@ function folderRow(
         name: folderName(folder),
         role: folder.role,
         accountId,
-        alias: folder.alias,
+        folderId: folder.id,
         remotePath: folder.path,
         level: depth,
         opensCollapsed: true,
@@ -360,17 +352,15 @@ function folderRow(
     };
 }
 
-// What a person recognizes the folder by, which is the last level of where it sits on their mail server: the alias is
-// canonically upper-cased so that one folder is one value in a database whose collation MailFathom does not control,
-// and reading a name off it would draw a mailbox in capitals nobody typed. A folder with no path has no such level to
-// read, and its alias is what is left.
+// What a person recognizes the folder by, which is the last level of where it sits in its account's hierarchy. The
+// identity is never a name a reader is shown.
 function folderName(folder: MailFolder): string {
-    return folder.path.at(-1) ?? folder.alias;
+    return folder.path.at(-1) ?? '';
 }
 
 // A folder playing a role comes before one that plays none, in the order roles are offered in; the rest read as a
 // mailbox reads, by the name on the row. Sorting by name is the client's decision rather than the service's, which
-// orders by an alias no screen shows.
+// orders by a path no screen sorts by.
 function bySiblingOrder(one: FolderTreeRow, other: FolderTreeRow): number {
     const byRole = roleRank(one.role) - roleRank(other.role);
 

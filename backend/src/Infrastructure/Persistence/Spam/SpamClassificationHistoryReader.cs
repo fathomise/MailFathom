@@ -45,7 +45,7 @@ internal sealed class SpamClassificationHistoryReader(MailFathomDbContext dbCont
             .Take(query.PageSize + 1)
             .Select(classification => new ClassificationRow(
                 classification.StoredEmailId,
-                classification.StoredEmail!.MailFolder.Alias,
+                classification.StoredEmail!.MailFolderBinding.Alias,
                 classification.Verdict,
                 classification.DecidedBy,
                 classification.Score,

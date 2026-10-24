@@ -140,7 +140,7 @@ export const troubledAccounts = {
 };
 
 const inbox = {
-    alias: 'INBOX',
+    id: 'INBOX',
     role: 'Inbox',
     path: ['INBOX'],
     storedEmailCount: 4213,
@@ -153,10 +153,10 @@ const inbox = {
 // A folder nested a level down its path, which is where the tree nests one and what a tree that has been expanded and
 // collapsed is read against. Nothing the folders route answers sits at `Archive` itself, so that level is a heading
 // the tree draws rather than a folder the deployment named — the shape a mail server produces every time somebody
-// files below a folder they never mapped. The alias is upper-cased because that is the one form the service answers
-// with, which is why every name a row shows is read off the path. It carries no role, as most folders carry none.
+// files below a folder they never mapped. Every name a row shows is read off the path, never off the identity. It
+// carries no role, as most folders carry none.
 const archive2024 = {
-    alias: 'ARCHIVE/2024',
+    id: 'ARCHIVE/2024',
     role: null,
     path: ['Archive', '2024'],
     storedEmailCount: 980,
@@ -170,7 +170,7 @@ const archive2024 = {
 // and which holds nothing here: what stands in it is what somebody filed there, so a corpus draft would be a message
 // nobody wrote.
 const draftsFolder = {
-    alias: 'DRAFTS',
+    id: 'DRAFTS',
     role: 'Drafts',
     path: ['Drafts'],
     storedEmailCount: 0,
@@ -182,7 +182,7 @@ const draftsFolder = {
 
 /** A folder holding nothing, which is the state a message list has to be looked at in and cannot reach by scrolling. */
 export const emptyFolder = {
-    alias: 'RECEIPTS',
+    id: 'RECEIPTS',
     role: null,
     path: ['Receipts'],
     storedEmailCount: 0,
@@ -198,7 +198,7 @@ export const emptyFolder = {
 // folder it likes with that role, and a tree draws the role's name over it. Both start empty, so a list of either holds
 // exactly what an act filed into it.
 const trash = {
-    alias: 'TRASH',
+    id: 'TRASH',
     role: 'Trash',
     path: ['Trash'],
     storedEmailCount: 0,
@@ -209,7 +209,7 @@ const trash = {
 };
 
 const filed = {
-    alias: 'FILED',
+    id: 'FILED',
     role: 'Archive',
     path: ['Filed'],
     storedEmailCount: 0,
@@ -264,7 +264,7 @@ export const ownTimeZone = { timeZone: 'UTC', isDefault: true };
  * rather than the credential's: the route reads under the grant to read mail, and the client narrows what it reports by
  * the grant it holds, so a check whose credential changes nothing is still offered nothing. Making a folder is the
  * mailbox's act rather than any one folder's, so it is stated once for the account, and a folder playing a role is
- * nested under and never renamed, moved, or deleted. The identities are the aliases the folders route answers, because
+ * nested under and never renamed, moved, or deleted. The identities are the ones the folders route answers, because
  * that is what a tree pairs a row with its acts by, and nothing may read meaning into one.
  */
 export const managedFolders = {

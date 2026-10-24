@@ -21,7 +21,7 @@ function row(stated: Partial<FolderTreeRow>): FolderTreeRow {
         name: 'INBOX.Archiwum',
         role: null,
         accountId: 'work',
-        alias: null,
+        folderId: null,
         remotePath: null,
         level: 1,
         opensCollapsed: false,

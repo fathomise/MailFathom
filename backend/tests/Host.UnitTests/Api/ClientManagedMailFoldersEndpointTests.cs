@@ -240,6 +240,7 @@ public sealed class ClientManagedMailFoldersEndpointTests
             var holding = new LocalMailFolderHolding(phase, phase is MailAccountCustodyPhase.Mirrored ? [] : ProtectedFolders(), []);
             store.ReadAsync(Account, Arg.Any<CancellationToken>()).Returns(holding);
             store.ReadAsync(Arg.Any<IPersistenceSession>(), Account, Arg.Any<CancellationToken>()).Returns(holding);
+            store.ReadFoldersAsync(Account, Arg.Any<CancellationToken>()).Returns(holding.Folders);
 
             var transportPolicies = Substitute.For<IMailTransportSecurityPolicyReader>();
             transportPolicies.GetPolicy(Arg.Any<MailAccountId>()).Returns(RequiredTlsPolicy);
@@ -275,9 +276,18 @@ public sealed class ClientManagedMailFoldersEndpointTests
                     Substitute.For<IAuthoredFolderDeleteDispositionReader>(),
                     this.signals,
                     Substitute.For<IJobStore>(),
-                    authorization),
+                    authorization,
+                    new MailFolderResolver(
+                        Substitute.For<IRemoteFolderCatalog>(),
+                        Substitute.For<IRemoteFolderCreator>(),
+                        Substitute.For<IMailFolderResolutionStore>(),
+                        Substitute.For<IMailFolderMappingChangeAuditor>(),
+                        sessionFactory,
+                        this.signals,
+                        clock)),
                 authorization,
-                accounts);
+                accounts,
+                store);
         }
 
         internal MailFolderEditor Editor { get; }
@@ -294,7 +304,7 @@ public sealed class ClientManagedMailFoldersEndpointTests
         ];
 
         private static LocalMailFolder Folder(string name, MailFolderSpecialUse role) => new(
-            LocalMailFolderId.Create(Guid.CreateVersion7()),
+            MailFolderId.Create(Guid.CreateVersion7()),
             ParentId: null,
             LocalMailFolderName.Create(name),
             role,

@@ -213,7 +213,7 @@ interface HeldDraft {
 /** The drafts folder of the corpus mailbox, which is where every draft a check writes is filed. */
 const draftsFolder = deployment.mailFolders.accounts
     .flatMap(({ folders }) => folders)
-    .find(({ role }) => role === 'Drafts')?.alias;
+    .find(({ role }) => role === 'Drafts')?.id;
 
 /** Who the corpus mailbox belongs to, as the conversation it answered in names them, which is who a draft is from. */
 const author = mail.conversation().messages.find(({ email }) => email.folder === 'SENT')?.email;
@@ -243,7 +243,7 @@ export class FakeDeployment {
 
     private readonly records = new Map<string, MutationRecord>();
 
-    /** How far each folder's two counts have moved from what the corpus states, by alias. */
+    /** How far each folder's two counts have moved from what the corpus states, by folder. */
     private readonly counted = new Map<string, { stored: number; unread: number }>();
 
     /**
@@ -1521,24 +1521,24 @@ export class FakeDeployment {
                 account,
                 folders: [
                     ...folders,
-                    ...[...this.made].map((alias) => ({
-                        alias,
+                    ...[...this.made].map((id) => ({
+                        id,
                         role: null,
                         path: [],
                         storedEmailCount: 0,
                         unreadEmailCount: 0,
-                        synchronizationState: 'NeverSynchronized',
+                        synchronizationState: null,
                         lastSynchronizedAt: null,
                         behind: false,
                     })),
                 ]
-                    .filter(({ alias }) => this.hierarchy.some(({ id }) => id === alias))
+                    .filter((folder) => this.hierarchy.some(({ id }) => id === folder.id))
                     .map((folder) => {
-                        const moved = this.counted.get(folder.alias) ?? { stored: 0, unread: 0 };
+                        const moved = this.counted.get(folder.id) ?? { stored: 0, unread: 0 };
 
                         return {
                             ...folder,
-                            path: this.lineOf(folder.alias).map(({ name }) => name),
+                            path: this.lineOf(folder.id).map(({ name }) => name),
                             storedEmailCount: folder.storedEmailCount + moved.stored,
 
                             // Floored because the inbox's stated count is a dozen and its generated rows hold tens of
@@ -1559,9 +1559,9 @@ export class FakeDeployment {
     }
 
     /**
-     * Makes a folder on the mail server beneath the parent named, and declares it under an alias of its own name —
-     * with a number after it where another folder already holds that one — which is the service's reading: an alias
-     * says nothing about where a folder sits, and nothing afterwards changes it.
+     * Makes a folder beneath the parent named, and issues it an identity of its own name — with a number after it where
+     * another folder already holds that one. An identity says nothing about where a folder sits, and nothing afterwards
+     * changes it.
      */
     private folderMade(body: unknown): FakeAnswer {
         const asked = recordIn(body);
@@ -1573,21 +1573,27 @@ export class FakeDeployment {
         }
 
         const taken = (candidate: string) => this.hierarchy.some(({ id }) => id === candidate);
-        let alias = name.toUpperCase();
+        let folderId = name.toUpperCase();
 
-        for (let suffix = 2; taken(alias); suffix += 1) {
-            alias = `${name.toUpperCase()}-${String(suffix)}`;
+        for (let suffix = 2; taken(folderId); suffix += 1) {
+            folderId = `${name.toUpperCase()}-${String(suffix)}`;
         }
 
-        const folder: HeldFolder = { id: alias, parentId, name, role: null, allowedActs: ['Rename', 'Move', 'Delete'] };
+        const folder: HeldFolder = {
+            id: folderId,
+            parentId,
+            name,
+            role: null,
+            allowedActs: ['Rename', 'Move', 'Delete'],
+        };
 
         this.hierarchy = [...this.hierarchy, folder];
-        this.made.add(alias);
+        this.made.add(folderId);
 
         return answering({ change: 'Created', folder, mailErasureDeferred: false });
     }
 
-    /** Renames or moves a folder the account declares, which changes where it sits and never the alias it is named by. */
+    /** Renames or moves a folder the account declares, which changes where it sits and never the identity it is named by. */
     private folderRevised(body: unknown, change: 'Renamed' | 'Moved'): FakeAnswer {
         const asked = recordIn(body);
         const standing = this.hierarchy.find(({ id }) => id === asked?.['folderId']);
@@ -1619,8 +1625,8 @@ export class FakeDeployment {
 
         const gone = new Set(this.hierarchy.filter(({ id }) => this.lineOf(id).includes(folder)).map(({ id }) => id));
 
-        for (const [storedEmailId, alias] of this.placed) {
-            if (gone.has(alias)) {
+        for (const [storedEmailId, placedIn] of this.placed) {
+            if (gone.has(placedIn)) {
                 this.deleted.add(storedEmailId);
             }
         }
@@ -1661,7 +1667,7 @@ export class FakeDeployment {
 
         if (folder !== null && folder !== 'INBOX') {
             const emails = [...this.placed]
-                .filter(([, alias]) => alias === folder)
+                .filter(([, placedIn]) => placedIn === folder)
                 .map(([id]) => corpusRow(id))
                 .filter((row) => row !== null)
                 .map((row) => this.shaped(row))
@@ -1837,7 +1843,7 @@ export class FakeDeployment {
     }
 
     private moved(body: unknown) {
-        const aliases = new Set(this.folders().accounts.flatMap(({ folders }) => folders.map(({ alias }) => alias)));
+        const folderIds = new Set(this.folders().accounts.flatMap(({ folders }) => folders.map(({ id }) => id)));
 
         return listIn(body, 'moves').map((move) => {
             const storedEmailId = String(move['storedEmailId']);
@@ -1848,7 +1854,7 @@ export class FakeDeployment {
                 return { storedEmailId, outcome: 'message-not-found', destinationFolder: null, change: null };
             }
 
-            if (!aliases.has(destinationFolder)) {
+            if (!folderIds.has(destinationFolder)) {
                 return { storedEmailId, outcome: 'destination-not-found', destinationFolder: null, change: null };
             }
 
@@ -1952,10 +1958,10 @@ export class FakeDeployment {
         return record;
     }
 
-    private count(alias: string, stored: number, unread: number): void {
-        const moved = this.counted.get(alias) ?? { stored: 0, unread: 0 };
+    private count(folder: string, stored: number, unread: number): void {
+        const moved = this.counted.get(folder) ?? { stored: 0, unread: 0 };
 
-        this.counted.set(alias, { stored: moved.stored + stored, unread: moved.unread + unread });
+        this.counted.set(folder, { stored: moved.stored + stored, unread: moved.unread + unread });
     }
 
     /**

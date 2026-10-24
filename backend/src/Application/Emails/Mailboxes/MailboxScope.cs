@@ -13,15 +13,16 @@ namespace MailFathom.Application.Emails.Mailboxes;
 /// <para>
 /// This is what a query runs with rather than what a request asked for. Both differences are settled before the scope is
 /// built: an unnamed account list becomes the accounts the caller's user is assigned, because a store holds rows for
-/// accounts an operator has since removed and rows of mailboxes this caller is assigned none of, and every folder a request named — by its
-/// alias or by the role it plays — becomes the folder of the account it means. A folder is therefore named here as an account and an alias together, never as an
-/// alias alone, so one account's junk folder cannot admit another account's folder that happens to share the name.
+/// accounts an operator has since removed and rows of mailboxes this caller is assigned none of. A folder a request named
+/// is held as it was named, by the identifier MailFathom issued it or by the role it plays, never by its alias: an
+/// identifier names one account's folder by itself, and a role is read against each account's own folders, so one
+/// account's junk folder cannot select another account's folder that happens to share its name.
 /// </para>
 /// <para>
-/// A request that names no folder is restricted to none: an empty folder list means every folder of the accounts in
-/// scope, which is every folder configuration admits rather than every folder the store holds rows for. An account in
-/// scope that appears in no pair while others do is the opposite case — it maps no folder the request named, and
-/// contributes nothing.
+/// A request that names no folder is restricted to none: empty folder and role lists mean every folder of the accounts
+/// in scope that configuration admits, which includes every folder no declaration names — one a person made on a held
+/// account — and excludes the folders of aliases configuration no longer declares. An account in scope with no folder
+/// the request named contributes nothing.
 /// </para>
 /// <para>
 /// Both lists are deduplicated and ordered when the scope is created, so two requests that name the same accounts in a
@@ -46,7 +47,7 @@ public sealed record MailboxScope
     /// a role sharpens: <c>role:Junk</c> is one name however many accounts answer it. Both bounds are enforced where the
     /// caller's own list is read, in <see cref="MailboxScopeResolver" />, rather than over the resolved lists this type
     /// holds. Resolution can only produce more: a request naming no account resolves to every account its user is
-    /// assigned, and one role a request named resolves to a folder on each of them.
+    /// assigned, and one role a request named reaches a folder on each of them.
     /// </remarks>
     public const int MaximumFolders = 64;
 
@@ -60,10 +61,12 @@ public sealed record MailboxScope
 
     private MailboxScope(
         IReadOnlyList<MailAccountId> accountIds,
-        IReadOnlyList<MailFolderIdentity> selectedFolders)
+        IReadOnlyList<MailFolderId> selectedFolders,
+        IReadOnlyList<MailFolderSpecialUse> selectedRoles)
     {
         this.AccountIds = accountIds;
         this.SelectedFolders = selectedFolders;
+        this.SelectedRoles = selectedRoles;
     }
 
     /// <summary>Gets the scope that names no account, no folder, and nothing readable.</summary>
@@ -82,28 +85,33 @@ public sealed record MailboxScope
     /// containment unconditionally for exactly that reason, and this scope names no folder as well.
     /// </para>
     /// </remarks>
-    public static MailboxScope NothingReadable { get; } = new([], []);
+    public static MailboxScope NothingReadable { get; } = new([], [], []);
 
     /// <summary>Gets the accounts the query is restricted to, deduplicated and ordered, or empty when the request named none.</summary>
     public IReadOnlyList<MailAccountId> AccountIds { get; }
 
-    /// <summary>Gets the folders the query is restricted to as account-and-alias pairs, deduplicated and ordered, or empty for every folder.</summary>
+    /// <summary>Gets the folders the query is restricted to by their identity, deduplicated and ordered.</summary>
     /// <remarks>
     /// <para>
-    /// A folder named by alias is paired with every account in scope, because an alias is the caller's own name and
-    /// means the same folder on each of them. A folder named by role is paired with the account that answered for it,
-    /// because a role means a different folder on each account: <c>role:Junk</c> across two accounts is two pairs
-    /// rather than two names either account might carry. Reading the aliases alone would admit a folder of the second
-    /// account that happens to share the first account's junk alias and plays no role at all — the same mistake
-    /// <c>AccountScopedMailFolders</c> exists to prevent on the admitting side.
+    /// A folder identity names one folder of one account, so it needs no pairing with the account that holds it: an
+    /// identity from an account outside <see cref="AccountIds" /> selects nothing, because the account containment is
+    /// composed whatever else narrows the query. That answer is the same one a folder holding no matching mail gives,
+    /// so naming a folder cannot tell a caller whether somebody else's folder exists.
     /// </para>
     /// <para>
-    /// An account of <see cref="AccountIds" /> that appears in no pair while the list is non-empty contributes nothing,
-    /// which is what an account mapping no folder for a named role means. That is why a query reads this against the
-    /// accounts in scope rather than against the pairs alone.
+    /// The query keeps a row in any folder this list names or in any folder playing a role <see cref="SelectedRoles" />
+    /// names; both empty selects every folder.
     /// </para>
     /// </remarks>
-    public IReadOnlyList<MailFolderIdentity> SelectedFolders { get; }
+    public IReadOnlyList<MailFolderId> SelectedFolders { get; }
+
+    /// <summary>Gets the roles whose folders the query is restricted to, deduplicated and ordered.</summary>
+    /// <remarks>
+    /// A role is read against each account's own folders, so <c>role:Junk</c> across two accounts is each account's own
+    /// junk folder. An account in scope with no folder playing the role contributes nothing, which is what a role it
+    /// does not have means.
+    /// </remarks>
+    public IReadOnlyList<MailFolderSpecialUse> SelectedRoles { get; }
 
     /// <summary>Gets the only folders a query built from this scope may return anything from, ordered, or empty when none may.</summary>
     /// <remarks>
@@ -167,19 +175,21 @@ public sealed record MailboxScope
     /// </remarks>
     public IReadOnlyList<StoredEmailId> SelectedEmails { get; private init; } = [];
 
-    /// <summary>Creates the scope a query runs with, from identities already resolved against configuration.</summary>
+    /// <summary>Creates the scope a query runs with, from the accounts already resolved and the folders a request named.</summary>
     /// <param name="accountIds">The accounts the query runs against, which are the ones the caller's user is assigned when a request named none.</param>
-    /// <param name="selectedFolders">The folders the query runs against, one pair per account, with every role a request named already turned into the folder it means on that account, or <see langword="null" /> to name none.</param>
-    /// <returns>The scope, with both lists deduplicated and ordered.</returns>
+    /// <param name="selectedFolders">The folders the query runs against by their identity, or <see langword="null" /> to name none.</param>
+    /// <param name="selectedRoles">The roles whose folders the query runs against, or <see langword="null" /> to name none.</param>
+    /// <returns>The scope, with every list deduplicated and ordered.</returns>
     /// <remarks>
-    /// No count limit applies to either list, and the two constants above say where the limits are enforced instead.
-    /// Both lists are configuration read through a resolution rather than caller input: a deployment that serves more
-    /// accounts than a request may name still answers a request that names none, and one role a request named can mean
-    /// a folder on each of those accounts.
+    /// No count limit applies to any list, and the two constants above say where the limits are enforced instead: the
+    /// accounts are a resolution rather than caller input, so a deployment that serves more accounts than a request may
+    /// name still answers a request that names none, and the folders and roles were counted as the caller wrote them
+    /// before they reached this.
     /// </remarks>
     public static MailboxScope Create(
         IEnumerable<MailAccountId>? accountIds,
-        IEnumerable<MailFolderIdentity>? selectedFolders)
+        IEnumerable<MailFolderId>? selectedFolders,
+        IEnumerable<MailFolderSpecialUse>? selectedRoles = null)
     {
         MailAccountId[] accounts =
         [
@@ -187,17 +197,12 @@ public sealed record MailboxScope
                 .DistinctBy(static accountId => accountId.Value, StringComparer.Ordinal)
                 .OrderBy(static accountId => accountId.Value, StringComparer.Ordinal),
         ];
-        MailFolderIdentity[] folders =
-        [
-            .. (selectedFolders ?? [])
-                .DistinctBy(static folder => (folder.AccountId.Value, folder.Alias.Value))
-                .OrderBy(static folder => folder.AccountId.Value, StringComparer.Ordinal)
-                .ThenBy(static folder => folder.Alias.Value, StringComparer.Ordinal),
-        ];
+        MailFolderId[] folders = [.. (selectedFolders ?? []).Distinct().OrderBy(static folder => folder.Value)];
+        MailFolderSpecialUse[] roles = [.. (selectedRoles ?? []).Distinct().Order()];
 
-        return accounts.Length is 0 && folders.Length is 0
+        return accounts.Length is 0 && folders.Length is 0 && roles.Length is 0
             ? NothingReadable
-            : new MailboxScope(accounts, folders);
+            : new MailboxScope(accounts, folders, roles);
     }
 
     /// <summary>Admits the folders configuration says a tool may read from, and nothing else.</summary>

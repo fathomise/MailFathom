@@ -93,7 +93,7 @@ export interface MailSearchQuery {
     /** The account to search, by its identifier or its display name, or `null` for every account the user owns. */
     readonly account: string | null;
 
-    /** The folder to search, by its alias or as `role:Inbox`, or `null` for every folder. */
+    /** The folder to search, by its identity or as `role:Inbox`, or `null` for every folder. */
     readonly folder: string | null;
 
     /** Whether the junk folder takes part, which it does not unless the request asks. */

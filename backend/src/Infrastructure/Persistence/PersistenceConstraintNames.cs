@@ -35,11 +35,20 @@ internal static class PersistenceConstraintNames
 
     internal const string MailFolderBindingUniqueIndexName = "ix_mail_folders_account_alias_generation";
 
-    /// <summary>The rule that no two live siblings of a held account's hierarchy share a name.</summary>
-    internal const string LocalMailFolderSiblingNameUniqueIndexName = "ix_local_mail_folders_account_parent_name";
+    /// <summary>
+    /// The column a binding reference is stored in, kept at the name it had while the binding was what a stored message
+    /// called its folder: an older build reads it by that name for as long as a rolling upgrade runs both.
+    /// </summary>
+    internal const string MailFolderBindingColumnName = "MailFolderId";
 
-    /// <summary>The rule that a held account has one live folder per protected role.</summary>
-    internal const string LocalMailFolderRoleUniqueIndexName = "ix_local_mail_folders_account_role";
+    /// <summary>The rule that no two live sibling folders of one account share a name.</summary>
+    internal const string MailFolderSiblingNameUniqueIndexName = "ix_local_mail_folders_account_parent_name";
+
+    /// <summary>The rule that an account has one live folder per role.</summary>
+    internal const string MailFolderRoleUniqueIndexName = "ix_local_mail_folders_account_role";
+
+    /// <summary>The rule that an alias names one live folder of its account, which is what lets configuration name a folder.</summary>
+    internal const string MailFolderAliasUniqueIndexName = "ix_local_mail_folders_account_alias";
 
     internal const string StoredEmailOccurrenceUniqueIndexName = "ix_stored_emails_folder_uidvalidity_uid";
 
@@ -56,6 +65,9 @@ internal static class PersistenceConstraintNames
     internal const string StoredEmailAccountTimelineIndexName = "ix_stored_emails_account_timeline";
 
     internal const string StoredEmailFolderTimelineIndexName = "ix_stored_emails_folder_timeline";
+
+    /// <summary>The timeline of one folder, read through the folder a message is in rather than the binding it was read from.</summary>
+    internal const string StoredEmailFolderReferenceTimelineIndexName = "ix_stored_emails_folder_reference_timeline";
 
     internal const string StoredEmailReconciliationQueueIndexName = "ix_stored_emails_reconciliation_queue";
 

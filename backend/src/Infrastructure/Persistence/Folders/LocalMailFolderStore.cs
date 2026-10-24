@@ -28,7 +28,7 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
 
         return accountRow is null
             ? null
-            : await HoldingAsync(sessionContext.LocalMailFolders, account, accountRow.CustodyPhase, cancellationToken);
+            : await HoldingAsync(sessionContext.MailFolders, account, accountRow.CustodyPhase, cancellationToken);
     }
 
     public async Task<LocalMailFolderHolding?> ReadAsync(MailAccountId account, CancellationToken cancellationToken)
@@ -42,15 +42,26 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
             .SingleOrDefaultAsync(cancellationToken);
 
         return phase is { } found
-            ? await HoldingAsync(dbContext.LocalMailFolders.AsNoTracking(), account, found, cancellationToken)
+            ? await HoldingAsync(dbContext.MailFolders.AsNoTracking(), account, found, cancellationToken)
             : null;
+    }
+
+    public async Task<IReadOnlyList<LocalMailFolder>> ReadFoldersAsync(
+        MailAccountId account,
+        CancellationToken cancellationToken)
+    {
+        var rows = await AccountFolders(dbContext.MailFolders.AsNoTracking(), account)
+            .Where(static row => row.ErasedAt == null)
+            .ToArrayAsync(cancellationToken);
+
+        return [.. rows.Select(ToFolder)];
     }
 
     public async Task SaveAsync(
         IPersistenceSession session,
         MailAccountId account,
         IReadOnlyCollection<LocalMailFolder> saved,
-        IReadOnlyCollection<LocalMailFolderId> erased,
+        IReadOnlyCollection<MailFolderId> erased,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(saved);
@@ -64,11 +75,11 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
 
         foreach (var folder in saved)
         {
-            var row = await sessionContext.LocalMailFolders.FindAsync([folder.Id.Value], cancellationToken);
+            var row = await sessionContext.MailFolders.FindAsync([folder.Id.Value], cancellationToken);
 
             if (row is null)
             {
-                sessionContext.LocalMailFolders.Add(NewRow(account, folder));
+                sessionContext.MailFolders.Add(NewRow(account, folder));
             }
             else
             {
@@ -83,7 +94,7 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
 
         var erasedAt = timeProvider.GetUtcNow();
 
-        foreach (var row in await AccountFolders(sessionContext.LocalMailFolders, account)
+        foreach (var row in await AccountFolders(sessionContext.MailFolders, account)
             .Where(row => erased.Select(static id => id.Value).Contains(row.Id))
             .ToArrayAsync(cancellationToken))
         {
@@ -95,7 +106,7 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
         IPersistenceSession session,
         MailAccountId account,
         StoredEmailId email,
-        LocalMailFolderId folder,
+        MailFolderId folder,
         CancellationToken cancellationToken)
     {
         var sessionContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
@@ -112,6 +123,7 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
         }
 
         row.LocalMailFolderId = folder.Value;
+        row.FolderId = folder.Value;
     }
 
     public async Task<LocalMailFolderMailErasure> EraseMailOfErasedFoldersAsync(
@@ -135,14 +147,14 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
         accountRow.LocalMailFoldersRevision++;
 
         var accountIdValue = account.Value;
-        var erasedFolderIds = AccountFolders(sessionContext.LocalMailFolders, account)
+        var erasedFolderIds = AccountFolders(sessionContext.MailFolders, account)
             .Where(static row => row.ErasedAt != null)
-            .Select(static row => (Guid?)row.Id);
+            .Select(static row => row.Id);
 
         // One more than the bound is read so the answer says whether a later pass is owed without a second count.
         var batch = await sessionContext.StoredEmails
             .Where(email => email.MailboxAccountId == accountIdValue
-                && erasedFolderIds.Contains(email.LocalMailFolderId))
+                && erasedFolderIds.Contains(email.FolderId))
             .OrderBy(static email => email.Id)
             .Take(maxEmails + 1)
             .ToArrayAsync(cancellationToken);
@@ -167,7 +179,7 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
         return new LocalMailFolderMailErasure(removed.Length, emailsRemain);
     }
 
-    public async Task<MailFolderAlias?> EraseEmailAsync(
+    public async Task<MailFolderId?> EraseEmailAsync(
         IPersistenceSession session,
         MailAccountId account,
         StoredEmailId email,
@@ -178,7 +190,7 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
         var emailValue = email.Value;
 
         var row = await sessionContext.StoredEmails
-            .Include(static stored => stored.MailFolder)
+            .Include(static stored => stored.MailFolderBinding)
             .SingleOrDefaultAsync(
                 stored => stored.Id == emailValue
                     && stored.MailboxAccountId == accountIdValue,
@@ -198,7 +210,7 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
         await ReleasedContentObjects.ReleaseForStoredEmailsAsync(session, removedIds, cancellationToken);
         sessionContext.StoredEmails.Remove(row);
 
-        return MailFolderAlias.Create(row.MailFolder.Alias);
+        return MailFolderId.Create(row.FolderId);
     }
 
     /// <summary>Records where the source still holds each message this erasure is about to remove locally.</summary>
@@ -211,8 +223,8 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
         CancellationToken cancellationToken) =>
         sessionContext.MailboxAccounts.FindAsync([account.Value], cancellationToken);
 
-    private static IQueryable<LocalMailFolderEntity> AccountFolders(
-        IQueryable<LocalMailFolderEntity> folders,
+    private static IQueryable<MailFolderEntity> AccountFolders(
+        IQueryable<MailFolderEntity> folders,
         MailAccountId account)
     {
         var accountIdValue = account.Value;
@@ -221,7 +233,7 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
     }
 
     private static async Task<LocalMailFolderHolding> HoldingAsync(
-        IQueryable<LocalMailFolderEntity> folders,
+        IQueryable<MailFolderEntity> folders,
         MailAccountId account,
         MailAccountCustodyPhase phase,
         CancellationToken cancellationToken)
@@ -241,8 +253,8 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
             [.. rows.Where(static row => row.ErasedAt is null).Select(ToFolder)],
             [
                 .. rows
-                    .Where(static row => row.ErasedAt is not null && row.SourceFolderAlias is not null)
-                    .Select(static row => MailFolderAlias.Create(row.SourceFolderAlias!))
+                    .Where(static row => row.ErasedAt is not null && row.Alias is not null)
+                    .Select(static row => MailFolderAlias.Create(row.Alias!))
                     .Distinct(),
             ]);
     }
@@ -253,31 +265,31 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
         MailAccountId account,
         CancellationToken cancellationToken)
     {
-        var erasedRows = await AccountFolders(sessionContext.LocalMailFolders, account)
+        var erasedRows = await AccountFolders(sessionContext.MailFolders, account)
             .Where(static row => row.ErasedAt != null)
             .ToArrayAsync(cancellationToken);
 
-        foreach (var kept in erasedRows.Where(static row => row.SourceFolderAlias is not null))
+        foreach (var kept in erasedRows.Where(static row => row.Alias is not null))
         {
             // The name a person may have typed is not kept past the mail it named; the alias is the operator's own word.
             kept.ParentId = null;
-            kept.Name = kept.SourceFolderAlias!;
-            kept.NameKey = kept.SourceFolderAlias!.ToUpperInvariant();
+            kept.Name = kept.Alias!;
+            kept.NameKey = kept.Alias!.ToUpperInvariant();
         }
 
-        sessionContext.LocalMailFolders.RemoveRange(erasedRows.Where(static row => row.SourceFolderAlias is null));
+        sessionContext.MailFolders.RemoveRange(erasedRows.Where(static row => row.Alias is null));
     }
 
-    private static LocalMailFolder ToFolder(LocalMailFolderEntity row) => new(
-        LocalMailFolderId.Create(row.Id),
-        row.ParentId is { } parentId ? LocalMailFolderId.Create(parentId) : null,
+    private static LocalMailFolder ToFolder(MailFolderEntity row) => new(
+        MailFolderId.Create(row.Id),
+        row.ParentId is { } parentId ? MailFolderId.Create(parentId) : null,
         LocalMailFolderName.Create(row.Name),
         row.Role,
-        row.SourceFolderAlias is { } alias ? MailFolderAlias.Create(alias) : null);
+        row.Alias is { } alias ? MailFolderAlias.Create(alias) : null);
 
-    private static LocalMailFolderEntity NewRow(MailAccountId account, LocalMailFolder folder)
+    private static MailFolderEntity NewRow(MailAccountId account, LocalMailFolder folder)
     {
-        var row = new LocalMailFolderEntity
+        var row = new MailFolderEntity
         {
             Id = folder.Id.Value,
             MailboxAccountId = account.Value,
@@ -290,12 +302,12 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
         return row;
     }
 
-    private static void Apply(LocalMailFolderEntity row, LocalMailFolder folder)
+    private static void Apply(MailFolderEntity row, LocalMailFolder folder)
     {
         row.ParentId = folder.ParentId?.Value;
         row.Name = folder.Name.Value;
         row.NameKey = folder.Name.ComparisonKey;
         row.Role = folder.Role;
-        row.SourceFolderAlias = folder.SourceFolderAlias?.Value;
+        row.Alias = folder.SourceFolderAlias?.Value;
     }
 }

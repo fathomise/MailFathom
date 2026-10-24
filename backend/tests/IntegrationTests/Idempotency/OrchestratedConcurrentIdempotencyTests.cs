@@ -272,9 +272,9 @@ public sealed class OrchestratedConcurrentIdempotencyTests(MailFathomOrchestrati
 
         return scope.GetRequiredService<MailFathomDbContext>().StoredEmails
             .AsNoTracking()
-            .Where(storedEmail => storedEmail.MailFolder.MailboxAccountId == SyntheticMailAccount.AccountId.Value
-                && storedEmail.MailFolder.Alias == alias
-                && storedEmail.MailFolder.ResolutionGeneration == generation
+            .Where(storedEmail => storedEmail.MailFolderBinding.MailboxAccountId == SyntheticMailAccount.AccountId.Value
+                && storedEmail.MailFolderBinding.Alias == alias
+                && storedEmail.MailFolderBinding.ResolutionGeneration == generation
                 && storedEmail.UidValidity == uidValidity
                 && storedEmail.Uid == uid);
     }
@@ -396,8 +396,8 @@ public sealed class OrchestratedConcurrentIdempotencyTests(MailFathomOrchestrati
             (scope, token) => scope.GetRequiredService<MailFathomDbContext>().StoredEmails
                 .AsNoTracking()
                 .CountAsync(
-                    storedEmail => storedEmail.MailFolder.MailboxAccountId == SyntheticMailAccount.AccountId.Value
-                        && storedEmail.MailFolder.Alias == storedAlias
+                    storedEmail => storedEmail.MailFolderBinding.MailboxAccountId == SyntheticMailAccount.AccountId.Value
+                        && storedEmail.MailFolderBinding.Alias == storedAlias
                         && storedEmail.RulesEvaluatedAt == EvaluatedAt,
                     token),
             cancellationToken);

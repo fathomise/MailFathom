@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Security.Cryptography;
+using System.Text;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Folders;
 using MailFathom.Domain.Folders;
@@ -45,7 +47,7 @@ public sealed class ClientMailFoldersEndpointTests
 
         // Assert
         var folder = Assert.Single(Assert.Single(response.Accounts).Folders);
-        Assert.Equal("INBOX", folder.Alias);
+        Assert.Equal(IdOf("inbox").ToString(), folder.Id);
         Assert.Equal(nameof(MailFolderSpecialUse.Inbox), folder.Role);
         Assert.Equal(["INBOX"], folder.Path);
         Assert.Equal(12, folder.StoredEmailCount);
@@ -124,6 +126,7 @@ public sealed class ClientMailFoldersEndpointTests
         var directory = Directory(Account(
             Work,
             new DescribedMailFolder(
+                IdOf("inbox"),
                 new MailFolderFreshness(MailFolderAlias.Create("inbox"), state, SynchronizedAt, IsBehind: false),
                 MailFolderSpecialUse.Inbox,
                 ["INBOX"],
@@ -149,6 +152,7 @@ public sealed class ClientMailFoldersEndpointTests
         var directory = Directory(Account(
             Work,
             new DescribedMailFolder(
+                IdOf("inbox"),
                 new MailFolderFreshness(
                     MailFolderAlias.Create("inbox"),
                     MailSynchronizationState.Synchronized,
@@ -164,6 +168,25 @@ public sealed class ClientMailFoldersEndpointTests
 
         // Assert
         Assert.Equal(behind, Assert.Single(Assert.Single(response.Accounts).Folders).Behind);
+    }
+
+    /// <summary>A folder MailFathom keeps itself carries no synchronization fields, because nothing synchronizes it.</summary>
+    [Fact]
+    public void For_AFolderNothingSynchronizes_CarriesNoSynchronizationState()
+    {
+        // Arrange
+        var directory = Directory(Account(
+            Work,
+            new DescribedMailFolder(IdOf("projects"), Freshness: null, Role: null, ["Projects"], 4, 1)));
+
+        // Act
+        var response = ClientMailFoldersResponse.For(directory);
+
+        // Assert
+        var folder = Assert.Single(Assert.Single(response.Accounts).Folders);
+        Assert.Null(folder.SynchronizationState);
+        Assert.Null(folder.LastSynchronizedAt);
+        Assert.False(folder.Behind);
     }
 
     /// <summary>An alias nothing has bound to a remote folder carries no hierarchy rather than a level nobody can read.</summary>
@@ -199,7 +222,9 @@ public sealed class ClientMailFoldersEndpointTests
 
         // Assert
         Assert.Equal([Private.Id.Value, Work.Id.Value], response.Accounts.Select(account => account.Account.Id));
-        Assert.Equal(["ARCHIVE", "INBOX"], response.Accounts[1].Folders.Select(folder => folder.Alias));
+        Assert.Equal(
+            [IdOf("archive").ToString(), IdOf("inbox").ToString()],
+            response.Accounts[1].Folders.Select(folder => folder.Id));
     }
 
     /// <summary>A user with no account reads an empty tree, which is a state a client renders rather than an error.</summary>
@@ -244,7 +269,7 @@ public sealed class ClientMailFoldersEndpointTests
                 MailSynchronizationState.Synchronized,
                 SynchronizedAt,
                 IsBehind: false,
-                [.. folders.Select(folder => folder.Freshness)]),
+                [.. folders.Select(folder => folder.Freshness).OfType<MailFolderFreshness>()]),
             folders);
 
     private static DescribedMailFolder Folder(
@@ -254,6 +279,7 @@ public sealed class ClientMailFoldersEndpointTests
         int storedEmailCount,
         int unreadEmailCount) =>
         new(
+            IdOf(alias),
             new MailFolderFreshness(
                 MailFolderAlias.Create(alias),
                 MailSynchronizationState.Synchronized,
@@ -263,4 +289,7 @@ public sealed class ClientMailFoldersEndpointTests
             hierarchyLevels,
             storedEmailCount,
             unreadEmailCount);
+
+    private static MailFolderId IdOf(string alias) =>
+        MailFolderId.Create(new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(alias)).AsSpan(0, 16)));
 }

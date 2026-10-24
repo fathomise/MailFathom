@@ -34,11 +34,11 @@ function listed(deployment: FakeDeployment, query: string): string[] {
 }
 
 /** The two counts the folders route answers for one folder of the corpus mailbox. */
-function counts(deployment: FakeDeployment, alias: string): { stored: number; unread: number } {
+function counts(deployment: FakeDeployment, folderId: string): { stored: number; unread: number } {
     const folders = ask(deployment, 'GET', '/folders') as {
-        accounts: { folders: { alias: string; storedEmailCount: number; unreadEmailCount: number }[] }[];
+        accounts: { folders: { id: string; storedEmailCount: number; unreadEmailCount: number }[] }[];
     };
-    const folder = folders.accounts.flatMap((account) => account.folders).find((held) => held.alias === alias);
+    const folder = folders.accounts.flatMap((account) => account.folders).find((held) => held.id === folderId);
 
     return { stored: folder?.storedEmailCount ?? Number.NaN, unread: folder?.unreadEmailCount ?? Number.NaN };
 }
@@ -120,11 +120,11 @@ test('takes a deleted folder out of both folder routes, the mail filed in it out
     });
 
     const managed = ask(deployment, 'GET', '/managed-folders?account=work') as { folders: { id: string }[] };
-    const folders = ask(deployment, 'GET', '/folders') as { accounts: { folders: { alias: string }[] }[] };
+    const folders = ask(deployment, 'GET', '/folders') as { accounts: { folders: { id: string }[] }[] };
     const searchedAgain = ask(deployment, 'GET', '/emails/search?query=renewal') as { results: { id: string }[] };
 
     expect(managed.folders.map(({ id }) => id)).toStrictEqual(['INBOX', 'DRAFTS', 'ARCHIVE', 'FILED', 'TRASH']);
-    expect(folders.accounts.flatMap((account) => account.folders.map(({ alias }) => alias))).toStrictEqual([
+    expect(folders.accounts.flatMap((account) => account.folders.map(({ id }) => id))).toStrictEqual([
         'INBOX',
         'DRAFTS',
         'FILED',
@@ -139,14 +139,14 @@ test('takes a deleted folder out of both folder routes, the mail filed in it out
     });
 });
 
-test('answers a folder made, renamed, and moved at the place each act put it, under the alias it was made with', () => {
+test('answers a folder made, renamed, and moved at the place each act put it, under the identity it was made with', () => {
     const deployment = new FakeDeployment('0.0.0');
     const placed = () => {
         const folders = ask(deployment, 'GET', '/folders') as {
-            accounts: { folders: { alias: string; path: string[] }[] }[];
+            accounts: { folders: { id: string; path: string[] }[] }[];
         };
 
-        return folders.accounts.flatMap((account) => account.folders).find(({ alias }) => alias === 'SUPPLIERS')?.path;
+        return folders.accounts.flatMap((account) => account.folders).find(({ id }) => id === 'SUPPLIERS')?.path;
     };
 
     expect(

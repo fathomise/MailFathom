@@ -284,7 +284,7 @@ describe('App session', () => {
             'mailfathom.workspace',
             JSON.stringify({
                 ...emptyWorkspace,
-                scope: { kind: 'folder', accountId: 'work', alias: 'INBOX' },
+                scope: { kind: 'folder', accountId: 'work', folderId: 'INBOX' },
                 selection: 'AAMkAD-42',
             }),
         );

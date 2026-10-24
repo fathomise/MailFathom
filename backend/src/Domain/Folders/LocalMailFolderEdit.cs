@@ -18,7 +18,7 @@ public sealed record LocalMailFolderEdit
     public IReadOnlyList<LocalMailFolder> Saved { get; private init; } = [];
 
     /// <summary>Gets the folders the act erases, which is the subject and everything beneath it.</summary>
-    public IReadOnlyList<LocalMailFolderId> Erased { get; private init; } = [];
+    public IReadOnlyList<MailFolderId> Erased { get; private init; } = [];
 
     /// <summary>Gets why the act was refused, or <see langword="null" /> where it was not.</summary>
     public MailFolderActRefusal? Refusal { get; private init; }
@@ -30,6 +30,6 @@ public sealed record LocalMailFolderEdit
 
     internal static LocalMailFolderEdit Saving(LocalMailFolder folder) => new() { Folder = folder, Saved = [folder] };
 
-    internal static LocalMailFolderEdit Erasing(LocalMailFolder folder, IReadOnlyList<LocalMailFolderId> subtree) =>
+    internal static LocalMailFolderEdit Erasing(LocalMailFolder folder, IReadOnlyList<MailFolderId> subtree) =>
         new() { Folder = folder, Erased = subtree };
 }

@@ -36,7 +36,7 @@ divergence neither copy would look wrong for on its own.
 | Field | Meaning | Absent means |
 |---|---|---|
 | `Accounts` | The accounts to list from, each named by its identifier or by its display name | every account the caller is assigned |
-| `Folders` | The folders to list from, each named by its alias or by the role it plays | every folder those accounts map and let tools read |
+| `Folders` | The folders to list from, each named by its identity or by the role it plays | every folder of those accounts that tools may read |
 | `SenderAddress` | The address the sender must carry, in any case | any sender |
 | `RecipientAddress` | The address a `To` or `Cc` recipient must carry | any recipient |
 | `SubjectFragment` | Text the subject must contain, compared without regard to case | any subject |
@@ -53,15 +53,16 @@ divergence neither copy would look wrong for on its own.
 | `Cursor` | The cursor a previous page returned | the first page |
 
 Accounts and folders are named by their domain identities rather than as text, so an adapter converts a caller's strings
-once at its own boundary. A folder alias is MailFathom's own name for a folder and is normalized to upper case, which is why
-naming `archive` and `ARCHIVE` is naming one folder.
+once at its own boundary. A folder is named by the identity MailFathom issued for it, which is the same on every account
+whichever copy of its mailbox is the truth and survives a rename or a move; a folder's configured alias is a key
+configuration uses and is refused here with `51002`.
 
 A folder may instead be named by the [role it plays](imap-synchronization.md#what-a-role-says-beside-how-a-folder-is-found),
-written `role:Junk`, and the role becomes an alias here rather than at the boundary above: a role means a different
-folder on each account, so it is expanded once the accounts in scope are settled and contributes each of their own
-folders. A role no account in scope maps is refused with `53003 MailFolderRoleUnmapped`, unlike an alias nothing maps,
-which selects nothing — an alias is already a name the caller chose to use, while a role that reached no folder anywhere
-would leave a caller reading an empty page as an empty folder.
+written `role:Junk`, and the role is read against the role each account's own folder plays: a role means a different
+folder on each account, so it contributes each of their own folders once the accounts in scope are settled. A role no
+account in scope maps is refused with `53003 MailFolderRoleUnmapped`, unlike an identity no folder carries, which selects
+nothing — an identity is already a name the caller chose to use, while a role that reached no folder anywhere would
+leave a caller reading an empty page as an empty folder.
 
 A listing that names no folder reads every folder the account maps and lets tools read, so a message that exists in two
 of them — because it was copied, by
@@ -173,7 +174,7 @@ set it named no longer exists.
 ### Folders withheld from tools
 
 A folder mapped with `VisibleToTools: false` is outside every read a tool performs, whatever the request named. It is not
-listed, not searched, not answered from, and not readable by identifier: naming its alias in `Folders` narrows the
+listed, not searched, not answered from, and not readable by identifier: naming its identity in `Folders` narrows the
 listing to a folder that is then excluded, so the page is empty rather than refused, and asking for one of its emails by
 identifier reports the email as not found rather than as withheld. An attachment link minted before the switch was set
 stops serving for the same reason, because the question is asked where the download is served rather than where the link
@@ -185,15 +186,18 @@ before anything is recorded, so a folder the switch withholds is one no caller c
 meets is the not-found answer above rather than one that says the folder exists. A write surface that reached what a
 read withholds would be a way round the switch rather than a second capability.
 
-A folder **no mapping names** gives the same answers, and for a stronger reason: the scope carries the folders a mapping
-names and leaves visible, so a read admits that list and nothing else. Mail stored under an alias whose mapping was
-later removed is therefore mail no page reaches, no search matches, and no identifier resolves — the rows stay in the
-table and stop being readable the moment configuration stops naming their folder. An account whose configuration maps no
-folder at all reads as empty rather than as unrestricted, which is what "a folder MailFathom does not have" has to mean
-for it to mean anything.
+A folder **configuration stopped naming** gives the same answers, and for a stronger reason: the scope carries the
+folders a mapping names and leaves visible, so a read admits that list and nothing else among the folders an alias
+feeds. Mail stored under an alias whose mapping was later removed is therefore mail no page reaches, no search matches,
+and no identifier resolves — the rows stay in the table and stop being readable the moment configuration stops naming
+their folder, until the withdrawn folder's erasure removes them. A folder no alias feeds at all — one a person made, or a
+server folder no configuration names — is no folder configuration withheld, so it is read on any account the caller is
+assigned. An account whose configuration maps no folder at all reads as empty rather than as unrestricted, which is what
+"a folder MailFathom does not have" has to mean for it to mean anything.
 
 The decision is made once, where the scope every read model is expressed in is resolved, and it narrows by the account
-and the alias **together** — one account's mapping never admits or withholds another account's folder of the same name.
+and the alias **together** — one account's mapping never admits or withholds another account's folder of the same
+name — against the alias recorded on the folder row a message names.
 It deliberately takes no part in the cursor's fingerprint: a cursor stays valid across the change, and the pages after it
 simply stop admitting the folder, which is what an operator withholding it or removing its mapping meant.
 
@@ -246,7 +250,7 @@ values, beside the total attachment size and the encrypted, unverified-signature
 ## What a summary carries
 
 `EmailSummary` is the bounded projection a listing returns: the stable local identifier every later request names the
-email by, its account and folder alias, the message identifier, the identifier of the
+email by, its account and folder — the folder's identity and its place in the account's hierarchy — the message identifier, the identifier of the
 [conversation](../architecture/stored-email-schema.md#the-conversation-a-message-belongs-to) it belongs to, subject,
 sent and received timestamps, size, the sender's display name and address, the sender verdict, the machine-authorship
 reading, the `To` addresses, the attachment summary, whether raw MIME is stored locally, and the remote flag snapshot.
@@ -438,10 +442,11 @@ issued for. It carries no secret and needs no signature, because every value in 
 already received; encoding it is about opacity — a client that cannot read a cursor cannot build one, and building one is
 how a caller would end up asking for a boundary this system never computed.
 
-The fingerprint is computed over a text in which every value carries its own length in front of it. A folder alias may
-contain a comma, so joining a list with one would let `["ARCHIVE,SENT", "TRASH"]` and `["ARCHIVE", "SENT,TRASH"]` produce
-the same text — and a cursor accepted across those two scopes names a real row in the wrong result set, which is the one
-failure the fingerprint exists to prevent.
+The fingerprint is computed over a text in which every value carries its own length in front of it, and in which the
+folders a scope names and the roles it names are two separate lists. A value written by a caller — a sender, a subject
+term — may contain a comma, so joining a list with one would let `["a,b", "c"]` and `["a", "b,c"]` produce the same
+text, and a scope naming a folder must never read as one naming a role — either way a cursor accepted across two scopes
+names a real row in the wrong result set, which is the one failure the fingerprint exists to prevent.
 
 - A cursor presented against **different filters or a different direction** is refused with
   `52002 MailboxQueryCursorFilterMismatch`. It would still name a row, which is exactly why honoring it would be wrong:
@@ -546,10 +551,11 @@ answer about the mailbox.
 
 A folder with no checkpoint is reported with no timestamp rather than omitted, because it is the folder whose staleness a
 caller most needs to see. An alias that has been bound to several remote folders over time reports the most recent
-progress of any of those bindings, which is what "how current is this alias" means to a reader.
+progress of any of those bindings, which is what "how current is this folder" means to a reader. Each entry names the
+folder by its identity and its place in the account's hierarchy, exactly as a summary does.
 
-PostgreSQL performs that aggregate, so the rows crossing the boundary number one per alias in scope. The count of
-historical bindings behind an alias grows every time a server recreates the folder, and grouping them in process would
+PostgreSQL performs that aggregate, so the rows crossing the boundary number one per synchronized folder in scope. The
+count of historical bindings behind an alias grows every time a server recreates the folder, and grouping them in process would
 make an ordinary listing pay for that history; the result itself is bounded by the folders of the accounts in scope, which
 configuration bounds.
 
@@ -590,37 +596,29 @@ from the reading above because it costs more — counting a folder's mail is wor
 nothing listing messages needs any of it.
 
 `IStoredMailFolderReader` is the port that answers those, over the same mailbox scope every other read narrows by, so a
-folder withheld from a caller is withheld from its counts as well. It answers in two queries: the newest binding of each
-alias, which records where the last pass found the folder and the delimiter its server nests with, and one aggregate
-over the mail those aliases hold. The counts are of
-every binding's mail together, because an alias rebound after a server recreated the folder still lists what the older
-binding stored, and they admit exactly the rows a listing of the folder would return — a count assembled from its own
-idea of what is readable would be a figure no listing could reproduce.
+folder withheld from a caller is withheld from its counts as well. It reads the account's folder rows — the one folder
+model every account has, whichever copy of its mailbox is the truth — and one aggregate over the mail each row holds,
+grouped by the folder a message names, so the counts admit exactly the rows a listing of the folder would return; a
+count assembled from its own idea of what is readable would be a figure no listing could reproduce. A folder's place
+is the chain of names from the top of its account's hierarchy down to it, read from the rows rather than from a mail
+server, which is what lets a held account's folders, and a folder a person made on one, be drawn exactly as a mirrored
+account's are.
 
-The folders this port answers are the ones local state knows of, and an alias configuration maps that nothing has ever
-bound to a remote folder is absent from it rather than empty, because there is no binding to read a hierarchy or a count
-from. The reading composed on top of it is wider: `MailFolderDirectoryReader` publishes the folders configuration maps
-as well, so a mapped folder that reading did not name is published beside the mirrored ones as never synchronized, at
-the place its declaration names and with no mail here. Two cases reach that. A folder an operator asked not to mirror is never
-scheduled and therefore never discovered; it is still a folder the account has and still a folder
-[a move](../operations/client-endpoint.md#the-mutation-routes) files into, resolution being indifferent to mirroring, so
-a client that could not see one would be told an account has nowhere to put a deleted message while its mailbox has a
-trash folder. And a folder somebody has just declared is mirrored and takes part in everything, so no run has
-discovered it yet and local state names it nowhere — a client that could not see it would report the folder as created
-and then draw a tree without it until the account's next pass, which is minutes. A folder an operator withheld from
-tools is the one that stays absent, for the same reason it is absent from every other read: it is mirrored and holds
-mail, and the resolved scope left it out on purpose. That reading is what
-[`GET /api/client/folders`](../operations/client-endpoint.md#the-folders-route) publishes; the whole configured list,
-mirrored or not and withheld or not, is [the administrative status route](../operations/admin-endpoint.md).
+On a mirrored account the rows are synchronization's projection of the source: each run's declaration gives every
+folder configuration declares a row, mirrored or not, so a folder an operator asked not to mirror is still a folder the
+account has and still a folder [a move](../operations/client-endpoint.md#the-mutation-routes) files into, and a folder
+somebody has just declared is drawn at once rather than after the account's next pass. Binding a folder places its row
+where the server places the folder, under the row of its remote parent, so a server folder no configuration names
+appears as the level its children are drawn under. A folder act puts the row where the act put the folder before its
+own `FoldersChanged` re-read, so a folder just renamed or moved is drawn in its new place at once, and a folder just made
+is drawn at the top of the hierarchy until the next pass places it beneath its parent.
 
-Where a folder sits is read from its declaration wherever the declaration names a path, and from the newest binding
-only for a folder found by the role it plays. A folder act writes the declaration and nothing else, so a binding is a
-pass behind every act: a folder just made has none, and one just renamed or moved keeps the binding of the path it
-left until the account's next pass reaches it. The declaration is what the act's own `FoldersChanged` re-read reads, so
-the folder is drawn where the act put it at once. A declared path carries no delimiter, being text somebody wrote, so it
-is split by the delimiter the folder's own binding recorded and otherwise by the one the account's other bindings
-recorded; an account no pass has reached yet has recorded none, and its declared paths read as one level each until one
-has.
+The freshness a folder carries is the one the composed reading reported for the alias its row stands for, and
+`NeverSynchronized` where that reading names none — a folder declared and not mirrored. A folder no alias feeds is one
+MailFathom keeps itself and carries no freshness at all. A folder an operator withheld from tools is the one that stays
+absent, for the same reason it is absent from every other read: the resolved scope left it out on purpose. That reading
+is what [`GET /api/client/folders`](../operations/client-endpoint.md#the-folders-route) publishes; the whole configured
+list, mirrored or not and withheld or not, is [the administrative status route](../operations/admin-endpoint.md).
 
 ## Where the pieces live
 

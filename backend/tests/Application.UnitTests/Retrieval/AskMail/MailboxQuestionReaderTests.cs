@@ -108,15 +108,13 @@ public sealed class MailboxQuestionReaderTests
             {
                 QuestionText = "what did the insurer agree to pay",
                 Accounts = [MailAccountSelector.Create(ServedAccountId)],
-                Folders = [MailFolderReference.ToAlias(MailFolderAlias.Create("archive"))],
+                Folders = [MailFolderReference.ToFolder(SyntheticEmailSummaries.FolderIdOf(ServedAccountId, "ARCHIVE"))],
             });
 
         // Assert
         var question = Assert.Single(answerer.Questions);
         Assert.Equal([MailAccountId.Create(ServedAccountId)], question.Scope.AccountIds);
-        Assert.Equal(
-            [new MailFolderIdentity(MailAccountId.Create(ServedAccountId), MailFolderAlias.Create("ARCHIVE"))],
-            question.Scope.SelectedFolders);
+        Assert.Equal([SyntheticEmailSummaries.FolderIdOf(ServedAccountId, "ARCHIVE")], question.Scope.SelectedFolders);
     }
 
     /// <summary>The access decision is made before a provider is reached, so an unserved account costs nothing to refuse.</summary>
@@ -329,7 +327,7 @@ public sealed class MailboxQuestionReaderTests
         var citation = Assert.Single(result.Citations);
         Assert.Equal(StoredEmailId.Create(EmailIdentityAt(1)), citation.StoredEmailId);
         Assert.Equal(MailAccountId.Create(ServedAccountId), citation.AccountId);
-        Assert.Equal(MailFolderAlias.Create("INBOX"), citation.FolderAlias);
+        Assert.Equal(SyntheticEmailSummaries.FolderOf(ServedAccountId, "INBOX"), citation.Folder);
         Assert.Equal("Quarterly invoice", citation.Subject);
         Assert.Equal(Now, citation.ReceivedAt);
         Assert.Equal(AuthorAuthenticationOutcome.Authenticated, citation.SenderVerification.AuthorAuthentication);
@@ -781,7 +779,7 @@ public sealed class MailboxQuestionReaderTests
         {
             StoredEmailId = StoredEmailId.Create(EmailIdentityAt(position)),
             AccountId = MailAccountId.Create(ServedAccountId),
-            FolderAlias = MailFolderAlias.Create("INBOX"),
+            Folder = SyntheticEmailSummaries.FolderOf(ServedAccountId, "INBOX"),
             Subject = "Quarterly invoice",
             ReceivedAt = Now,
             SenderVerification = senderVerification ?? SenderVerification.NotEstablished,

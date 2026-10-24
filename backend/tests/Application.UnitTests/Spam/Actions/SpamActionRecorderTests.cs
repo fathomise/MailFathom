@@ -526,7 +526,7 @@ public sealed class SpamActionRecorderTests
             Account,
             [
                 new LocalMailFolder(
-                    LocalMailFolderId.Create(Guid.CreateVersion7()),
+                    MailFolderId.Create(Guid.CreateVersion7()),
                     ParentId: null,
                     LocalMailFolderName.Create("Junk"),
                     Role: null,

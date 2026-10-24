@@ -336,11 +336,11 @@ export function FolderTree({
     function managedFolderOf(row: FolderTreeRow): ManagedMailFolder | null {
         const report = row.accountId === null ? undefined : managed.get(row.accountId);
 
-        if (report === undefined || row.alias === null) {
+        if (report === undefined || row.folderId === null) {
             return null;
         }
 
-        return report.folders.find((folder) => folder.id === row.alias) ?? null;
+        return report.folders.find((folder) => folder.id === row.folderId) ?? null;
     }
 
     /** What the service said about a row: what its mailbox allows, and what the row's own folder allows. */
@@ -384,7 +384,7 @@ export function FolderTree({
         // be a control that works or does not by the second.
         if (act === 'markAllRead') {
             if (row.accountId !== null) {
-                maintenance.markAllRead(row.accountId, row.alias, said);
+                maintenance.markAllRead(row.accountId, row.folderId, said);
             }
 
             return;
@@ -540,7 +540,7 @@ export function FolderTree({
     function droppedOn(row: FolderTreeRow): (() => void) | undefined {
         const destination =
             row.scope?.kind === 'folder' && !groupOrdinals.has(row.key)
-                ? dropDestination(offered, carried, row.scope.accountId, row.scope.alias)
+                ? dropDestination(offered, carried, row.scope.accountId, row.scope.folderId)
                 : null;
 
         if (destination === null) {

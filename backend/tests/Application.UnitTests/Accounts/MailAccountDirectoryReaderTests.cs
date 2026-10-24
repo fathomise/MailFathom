@@ -5,6 +5,7 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Folders;
 using MailFathom.Application.Observability;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Application.UnitTests.TestDoubles;
@@ -66,6 +67,32 @@ public sealed class MailAccountDirectoryReaderTests
         Assert.Equal(
             [("ARCHIVE", null), ("INBOX", SynchronizedAt)],
             folders.Select(folder => (folder.FolderAlias.Value, folder.SynchronizedAt)));
+    }
+
+    /// <summary>Every account's own folder rows are published under it, in the order of their place in the tree, whatever the store answered.</summary>
+    [Fact]
+    public async Task ReadAsync_StoredFoldersOfTwoAccounts_PublishesEachUnderItsAccountInTreeOrder()
+    {
+        // Arrange
+        var projects = StoredFolder(Work.Id, 1, "Projects");
+        var projectsAlpha = StoredFolder(Work.Id, 2, "Projects", "Alpha");
+        var inbox = StoredFolder(Work.Id, 3, "INBOX");
+        var privateInbox = StoredFolder(Private.Id, 4, "INBOX");
+        var reader = ReaderOver(
+            new RecordingMailboxReadTelemetry(),
+            Freshness(),
+            StoredFolders(projectsAlpha, privateInbox, projects, inbox),
+            synchronizationEnabled: true,
+            Work,
+            Private);
+
+        // Act
+        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            [[inbox, projects, projectsAlpha], [privateInbox]],
+            directory.Accounts.Select(account => account.StoredFolders));
     }
 
     /// <summary>An account nothing has reached is published with no folder rather than omitted, so it can still be named in a request.</summary>
@@ -210,6 +237,7 @@ public sealed class MailAccountDirectoryReaderTests
         return new MailAccountDirectoryReader(
             catalog,
             Freshness(),
+            StoredFolders(),
             new MailboxScopeResolver(
                 catalog,
                 StubMailFolderParticipation.Nothing,
@@ -234,6 +262,14 @@ public sealed class MailAccountDirectoryReaderTests
         IMailboxReadTelemetry readTelemetry,
         ISynchronizationFreshnessReader freshnessReader,
         bool synchronizationEnabled,
+        params ServedMailAccount[] servedAccounts) =>
+        ReaderOver(readTelemetry, freshnessReader, StoredFolders(), synchronizationEnabled, servedAccounts);
+
+    private static MailAccountDirectoryReader ReaderOver(
+        IMailboxReadTelemetry readTelemetry,
+        ISynchronizationFreshnessReader freshnessReader,
+        IStoredMailFolderReader storedFolders,
+        bool synchronizationEnabled,
         params ServedMailAccount[] servedAccounts)
     {
         var catalog = Substitute.For<ICallerMailAccountCatalog>();
@@ -243,6 +279,7 @@ public sealed class MailAccountDirectoryReaderTests
         return new MailAccountDirectoryReader(
             catalog,
             freshnessReader,
+            storedFolders,
             new MailboxScopeResolver(
                 catalog,
                 StubMailFolderParticipation.Nothing,
@@ -251,6 +288,24 @@ public sealed class MailAccountDirectoryReaderTests
             readTelemetry,
             AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead));
     }
+
+    /// <summary>Answers the stored folders a test names, in whatever order it names them.</summary>
+    private static IStoredMailFolderReader StoredFolders(params StoredMailFolder[] folders)
+    {
+        var storedFolders = Substitute.For<IStoredMailFolderReader>();
+        storedFolders.ReadAsync(Arg.Any<MailboxScope>(), Arg.Any<CancellationToken>()).Returns(folders);
+
+        return storedFolders;
+    }
+
+    private static StoredMailFolder StoredFolder(MailAccountId account, int number, params string[] hierarchyLevels) => new(
+        account,
+        MailFolderId.Create(Guid.Parse($"0199c1a2-0000-7000-8000-{number:D12}")),
+        Alias: null,
+        Role: null,
+        hierarchyLevels,
+        StoredEmailCount: 0,
+        UnreadEmailCount: 0);
 
     /// <summary>Answers the folders local state knows of, in an order the reader is expected to correct.</summary>
     private static ISynchronizationFreshnessReader Freshness(

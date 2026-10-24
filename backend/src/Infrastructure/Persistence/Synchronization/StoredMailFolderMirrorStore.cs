@@ -42,7 +42,7 @@ internal sealed class StoredMailFolderMirrorStore(TimeProvider timeProvider) : I
         // the same rows.
         var erased = await sessionContext.StoredEmails
             .Where(email => email.MailboxAccountId == accountIdValue
-                && email.MailFolder.Alias == aliasValue)
+                && email.MailFolderBinding.Alias == aliasValue)
             .OrderBy(email => email.Id)
             .Take(maxEmails + 1)
             .ToArrayAsync(cancellationToken);
@@ -120,8 +120,8 @@ internal sealed class StoredMailFolderMirrorStore(TimeProvider timeProvider) : I
         CancellationToken cancellationToken)
     {
         var checkpoints = await sessionContext.SynchronizationCheckpoints
-            .Where(checkpoint => checkpoint.MailFolder.MailboxAccountId == accountIdValue
-                && checkpoint.MailFolder.Alias == aliasValue)
+            .Where(checkpoint => checkpoint.MailFolderBinding.MailboxAccountId == accountIdValue
+                && checkpoint.MailFolderBinding.Alias == aliasValue)
             .ToArrayAsync(cancellationToken);
 
         if (checkpoints.Length > 0)

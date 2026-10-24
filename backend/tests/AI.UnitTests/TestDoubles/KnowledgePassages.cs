@@ -18,7 +18,7 @@ internal static class KnowledgePassages
     /// <param name="text">The extract itself.</param>
     /// <param name="storedEmailId">The stable identity, or <see langword="null" /> to generate one.</param>
     /// <param name="accountId">The account the message belongs to.</param>
-    /// <param name="folderAlias">The folder alias the message belongs to.</param>
+    /// <param name="folderPath">The place in its account's hierarchy of the folder the message is in.</param>
     /// <param name="subject">The subject, or <see langword="null" /> for a message that carried none.</param>
     /// <param name="senderVerification">
     /// What was established about the message's author, or <see langword="null" /> for the stored default. A test about
@@ -36,7 +36,7 @@ internal static class KnowledgePassages
         string text,
         Guid? storedEmailId = null,
         string accountId = "primary",
-        string folderAlias = "INBOX",
+        string folderPath = "INBOX",
         string? subject = null,
         SenderVerification? senderVerification = null,
         MachineAuthorshipAssessment? machineAuthorship = null,
@@ -45,7 +45,7 @@ internal static class KnowledgePassages
             AttachmentExtracts = attachmentExtracts,
             StoredEmailId = StoredEmailId.Create(storedEmailId ?? Guid.CreateVersion7()),
             AccountId = MailAccountId.Create(accountId),
-            FolderAlias = MailFolderAlias.Create(folderAlias),
+            Folder = new StoredEmailFolder(MailFolderId.Create(Guid.CreateVersion7()), folderPath, Alias: null),
             Subject = subject,
             ReceivedAt = null,
             SenderVerification = senderVerification ?? SenderVerification.NotEstablished,

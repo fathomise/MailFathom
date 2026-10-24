@@ -252,7 +252,6 @@ public sealed class OrchestratedMailboxMutationRecordTests(MailFathomOrchestrati
             scope.GetRequiredService<OptimisticConcurrencyRetryPolicy>(),
             scope.GetRequiredService<IMailboxMutationAuditTrail>(),
             ClientSignalPublishers.ReachingNobody,
-            scope.GetRequiredService<IMailFolderResolutionStore>(),
             new MailboxMutationOptions());
 
         return await performer.PerformAsync(
@@ -296,8 +295,8 @@ public sealed class OrchestratedMailboxMutationRecordTests(MailFathomOrchestrati
                 .GetRequiredService<MailFathomDbContext>()
                 .MailboxMutations
                 .AsNoTracking()
-                .Where(mutation => mutation.MailFolder.Alias == alias
-                    && mutation.MailFolder.ResolutionGeneration == generation
+                .Where(mutation => mutation.MailFolderBinding.Alias == alias
+                    && mutation.MailFolderBinding.ResolutionGeneration == generation
                     && mutation.Uid == uid)
                 .Select(mutation => new MailboxMutationRow(
                     mutation.Stage,

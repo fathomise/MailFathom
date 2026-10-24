@@ -33,9 +33,9 @@ internal sealed class MailboxMutationEntity
     /// email moves and this record says where the change was aimed. A relocation that succeeds leaves the stored email
     /// in another folder, and a record that followed it there would no longer describe the command that was issued.
     /// </remarks>
-    public long MailFolderId { get; set; }
+    public long MailFolderBindingId { get; set; }
 
-    public required MailFolderEntity MailFolder { get; set; }
+    public required MailFolderBindingEntity MailFolderBinding { get; set; }
 
     public uint UidValidity { get; set; }
 

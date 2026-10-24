@@ -580,7 +580,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
     {
         var retrieval = new ScopedMailKnowledgeRetrieval(
             this.knowledgeSearch,
-            MailboxScope.Create([Primary], [new MailFolderIdentity(Primary, MailFolderAlias.Create("INBOX"))]),
+            MailboxScope.Create([Primary], [MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3"))]),
             new MailAnsweringRunLedger(MailAnsweringRunBounds.Default),
             SensitiveContentEgressGuards.Inactive(),
             Now);

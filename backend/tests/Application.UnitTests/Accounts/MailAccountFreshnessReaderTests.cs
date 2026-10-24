@@ -5,6 +5,7 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Folders;
 using MailFathom.Application.Synchronization.Administration;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Application.UnitTests.TestDoubles;
@@ -445,6 +446,7 @@ public sealed class MailAccountFreshnessReaderTests
             new MailAccountDirectoryReader(
                 catalog,
                 freshnessReader,
+                Substitute.For<IStoredMailFolderReader>(),
                 new MailboxScopeResolver(
                     catalog,
                     StubMailFolderParticipation.Nothing,

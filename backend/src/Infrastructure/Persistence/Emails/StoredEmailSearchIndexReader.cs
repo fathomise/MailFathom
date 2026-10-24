@@ -263,9 +263,8 @@ internal sealed class StoredEmailSearchIndexReader(
             .Select(StoredEmailSummaryRow.Projection)
             .ToArrayAsync(cancellationToken);
 
-        return rows.ToDictionary(
-            static row => row.Id,
-            static row => row.ToSummary());
+        return (await StoredEmailSummaryRow.ToSummariesAsync(rows, dbContext.MailFolders, cancellationToken))
+            .ToDictionary(static summary => summary.StoredEmailId.Value);
     }
 
     /// <summary>Reads the highlighted extracts of the ranked emails, which PostgreSQL rather than this process cuts.</summary>

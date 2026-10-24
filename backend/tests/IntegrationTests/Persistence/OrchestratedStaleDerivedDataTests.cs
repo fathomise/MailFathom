@@ -536,7 +536,7 @@ public sealed class OrchestratedStaleDerivedDataTests(MailFathomOrchestrationFix
             async (scope, session, token) =>
             {
                 var dbContext = scope.GetRequiredService<MailFathomDbContext>();
-                var folder = await dbContext.MailFolders.SingleAsync(
+                var folder = await dbContext.MailFolderBindings.SingleAsync(
                     candidate => candidate.MailboxAccountId == SyntheticMailAccount.AccountId.Value
                         && candidate.Alias == alias
                         && candidate.ResolutionGeneration == generation,
@@ -546,7 +546,7 @@ public sealed class OrchestratedStaleDerivedDataTests(MailFathomOrchestrationFix
                 {
                     Id = insertedId,
                     MailboxAccountId = folder.MailboxAccountId,
-                    MailFolder = folder,
+                    MailFolderBinding = folder,
                     UidValidity = SyntheticEmail.UidValidity,
                     Uid = 3100,
                     Subject = "stale-derived-data-unreadable",
@@ -622,7 +622,7 @@ public sealed class OrchestratedStaleDerivedDataTests(MailFathomOrchestrationFix
             async (scope, session, token) =>
             {
                 var dbContext = scope.GetRequiredService<MailFathomDbContext>();
-                var folder = await dbContext.MailFolders.SingleAsync(
+                var folder = await dbContext.MailFolderBindings.SingleAsync(
                     candidate => candidate.MailboxAccountId == SyntheticMailAccount.AccountId.Value
                         && candidate.Alias == alias
                         && candidate.ResolutionGeneration == generation,
@@ -636,7 +636,7 @@ public sealed class OrchestratedStaleDerivedDataTests(MailFathomOrchestrationFix
                     {
                         Id = Guid.CreateVersion7(SyntheticEmail.SentAt.AddSeconds(index)),
                         MailboxAccountId = folder.MailboxAccountId,
-                        MailFolder = folder,
+                        MailFolderBinding = folder,
                         UidValidity = SyntheticEmail.UidValidity,
                         Uid = firstUid + (uint)index,
                         Subject = $"stale-derived-data-{index:D2}",

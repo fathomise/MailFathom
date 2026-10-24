@@ -222,7 +222,7 @@ public sealed class MailboxSearchReaderTests
         var result = await reader.SearchEmailsAsync(
             RequestFor("invoice") with
             {
-                Folders = [MailFolderReference.ToAlias(MailFolderAlias.Create("ARCHIVE"))],
+                Folders = [MailFolderReference.ToFolder(SyntheticEmailSummaries.FolderIdOf(SyntheticEmailSummaries.DefaultAccountId, "ARCHIVE"))],
                 SenderAddress = "Anna@Example.test",
                 HasAttachments = true,
             },

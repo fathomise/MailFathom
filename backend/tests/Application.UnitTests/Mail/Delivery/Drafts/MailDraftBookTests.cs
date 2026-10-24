@@ -201,9 +201,9 @@ public sealed class MailDraftBookTests
         Assert.Contains(held.Stored[0].Email, changed.Emails);
     }
 
-    /// <summary>A revision filed after the drafts role moved to another source folder names the replaced message in a signal of its own rather than in the new folder's.</summary>
+    /// <summary>A held account's drafts folder is its own, so configuration moving the role to another source folder leaves a revision beside the message it replaces.</summary>
     [Fact]
-    public async Task SaveAsync_RevisionOnAHeldAccountAfterTheDraftsRoleMoved_AnnouncesTheReplacedMessageOutsideTheNewFolder()
+    public async Task SaveAsync_RevisionOnAHeldAccountAfterTheDraftsRoleMoved_FilesItInTheSameDraftsFolderAsTheMessageItReplaces()
     {
         // Arrange
         var clock = new FakeTimeProvider(Moment);
@@ -240,9 +240,12 @@ public sealed class MailDraftBookTests
             .Where(signal => signal.Kind == ClientSignalKind.MailChanged)
             .ToArray();
 
-        Assert.Equal(2, changed.Length);
-        Assert.Equal([held.Stored[1].Email], changed.Single(signal => signal.Folder == movedTo).Emails);
-        Assert.Equal([held.Stored[0].Email], changed.Single(signal => signal.Folder != movedTo).Emails);
+        var draftsFolder = held.Folders.Placements[held.Stored[1].Email];
+        var announced = Assert.Single(changed);
+        Assert.Equal(draftsFolder, announced.Folder);
+        Assert.Equal(2, announced.Emails.Count);
+        Assert.Contains(held.Stored[0].Email, announced.Emails);
+        Assert.Contains(held.Stored[1].Email, announced.Emails);
     }
 
     /// <summary>Giving up a held account's draft erases the filed message and the record, and reaches no mail server.</summary>

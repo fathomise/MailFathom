@@ -359,7 +359,7 @@ internal static class ClientDiscoveryRunEndpoints
         accounts is null ? [] : [.. accounts.Select(MailAccountSelector.Create)];
 
     private static IReadOnlyList<MailFolderReference> Folders(IReadOnlyList<string>? folders) =>
-        folders is null ? [] : [.. folders.Select(MailFolderReference.Create)];
+        folders is null ? [] : [.. folders.Select(MailFolderReference.CreateNamedByCaller)];
 
     /// <summary>States what a caller has to change, without echoing what they sent.</summary>
     /// <remarks>Without echoing it because a question is the most revealing value this surface carries, and a problem detail is the one part of a response that reaches a log by default.</remarks>

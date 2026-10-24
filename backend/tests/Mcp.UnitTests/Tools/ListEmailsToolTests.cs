@@ -79,7 +79,7 @@ public sealed class ListEmailsToolTests
         // Act
         await tool.ListEmailsAsync(
             accounts: [ServedAccountId],
-            folders: ["archive"],
+            folders: ["b22a9799-327a-75c2-8de9-5de1e1943426"],
             senderAddress: "sender@example.test",
             recipientAddress: "recipient@example.test",
             subjectFragment: "invoice",
@@ -98,7 +98,7 @@ public sealed class ListEmailsToolTests
         var filter = timeline.LastFilter;
         Assert.Equal([MailAccountId.Create(ServedAccountId)], filter.Selection.Scope.AccountIds);
         Assert.Equal(
-            [new MailFolderIdentity(MailAccountId.Create(ServedAccountId), MailFolderAlias.Create("ARCHIVE"))],
+            [MailFolderId.Create(Guid.Parse("b22a9799-327a-75c2-8de9-5de1e1943426"))],
             filter.Selection.Scope.SelectedFolders);
         Assert.Equal("invoice", filter.Selection.SubjectFragment);
         Assert.Equal(rangeStart, filter.Selection.ReceivedOnOrAfter);
@@ -111,7 +111,7 @@ public sealed class ListEmailsToolTests
         Assert.Equal(11, timeline.LastLimit);
     }
 
-    /// <summary>An alias is MailFathom's own name for a folder, so a caller's spelling is normalized rather than matched literally.</summary>
+    /// <summary>An identity is a value rather than text, so a caller's spelling of one is read rather than matched literally.</summary>
     [Fact]
     public async Task ListEmailsAsync_OneFolderSpelledSeveralWays_NamesThatFolderOnce()
     {
@@ -121,13 +121,13 @@ public sealed class ListEmailsToolTests
 
         // Act
         await tool.ListEmailsAsync(
-            folders: ["inbox", "INBOX", " Inbox "],
+            folders: ["83ecb521-bf32-7f67-8287-e8b923809bb3", "83ECB521-BF32-7F67-8287-E8B923809BB3", " 83ecb521-bf32-7f67-8287-e8b923809bb3 "],
             cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         Assert.NotNull(timeline.LastFilter);
         Assert.Equal(
-            [new MailFolderIdentity(MailAccountId.Create(ServedAccountId), MailFolderAlias.Create("INBOX"))],
+            [MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3"))],
             timeline.LastFilter.Selection.Scope.SelectedFolders);
     }
 
@@ -151,9 +151,26 @@ public sealed class ListEmailsToolTests
 
         // Assert
         Assert.NotNull(timeline.LastFilter);
-        Assert.Equal(
-            [new MailFolderIdentity(MailAccountId.Create(ServedAccountId), MailFolderAlias.Create("SPAM"))],
-            timeline.LastFilter.Selection.Scope.SelectedFolders);
+        Assert.Equal([MailFolderSpecialUse.Junk], timeline.LastFilter.Selection.Scope.SelectedRoles);
+        Assert.Empty(timeline.LastFilter.Selection.Scope.SelectedFolders);
+    }
+
+    /// <summary>An alias is configuration's name for a folder, so a caller naming one is told so rather than handed an empty page.</summary>
+    [Fact]
+    public async Task ListEmailsAsync_AFolderNamedByItsAlias_IsRefusedWithoutReading()
+    {
+        // Arrange
+        var timeline = new StubStoredEmailTimelineReader();
+        var tool = ToolOver(timeline);
+
+        // Act
+        var failure = await Assert.ThrowsAsync<MailboxQueryFilterInvalidException>(
+            () => tool.ListEmailsAsync(folders: ["INBOX"], cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomErrorCode.MailboxQueryFilterInvalid, failure.ErrorCode);
+        Assert.Equal("folders", failure.FilterName);
+        Assert.Equal(0, timeline.ReadCount);
     }
 
     /// <summary>A role nothing carries is refused once, in the place every caller names a folder through, rather than answered with an empty page.</summary>
@@ -432,7 +449,7 @@ public sealed class ListEmailsToolTests
         {
             StoredEmailId = StoredEmailId.Create(storedEmailId),
             Account = MailAccountId.Create(ServedAccountId),
-            FolderAlias = MailFolderAlias.Create("INBOX"),
+            Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
             InternetMessageId = "<abc@example.test>",
             Subject = "Quarterly invoice",
             SentAt = sentAt,
@@ -475,7 +492,7 @@ public sealed class ListEmailsToolTests
         Assert.Equal(storedEmailId.ToString(), published.StoredEmailId);
         Assert.Equal(ServedAccountId, published.AccountId);
         Assert.Equal(SyntheticServedAccount.DisplayNameOf(MailAccountId.Create(ServedAccountId)).Value, published.AccountDisplayName);
-        Assert.Equal("INBOX", published.FolderAlias);
+        Assert.Equal("INBOX", published.FolderPath);
         Assert.Equal("<abc@example.test>", published.InternetMessageId);
         Assert.Equal("Quarterly invoice", published.Subject);
         Assert.Equal(sentAt, published.SentAt);
@@ -706,11 +723,13 @@ public sealed class ListEmailsToolTests
                 new MailboxFolderFreshness(
                     MailAccountId.Create(ServedAccountId),
                     MailFolderAlias.Create("INBOX"),
-                    synchronizedAt),
+                    synchronizedAt,
+                    new StoredEmailFolder(MailFolderId.Create(Guid.CreateVersion7()), "INBOX", MailFolderAlias.Create("INBOX"))),
                 new MailboxFolderFreshness(
                     MailAccountId.Create(ServedAccountId),
                     MailFolderAlias.Create("ARCHIVE"),
-                    SynchronizedAt: null)));
+                    SynchronizedAt: null,
+                    new StoredEmailFolder(MailFolderId.Create(Guid.CreateVersion7()), "ARCHIVE", MailFolderAlias.Create("ARCHIVE")))));
 
         // Act
         var result = await tool.ListEmailsAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -718,7 +737,7 @@ public sealed class ListEmailsToolTests
         // Assert
         Assert.Equal(
             [("INBOX", true), ("ARCHIVE", false)],
-            [.. result.FolderFreshness.Select(entry => (entry.FolderAlias, entry.WasSynchronized))]);
+            [.. result.FolderFreshness.Select(entry => (entry.FolderPath, entry.WasSynchronized))]);
         Assert.Equal(synchronizedAt, result.FolderFreshness[0].SynchronizedAt);
         Assert.Null(result.FolderFreshness[1].SynchronizedAt);
         Assert.All(
@@ -801,7 +820,7 @@ public sealed class ListEmailsToolTests
     {
         StoredEmailId = StoredEmailId.Create(Guid.CreateVersion7()),
         Account = MailAccountId.Create(ServedAccountId),
-        FolderAlias = MailFolderAlias.Create("INBOX"),
+        Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
         ReceivedAt = receivedAt,
         SentAt = receivedAt,
         SizeOctets = 1024,

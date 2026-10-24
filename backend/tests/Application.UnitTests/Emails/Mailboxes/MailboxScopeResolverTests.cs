@@ -30,6 +30,8 @@ public sealed class MailboxScopeResolverTests
     /// <summary>The identifier two users each declare, which is what makes both spellings ambiguous outside a user.</summary>
     private static readonly MailAccountId SharedAccountId = MailAccountId.Create("shared");
 
+    private static readonly MailFolderId NamedFolder = MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-0000000000d1"));
+
     [Fact]
     public async Task ReadableScopeAsync_AnAccountNamedByItsIdentifier_ResolvesToThatAccount()
     {
@@ -118,17 +120,30 @@ public sealed class MailboxScopeResolverTests
         // Act
         var scope = await resolver.ReadableScopeAsync(
             [],
-            [MailFolderReference.ToAlias(MailFolderAlias.Create("INBOX"))],
+            [MailFolderReference.ToFolder(NamedFolder)],
             JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal([Work.Id, Private.Id], scope.AccountIds);
-        Assert.Equal(
-            [
-                new MailFolderIdentity(Work.Id, MailFolderAlias.Create("INBOX")),
-                new MailFolderIdentity(Private.Id, MailFolderAlias.Create("INBOX")),
-            ],
-            scope.SelectedFolders);
+        Assert.Equal([NamedFolder], scope.SelectedFolders);
+    }
+
+    /// <summary>An alias is configuration's name for a folder rather than the folder's own, so a read naming one is a caller fault.</summary>
+    [Fact]
+    public async Task ReadableScopeAsync_AFolderNamedByItsAlias_IsRefused()
+    {
+        // Arrange
+        var resolver = ResolverServing(Work);
+
+        // Act
+        var thrown = await Assert.ThrowsAsync<ArgumentException>(() => resolver.ReadableScopeAsync(
+            [],
+            [MailFolderReference.ToAlias(MailFolderAlias.Create("INBOX"))],
+            JunkMailInclusion.Excluded,
+            TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal("folders", thrown.ParamName);
     }
 
     /// <summary>
@@ -337,12 +352,12 @@ public sealed class MailboxScopeResolverTests
         // Act
         var scope = await resolver.ReadableScopeAsync(
             [],
-            [MailFolderReference.ToAlias(MailFolderAlias.Create("PRIVATE"))],
+            [MailFolderReference.ToFolder(NamedFolder)],
             JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal([inbox], scope.ReadableFolders);
-        Assert.Contains(privateFolder, scope.SelectedFolders);
+        Assert.Equal([NamedFolder], scope.SelectedFolders);
     }
 
     /// <summary>A folder no mapping names is not a folder this deployment has, so nothing admits it and no read reaches its stored mail.</summary>
@@ -357,13 +372,12 @@ public sealed class MailboxScopeResolverTests
         // Act
         var scope = await resolver.ReadableScopeAsync(
             [],
-            [MailFolderReference.ToAlias(MailFolderAlias.Create("ARCHIVE"))],
+            [MailFolderReference.ToFolder(NamedFolder)],
             JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal([inbox], scope.ReadableFolders);
         Assert.DoesNotContain(removed, scope.ReadableFolders);
-        Assert.Contains(removed, scope.SelectedFolders);
     }
 
     /// <summary>A deployment whose configuration maps nothing has no folder to read, which is the opposite of reading every folder.</summary>
@@ -572,9 +586,9 @@ public sealed class MailboxScopeResolverTests
             resolver.ReadableScopeAsync([], [], (JunkMailInclusion)7, TestContext.Current.CancellationToken));
     }
 
-    /// <summary>A role names a different folder in each account, so a read across two of them narrows to both rather than to one name.</summary>
+    /// <summary>A role names a different folder in each account, so a read across two of them narrows by the role rather than by one folder.</summary>
     [Fact]
-    public async Task ReadableScopeAsync_AFolderNamedByItsRole_ResolvesToEachAccountsOwnFolder()
+    public async Task ReadableScopeAsync_AFolderNamedByItsRole_NarrowsByThatRoleAcrossTheAccounts()
     {
         // Arrange
         var resolver = ResolverMapping(
@@ -596,17 +610,13 @@ public sealed class MailboxScopeResolverTests
             JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(
-            [
-                new MailFolderIdentity(Work.Id, MailFolderAlias.Create("SPAM")),
-                new MailFolderIdentity(Private.Id, MailFolderAlias.Create("JUNK")),
-            ],
-            scope.SelectedFolders);
+        Assert.Empty(scope.SelectedFolders);
+        Assert.Equal([MailFolderSpecialUse.Junk], scope.SelectedRoles);
     }
 
     /// <summary>An account without the folder contributes nothing rather than refusing the read for the accounts that have it.</summary>
     [Fact]
-    public async Task ReadableScopeAsync_ARoleOnlyOneAccountInScopeMaps_ResolvesToThatAccountsFolderAlone()
+    public async Task ReadableScopeAsync_ARoleOnlyOneAccountInScopeMaps_IsAcceptedAndNarrowsByIt()
     {
         // Arrange
         var resolver = ResolverMapping(
@@ -623,9 +633,7 @@ public sealed class MailboxScopeResolverTests
             JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(
-            [new MailFolderIdentity(Work.Id, MailFolderAlias.Create("ARCHIVE"))],
-            scope.SelectedFolders);
+        Assert.Equal([MailFolderSpecialUse.Archive], scope.SelectedRoles);
     }
 
     /// <summary>A role naming no folder anywhere in scope is a request nothing could satisfy, so it is refused rather than read as no filter.</summary>
@@ -656,7 +664,8 @@ public sealed class MailboxScopeResolverTests
         var resolver = ResolverServing(Work);
         var tooMany = Enumerable
             .Range(0, MailboxScope.MaximumFolders + 1)
-            .Select(position => MailFolderReference.ToAlias(MailFolderAlias.Create($"folder-{position}")))
+            .Select(position => MailFolderReference.ToFolder(
+                MailFolderId.Create(Guid.Parse($"0199c1a2-0000-7000-8000-{position:D12}"))))
             .ToArray();
 
         // Act, Assert

@@ -510,7 +510,7 @@ It answers with the user's mailboxes and every folder in them, which is the one 
       },
       "folders": [
         {
-          "alias": "INBOX",
+          "id": "0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7a10",
           "role": "Inbox",
           "path": [ "INBOX" ],
           "storedEmailCount": 4213,
@@ -520,7 +520,7 @@ It answers with the user's mailboxes and every folder in them, which is the one 
           "behind": false
         },
         {
-          "alias": "ARCHIVE-2024",
+          "id": "0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7a11",
           "role": null,
           "path": [ "Archiwum", "2024" ],
           "storedEmailCount": 980,
@@ -528,6 +528,16 @@ It answers with the user's mailboxes and every folder in them, which is the one 
           "synchronizationState": "Synchronized",
           "lastSynchronizedAt": "2026-08-15T09:41:00+00:00",
           "behind": true
+        },
+        {
+          "id": "0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7a12",
+          "role": null,
+          "path": [ "Archiwum", "2024", "Clients" ],
+          "storedEmailCount": 14,
+          "unreadEmailCount": 0,
+          "synchronizationState": null,
+          "lastSynchronizedAt": null,
+          "behind": false
         }
       ]
     }
@@ -552,26 +562,25 @@ sent one from its name would guess wrong on somebody's Polish provider. The valu
 [configuration labelled the folder with](configuration-mail.md), and `null` where it labelled it with none. Nothing is
 guessed from a folder's name to fill it in.
 
-**`path` is the folder's place on its mail server, outermost level first.** It is split into levels rather than
-published as a path and a delimiter, so a client builds a tree without knowing that mail servers have hierarchy
-delimiters or which character this one chose. The last level is what a person recognizes as the folder's name; `alias`
-above it is MailFathom's own name for the folder — a configured, upper-cased value unique within its account — and is
-what everything else on this surface names the folder by. A server that reports no delimiter has a flat mailbox and the
-whole path arrives as one level.
+**`id` is the folder's identity, and what everything else on this surface names the folder by** — a message's
+`folder`, a listing's or a search's `folder` filter, a move's destination, a folder act. MailFathom issues it once, for
+every folder of every account whichever copy of the mailbox is the truth, and it stays the same when the folder is
+renamed or moved and when the account's mail is drained into MailFathom or restored to its server. Its shape is not part
+of this contract: a client can only have got one from this route. The alias configuration keys a folder by never
+appears on this surface.
 
-**`path` is read from the folder's declaration wherever it names one**, and from what the account's last pass bound
-only for a folder found by the role it plays. A folder act writes the declaration and nothing else, so a folder just
-made, renamed, or moved is answered where the act put it on the `FoldersChanged` re-read that follows the act, rather
-than where the last pass found it — which for a folder just made is nowhere, until the next pass minutes later. A
-declared path is text somebody wrote and carries no delimiter, so it is split by the one the account's own bindings
-recorded; an account no pass has reached yet has recorded none, and each of its declared paths arrives as one level
-until one has.
+**`path` is the folder's place in its account's hierarchy, outermost level first.** It is split into levels rather
+than published as one string and a delimiter, so a client builds a tree without knowing that mail servers have
+hierarchy delimiters or which character one chose. The last level is what a person recognizes as the folder's name. On
+an account MailFathom mirrors, the hierarchy is the mail server's own: each folder sits under the folder its server
+places it in, and a server folder no configuration names still appears as the level a tree draws its children under. A
+folder act puts the folder where the act put it before the `FoldersChanged` re-read that follows it, so a folder just
+renamed or moved is drawn in its new place without waiting for the account's next pass; a folder just made appears at
+once, at the top of the hierarchy until that pass places it beneath its parent.
 
-**`path` is what a tree nests by, and `alias` nests nothing.** A folder made inside another is declared under its own
-name, and neither a rename nor a move changes its alias, so an alias says nothing about where a folder is — and a `/`
-in one is a character of the name rather than a level. **Three levels is as deep as MailFathom's own client goes** —
-it offers no way to make a fourth — but this surface neither imposes that ceiling nor promises one, so a client
-reading a deeper path draws it where it falls.
+**`path` is what a tree nests by.** **Three levels is as deep as MailFathom's own client goes** — it offers no way to
+make a fourth — but this surface neither imposes that ceiling nor promises one, so a client reading a deeper path draws
+it where it falls. Folders arrive ordered by `path`, so a parent precedes its children.
 
 **The counts are of the local copy, not of the mailbox.** `storedEmailCount` is what this deployment holds and would
 serve, and `unreadEmailCount` is how many of those the mail server last reported without `\Seen`. A folder still being
@@ -580,15 +589,17 @@ read without them is a figure somebody would take for the mailbox's own. Reading
 flags are a snapshot reconciliation wrote, and this endpoint speaks no mail protocol at all.
 
 **Each folder's `synchronizationState`, `lastSynchronizedAt` and `behind` mean exactly what they mean on an account**,
-one folder at a time; the table above is the whole of it. An account's own reading is the reduction of its folders', so
+one folder at a time; the table above is the whole of it. A folder MailFathom keeps itself — every folder of an account
+whose mail it holds, and one a person created — carries a `null` state, no `lastSynchronizedAt`, and `behind: false`,
+because nothing synchronizes it and its counts are the whole of it. An account's own reading is the reduction of its folders', so
 a tree and the mailbox list beside it never disagree: a folder that failed makes its account `Failing`, and an account
 is `Unreachable` only where being unable to reach the server is the whole of what went wrong.
 
-**The folders are the ones [configuration maps](configuration-mail.md)**, which is wider than the folders this
-deployment holds mail from. A folder an operator asked not to mirror is never scheduled, so no run discovers it, and a
-folder nothing has bound yet has no place in the hierarchy to report — both are present all the same, carrying
-`NeverSynchronized`, no `path`, and both counts at zero, because a folder MailFathom does not copy is still a folder the
-mailbox has and still a folder [a move](#the-mutation-routes) files into. A client that could not see one would
+**Every folder the account has is listed**, which on a mirrored account is wider than the folders this deployment
+holds mail from. A folder [configuration declares](configuration-mail.md) and an operator asked not to mirror is never
+scheduled, so no run discovers it, and a folder nothing has bound yet has not been found on the server — both are
+present all the same, carrying `NeverSynchronized` and both counts at zero, because a folder MailFathom does not copy
+is still a folder the mailbox has and still a folder [a move](#the-mutation-routes) files into. A client that could not see one would
 be told an account has nowhere to put a deleted message while its mailbox has a trash folder. A folder an operator
 withheld from tools is the one that stays absent, for the same reason it is absent from every other read: this surface
 admits what configuration admits.
@@ -629,8 +640,8 @@ name:
   "allowedActs": ["Create"],
   "creatableRoles": ["Archive"],
   "folders": [
-    { "id": "INBOX", "parentId": null, "name": "INBOX", "role": "Inbox", "allowedActs": [] },
-    { "id": "PROJECTS", "parentId": null, "name": "Projects", "role": null, "allowedActs": ["Rename", "Move", "Delete"] }
+    { "id": "0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7a10", "parentId": null, "name": "INBOX", "role": "Inbox", "allowedActs": [] },
+    { "id": "0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7a13", "parentId": null, "name": "Projects", "role": null, "allowedActs": ["Rename", "Move", "Delete"] }
   ]
 }
 ```
@@ -638,9 +649,9 @@ name:
 **A client draws its menus from that report rather than from a rule it holds a copy of.** `allowedActs` on the account
 is `Create` or nothing, `allowedActs` on a folder is `Rename`, `Move`, and `Delete` together or nothing at all, and
 `creatableRoles` names the roles a creation may ask for, which is none where the account offers no `Create`. A folder
-is named by `id` everywhere, whose shape is not part of this contract — a client can only have got one from this
-route — so a rename or a move never invalidates a reference a client holds, and a client builds the tree from
-`parentId`. An account the caller does not hold is answered `404`, and one the request does not name `400`.
+is named by `id` everywhere — the same identity [the folders route](#the-folders-route) reports, on every account
+whichever copy of its mailbox is the truth — so a rename or a move never invalidates a reference a client holds, and a
+client builds the tree from `parentId`. An account the caller does not hold is answered `404`, and one the request does not name `400`.
 
 Each write takes a strict JSON body — a key nothing binds is refused — of at most 4096 bytes, and a body past that is
 answered `413` before the write is reached. It answers with the change made and the folder as it left it:
@@ -653,7 +664,7 @@ answered `413` before the write is reached. It answers with the change made and 
 | `POST /api/client/managed-folders/deletions` | `account`, `folderId` | `MovedToTrash`, `Erased`, `Deleted`, or `MarkedDeleted` |
 
 ```jsonc
-{ "change": "Created", "folder": { "id": "CLIENTS", "parentId": null, "name": "Clients", "role": null, "allowedActs": ["Rename", "Move", "Delete"] }, "mailErasureDeferred": false }
+{ "change": "Created", "folder": { "id": "0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7a14", "parentId": null, "name": "Clients", "role": null, "allowedActs": ["Rename", "Move", "Delete"] }, "mailErasureDeferred": false }
 ```
 
 **A creation names either a name or a role.** Naming a role asks for the folder an account files by — one of `Archive`,
@@ -683,8 +694,7 @@ such an account's first read already lists all five and `creatableRoles` is empt
 **On a mirrored account**, each act runs on the mail server: `CREATE` for a creation and `RENAME` for both a rename and
 a move, over the one write connection an account holds, which selects no folder. A created folder joins what the
 account synchronizes in the same act and appears in the next read without waiting for a synchronization pass, and a
-renamed or moved folder stays synchronized under its new place — MailFathom's own name for a folder never moves, only
-the path behind it. What a deletion does there is [the account's own setting](configuration-mail.md):
+renamed or moved folder stays synchronized under its new place and keeps its `id` — only the path behind it moves. What a deletion does there is [the account's own setting](configuration-mail.md):
 *Delete on the server* issues `DELETE`, takes the folder out of what the account synchronizes, and removes the mail
 stored from it, answering `Deleted`; *Mark deleted only* reaches the server not at all and marks the folder deleted in
 MailFathom, which takes it out of the tree and out of every mailbox query while the mail stays stored, answering
@@ -758,7 +768,7 @@ tells the caller's clients over [the signal channel](#the-signal-channel) that t
 ### The mail list route
 
 ```http
-GET /api/client/emails?account=work&folder=INBOX&pageSize=50
+GET /api/client/emails?account=work&folder=0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7a10&pageSize=50
 ```
 
 It answers with one page of the user's mail, ordered by when each message was received, and with the cursor that
@@ -770,7 +780,7 @@ continues the list at each end:
     {
       "id": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90",
       "account": "5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10",
-      "folder": "INBOX",
+      "folder": "0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7a10",
       "threadId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a91",
       "subject": "Release 0.8.0 is out",
       "receivedAt": "2026-08-15T09:58:00+00:00",
@@ -864,7 +874,7 @@ leading end and answering with the leading page would read as having scrolled to
 | Parameter | Accepts | Default |
 | --- | --- | --- |
 | `account` | An account identifier or display name | every account the user owns |
-| `folder` | A folder alias, or a role as `role:Inbox` | every folder of those accounts |
+| `folder` | A folder's `id` as [the folders route](#the-folders-route) reports it, or a role as `role:Inbox` | every folder of those accounts |
 | `includeJunk` | `true`, `false` | `false` |
 | `unread` | `true`, `false` | both |
 | `flagged` | `true`, `false` | both |
@@ -893,7 +903,7 @@ end falls on or before its start is refused with `400` like every other, rather 
 **A value this deployment cannot honour is refused with `400`, never ignored.** `sort=subject` is the case worth
 naming: the list is ordered by the column the timeline indexes are ordered by, and a screen that asked for something
 else and was handed the default order would have no way to tell. The same holds for an unknown `order` or `direction`,
-a `folder` naming neither an alias nor a role, a `pageSize` outside the range, and a cursor — a cursor this deployment
+a `folder` naming neither a folder's `id` nor a role, a `pageSize` outside the range, and a cursor — a cursor this deployment
 never issued and a cursor issued for a different list are refused separately, because they are two mistakes with two
 repairs. What is never returned instead is the first page.
 
@@ -918,7 +928,7 @@ reading a folder cannot set the remote `\Seen` flag. How current that copy is, p
 ### The mail search route
 
 ```http
-GET /api/client/emails/search?query=invoice%20from%20accounting&folder=INBOX&pageSize=20
+GET /api/client/emails/search?query=invoice%20from%20accounting&folder=role:Inbox&pageSize=20
 ```
 
 It answers with one page of the user's mail ranked against what they are looking for:
@@ -929,7 +939,7 @@ It answers with one page of the user's mail ranked against what they are looking
     {
       "id": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90",
       "account": "5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10",
-      "folder": "INBOX",
+      "folder": "0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7a10",
       "threadId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a91",
       "subject": "Invoice 4471",
       "receivedAt": "2026-08-15T09:58:00+00:00",
@@ -1022,7 +1032,7 @@ on rather than results that quietly got worse.
 | --- | --- | --- |
 | `query` | The text to search for, up to 512 characters | required |
 | `account` | An account identifier or display name | every account the user owns |
-| `folder` | A folder alias, or a role as `role:Inbox` | every folder of those accounts |
+| `folder` | A folder's `id` as [the folders route](#the-folders-route) reports it, or a role as `role:Inbox` | every folder of those accounts |
 | `includeJunk` | `true`, `false` | `false` |
 | `sender` | An address the sender must carry | any sender |
 | `recipient` | An address a `To` or `Cc` recipient must carry | any recipient |
@@ -1051,7 +1061,7 @@ has read two hundred results without finding what they wanted narrows the filter
 sooner.
 
 **A value this deployment cannot honour is refused with `400`, never ignored.** A blank or over-long `query`, an
-address filter that is not an address, a `folder` naming neither an alias nor a role, a `pageSize` outside the range,
+address filter that is not an address, a `folder` naming neither a folder's `id` nor a role, a `pageSize` outside the range,
 and a cursor — a cursor this deployment never issued and a cursor issued for a different search are refused separately,
 because they are two mistakes with two repairs. What is never returned instead is the best-ranked page of a search
 nobody asked for. A refusal states what to change and never echoes what was sent: a query is the most revealing value
@@ -1158,7 +1168,7 @@ It answers with one conversation as a single document — the messages in it, wh
       "email": {
         "id": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90",
         "account": "5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10",
-        "folder": "INBOX",
+        "folder": "0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7a10",
         "threadId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a91",
         "subject": "Release 0.8.0 is out",
         "receivedAt": "2026-08-15T09:58:00+00:00",
@@ -1196,7 +1206,7 @@ It answers with one conversation as a single document — the messages in it, wh
       "email": {
         "id": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a92",
         "account": "5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10",
-        "folder": "SENT",
+        "folder": "0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7a15",
         "threadId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a91",
         "subject": "Re: Release 0.8.0 is out",
         "receivedAt": "2026-08-15T10:04:00+00:00",
@@ -1350,7 +1360,7 @@ of its body exist to be asked for:
 {
   "storedEmailId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90",
   "account": "personal",
-  "folder": "INBOX",
+  "folder": "0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7a10",
   "threadId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a91",
   "sizeOctets": 2416381,
   "headers": {
@@ -1768,7 +1778,7 @@ It answers with one resolution per citation, in the order the request named them
       "message": {
         "storedEmailId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90",
         "account": "primary",
-        "folder": "INBOX",
+        "folder": "0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7a10",
         "subject": "Renewal terms",
         "sentAt": "2026-03-04T09:00:00+00:00",
         "receivedAt": "2026-03-04T09:01:12+00:00"
@@ -1912,14 +1922,16 @@ else. What MailFathom's own client does with that is
 answer rather than this route's: a person opening a message has the client submit one change here, unless they turned
 [`markReadOnOpen`](#the-preferences-routes) off or the credential was never granted `mailfathom.mail.flags.write`.
 
-**A move names the folder by its alias**, exactly as the folders route publishes it, rather than by its place on the
-server: an alias keeps its meaning when the server renames or recreates the folder behind it.
+**A move names the folder by its `id`**, exactly as [the folders route](#the-folders-route) publishes it, rather than
+by its place: the identity keeps its meaning when the folder is renamed or moved, and it names a folder the same way on
+every account whichever copy of its mailbox is the truth. Anything else in `destinationFolder` — a path, a name, a
+role, or text that is no identity — is answered `destination-not-found`.
 
 ```http
 POST /api/client/mutations/moves
 Content-Type: application/json
 
-{ "moves": [{ "storedEmailId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90", "destinationFolder": "ARCHIVE" }] }
+{ "moves": [{ "storedEmailId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90", "destinationFolder": "0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7a16" }] }
 ```
 
 Each result carries one of `recorded`, `applied`, `message-not-found`, `destination-not-found`,
@@ -3958,7 +3970,7 @@ own identifier the moment it is admitted, and every statement is published to on
 a caller supplied, because nothing here takes one.
 
 **What crosses is what changed, never what it changed to, with two named exceptions.** A signal is an instruction to
-look again: it names a count, an account alias, a folder alias, a stored identity, and the two server flags of one, and
+look again: it names a count, an account, a folder's `id`, a stored identity, and the two server flags of one, and
 no subject, address, body fragment, filename, or attachment name reaches it at any size. The first exception is the
 flags `mail.flags.changed` carries, which say where each of those two stands rather than that one moved, for the reason
 the paragraph below the table gives. The second is a raised notification's own headline and second line, which are the
@@ -3968,7 +3980,7 @@ record's already-derived text and reach a client entitled to read that record ov
 | Signal | What it says |
 | --- | --- |
 | `mail.arrived` | A run committed mail into one folder, and how much |
-| `mail.changed` | Stored mail in one folder is no longer what a client last read, naming up to 100 of the rows |
+| `mail.changed` | Stored mail in one folder, or in every folder of one account, is no longer what a client last read, naming up to 100 of the rows |
 | `mail.flags.changed` | Nothing moved but the `\Seen` or `\Flagged` flag of up to 100 rows, and where each of those flags now stands |
 | `folders.changed` | The set of folders an account mirrors, or a held account's local folders, has moved |
 | `notification.raised` | A notification was written, with its kind, its two lines, and how many now stand unread |
@@ -3987,19 +3999,18 @@ cleared: a reconciliation window states both, and a change this deployment autho
 **A client that does not know a kind ignores it and catches up on its next refresh**, which is what made the sixth and
 the seventh additions rather than breaks; the client and the service ship under one version.
 
-**A settled move says `mail.changed` twice, once per folder.** A change that files a message somewhere — a move, a copy —
-changes the folder it left and the folder it landed in, so both are named, and a client watching either re-reads when the
-message crosses rather than when something else makes it look again. The destination is named by its alias, so a move
-into a folder this deployment maps and does not mirror announces the source alone: there is no folder a client holds mail
-for. Everything else — a delete, a keyword change — names the one folder the message is in, exactly as before, and a
-settled flag change says `mail.flags.changed` about that one folder instead.
+**A statement names no folder where the change is known only by where it stands on the mail server.** A change
+settled against the server — a move, a copy, a delete, a keyword or a flag change MailFathom wrote there — and what a
+run's reconciliation finds moved are known by the server's folders rather than by the folders a client draws, so their
+`mail.changed` and `mail.flags.changed` carry no folder and reach every folder of the account; a client re-reads what it
+draws of that account, and applies a stated flag to whichever row it holds. A change made to mail MailFathom holds
+names the folder it happened in, and an arrival names the folder it landed in.
 
-**The folder a message landed in is named a second time once a run has carried it there.** The settled move is announced
-when the mail server has taken it, which is before the account's next run finds the message in its new folder and moves
-the stored row with it — so a client re-reading on the first statement reads a folder that does not hold the message
-yet. The run that carries it says `mail.changed` for the landing folder again, naming the messages it carried, and that
-is the read that finds them. A client holding none of the named rows reads the folder's leading page again, as it would
-for an arrival.
+**A settled move is announced twice.** The first statement comes when the mail server has taken the move, which is
+before the account's next run finds the message in its new folder and moves the stored row with it — so a client
+re-reading on it reads a folder that does not hold the message yet. The run that carries it says `mail.changed` again,
+naming the messages it carried, and that is the read that finds them. A client holding none of the named rows reads its
+folder's leading page again, as it would for an arrival.
 
 **Statements are folded per user, per kind, and per place over half a second.** A run committing a folder's worth of
 mail is one arrival to the person who was away from the screen rather than one statement per message, and two folders'
@@ -4057,14 +4068,14 @@ failing a readiness probe, and nothing is buffered for a replica that was not li
 instruction to look again, and the next refresh is the catch-up.
 
 **Only what a signal already carries crosses it, plus the name of the group it is addressed to.** The backplane
-transports the same payload the hub would have sent over the WebSocket: a kind, a count, an account alias, a folder
-alias, stored identities, the two server flags, and a raised notification's own two lines. No subject, address, body
+transports the same payload the hub would have sent over the WebSocket: a kind, a count, an account, a folder's `id`,
+stored identities, the two server flags, and a raised notification's own two lines. No subject, address, body
 fragment, filename, or attachment name reaches it, for the same reason none reaches the connection. One value crosses
 that the payload deliberately leaves out: a statement is published on a channel named after the group it is for, and
 that group is named from the user's own identifier — so the RESP server sees a stable per-person identifier on every
 statement and on every subscription, where a connection is told only what changed. It is an identifier this deployment
 generated rather than an address or a name, and nothing on that server resolves it to a person. All of it is
-**personal data in transit**: an account alias, a folder alias, a notification's headline, and that identifier are
+**personal data in transit**: an account, a folder, a notification's headline, and that identifier are
 about a person, and a RESP server sees them. It is **stored nowhere** —
 publish and subscribe keeps no message, this deployment sets no key, and a replica that was not subscribed at the
 moment is simply not told — so there is nothing on that server to retain, export, or erase, and nothing about it enters
@@ -4079,7 +4090,7 @@ address an operator already has instead when they turn that off. The
 Pointing the section at a managed endpoint outside that boundary makes the transport the
 operator's obligation: reach it over TLS by writing `ssl=true` in the connection string, give it a password and let
 [secret provisioning](secret-provisioning.md) carry that, and restrict the endpoint to the addresses the replicas
-answer from. A clear-text RESP connection across a network somebody else runs publishes those aliases to whoever is on
+answer from. A clear-text RESP connection across a network somebody else runs publishes those values to whoever is on
 the path, and nothing in MailFathom can tell one network from another.
 
 **What the credential and the address restriction guard is injection as well as disclosure.** Anything able to *write*

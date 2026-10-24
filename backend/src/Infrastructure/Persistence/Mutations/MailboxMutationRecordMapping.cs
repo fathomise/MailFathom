@@ -24,7 +24,7 @@ internal static class MailboxMutationRecordMapping
     /// <param name="folder">The binding the source occurrence was read under, which turns a folder key back into an alias and generation.</param>
     /// <returns>The record that row states.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the row names a mutation or a destination folder path that no longer parses.</exception>
-    internal static MailboxMutationRecord ToRecord(MailboxMutationEntity entity, MailFolderEntity folder)
+    internal static MailboxMutationRecord ToRecord(MailboxMutationEntity entity, MailFolderBindingEntity folder)
     {
         if (!MailboxMutation.TryParseName(entity.Mutation, out var mutation))
         {

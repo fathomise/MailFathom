@@ -7,6 +7,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Jobs;
 using MailFathom.Application.Mail;
+using MailFathom.Application.Persistence;
 using MailFathom.Application.Signals;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -350,7 +351,15 @@ public sealed class ConfiguredMailFolderDeclarationWriterTests
                 Substitute.For<IJobStore>(),
                 AccessAuthorizations.ForUserGranted(
                     Alex,
-                    [MailFathomPermission.MailRead, MailFathomPermission.MailFoldersWrite]));
+                    [MailFathomPermission.MailRead, MailFathomPermission.MailFoldersWrite]),
+                new MailFolderResolver(
+                    Substitute.For<IRemoteFolderCatalog>(),
+                    this.MailServer,
+                    Substitute.For<IMailFolderResolutionStore>(),
+                    Substitute.For<IMailFolderMappingChangeAuditor>(),
+                    Substitute.For<IPersistenceSessionFactory>(),
+                    this.signals,
+                    new FakeTimeProvider()));
         }
 
         internal IRemoteFolderCreator MailServer { get; } = Substitute.For<IRemoteFolderCreator>();

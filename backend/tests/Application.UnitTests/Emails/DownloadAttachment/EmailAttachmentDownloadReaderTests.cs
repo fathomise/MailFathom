@@ -194,8 +194,8 @@ public sealed class EmailAttachmentDownloadReaderTests
         var reader = ReaderOver(
             summary,
             folderParticipation: StubMailFolderParticipation
-                .Mapping(new MailFolderIdentity(summary.Account, summary.FolderAlias))
-                .Hiding(new MailFolderIdentity(summary.Account, summary.FolderAlias)));
+                .Mapping(new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value))
+                .Hiding(new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value)));
 
         // Act
         await using var attachment = (await reader.OpenAsync(
@@ -807,7 +807,7 @@ public sealed class EmailAttachmentDownloadReaderTests
     /// </remarks>
     private static StubMailFolderParticipation MappingFolderOf(EmailSummary? summary) => summary is null
         ? StubMailFolderParticipation.Nothing
-        : StubMailFolderParticipation.Mapping(new MailFolderIdentity(summary.Account, summary.FolderAlias));
+        : StubMailFolderParticipation.Mapping(new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value));
 
     private static IStoredEmailSummaryReader SummaryReaderReturning(EmailSummary? summary)
     {

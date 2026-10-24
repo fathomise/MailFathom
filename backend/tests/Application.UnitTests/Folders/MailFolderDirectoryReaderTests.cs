@@ -22,8 +22,9 @@ namespace MailFathom.Application.UnitTests.Folders;
 /// <summary>Covers the one read a mail screen draws its tree from: which mailboxes, which folders, and how current each is.</summary>
 /// <remarks>
 /// Whose accounts these are, what a state means, and what a caller without the grant is answered are decided in the
-/// reading this composes and are covered there. What is asserted here is what only this use case decides: which folders
-/// a tree holds, where each of them sits on its mail server, what role it plays, and how much mail is in it.
+/// reading this composes and are covered there, and each folder's place, role, and counts are the folder row's. What is
+/// asserted here is what only this use case decides: that every row is published, in the tree's order, with the
+/// freshness of the alias that feeds it.
 /// </remarks>
 public sealed class MailFolderDirectoryReaderTests
 {
@@ -42,8 +43,8 @@ public sealed class MailFolderDirectoryReaderTests
             Freshness((Work.Id, "inbox", Now), (Private.Id, "inbox", Now)),
             OwningAccounts(Work, Private),
             StoredFolders(
-                Stored(Work.Id, "inbox", "INBOX", storedEmailCount: 12, unreadEmailCount: 3),
-                Stored(Private.Id, "inbox", "INBOX", storedEmailCount: 4, unreadEmailCount: 0)));
+                Stored(Work.Id, 1, "inbox", ["INBOX"], storedEmailCount: 12, unreadEmailCount: 3),
+                Stored(Private.Id, 2, "inbox", ["INBOX"], storedEmailCount: 4)));
 
         // Act
         var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
@@ -61,7 +62,7 @@ public sealed class MailFolderDirectoryReaderTests
         var reader = ReaderOver(
             Freshness((Work.Id, "inbox", Now)),
             OwningAccounts(Work),
-            StoredFolders(Stored(Work.Id, "inbox", "INBOX", storedEmailCount: 12, unreadEmailCount: 3)));
+            StoredFolders(Stored(Work.Id, 1, "inbox", ["INBOX"], storedEmailCount: 12, unreadEmailCount: 3)));
 
         // Act
         var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
@@ -77,19 +78,15 @@ public sealed class MailFolderDirectoryReaderTests
     /// advertises the role by attribute and names the folder in whatever language it likes.
     /// </summary>
     [Fact]
-    public async Task ReadAsync_AFolderConfigurationLabelledWithARole_PublishesTheRoleRatherThanLeavingItToBeGuessed()
+    public async Task ReadAsync_AFolderRowCarryingARole_PublishesTheRoleRatherThanLeavingItToBeGuessed()
     {
         // Arrange
-        var mappings = new StubMailFolderMappings()
-            .With(Work.Id, MailFolderMapping.ToSpecialUse(MailFolderAlias.Create("sent"), MailFolderSpecialUse.Sent))
-            .With(Work.Id, MailFolderMapping.ToRemotePath(MailFolderAlias.Create("2024"), RemoteFolderPath.Create("Archiwum.2024")));
         var reader = ReaderOver(
             Freshness((Work.Id, "2024", Now), (Work.Id, "sent", Now)),
             OwningAccounts(Work),
             StoredFolders(
-                Stored(Work.Id, "2024", "Archiwum.2024", storedEmailCount: 0, unreadEmailCount: 0, delimiter: '.'),
-                Stored(Work.Id, "sent", "Gesendete Objekte", storedEmailCount: 2, unreadEmailCount: 0)),
-            mappings);
+                Stored(Work.Id, 1, "2024", ["Archiwum", "2024"]),
+                Stored(Work.Id, 2, "sent", ["Gesendete Objekte"], role: MailFolderSpecialUse.Sent)));
 
         // Act
         var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
@@ -100,247 +97,89 @@ public sealed class MailFolderDirectoryReaderTests
             Assert.Single(directory.Accounts).Folders.Select(folder => folder.Role));
     }
 
-    /// <summary>The hierarchy is the server's own path split into its levels, so a client builds a tree without knowing a delimiter exists.</summary>
+    /// <summary>A tree is drawn in the order of the folders' places in it, whatever order the store answered them in.</summary>
     [Fact]
-    public async Task ReadAsync_AFolderNestedOnItsServer_PublishesItsLevelsOutermostFirst()
+    public async Task ReadAsync_FoldersAnsweredOutOfOrder_PublishesThemInTheOrderOfTheirPlaceInTheTree()
     {
         // Arrange
         var reader = ReaderOver(
-            Freshness((Work.Id, "2024", Now)),
+            Freshness(),
             OwningAccounts(Work),
             StoredFolders(
-                Stored(Work.Id, "2024", "Archiwum.Praca.2024", storedEmailCount: 0, unreadEmailCount: 0, delimiter: '.')));
+                Stored(Work.Id, 3, folderAlias: null, ["Projects", "Alpha"]),
+                Stored(Work.Id, 2, folderAlias: null, ["Projects"]),
+                Stored(Work.Id, 1, "inbox", ["INBOX"])));
 
         // Act
         var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(
-            ["Archiwum", "Praca", "2024"],
-            Assert.Single(Assert.Single(directory.Accounts).Folders).HierarchyLevels);
+            [IdOf(1), IdOf(2), IdOf(3)],
+            Assert.Single(directory.Accounts).Folders.Select(folder => folder.Id));
+        Assert.Equal(
+            ["Projects", "Alpha"],
+            Assert.Single(directory.Accounts).Folders[2].HierarchyLevels);
     }
 
-    /// <summary>A server that reports no delimiter has a flat mailbox, and the whole path is the one level a tree draws.</summary>
+    /// <summary>A folder an alias feeds carries the freshness the composed reading reported for that alias.</summary>
     [Fact]
-    public async Task ReadAsync_AFolderOnAServerReportingNoDelimiter_PublishesItsWholePathAsOneLevel()
+    public async Task ReadAsync_AFolderAnAliasFeeds_CarriesThatAliasesFreshness()
     {
         // Arrange
         var reader = ReaderOver(
             Freshness((Work.Id, "inbox", Now)),
             OwningAccounts(Work),
-            StoredFolders(Stored(Work.Id, "inbox", "INBOX", storedEmailCount: 1, unreadEmailCount: 1)));
+            StoredFolders(Stored(Work.Id, 1, "inbox", ["INBOX"])));
 
         // Act
         var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(["INBOX"], Assert.Single(Assert.Single(directory.Accounts).Folders).HierarchyLevels);
+        var freshness = Assert.Single(Assert.Single(directory.Accounts).Folders).Freshness;
+        Assert.NotNull(freshness);
+        Assert.Equal(Now, freshness.SynchronizedAt);
     }
 
     /// <summary>
-    /// A folder renamed and moved since the account's last pass keeps the binding of the path it left, and the folder
-    /// act's own re-read has to draw it where the act put it rather than where that pass found it.
+    /// The user story behind issue 1758: a folder configuration declares and nothing synchronizes still has a row and a
+    /// role, and it is published as never synchronized rather than left out.
     /// </summary>
     [Fact]
-    public async Task ReadAsync_AFolderDeclaredAtAPathItsBindingHasNotReachedYet_PublishesTheDeclaredPath()
+    public async Task ReadAsync_AFolderAnAliasFeedsThatNoRunHasReached_IsPublishedAsNeverSynchronized()
     {
         // Arrange
-        var mappings = new StubMailFolderMappings()
-            .With(
-                Work.Id,
-                MailFolderMapping.ToRemotePath(MailFolderAlias.Create("suppliers"), RemoteFolderPath.Create("Archive/Vendors")));
         var reader = ReaderOver(
-            Freshness((Work.Id, "suppliers", Now)),
+            Freshness((Work.Id, "inbox", Now)),
             OwningAccounts(Work),
-            StoredFolders(Stored(Work.Id, "suppliers", "Suppliers", storedEmailCount: 2, unreadEmailCount: 1, delimiter: '/')),
-            mappings);
+            StoredFolders(Stored(Work.Id, 1, "trash", ["Trash"], role: MailFolderSpecialUse.Trash)));
+
+        // Act
+        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        var trash = Assert.Single(Assert.Single(directory.Accounts).Folders);
+        Assert.Equal(MailFolderSpecialUse.Trash, trash.Role);
+        Assert.Equal(MailSynchronizationState.NeverSynchronized, trash.Freshness?.State);
+    }
+
+    /// <summary>A folder no alias feeds is one MailFathom keeps itself, so nothing synchronizes it and it carries no freshness.</summary>
+    [Fact]
+    public async Task ReadAsync_AFolderNoAliasFeeds_CarriesNoFreshness()
+    {
+        // Arrange
+        var reader = ReaderOver(
+            Freshness((Work.Id, "inbox", Now)),
+            OwningAccounts(Work),
+            StoredFolders(Stored(Work.Id, 1, folderAlias: null, ["Projects"], storedEmailCount: 2)));
 
         // Act
         var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
 
         // Assert
         var folder = Assert.Single(Assert.Single(directory.Accounts).Folders);
-        Assert.Equal(["Archive", "Vendors"], folder.HierarchyLevels);
+        Assert.Null(folder.Freshness);
         Assert.Equal(2, folder.StoredEmailCount);
-    }
-
-    /// <summary>
-    /// A folder just made has no binding of its own, and its declared path is split by the delimiter the account's other
-    /// bindings recorded — which is what places it inside the folder it was made in rather than at the top level.
-    /// </summary>
-    [Fact]
-    public async Task ReadAsync_AFolderDeclaredInsideAnotherThatNoRunHasReached_IsNestedByTheAccountsDelimiter()
-    {
-        // Arrange
-        var mappings = new StubMailFolderMappings()
-            .With(Work.Id, MailFolderMapping.ToSpecialUse(MailFolderAlias.Create("inbox"), MailFolderSpecialUse.Inbox))
-            .With(
-                Work.Id,
-                MailFolderMapping.ToRemotePath(MailFolderAlias.Create("suppliers"), RemoteFolderPath.Create("Archiwum.Dostawcy")));
-        var reader = ReaderOver(
-            Freshness((Work.Id, "inbox", Now)),
-            OwningAccounts(Work),
-            StoredFolders(Stored(Work.Id, "inbox", "INBOX", storedEmailCount: 1, unreadEmailCount: 0, delimiter: '.')),
-            mappings);
-
-        // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
-
-        // Assert
-        var declared = Assert.Single(
-            Assert.Single(directory.Accounts).Folders,
-            folder => folder.Alias.Value == "SUPPLIERS");
-        Assert.Equal(["Archiwum", "Dostawcy"], declared.HierarchyLevels);
-    }
-
-    /// <summary>
-    /// An alias nothing has bound to a remote folder yet has no place on a server and no mail, and it is answered as
-    /// exactly that rather than left out — its own freshness is what says an empty folder from an unsynchronized one.
-    /// </summary>
-    [Fact]
-    public async Task ReadAsync_AFolderTheStoreHoldsNoBindingFor_CarriesNoHierarchyAndNoCounts()
-    {
-        // Arrange
-        var reader = ReaderOver(
-            Freshness((Work.Id, "inbox", null)),
-            OwningAccounts(Work),
-            StoredFolders());
-
-        // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
-
-        // Assert
-        var folder = Assert.Single(Assert.Single(directory.Accounts).Folders);
-        Assert.Empty(folder.HierarchyLevels);
-        Assert.Equal(0, folder.StoredEmailCount);
-        Assert.Equal(0, folder.UnreadEmailCount);
-        Assert.Equal(MailSynchronizationState.NeverSynchronized, folder.Freshness.State);
-    }
-
-    /// <summary>
-    /// The user story behind issue 1758: a mailbox whose trash folder the deployment does not mirror still has a trash
-    /// folder, and a client is told so — otherwise deleting a message is refused for an account that can delete.
-    /// </summary>
-    [Fact]
-    public async Task ReadAsync_AMappedFolderNoRunHasReached_IsPublishedWithItsRoleRatherThanLeftOut()
-    {
-        // Arrange
-        var mappings = new StubMailFolderMappings()
-            .With(Work.Id, MailFolderMapping.ToSpecialUse(MailFolderAlias.Create("inbox"), MailFolderSpecialUse.Inbox))
-            .With(
-                Work.Id,
-                MailFolderMapping.ToSpecialUse(
-                    MailFolderAlias.Create("trash"),
-                    MailFolderSpecialUse.Trash,
-                    MailFolderParticipation.MappedOnly));
-        var reader = ReaderOver(
-            Freshness((Work.Id, "inbox", Now)),
-            OwningAccounts(Work),
-            StoredFolders(Stored(Work.Id, "inbox", "INBOX", storedEmailCount: 12, unreadEmailCount: 3)),
-            mappings);
-
-        // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
-
-        // Assert
-        var trash = Assert.Single(
-            Assert.Single(directory.Accounts).Folders,
-            folder => folder.Role == MailFolderSpecialUse.Trash);
-        Assert.Equal("TRASH", trash.Alias.Value);
-        Assert.Equal(MailSynchronizationState.NeverSynchronized, trash.Freshness.State);
-        Assert.Empty(trash.HierarchyLevels);
-        Assert.Equal(0, trash.StoredEmailCount);
-    }
-
-    /// <summary>
-    /// A folder somebody has just declared is mirrored and takes part in everything, so no run has discovered it and
-    /// local state names it nowhere. It is published all the same: a client that could not see it would report the
-    /// folder as created and then draw a tree without it until the account's next pass, which is minutes.
-    /// </summary>
-    [Fact]
-    public async Task ReadAsync_AMirroredMappingNoRunHasReached_IsPublishedRatherThanWaitedFor()
-    {
-        // Arrange
-        var mappings = new StubMailFolderMappings()
-            .With(Work.Id, MailFolderMapping.ToSpecialUse(MailFolderAlias.Create("inbox"), MailFolderSpecialUse.Inbox))
-            .With(
-                Work.Id,
-                MailFolderMapping.ToRemotePath(
-                    MailFolderAlias.Create("invoices"),
-                    RemoteFolderPath.Create("Faktury")));
-        var reader = ReaderOver(
-            Freshness((Work.Id, "inbox", Now)),
-            OwningAccounts(Work),
-            StoredFolders(Stored(Work.Id, "inbox", "INBOX", storedEmailCount: 1, unreadEmailCount: 0)),
-            mappings);
-
-        // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
-
-        // Assert
-        var declared = Assert.Single(
-            Assert.Single(directory.Accounts).Folders,
-            folder => folder.Alias.Value == "INVOICES");
-        Assert.Equal(MailSynchronizationState.NeverSynchronized, declared.Freshness.State);
-        Assert.Equal(0, declared.StoredEmailCount);
-    }
-
-    /// <summary>
-    /// The one mapping this may not add back: a folder withheld from tools is mirrored and holds mail, and the scope
-    /// that withholds it left it out of the composed reading on purpose — so publishing it here would name a folder
-    /// every other read refuses.
-    /// </summary>
-    [Fact]
-    public async Task ReadAsync_AMirroredMappingWithheldFromTools_StaysOutOfTheTree()
-    {
-        // Arrange
-        var withheld = MailFolderParticipation.Create(
-            isSynchronized: true,
-            generatesEmbeddings: true,
-            isVisibleToTools: false);
-        var mappings = new StubMailFolderMappings()
-            .With(
-                Work.Id,
-                MailFolderMapping.ToSpecialUse(
-                    MailFolderAlias.Create("trash"),
-                    MailFolderSpecialUse.Trash,
-                    withheld));
-        var reader = ReaderOver(
-            Freshness((Work.Id, "inbox", Now)),
-            OwningAccounts(Work),
-            StoredFolders(Stored(Work.Id, "inbox", "INBOX", storedEmailCount: 1, unreadEmailCount: 0)),
-            mappings);
-
-        // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(["INBOX"], Assert.Single(directory.Accounts).Folders.Select(folder => folder.Alias.Value));
-    }
-
-    /// <summary>A folder the composed reading already named is named once, whatever configuration says about it beside that.</summary>
-    [Fact]
-    public async Task ReadAsync_AMappedFolderARunHasReached_IsNotPublishedTwice()
-    {
-        // Arrange
-        var mappings = new StubMailFolderMappings()
-            .With(
-                Work.Id,
-                MailFolderMapping.ToSpecialUse(
-                    MailFolderAlias.Create("inbox"),
-                    MailFolderSpecialUse.Inbox,
-                    MailFolderParticipation.MappedOnly));
-        var reader = ReaderOver(
-            Freshness((Work.Id, "inbox", Now)),
-            OwningAccounts(Work),
-            StoredFolders(Stored(Work.Id, "inbox", "INBOX", storedEmailCount: 1, unreadEmailCount: 0)),
-            mappings);
-
-        // Act
-        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(["INBOX"], Assert.Single(directory.Accounts).Folders.Select(folder => folder.Alias.Value));
     }
 
     /// <summary>The folder's freshness is the composed reading's own, so the tree and the mailbox list beside it cannot disagree.</summary>
@@ -355,7 +194,7 @@ public sealed class MailFolderDirectoryReaderTests
         var reader = ReaderOver(
             Freshness((Work.Id, "inbox", Now)),
             OwningAccounts(Work),
-            StoredFolders(Stored(Work.Id, "inbox", "INBOX", storedEmailCount: 12, unreadEmailCount: 3)),
+            StoredFolders(Stored(Work.Id, 1, "inbox", ["INBOX"], storedEmailCount: 12, unreadEmailCount: 3)),
             StubMailFolderMappings.Nothing,
             ledger);
 
@@ -365,7 +204,7 @@ public sealed class MailFolderDirectoryReaderTests
         // Assert
         var account = Assert.Single(directory.Accounts);
         Assert.Equal(MailSynchronizationState.Unreachable, account.Account.State);
-        Assert.Equal(MailSynchronizationState.Unreachable, Assert.Single(account.Folders).Freshness.State);
+        Assert.Equal(MailSynchronizationState.Unreachable, Assert.Single(account.Folders).Freshness?.State);
     }
 
     /// <summary>A user who owns no account reads an empty tree, and nothing counts mail on their behalf.</summary>
@@ -394,7 +233,7 @@ public sealed class MailFolderDirectoryReaderTests
         var reader = ReaderOver(
             Freshness((Work.Id, "inbox", Now)),
             OwningAccounts(synchronizationEnabled, Work),
-            StoredFolders(Stored(Work.Id, "inbox", "INBOX", storedEmailCount: 1, unreadEmailCount: 0)));
+            StoredFolders(Stored(Work.Id, 1, "inbox", ["INBOX"], storedEmailCount: 1)));
 
         // Act
         var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
@@ -444,19 +283,26 @@ public sealed class MailFolderDirectoryReaderTests
         return catalog;
     }
 
-    /// <summary>Builds one entry of what local state holds about a folder.</summary>
+    /// <summary>Builds one folder row of what local state holds.</summary>
     private static StoredMailFolder Stored(
         MailAccountId accountId,
-        string folderAlias,
-        string remotePath,
-        int storedEmailCount,
-        int unreadEmailCount,
-        char? delimiter = null) =>
+        int number,
+        string? folderAlias,
+        IReadOnlyList<string> hierarchyLevels,
+        MailFolderSpecialUse? role = null,
+        int storedEmailCount = 0,
+        int unreadEmailCount = 0) =>
         new(
-            new MailFolderIdentity(accountId, MailFolderAlias.Create(folderAlias)),
-            RemoteFolderPath.Create(remotePath, delimiter),
+            accountId,
+            IdOf(number),
+            folderAlias is null ? null : MailFolderAlias.Create(folderAlias),
+            role,
+            hierarchyLevels,
             storedEmailCount,
             unreadEmailCount);
+
+    private static MailFolderId IdOf(int number) =>
+        MailFolderId.Create(Guid.Parse($"0199c1a2-0000-7000-8000-{number:D12}"));
 
     /// <summary>Answers where each folder sits on its mail server and how much of it is stored.</summary>
     private static IStoredMailFolderReader StoredFolders(params StoredMailFolder[] folders)
@@ -518,12 +364,12 @@ public sealed class MailFolderDirectoryReaderTests
                 new MailAccountDirectoryReader(
                     catalog,
                     freshnessReader,
+                    storedFolders,
                     scopeResolver,
                     new RecordingMailboxReadTelemetry(),
                     authorization),
                 runLedger),
             scopeResolver,
-            storedFolders,
-            mappings);
+            storedFolders);
     }
 }

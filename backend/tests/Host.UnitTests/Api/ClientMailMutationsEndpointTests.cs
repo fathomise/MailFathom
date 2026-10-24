@@ -39,6 +39,7 @@ namespace MailFathom.Host.UnitTests.Api;
 /// </remarks>
 public sealed class ClientMailMutationsEndpointTests
 {
+    private static readonly MailFolderId ArchiveId = MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-000000000006"));
     private static readonly Guid Message = Guid.Parse("0199a0c0-0000-7000-8000-0000000090a0");
 
     private static readonly MailAccountId ServedAccount = MailAccountId.Create("work");
@@ -297,11 +298,11 @@ public sealed class ClientMailMutationsEndpointTests
         var archive = MailFolderAlias.Create("Archive");
 
         // Act
-        var move = ClientMailMoveResultResponse.For(Message, AuthoredMailRelocationResult.Applied(archive));
+        var move = ClientMailMoveResultResponse.For(Message, ArchiveId, AuthoredMailRelocationResult.Applied(archive));
 
         // Assert
         Assert.Equal(ClientMailChangeOutcomes.Applied, move.Outcome);
-        Assert.Equal(archive.Value, move.DestinationFolder);
+        Assert.Equal(ArchiveId.ToString(), move.DestinationFolder);
         Assert.Null(move.Change);
     }
 
@@ -365,7 +366,7 @@ public sealed class ClientMailMutationsEndpointTests
     {
         // Act
         var result = await ClientMailMutationsEndpoint.SubmitMovesAsync(
-            new ClientMailMovesRequest("call-1", [new ClientMailMoveRequest(Message, "Archive")]),
+            new ClientMailMovesRequest("call-1", [new ClientMailMoveRequest(Message, ArchiveId.ToString())]),
             this.RelocationRecorder(),
             TestContext.Current.CancellationToken);
 
@@ -375,6 +376,23 @@ public sealed class ClientMailMutationsEndpointTests
         Assert.Equal(Message, move.StoredEmailId);
         Assert.Equal(ClientMailChangeOutcomes.MessageNotFound, move.Outcome);
         Assert.Null(move.DestinationFolder);
+        Assert.Null(move.Change);
+    }
+
+    /// <summary>A destination is named by the identity the folders route reports, so a name of any other shape is no folder at all.</summary>
+    [Fact]
+    public async Task SubmitMovesAsync_ADestinationNamedByAnythingButItsIdentity_IsAFolderNotFound()
+    {
+        // Act
+        var result = await ClientMailMutationsEndpoint.SubmitMovesAsync(
+            new ClientMailMovesRequest("call-1", [new ClientMailMoveRequest(Message, "Archive")]),
+            this.RelocationRecorder(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var move = Assert.Single(Assert.IsType<Ok<ClientMailMovesResponse>>(result.Result).Value!.Results);
+
+        Assert.Equal(ClientMailChangeOutcomes.DestinationNotFound, move.Outcome);
         Assert.Null(move.Change);
     }
 
@@ -592,11 +610,11 @@ public sealed class ClientMailMutationsEndpointTests
         var recorded = AuthoredMailRelocationResult.Recorded(archive, recordId, MailboxMutationLifecycle.Pending);
 
         // Act
-        var response = ClientMailMoveResultResponse.For(Message, recorded);
+        var response = ClientMailMoveResultResponse.For(Message, ArchiveId, recorded);
 
         // Assert
         Assert.Equal(ClientMailChangeOutcomes.Recorded, response.Outcome);
-        Assert.Equal(archive.Value, response.DestinationFolder);
+        Assert.Equal(ArchiveId.ToString(), response.DestinationFolder);
         Assert.Equal(MailboxMutation.Relocate.Name, response.Change?.Mutation);
         Assert.Equal(recordId.Value, response.Change?.RecordId);
         Assert.Equal(MailboxMutationLifecycle.Pending.Name, response.Change?.State);
@@ -609,6 +627,7 @@ public sealed class ClientMailMutationsEndpointTests
         // Act
         var response = ClientMailMoveResultResponse.For(
             Message,
+            ArchiveId,
             AuthoredMailRelocationResult.NotRecorded(MailRelocationOutcome.MessageNotFound));
 
         // Assert
@@ -671,7 +690,8 @@ public sealed class ClientMailMutationsEndpointTests
 
         return new AuthoredMailboxTarget(
             EmailOccurrenceId.Create(ServedAccount, folder.Id, ImapUidValidity.Create(42), ImapUid.Create(7)),
-            folder);
+            folder,
+            MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-000000000005")));
     }
 
     private static OptimisticConcurrencyRetryPolicy CommitPolicy()
@@ -771,6 +791,7 @@ public sealed class ClientMailMutationsEndpointTests
         Substitute.For<IAuthoredMailboxTargetReader>(),
         StubMailFolderMappings.ResolvingNothing,
         Substitute.For<IMailFolderResolutionStore>(),
+        Substitute.For<ILocalMailFolderStore>(),
         DestinationResolver(),
         Substitute.For<IAuthoredDeleteEmailDispositionReader>(),
         this.Submission(held: false),

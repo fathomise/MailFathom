@@ -329,7 +329,7 @@ internal sealed class RetrievalDatabase : IAsyncDisposable
             CorpusKnowledgeSearch.Inbox,
             RemoteFolderPath.Create(CorpusKnowledgeSearch.Inbox.Value));
 
-        var folder = await MailFolderEntityResolver.AddAsync(context, CorpusKnowledgeSearch.Account, resolution, cancellationToken);
+        var folder = await MailFolderBindingResolver.AddAsync(context, CorpusKnowledgeSearch.Account, resolution, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
 
         var reader = new MimeKitEmailMimeReader(
@@ -352,7 +352,7 @@ internal sealed class RetrievalDatabase : IAsyncDisposable
             {
                 Id = message.Id.Value,
                 MailboxAccountId = CorpusKnowledgeSearch.Account.Value,
-                MailFolder = folder,
+                MailFolderBinding = folder,
                 UidValidity = FolderUidValidity.Value,
                 Uid = uid.Value,
                 StoredAt = now,

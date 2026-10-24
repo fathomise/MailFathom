@@ -32,7 +32,7 @@ public sealed class MailboxMutationRecordMappingTests
         entity.LocalDisposition = disposition;
 
         // Act
-        var record = MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolder);
+        var record = MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding);
 
         // Assert
         Assert.Equal(disposition, record.Request.LocalDisposition);
@@ -46,7 +46,7 @@ public sealed class MailboxMutationRecordMappingTests
         var entity = StoredRelocation();
 
         // Act
-        var record = MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolder);
+        var record = MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding);
 
         // Assert
         Assert.Null(record.Request.LocalDisposition);
@@ -65,7 +65,7 @@ public sealed class MailboxMutationRecordMappingTests
 
         // Act, Assert
         Assert.Throws<InvalidOperationException>(
-            () => MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolder));
+            () => MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding));
     }
 
     /// <summary>A delete is performed later under the server disposition it was recorded with, whatever the setting says by then.</summary>
@@ -82,7 +82,7 @@ public sealed class MailboxMutationRecordMappingTests
         entity.DeleteFlagSettledAt = settledAt;
 
         // Act
-        var record = MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolder);
+        var record = MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding);
 
         // Assert
         Assert.Equal(disposition, record.Request.ServerDisposition);
@@ -100,7 +100,7 @@ public sealed class MailboxMutationRecordMappingTests
         var entity = StoredDelete();
 
         // Act
-        var record = MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolder);
+        var record = MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding);
 
         // Assert
         Assert.Equal(AuthoredDeleteServerDisposition.Expunge, record.Request.ServerDisposition);
@@ -114,7 +114,7 @@ public sealed class MailboxMutationRecordMappingTests
         var entity = StoredRelocation();
 
         // Act
-        var record = MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolder);
+        var record = MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding);
 
         // Assert
         Assert.Null(record.Request.ServerDisposition);
@@ -138,7 +138,7 @@ public sealed class MailboxMutationRecordMappingTests
         entity.DesiredFlaggedState = isFlagged;
 
         // Act
-        var record = MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolder);
+        var record = MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding);
 
         // Assert
         Assert.Equal(isFlagged, record.Request.DesiredFlaggedState);
@@ -153,7 +153,7 @@ public sealed class MailboxMutationRecordMappingTests
         var entity = StoredKeywordChange(MailboxMutation.AddKeywords, ["$Todo", "$Invoice"]);
 
         // Act
-        var record = MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolder);
+        var record = MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding);
 
         // Assert
         Assert.Equal(AuthoredMailKeywords.Create(["$Invoice", "$Todo"]), record.Request.Keywords);
@@ -171,7 +171,7 @@ public sealed class MailboxMutationRecordMappingTests
         var entity = StoredKeywordChange(MailboxMutation.SetKeywords, []);
 
         // Act
-        var record = MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolder);
+        var record = MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding);
 
         // Assert
         Assert.NotNull(record.Request.Keywords);
@@ -183,7 +183,7 @@ public sealed class MailboxMutationRecordMappingTests
     public void ToRecord_AMutationThatNamesNoKeywords_RestoresNoKeywordSet()
     {
         // Act
-        var record = MailboxMutationRecordMapping.ToRecord(StoredRelocation(), StoredRelocation().MailFolder);
+        var record = MailboxMutationRecordMapping.ToRecord(StoredRelocation(), StoredRelocation().MailFolderBinding);
 
         // Assert
         Assert.Null(record.Request.Keywords);
@@ -203,7 +203,7 @@ public sealed class MailboxMutationRecordMappingTests
         entity.LocalChange = localChange;
 
         // Act
-        var record = MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolder);
+        var record = MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding);
 
         // Assert
         Assert.Equal(localChange, record.LocalChange);
@@ -222,7 +222,7 @@ public sealed class MailboxMutationRecordMappingTests
 
         // Act, Assert
         Assert.Throws<InvalidOperationException>(
-            () => MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolder));
+            () => MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding));
     }
 
     /// <summary>
@@ -242,7 +242,7 @@ public sealed class MailboxMutationRecordMappingTests
 
         // Act
         var refusal = Assert.Throws<InvalidOperationException>(
-            () => MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolder));
+            () => MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding));
 
         // Assert
         Assert.Contains(
@@ -278,7 +278,7 @@ public sealed class MailboxMutationRecordMappingTests
 
     private static MailboxMutationEntity StoredRelocation()
     {
-        var folder = new MailFolderEntity
+        var folder = new MailFolderBindingEntity
         {
             MailboxAccountId = "primary",
             Alias = "INBOX",
@@ -294,10 +294,10 @@ public sealed class MailboxMutationRecordMappingTests
             StoredEmail = new StoredEmailEntity
             {
                 MailboxAccountId = "primary",
-                MailFolder = folder,
+                MailFolderBinding = folder,
             },
             MailboxAccountId = "primary",
-            MailFolder = folder,
+            MailFolderBinding = folder,
             UidValidity = 1,
             Uid = 7,
             Mutation = MailboxMutation.Relocate.Name,

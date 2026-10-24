@@ -263,7 +263,7 @@ public sealed class OrchestratedRelocationReconciliationTests(MailFathomOrchestr
                 .Where(storedEmail => storedEmail.Subject == subject)
                 .Select(storedEmail => new StoredEmailRow(
                     StoredEmailId.Create(storedEmail.Id),
-                    storedEmail.MailFolder.Alias,
+                    storedEmail.MailFolderBinding.Alias,
                     ImapUidValidity.Create(storedEmail.UidValidity!.Value),
                     ImapUid.Create(storedEmail.Uid!.Value),
                     storedEmail.RemoteExpungeObservedAt))

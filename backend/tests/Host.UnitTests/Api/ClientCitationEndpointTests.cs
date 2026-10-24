@@ -306,7 +306,7 @@ public sealed class ClientCitationEndpointTests
     private static CitedMessage CitedMessageOf() => new(
         StoredEmailId.Create(Message),
         MailAccountId.Create("primary"),
-        MailFolderAlias.Create("INBOX"),
+        new StoredEmailFolder(MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-000000000004")), "INBOX", MailFolderAlias.Create("INBOX")),
         "Quarterly invoice",
         new DateTimeOffset(2026, 3, 4, 9, 0, 0, TimeSpan.Zero),
         new DateTimeOffset(2026, 3, 4, 9, 1, 0, TimeSpan.Zero));

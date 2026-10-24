@@ -53,11 +53,12 @@ internal sealed class StubEmailThreadReader(
     /// <returns><see langword="true" /> when the account narrowing and the folder narrowing both admit it.</returns>
     internal static bool Admits(MailboxScope scope, ThreadedEmailSummary email)
     {
-        var folder = new MailFolderIdentity(email.AccountId, email.FolderAlias);
+        // A folder no alias feeds is one MailFathom keeps itself, which no configured admission or withholding names.
+        var folder = email.Folder.Alias is { } alias ? new MailFolderIdentity(email.AccountId, alias) : (MailFolderIdentity?)null;
 
         return (scope.AccountIds.Count is 0 || scope.AccountIds.Contains(email.AccountId))
-            && scope.ReadableFolders.Contains(folder)
-            && !scope.WithheldJunkFolders.Contains(folder);
+            && (folder is not { } named
+                || (scope.ReadableFolders.Contains(named) && !scope.WithheldJunkFolders.Contains(named)));
     }
 
     /// <inheritdoc />

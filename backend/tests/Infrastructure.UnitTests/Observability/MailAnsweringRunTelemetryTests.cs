@@ -157,14 +157,14 @@ public sealed class MailAnsweringRunTelemetryTests : IDisposable
         Assert.DoesNotContain(passage.StoredEmailId.Value.ToString(), values);
         Assert.DoesNotContain(passage.Text, values);
         Assert.DoesNotContain(passage.Subject, values);
-        Assert.DoesNotContain(passage.FolderAlias.Value, values);
+        Assert.DoesNotContain(passage.Folder.Path, values);
     }
 
     private static EmailKnowledgePassage Passage() => new()
     {
         StoredEmailId = StoredEmailId.Create(Guid.CreateVersion7()),
         AccountId = Account,
-        FolderAlias = MailFolderAlias.Create("inbox"),
+        Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("caadbcff-ec90-7811-8a56-42fc15e5aa67")), "inbox", MailFolderAlias.Create("inbox")),
         Subject = "Quarterly invoice",
         ReceivedAt = StartedAt,
         SenderVerification = SenderVerification.NotEstablished,

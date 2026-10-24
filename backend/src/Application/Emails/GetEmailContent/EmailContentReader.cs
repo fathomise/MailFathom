@@ -269,7 +269,7 @@ public sealed class EmailContentReader
         if (summary is null || !this.scopeResolver.IsReadableByTools(
                 assignedAccounts,
                 summary.Account,
-                summary.FolderAlias))
+                summary.Folder.Alias))
         {
             return EmailContentReadOutcome.NotFound(storedEmailId);
         }
@@ -720,7 +720,7 @@ public sealed class EmailContentReader
         {
             StoredEmailId = summary.StoredEmailId,
             AccountId = summary.Account,
-            FolderAlias = summary.FolderAlias,
+            Folder = summary.Folder,
             SizeOctets = summary.SizeOctets,
             Headers = rendering.Headers,
             Body = rendering.BodyIsEncrypted
@@ -780,7 +780,7 @@ public sealed class EmailContentReader
         {
             StoredEmailId = summary.StoredEmailId,
             AccountId = summary.Account,
-            FolderAlias = summary.FolderAlias,
+            Folder = summary.Folder,
             SizeOctets = summary.SizeOctets,
             Headers = HeadersFrom(summary),
             Body = body,

@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Emails.Threads;
+using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
@@ -220,7 +221,7 @@ public sealed class EmailThreadOrderTests
     {
         StoredEmailId = StoredEmailId.Create(new Guid($"00000000-0000-0000-0000-{ordinal:D12}")),
         AccountId = Account,
-        FolderAlias = Inbox,
+        Folder = SyntheticEmailSummaries.FolderOf(Account.Value, Inbox.Value),
         ParentStoredEmailId = answers?.StoredEmailId,
         Subject = $"Message {ordinal}",
         SentAt = sentAt is null ? null : DateTimeOffset.Parse(sentAt, null),

@@ -614,8 +614,8 @@ public sealed class OrchestratedStoredEmailTimelineReaderTests(MailFathomOrchest
                 .StoredEmails
                 .AsNoTracking()
                 .CountAsync(
-                    email => email.MailFolder.Alias == alias
-                        && email.MailFolder.ResolutionGeneration == generation
+                    email => email.MailFolderBinding.Alias == alias
+                        && email.MailFolderBinding.ResolutionGeneration == generation
                         && email.Uid >= FirstSeededUid
                         && email.Uid <= lastSeededUid,
                     token),

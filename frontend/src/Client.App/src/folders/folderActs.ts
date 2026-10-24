@@ -54,7 +54,7 @@ export function actsOffered(row: FolderTreeRow, reported: ReportedFolderActs): r
 
     const mayCreate = reported.account.includes('create');
 
-    if (row.alias === null) {
+    if (row.folderId === null) {
         return [...(mayCreate ? (['newFolder'] as const) : []), 'markAllRead'];
     }
 

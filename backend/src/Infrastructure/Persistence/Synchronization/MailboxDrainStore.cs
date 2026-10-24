@@ -47,7 +47,7 @@ internal sealed class MailboxDrainStore(MailFathomDbContext readContext) : IMail
             .AsNoTracking()
             .Where(email => email.MailboxAccountId == accountValue
                 && email.UidValidity != null
-                && aliasValues.Contains(email.MailFolder.Alias))
+                && aliasValues.Contains(email.MailFolderBinding.Alias))
             .OrderBy(email => email.ReceivedAt)
             .ThenBy(email => email.Id)
             .Take(maximumCandidates)
@@ -57,10 +57,10 @@ internal sealed class MailboxDrainStore(MailFathomDbContext readContext) : IMail
                 email.Uid!.Value,
                 email.ContentAvailability,
                 email.ContentVerifiedAt,
-                email.MailFolder.Alias,
-                email.MailFolder.ResolutionGeneration,
-                email.MailFolder.RemotePath,
-                email.MailFolder.HierarchyDelimiter))
+                email.MailFolderBinding.Alias,
+                email.MailFolderBinding.ResolutionGeneration,
+                email.MailFolderBinding.RemotePath,
+                email.MailFolderBinding.HierarchyDelimiter))
             .ToArrayAsync(cancellationToken);
 
         return [.. rows.Select(row => row.ToCandidate(account))];
@@ -93,10 +93,10 @@ internal sealed class MailboxDrainStore(MailFathomDbContext readContext) : IMail
                 email.Uid!.Value,
                 email.ContentAvailability,
                 email.ContentVerifiedAt,
-                email.MailFolder.Alias,
-                email.MailFolder.ResolutionGeneration,
-                email.MailFolder.RemotePath,
-                email.MailFolder.HierarchyDelimiter))
+                email.MailFolderBinding.Alias,
+                email.MailFolderBinding.ResolutionGeneration,
+                email.MailFolderBinding.RemotePath,
+                email.MailFolderBinding.HierarchyDelimiter))
             .ToArrayAsync(cancellationToken);
 
         return [.. rows.Select(row => row.ToCandidate(account))];
@@ -169,17 +169,17 @@ internal sealed class MailboxDrainStore(MailFathomDbContext readContext) : IMail
         var rows = await readContext.MailboxSourceRemovals
             .AsNoTracking()
             .Where(removal => removal.MailboxAccountId == accountValue
-                && aliasValues.Contains(removal.MailFolder!.Alias))
+                && aliasValues.Contains(removal.MailFolderBinding!.Alias))
             .OrderBy(removal => removal.RecordedAt)
             .Take(maximumRemovals)
             .Select(removal => new RemovalRow(
                 removal.Id,
                 removal.UidValidity,
                 removal.Uid,
-                removal.MailFolder!.Alias,
-                removal.MailFolder.ResolutionGeneration,
-                removal.MailFolder.RemotePath,
-                removal.MailFolder.HierarchyDelimiter))
+                removal.MailFolderBinding!.Alias,
+                removal.MailFolderBinding.ResolutionGeneration,
+                removal.MailFolderBinding.RemotePath,
+                removal.MailFolderBinding.HierarchyDelimiter))
             .ToArrayAsync(cancellationToken);
 
         return [.. rows.Select(row => row.ToRemoval(account))];
@@ -240,7 +240,7 @@ internal sealed class MailboxDrainStore(MailFathomDbContext readContext) : IMail
         new(
             MailFolderAlias.Create(alias),
             MailFolderResolutionGeneration.Create(generation),
-            MailFolderEntityResolver.ToRemotePath(remotePath, delimiter));
+            MailFolderBindingResolver.ToRemotePath(remotePath, delimiter));
 
     private sealed record AvailabilityCount(StoredEmailContentAvailability Availability, int Count);
 

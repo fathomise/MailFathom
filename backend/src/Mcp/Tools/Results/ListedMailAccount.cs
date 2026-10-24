@@ -5,6 +5,7 @@
 using System.ComponentModel;
 using MailFathom.Application.Accounts;
 using MailFathom.Domain.Synchronization;
+using MailFathom.Mcp.Tools.Accounts;
 
 namespace MailFathom.Mcp.Tools.Results;
 
@@ -38,9 +39,9 @@ internal sealed record ListedMailAccount
     [Description("What the operator configured to start this account's next synchronization pass: 'polling' to reconcile on a fixed interval, or 'push' to hold a session that reacts to a change at once. It states what was asked for rather than what a folder is currently getting, which is decided per folder against what the mail server offers.")]
     public required AccountSynchronizationMode SynchronizationMode { get; init; }
 
-    /// <summary>Gets how current the local copy of each of the account's folders is.</summary>
-    [Description("How current the local copy of each of this account's folders is, one entry per folder local state knows of. Empty when synchronization has never reached the account, which means its mail may be absent entirely rather than merely out of date.")]
-    public required IReadOnlyList<FolderCopyFreshness> Folders { get; init; }
+    /// <summary>Gets every folder of the account.</summary>
+    [Description("Every folder of this account, with the identity the folders argument of a mailbox tool names it by, its place in the hierarchy, its role, and how current its local copy is. Empty when the account has no folder yet, which for a mirrored account means synchronization has never reached it and its mail may be absent entirely.")]
+    public required IReadOnlyList<ListedMailFolder> Folders { get; init; }
 
     /// <summary>Publishes one account the use case described.</summary>
     /// <param name="account">The described account to publish.</param>
@@ -57,7 +58,12 @@ internal sealed record ListedMailAccount
             AccountId = account.Account.Id.Value,
             DisplayName = account.Account.DisplayName.Value,
             SynchronizationMode = Published(account.Account.SynchronizationMode),
-            Folders = [.. account.Folders.Select(freshness => FolderCopyFreshness.From(freshness, accountNames))],
+            Folders =
+            [
+                .. account.StoredFolders.Select(folder => ListedMailFolder.From(
+                    folder,
+                    account.Folders.FirstOrDefault(freshness => freshness.Folder?.Id == folder.Id))),
+            ],
         };
     }
 

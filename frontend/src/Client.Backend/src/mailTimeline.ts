@@ -37,7 +37,7 @@ export interface MailTimelineQuery {
     /** The account to draw from, or `null` for every account the user owns. */
     readonly account: string | null;
 
-    /** The folder to draw from, by its alias or as `role:Inbox`, or `null` for every folder. */
+    /** The folder to draw from, by its identity or as `role:Inbox`, or `null` for every folder. */
     readonly folder: string | null;
 
     /** Whether the junk folder takes part, which it does not unless the request asks. */

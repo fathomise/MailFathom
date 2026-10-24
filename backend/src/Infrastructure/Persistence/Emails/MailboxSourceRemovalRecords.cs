@@ -47,7 +47,7 @@ internal static class MailboxSourceRemovalRecords
             {
                 Id = Guid.CreateVersion7(),
                 MailboxAccountId = row.MailboxAccountId,
-                MailFolderId = row.MailFolderId,
+                MailFolderBindingId = row.MailFolderBindingId,
                 UidValidity = row.UidValidity!.Value,
                 Uid = row.Uid!.Value,
                 RecordedAt = recordedAt,

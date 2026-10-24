@@ -255,7 +255,7 @@ public sealed class LocalMailFiler
         await this.contents.SaveContentAsync(session, email, occurrenceId: null, copy.Content, cancellationToken);
         await this.folders.PlaceAsync(session, copy.Account, email, folder.Folder, cancellationToken);
 
-        return new FiledLocalEmail(copy.Account, copy.Binding.Alias, email, missing.Count > 0);
+        return new FiledLocalEmail(copy.Account, folder.Folder, email, missing.Count > 0);
     }
 
     /// <summary>Records that a prepared sent copy was not filed, because the transaction found nowhere to put it.</summary>
@@ -273,8 +273,8 @@ public sealed class LocalMailFiler
     /// <param name="account">The account the message was filed for.</param>
     /// <param name="email">The message.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
-    /// <returns>The alias it was stored under, or <see langword="null" /> where it was already gone.</returns>
-    public Task<MailFolderAlias?> EraseAsync(
+    /// <returns>The folder it was in, or <see langword="null" /> where it was already gone.</returns>
+    public Task<MailFolderId?> EraseAsync(
         IPersistenceSession session,
         MailAccountId account,
         StoredEmailId email,
@@ -314,10 +314,10 @@ public sealed class LocalMailFiler
 
     /// <summary>Tells the account's clients that a committed transaction erased a filed message.</summary>
     /// <param name="account">The account.</param>
-    /// <param name="folder">The alias the message was stored under.</param>
+    /// <param name="folder">The folder the message was in.</param>
     /// <param name="email">The message.</param>
-    public void AnnounceErased(MailAccountId account, MailFolderAlias folder, StoredEmailId email) =>
+    public void AnnounceErased(MailAccountId account, MailFolderId folder, StoredEmailId email) =>
         this.signals.Publish(ClientSignal.MailChanged(account, folder, [email]));
 
-    private LocalMailFolderId MintId() => LocalMailFolderId.Create(Guid.CreateVersion7(this.timeProvider.GetUtcNow()));
+    private MailFolderId MintId() => MailFolderId.Mint(this.timeProvider.GetUtcNow());
 }

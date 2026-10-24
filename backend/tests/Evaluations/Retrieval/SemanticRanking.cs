@@ -41,7 +41,7 @@ internal static class SemanticRanking
             {
                 Id = entry.Message.Id.Value,
                 MailboxAccountId = string.Empty,
-                MailFolder = null!,
+                MailFolderBinding = null!,
                 ReceivedAt = entry.Message.ReceivedAt,
             })
             .AsQueryable();

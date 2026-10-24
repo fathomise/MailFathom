@@ -7,8 +7,8 @@ using MailFathom.Application.Emails.Threads;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
-using MailFathom.Domain.Folders;
 using MailFathom.Infrastructure.Persistence.Entities;
+using MailFathom.Infrastructure.Persistence.Folders;
 using Microsoft.EntityFrameworkCore;
 
 namespace MailFathom.Infrastructure.Persistence.Emails.Threads;
@@ -44,7 +44,8 @@ internal sealed class StoredEmailThreadReader(MailFathomDbContext dbContext) : I
             {
                 email.Id,
                 email.MailboxAccountId,
-                FolderAlias = email.MailFolder.Alias,
+                email.FolderId,
+                FolderAlias = email.Folder.Alias,
                 email.ParentStoredEmailId,
                 email.Subject,
                 email.SentAt,
@@ -52,6 +53,10 @@ internal sealed class StoredEmailThreadReader(MailFathomDbContext dbContext) : I
                 email.SenderDisplayName,
             })
             .ToArrayAsync(cancellationToken);
+        var folderPaths = await StoredMailFolderPaths.ReadAsync(
+            dbContext.MailFolders,
+            [.. rows.Select(static row => row.MailboxAccountId)],
+            cancellationToken);
 
         return
         [
@@ -59,7 +64,7 @@ internal sealed class StoredEmailThreadReader(MailFathomDbContext dbContext) : I
             {
                 StoredEmailId = StoredEmailId.Create(row.Id),
                 AccountId = MailAccountId.Create(row.MailboxAccountId),
-                FolderAlias = MailFolderAlias.Create(row.FolderAlias),
+                Folder = StoredMailFolderPaths.Describe(row.FolderId, row.FolderAlias, folderPaths),
                 ParentStoredEmailId = row.ParentStoredEmailId is { } parent
                     ? StoredEmailId.Create(parent)
                     : null,

@@ -37,8 +37,8 @@ internal sealed class SpamActionOccurrenceReader(MailFathomDbContext dbContext) 
             .Select(email => new
             {
                 email.MailboxAccountId,
-                email.MailFolder.Alias,
-                email.MailFolder.ResolutionGeneration,
+                email.MailFolderBinding.Alias,
+                email.MailFolderBinding.ResolutionGeneration,
                 email.UidValidity,
                 email.Uid,
                 email.IsRemotelySeen,

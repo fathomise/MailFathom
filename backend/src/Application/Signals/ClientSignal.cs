@@ -24,7 +24,7 @@ namespace MailFathom.Application.Signals;
 /// it.
 /// </para>
 /// <para>
-/// <b>No mail crosses.</b> A count, an account alias, a folder alias, a stored identity, a server flag, a state, and a
+/// <b>No mail crosses.</b> A count, an account alias, a folder identity, a stored identity, a server flag, a state, and a
 /// run with the sequence it has reached are the whole vocabulary; no subject, address, body fragment, filename,
 /// attachment name, or snippet reaches a signal at any size. <see cref="ClientSignalKind.RunAdvanced" /> is the kind
 /// whose subject is mail-derived and which therefore carries none of it: identifiers and a number, with the answer read
@@ -44,8 +44,8 @@ public sealed class ClientSignal
     /// <remarks>
     /// A bound at a boundary rather than a tuning value: a reconciliation window can attribute changes to a few hundred
     /// occurrences at once, and a client acting on such a signal re-reads the scope rather than each row anyway. Beyond
-    /// this many the signal still names the account and the folder, which is enough for the client to re-read what it
-    /// is showing.
+    /// this many the signal still names the account, and the folder where it names one, which is enough for the client
+    /// to re-read what it is showing.
     /// </remarks>
     public const int MostNamedEmails = 100;
 
@@ -53,7 +53,7 @@ public sealed class ClientSignal
         ClientSignalKind kind,
         UserId? user,
         MailAccountId? account,
-        MailFolderAlias? folder,
+        MailFolderId? folder,
         int count,
         IReadOnlyList<StoredEmailId> emails,
         IReadOnlyList<SignalledEmailFlags> flags,
@@ -94,8 +94,8 @@ public sealed class ClientSignal
     /// <summary>Gets the account the change is in, where the kind names one.</summary>
     public MailAccountId? Account { get; }
 
-    /// <summary>Gets the folder the change is in, where the kind names one.</summary>
-    public MailFolderAlias? Folder { get; }
+    /// <summary>Gets the folder the change is in, or <see langword="null" /> where the kind names none or the change may be in any folder of the account.</summary>
+    public MailFolderId? Folder { get; }
 
     /// <summary>Gets how many things the change covers, which is the run's arrival count or the unread notification count.</summary>
     public int Count { get; }
@@ -135,11 +135,11 @@ public sealed class ClientSignal
 
     /// <summary>States that a synchronization run committed mail into one folder.</summary>
     /// <param name="account">The account the run was over.</param>
-    /// <param name="folder">The folder the mail was committed into.</param>
+    /// <param name="folder">The folder the mail was committed into, or <see langword="null" /> when the run cannot say, which a client reads as any folder of the account.</param>
     /// <param name="newEmailCount">How many occurrences the run committed there.</param>
     /// <returns>The signal.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="newEmailCount" /> is not positive, an arrival of nothing being no arrival.</exception>
-    public static ClientSignal MailArrived(MailAccountId account, MailFolderAlias folder, int newEmailCount)
+    public static ClientSignal MailArrived(MailAccountId account, MailFolderId? folder, int newEmailCount)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(newEmailCount);
 
@@ -161,13 +161,13 @@ public sealed class ClientSignal
 
     /// <summary>States that stored mail in one folder is no longer what a client last read.</summary>
     /// <param name="account">The account the change is in.</param>
-    /// <param name="folder">The folder the change is in.</param>
+    /// <param name="folder">The folder the change is in, or <see langword="null" /> when the change may be in any folder of the account.</param>
     /// <param name="emails">The occurrences affected, taken up to <see cref="MostNamedEmails" />.</param>
     /// <returns>The signal.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="emails" /> is <see langword="null" />.</exception>
     public static ClientSignal MailChanged(
         MailAccountId account,
-        MailFolderAlias folder,
+        MailFolderId? folder,
         IEnumerable<StoredEmailId> emails)
     {
         ArgumentNullException.ThrowIfNull(emails);
@@ -190,7 +190,7 @@ public sealed class ClientSignal
 
     /// <summary>States where the <c>\Seen</c> and <c>\Flagged</c> flags of one folder's mail now stand, nothing else about it having moved.</summary>
     /// <param name="account">The account the change is in.</param>
-    /// <param name="folder">The folder the change is in.</param>
+    /// <param name="folder">The folder the change is in, or <see langword="null" /> when the change may be in any folder of the account.</param>
     /// <param name="flags">Where each affected email's flags now stand, taken up to <see cref="MostNamedEmails" />.</param>
     /// <returns>The signal.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="flags" /> is <see langword="null" />.</exception>
@@ -202,7 +202,7 @@ public sealed class ClientSignal
     /// </remarks>
     public static ClientSignal MailFlagsChanged(
         MailAccountId account,
-        MailFolderAlias folder,
+        MailFolderId? folder,
         IEnumerable<SignalledEmailFlags> flags)
     {
         ArgumentNullException.ThrowIfNull(flags);
@@ -445,6 +445,6 @@ internal readonly record struct ClientSignalScope(
     UserId? User,
     ClientSignalKind Kind,
     MailAccountId? Account,
-    MailFolderAlias? Folder,
+    MailFolderId? Folder,
     Guid? Run,
     AgentConversationId? Conversation);

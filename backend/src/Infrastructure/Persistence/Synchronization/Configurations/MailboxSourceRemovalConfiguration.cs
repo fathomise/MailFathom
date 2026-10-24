@@ -34,11 +34,12 @@ internal sealed class MailboxSourceRemovalConfiguration : IEntityTypeConfigurati
         entity.ToTable("mailbox_source_removals");
         entity.HasKey(removal => removal.Id);
         entity.Property(removal => removal.Id).ValueGeneratedNever();
+        entity.Property(removal => removal.MailFolderBindingId).HasColumnName(PersistenceConstraintNames.MailFolderBindingColumnName);
         entity.Property(removal => removal.MailboxAccountId).HasMaxLength(128);
 
         // Unique on the occurrence, because the erasure that writes it may be attempted again and the source copy is
         // removed once whether it was recorded once or twice.
-        entity.HasIndex(removal => new { removal.MailFolderId, removal.UidValidity, removal.Uid })
+        entity.HasIndex(removal => new { removal.MailFolderBindingId, removal.UidValidity, removal.Uid })
             .IsUnique()
             .HasDatabaseName(PersistenceConstraintNames.MailboxSourceRemovalOccurrenceUniqueIndexName);
 
@@ -48,9 +49,9 @@ internal sealed class MailboxSourceRemovalConfiguration : IEntityTypeConfigurati
 
         // Cascades from the folder for the reason the mutation record does: an account's erasure removes its folders
         // in one statement, and a record naming a folder that is gone names nothing the drain could act on.
-        entity.HasOne(removal => removal.MailFolder)
+        entity.HasOne(removal => removal.MailFolderBinding)
             .WithMany()
-            .HasForeignKey(removal => removal.MailFolderId)
+            .HasForeignKey(removal => removal.MailFolderBindingId)
             .IsRequired()
             .OnDelete(DeleteBehavior.Cascade);
     }

@@ -35,7 +35,7 @@ internal static class MailFoldersInScope
     /// read — and what would name the junk folder to a caller who did not ask for it, or a folder no mapping names to a
     /// caller whose deployment no longer has it.
     /// </remarks>
-    internal static IQueryable<MailFolderEntity> Within(IQueryable<MailFolderEntity> folders, MailboxScope scope)
+    internal static IQueryable<MailFolderBindingEntity> Within(IQueryable<MailFolderBindingEntity> folders, MailboxScope scope)
     {
         if (scope.AccountIds.Count > 0)
         {
@@ -43,7 +43,7 @@ internal static class MailFoldersInScope
             folders = folders.Where(folder => accountIds.Contains(folder.MailboxAccountId));
         }
 
-        folders = AccountScopedMailFolders.Selecting(folders, scope.SelectedFolders);
+        folders = AccountScopedMailFolders.Selecting(folders, scope.SelectedFolders, scope.SelectedRoles);
         folders = AccountScopedMailFolders.Admitting(folders, scope.ReadableFolders);
 
         return AccountScopedMailFolders.Excluding(folders, scope.WithheldJunkFolders);

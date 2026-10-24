@@ -132,7 +132,7 @@ public sealed class DiscoveryPlanningInstructionsTests
         // Arrange
         var email = Email("33333333-3333-3333-3333-333333333333");
         var scope = MailboxScope
-            .Create([Primary], [new MailFolderIdentity(Primary, MailFolderAlias.Create("ARCHIVE"))])
+            .Create([Primary], [MailFolderId.Create(Guid.Parse("b22a9799-327a-75c2-8de9-5de1e1943426"))])
             .NarrowedToEmails([email]);
 
         // Act

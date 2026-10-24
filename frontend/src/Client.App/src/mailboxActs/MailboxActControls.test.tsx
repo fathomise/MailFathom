@@ -24,7 +24,7 @@ const receipt: ActedMessage = {
     flagged: false,
 };
 
-const clients: MoveDestination = { alias: 'work-clients', name: 'Projects / Clients', role: null };
+const clients: MoveDestination = { folderId: 'work-clients', name: 'Projects / Clients', role: null };
 const work: MoveDestinationGroup = {
     accountId: 'work',
     accountName: 'Northwind \u00b7 work',
@@ -177,7 +177,7 @@ describe('MailboxActControls', () => {
     // mail away as a move with a toast and an animation of its own.
     it('asks the delete question where the trash is the folder chosen, and deletes once it is answered', () => {
         const performed = vi.fn();
-        const trash: MoveDestination = { alias: 'work-trash', name: 'Trash', role: 'Trash' };
+        const trash: MoveDestination = { folderId: 'work-trash', name: 'Trash', role: 'Trash' };
 
         drawControls({ perform: performed, destinationsOf: () => [{ ...work, destinations: [trash, clients] }] });
         fireEvent.click(screen.getByRole('button', { name: 'Move' }));

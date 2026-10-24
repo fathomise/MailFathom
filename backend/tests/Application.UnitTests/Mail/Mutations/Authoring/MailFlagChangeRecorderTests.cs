@@ -25,6 +25,8 @@ namespace MailFathom.Application.UnitTests.Mail.Mutations.Authoring;
 /// <summary>Covers the grant, the visibility rule, and the records one caller's flag change is written down as.</summary>
 public sealed class MailFlagChangeRecorderTests
 {
+    private static readonly MailFolderId StoredIn = MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-0000000000e5"));
+
     private static readonly MailAccountId Account =
         MailAccountId.Create("personal");
 
@@ -80,7 +82,7 @@ public sealed class MailFlagChangeRecorderTests
         Assert.Equal(LocalEmail, request.StoredEmailId);
         Assert.True(request.DesiredSeenState);
         Assert.Equal(Account, result.AccountId);
-        Assert.Equal(Inbox, result.FolderAlias);
+        Assert.Equal(StoredIn, result.Folder);
     }
 
     /// <summary>Reaching a mailbox at all is the grant's question, asked before the email is looked up.</summary>
@@ -377,7 +379,8 @@ public sealed class MailFlagChangeRecorderTests
 
         return new AuthoredMailboxTarget(
             EmailOccurrenceId.Create(Account, folder.Id, ImapUidValidity.Create(42), ImapUid.Create(7)),
-            folder);
+            folder,
+            StoredIn);
     }
 
     /// <summary>A session that reports the outcome its attempt was arranged with, which is what drives the retry.</summary>

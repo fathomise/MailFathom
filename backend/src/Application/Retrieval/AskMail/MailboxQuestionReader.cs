@@ -340,7 +340,7 @@ public sealed class MailboxQuestionReader
             cited.Add(new MailAnswerCitation(
                 passage.StoredEmailId,
                 passage.AccountId,
-                passage.FolderAlias,
+                passage.Folder,
                 await this.egressGuard.GuardOptionalAsync(
                     SensitiveContentEgressPoint.McpSnippet,
                     passage.Subject,

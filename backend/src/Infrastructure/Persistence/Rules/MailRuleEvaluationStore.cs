@@ -192,8 +192,8 @@ internal sealed class MailRuleEvaluationStore(
             .Select(email => new
             {
                 email.Id,
-                email.MailFolder.Alias,
-                email.MailFolder.ResolutionGeneration,
+                email.MailFolderBinding.Alias,
+                email.MailFolderBinding.ResolutionGeneration,
                 email.UidValidity,
                 email.Uid,
                 email.Subject,

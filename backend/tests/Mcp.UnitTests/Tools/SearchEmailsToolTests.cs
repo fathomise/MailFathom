@@ -84,7 +84,7 @@ public sealed class SearchEmailsToolTests
         await tool.SearchEmailsAsync(
             Query,
             accounts: [ServedAccountId],
-            folders: ["archive"],
+            folders: ["b22a9799-327a-75c2-8de9-5de1e1943426"],
             senderAddress: "sender@example.test",
             recipientAddress: "recipient@example.test",
             subjectFragment: "invoice",
@@ -102,7 +102,7 @@ public sealed class SearchEmailsToolTests
         var selection = index.LastSelection;
         Assert.Equal([MailAccountId.Create(ServedAccountId)], selection.Scope.AccountIds);
         Assert.Equal(
-            [new MailFolderIdentity(MailAccountId.Create(ServedAccountId), MailFolderAlias.Create("ARCHIVE"))],
+            [MailFolderId.Create(Guid.Parse("b22a9799-327a-75c2-8de9-5de1e1943426"))],
             selection.Scope.SelectedFolders);
         Assert.Equal("invoice", selection.SubjectFragment);
         Assert.Equal(rangeStart, selection.ReceivedOnOrAfter);
@@ -351,7 +351,7 @@ public sealed class SearchEmailsToolTests
         var published = Assert.Single(result.Matches);
         Assert.Equal(storedEmailId.ToString(), published.Summary.StoredEmailId);
         Assert.Equal(ServedAccountId, published.Summary.AccountId);
-        Assert.Equal("INBOX", published.Summary.FolderAlias);
+        Assert.Equal("INBOX", published.Summary.FolderPath);
         Assert.Equal(receivedAt, published.Summary.ReceivedAt);
         Assert.Equal(0.75f, published.RelevanceRank);
         Assert.Equal(["the **invoice** for March", "your **invoice** is attached"], published.Snippets);
@@ -574,7 +574,7 @@ public sealed class SearchEmailsToolTests
         // Assert
         Assert.Equal(
             [("INBOX", true), ("ARCHIVE", false)],
-            [.. result.FolderFreshness.Select(entry => (entry.FolderAlias, entry.WasSynchronized))]);
+            [.. result.FolderFreshness.Select(entry => (entry.FolderPath, entry.WasSynchronized))]);
         Assert.Equal(synchronizedAt, result.FolderFreshness[0].SynchronizedAt);
         Assert.Null(result.FolderFreshness[1].SynchronizedAt);
     }
@@ -609,7 +609,7 @@ public sealed class SearchEmailsToolTests
     {
         StoredEmailId = StoredEmailId.Create(storedEmailId),
         Account = MailAccountId.Create(ServedAccountId),
-        FolderAlias = MailFolderAlias.Create("INBOX"),
+        Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
         Subject = "Quarterly invoice",
         SenderAddress = "billing@example.test",
         ReceivedAt = receivedAt,
@@ -631,7 +631,8 @@ public sealed class SearchEmailsToolTests
     private static MailboxFolderFreshness FreshnessOf(string folderAlias, DateTimeOffset? synchronizedAt) => new(
         MailAccountId.Create(ServedAccountId),
         MailFolderAlias.Create(folderAlias),
-        synchronizedAt);
+        synchronizedAt,
+        new StoredEmailFolder(MailFolderId.Create(Guid.CreateVersion7()), folderAlias, MailFolderAlias.Create(folderAlias)));
 
     /// <summary>Builds the semantic half of a deployment that configured no embedding provider.</summary>
     /// <remarks>

@@ -522,7 +522,7 @@ internal static class ClientMailMutationsEndpoint
                 MailRelocationOutcome.MessageNotFound);
         }
 
-        if (!MailFolderAlias.TryCreate(move.DestinationFolder, out var destination))
+        if (!MailFolderId.TryParse(move.DestinationFolder, out var destination))
         {
             return ClientMailMoveResultResponse.NotRecorded(
                 move.StoredEmailId,
@@ -535,7 +535,7 @@ internal static class ClientMailMutationsEndpoint
             requester,
             cancellationToken);
 
-        return ClientMailMoveResultResponse.For(move.StoredEmailId, result);
+        return ClientMailMoveResultResponse.For(move.StoredEmailId, destination, result);
     }
 
     /// <summary>Reads how long a delete this person authored waits before anything is asked of the mail server.</summary>
@@ -788,8 +788,8 @@ internal sealed record ClientMailMovesRequest(string? RequestId, IReadOnlyList<C
 
 /// <summary>One message to move, and the folder it is going to.</summary>
 /// <param name="StoredEmailId">The message to move, as a list row, a conversation, or a search published it.</param>
-/// <param name="DestinationFolder">MailFathom's own name for the folder, exactly as the folders route publishes it.</param>
-/// <remarks>The folder is named by its alias rather than by its place on the server, because an alias keeps its meaning when the server renames or recreates the folder behind it, and because it is what the folders route already gave the client.</remarks>
+/// <param name="DestinationFolder">The identity of the folder, exactly as the folders route publishes it.</param>
+/// <remarks>The folder is named by its identity rather than by its place on the server, because an identity keeps its meaning when the folder is renamed or moved, and because it is what the folders route already gave the client.</remarks>
 internal sealed record ClientMailMoveRequest(Guid StoredEmailId, string DestinationFolder);
 
 /// <summary>What one batch of moves produced, one result per message it named.</summary>
@@ -809,17 +809,21 @@ internal sealed record ClientMailMoveResultResponse(
 {
     /// <summary>Describes what the use case answered about one move.</summary>
     /// <param name="storedEmailId">The message the entry answers for.</param>
+    /// <param name="destination">The folder the request named.</param>
     /// <param name="result">What the use case answered.</param>
     /// <returns>The response entry.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="result" /> is <see langword="null" />.</exception>
-    internal static ClientMailMoveResultResponse For(Guid storedEmailId, AuthoredMailRelocationResult result)
+    internal static ClientMailMoveResultResponse For(
+        Guid storedEmailId,
+        MailFolderId destination,
+        AuthoredMailRelocationResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
 
         return new ClientMailMoveResultResponse(
             storedEmailId,
             OutcomeOf(result.Outcome),
-            result.Destination?.Value,
+            result.Destination is null ? null : destination.ToString(),
             result is { RecordId: { } recordId, Lifecycle: { } lifecycle }
                 ? new ClientMailRecordedChangeResponse(
                     MailboxMutation.Relocate.Name,

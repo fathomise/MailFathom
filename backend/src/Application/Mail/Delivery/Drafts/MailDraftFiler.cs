@@ -496,7 +496,7 @@ public sealed class MailDraftFiler
     {
         if (draft.IsDiscarded)
         {
-            MailFolderAlias? erasedFrom = null;
+            MailFolderId? erasedFrom = null;
 
             await this.commitPolicy.CommitAsync(
                 async (session, token) =>

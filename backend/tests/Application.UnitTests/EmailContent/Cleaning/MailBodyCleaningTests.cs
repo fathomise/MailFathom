@@ -331,7 +331,7 @@ public sealed class MailBodyCleaningTests
             [SyntheticServedAccount.Of(MailAccountId.Create(SyntheticEmailSummaries.DefaultAccountId))]);
         var participation = StubMailFolderParticipation.Mapping(summary is null
             ? []
-            : [new MailFolderIdentity(summary.Account, summary.FolderAlias)]);
+            : [new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value)]);
 
         return new MailboxScopeResolver(
             accountCatalog,

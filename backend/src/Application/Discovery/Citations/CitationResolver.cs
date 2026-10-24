@@ -245,7 +245,7 @@ public sealed class CitationResolver
     private static CitedMessage CitedMessageOf(ReadEmailContent message) => new(
         message.StoredEmailId,
         message.AccountId,
-        message.FolderAlias,
+        message.Folder,
         message.Headers.Subject,
         message.Headers.SentAt,
         message.Headers.ReceivedAt);

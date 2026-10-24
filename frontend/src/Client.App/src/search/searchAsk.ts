@@ -49,7 +49,7 @@ export interface MailSearchAsk {
     /** The account searched, by the identifier the accounts route names it with, or `null` for every account. */
     readonly account: string | null;
 
-    /** The folder searched, by its alias or as `role:Inbox`, or `null` for every folder. */
+    /** The folder searched, by its identity or as `role:Inbox`, or `null` for every folder. */
     readonly folder: string | null;
 
     /** Whether the junk folder takes part, which it does not unless the search says so. */

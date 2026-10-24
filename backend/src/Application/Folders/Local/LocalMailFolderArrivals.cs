@@ -87,7 +87,7 @@ public sealed class LocalMailFolderArrivals
     /// <param name="account">The account whose folders were created.</param>
     public void AnnounceFoldersChanged(MailAccountId account) => this.signals.Publish(ClientSignal.FoldersChanged(account));
 
-    private LocalMailFolderId MintId() => LocalMailFolderId.Create(Guid.CreateVersion7(this.timeProvider.GetUtcNow()));
+    private MailFolderId MintId() => MailFolderId.Mint(this.timeProvider.GetUtcNow());
 }
 
 /// <summary>The source folder a message arrived from, as the arrival rules read it.</summary>

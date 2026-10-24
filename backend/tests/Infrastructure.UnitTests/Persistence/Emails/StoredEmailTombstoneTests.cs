@@ -78,7 +78,7 @@ public sealed class StoredEmailTombstoneTests
         {
             Id = Guid.CreateVersion7(),
             MailboxAccountId = account.Id,
-            MailFolder = new MailFolderEntity
+            MailFolderBinding = new MailFolderBindingEntity
             {
                 MailboxAccountId = account.Id,
                 MailboxAccount = account,

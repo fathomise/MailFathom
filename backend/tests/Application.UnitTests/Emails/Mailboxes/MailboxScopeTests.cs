@@ -46,34 +46,37 @@ public sealed class MailboxScopeTests
         var scope = MailboxScope.Create(
             [Secondary, Primary, Secondary],
             [
-                Folder(Secondary, "SENT"),
-                Folder(Primary, "ARCHIVE"),
-                Folder(Primary, "ARCHIVE"),
+                Folder(2),
+                Folder(1),
+                Folder(1),
             ]);
 
         // Assert
         Assert.Equal([Primary, Secondary], scope.AccountIds);
-        Assert.Equal([Folder(Primary, "ARCHIVE"), Folder(Secondary, "SENT")], scope.SelectedFolders);
+        Assert.Equal([Folder(1), Folder(2)], scope.SelectedFolders);
     }
 
-    /// <summary>One alias on two accounts is two folders, which is what keeps a role's two answers apart.</summary>
+    /// <summary>Roles are deduplicated and ordered like the folders, so one selection is one query with one cursor.</summary>
     [Fact]
-    public void Create_OneAliasOnTwoAccounts_KeepsBothPairs()
+    public void Create_RepeatedAndUnorderedRoles_ProducesOneCanonicalList()
     {
         // Act
         var scope = MailboxScope.Create(
-            [Primary, Secondary],
-            [Folder(Secondary, "JUNK"), Folder(Primary, "JUNK")]);
+            [Primary],
+            [],
+            [MailFolderSpecialUse.Junk, MailFolderSpecialUse.Inbox, MailFolderSpecialUse.Junk]);
 
         // Assert
-        Assert.Equal([Folder(Primary, "JUNK"), Folder(Secondary, "JUNK")], scope.SelectedFolders);
+        Assert.Equal(
+            [.. new[] { MailFolderSpecialUse.Inbox, MailFolderSpecialUse.Junk }.Order()],
+            scope.SelectedRoles);
     }
 
     [Fact]
     public void Create_NamingOnlyFolders_IsStillARestrictedScope()
     {
         // Act
-        var scope = MailboxScope.Create(accountIds: null, [Folder(Primary, "INBOX")]);
+        var scope = MailboxScope.Create(accountIds: null, [Folder(3)]);
 
         // Assert
         Assert.NotSame(MailboxScope.NothingReadable, scope);
@@ -85,11 +88,11 @@ public sealed class MailboxScopeTests
     public void Create_AnAccountNoSelectedFolderNames_StaysInScope()
     {
         // Act
-        var scope = MailboxScope.Create([Primary, Secondary], [Folder(Primary, "ARCHIVE")]);
+        var scope = MailboxScope.Create([Primary, Secondary], [Folder(1)]);
 
         // Assert
         Assert.Equal([Primary, Secondary], scope.AccountIds);
-        Assert.Equal([Folder(Primary, "ARCHIVE")], scope.SelectedFolders);
+        Assert.Equal([Folder(1)], scope.SelectedFolders);
     }
 
     /// <summary>No ceiling applies to a resolved list, because one role a request named can reach every served account.</summary>
@@ -99,7 +102,7 @@ public sealed class MailboxScopeTests
         // Arrange
         var folders = Enumerable
             .Range(0, MailboxScope.MaximumFolders + 1)
-            .Select(position => Folder(Primary, $"folder-{position}"))
+            .Select(position => Folder(position))
             .ToArray();
 
         // Act
@@ -148,7 +151,7 @@ public sealed class MailboxScopeTests
     {
         // Arrange
         var thread = EmailThreadId.Create(new Guid("44444444-4444-4444-4444-444444444444"));
-        var scope = MailboxScope.Create([Primary], [Folder(Primary, "ARCHIVE")]);
+        var scope = MailboxScope.Create([Primary], [Folder(1)]);
 
         // Act
         var narrowed = scope.NarrowedToThread(thread);
@@ -156,9 +159,9 @@ public sealed class MailboxScopeTests
         // Assert
         Assert.Equal(thread, narrowed.SelectedThread);
         Assert.Equal([Primary], narrowed.AccountIds);
-        Assert.Equal([Folder(Primary, "ARCHIVE")], narrowed.SelectedFolders);
+        Assert.Equal([Folder(1)], narrowed.SelectedFolders);
     }
 
-    private static MailFolderIdentity Folder(MailAccountId accountId, string alias) =>
-        new(accountId, MailFolderAlias.Create(alias));
+    private static MailFolderId Folder(int number) =>
+        MailFolderId.Create(Guid.Parse($"0199c1a2-0000-7000-8000-{number:D12}"));
 }

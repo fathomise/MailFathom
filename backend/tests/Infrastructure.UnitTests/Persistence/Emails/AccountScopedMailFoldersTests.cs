@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Security.Cryptography;
+using System.Text;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Folders;
 using MailFathom.Infrastructure.Persistence.Emails;
@@ -35,7 +37,7 @@ public sealed class AccountScopedMailFoldersTests
         // Assert
         Assert.Equal(
             [("work", "INBOX"), ("home", "PRIVATE")],
-            readable.AsEnumerable().Select(email => (email.MailboxAccountId, email.MailFolder.Alias)));
+            readable.AsEnumerable().Select(email => (email.MailboxAccountId, email.MailFolderBinding.Alias)));
     }
 
     /// <summary>A deployment that withholds nothing pays for no clause at all, which is what keeps the switch free.</summary>
@@ -68,7 +70,7 @@ public sealed class AccountScopedMailFoldersTests
         var readable = AccountScopedMailFolders.Excluding(emails, excluded);
 
         // Assert
-        Assert.Equal(["INBOX"], readable.Select(email => email.MailFolder.Alias));
+        Assert.Equal(["INBOX"], readable.Select(email => email.MailFolderBinding.Alias));
     }
 
     /// <summary>The freshness a tool reports is read from the bindings, so a withheld folder may not be named there either.</summary>
@@ -92,63 +94,54 @@ public sealed class AccountScopedMailFoldersTests
             readable.AsEnumerable().Select(folder => (folder.MailboxAccountId, folder.Alias)));
     }
 
-    /// <summary>A role selects each account's own folder, so the alias one account answered with may not admit another's.</summary>
+    /// <summary>A role selects the folder each account plays it with, so the same name elsewhere is not selected by it.</summary>
     [Fact]
-    public void Selecting_OneAccountsFolder_LeavesOutAnotherAccountsFolderOfTheSameName()
+    public void Selecting_ARole_KeepsTheFolderEachAccountPlaysItWith()
     {
         // Arrange
-        var emails = Emails(("work", "SPAM"), ("home", "SPAM"), ("home", "JUNK"));
-        var selected = new[]
-        {
-            new MailFolderIdentity(MailAccountId.Create("work"), MailFolderAlias.Create("SPAM")),
-            new MailFolderIdentity(MailAccountId.Create("home"), MailFolderAlias.Create("JUNK")),
-        };
+        var emails = EmailsIn(
+            FolderRow("work", "SPAM", MailFolderSpecialUse.Junk),
+            FolderRow("home", "SPAM", role: null),
+            FolderRow("home", "JUNK", MailFolderSpecialUse.Junk));
 
         // Act
-        var selectedEmails = AccountScopedMailFolders.Selecting(emails, selected);
+        var selectedEmails = AccountScopedMailFolders.Selecting(emails, [], [MailFolderSpecialUse.Junk]);
 
         // Assert
         Assert.Equal(
             [("work", "SPAM"), ("home", "JUNK")],
-            selectedEmails.AsEnumerable().Select(email => (email.MailboxAccountId, email.MailFolder.Alias)));
+            selectedEmails.AsEnumerable().Select(email => (email.MailboxAccountId, email.Folder.Alias)));
     }
 
-    /// <summary>An account mapping no folder for the role contributes nothing, rather than contributing all of its mail.</summary>
+    /// <summary>A folder identity names one account's folder, so it keeps that folder and no other account's.</summary>
     [Fact]
-    public void Selecting_AnAccountInScopeThatSelectedNoFolder_AdmitsNothingFromIt()
+    public void Selecting_AFolderIdentity_KeepsThatFolderAlone()
     {
         // Arrange
         var emails = Emails(("work", "ARCHIVE"), ("home", "ARCHIVE"), ("home", "INBOX"));
-        var selected = new[]
-        {
-            new MailFolderIdentity(MailAccountId.Create("work"), MailFolderAlias.Create("ARCHIVE")),
-        };
 
         // Act
-        var selectedEmails = AccountScopedMailFolders.Selecting(emails, selected);
+        var selectedEmails = AccountScopedMailFolders.Selecting(emails, [IdOf("work", "ARCHIVE")], []);
 
         // Assert
         Assert.Equal(
             [("work", "ARCHIVE")],
-            selectedEmails.AsEnumerable().Select(email => (email.MailboxAccountId, email.MailFolder.Alias)));
+            selectedEmails.AsEnumerable().Select(email => (email.MailboxAccountId, email.Folder.Alias)));
     }
 
-    /// <summary>The narrowing rests on the selected pairs alone, so it holds wherever the account filter is applied.</summary>
+    /// <summary>A folder no alias feeds is selected by its identity like any other, which is how a folder somebody made is read.</summary>
     [Fact]
-    public void Selecting_AnAccountThatSelectedNothing_IsNarrowedAwayWithoutAnAccountFilter()
+    public void Selecting_AFolderNoAliasFeeds_IsKeptByItsIdentity()
     {
         // Arrange
-        var emails = Emails(("work", "ARCHIVE"), ("home", "ARCHIVE"));
-        var selected = new[]
-        {
-            new MailFolderIdentity(MailAccountId.Create("work"), MailFolderAlias.Create("ARCHIVE")),
-        };
+        var made = FolderRow("work", alias: null, role: null);
+        var emails = EmailsIn(made, FolderRow("work", "INBOX", MailFolderSpecialUse.Inbox));
 
         // Act
-        var selectedEmails = AccountScopedMailFolders.Selecting(emails, selected);
+        var selectedEmails = AccountScopedMailFolders.Selecting(emails, [MailFolderId.Create(made.Id)], []);
 
         // Assert
-        Assert.Equal(["work"], selectedEmails.AsEnumerable().Select(email => email.MailboxAccountId));
+        Assert.Equal([made.Id], selectedEmails.AsEnumerable().Select(email => email.FolderId));
     }
 
     /// <summary>A request naming no folder reads every folder of its accounts, and pays for no clause doing it.</summary>
@@ -159,36 +152,62 @@ public sealed class AccountScopedMailFoldersTests
         var emails = Emails(("work", "ARCHIVE"), ("home", "INBOX"));
 
         // Act
-        var selectedEmails = AccountScopedMailFolders.Selecting(emails, []);
+        var selectedEmails = AccountScopedMailFolders.Selecting(emails, [], []);
 
         // Assert
         Assert.Same(emails, selectedEmails);
     }
 
-    /// <summary>The freshness a tool reports is read from the bindings, so a role narrows those to the same pairs.</summary>
+    /// <summary>The freshness a tool reports is read from the bindings, so a selection narrows those to the same folders.</summary>
     [Fact]
-    public void Selecting_FolderBindings_KeepsTheSelectedPairsOnly()
+    public void Selecting_FolderBindings_KeepsTheSelectedFoldersOnly()
     {
         // Arrange
         var folders = new[]
         {
-            Folder("work", "SPAM"),
+            Folder("work", "SPAM", MailFolderSpecialUse.Junk),
             Folder("home", "SPAM"),
-            Folder("home", "JUNK"),
+            Folder("home", "ARCHIVE"),
         }.AsQueryable();
-        var selected = new[]
-        {
-            new MailFolderIdentity(MailAccountId.Create("work"), MailFolderAlias.Create("SPAM")),
-            new MailFolderIdentity(MailAccountId.Create("home"), MailFolderAlias.Create("JUNK")),
-        };
 
         // Act
-        var selectedFolders = AccountScopedMailFolders.Selecting(folders, selected);
+        var selectedFolders = AccountScopedMailFolders.Selecting(
+            folders,
+            [IdOf("home", "ARCHIVE")],
+            [MailFolderSpecialUse.Junk]);
 
         // Assert
         Assert.Equal(
-            [("work", "SPAM"), ("home", "JUNK")],
+            [("work", "SPAM"), ("home", "ARCHIVE")],
             selectedFolders.AsEnumerable().Select(folder => (folder.MailboxAccountId, folder.Alias)));
+    }
+
+    /// <summary>A folder no alias feeds is no folder configuration withheld, so withholding one never hides it.</summary>
+    [Fact]
+    public void Excluding_AFolderNoAliasFeeds_StaysReadable()
+    {
+        // Arrange
+        var emails = EmailsIn(FolderRow("work", alias: null, role: null), FolderRow("work", "PRIVATE", role: null));
+
+        // Act
+        var readable = AccountScopedMailFolders.Excluding(emails, [WorkPrivate]);
+
+        // Assert
+        Assert.Equal([null], readable.AsEnumerable().Select(email => email.Folder.Alias));
+    }
+
+    /// <summary>A folder no alias feeds is one MailFathom keeps itself, so an admission of the configured folders still reads it.</summary>
+    [Fact]
+    public void Admitting_AFolderNoAliasFeeds_IsReadable()
+    {
+        // Arrange
+        var emails = EmailsIn(FolderRow("work", alias: null, role: null), FolderRow("work", "REMOVED", role: null));
+
+        // Act
+        var readable = AccountScopedMailFolders.Admitting(emails, [WorkPrivate]);
+
+        // Assert
+        Assert.Equal([null], readable.AsEnumerable().Select(email => email.Folder.Alias));
     }
 
     /// <summary>An admission is the folders configuration maps, so a folder it stopped naming is no longer read.</summary>
@@ -209,7 +228,7 @@ public sealed class AccountScopedMailFoldersTests
         // Assert
         Assert.Equal(
             [("work", "INBOX"), ("home", "INBOX")],
-            readable.AsEnumerable().Select(email => (email.MailboxAccountId, email.MailFolder.Alias)));
+            readable.AsEnumerable().Select(email => (email.MailboxAccountId, email.MailFolderBinding.Alias)));
     }
 
     /// <summary>The empty admission is the one that separates this from a caller's filter: it admits nothing.</summary>
@@ -275,19 +294,39 @@ public sealed class AccountScopedMailFoldersTests
         Assert.Equal(excluded, isExcluded);
     }
 
-    private static IQueryable<StoredEmailEntity> Emails(params (string AccountId, string Alias)[] folders) => folders
+    private static IQueryable<StoredEmailEntity> Emails(params (string AccountId, string Alias)[] folders) =>
+        EmailsIn([.. folders.Select(static folder => FolderRow(folder.AccountId, folder.Alias, role: null))]);
+
+    private static IQueryable<StoredEmailEntity> EmailsIn(params MailFolderEntity[] folders) => folders
         .Select(folder => new StoredEmailEntity
         {
-            MailboxAccountId = folder.AccountId,
-            MailFolder = Folder(folder.AccountId, folder.Alias),
+            MailboxAccountId = folder.MailboxAccountId,
+            MailFolderBinding = folder.Alias is { } alias ? Folder(folder.MailboxAccountId, alias) : null!,
+            FolderId = folder.Id,
+            Folder = folder,
         })
         .AsQueryable();
 
-    private static MailFolderEntity Folder(string accountId, string alias) => new()
+    private static MailFolderEntity FolderRow(string accountId, string? alias, MailFolderSpecialUse? role) => new()
+    {
+        Id = alias is null ? Guid.Parse("0199c1a2-0000-7000-8000-0000000000aa") : IdOf(accountId, alias).Value,
+        MailboxAccountId = accountId,
+        Alias = alias,
+        Name = alias ?? "Made",
+        NameKey = (alias ?? "Made").ToUpperInvariant(),
+        Role = role,
+    };
+
+    private static MailFolderBindingEntity Folder(string accountId, string alias, MailFolderSpecialUse? role = null) => new()
     {
         MailboxAccountId = accountId,
         Alias = alias,
         RemotePath = alias,
         MailboxAccount = new MailboxAccountEntity { Id = accountId },
+        FolderId = IdOf(accountId, alias).Value,
+        Folder = FolderRow(accountId, alias, role),
     };
+
+    private static MailFolderId IdOf(string accountId, string alias) =>
+        MailFolderId.Create(new Guid(SHA256.HashData(Encoding.UTF8.GetBytes($"{accountId}/{alias}")).AsSpan(0, 16)));
 }

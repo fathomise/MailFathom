@@ -20,7 +20,7 @@ public sealed class ClientSignalTests
     private static readonly MailAccountId Account =
         MailAccountId.Create("work");
 
-    private static readonly MailFolderAlias Inbox = MailFolderAlias.Create("inbox");
+    private static readonly MailFolderId Inbox = MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-0000000000b1"));
 
     private static readonly DateTimeOffset Instant = new(2026, 9, 4, 9, 0, 0, TimeSpan.Zero);
 

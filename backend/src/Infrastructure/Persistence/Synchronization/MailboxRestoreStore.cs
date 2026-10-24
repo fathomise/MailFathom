@@ -54,13 +54,8 @@ internal sealed class MailboxRestoreStore(MailFathomDbContext readContext, IEmai
             .Take(maximumCandidates)
             .Select(email => new CandidateRow(
                 email.Id,
-                email.LocalMailFolderId == null
-                    ? email.MailFolder.Alias
-                    : readContext.LocalMailFolders
-                        .Where(folder => folder.Id == email.LocalMailFolderId)
-                        .Select(folder => folder.SourceFolderAlias)
-                        .FirstOrDefault(),
-                email.MailFolder.Alias,
+                email.Folder.Alias,
+                email.MailFolderBinding.Alias,
                 email.IsRemotelySeen,
                 email.IsRemotelyAnswered,
                 email.IsRemotelyFlagged,
@@ -100,16 +95,11 @@ internal sealed class MailboxRestoreStore(MailFathomDbContext readContext, IEmai
                 email.Id,
                 email.UidValidity!.Value,
                 email.Uid!.Value,
-                email.MailFolder.Alias,
-                email.MailFolder.ResolutionGeneration,
-                email.MailFolder.RemotePath,
-                email.MailFolder.HierarchyDelimiter,
-                email.LocalMailFolderId == null
-                    ? email.MailFolder.Alias
-                    : readContext.LocalMailFolders
-                        .Where(folder => folder.Id == email.LocalMailFolderId)
-                        .Select(folder => folder.SourceFolderAlias)
-                        .FirstOrDefault(),
+                email.MailFolderBinding.Alias,
+                email.MailFolderBinding.ResolutionGeneration,
+                email.MailFolderBinding.RemotePath,
+                email.MailFolderBinding.HierarchyDelimiter,
+                email.Folder.Alias,
                 email.IsRemotelySeen,
                 email.IsRemotelyAnswered,
                 email.IsRemotelyFlagged,
@@ -345,15 +335,15 @@ internal sealed class MailboxRestoreStore(MailFathomDbContext readContext, IEmai
         // look at them.
         var liveMail = readContext.StoredEmails.Where(StoredEmailTombstone.IsNotTombstoned);
 
-        return await readContext.LocalMailFolders
+        return await readContext.MailFolders
             .AsNoTracking()
             .CountAsync(
                 // Erased or not: what pauses the restore is mail with no source folder to go back into, and an
                 // erasure that left messages bound to the folder has left exactly that. Reading only the live folders
                 // would let the restore append those messages nowhere and end the phase over them.
                 folder => folder.MailboxAccountId == accountValue
-                    && folder.SourceFolderAlias == null
-                    && liveMail.Any(email => email.LocalMailFolderId == folder.Id),
+                    && folder.Alias == null
+                    && liveMail.Any(email => email.FolderId == folder.Id),
                 cancellationToken);
     }
 
@@ -509,7 +499,7 @@ internal sealed class MailboxRestoreStore(MailFathomDbContext readContext, IEmai
             var folder = new MailFolderResolution(
                 MailFolderAlias.Create(this.Alias),
                 MailFolderResolutionGeneration.Create(this.Generation),
-                MailFolderEntityResolver.ToRemotePath(this.RemotePath, this.HierarchyDelimiter));
+                MailFolderBindingResolver.ToRemotePath(this.RemotePath, this.HierarchyDelimiter));
 
             return new MailboxRestoredStateCandidate(
                 StoredEmailId.Create(this.Id),

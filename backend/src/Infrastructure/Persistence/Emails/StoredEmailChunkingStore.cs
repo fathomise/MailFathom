@@ -63,8 +63,8 @@ internal sealed class StoredEmailChunkingStore(
             .Select(email => new OutstandingEmailRow(
                 email.Id,
                 new StoredDerivedWorkCandidateRow(
-                    email.MailFolder.MailboxAccountId,
-                    email.MailFolder.Alias,
+                    email.MailFolderBinding.MailboxAccountId,
+                    email.MailFolderBinding.Alias,
                     email.StoredAt,
                     email.ContentAvailability,
                     email.SpamClassification == null ? null : email.SpamClassification.Verdict)))

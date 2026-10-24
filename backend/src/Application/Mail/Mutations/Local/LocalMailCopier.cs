@@ -114,7 +114,7 @@ public sealed class LocalMailCopier
         IPersistenceSession session,
         PreparedLocalCopy copy,
         MailFolderResolutionId binding,
-        LocalMailFolderId folder,
+        MailFolderId folder,
         CopiedMailFlags flags,
         CancellationToken cancellationToken)
     {

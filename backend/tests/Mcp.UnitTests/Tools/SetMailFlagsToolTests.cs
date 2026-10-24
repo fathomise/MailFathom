@@ -46,6 +46,7 @@ public sealed class SetMailFlagsToolTests
     private static readonly MailAccountId Account = MailAccountId.Create("personal");
 
     private static readonly MailFolderAlias Inbox = MailFolderAlias.Create("inbox");
+    private static readonly MailFolderId StoredIn = MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-000000000002"));
 
     private static readonly DateTimeOffset RecordedAt = new(2026, 8, 18, 9, 0, 0, TimeSpan.Zero);
 
@@ -69,7 +70,7 @@ public sealed class SetMailFlagsToolTests
         // Assert
         Assert.Equal(storedEmailId.ToString(), result.StoredEmailId);
         Assert.Equal(Account.Value, result.AccountId);
-        Assert.Equal(Inbox.Value, result.FolderAlias);
+        Assert.Equal(StoredIn.ToString(), result.FolderId);
         Assert.False(result.Applied);
         Assert.Equal(
             ["set-seen", "set-flagged", "add-keywords"],
@@ -378,7 +379,8 @@ public sealed class SetMailFlagsToolTests
             .FindAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<AuthoredMailboxTarget?>(new AuthoredMailboxTarget(
                 EmailOccurrenceId.Create(Account, folder.Id, ImapUidValidity.Create(9), ImapUid.Create(41)),
-                folder)));
+                folder,
+                StoredIn)));
 
         var accountCatalog = Substitute.For<ICallerMailAccountCatalog>();
         accountCatalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns([SyntheticServedAccount.Of(Account)]);

@@ -55,8 +55,7 @@ export function MoveChoice({
     const asks = useId();
 
     // What a press answers with is a position in this one list, so the groups are flattened once here rather than the
-    // press composing an identity out of two indices. An alias would not do: it names a folder inside its own account
-    // and the type admits more than one account, so two groups could answer with the same word.
+    // press composing an identity out of two indices.
     const offered = groups.flatMap((group) => group.destinations);
 
     return (
@@ -106,7 +105,7 @@ export function MoveChoice({
 
                         <ul className="flex flex-col">
                             {group.destinations.map((destination) => (
-                                <li key={destination.alias}>
+                                <li key={destination.folderId}>
                                     <button
                                         type="button"
                                         className="flex w-full items-center gap-2.5 px-4 py-2.25 text-start text-base text-text-soft transition hover:bg-hover hover:text-text"

@@ -39,9 +39,13 @@ internal sealed record ListedEmailSummary
     [Description("The display name the account is published under, which is the operator's own name for the mailbox. Quote this rather than accountId when telling a person which mailbox an email came from; either value may be used to name the account in a later request.")]
     public required string AccountDisplayName { get; init; }
 
-    /// <summary>Gets the folder alias the email was synchronized under.</summary>
-    [Description("The MailFathom folder alias the email was synchronized under, such as INBOX. This is MailFathom's own name for the folder rather than the path the mail server advertises.")]
-    public required string FolderAlias { get; init; }
+    /// <summary>Gets the identity of the folder the email is in.</summary>
+    [Description("The identity of the folder the email is in, which is what the folders argument of a mailbox tool names it by. It stays the same when the folder is renamed or moved.")]
+    public required string FolderId { get; init; }
+
+    /// <summary>Gets the folder's names from the top of its account's hierarchy down to it.</summary>
+    [Description("The folder's place in its account's hierarchy, as the folder names from the top down to it joined by '/', such as INBOX or Projects/2026. It is for reading and changes when the folder is renamed or moved; name the folder by folderId.")]
+    public required string FolderPath { get; init; }
 
     /// <summary>Gets the conversation the email belongs to, or <see langword="null" /> when nothing has placed it in one.</summary>
     [Description("The identifier of the conversation this email belongs to, or null when it has not been assembled into one. Two emails carrying the same threadId are the same exchange; a matching subject is not. Pass it to a content read as threadId to retrieve the conversation itself.")]
@@ -120,7 +124,8 @@ internal sealed record ListedEmailSummary
             StoredEmailId = summary.StoredEmailId.ToString(),
             AccountId = summary.Account.Value,
             AccountDisplayName = accountNames.For(summary.Account),
-            FolderAlias = summary.FolderAlias.Value,
+            FolderId = summary.Folder.Id.ToString(),
+            FolderPath = summary.Folder.Path,
             ThreadId = summary.ThreadId?.ToString(),
             InternetMessageId = summary.InternetMessageId,
             Subject = summary.Subject,

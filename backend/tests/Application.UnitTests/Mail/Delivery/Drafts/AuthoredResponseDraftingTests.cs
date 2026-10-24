@@ -290,7 +290,7 @@ public sealed class AuthoredResponseDraftingTests
         var catalog = Substitute.For<ICallerMailAccountCatalog>();
         catalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns([SyntheticServedAccount.Of(Account)]);
 
-        var participation = StubMailFolderParticipation.Mapping(new MailFolderIdentity(answered.Account, answered.FolderAlias));
+        var participation = StubMailFolderParticipation.Mapping(new MailFolderIdentity(answered.Account, answered.Folder.Alias!.Value));
 
         var authoring = new StoredEmailResponseAuthoring(
             summaries,

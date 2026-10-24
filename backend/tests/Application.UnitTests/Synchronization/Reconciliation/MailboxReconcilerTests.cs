@@ -1636,7 +1636,7 @@ public sealed class MailboxReconcilerTests
         var signal = Assert.Single(channel.Published);
         Assert.Equal(ClientSignalKind.MailChanged, signal.Kind);
         Assert.Equal(Account, signal.Account);
-        Assert.Equal(InboxFolder.Alias, signal.Folder);
+        Assert.Null(signal.Folder);
         Assert.Equal(
             [occurrences[0].StoredEmailId, occurrences[1].StoredEmailId],
             [.. signal.Emails.OrderBy(email => email.Value)]);
@@ -1681,7 +1681,7 @@ public sealed class MailboxReconcilerTests
         var signal = Assert.Single(channel.Published);
         Assert.Equal(ClientSignalKind.MailFlagsChanged, signal.Kind);
         Assert.Equal(Account, signal.Account);
-        Assert.Equal(InboxFolder.Alias, signal.Folder);
+        Assert.Null(signal.Folder);
         Assert.Empty(signal.Emails);
         Assert.Equal(
             [

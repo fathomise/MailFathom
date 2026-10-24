@@ -36,6 +36,7 @@ internal sealed class MailboxMutationConfiguration : IEntityTypeConfiguration<Ma
         entity.ToTable("mailbox_mutations");
         entity.HasKey(mutation => mutation.Id);
         entity.Property(mutation => mutation.Id).ValueGeneratedNever();
+        entity.Property(mutation => mutation.MailFolderBindingId).HasColumnName(PersistenceConstraintNames.MailFolderBindingColumnName);
         entity.Property(mutation => mutation.MailboxAccountId).HasMaxLength(128);
         entity.Property(mutation => mutation.Mutation).HasMaxLength(64).IsRequired();
         entity.Property(mutation => mutation.RequesterIdentity)
@@ -74,9 +75,9 @@ internal sealed class MailboxMutationConfiguration : IEntityTypeConfiguration<Ma
             .WithMany(email => email.Mutations)
             .HasForeignKey(mutation => mutation.StoredEmailId)
             .OnDelete(DeleteBehavior.Cascade);
-        entity.HasOne(mutation => mutation.MailFolder)
+        entity.HasOne(mutation => mutation.MailFolderBinding)
             .WithMany()
-            .HasForeignKey(mutation => mutation.MailFolderId)
+            .HasForeignKey(mutation => mutation.MailFolderBindingId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 
@@ -118,7 +119,7 @@ internal sealed class MailboxMutationConfiguration : IEntityTypeConfiguration<Ma
     {
         entity.HasIndex(mutation => new
         {
-            mutation.MailFolderId,
+            mutation.MailFolderBindingId,
             mutation.UidValidity,
             mutation.Uid,
             mutation.RequesterOrigin,
@@ -148,7 +149,7 @@ internal sealed class MailboxMutationConfiguration : IEntityTypeConfiguration<Ma
 
         entity.HasIndex(mutation => new
         {
-            mutation.MailFolderId,
+            mutation.MailFolderBindingId,
             mutation.UidValidity,
             mutation.RecordedAt,
         })

@@ -22,16 +22,11 @@ namespace MailFathom.Application.Folders;
 /// </remarks>
 public interface IStoredMailFolderReader
 {
-    /// <summary>Reads one entry per folder of the scope that local state holds a binding for.</summary>
+    /// <summary>Reads one entry per live folder of the scope, whichever copy of its account's mailbox is the truth.</summary>
     /// <param name="scope">The accounts and folders to report on.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
-    /// <returns>One entry per such folder, ordered ordinally by account and then by alias.</returns>
+    /// <returns>One entry per such folder, with the mail counted in it.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="scope" /> is <see langword="null" />.</exception>
     /// <exception cref="OperationCanceledException">Thrown when the caller cancels.</exception>
-    /// <remarks>
-    /// A folder the scope names but nothing has ever bound to a remote folder appears in no entry, because there is no
-    /// remote folder to report and no mail to count. A caller composes the folder list from what it already knows the
-    /// scope holds and reads an absence here as exactly that.
-    /// </remarks>
     Task<IReadOnlyList<StoredMailFolder>> ReadAsync(MailboxScope scope, CancellationToken cancellationToken);
 }

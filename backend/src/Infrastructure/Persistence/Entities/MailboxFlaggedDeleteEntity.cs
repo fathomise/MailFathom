@@ -17,7 +17,7 @@ internal sealed class MailboxFlaggedDeleteEntity
     /// </summary>
     public required string MailboxAccountId { get; set; }
 
-    public long MailFolderId { get; set; }
+    public long MailFolderBindingId { get; set; }
 
     public uint UidValidity { get; set; }
 

@@ -335,7 +335,7 @@ public sealed class OrchestratedMailAnsweringTests(MailFathomOrchestrationFixtur
         Assert.DoesNotContain(seeded.Elsewhere, answer.Citations.Select(citation => citation.StoredEmailId));
         Assert.All(
             answer.Citations,
-            citation => Assert.Equal(MailFolderAlias.Create(FolderAlias), citation.FolderAlias));
+            citation => Assert.Equal(MailFolderAlias.Create(FolderAlias), citation.Folder.Alias));
     }
 
     /// <summary>A question that needs no mail costs one provider call and reads no mailbox, which is what on-demand retrieval buys.</summary>

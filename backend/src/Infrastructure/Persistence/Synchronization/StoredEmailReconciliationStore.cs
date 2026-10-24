@@ -243,7 +243,7 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
         var followed = await readContext.MailboxFlaggedDeletes
             .AsNoTracking()
             .Where(flagged => flagged.MailboxAccountId == accountValue
-                && readContext.MailFolders.Any(folder => folder.Id == flagged.MailFolderId
+                && readContext.MailFolderBindings.Any(folder => folder.Id == flagged.MailFolderBindingId
                     && folder.Alias == alias
                     && folder.ResolutionGeneration == generation)
                 && flagged.UidValidity == uidValidityValue)
@@ -298,7 +298,7 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
             {
                 Id = Guid.CreateVersion7(observedAt),
                 MailboxAccountId = row.MailboxAccountId,
-                MailFolderId = row.MailFolderId,
+                MailFolderBindingId = row.MailFolderBindingId,
                 UidValidity = row.UidValidity!.Value,
                 Uid = row.Uid!.Value,
                 StoredEmailId = disposition is AuthoredDeleteEmailDisposition.EraseLocalCopy ? null : row.Id,
@@ -433,9 +433,9 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
 
         return readContext.StoredEmails
             .AsNoTracking()
-            .Where(email => email.MailFolder.MailboxAccountId == accountValue
-                && email.MailFolder.Alias == alias
-                && email.MailFolder.ResolutionGeneration == generation
+            .Where(email => email.MailFolderBinding.MailboxAccountId == accountValue
+                && email.MailFolderBinding.Alias == alias
+                && email.MailFolderBinding.ResolutionGeneration == generation
                 && email.UidValidity == uidValidityValue
                 && email.RemoteExpungeObservedAt == null
                 && email.AuthoredDeleteFlaggedAt == null);

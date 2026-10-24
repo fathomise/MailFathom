@@ -66,4 +66,65 @@ public interface IMailFolderResolutionStore
         MailAccountId account,
         MailFolderResolution resolution,
         CancellationToken cancellationToken);
+
+    /// <summary>Stages a folder row for every declared alias of a mirrored account that names none yet, and retires the row of every alias it declares no longer.</summary>
+    /// <param name="session">The open session whose transaction the staged rows join.</param>
+    /// <param name="account">The account the aliases are declared on.</param>
+    /// <param name="mappings">Every folder the account declares, mirrored or not.</param>
+    /// <param name="cancellationToken">Cancels the reads before anything is staged.</param>
+    /// <returns>Whether anything was staged or retired.</returns>
+    /// <remarks>
+    /// A folder declared and not mirrored is never bound by a synchronization run, and is still a folder of the account
+    /// that mail is filed into and a reader lists. Its row takes the declared role when no folder plays it yet; a binding
+    /// gives it its place and name later.
+    /// </remarks>
+    /// <exception cref="PersistenceConcurrencyConflictException">Thrown on commit when a competing run declared the same folder first.</exception>
+    Task<bool> DeclareFoldersAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        IReadOnlyList<MailFolderMapping> mappings,
+        CancellationToken cancellationToken);
+
+    /// <summary>Stages the folder row a mirrored account's alias names, in the shape its current binding gives it.</summary>
+    /// <param name="session">The open session whose transaction the staged changes join.</param>
+    /// <param name="account">The account owning the alias.</param>
+    /// <param name="resolution">The alias's current binding, which is already durable.</param>
+    /// <param name="role">The role configuration declares for the alias, or <see langword="null" /> for none.</param>
+    /// <param name="cancellationToken">Cancels the reads before anything is staged.</param>
+    /// <returns>Whether anything was staged, which is <see langword="false" /> for a folder already in shape and for an account whose custody has moved.</returns>
+    /// <remarks>
+    /// The row takes the last level of the remote path as its name, sits under the row of the remote parent — one no
+    /// alias names is created for an undeclared ancestor — and plays the declared role, and the binding is pointed at
+    /// it so the mail stored under the binding is filed there. Only a mirrored account is projected: once custody has
+    /// moved, the rows are the hierarchy people edit.
+    /// </remarks>
+    /// <exception cref="PersistenceConcurrencyConflictException">Thrown on commit when a competing run projected the same folder first.</exception>
+    Task<bool> ProjectFolderAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        MailFolderResolution resolution,
+        MailFolderSpecialUse? role,
+        CancellationToken cancellationToken);
+
+    /// <summary>Stages the folder row a mirrored account's alias names at the place a folder act just gave it on the server.</summary>
+    /// <param name="session">The open session whose transaction the staged changes join.</param>
+    /// <param name="account">The account owning the alias.</param>
+    /// <param name="folderAlias">The alias of the folder the act renamed or moved.</param>
+    /// <param name="remotePath">Where the server advertises the folder now.</param>
+    /// <param name="role">The role configuration declares for the alias, or <see langword="null" /> for none.</param>
+    /// <param name="cancellationToken">Cancels the reads before anything is staged.</param>
+    /// <returns>Whether anything was staged, which is <see langword="false" /> for an alias no row carries and for an account whose custody has moved.</returns>
+    /// <remarks>
+    /// The row is shaped exactly as projecting a binding at that path would shape it, and the binding itself is left to
+    /// the account's next run, which finds the folder there and projects it the same way. Doing it here is what puts a
+    /// renamed or moved folder where the act put it in the tree the act's own re-read draws.
+    /// </remarks>
+    /// <exception cref="PersistenceConcurrencyConflictException">Thrown on commit when a competing run placed the same folder first.</exception>
+    Task<bool> PlaceFolderAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        MailFolderAlias folderAlias,
+        RemoteFolderPath remotePath,
+        MailFolderSpecialUse? role,
+        CancellationToken cancellationToken);
 }

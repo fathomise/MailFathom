@@ -182,10 +182,10 @@ Two further narrowings apply underneath, and neither can widen anything:
 - Retrieval goes through the same mailbox search a caller reaches with `search_emails`, which restricts every query to
   the accounts the deployment actually serves. Answering a question therefore cannot see mail that searching for it
   would not. [Email search](email-search.md) describes that ranking and its filters.
-- A folder alias named in the scope that this deployment holds no mail under simply matches nothing. An account it does
-  not serve is refused instead, and so is a folder named by a [role](imap-synchronization.md#what-a-role-says-beside-how-a-folder-is-found)
-  no account in scope maps: both are names the caller could not have meant, while an alias that matches nothing is a
-  folder that is simply empty here.
+- A folder identity named in the scope that no folder in scope carries simply matches nothing. An account the
+  deployment does not serve is refused instead, and so is a folder named by a [role](imap-synchronization.md#what-a-role-says-beside-how-a-folder-is-found)
+  no account in scope maps, and a folder named by its configured alias rather than its identity: each is a name the caller
+  could not have meant, while an identity that matches nothing names no mail here.
 - The account's junk folder is outside retrieval, and unlike `list_emails` and `search_emails` there is **no override**.
   An answer here is composed by a model from the mail it retrieved, so content written to deceive a reader would arrive
   as ordinary correspondence with nothing left to notice it. Naming `role:Junk` in the scope does not reach it either.
@@ -434,7 +434,7 @@ leaving the process.
 Each passage is a bounded extract plus the identity an answer is traced through:
 
 - the stable local message identifier, which is the same one every other read names an email by;
-- the account and the folder alias it was read from;
+- the account and the folder it was read from, by the folder's identity and its place in the account's hierarchy;
 - the subject and the received time, where the message carried them;
 - what was established about the author the message displays, and what this deployment made of them;
 - how much the message's own text read as machine written;
@@ -494,7 +494,7 @@ nothing writes the empty envelope rather than nothing at all, so the model reads
 guessing at a blank result.
 
 The identity is the other reason the envelope exists. Each extract carries the stable local identifier an answer cites
-and the account and folder alias it was read from, unchanged — an answer that cannot say which message a claim came from
+and the account and folder it was read from, unchanged — an answer that cannot say which message a claim came from
 cannot be checked.
 
 **The weaker one.** The instruction states that everything inside the envelope is data, that a request found there is

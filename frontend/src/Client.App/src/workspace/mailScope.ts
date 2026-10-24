@@ -25,8 +25,8 @@ export type MailScope =
     /** Every folder of one account. */
     | { readonly kind: 'account'; readonly accountId: string }
 
-    /** One folder of one account, named by the alias everything on the client surface names a folder by. */
-    | { readonly kind: 'folder'; readonly accountId: string; readonly alias: string };
+    /** One folder of one account, named by the identity everything on the client surface names a folder by. */
+    | { readonly kind: 'folder'; readonly accountId: string; readonly folderId: string };
 
 /** Where the client opens: everything the user has, which is the widest scope rather than an unset one. */
 export const everything: MailScope = { kind: 'everything' };
@@ -129,7 +129,7 @@ export function scopeKey(scope: MailScope): string {
         case 'account':
             return `account:${scope.accountId}`;
         case 'folder':
-            return `folder:${scope.accountId}:${scope.alias}`;
+            return `folder:${scope.accountId}:${scope.folderId}`;
     }
 }
 
@@ -159,7 +159,7 @@ export function namedInScope(scope: MailScope): { readonly account: string | nul
         case 'account':
             return { account: scope.accountId, folder: null };
         case 'folder':
-            return { account: scope.accountId, folder: scope.alias };
+            return { account: scope.accountId, folder: scope.folderId };
     }
 }
 
@@ -180,13 +180,13 @@ export function scopePointsAtJunk(scope: MailScope): boolean {
  *
  * Answered by what the scope names and nothing else, because that is all a list has: a scope naming one folder is
  * reached by that folder alone, one naming an account by every folder of it, and the two spanning scopes by anything.
- * A role scope is the one that cannot be decided here — which alias plays which role is the folder tree's answer
+ * A role scope is the one that cannot be decided here — which folder plays which role is the folder tree's answer
  * rather than a list's — so it is reached by every change, which costs a read a reader was going to make anyway and
  * never leaves a list drawing mail that has moved.
  *
  * @param scope What the list is showing.
  * @param account The account the change was reported in.
- * @param folder The folder alias it was reported in, or `null` where the change was about the account itself.
+ * @param folder The folder it was reported in, or `null` where the change may be in any folder of the account.
  * @returns Whether this list has to read again.
  */
 export function scopeReaches(scope: MailScope, account: string, folder: string | null): boolean {
@@ -197,7 +197,7 @@ export function scopeReaches(scope: MailScope, account: string, folder: string |
         case 'account':
             return scope.accountId === account;
         case 'folder':
-            return scope.accountId === account && (folder === null || scope.alias === folder);
+            return scope.accountId === account && (folder === null || scope.folderId === folder);
     }
 }
 
@@ -233,7 +233,7 @@ export function scopeStillOffered(scope: MailScope, directory: MailFolderDirecto
             return directory.accounts.some(
                 (entry) =>
                     entry.account.id === scope.accountId &&
-                    entry.folders.some((folder) => folder.alias === scope.alias),
+                    entry.folders.some((folder) => folder.id === scope.folderId),
             );
     }
 }

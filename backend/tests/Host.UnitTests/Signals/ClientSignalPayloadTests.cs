@@ -43,7 +43,7 @@ public sealed class ClientSignalPayloadTests
     private static readonly MailAccountId Account =
         MailAccountId.Create("work");
 
-    private static readonly MailFolderAlias Inbox = MailFolderAlias.Create("inbox");
+    private static readonly MailFolderId Inbox = MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-000000000007"));
 
     private static readonly DateTimeOffset Instant = new(2026, 9, 4, 9, 0, 0, TimeSpan.Zero);
 
@@ -59,7 +59,7 @@ public sealed class ClientSignalPayloadTests
 
         // Assert
         AssertPayloadIs(
-            new ClientSignalPayload("mail.arrived", "work", Inbox.Value, 4, [], [], null, null, null, null, null, 0),
+            new ClientSignalPayload("mail.arrived", "work", Inbox.ToString(), 4, [], [], null, null, null, null, null, 0),
             payload);
         AssertNothingAboutMailOrTheUserCrossed(payload);
     }
@@ -80,7 +80,7 @@ public sealed class ClientSignalPayloadTests
             new ClientSignalPayload(
                 "mail.changed",
                 "work",
-                Inbox.Value,
+                Inbox.ToString(),
                 0,
                 [email.Value.ToString()],
                 [],
@@ -113,7 +113,7 @@ public sealed class ClientSignalPayloadTests
             new ClientSignalPayload(
                 "mail.flags.changed",
                 "work",
-                Inbox.Value,
+                Inbox.ToString(),
                 0,
                 [],
                 [new ClientSignalFlagsPayload(email.Value.ToString(), IsSeen: true, IsFlagged: null)],

@@ -83,7 +83,7 @@ public sealed class OrchestratedLocalMailCopyTests(MailFathomOrchestrationFixtur
         Assert.NotEqual(sourceLocator, copyLocator);
 
         var written = await ReadCopyAsync(services, copy.Value, cancellationToken);
-        Assert.Equal(folder.Value, written.LocalMailFolderId);
+        Assert.Equal(folder.Value, written.FolderId);
         Assert.Null(written.UidValidity);
         Assert.Null(written.Uid);
         Assert.True(written.IsRemotelySeen);
@@ -135,12 +135,12 @@ public sealed class OrchestratedLocalMailCopyTests(MailFathomOrchestrationFixtur
     }
 
     /// <summary>Creates the local folder the copy is filed into, which a held account keeps for its own hierarchy.</summary>
-    private static async Task<LocalMailFolderId> CommitFolderAsync(
+    private static async Task<MailFolderId> CommitFolderAsync(
         OrchestratedMailFathomServices services,
         CancellationToken cancellationToken)
     {
         var folder = new LocalMailFolder(
-            LocalMailFolderId.Create(Guid.CreateVersion7()),
+            MailFolderId.Create(Guid.CreateVersion7()),
             ParentId: null,
             LocalMailFolderName.Create("Copies"),
             Role: null,
@@ -188,7 +188,7 @@ public sealed class OrchestratedLocalMailCopyTests(MailFathomOrchestrationFixtur
                 .AsNoTracking()
                 .Where(email => email.Id == storedEmailId.Value)
                 .Select(email => new CopiedRow(
-                    email.LocalMailFolderId,
+                    email.FolderId,
                     email.UidValidity,
                     email.Uid,
                     email.IsRemotelySeen,
@@ -200,7 +200,7 @@ public sealed class OrchestratedLocalMailCopyTests(MailFathomOrchestrationFixtur
 
     /// <summary>The columns the copy is judged by, projected rather than tracked so nothing loads the payload.</summary>
     private sealed record CopiedRow(
-        Guid? LocalMailFolderId,
+        Guid FolderId,
         uint? UidValidity,
         uint? Uid,
         bool IsRemotelySeen,

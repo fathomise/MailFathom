@@ -58,7 +58,7 @@ describe('askIn', () => {
     });
 
     it('searches the one folder somebody opened, in the account that holds it', () => {
-        const ask = askIn({ kind: 'folder', accountId: 'work', alias: 'Projects/Nordwind' }, 'invoice');
+        const ask = askIn({ kind: 'folder', accountId: 'work', folderId: 'Projects/Nordwind' }, 'invoice');
 
         expect(ask).toStrictEqual(expect.objectContaining({ account: 'work', folder: 'Projects/Nordwind' }));
     });
@@ -66,7 +66,7 @@ describe('askIn', () => {
     // Junk is withheld from a read spanning folders, so a search inside junk would answer nothing at all unless it
     // asked — and having pointed at junk, asking reaches nothing else.
     it.each([
-        [{ kind: 'folder', accountId: 'work', alias: 'Junk' } as const, true],
+        [{ kind: 'folder', accountId: 'work', folderId: 'Junk' } as const, true],
         [{ kind: 'role', role: 'Junk' } as const, true],
         [{ kind: 'role', role: 'Inbox' } as const, false],
         [everything, false],
@@ -137,7 +137,7 @@ describe('askFromPhrase', () => {
     // Somebody searching inside a folder has said where to look, and a sentence naming a sender says who wrote it.
     it('leaves the scope somebody was looking at exactly where it was', () => {
         const ask = askFromPhrase(
-            { kind: 'folder', accountId: 'work', alias: 'Projects/Nordwind' },
+            { kind: 'folder', accountId: 'work', folderId: 'Projects/Nordwind' },
             'unread mail',
             readingOf({
                 filters: { ...noFilters, unread: true },

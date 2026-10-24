@@ -86,7 +86,7 @@ internal static class ClientMailTimelineEndpoint
 
     /// <summary>Serves one page of the acting user's mail, or reports what was wrong with the request.</summary>
     /// <param name="account">The account to draw from, by its identifier or its display name, or <see langword="null" /> for every account the user is assigned.</param>
-    /// <param name="folder">The folder to draw from, by its alias or as <c>role:Inbox</c>, or <see langword="null" /> for every folder.</param>
+    /// <param name="folder">The folder to draw from, by the identity the folders route reports or as <c>role:Inbox</c>, or <see langword="null" /> for every folder.</param>
     /// <param name="includeJunk">Whether the junk folder takes part, which it does not unless the request asks.</param>
     /// <param name="unread">Whether to keep only unread mail, only read mail, or <see langword="null" /> for both.</param>
     /// <param name="flagged">Whether to keep only flagged mail, only unflagged mail, or <see langword="null" /> for both.</param>
@@ -283,7 +283,7 @@ internal static class ClientMailTimelineEndpoint
         try
         {
             accounts = account is null ? [] : [MailAccountSelector.Create(account)];
-            folders = folder is null ? [] : [MailFolderReference.Create(folder)];
+            folders = folder is null ? [] : [MailFolderReference.CreateNamedByCaller(folder)];
 
             return true;
         }
@@ -330,7 +330,7 @@ internal sealed record ClientMailTimelineResponse(
 /// <summary>One row of the list, carrying what a screen draws and nothing it does not.</summary>
 /// <param name="Id">The stable local identity of the email, which every later request names it by.</param>
 /// <param name="Account">The account the email was read from, as the accounts route names it.</param>
-/// <param name="Folder">The folder alias the email was read from, as the folders route names it.</param>
+/// <param name="Folder">The identity of the folder the email was read from, as the folders route names it.</param>
 /// <param name="ThreadId">The conversation the email belongs to, or <see langword="null" /> where nothing has placed it in one.</param>
 /// <param name="Subject">The subject, or <see langword="null" /> where the message carried none.</param>
 /// <param name="ReceivedAt">When the last receiving hop recorded the message, which is what the list is ordered by, or <see langword="null" /> where no header carried a usable date.</param>
@@ -427,7 +427,7 @@ internal sealed record ClientMailTimelineEntryResponse(
         int? threadMessageCount) => new(
         email.StoredEmailId.Value,
         email.Account.Value,
-        email.FolderAlias.Value,
+        email.Folder.Id.ToString(),
         email.ThreadId?.Value,
         email.Subject,
         email.ReceivedAt,

@@ -13,7 +13,7 @@ namespace MailFathom.Application.Retrieval.AskMail;
 /// <summary>One email an answer was drawn from, named so the reader can go and read it.</summary>
 /// <param name="StoredEmailId">The stable local identity, which is the same one every other read names an email by.</param>
 /// <param name="AccountId">The account whose mailbox it was read from.</param>
-/// <param name="FolderAlias">The folder alias it was read from.</param>
+/// <param name="Folder">The folder it is in.</param>
 /// <param name="Subject">The subject it carried, or <see langword="null" /> when it carried none.</param>
 /// <param name="ReceivedAt">When the last receiving hop recorded it, or <see langword="null" /> when no header carried a usable date.</param>
 /// <param name="SenderVerification">What was established about the author it displays, and what this deployment made of them.</param>
@@ -48,7 +48,7 @@ namespace MailFathom.Application.Retrieval.AskMail;
 public sealed record MailAnswerCitation(
     StoredEmailId StoredEmailId,
     MailAccountId AccountId,
-    MailFolderAlias FolderAlias,
+    StoredEmailFolder Folder,
     string? Subject,
     DateTimeOffset? ReceivedAt,
     SenderVerification SenderVerification,

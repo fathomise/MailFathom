@@ -259,7 +259,7 @@ public sealed class LocalMailFolderEditorTests
         Assert.Equal(1, deployment.Store.SaveCount);
     }
 
-    private static bool IsFirstErasurePassOf(JobEnqueueRequest? request, LocalMailFolderId folder) =>
+    private static bool IsFirstErasurePassOf(JobEnqueueRequest? request, MailFolderId folder) =>
         request?.Payload is EraseLocalMailFolderMailJobPayload { Pass: 0 } payload && payload.FolderId == folder.Value;
 
     [Fact]

@@ -44,11 +44,13 @@ public interface IAuthoredMailboxTargetReader
 /// <summary>Where one stored email is, as a mutation has to name it.</summary>
 /// <param name="Occurrence">The account, folder binding, UIDVALIDITY, and UID an IMAP command is issued against.</param>
 /// <param name="Folder">The binding the occurrence belongs to, including the remote path a write session selects.</param>
+/// <param name="StoredIn">The folder the email is in, which is what a report names it by.</param>
 /// <remarks>
 /// The two travel together for the reason <see cref="OutstandingMailboxMutation" /> gives: an occurrence names a folder
-/// without saying where it is, and performing the change needs the remote path while reporting it needs the alias.
+/// without saying where it is, and performing the change needs the remote path while reporting it needs the folder.
 /// Nothing derived from the message is carried, so deciding whether a change may be made never reads mail.
 /// </remarks>
 public sealed record AuthoredMailboxTarget(
     EmailOccurrenceId Occurrence,
-    MailFolderResolution Folder);
+    MailFolderResolution Folder,
+    MailFolderId StoredIn);

@@ -12,7 +12,7 @@ namespace MailFathom.Application.Mail.Mutations.Authoring;
 /// <summary>What one caller's flag and keyword change became: a durable record per value it asked for.</summary>
 /// <param name="StoredEmailId">The email the change was asked for.</param>
 /// <param name="AccountId">The account that email belongs to, which is the account whose run will carry the change.</param>
-/// <param name="FolderAlias">The operator's own name for the folder the email is in.</param>
+/// <param name="Folder">The folder the email is in.</param>
 /// <param name="Recorded">One entry per value the request named that a record was opened for, in the order the request states them, and empty where none was.</param>
 /// <param name="IsApplied">Whether the account holds its mailbox and every value was committed to stored state.</param>
 /// <remarks>
@@ -26,7 +26,7 @@ namespace MailFathom.Application.Mail.Mutations.Authoring;
 public sealed record AuthoredMailFlagChangeResult(
     StoredEmailId StoredEmailId,
     MailAccountId AccountId,
-    MailFolderAlias FolderAlias,
+    MailFolderId Folder,
     IReadOnlyList<RecordedMailFlagMutation> Recorded,
     bool IsApplied = false);
 

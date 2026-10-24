@@ -10,12 +10,14 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace MailFathom.Infrastructure.Persistence.Folders.Configurations;
 
 /// <summary>Declares the folders MailFathom keeps for an account whose mailbox it holds.</summary>
-internal sealed class LocalMailFolderConfiguration : IEntityTypeConfiguration<LocalMailFolderEntity>
+internal sealed class MailFolderConfiguration : IEntityTypeConfiguration<MailFolderEntity>
 {
-    private const string LiveFolderFilter = $"\"{nameof(LocalMailFolderEntity.ErasedAt)}\" IS NULL";
+    private const string AliasColumnName = "SourceFolderAlias";
+
+    private const string LiveFolderFilter = $"\"{nameof(MailFolderEntity.ErasedAt)}\" IS NULL";
 
     /// <inheritdoc />
-    public void Configure(EntityTypeBuilder<LocalMailFolderEntity> entity)
+    public void Configure(EntityTypeBuilder<MailFolderEntity> entity)
     {
         entity.ToTable("local_mail_folders");
         entity.HasKey(folder => folder.Id);
@@ -24,7 +26,9 @@ internal sealed class LocalMailFolderConfiguration : IEntityTypeConfiguration<Lo
         entity.Property(folder => folder.Name).HasMaxLength(LocalMailFolderName.MaximumLength);
         entity.Property(folder => folder.NameKey).HasMaxLength(LocalMailFolderName.MaximumLength);
         entity.Property(folder => folder.Role).HasConversion<string>().HasMaxLength(64);
-        entity.Property(folder => folder.SourceFolderAlias).HasMaxLength(128);
+        // The column keeps the name it had while only a held account's folders carried one, because an older build reads it
+        // by that name for as long as a rolling upgrade runs both.
+        entity.Property(folder => folder.Alias).HasColumnName(AliasColumnName).HasMaxLength(128);
 
         // The rule that two siblings never share a name, written where a second writer cannot get past it. Only live
         // folders take part, so an erased folder's name is free again the moment it commits, and a null parent is one
@@ -34,16 +38,23 @@ internal sealed class LocalMailFolderConfiguration : IEntityTypeConfiguration<Lo
             .IsUnique()
             .AreNullsDistinct(false)
             .HasFilter(LiveFolderFilter)
-            .HasDatabaseName(PersistenceConstraintNames.LocalMailFolderSiblingNameUniqueIndexName);
+            .HasDatabaseName(PersistenceConstraintNames.MailFolderSiblingNameUniqueIndexName);
 
-        // One folder per protected role, for the reason the name index is named: the first act on a held account and an
-        // arrival for it can both supply the five at once.
+        // One folder per role, for the reason the name index is named: the first act on a held account and an arrival for
+        // it can both supply the five protected roles at once, and synchronization projects a mirrored account's roles.
         entity.HasIndex(folder => new { folder.MailboxAccountId, folder.Role })
             .IsUnique()
-            .HasFilter($"\"{nameof(LocalMailFolderEntity.Role)}\" IS NOT NULL AND {LiveFolderFilter}")
-            .HasDatabaseName(PersistenceConstraintNames.LocalMailFolderRoleUniqueIndexName);
+            .HasFilter($"\"{nameof(MailFolderEntity.Role)}\" IS NOT NULL AND {LiveFolderFilter}")
+            .HasDatabaseName(PersistenceConstraintNames.MailFolderRoleUniqueIndexName);
 
-        // Unfiltered, because both indexes above are partial and a partial index covers no foreign key: this is what the
+        // One live folder per alias, because an alias is how configuration and a source binding find a folder, and two
+        // synchronization runs projecting a newly declared folder at once must meet here rather than mint it twice.
+        entity.HasIndex(folder => new { folder.MailboxAccountId, folder.Alias })
+            .IsUnique()
+            .HasFilter($"\"{AliasColumnName}\" IS NOT NULL AND {LiveFolderFilter}")
+            .HasDatabaseName(PersistenceConstraintNames.MailFolderAliasUniqueIndexName);
+
+        // Unfiltered, because the indexes above are partial and a partial index covers no foreign key: this is what the
         // account's cascade and every read of one account's folders walk.
         entity.HasIndex(folder => new { folder.MailboxAccountId, folder.ErasedAt });
 
@@ -55,7 +66,7 @@ internal sealed class LocalMailFolderConfiguration : IEntityTypeConfiguration<Lo
         // No action rather than a cascade or a restriction: an account's erasure removes its whole hierarchy in one
         // statement, which a restriction checked row by row would refuse, and nothing else removes a parent before its
         // children.
-        entity.HasOne<LocalMailFolderEntity>()
+        entity.HasOne<MailFolderEntity>()
             .WithMany()
             .HasForeignKey(folder => folder.ParentId)
             .OnDelete(DeleteBehavior.NoAction);

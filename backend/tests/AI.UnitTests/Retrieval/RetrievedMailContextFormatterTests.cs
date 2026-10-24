@@ -33,7 +33,7 @@ public sealed class RetrievedMailContextFormatterTests
             "the invoice is attached",
             storedEmailId,
             accountId: "work",
-            folderAlias: "ARCHIVE",
+            folderPath: "ARCHIVE",
             subject: "Invoice 41");
 
         // Act

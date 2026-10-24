@@ -15,9 +15,9 @@ namespace MailFathom.Application.Folders;
 /// <remarks>
 /// <para>
 /// The identity is text rather than a number or a hierarchy of names, and its shape is deliberately not part of the
-/// contract: on an account whose mailbox MailFathom holds it is the local folder's own identity, and on a mirrored one
-/// it is the alias the folder is declared under. A caller reads it, keeps it, and hands it back — which is the whole
-/// of what keeps the storage mode out of what the client knows.
+/// contract: it is the folder's own identity whichever copy of the mailbox is the truth, the same one every other read
+/// reports the folder by. A caller reads it, keeps it, and hands it back — which is the whole of what keeps the storage
+/// mode out of what the client knows.
 /// </para>
 /// <para>
 /// The parent is an identity rather than a path for the same reason. A mirrored folder's place in its server's

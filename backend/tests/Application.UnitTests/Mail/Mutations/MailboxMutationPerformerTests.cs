@@ -703,16 +703,18 @@ public sealed class MailboxMutationPerformerTests
         MailboxMutationRequester.Rule("file-newsletters", "3"),
         ArchivePath);
 
-    /// <summary>A settled move changes two folders, so the folder the message left and the folder it landed in are both named.</summary>
+    /// <summary>
+    /// A settled move changes two folders the request knows only by their bindings, so the statement names no folder and
+    /// reaches every folder of the account once.
+    /// </summary>
     [Fact]
-    public async Task PerformAsync_WhenASettledChangeNamesADestination_SignalsBothFoldersAsChanged()
+    public async Task PerformAsync_WhenASettledChangeNamesADestination_SignalsTheWholeAccountOnce()
     {
         // Arrange
         var channel = new RecordingClientSignalChannel();
         var clock = new FakeTimeProvider();
         await using var signals = new ClientSignals([channel], clock);
         var context = new PerformerContext(signals: signals);
-        var archive = context.FolderResolutions.Bind(Account, MailFolderAlias.Create("archive"), ArchivePath.Value);
         var request = RelocationRequest();
         context.AnswerRelocationWith(ArchivedAt);
 
@@ -723,29 +725,22 @@ public sealed class MailboxMutationPerformerTests
         await signals.DrainAsync();
 
         // Assert
-        Assert.All(
-            channel.Published,
-            signal =>
-            {
-                Assert.Equal(ClientSignalKind.MailChanged, signal.Kind);
-                Assert.Null(signal.User);
-                Assert.Equal([request.StoredEmailId], signal.Emails);
-            });
-        Assert.Equal(
-            [archive.Alias.Value, InboxFolder.Alias.Value],
-            channel.Published.Select(static signal => signal.Folder!.Value.Value).Order(StringComparer.Ordinal));
+        var signal = Assert.Single(channel.Published);
+        Assert.Equal(ClientSignalKind.MailChanged, signal.Kind);
+        Assert.Null(signal.User);
+        Assert.Null(signal.Folder);
+        Assert.Equal([request.StoredEmailId], signal.Emails);
     }
 
-    /// <summary>A change that files nowhere moves one folder, so nothing beyond the folder the message is in is named.</summary>
+    /// <summary>A change that files nowhere still names the message, so a client re-reads the one message it changed.</summary>
     [Fact]
-    public async Task PerformAsync_WhenASettledChangeNamesNoDestination_SignalsOnlyTheFolderTheMessageIsIn()
+    public async Task PerformAsync_WhenASettledChangeNamesNoDestination_SignalsTheMessageAcrossTheAccount()
     {
         // Arrange
         var channel = new RecordingClientSignalChannel();
         var clock = new FakeTimeProvider();
         await using var signals = new ClientSignals([channel], clock);
         var context = new PerformerContext(signals: signals);
-        context.FolderResolutions.Bind(Account, MailFolderAlias.Create("archive"), ArchivePath.Value);
         var request = RequestFor("delete");
 
         // Act
@@ -758,7 +753,7 @@ public sealed class MailboxMutationPerformerTests
         var signal = Assert.Single(channel.Published);
         Assert.Equal(ClientSignalKind.MailChanged, signal.Kind);
         Assert.Null(signal.User);
-        Assert.Equal(InboxFolder.Alias, signal.Folder);
+        Assert.Null(signal.Folder);
         Assert.Equal([request.StoredEmailId], signal.Emails);
     }
 
@@ -782,7 +777,7 @@ public sealed class MailboxMutationPerformerTests
         // Assert
         var signal = Assert.Single(channel.Published);
         Assert.Equal(ClientSignalKind.MailFlagsChanged, signal.Kind);
-        Assert.Equal(InboxFolder.Alias, signal.Folder);
+        Assert.Null(signal.Folder);
         Assert.Empty(signal.Emails);
 
         // The other flag is left unstated: the request carries the one that was asked for, and reporting where the
@@ -816,29 +811,6 @@ public sealed class MailboxMutationPerformerTests
         Assert.Equal(ClientSignalKind.MailChanged, signal.Kind);
         Assert.Equal([request.StoredEmailId], signal.Emails);
         Assert.Empty(signal.Flags);
-    }
-
-    /// <summary>A folder this deployment does not mirror has no alias to re-read, so a move into one names the source alone.</summary>
-    [Fact]
-    public async Task PerformAsync_WhenTheDestinationIsBoundToNoAlias_SignalsOnlyTheFolderTheMessageLeft()
-    {
-        // Arrange
-        var channel = new RecordingClientSignalChannel();
-        var clock = new FakeTimeProvider();
-        await using var signals = new ClientSignals([channel], clock);
-        var context = new PerformerContext(signals: signals);
-        var request = RelocationRequest();
-        context.AnswerRelocationWith(ArchivedAt);
-
-        // Act
-        await context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None);
-
-        clock.Advance(ClientSignals.FoldingWindow);
-        await signals.DrainAsync();
-
-        // Assert
-        var signal = Assert.Single(channel.Published);
-        Assert.Equal(InboxFolder.Alias, signal.Folder);
     }
 
     /// <summary>Assembles the performer over an in-memory record store and a substituted write session.</summary>
@@ -882,13 +854,11 @@ public sealed class MailboxMutationPerformerTests
                     TimeProvider.System),
                 this.AuditTrail,
                 signals ?? ClientSignalPublishers.ReachingNobody,
-                this.FolderResolutions,
                 new MailboxMutationOptions { MaximumAttempts = maximumAttempts });
         }
 
         internal InMemoryMailboxMutationRecordStore Store { get; } = new();
 
-        internal InMemoryMailFolderResolutionStore FolderResolutions { get; } = new();
 
         internal RecordingMailboxMutationAuditTrail AuditTrail { get; } = new();
 

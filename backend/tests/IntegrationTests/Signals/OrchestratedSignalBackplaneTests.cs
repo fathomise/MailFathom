@@ -65,7 +65,7 @@ public sealed class OrchestratedSignalBackplaneTests(MailFathomOrchestrationFixt
 
     private static readonly MailAccountId Account = MailAccountId.Create("work");
 
-    private static readonly MailFolderAlias Inbox = MailFolderAlias.Create("inbox");
+    private static readonly MailFolderId Inbox = MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-000000000007"));
 
     /// <summary>
     /// The deployment the section exists for: one replica synchronized a folder, the connection that has to be told
@@ -108,7 +108,7 @@ public sealed class OrchestratedSignalBackplaneTests(MailFathomOrchestrationFixt
         // Assert
         Assert.Equal(signal.Kind.Name, payload.GetProperty("kind").GetString());
         Assert.Equal(Account.Value, payload.GetProperty("account").GetString());
-        Assert.Equal(Inbox.Value, payload.GetProperty("folder").GetString());
+        Assert.Equal(Inbox.ToString(), payload.GetProperty("folder").GetString());
         Assert.Equal(3, payload.GetProperty("count").GetInt32());
     }
 

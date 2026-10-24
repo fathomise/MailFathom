@@ -43,7 +43,7 @@ public sealed class ScopedMailKnowledgeRetrievalTests
 
     private static readonly MailboxScope OnePrimaryAccount = MailboxScope.Create(
         [MailAccountId.Create("primary")],
-        [new MailFolderIdentity(MailAccountId.Create("primary"), MailFolderAlias.Create("INBOX"))]);
+        [MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3"))]);
 
     /// <summary>The whole point of the narrowing: it reaches the port as the query rather than as words that have to rank.</summary>
     [Fact]

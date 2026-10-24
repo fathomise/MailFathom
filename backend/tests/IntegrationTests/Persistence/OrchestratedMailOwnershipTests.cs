@@ -275,7 +275,7 @@ public sealed class OrchestratedMailOwnershipTests(MailFathomOrchestrationFixtur
     private static Task<List<string>> ReadUnassignedFolderRowsAsync(
         OrchestratedMailFathomServices services,
         CancellationToken cancellationToken) => services.InScopeAsync(
-            (scope, token) => scope.GetRequiredService<MailFathomDbContext>().MailFolders
+            (scope, token) => scope.GetRequiredService<MailFathomDbContext>().MailFolderBindings
                 .AsNoTracking()
                 .Where(folder => folder.MailboxAccountId == FirstUnassignedAccount
                     || folder.MailboxAccountId == SecondUnassignedAccount)

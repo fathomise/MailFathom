@@ -301,8 +301,8 @@ public sealed class OrchestratedEmailChunkTests(MailFathomOrchestrationFixture o
 
                 return await scope.GetRequiredService<MailFathomDbContext>().StoredEmails
                     .AsNoTracking()
-                    .Where(email => email.MailFolder.MailboxAccountId == occurrenceId.AccountId.Value
-                        && email.MailFolder.Alias == alias
+                    .Where(email => email.MailFolderBinding.MailboxAccountId == occurrenceId.AccountId.Value
+                        && email.MailFolderBinding.Alias == alias
                         && email.UidValidity == occurrenceId.UidValidity.Value
                         && email.Uid == occurrenceId.Uid.Value)
                     .Select(email => email.ChunkedTextTruncatedFromCharacterCount)
@@ -356,8 +356,8 @@ public sealed class OrchestratedEmailChunkTests(MailFathomOrchestrationFixture o
                 return StoredEmailId.Create(
                     await scope.GetRequiredService<MailFathomDbContext>().StoredEmails
                         .AsNoTracking()
-                        .Where(email => email.MailFolder.MailboxAccountId == occurrenceId.AccountId.Value
-                            && email.MailFolder.Alias == alias
+                        .Where(email => email.MailFolderBinding.MailboxAccountId == occurrenceId.AccountId.Value
+                            && email.MailFolderBinding.Alias == alias
                             && email.UidValidity == occurrenceId.UidValidity.Value
                             && email.Uid == occurrenceId.Uid.Value)
                         .Select(email => email.Id)
@@ -375,8 +375,8 @@ public sealed class OrchestratedEmailChunkTests(MailFathomOrchestrationFixture o
 
                 return (IReadOnlyList<StoredPassage>)await scope.GetRequiredService<MailFathomDbContext>().EmailChunks
                     .AsNoTracking()
-                    .Where(chunk => chunk.StoredEmail.MailFolder.MailboxAccountId == occurrenceId.AccountId.Value
-                        && chunk.StoredEmail.MailFolder.Alias == alias
+                    .Where(chunk => chunk.StoredEmail.MailFolderBinding.MailboxAccountId == occurrenceId.AccountId.Value
+                        && chunk.StoredEmail.MailFolderBinding.Alias == alias
                         && chunk.StoredEmail.UidValidity == occurrenceId.UidValidity.Value
                         && chunk.StoredEmail.Uid == occurrenceId.Uid.Value)
                     .OrderBy(chunk => chunk.Ordinal)
@@ -399,8 +399,8 @@ public sealed class OrchestratedEmailChunkTests(MailFathomOrchestrationFixture o
                 var alias = occurrenceId.FolderResolutionId.Alias.Value;
 
                 return await scope.GetRequiredService<MailFathomDbContext>().StoredEmails
-                    .Where(email => email.MailFolder.MailboxAccountId == occurrenceId.AccountId.Value
-                        && email.MailFolder.Alias == alias
+                    .Where(email => email.MailFolderBinding.MailboxAccountId == occurrenceId.AccountId.Value
+                        && email.MailFolderBinding.Alias == alias
                         && email.Uid == occurrenceId.Uid.Value)
                     .ExecuteDeleteAsync(token);
             },

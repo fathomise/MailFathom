@@ -67,8 +67,8 @@ internal sealed class StoredEmailAttachmentTextStore(
             .Select(email => new OutstandingAttachmentRow(
                 email.Id,
                 new StoredDerivedWorkCandidateRow(
-                    email.MailFolder.MailboxAccountId,
-                    email.MailFolder.Alias,
+                    email.MailFolderBinding.MailboxAccountId,
+                    email.MailFolderBinding.Alias,
                     email.StoredAt,
                     email.ContentAvailability,
                     email.SpamClassification == null ? null : email.SpamClassification.Verdict)))

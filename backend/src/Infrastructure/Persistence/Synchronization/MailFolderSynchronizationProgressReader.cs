@@ -32,7 +32,7 @@ internal sealed class MailFolderSynchronizationProgressReader(MailFathomDbContex
     /// <inheritdoc />
     public async Task<IReadOnlyList<MailFolderSynchronizationProgress>> ReadAsync(CancellationToken cancellationToken)
     {
-        var advanced = dbContext.MailFolders
+        var advanced = dbContext.MailFolderBindings
             .AsNoTracking()
             .Where(folder => folder.SynchronizationCheckpoint != null
                 && folder.SynchronizationCheckpoint.SynchronizedAt != null);

@@ -47,7 +47,7 @@ internal sealed class StoredEmailMetadataRepository(
 
         if (entity is null)
         {
-            var folder = await MailFolderEntityResolver.GetRequiredAsync(
+            var folder = await MailFolderBindingResolver.GetRequiredAsync(
                 dbContext,
                 account,
                 occurrenceId.FolderResolutionId,
@@ -61,7 +61,12 @@ internal sealed class StoredEmailMetadataRepository(
                 // Both copied off the binding row this occurrence is being attached to, which is the row folder
                 // resolution wrote from the account. Nothing re-reads the account: the folder already says whose
                 // mailbox this is, and taking the pair from one place is what keeps them from ever disagreeing.
-                MailFolder = folder,
+                MailFolderBinding = folder,
+                FolderId = await MailFolderBindingResolver.FolderForArrivalAsync(
+                    dbContext,
+                    folder,
+                    this.MintFolderId,
+                    cancellationToken),
                 UidValidity = occurrenceId.UidValidity.Value,
                 Uid = occurrenceId.Uid.Value,
                 StoredAt = timeProvider.GetUtcNow(),
@@ -138,14 +143,22 @@ internal sealed class StoredEmailMetadataRepository(
         var entity = await dbContext.StoredEmails.FindAsync([storedEmailId.Value], cancellationToken)
             ?? throw new InvalidOperationException(
                 $"No stored email carries the identifier {storedEmailId}, so no occurrence can be carried onto it.");
-        var folder = await MailFolderEntityResolver.GetRequiredAsync(
+        var folder = await MailFolderBindingResolver.GetRequiredAsync(
             dbContext,
             account,
             occurrenceId.FolderResolutionId,
             cancellationToken);
 
-        entity.MailFolder = folder;
-        entity.MailFolderId = folder.Id;
+        entity.MailFolderBinding = folder;
+        entity.MailFolderBindingId = folder.Id;
+
+        // A relocation the source made moves the email into the folder its destination binding names. A binding that
+        // names none leaves it where it was rather than in the inbox: the email is still one the account holds, and the
+        // folder it sat in is a better answer than a guess.
+        if (folder.FolderId is { } destinationFolder)
+        {
+            entity.FolderId = destinationFolder;
+        }
         entity.UidValidity = occurrenceId.UidValidity.Value;
         entity.Uid = occurrenceId.Uid.Value;
 
@@ -285,7 +298,7 @@ internal sealed class StoredEmailMetadataRepository(
     {
         var sessionContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
 
-        if (await MailFolderEntityResolver.FindAsync(sessionContext, account, binding, cancellationToken) is not { } folder)
+        if (await MailFolderBindingResolver.FindAsync(sessionContext, account, binding, cancellationToken) is not { } folder)
         {
             return null;
         }
@@ -296,7 +309,12 @@ internal sealed class StoredEmailMetadataRepository(
         {
             Id = Guid.CreateVersion7(storedAt),
             MailboxAccountId = folder.MailboxAccountId,
-            MailFolder = folder,
+            MailFolderBinding = folder,
+            FolderId = await MailFolderBindingResolver.FolderForArrivalAsync(
+                sessionContext,
+                folder,
+                this.MintFolderId,
+                cancellationToken),
             StoredAt = storedAt,
             SizeOctets = sizeOctets,
             ContentAvailability = StoredEmailContentAvailability.Available,
@@ -352,12 +370,14 @@ internal sealed class StoredEmailMetadataRepository(
 
         return TrackedEntityLookup.SinglePendingOrPersistedAsync(
             dbContext.StoredEmails,
-            dbContext.StoredEmails.Include(candidate => candidate.MailFolder),
-            candidate => candidate.MailFolder.MailboxAccountId == accountValue
-                && candidate.MailFolder.Alias == alias
-                && candidate.MailFolder.ResolutionGeneration == generation
+            dbContext.StoredEmails.Include(candidate => candidate.MailFolderBinding),
+            candidate => candidate.MailFolderBinding.MailboxAccountId == accountValue
+                && candidate.MailFolderBinding.Alias == alias
+                && candidate.MailFolderBinding.ResolutionGeneration == generation
                 && candidate.UidValidity == occurrenceId.UidValidity.Value
                 && candidate.Uid == occurrenceId.Uid.Value,
             cancellationToken);
     }
+
+    private Guid MintFolderId() => Guid.CreateVersion7(timeProvider.GetUtcNow());
 }

@@ -34,7 +34,7 @@ public interface ILocalMailFolderChangeAuditor
 public sealed record LocalMailFolderChange(
     MailAccountId Account,
     UserId ChangedBy,
-    LocalMailFolderId Folder,
+    MailFolderId Folder,
     MailFolderChangeKind Kind,
     int ErasedFolderCount,
     DateTimeOffset OccurredAt);

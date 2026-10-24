@@ -40,6 +40,7 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
         entity.HasKey(email => email.Id);
         entity.Property(email => email.Id).ValueGeneratedNever();
         entity.Property(email => email.MailboxAccountId).HasMaxLength(128);
+        entity.Property(email => email.MailFolderBindingId).HasColumnName(PersistenceConstraintNames.MailFolderBindingColumnName);
 
         // Every mail-derived column is bounded by the same constant the mapping refuses an over-long value against,
         // so a header nobody bounds cannot reach a column that would reject it. A truncating column would be the
@@ -136,9 +137,9 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
 
         ConfigureIndexes(entity);
 
-        entity.HasOne(email => email.MailFolder)
+        entity.HasOne(email => email.MailFolderBinding)
             .WithMany(folder => folder.StoredEmails)
-            .HasForeignKey(email => email.MailFolderId)
+            .HasForeignKey(email => email.MailFolderBindingId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // Neither association takes the mail with it. A thread is an assembly of messages rather than their user,
@@ -181,7 +182,7 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
     /// </remarks>
     private static void ConfigureIndexes(EntityTypeBuilder<StoredEmailEntity> entity)
     {
-        entity.HasIndex(email => new { email.MailFolderId, email.UidValidity, email.Uid })
+        entity.HasIndex(email => new { email.MailFolderBindingId, email.UidValidity, email.Uid })
             .IsUnique()
             .HasDatabaseName(PersistenceConstraintNames.StoredEmailOccurrenceUniqueIndexName);
 
@@ -196,7 +197,7 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
                 NullSortOrder.NullsLast,
                 NullSortOrder.Unspecified);
 
-        entity.HasIndex(email => new { email.MailFolderId, email.ReceivedAt, email.Id })
+        entity.HasIndex(email => new { email.MailFolderBindingId, email.ReceivedAt, email.Id })
             .HasDatabaseName(PersistenceConstraintNames.StoredEmailFolderTimelineIndexName)
             .IsDescending(false, true, true)
             .HasNullSortOrder(NullSortOrder.Unspecified, NullSortOrder.NullsLast, NullSortOrder.Unspecified);
@@ -215,7 +216,7 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
         //
         // The filter is what keeps the index proportionate to the queue rather than to the mailbox: a tombstoned email
         // is outside every window, so it has no place in the structure a window is read from.
-        entity.HasIndex(email => new { email.MailFolderId, email.RemoteFlagsObservedAt, email.Uid })
+        entity.HasIndex(email => new { email.MailFolderBindingId, email.RemoteFlagsObservedAt, email.Uid })
             .HasDatabaseName(PersistenceConstraintNames.StoredEmailReconciliationQueueIndexName)
             .HasFilter($"\"{nameof(StoredEmailEntity.RemoteExpungeObservedAt)}\" IS NULL");
 
@@ -229,7 +230,7 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
         // declaration would reconfigure that index rather than add one — which generates a migration that drops the
         // constraint holding occurrence identity unique and replaces it with a filtered index.
         entity.HasIndex(
-                email => new { email.MailFolderId, email.UidValidity, email.Uid },
+                email => new { email.MailFolderBindingId, email.UidValidity, email.Uid },
                 PersistenceConstraintNames.StoredEmailAwaitingContentIndexName)
             .HasDatabaseName(PersistenceConstraintNames.StoredEmailAwaitingContentIndexName)
             .HasFilter(
@@ -259,12 +260,24 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
         // No action for the reason the hierarchy's own parent reference takes none: an account's erasure removes its
         // folders and its mail in one statement, and nothing else removes a local folder that still holds a message.
         // Filtered, because only a held account's mail carries the column and every other row would be dead weight.
-        entity.HasOne<LocalMailFolderEntity>()
+        entity.HasOne<MailFolderEntity>()
             .WithMany()
             .HasForeignKey(email => email.LocalMailFolderId)
             .OnDelete(DeleteBehavior.NoAction);
         entity.HasIndex(email => email.LocalMailFolderId)
             .HasFilter($"\"{nameof(StoredEmailEntity.LocalMailFolderId)}\" IS NOT NULL");
+
+        // The folder every read filters on. No action for the reason the legacy reference above takes none, and the
+        // timeline index is the folder timeline's, column for column, so a folder-scoped page is one index walk whatever
+        // custody the account is in.
+        entity.HasOne(email => email.Folder)
+            .WithMany()
+            .HasForeignKey(email => email.FolderId)
+            .OnDelete(DeleteBehavior.NoAction);
+        entity.HasIndex(email => new { email.FolderId, email.ReceivedAt, email.Id })
+            .HasDatabaseName(PersistenceConstraintNames.StoredEmailFolderReferenceTimelineIndexName)
+            .IsDescending(false, true, true)
+            .HasNullSortOrder(NullSortOrder.Unspecified, NullSortOrder.NullsLast, NullSortOrder.Unspecified);
 
         // The arrival queue, and the filter is the whole point of it. In steady state almost every row of an account
         // has been evaluated, so without the filter this read would walk the account's entire index once per run to

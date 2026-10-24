@@ -205,7 +205,7 @@ public sealed class EmailAttachmentDownloadReader
         // an email that is no longer stored does.
         if (summary is null || !await this.scopeResolver.IsReadableByToolsAsync(
                 summary.Account,
-                summary.FolderAlias,
+                summary.Folder.Alias,
                 cancellationToken))
         {
             return AttachmentDownloadOutcome.NothingToServe();

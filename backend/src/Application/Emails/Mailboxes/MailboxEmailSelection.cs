@@ -299,13 +299,14 @@ public sealed record MailboxEmailSelection
 
     private string ComputeCanonicalText() => string.Join(
         CanonicalFieldSeparator,
-        LengthPrefixed("f3"),
+        LengthPrefixed("f4"),
         CanonicalList(this.Scope.AccountIds.Select(static accountId => accountId.Value)),
 
-        // Both halves of a folder are written, because the pair is what the query narrows by: one role selects a
-        // different alias on each account, so two scopes whose alias sets agree can still select different mail.
-        CanonicalList(this.Scope.SelectedFolders.SelectMany(static folder =>
-            new[] { folder.AccountId.Value, folder.Alias.Value })),
+        // The folders and the roles are written apart, because a role is not a folder identity: role:Sent and the
+        // identity of the folder playing it today select the same mail only until the role moves. That is also why the
+        // text opens f4 — a cursor issued while folders were named by alias names a selection no request makes any more.
+        CanonicalList(this.Scope.SelectedFolders.Select(static folder => folder.ToString())),
+        CanonicalList(this.Scope.SelectedRoles.Select(static role => role.ToString())),
 
         // The caller's answer about junk mail, not the folders it withheld. Which folders those are is configuration and
         // deliberately outside this text, for the reason MailboxScope.Hiding gives; whether the caller asked for them is

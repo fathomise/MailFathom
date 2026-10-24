@@ -22,7 +22,7 @@ public sealed class SignalRClientSignalChannelTests
     private static readonly MailAccountId Account =
         MailAccountId.Create("work");
 
-    private static readonly MailFolderAlias Inbox = MailFolderAlias.Create("inbox");
+    private static readonly MailFolderId Inbox = MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-000000000007"));
 
     /// <summary>A signal reaches the assigned user's group, under the one method name a client keys its handler by, as the payload rather than as itself.</summary>
     [Fact]
@@ -56,7 +56,7 @@ public sealed class SignalRClientSignalChannelTests
         var payload = Assert.IsType<ClientSignalPayload>(Assert.Single(sent));
         Assert.Equal(ClientSignalKind.MailArrived.Name, payload.Kind);
         Assert.Equal(Account.Value, payload.Account);
-        Assert.Equal(Inbox.Value, payload.Folder);
+        Assert.Equal(Inbox.ToString(), payload.Folder);
         Assert.Equal(3, payload.Count);
     }
 

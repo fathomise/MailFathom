@@ -15,15 +15,17 @@ internal sealed class SynchronizationCheckpointConfiguration : IEntityTypeConfig
     public void Configure(EntityTypeBuilder<SynchronizationCheckpointEntity> entity)
     {
         entity.ToTable("synchronization_checkpoints");
-        entity.HasKey(checkpoint => checkpoint.MailFolderId)
+        entity.HasKey(checkpoint => checkpoint.MailFolderBindingId)
             .HasName(PersistenceConstraintNames.SynchronizationCheckpointPrimaryKeyConstraintName);
-        entity.Property(checkpoint => checkpoint.MailFolderId).ValueGeneratedNever();
+        entity.Property(checkpoint => checkpoint.MailFolderBindingId)
+            .HasColumnName(PersistenceConstraintNames.MailFolderBindingColumnName)
+            .ValueGeneratedNever();
 
         // See the stored-email mapping: this is the PostgreSQL `xmin` system column, not a user-defined column.
         entity.Property(checkpoint => checkpoint.ConcurrencyVersion).IsRowVersion();
-        entity.HasOne(checkpoint => checkpoint.MailFolder)
+        entity.HasOne(checkpoint => checkpoint.MailFolderBinding)
             .WithOne(folder => folder.SynchronizationCheckpoint)
-            .HasForeignKey<SynchronizationCheckpointEntity>(checkpoint => checkpoint.MailFolderId)
+            .HasForeignKey<SynchronizationCheckpointEntity>(checkpoint => checkpoint.MailFolderBindingId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

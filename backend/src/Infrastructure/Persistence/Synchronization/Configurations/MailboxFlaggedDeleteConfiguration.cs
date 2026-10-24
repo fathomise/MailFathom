@@ -30,22 +30,23 @@ internal sealed class MailboxFlaggedDeleteConfiguration : IEntityTypeConfigurati
         entity.ToTable("mailbox_flagged_deletes");
         entity.HasKey(flagged => flagged.Id);
         entity.Property(flagged => flagged.Id).ValueGeneratedNever();
+        entity.Property(flagged => flagged.MailFolderBindingId).HasColumnName(PersistenceConstraintNames.MailFolderBindingColumnName);
         entity.Property(flagged => flagged.MailboxAccountId).HasMaxLength(128);
 
         // Unique on the occurrence, because a settlement replayed after a commit conflict follows the occurrence once.
-        entity.HasIndex(flagged => new { flagged.MailFolderId, flagged.UidValidity, flagged.Uid })
+        entity.HasIndex(flagged => new { flagged.MailFolderBindingId, flagged.UidValidity, flagged.Uid })
             .IsUnique()
             .HasDatabaseName(PersistenceConstraintNames.MailboxFlaggedDeleteOccurrenceUniqueIndexName);
 
         // The order a folder's run asks about them in, which is longest unread first so a bounded run reaches each.
-        entity.HasIndex(flagged => new { flagged.MailFolderId, flagged.UidValidity, flagged.LastObservedAt })
+        entity.HasIndex(flagged => new { flagged.MailFolderBindingId, flagged.UidValidity, flagged.LastObservedAt })
             .HasDatabaseName(PersistenceConstraintNames.MailboxFlaggedDeleteQueueIndexName);
 
         // Cascades from the folder for the reason a source removal does: a record naming a folder that is gone names
         // nothing a run could ask about.
-        entity.HasOne<MailFolderEntity>()
+        entity.HasOne<MailFolderBindingEntity>()
             .WithMany()
-            .HasForeignKey(flagged => flagged.MailFolderId)
+            .HasForeignKey(flagged => flagged.MailFolderBindingId)
             .OnDelete(DeleteBehavior.Cascade);
 
         entity.HasOne<StoredEmailEntity>()

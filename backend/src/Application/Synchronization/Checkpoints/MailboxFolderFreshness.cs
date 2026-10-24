@@ -11,6 +11,7 @@ namespace MailFathom.Application.Synchronization.Checkpoints;
 /// <param name="AccountId">The account the folder belongs to.</param>
 /// <param name="FolderAlias">MailFathom's own name for the folder.</param>
 /// <param name="SynchronizedAt">When synchronization last durably committed progress for the folder, or <see langword="null" /> when it never has.</param>
+/// <param name="Folder">The folder row the alias names, or <see langword="null" /> where none does yet.</param>
 /// <remarks>
 /// <para>
 /// Every query result carries this, because a mailbox read is served from local state whether or not a mail server is
@@ -26,7 +27,8 @@ namespace MailFathom.Application.Synchronization.Checkpoints;
 public sealed record MailboxFolderFreshness(
     MailAccountId AccountId,
     MailFolderAlias FolderAlias,
-    DateTimeOffset? SynchronizedAt)
+    DateTimeOffset? SynchronizedAt,
+    StoredEmailFolder? Folder = null)
 {
     /// <summary>Gets whether synchronization has ever committed progress for the folder.</summary>
     public bool WasSynchronized => this.SynchronizedAt is not null;

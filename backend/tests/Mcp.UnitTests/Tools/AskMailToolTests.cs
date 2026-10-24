@@ -71,7 +71,7 @@ public sealed class AskMailToolTests
         await tool.AskMailAsync(
             Question,
             accounts: [AnsweringDeployment.ServedAccountId],
-            folders: ["archive"],
+            folders: ["b22a9799-327a-75c2-8de9-5de1e1943426"],
             cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
@@ -80,7 +80,7 @@ public sealed class AskMailToolTests
             [MailAccountId.Create(AnsweringDeployment.ServedAccountId)],
             answerer.LastQuestion.Scope.AccountIds);
         Assert.Equal(
-            [new MailFolderIdentity(MailAccountId.Create(AnsweringDeployment.ServedAccountId), MailFolderAlias.Create("ARCHIVE"))],
+            [MailFolderId.Create(Guid.Parse("b22a9799-327a-75c2-8de9-5de1e1943426"))],
             answerer.LastQuestion.Scope.SelectedFolders);
     }
 
@@ -109,7 +109,7 @@ public sealed class AskMailToolTests
                 Assert.Equal(
                     SyntheticServedAccount.DisplayNameOf(MailAccountId.Create(AnsweringDeployment.ServedAccountId)).Value,
                     citation.AccountDisplayName);
-                Assert.Equal("INBOX", citation.FolderAlias);
+                Assert.Equal("INBOX", citation.FolderPath);
                 Assert.Equal("Quarterly invoice", citation.Subject);
                 Assert.Equal(Now, citation.ReceivedAt);
             });
@@ -439,7 +439,7 @@ public sealed class AskMailToolTests
         {
             StoredEmailId = StoredEmailId.Create(EmailIdentityAt(position)),
             AccountId = MailAccountId.Create(AnsweringDeployment.ServedAccountId),
-            FolderAlias = MailFolderAlias.Create("INBOX"),
+            Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
             Subject = "Quarterly invoice",
             ReceivedAt = Now,
             SenderVerification = senderVerification ?? SenderVerification.NotEstablished,

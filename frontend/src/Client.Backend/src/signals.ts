@@ -70,17 +70,22 @@ export interface SignalledFlags {
  * routes, and a shape carrying both would leave every reader checking which fields happened to be present.
  */
 export type ClientSignal =
-    | { readonly kind: 'mail.arrived'; readonly account: string; readonly folder: string; readonly count: number }
+    | {
+          readonly kind: 'mail.arrived';
+          readonly account: string;
+          readonly folder: string | null;
+          readonly count: number;
+      }
     | {
           readonly kind: 'mail.changed';
           readonly account: string;
-          readonly folder: string;
+          readonly folder: string | null;
           readonly emails: readonly string[];
       }
     | {
           readonly kind: 'mail.flags.changed';
           readonly account: string;
-          readonly folder: string;
+          readonly folder: string | null;
           readonly flags: readonly SignalledFlags[];
       }
     | { readonly kind: 'folders.changed'; readonly account: string }
@@ -404,10 +409,10 @@ function parseTicket(body: string): SignalTicket | null {
 
 function parseArrival(record: Readonly<Record<string, unknown>>): ClientSignal | null {
     const account = record['account'];
-    const folder = record['folder'];
+    const folder = record['folder'] ?? null;
     const count = record['count'];
 
-    if (!isIdentity(account) || !isIdentity(folder) || !isCount(count) || count <= 0) {
+    if (!isIdentity(account) || !isFolder(folder) || !isCount(count) || count <= 0) {
         return null;
     }
 
@@ -416,10 +421,10 @@ function parseArrival(record: Readonly<Record<string, unknown>>): ClientSignal |
 
 function parseChange(record: Readonly<Record<string, unknown>>): ClientSignal | null {
     const account = record['account'];
-    const folder = record['folder'];
+    const folder = record['folder'] ?? null;
     const named = record['emails'];
 
-    if (!isIdentity(account) || !isIdentity(folder) || !Array.isArray(named)) {
+    if (!isIdentity(account) || !isFolder(folder) || !Array.isArray(named)) {
         return null;
     }
 
@@ -432,10 +437,10 @@ function parseChange(record: Readonly<Record<string, unknown>>): ClientSignal | 
 
 function parseFlagChange(record: Readonly<Record<string, unknown>>): ClientSignal | null {
     const account = record['account'];
-    const folder = record['folder'];
+    const folder = record['folder'] ?? null;
     const stated = record['flags'];
 
-    if (!isIdentity(account) || !isIdentity(folder) || !Array.isArray(stated)) {
+    if (!isIdentity(account) || !isFolder(folder) || !Array.isArray(stated)) {
         return null;
     }
 
@@ -538,6 +543,11 @@ function parseRaisedNotification(record: Readonly<Record<string, unknown>>): Cli
 
 function isIdentity(value: unknown): value is string {
     return typeof value === 'string' && value.length > 0 && value.length <= longestSignalIdentity;
+}
+
+// A folder is named by its identity, or by nothing where the change may be in any folder of the account.
+function isFolder(value: unknown): value is string | null {
+    return value === null || isIdentity(value);
 }
 
 function isText(value: unknown): value is string {
