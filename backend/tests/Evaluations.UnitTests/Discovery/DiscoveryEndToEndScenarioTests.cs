@@ -161,7 +161,7 @@ public sealed partial class DiscoveryEndToEndScenarioTests : IDisposable
 
     private static ChatGenerationPlan PlanFor(string model) => ModelsUnderTest.PlanFor(model);
 
-    [GeneratedRegex(@"^\[(s\d+)\]", RegexOptions.Multiline)]
+    [GeneratedRegex(@"<source name=""(s\d+)""")]
     private static partial Regex OfferedSource();
 
     private Task<EvaluationResult> RunAsync(DiscoveryEndToEndScenario scenario, IChatClient model) =>

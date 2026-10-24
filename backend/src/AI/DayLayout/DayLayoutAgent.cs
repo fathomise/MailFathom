@@ -12,7 +12,6 @@ using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.Tasks;
-using MailFathom.Domain.Emails;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -199,22 +198,12 @@ internal sealed class DayLayoutAgent : IDayLayoutPlanner
             [.. question.Commitments.Select(static commitment => commitment.Title)],
             cancellationToken);
 
-        return Bounded(
-            DayLayoutInstructions.ComposeLayoutTurn(question, taskTitles, commitmentTitles),
+        return DayLayoutInstructions.ComposeLayoutTurn(
+            question,
+            taskTitles,
+            commitmentTitles,
             plan.MaximumRequestCharacters);
     }
-
-    /// <summary>Cuts a turn down to what one call may carry, without splitting a character in half.</summary>
-    /// <remarks>
-    /// A bound rather than a refusal, for the reason a derivation of mail states: a refusal here would be permanent
-    /// for as long as the person's day stayed as it is, so a deployment whose endpoint is declared narrower than a
-    /// long list would never arrange a day at all. What a bounded turn costs is the tail of the list, and an
-    /// arrangement of the tasks the model saw is still an arrangement somebody can read.
-    /// </remarks>
-    private static string Bounded(string turn, int maximumCharacters) =>
-        turn.Length <= maximumCharacters
-            ? turn
-            : MailTextBounds.TruncateAtTextElementBoundary(turn, maximumCharacters);
 
     /// <summary>Makes the one provider call, answering with nothing where it failed.</summary>
     /// <remarks>

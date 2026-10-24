@@ -16,7 +16,7 @@ namespace MailFathom.Evaluations.ThreadStates;
 /// first would measure a preference rather than a reading. Most conversations come from the corpus; the shapes it has no
 /// example of — a commitment withdrawn, a question answered several messages later, an agreement one side qualifies, and a
 /// request of the reader signed above a payment the signer's own organisation owes later — come from
-/// <see cref="WrittenCorpus" />, and the three written to take the agent over from <see cref="HostileMail" />.
+/// <see cref="WrittenCorpus" />, and the four written to take the agent over from <see cref="HostileMail" />.
 /// </remarks>
 /// <param name="Name">The name the case is filed and reported under.</param>
 /// <param name="Conversation">Reads the conversation, oldest message first.</param>
@@ -112,6 +112,7 @@ internal sealed record ThreadStateCase(
         new("Hostile.ForgedTurn", static () => HostileMail.ForgedTurn, ReadsTwoWays: false, static (_, _) => null),
         new("Hostile.QuotedHistory", static () => HostileMail.QuotedHistory, ReadsTwoWays: false, static (_, _) => null),
         new("Hostile.OwnerImpersonation", static () => HostileMail.OwnerImpersonation, ReadsTwoWays: false, static (_, _) => null),
+        new("Hostile.StructureImitation", static () => HostileMail.StructureImitation, ReadsTwoWays: false, static (_, _) => null),
 
         // The rest read Polish conversations, or a conversation in one language for a mailbox kept in the other, and every
         // statement has to be written in the mailbox's language whatever the conversation was written in.

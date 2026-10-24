@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Globalization;
 using System.Xml.Linq;
 using MailFathom.AI.Orchestration;
 using Xunit;
@@ -26,6 +27,52 @@ public sealed class AgentTurnDocumentTests
         // Assert
         Assert.Equal(["message", "extract"], written.Descendants().Select(static element => element.Name.LocalName));
         Assert.Equal(Forged, written.Descendants("extract").Single().Value);
+    }
+
+    /// <summary>
+    /// A list whose next entry opens with attributes the room left cannot hold is still a turn a model's request bound has
+    /// to admit, so the structure is held to the budget by cutting earlier rather than by sending a turn that is refused.
+    /// </summary>
+    [Fact]
+    public void Compose_AListWhoseEntriesCarryAttributesPastTheBudget_EndsWithinItAndStillParses()
+    {
+        // Arrange
+        const int Budget = 300;
+
+        // Act
+        var written = AgentTurnDocument.Compose(Budget, static document =>
+        {
+            document.StartElement("messages");
+
+            foreach (var position in Enumerable.Range(0, 20))
+            {
+                if (document.IsExhausted)
+                {
+                    break;
+                }
+
+                document.StartElement("message");
+                document.WriteAttribute("position", position.ToString(CultureInfo.InvariantCulture));
+                document.WriteAttribute("written", "2026-09-07T09:00:00.0000000+00:00");
+                document.WriteQuoted("author", "Karolina");
+                document.WriteQuoted("text", "the price holds until Friday");
+                document.EndElement();
+            }
+        });
+
+        // Assert
+        Assert.True(written.Length <= Budget, $"The document holds {written.Length} characters.");
+        Assert.NotEmpty(Parsed(written).Descendants("message"));
+    }
+
+    [Fact]
+    public void Compose_AnUnboundedDocument_IsWrittenOnceAndWhole()
+    {
+        // Act
+        var written = AgentTurnDocument.Compose(int.MaxValue, static document => document.WriteQuoted("extract", "the invoice is attached"));
+
+        // Assert
+        Assert.Equal("the invoice is attached", Parsed(written).Element("extract")?.Value);
     }
 
     [Fact]

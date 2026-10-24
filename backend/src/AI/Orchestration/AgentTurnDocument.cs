@@ -26,7 +26,9 @@ namespace MailFathom.AI.Orchestration;
 /// open element is closed, and the element it sits in says it was cut. The budget is applied to quoted text only:
 /// closing tags are always written and attribute values are never cut, so a budget smaller than the structure it is
 /// asked to hold is exceeded by that structure and the attribute values on it, never by quoted text. A caller that
-/// writes an outside value as an attribute — a file name, an address — bounds that value itself.
+/// writes an outside value as an attribute — a file name, an address — bounds that value itself. A turn that has to fit
+/// a model's request bound as a whole is written through <see cref="Compose" />, which holds the structure to the budget
+/// as well.
 /// </para>
 /// <para>
 /// Every value is written whatever characters it holds. A control character cannot open or close an element, so it is
@@ -104,6 +106,42 @@ internal sealed class AgentTurnDocument : IDisposable
 
         this.maximumCharacters = maximumCharacters;
         this.writer = XmlWriter.Create(this.document, Settings);
+    }
+
+    /// <summary>Writes a document that holds no more characters than a budget, wherever its caller cut it.</summary>
+    /// <param name="maximumCharacters">The most characters the finished document may hold.</param>
+    /// <param name="write">Writes the document, stopping a list once <see cref="IsExhausted" /> says the budget cut it.</param>
+    /// <returns>The document's text.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maximumCharacters" /> is negative.</exception>
+    /// <remarks>
+    /// The budget the constructor takes bounds quoted text, and an element opened once the room is gone still adds its
+    /// tags and attributes beyond it. A turn sent to a model has to fit the model's request bound, or the request is
+    /// refused on every attempt, so this writes the document again under a budget smaller by what the structure added,
+    /// which moves the cut into earlier quoted text and leaves the structure nothing to open after it. Each pass is
+    /// smaller than the last, so the passes end; only a structure larger than the whole budget is still returned past it.
+    /// </remarks>
+    internal static string Compose(int maximumCharacters, Action<AgentTurnDocument> write)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maximumCharacters);
+        ArgumentNullException.ThrowIfNull(write);
+
+        var budget = maximumCharacters;
+
+        while (true)
+        {
+            using var document = new AgentTurnDocument(budget);
+
+            write(document);
+
+            var written = document.Complete();
+
+            if (written.Length <= maximumCharacters || budget is 0)
+            {
+                return written;
+            }
+
+            budget = Math.Max(0, budget - (written.Length - maximumCharacters));
+        }
     }
 
     /// <summary>Gets whether the budget has already cut quoted text, after which a caller writing a list stops adding to it.</summary>

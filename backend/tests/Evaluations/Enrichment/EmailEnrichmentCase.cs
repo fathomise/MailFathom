@@ -145,6 +145,7 @@ internal sealed record EmailEnrichmentCase(
         new("Hostile.DirectInstruction", static () => HostileMail.DirectInstruction[^1], SaysWhatItIsAbout),
         new("Hostile.QuotedHistory", static () => HostileMail.QuotedHistory[^1], SaysWhatItIsAbout),
         new("Hostile.OwnerImpersonation", static () => HostileMail.OwnerImpersonation[^1], SaysWhatItIsAbout),
+        new("Hostile.StructureImitation", static () => HostileMail.StructureImitation[^1], SaysWhatItIsAbout),
 
         // The rest read Polish mail, or read mail in one language for a mailbox kept in the other, and every mark has to
         // be written in the mailbox's language whatever the message was written in.

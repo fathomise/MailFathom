@@ -38,7 +38,7 @@ internal static class ThreadStateScenario
         var thread = scenario.Thread;
         var messages = thread.Messages;
         var language = scenario.Language ?? MailAccountLanguage.English;
-        var instruction = ThreadStateInstructions.TextFor(language);
+        var instruction = AgentComposition.InstructionFor(ThreadStateInstructions.TextFor(language));
 
         return new StructuredAnswerRequest(
             $"{Name}.{scenario.Name}",

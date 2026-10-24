@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Xml.Linq;
 using MailFathom.AI.BodyCleanup;
 using MailFathom.Application.EmailContent.Cleaning;
 using Xunit;
@@ -29,20 +30,21 @@ public sealed class MailBodyCleanupInstructionsTests
         // Assert
         Assert.Equal(
             """
-            Envelope sender: The Shop
-            Subject: Your receipt
-
-            Blocks: 2
-            0 paragraph links=0 | View this in your browser
-            1 table links=4 | Shop Deals Account Help
-
+            <outline blocks="2">
+              <envelope>
+                <sender>The Shop</sender>
+                <subject>Your receipt</subject>
+              </envelope>
+              <block number="0" kind="paragraph" links="0">View this in your browser</block>
+              <block number="1" kind="table" links="4">Shop Deals Account Help</block>
+            </outline>
             """.ReplaceLineEndings("\n"),
             turn);
     }
 
-    /// <summary>The envelope is what the rule about a pasted header block is decided against, so its absence is stated rather than left blank.</summary>
+    /// <summary>Absent rather than empty, so the model reads an envelope that named nobody instead of a blank it has to tell apart from an empty name.</summary>
     [Fact]
-    public void ComposeOutlineTurn_AMessageNamingNeitherSenderNorSubject_SaysSoRatherThanLeavingTheLinesEmpty()
+    public void ComposeOutlineTurn_AMessageNamingNeitherSenderNorSubject_WritesAnEmptyEnvelope()
     {
         // Arrange
         var body = new CleanableMailBody(
@@ -51,12 +53,34 @@ public sealed class MailBodyCleanupInstructionsTests
             [new CleanableMailBlock(0, "paragraph", LinkCount: 0, "Anything")]);
 
         // Act
-        var turn = MailBodyCleanupInstructions.ComposeOutlineTurn(body);
+        var envelope = Parsed(MailBodyCleanupInstructions.ComposeOutlineTurn(body)).Descendants(MailBodyCleanupInstructions.EnvelopeElementName);
 
         // Assert
-        Assert.Contains("Envelope sender: (unnamed)", turn, StringComparison.Ordinal);
-        Assert.Contains("Subject: (none)", turn, StringComparison.Ordinal);
+        Assert.Empty(Assert.Single(envelope).Elements());
     }
+
+    /// <summary>The outline states its whole block count even when the bound cut it, so an answer covering only what fitted fails the partition check.</summary>
+    [Fact]
+    public void ComposeOutlineTurn_AnOutlineLongerThanTheBound_StaysWithinItAndStillStatesEveryBlock()
+    {
+        // Arrange
+        const int Bound = 500;
+        var body = new CleanableMailBody(
+            "Your receipt",
+            "The Shop",
+            [.. Enumerable.Range(0, 20).Select(static index => new CleanableMailBlock(index, "paragraph", LinkCount: 0, new string('o', 80)))]);
+
+        // Act
+        var turn = MailBodyCleanupInstructions.ComposeOutlineTurn(body, Bound);
+
+        // Assert
+        var outline = Parsed(turn).Element(MailBodyCleanupInstructions.OutlineElementName);
+        Assert.True(turn.Length <= Bound, $"The turn holds {turn.Length} characters.");
+        Assert.Equal("20", (string?)outline?.Attribute(MailBodyCleanupInstructions.BlockCountAttributeName));
+        Assert.InRange(outline?.Elements(MailBodyCleanupInstructions.BlockElementName).Count() ?? 0, 1, 19);
+    }
+
+    private static XElement Parsed(string turn) => XElement.Parse($"<turn>{turn}</turn>", LoadOptions.PreserveWhitespace);
 
     /// <summary>
     /// The instruction asks for ranges and names the two keywords the reading accepts, which is the one place the prose
