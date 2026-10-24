@@ -9,6 +9,7 @@ using MailFathom.AI.Chat;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.ProviderAdapters;
 using MailFathom.AI.Providers;
+using MailFathom.AI.Retrieval;
 using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
@@ -130,15 +131,32 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
             .ComposeAsync(this.Brief(), this.journal, TestContext.Current.CancellationToken);
 
         // Assert
-        var composed = this.store.ReceivedCalls()
-            .Select(static call => call.GetArguments())
-            .Select(static arguments => arguments.OfType<AgentBlockComposed>().SingleOrDefault())
-            .OfType<AgentBlockComposed>()
-            .Single();
-        var block = Assert.IsType<AnswerBlock>(composed.Block);
+        var block = Assert.IsType<AnswerBlock>(this.ComposedBlock());
         Assert.Equal(
             (PresentationSupport.Unsupported, PresentationConfidence.Low),
             (block.Evidence.Support, block.Confidence));
+    }
+
+    /// <summary>An answer that names what it read is cited rather than supported, and keeps the band the model rated it at.</summary>
+    [Fact]
+    public async Task ComposeAsync_AModelRatingHighOverAMessageItSearched_ComposesACitedAnswerAtHighConfidence()
+    {
+        // Arrange
+        var search = new RecordingEmailKnowledgeSearch()
+            .Returning("bays", KnowledgePassages.Create("Four bays are confirmed.", subject: "Bays"));
+        using var provider = new ScriptedProvider(
+            answering: [Searching("bays"), Rating("high"), Answering("Four bays were confirmed.")],
+            standby: []);
+
+        // Act
+        await provider.AgentOver(ChatDeclarations.Plan(maximumRequestCharacters: 100_000), search)
+            .ComposeAsync(this.Brief(), this.journal, TestContext.Current.CancellationToken);
+
+        // Assert
+        var block = Assert.IsType<AnswerBlock>(this.ComposedBlock());
+        Assert.Equal(
+            (PresentationSupport.Cited, PresentationConfidence.High, 1),
+            (block.Evidence.Support, block.Confidence, block.Evidence.Citations.Count));
     }
 
     /// <summary>
@@ -203,10 +221,24 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
         + "\"type\":\"function\",\"function\":{\"name\":\"rate_confidence\","
         + "\"arguments\":\"{\\\"band\\\":\\\"" + band + "\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}";
 
+    private static string Searching(string query) =>
+        "{\"id\":\"chatcmpl-4\",\"object\":\"chat.completion\",\"created\":1,\"model\":\"a-chat-model\","
+        + "\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"call-3\","
+        + "\"type\":\"function\",\"function\":{\"name\":\"search_mail\","
+        + "\"arguments\":\"{\\\"" + ScopedMailKnowledgeRetrieval.QueryArgumentName + "\\\":\\\"" + query + "\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}";
+
     private static string Answering(string text) =>
         "{\"id\":\"chatcmpl-2\",\"object\":\"chat.completion\",\"created\":1,\"model\":\"a-chat-model\","
         + "\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"" + text + "\"},"
         + "\"finish_reason\":\"stop\"}]}";
+
+    private PresentationBlock ComposedBlock() =>
+        this.store.ReceivedCalls()
+            .Select(static call => call.GetArguments())
+            .Select(static arguments => arguments.OfType<AgentBlockComposed>().SingleOrDefault())
+            .OfType<AgentBlockComposed>()
+            .Single()
+            .Block;
 
     private AgentAnswerBrief Brief() => new(
         new AgentQuestion(
@@ -260,7 +292,7 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
         /// <summary>Gets the session each request carried, in the order they arrived, with <see langword="null" /> for one carrying none.</summary>
         public List<string?> SentSessions { get; } = [];
 
-        public AgentConversationAgent AgentOver(ChatGenerationPlan plan)
+        public AgentConversationAgent AgentOver(ChatGenerationPlan plan, IEmailKnowledgeSearch? search = null)
         {
             var transportFactory = Substitute.For<IHttpClientFactory>();
             transportFactory
@@ -292,13 +324,15 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
                     participation,
                     StubDeploymentMailFolders.Of(participation),
                     StubMailFolderMappings.ResolvingNothing),
-                Substitute.For<IEmailKnowledgeSearch>(),
+                search ?? Substitute.For<IEmailKnowledgeSearch>(),
                 ContentReader: null!,
                 StateBrowser: null!,
                 Calendar: null!,
                 Tasks: null!,
                 ResponseAuthoring: null!,
-                AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse));
+                search is null
+                    ? AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse)
+                    : AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse, MailFathomPermission.MailRead));
 
             return new AgentConversationAgent(
                 plan,

@@ -63,6 +63,7 @@ function ExplainedChip({
     useEffect(() => forgetPress, []);
 
     const hide = () => {
+        tappedWith.current = null;
         forgetPress();
         setShown(false);
     };
@@ -100,6 +101,9 @@ function ExplainedChip({
                 }}
                 onPointerDown={(event) => {
                     tappedWith.current = event.pointerType === 'mouse' ? null : event.pointerType;
+                }}
+                onPointerCancel={() => {
+                    tappedWith.current = null;
                 }}
                 onPointerEnter={(event) => {
                     if (event.pointerType === 'mouse') {

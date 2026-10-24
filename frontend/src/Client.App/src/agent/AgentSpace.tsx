@@ -198,6 +198,7 @@ export function AgentSpace({
     // Folded once per arrival rather than per render, because the thread re-measures whenever the turns change.
     const turns = useMemo(() => threadOf(followed.entries), [followed.entries]);
     const checked = checking !== null && checking.conversation === current ? checking.source : null;
+    const checkedFrom = useRef<HTMLElement | null>(null);
     const inspector =
         checked === null ? null : (
             <EvidenceInspector
@@ -206,6 +207,14 @@ export function AgentSpace({
                 transport={transport}
                 onDismiss={() => {
                     setChecking(null);
+
+                    // The panel is taken out of the document rather than emptied, so the inspector's own hand-back,
+                    // which runs when its source becomes nothing, never runs here; the citation is handed the keyboard
+                    // back by whoever removes the panel instead.
+                    const pressed = checkedFrom.current;
+
+                    checkedFrom.current = null;
+                    pressed?.focus();
                 }}
                 onOpenMessage={
                     onLook === null
@@ -218,6 +227,7 @@ export function AgentSpace({
         );
     const followSource = useCallback(
         (source: DeclaredSource) => {
+            checkedFrom.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
             setChecking({ conversation: current, source });
         },
         [current],

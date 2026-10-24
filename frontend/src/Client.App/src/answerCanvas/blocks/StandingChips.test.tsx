@@ -88,6 +88,24 @@ describe('SupportVerdictChip', () => {
         expect(explanation().hidden).toBe(true);
     });
 
+    it('forgets a tap the browser took back, so a later key press keeps the explanation until focus moves on', () => {
+        // Arrange
+        vi.useFakeTimers();
+        const { chip, explanation } = renderVerdict();
+
+        // Act
+        fireEvent.pointerDown(chip, { pointerType: 'touch' });
+        fireEvent.pointerCancel(chip, { pointerType: 'touch' });
+        fireEvent.focus(chip);
+        fireEvent.click(chip);
+        act(() => {
+            vi.advanceTimersByTime(4000);
+        });
+
+        // Assert
+        expect(explanation().hidden).toBe(false);
+    });
+
     it('leaves a mouse press to the hover, keeping the explanation until the mouse leaves', () => {
         // Arrange
         vi.useFakeTimers();
