@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
     longestSearchText,
     phraseNotRead,
@@ -95,27 +95,7 @@ export function MailSearch({
     const submitName = useTip({ says: translate('search.submit'), onPress: () => undefined });
     const { workspace, revise } = useWorkspace();
     const openMailboxes = useMailboxesDrawer();
-    const fold = useListFold();
-    const strip = fold?.folded === true;
-    const showPlace = useRef<HTMLDivElement>(null);
-    const narrowPlace = useRef<HTMLSpanElement>(null);
-    const turnedHere = useRef(false);
-
-    // The control pressed to fold or widen the list goes with the head it stood in, so focus is put on the one that
-    // turns it back rather than left on an element no longer drawn, which is where keyboard use stops silently.
-    useEffect(() => {
-        if (!turnedHere.current) {
-            return;
-        }
-
-        turnedHere.current = false;
-        (strip ? showPlace : narrowPlace).current?.querySelector('button')?.focus();
-    }, [strip]);
-
-    function turnTheList(): void {
-        turnedHere.current = true;
-        fold?.turn();
-    }
+    const strip = useListFold()?.folded === true;
 
     const [typed, setTyped] = useState('');
 
@@ -221,18 +201,9 @@ export function MailSearch({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
-            {/* Folded to a strip, the head is the one control that widens the list again; the field and what stands
-                in its row stay in the document, hidden, so a search in progress is where it was when the list widens. */}
-            {fold !== null && strip ? (
-                <div ref={showPlace} className="flex shrink-0 justify-center border-b border-line py-2">
-                    <SurfaceControl
-                        label={translate('mail.showList')}
-                        icon="left_panel_open"
-                        onActivate={turnTheList}
-                    />
-                </div>
-            ) : null}
-
+            {/* Folded to a strip, the list has no head: the toolbar's list control widens it again. The field and what
+                stands in its row stay in the document, hidden, so a search in progress is where it was when the list
+                widens. */}
             <form
                 className={`flex-wrap items-center gap-2 border-b border-line px-3 py-2 desktop:gap-2.25 desktop:py-2.5 ${
                     strip ? 'hidden' : 'flex'
@@ -242,19 +213,9 @@ export function MailSearch({
                     search(typed);
                 }}
             >
-                {/* The way to the mailboxes stands first in this row wherever they are behind a drawer, which is the
-                    design's own head row: the drawer, the field, and what searches it, on one line. */}
-                {fold === null ? null : (
-                    <span ref={narrowPlace} className="contents">
-                        <SurfaceControl
-                            label={translate('mail.narrowList')}
-                            icon="left_panel_close"
-                            edged
-                            onActivate={turnTheList}
-                        />
-                    </span>
-                )}
-
+                {/* The way to the mailboxes stands first in this row wherever they are behind a drawer and no toolbar
+                    leads with it, which is the phone's head row: the drawer, the field, and what searches it, on one
+                    line. */}
                 {openMailboxes === null ? null : (
                     <SurfaceControl label={translate('mailboxes.open')} icon="menu" edged onActivate={openMailboxes} />
                 )}

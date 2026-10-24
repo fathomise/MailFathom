@@ -461,6 +461,13 @@ Project repository: https://github.com/fathomise/MailFathom
           <div onClick="{{ toggleSide }}" title="{{ sideToggleTitle }}" aria-label="{{ sideToggleTitle }}" style="{{ sideToggleBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">{{ sideToggleIcon }}</div>
           <div style="width:1px;align-self:stretch;background:var(--line);margin:0 8px 0 6px"></div>
         </sc-if>
+        <sc-if value="{{ viewLeadShown }}" hint-placeholder-val="{{ false }}">
+          <sc-if value="{{ listToggleShown }}" hint-placeholder-val="{{ false }}">
+            <div onClick="{{ toggleList }}" onContextMenu="{{ keepList }}" title="{{ listToggleTitle }}" aria-label="{{ listToggleLabel }}" style="{{ listToggleStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">{{ listToggleIcon }}</div>
+          </sc-if>
+          <div onClick="{{ openFolders }}" title="Folders and filters" aria-label="Folders and filters" style="{{ sideToggleBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">menu</div>
+          <div style="width:1px;align-self:stretch;background:var(--line);margin:0 8px 0 6px"></div>
+        </sc-if>
         <sc-if value="{{ tbPrimaryShown }}" hint-placeholder-val="{{ true }}">
           <div onClick="{{ openCompose }}" style="{{ tbPrimaryStyle }}" style-hover="cursor:pointer;opacity:0.9"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">edit_square</span>{{ tbNewLabel }}</div>
           <div style="width:1px;align-self:stretch;background:var(--line);margin:0 2px"></div>
@@ -705,7 +712,6 @@ Project repository: https://github.com/fathomise/MailFathom
       <sc-if value="{{ showThreadList }}" hint-placeholder-val="{{ true }}">
         <div data-motion="{{ moMailList }}" style="{{ threadListStyle }}">
           <sc-if value="{{ listStrip }}" hint-placeholder-val="{{ false }}">
-            <div style="{{ stripHeadStyle }}"><div onClick="{{ widenList }}" title="Show the list" style="{{ stripBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1">left_panel_open</span></div></div>
             <div style="{{ stripScrollStyle }}">
               <sc-for list="{{ threads }}" as="t" hint-placeholder-count="5">
                 <div onClick="{{ t.select }}" onContextMenu="{{ t.longPress }}" onTouchStart="{{ t.stripTouchStart }}" onTouchEnd="{{ t.stripTouchEnd }}" onTouchMove="{{ t.stripTouchEnd }}" data-tip-hover title="{{ t.stripLabel }}" style="{{ t.stripStyle }}" style-hover="cursor:pointer;background:var(--hover)">
@@ -720,9 +726,6 @@ Project repository: https://github.com/fathomise/MailFathom
             <div role="button" tabIndex="0" onClick="{{ openCompose }}" title="New message" aria-label="New message" style="{{ mailFabStyle }}" style-hover="cursor:pointer;opacity:0.92"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:24px;line-height:1">edit_square</span></div>
           </sc-if>
           <div style="{{ listHeadStyle }}">
-            <sc-if value="{{ listNarrowable }}" hint-placeholder-val="{{ false }}">
-              <div onClick="{{ narrowList }}" title="Narrow the list" style="{{ folderBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">left_panel_close</span></div>
-            </sc-if>
             <sc-if value="{{ showFolderBtn }}" hint-placeholder-val="{{ false }}">
               <div onClick="{{ openFolders }}" title="Folders and filters" style="{{ folderBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">menu</span></div>
             </sc-if>

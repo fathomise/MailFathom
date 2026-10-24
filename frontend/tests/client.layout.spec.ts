@@ -279,8 +279,8 @@ test.describe('driven by a finger', () => {
 
             await expect(list.getByRole('option').first()).toBeVisible();
 
-            // The mailboxes stand behind a drawer at every one of the three, opened from the list's own head and
-            // closed again from inside it. The drawer is the platform's modal dialog, so closing it is what hands focus
+            // The mailboxes stand behind a drawer at every one of the three, opened from the toolbar where one stands
+            // and from the list's own head on the phone, and closed again from inside it. The drawer is the platform's modal dialog, so closing it is what hands focus
             // back to the control that opened it.
             const opener = page.getByRole('button', { name: 'Folders and filters' });
             const drawer = page.getByRole('dialog', { name: 'Folders and filters' });

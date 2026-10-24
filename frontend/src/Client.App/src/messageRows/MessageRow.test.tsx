@@ -367,7 +367,7 @@ describe('MessageRow', () => {
     it('draws the sender alone where the list is folded to a strip, named by who wrote and about what', () => {
         render(
             <LocalizationProvider>
-                <ListFoldContext value={{ folded: true, turn: () => undefined }}>
+                <ListFoldContext value={{ folded: true, kept: false, turn: () => undefined, keep: () => undefined }}>
                     <ul>
                         <MessageRow
                             email={{ ...email, senderDisplayName: 'Anna Kowalska' }}

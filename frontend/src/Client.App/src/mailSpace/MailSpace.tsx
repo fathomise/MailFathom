@@ -135,11 +135,6 @@ export function MailSpace({
     const [listWidth, setListWidth] = useState(() => readListWidth(person));
     const [mailboxesWidth, setMailboxesWidth] = useState(() => readMailboxesWidth(person));
 
-    // How the toolbar fits its width is measured here rather than in the toolbar, because what it decides is drawn in
-    // two places: the names in the strip, and — once composing no longer fits beside them — the floating control over
-    // the list, which is this space's to draw. The selection bar measures itself; nothing outside it moves. Where the
-    // mailbox column is docked, the control that shows and hides it stands ahead of composing in the strip.
-    const { strip: toolbarStrip, fit: toolbarFit } = useStripFit(true, `${locale}:${String(desktop)}`, desktop ? 1 : 0);
     const selecting = workspace.selected.length > 0;
     const [drawerOpen, setDrawerOpen] = useState(false);
     const drawer = useRef<HTMLDialogElement>(null);
@@ -179,28 +174,52 @@ export function MailSpace({
     const listAside = readingInFront || listGivenUp;
 
     // The fold — two panes under a finger in less width than the tablet — folds the list to a strip of senders while
-    // something is open beside it, so the message gets the width, and the strip's head widens it again. Widening is
-    // remembered against what was open when it was asked for, so picking another message folds the list back without
-    // anything having to undo it.
+    // something is open beside it, so the message gets the width, and the toolbar's list control widens it again.
+    // Widening is remembered against what was open when it was asked for, so picking another message folds the list
+    // back without anything having to undo it — unless somebody held that control to keep the list open, which holds
+    // for the session rather than for one message.
     const coarse = useCoarsePointer();
     const roomy = useRoomyComposition();
     const [widenedFor, setWidenedFor] = useState<string | null | undefined>(undefined);
+    const [listKept, setListKept] = useState(false);
     const foldOffered = coarse && twoPanes && !roomy && readingOpen && !selecting && !listGivenUp;
     const opened = workspace.selection;
-    const listFolded = widenedFor !== opened;
+    const listFolded = !listKept && widenedFor !== opened;
     const listFold = useMemo<ListFold | null>(
         () =>
             foldOffered
                 ? {
                       folded: listFolded,
+                      kept: listKept,
                       turn: () => {
-                          setWidenedFor((widened) => (widened === opened ? undefined : opened));
+                          setListKept(false);
+                          setWidenedFor(listFolded ? opened : undefined);
+                      },
+                      keep: () => {
+                          if (listFolded) {
+                              return;
+                          }
+
+                          setListKept(!listKept);
+                          setWidenedFor(opened);
                       },
                   }
                 : null,
-        [foldOffered, listFolded, opened],
+        [foldOffered, listFolded, listKept, opened],
     );
     const listStrip = listFold?.folded === true;
+
+    // How the toolbar fits its width is measured here rather than in the toolbar, because what it decides is drawn in
+    // two places: the names in the strip, and — once composing no longer fits beside them — the floating control over
+    // the list, which is this space's to draw. The selection bar measures itself; nothing outside it moves. The controls
+    // that change the view — the mailbox column's, or the drawer's and the fold's list — stand ahead of composing as
+    // one child of the strip at every width the toolbar is drawn at.
+    const { strip: toolbarStrip, fit: toolbarFit } = useStripFit(
+        true,
+        `${locale}:${String(desktop)}:${String(listFold !== null)}`,
+        1,
+    );
+    const toolbarDrawn = !selecting && wide;
 
     // Read from the workspace rather than held here, because the column is not the only thing that draws differently
     // once it is folded: the tree inside it draws a symbol where it drew a name, and the tree is a region handed in
@@ -314,7 +333,16 @@ export function MailSpace({
             {/* The bar replaces the toolbar while messages are picked out, which is the design's composition:
                 one strip saying what the next press is about. It stands at every width because the narrow shape has no
                 toolbar to replace and a selection still needs both a way to act on it and a way out of it. */}
-            {selecting ? <SelectionBar /> : wide ? <MailToolbar strip={toolbarStrip} fit={toolbarFit} /> : null}
+            {selecting ? (
+                <SelectionBar />
+            ) : toolbarDrawn ? (
+                <MailToolbar
+                    strip={toolbarStrip}
+                    fit={toolbarFit}
+                    openMailboxes={desktop ? null : openDrawer}
+                    listFold={listFold}
+                />
+            ) : null}
 
             <div className="relative flex min-h-0 flex-1">
                 {desktop ? (
@@ -435,7 +463,9 @@ export function MailSpace({
                     <div className="relative flex min-h-0 flex-1 flex-col">
                         {/* The list's own head row draws the way into the drawer, at its start, wherever there is
                             a drawer to open; the column has none, and offers nothing. */}
-                        <MailboxesDrawerContext value={desktop ? null : openDrawer}>
+                        {/* The list's head opens the drawer only where no toolbar stands to lead with it: the phone,
+                            and a selection, whose bar replaces the toolbar. */}
+                        <MailboxesDrawerContext value={desktop || toolbarDrawn ? null : openDrawer}>
                             <ListFoldContext value={listFold}>{list}</ListFoldContext>
                         </MailboxesDrawerContext>
 

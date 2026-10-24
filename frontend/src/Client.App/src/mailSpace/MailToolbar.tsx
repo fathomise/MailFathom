@@ -9,6 +9,7 @@ import type { ControlShape } from '../controls/controlShapes';
 import type { IconName } from '../controls/icons';
 import { PlannedControl } from '../controls/PlannedControl';
 import type { MessageKey } from '../localization/en';
+import type { ListFold } from '../messageRows/listFold';
 import { useLocalization } from '../localization/useLocalization';
 import { MailboxActControls } from '../mailboxActs/MailboxActControls';
 import { actedMessages, useListedMail } from '../messageList/useListedMail';
@@ -38,7 +39,18 @@ const answers: readonly { readonly answer: MailDraftAnswer; readonly icon: IconN
     { answer: 'forward', icon: 'forward', label: 'mail.forward' },
 ];
 
-export function MailToolbar({ strip, fit }: StripFitting) {
+export function MailToolbar({
+    strip,
+    fit,
+    openMailboxes,
+    listFold,
+}: StripFitting & {
+    /** Opens the mailboxes drawer, or `null` where the mailbox column is docked beside the list instead. */
+    readonly openMailboxes: (() => void) | null;
+
+    /** The fold's list, or `null` where the composition draws the list whole. */
+    readonly listFold: ListFold | null;
+}) {
     const { translate } = useLocalization();
     const { workspace, revise } = useWorkspace();
     const composing = useComposing();
@@ -57,12 +69,14 @@ export function MailToolbar({ strip, fit }: StripFitting) {
             aria-label={translate('mail.toolbar')}
             className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-line bg-panel px-3 py-2 shadow-raised"
         >
-            {/* The mailbox column's own show and hide, which leads the strip wherever the column is docked beside the
-                list rather than a drawer over it, so a long tree never scrolls it away. The rule after it keeps it
-                apart from composing, so a press meant for one never lands on the other. It and its rule are one child
-                of the strip, which is what the fitting reads ahead of composing. */}
-            {docked ? (
-                <span className="flex shrink-0 items-center self-stretch">
+            {/* The controls that change the view rather than a message lead the strip: the mailbox column's own show
+                and hide where it is docked beside the list, and otherwise — on the fold, with something open — the
+                list's own fold, followed by the drawer's opener. Here rather than in the list, so a long tree or a long list never
+                scrolls them away. The rule after them keeps them apart from composing, so a press meant for one never
+                lands on the other. They and their rule are one child of the strip, which is what the fitting reads
+                ahead of composing. */}
+            <span className="flex shrink-0 items-center self-stretch">
+                {docked ? (
                     <Control
                         label={translate(folded ? 'mailboxes.unfold' : 'mailboxes.fold')}
                         icon={folded ? 'left_panel_open' : 'left_panel_close'}
@@ -71,10 +85,16 @@ export function MailToolbar({ strip, fit }: StripFitting) {
                             revise({ mailboxesFolded: !folded });
                         }}
                     />
+                ) : null}
 
-                    <span aria-hidden="true" className="ms-1.5 me-2 w-px self-stretch bg-line" />
-                </span>
-            ) : null}
+                {listFold === null ? null : <ListFoldControl fold={listFold} />}
+
+                {openMailboxes === null ? null : (
+                    <Control label={translate('mailboxes.open')} icon="menu" shape="symbol" onPress={openMailboxes} />
+                )}
+
+                <span aria-hidden="true" className="ms-1.5 me-2 w-px self-stretch bg-line" />
+            </span>
 
             {/* Composing stands first, and only while the names fit beside it: otherwise it is the floating control
                 over the list, which the mail space draws. The divider after it is what the measurement reads as the
@@ -148,5 +168,29 @@ export function MailToolbar({ strip, fit }: StripFitting) {
                 />
             ) : null}
         </div>
+    );
+}
+
+// The fold's list control, one control for both ways: it widens the strip and narrows the widened list. Held while the
+// list is widened, it keeps the list open as other messages are opened, and held again it lets the list fold at the
+// next one — so what it says about itself names the hold, and a list kept open is drawn the way the strip draws a view
+// that is switched on.
+function ListFoldControl({ fold }: { readonly fold: ListFold }) {
+    const { translate } = useLocalization();
+
+    if (fold.folded) {
+        return <Control label={translate('mail.showList')} icon="left_panel_open" shape="symbol" onPress={fold.turn} />;
+    }
+
+    return (
+        <Control
+            label={translate('mail.narrowList')}
+            hint={translate(fold.kept ? 'mail.listKept' : 'mail.narrowListHold')}
+            icon="left_panel_close"
+            shape="symbol"
+            className={fold.kept ? 'bg-accent-soft text-accent-strong ring-1 ring-accent-line ring-inset' : ''}
+            onPress={fold.turn}
+            onHold={fold.keep}
+        />
     );
 }

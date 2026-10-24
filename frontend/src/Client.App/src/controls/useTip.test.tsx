@@ -9,8 +9,16 @@ import { pressDrift, pressOpensAfter, useRowPress } from '../contextMenu/rowPres
 import { tipRestsFor, tipStandsFor, useTip } from './useTip';
 import { focusByKey } from './useTip.harness';
 
-function Named({ name, onPress }: { readonly name: string; readonly onPress?: () => void }) {
-    const { anchor, tip } = useTip({ says: name, onPress });
+function Named({
+    name,
+    onPress,
+    onHold,
+}: {
+    readonly name: string;
+    readonly onPress?: () => void;
+    readonly onHold?: () => void;
+}) {
+    const { anchor, tip } = useTip({ says: name, onPress, onHold });
 
     return (
         <>
@@ -83,6 +91,34 @@ describe('useTip', () => {
 
         expect(pressed).toHaveBeenCalledOnce();
         expect(screen.queryByRole('tooltip')).toBeNull();
+    });
+
+    it('does what a hold does once, says so, and never presses — the platform menu after it included', () => {
+        const pressed = vi.fn();
+        const held = vi.fn();
+        render(<Named name="Narrow the list" onPress={pressed} onHold={held} />);
+        const control = screen.getByRole('button', { name: 'Narrow the list' });
+
+        hold(control);
+        fireEvent.pointerCancel(control);
+        fireEvent.contextMenu(control);
+        fireEvent.click(control);
+
+        expect(held).toHaveBeenCalledOnce();
+        expect(pressed).not.toHaveBeenCalled();
+        expect(screen.getByRole('tooltip').textContent).toBe('Narrow the list');
+    });
+
+    it('reaches what a hold does from a secondary click or the context-menu key as well', () => {
+        const held = vi.fn();
+        render(<Named name="Narrow the list" onPress={() => undefined} onHold={held} />);
+        const control = screen.getByRole('button', { name: 'Narrow the list' });
+
+        const platformMenu = fireEvent.contextMenu(control);
+
+        expect(held).toHaveBeenCalledOnce();
+        expect(platformMenu).toBe(false);
+        expect(screen.getByRole('tooltip')).toBeDefined();
     });
 
     it('lets a name a finger brought up go by itself, since a finger has no hover to leave', () => {
