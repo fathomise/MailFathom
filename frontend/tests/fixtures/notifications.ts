@@ -19,15 +19,18 @@ import { newsletterId } from './messages';
 /** The identity the unread notification below is addressed by. */
 export const notificationId = '00000000-0000-4000-8000-0000000000f0';
 
-/** One page of the centre, newest first, holding one row of each kind of target and both read states. */
+/**
+ * One page of the centre, newest first, holding one row of each kind of target and both read states. The mail row is
+ * a merged arrival, which is what more than five unread messages in one account become.
+ */
 export const notificationPage = {
     notifications: [
         {
             id: notificationId,
             kind: 'Mail',
-            statement: { cause: 'MailArrived', counted: 4, outOf: null },
+            statement: { cause: 'MailArrived', counted: 8, outOf: null },
             title: 'New mail',
-            body: '4 new messages arrived.',
+            body: '8 new messages arrived.',
             source: 'Work',
             target: { kind: 'Screen', screen: 'Mail' },
             occurredAt: '2026-08-31T08:03:00+00:00',
@@ -72,14 +75,15 @@ export const notificationPage = {
 
 /**
  * A notification raised after the page above was read, which is what a client polling the count finds arriving:
- * one message that came in, leading to the message itself rather than to the space it sits in.
+ * one message that came in, said by its sender and its subject and leading to the message itself rather than to the
+ * space it sits in.
  */
 export const arrivingNotification = {
     id: '00000000-0000-4000-8000-0000000000f4',
     kind: 'Mail',
-    statement: { cause: 'MailArrived', counted: 1, outOf: null },
-    title: 'New mail',
-    body: '1 new message arrived.',
+    statement: { cause: 'MessageArrived', counted: 1, outOf: null },
+    title: 'Lena Brandt',
+    body: 'Quarterly figures for your review',
     source: 'Work',
     target: { kind: 'Message', messageId: newsletterId },
     occurredAt: '2026-08-31T09:12:00+00:00',
