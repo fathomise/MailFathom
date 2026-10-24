@@ -21,26 +21,50 @@ MailFathomDesign.data.accounts = [
     ] },
 ];
 
-// What has not left each account yet: its Outbox, drawn as a mark on that account's Sent row while it holds anything.
-// `stage` is waiting (handed over, nothing transmitted), sending (going out now) or refused (the server would not take
-// it, with its reason in words). An account missing here has nothing waiting, so its Sent row carries no mark.
+// What has not left each account yet: its Outbox, drawn as a mark on that account's Sent row while it holds anything,
+// newest first. `stage` is what the row says: waiting (handed over, no attempt yet), scheduled (written to leave at
+// `leaveAt`), retrying (an attempt failed before the body went out; the next one is at `retryAt`), sending (an attempt
+// holds it now), unknown (the body went out and no answer came back, so nobody knows whether it arrived) or refused
+// (the server would not take it, `reason` in words). `rcpt` is every recipient with its header and, where the server
+// answered for it, what it said. An account missing here has nothing waiting, so its Sent row carries no mark.
 MailFathomDesign.data.outbox = {
   acc1: [
-    { id: "ob1", stage: "refused", to: "Anna Kowalska", toMail: "a.kowalska@contoso.example", at: "09:52",
-      subject: "Re: Contract addendum - signatures",
-      reason: "Nordwind's mail server would not take it: this account has sent as much mail as it may today. Nothing reached Anna. The limit resets at midnight.",
-      body: ["Anna,", "We accept the 2 h SLA and propose a 5% CPI cap from 2027. If that works for you, I will send the addendum for signature tomorrow.", "Best regards,\nKarolina"] },
-    { id: "ob2", stage: "sending", to: "Marta Nowak", toMail: "m.nowak@company.example", at: "10:41",
-      subject: "Budget line for Q4 renewals",
-      body: ["Marta,", "The negotiating line is the 5% cap. You can close the 2027 budget on that figure.", "Karolina"] },
-    { id: "ob3", stage: "waiting", to: "Tomasz Bąk", toMail: "t.bak@fabrikam.example", at: "10:44",
+    { id: "ob3", stage: "waiting", at: "10:44", attempts: 0,
+      rcpt: [{ hdr: "To", name: "Tomasz Bąk", mail: "t.bak@fabrikam.example" }],
       subject: "Re: UAT testing date",
       body: ["Tomasz,", "12.11 works for us. Please confirm the test accounts by 02.09 so audit gets the list in time.", "Thanks,\nKarolina"] },
+    { id: "ob2", stage: "sending", at: "10:41", attempts: 1,
+      rcpt: [{ hdr: "To", name: "Marta Nowak", mail: "m.nowak@company.example" }],
+      subject: "Budget line for Q4 renewals",
+      body: ["Marta,", "The negotiating line is the 5% cap. You can close the 2027 budget on that figure.", "Karolina"] },
+    { id: "ob6", stage: "retrying", at: "10:12", attempts: 2, retryAt: "10:55",
+      rcpt: [{ hdr: "To", name: "Piotr Zieliński", mail: "p.zielinski@company.example" }, { hdr: "Cc", name: "Jacek Wrona", mail: "j.wrona@company.example" }],
+      subject: "Re: rollout schedule",
+      reason: "Nordwind's mail server did not answer.",
+      body: ["Piotr,", "Phase two is confirmed for the 14th. Jacek has the legal sign-off ready.", "Karolina"] },
+    { id: "ob7", stage: "unknown", at: "09:58", attempts: 1,
+      rcpt: [{ hdr: "To", name: "Anna Kowalska", mail: "a.kowalska@contoso.example" }],
+      subject: "Re: proposed terms for 2027",
+      body: ["Anna,", "Thank you - we will come back with the 2027 terms by Friday.", "Karolina"] },
+    { id: "ob1", stage: "refused", at: "09:52", attempts: 1,
+      rcpt: [
+        { hdr: "To", name: "Anna Kowalska", mail: "a.kowalska@contoso.example", said: "Not taken - sending limit reached" },
+        { hdr: "Cc", name: "Marta Nowak", mail: "m.nowak@company.example", said: "Not taken - sending limit reached" },
+      ],
+      subject: "Re: Contract addendum - signatures",
+      reason: "Nordwind's mail server would not take it: this account has sent as much mail as it may today. Nothing reached Anna or Marta. The limit resets at midnight.",
+      attachments: [{ name: "Addendum-3-signed.pdf", meta: "PDF · 312 KB" }],
+      body: ["Anna,", "We accept the 2 h SLA and propose a 5% CPI cap from 2027. The signed addendum is attached.", "Best regards,\nKarolina"] },
   ],
   acc2: [
-    { id: "ob4", stage: "sending", to: "Ewa Sikora", toMail: "e.sikora@adventure.example", at: "10:46",
+    { id: "ob4", stage: "sending", at: "10:46", attempts: 1,
+      rcpt: [{ hdr: "To", name: "Ewa Sikora", mail: "e.sikora@adventure.example" }],
       subject: "Weekend support - one question",
       body: ["Ewa,", "Is weekend support possible from October, and on what terms?", "Karolina"] },
+    { id: "ob8", stage: "scheduled", at: "10:30", attempts: 0, leaveAt: "Mon 08:00",
+      rcpt: [{ hdr: "To", name: "Robert Lis", mail: "r.lis@nordwind.example" }],
+      subject: "Re: Quote for the reporting module",
+      body: ["Robert,", "We accept the quote. Please send the order confirmation to finance.", "Karolina"] },
   ],
 };
 

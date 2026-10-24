@@ -40,7 +40,7 @@
         {
           "click": {
             "role": "button",
-            "name": "Outbox - 2 waiting to leave, 1 refused",
+            "name": "Outbox - 4 waiting to leave, 1 refused",
             "exact": true
           }
         },

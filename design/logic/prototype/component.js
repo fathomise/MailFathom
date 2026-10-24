@@ -503,7 +503,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     cancelOutboxEntry = (acc, id) => {
       const entry = this.outboxOf(acc).find(x => x.id === id);
       this.setOutbox(acc, this.outboxOf(acc).filter(x => x.id !== id));
-      if (entry) this.notify("Nothing was sent to " + entry.to + ".", { kind: "success", title: "Sending cancelled" });
+      if (entry) this.notify("Nothing was sent to " + entry.rcpt.map(r => r.name).join(", ") + ".", { kind: "success", title: "Sending cancelled" });
+    };
+    /* Dismissing takes a refused send, or one nobody knows the fate of, out of the Outbox and changes nothing else. */
+    dismissOutboxEntry = (acc, id) => {
+      const entry = this.outboxOf(acc).find(x => x.id === id);
+      this.setOutbox(acc, this.outboxOf(acc).filter(x => x.id !== id));
+      if (entry) this.notify(entry.stage === "unknown" ? "Whether it arrived stays unknown." : "It was not sent.", { title: "Taken out of Outbox" });
     };
     sendOutboxEntryAgain = (acc, id) => {
       this.setOutbox(acc, this.outboxOf(acc).map(x => (x.id === id ? Object.assign({}, x, { stage: "sending" }) : x)));
@@ -2875,17 +2881,51 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const outboxAcc = st.screen === "mail" ? (st.outboxAcc || null) : null;
       const outboxOn = !!outboxAcc;
       const outboxAll = st.outbox || OUTBOX;
+      /* The six things a row can say, from ADR 0040: waiting, scheduled and retrying are a send at Recorded, sending is
+         one an attempt holds, unknown is one whose body went out with no answer back, refused is the server's no. */
+      const OB_TONE = {
+        neutral: { ink: "var(--muted)", title: "var(--text)", box: "var(--line);background:var(--rail)" },
+        accent: { ink: "var(--accent-d)", title: "var(--text)", box: "var(--accent-line);background:var(--accent-soft)" },
+        warn: { ink: "var(--warn-text)", title: "var(--warn-text)", box: "var(--warn);background:var(--warn-soft)" },
+        err: { ink: "var(--err-text)", title: "var(--err-text)", box: "var(--err);background:var(--err-soft)" },
+      };
+      const attemptsSaid = (x) => x.attempts + (x.attempts === 1 ? " attempt" : " attempts");
       const OB_STAGE = {
-        refused: { order: 0, icon: "error", label: "Refused by the server", tone: "var(--err-text)" },
-        sending: { order: 1, icon: "send", label: "Sending now", tone: "var(--accent-d)" },
-        waiting: { order: 2, icon: "schedule", label: "Waiting to send", tone: "var(--muted)" },
+        waiting: { icon: "schedule", tone: "neutral", act: "cancel",
+          line: () => "Waiting to send",
+          title: () => "Waiting to send",
+          text: (x) => "Handed over at " + x.at + " and not sent yet. It goes out as soon as the mail server takes it." },
+        scheduled: { icon: "schedule_send", tone: "neutral", act: "cancel",
+          line: (x) => "Sends " + x.leaveAt,
+          title: (x) => "Sends " + x.leaveAt,
+          text: (x) => "Handed over at " + x.at + " and written to leave " + x.leaveAt + ". Until then it can still be cancelled." },
+        retrying: { icon: "update", tone: "warn", act: "cancel",
+          line: (x) => "Trying again at " + x.retryAt + " · " + attemptsSaid(x),
+          title: (x) => "Trying again at " + x.retryAt,
+          text: (x) => x.reason + " MailFathom tries again on its own - " + attemptsSaid(x) + " so far, and nothing has reached anybody yet." },
+        sending: { icon: "send", tone: "accent", act: null, pulse: true,
+          line: () => "Sending now",
+          title: () => "Sending now",
+          text: () => "An attempt is sending it right now, so it can no longer be cancelled." },
+        unknown: { icon: "help", tone: "warn", act: "decide",
+          line: (x) => "Outcome unknown · " + attemptsSaid(x),
+          title: () => "Outcome unknown",
+          text: (x) => "It went out at " + x.at + " and the server's answer never came back, so nobody knows whether it arrived. Send it again only if you are sure it did not - otherwise it may arrive twice." },
+        refused: { icon: "error", tone: "err", act: "decide",
+          line: (x) => "Refused by the server · " + attemptsSaid(x),
+          title: () => "Not sent - the server refused it",
+          text: (x) => x.reason },
+      };
+      const firstAddressee = (x) => {
+        const lead = x.rcpt.find(r => r.hdr === "To") || x.rcpt.find(r => r.hdr === "Cc") || x.rcpt[0];
+        return lead.name + (x.rcpt.length > 1 ? " +" + (x.rcpt.length - 1) : "");
       };
       const outboxMarkFor = (accKey) => {
         const entries = outboxAll[accKey] || [];
         if (!entries.length) return null;
         const refused = entries.filter(x => x.stage === "refused").length;
-        const leaving = entries.length - refused;
-        const said = "Outbox - " + [leaving ? leaving + " waiting to leave" : "", refused ? refused + " refused" : ""].filter(Boolean).join(", ");
+        const waiting = entries.length - refused;
+        const said = "Outbox - " + [waiting ? waiting + " waiting to leave" : "", refused ? refused + " refused" : ""].filter(Boolean).join(", ");
         const open = outboxAcc === accKey;
         const ink = open ? "var(--onaccent)" : refused ? "var(--err-text)" : "var(--accent-d)";
         const ground = open ? (refused ? "var(--err)" : "var(--accent)") : refused ? "var(--err-soft)" : "var(--accent-soft)";
@@ -2900,9 +2940,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         };
       };
       const outboxAccount = ACCOUNTS.find(a => a.key === outboxAcc) || ACCOUNTS[0];
-      const outboxEntries = (outboxAll[outboxAcc] || []).slice().sort((a, b) => OB_STAGE[a.stage].order - OB_STAGE[b.stage].order);
+      const outboxEntries = outboxAll[outboxAcc] || [];
       const outboxEntry = outboxEntries.find(x => x.id === st.outboxSel) || null;
-      const outboxEntryStage = outboxEntry ? OB_STAGE[outboxEntry.stage] : OB_STAGE.waiting;
+      const obStage = outboxEntry ? OB_STAGE[outboxEntry.stage] : OB_STAGE.waiting;
+      const obTone = OB_TONE[obStage.tone];
+      const obBtn = "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:" + (touch ? 44 : 32) + "px;padding:0 14px;border-radius:8px;font-size:13px;";
       const outboxView = {
         outboxListShown: outboxOn,
         outboxHeadStyle: "flex:0 0 auto;display:flex;align-items:center;gap:" + (touch ? 8 : 9) + "px;box-sizing:border-box;" + (isMobile ? "min-height:56px;padding:6px 12px 6px 16px;" : touch ? "padding:8px 12px;" : "padding:10px 12px;") + "border-bottom:1px solid var(--line)",
@@ -2918,17 +2960,16 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const stg = OB_STAGE[x.stage];
           const picked = !singlePane && outboxEntry && outboxEntry.id === x.id;
           return {
-            to: x.to, subject: x.subject, at: x.at, stageLabel: stg.label, stageIcon: stg.icon,
+            to: firstAddressee(x), subject: x.subject, at: x.at, stageLabel: stg.line(x), stageIcon: stg.icon,
             select: () => this.pickOutboxEntry(x.id),
             rowStyle: rowStyleFor(false, picked),
-            stageStyle: "display:flex;align-items:center;gap:5px;font-size:12px;font-weight:" + (x.stage === "refused" ? 600 : 400) + ";color:" + stg.tone,
-            stageIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:14px;line-height:1" + (x.stage === "sending" ? ";animation:mfpulse 1.6s ease-in-out infinite" : ""),
+            stageStyle: "display:flex;align-items:center;gap:5px;min-width:0;font-size:12px;font-weight:" + (x.stage === "refused" || x.stage === "unknown" ? 600 : 400) + ";color:" + OB_TONE[stg.tone].ink,
+            stageIconStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:14px;line-height:1" + (stg.pulse ? ";animation:mfpulse 1.6s ease-in-out infinite" : ""),
           };
         }),
         outboxPaneShown: outboxOn && (!singlePane || mailPane === "thread") && !composeInPane && !docInPane && !htmlInPane,
         outboxEntryShown: !!outboxEntry,
         outboxNothingShown: !outboxEntry,
-        outboxNothingTitle: "Nothing open",
         outboxNothingText: outboxEntries.length
           ? "Pick a message to read it. Outbox is read-only: what is here can be read, and nothing can be replied to, moved or deleted."
           : "",
@@ -2939,26 +2980,27 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         outboxSubject: outboxEntry ? outboxEntry.subject : "",
         outboxSubjectStyle: singlePane ? "flex:1;min-width:0;font-size:18px;font-weight:600;line-height:1.3;letter-spacing:-0.01em;text-wrap:pretty" : "flex:1;min-width:0;font-size:20px;font-weight:600;letter-spacing:-0.01em",
         outboxPaneBodyStyle: "flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:16px;" + (singlePane ? "padding:4px 16px 24px" : "padding:4px 24px 28px"),
-        outboxStageTitle: outboxEntry ? (outboxEntry.stage === "refused" ? "Not sent - the server refused it" : outboxEntryStage.label) : "",
-        outboxStageText: !outboxEntry ? ""
-          : outboxEntry.stage === "refused" ? outboxEntry.reason
-          : outboxEntry.stage === "sending" ? "Going out since " + outboxEntry.at + ". It can no longer be cancelled."
-          : "Handed over at " + outboxEntry.at + " and not sent yet. It goes out as soon as the mail server takes it.",
-        outboxStageIcon: outboxEntryStage.icon,
-        outboxStageBoxStyle: "display:flex;align-items:flex-start;gap:11px;border-radius:12px;padding:12px 14px;border:1px solid " +
-          (outboxEntry && outboxEntry.stage === "refused" ? "var(--err);background:var(--err-soft)" : outboxEntry && outboxEntry.stage === "sending" ? "var(--accent-line);background:var(--accent-soft)" : "var(--line);background:var(--rail)"),
-        outboxStageIconStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1;color:" + outboxEntryStage.tone +
-          (outboxEntry && outboxEntry.stage === "sending" ? ";animation:mfpulse 1.6s ease-in-out infinite" : ""),
-        outboxStageTitleStyle: "font-size:14px;font-weight:600;color:" + (outboxEntry && outboxEntry.stage === "refused" ? "var(--err-text)" : "var(--text)"),
-        outboxCanCancel: !!outboxEntry && outboxEntry.stage === "waiting",
-        outboxCanResend: !!outboxEntry && outboxEntry.stage === "refused",
+        outboxStageTitle: outboxEntry ? obStage.title(outboxEntry) : "",
+        outboxStageText: outboxEntry ? obStage.text(outboxEntry) : "",
+        outboxStageIcon: obStage.icon,
+        outboxStageBoxStyle: "display:flex;align-items:flex-start;gap:11px;border-radius:12px;padding:12px 14px;border:1px solid " + obTone.box,
+        outboxStageIconStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1;color:" + obTone.ink + (obStage.pulse ? ";animation:mfpulse 1.6s ease-in-out infinite" : ""),
+        outboxStageTitleStyle: "font-size:14px;font-weight:600;color:" + obTone.title,
+        outboxCanCancel: !!outboxEntry && obStage.act === "cancel",
+        outboxCanDecide: !!outboxEntry && obStage.act === "decide",
         outboxCancel: () => outboxEntry && this.cancelOutboxEntry(outboxAcc, outboxEntry.id),
         outboxResend: () => outboxEntry && this.sendOutboxEntryAgain(outboxAcc, outboxEntry.id),
-        outboxResendStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:" + (touch ? 44 : 32) + "px;padding:0 14px;border-radius:8px;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent)",
-        outboxCancelStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:" + (touch ? 44 : 32) + "px;padding:0 14px;border-radius:8px;font-size:13px;color:var(--text2);background:var(--panel);border:1px solid var(--border2)",
-        outboxFrom: outboxAccount.address,
-        outboxTo: outboxEntry ? outboxEntry.to + " <" + outboxEntry.toMail + ">" : "",
-        outboxAt: outboxEntry ? "Handed over today, " + outboxEntry.at : "",
+        outboxDismiss: () => outboxEntry && this.dismissOutboxEntry(outboxAcc, outboxEntry.id),
+        outboxResendStyle: obBtn + "font-weight:600;color:var(--onaccent);background:var(--accent)",
+        outboxQuietBtnStyle: obBtn + "color:var(--text2);background:var(--panel);border:1px solid var(--border2)",
+        outboxFacts: !outboxEntry ? [] : [{ k: "From", v: outboxAccount.address }]
+          .concat(outboxEntry.rcpt.map(r => ({ k: r.hdr, v: r.name + " <" + r.mail + ">", said: r.said || "" })))
+          .concat([{ k: "Handed", v: "today, " + outboxEntry.at }])
+          .concat(outboxEntry.leaveAt ? [{ k: "Leaves", v: outboxEntry.leaveAt }] : [])
+          .concat(outboxEntry.attempts ? [{ k: "Tried", v: attemptsSaid(outboxEntry) }] : [])
+          .map(f => Object.assign({ said: "" }, f, { hasSaid: !!f.said })),
+        outboxAttachments: outboxEntry ? (outboxEntry.attachments || []) : [],
+        outboxHasAttachments: !!outboxEntry && !!(outboxEntry.attachments || []).length,
         outboxBody: outboxEntry ? outboxEntry.body.map(p => ({ text: p })) : [],
       };
       const listStrip = foldTwoPanes && !emptyMail && !st.listWide && !selectionOn && !(st.stateBarOff) && !outboxOn;

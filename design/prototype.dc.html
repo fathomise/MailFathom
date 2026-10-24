@@ -877,7 +877,7 @@ Project repository: https://github.com/fathomise/MailFathom
             <div role="status" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;min-width:0;min-height:0;background:var(--sub);padding:32px">
               <span aria-hidden="true" style="width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:var(--rail);color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:24px;line-height:1">outbox</span>
               <div style="display:flex;flex-direction:column;gap:7px;align-items:center;max-width:420px">
-                <div style="font-size:20px;font-weight:600;letter-spacing:-0.015em">{{ outboxNothingTitle }}</div>
+                <div style="font-size:20px;font-weight:600;letter-spacing:-0.015em">Nothing open</div>
                 <div style="font-size:14px;line-height:1.55;color:var(--muted);text-align:center;text-wrap:pretty">{{ outboxNothingText }}</div>
               </div>
             </div>
@@ -895,19 +895,26 @@ Project repository: https://github.com/fathomise/MailFathom
                 <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
                   <div style="{{ outboxStageTitleStyle }}">{{ outboxStageTitle }}</div>
                   <div style="font-size:13px;line-height:1.55;color:var(--text2);text-wrap:pretty">{{ outboxStageText }}</div>
-                  <sc-if value="{{ outboxCanResend }}" hint-placeholder-val="{{ false }}">
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:6px"><div role="button" tabindex="0" onClick="{{ outboxResend }}" style="{{ outboxResendStyle }}" style-hover="cursor:pointer;opacity:0.9">Send again</div></div>
+                  <sc-if value="{{ outboxCanDecide }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:6px"><div role="button" tabindex="0" onClick="{{ outboxResend }}" style="{{ outboxResendStyle }}" style-hover="cursor:pointer;opacity:0.9">Send again</div><div role="button" tabindex="0" onClick="{{ outboxDismiss }}" style="{{ outboxQuietBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Dismiss</div></div>
                   </sc-if>
                   <sc-if value="{{ outboxCanCancel }}" hint-placeholder-val="{{ false }}">
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:6px"><div role="button" tabindex="0" onClick="{{ outboxCancel }}" style="{{ outboxCancelStyle }}" style-hover="cursor:pointer;background:var(--hover)">Cancel sending</div></div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:6px"><div role="button" tabindex="0" onClick="{{ outboxCancel }}" style="{{ outboxQuietBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Cancel sending</div></div>
                   </sc-if>
                 </div>
               </div>
               <div style="display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--text2);border-bottom:1px solid var(--line2);padding-bottom:12px">
-                <div style="display:flex;gap:8px;min-width:0"><span style="flex:0 0 40px;color:var(--muted)">From</span><span style="min-width:0;overflow-wrap:anywhere">{{ outboxFrom }}</span></div>
-                <div style="display:flex;gap:8px;min-width:0"><span style="flex:0 0 40px;color:var(--muted)">To</span><span style="min-width:0;overflow-wrap:anywhere">{{ outboxTo }}</span></div>
-                <div style="display:flex;gap:8px;min-width:0"><span style="flex:0 0 40px;color:var(--muted)">When</span><span>{{ outboxAt }}</span></div>
+                <sc-for list="{{ outboxFacts }}" as="f" hint-placeholder-count="4">
+                  <div style="display:flex;flex-wrap:wrap;gap:2px 8px;min-width:0"><span style="flex:0 0 52px;color:var(--muted)">{{ f.k }}</span><span style="flex:1 1 200px;min-width:0;overflow-wrap:anywhere">{{ f.v }}</span><sc-if value="{{ f.hasSaid }}" hint-placeholder-val="{{ false }}"><span style="flex:0 0 auto;margin-left:60px;font-size:12px;color:var(--err-text)">{{ f.said }}</span></sc-if></div>
+                </sc-for>
               </div>
+              <sc-if value="{{ outboxHasAttachments }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <sc-for list="{{ outboxAttachments }}" as="a" hint-placeholder-count="1">
+                    <div style="display:flex;align-items:center;gap:9px;min-width:0;max-width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--sub)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--muted)">description</span><div style="display:flex;flex-direction:column;gap:1px;min-width:0"><span style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ a.name }}</span><span style="font-size:12px;color:var(--muted)">{{ a.meta }}</span></div></div>
+                  </sc-for>
+                </div>
+              </sc-if>
               <div style="display:flex;flex-direction:column;gap:12px;max-width:720px">
                 <sc-for list="{{ outboxBody }}" as="p" hint-placeholder-count="3">
                   <div style="font-size:15px;line-height:1.6;white-space:pre-line;text-wrap:pretty">{{ p.text }}</div>

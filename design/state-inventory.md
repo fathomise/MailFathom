@@ -361,32 +361,37 @@ the user made. An account's Sent row may carry one more thing, the Outbox mark �
 
 ### The Outbox
 
-Each account has one, and it is MailFathom's own rather than a folder on the mail server: what was
-handed over to be sent from that account and has not left it yet, and what the server refused. It
-holds no stored mail, so it has **no row in the tree**. It is a mark on that account's Sent row, and
-the unified *All accounts* group carries none, because an Outbox belongs to one account. The sample
-is `outbox` in `data/prototype/workspace.js`: three entries in the work account, one in the personal
-one.
+Each account has one, and it is MailFathom's own rather than a folder on the mail server — [ADR
+0040](../docs/decisions/0040-each-account-outbox-as-a-read-only-list-beside-its-folders.md) is the
+decision this section draws: every send from that account that has not left it yet, including one the
+server refused, until it is sent, withdrawn, or somebody dismisses it. It holds no stored mail, so it
+has **no row in the tree**. It is a mark on that account's Sent row, and the unified *All accounts*
+group carries none, because an Outbox belongs to one account. The sample is `outbox` in
+`data/prototype/workspace.js`: five entries in the work account, one of every state but *scheduled*,
+and two in the personal one, *sending* and *scheduled*.
 
 | State | Flag | Reveal |
 |---|---|---|
-| The mark on Sent | `mb.outboxMark` / `mb.ob` | the account's Outbox holds anything (`outboxMarkFor`): a pill at the row's end — the `outbox` glyph and how many have not left — in accent, and in `--err-soft` with `--err-text` once anything in it was refused. Its name is its `title` and `aria-label`, *Outbox - 2 waiting to leave, 1 refused*, and the same sentence joins the row's own detail under its menu's header, so a finger reads it without the hover. 22 px tall under a mouse; under a finger 36 × 44 at least, taken from the row's padding so the row keeps its height. Filled while its Outbox is open (`aria-pressed`). Gone the moment nothing waits |
+| The mark on Sent | `mb.outboxMark` / `mb.ob` | the account's Outbox holds anything (`outboxMarkFor`): a pill at the row's end — the `outbox` glyph and how many have not left — in accent, and in `--err-soft` with `--err-text` once anything in it was refused. The count is the ADR's two numbers added up; its name, the `title` and `aria-label`, says both — *Outbox - 4 waiting to leave, 1 refused* — and the same sentence joins the row's own detail under its menu's header, so a finger reads it without the hover. 22 px tall under a mouse; under a finger 36 × 44 at least, taken from the row's padding so the row keeps its height. Filled while its Outbox is open (`aria-pressed`). Gone the moment nothing waits |
 | The mark on a folded side list | `mb.outboxStrip` | `sideCollapsed`: the strip has no room at the end of a row, so the mark stands as its own `outbox` glyph under Sent, with its count as a badge |
 | The Outbox open | `outboxOn` | the mark pressed (`openOutbox`). It takes the list's place (`outboxListShown`) and the reading pane's (`outboxPaneShown`); neither the strip below 1020 (`listStrip`) nor the thread is drawn while it is open. Picking a folder, or a thread opened from anywhere else (`leaveOutbox`), closes it |
 | Its head | `outboxHeadStyle` | *Outbox* as the title, the account under it; on the phone the title is 20 px semibold in the 56 px bar, the folders button before it, as everywhere in Mail |
 | Read-only, said | `outboxReadOnlyStyle` | one `lock` line under the head, on `--rail`, at every composition: *Read-only. What has not left yet waits here - nothing in it can be flagged, moved or deleted.* The preview ends on the same lock line. Missing actions read as the folder's nature, not a fault |
-| A row | `outboxRows` | *To* and the recipient, the time it was handed over, the subject, and its state on a line of its own — refused first, then sending, then waiting. A refused row's state is `--err-text` at weight 600; a sending row's glyph pulses. **No mail act on a row**: no checkbox, no selection, no AI summary, no hover actions, no drag, no swipe on the phone, no hold menu, and no row is a drop target. Pressing one opens it; on one pane it pushes the preview as a thread would |
+| A row | `outboxRows` | newest first: *To* and the first recipient in `To` — else `Cc`, else `Bcc` — with *+N* for the rest, the time it was handed over, the subject, and its state on a line of its own (`OB_STAGE[…].line`), with how many attempts it has taken wherever one was made. *Outcome unknown* and *Refused* are at weight 600; a sending row's glyph pulses. **No mail act on a row**: no checkbox, no selection, no AI summary, no hover actions, no drag, no swipe on the phone, no hold menu, and no row is a drop target. Pressing one opens it; on one pane it pushes the preview as a thread would |
 | The toolbar | `toolbarActions` | keeps the folder toggle and *New message* and drops every mail act — *Reply*, *Reply all*, *Forward*, *Archive*, *Delete*, *Flag*, *Unread*, *Move* and the panels toggle |
 | Nothing open | `outboxNothingShown` | two panes and nothing picked: the *Nothing open* layout with the `outbox` glyph and *Pick a message to read it. Outbox is read-only: what is here can be read, and nothing can be replied to, moved or deleted.* |
-| The preview | `outboxEntryShown` | the subject (with *Back* on one pane), then the state box, then *From*, *To* and *When*, then the message itself as text. Nothing in it is a mail act |
-| Waiting | `outboxCanCancel` | a neutral box: *Waiting to send* — *Handed over at 10:44 and not sent yet. It goes out as soon as the mail server takes it.* — and *Cancel sending*, which withdraws it (`cancelOutboxEntry`): the row goes and a success toast says *Nothing was sent to …* |
-| Sending | — | an accent box with a pulsing `send` glyph: *Sending now* — *Going out since 10:41. It can no longer be cancelled.* No action. In the prototype it leaves six seconds after the Outbox is opened (`outboxLeaveSoon`), with a *Message sent* toast |
-| Refused | `outboxCanResend` | the `--err` box: *Not sent - the server refused it*, then the server's reason in words — never a status code — and *Send again*, which turns it into *Sending* (`sendOutboxEntryAgain`) |
-| Emptied while open | `outboxEmpty` | the last entry leaves while the Outbox is open: the list says *Outbox is empty* — *Nothing is waiting to leave Nordwind · work any more. What went out is in Sent.* — with *Go to Sent* (`outboxGoSent`), and the mark on Sent is gone. Two panes show *Nothing open* beside it. Reached in the prototype by cancelling the waiting entry, sending the refused one again, and waiting; the personal account's Outbox empties by waiting alone |
+| The preview | `outboxEntryShown` | the subject (with *Back* on one pane), the state box with its decisions, then `outboxFacts` — *From* (the address it is sent as), every recipient under its own header with what the server said about each in `--err-text` beside it, *Handed*, *Leaves* where a time was named, *Tried* where an attempt was made — then each attachment by name, type and size (`outboxAttachments`), which opens nothing, then the message itself. Nothing in it is a mail act |
+| Waiting | `outboxCanCancel` | a neutral box with `schedule`: *Waiting to send* — *Handed over at 10:44 and not sent yet. It goes out as soon as the mail server takes it.* — and *Cancel sending*, which withdraws it (`cancelOutboxEntry`): the row goes and a success toast says *Nothing was sent to …* |
+| Scheduled | `outboxCanCancel` | a neutral box with `schedule_send`: *Sends Mon 08:00* — written to leave at a time somebody named, and *Cancel sending* until then |
+| Trying again | `outboxCanCancel` | a `--warn` box with `update`: *Trying again at 10:55* — the server's failure in words, that MailFathom tries again on its own, how many attempts so far, and that nothing has reached anybody — and *Cancel sending* |
+| Sending | — | an accent box with a pulsing `send` glyph: *Sending now* — an attempt holds it, so it can no longer be cancelled. No action. In the prototype it leaves six seconds after the Outbox is opened (`outboxLeaveSoon`), with a *Message sent* toast |
+| Outcome unknown | `outboxCanDecide` | a `--warn` box with `help`: *Outcome unknown* — it went out and no answer came back, so nobody knows whether it arrived, and sending it again may deliver it twice — with *Send again* and *Dismiss* |
+| Refused | `outboxCanDecide` | the `--err` box with `error`: *Not sent - the server refused it*, then the server's reason in words — never a status code — with *Send again*, which turns it into *Sending* (`sendOutboxEntryAgain`), and *Dismiss* |
+| Dismissed | `dismissOutboxEntry` | *Dismiss* on a refused or unknown entry takes it out of the Outbox and changes nothing else: the row goes, and a neutral toast titled *Taken out of Outbox* says *It was not sent.*, or *Whether it arrived stays unknown.* |
+| Emptied while open | `outboxEmpty` | the last entry leaves while the Outbox is open: the list says *Outbox is empty* — *Nothing is waiting to leave Nordwind · work any more. What went out is in Sent.* — with *Go to Sent* (`outboxGoSent`), and the mark on Sent is gone. Two panes show *Nothing open* beside it. Reached in the prototype by cancelling the three that can be cancelled, dismissing the other two, and waiting for the one sending |
 
-*Cancel sending* and *Send again* are the Outbox's own decisions about a send rather than mailbox
-acts, and they follow the client API that withdraws and requeues a send today. Where the decision
-record on the Outbox settles them differently, this table follows it.
+*Cancel sending*, *Send again* and *Dismiss* are the Outbox's own decisions about a send rather than
+mailbox acts, offered on exactly the states ADR 0040 offers each one on.
 
 ### Folders the user made
 
