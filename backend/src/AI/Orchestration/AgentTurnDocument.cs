@@ -12,11 +12,12 @@ namespace MailFathom.AI.Orchestration;
 /// <remarks>
 /// <para>
 /// The one way such a document is written, because the separation it keeps is a property of the writer rather than of
-/// whichever operation happens to compose it. What this service minted — an identifier, a position, an instant, a
-/// name of its own — is written as an element or an attribute. What somebody else wrote is written as the content of
-/// an element, through an <see cref="XmlWriter" /> that escapes whatever would end it or open another, so a message
-/// whose text closes its envelope and forges a turn of its own arrives as that text, visible and inert. The person's
-/// own words have an element of their own, <see cref="AskElementName" />, which nothing else is ever written into.
+/// whichever operation happens to compose it. Only this service names elements and attributes, from its own constants.
+/// Every value is escaped by an <see cref="XmlWriter" /> wherever it sits: quoted text as the content of an element,
+/// and a short value — an alias, a folder path, a file name, a sender's address — as an attribute. So nothing a sender
+/// wrote can end an element or open another, and a message whose text closes its envelope and forges a turn of its
+/// own arrives as that text, visible and inert. The person's own words have an element of their own,
+/// <see cref="AskElementName" />, which nothing else is ever written into.
 /// </para>
 /// <para>
 /// The character budget is the writer's, and it is applied to quoted text as that text is written, never to the

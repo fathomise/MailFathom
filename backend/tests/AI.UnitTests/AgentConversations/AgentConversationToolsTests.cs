@@ -640,6 +640,30 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         Assert.Equal(cut, reading.BodyCut);
     }
 
+    /// <summary>A body past the tool's own bound is cut to it and marked as cut, whatever the scan ceiling allows.</summary>
+    [Fact]
+    public async Task GuardedReadingOf_ABodyPastTheToolsOwnBound_IsCutToItAndMarkedAsCut()
+    {
+        // Arrange
+        using var egress = ScanningSensitiveContentEgress.Finding(
+            Marker,
+            TimeProvider.System,
+            bounds: SensitiveContentScanBounds.Create(AgentConversationTools.MaximumBodyCharacters * 2, TimeSpan.FromSeconds(15), maximumConcurrentScans: 4));
+        using var actingFor = egress.Guard.ActingFor(await egress.ReadUserPostureAsync(TestContext.Current.CancellationToken));
+        this.tools = this.Tools(AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead), egress.Guard);
+        var body = new string('a', AgentConversationTools.MaximumBodyCharacters + 1);
+
+        // Act
+        var reading = await this.tools.GuardedReadingOfAsync(
+            MessageReading("ada@example.org", "Minutes", body),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            (true, AgentConversationTools.MaximumBodyCharacters),
+            (reading.BodyCut, reading.Body.Length));
+    }
+
     /// <summary>Each entry's title is guarded as its own value and lands in its own entry, whichever of them carried what the scanner finds.</summary>
     [Fact]
     public async Task ReadCalendar_ATitleTheScannerFinds_IsRedactedInItsOwnEntryAndNoOther()
