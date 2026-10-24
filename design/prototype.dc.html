@@ -1422,13 +1422,7 @@ Project repository: https://github.com/fathomise/MailFathom
         <div onClick="{{ openHistorySearch }}" title="Search history" style="{{ agentSearchBtnStyle }}" style-hover="cursor:pointer;background:var(--rail)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">search</span></div>
         <div onClick="{{ agentNewConv }}" title="New conversation" style="{{ agentNewBtnStyle }}" style-hover="cursor:pointer;opacity:0.9"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">add</span><sc-if value="{{ notMobile }}" hint-placeholder-val="{{ true }}">New conversation</sc-if></div>
         <div style="{{ agentTitleStyle }}">{{ convTitle }}</div>
-        <sc-if value="{{ notMobile }}" hint-placeholder-val="{{ true }}">
-          <div role="status" style="margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)"><span style="width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:var(--ok)"></span>Every account is up to date.</div>
-        </sc-if>
       </div>
-      <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
-        <div style="flex:0 0 auto;border-bottom:1px solid var(--line);padding:8px 16px"><div role="status" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)"><span style="width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:var(--ok)"></span>Every account is up to date.</div></div>
-      </sc-if>
 
       <div style="flex:1;display:flex;min-height:0;min-width:0;position:relative">
       <sc-if value="{{ historyScrimShown }}" hint-placeholder-val="{{ false }}">
@@ -1894,7 +1888,6 @@ Project repository: https://github.com/fathomise/MailFathom
           </div>
         </div>
       </div>
-      <div style="flex:0 0 auto;border-top:1px solid var(--line);padding:10px 16px"><div role="status" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)"><span style="width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:var(--ok)"></span>Every account is up to date.</div></div>
     </div>
   </sc-if>
 
@@ -2265,7 +2258,6 @@ Project repository: https://github.com/fathomise/MailFathom
           </sc-if>
         </div>
       </div>
-      <div style="flex:0 0 auto;border-top:1px solid var(--line);padding:10px 16px"><div role="status" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)"><span style="width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:var(--ok)"></span>Every account is up to date.</div></div>
     </div>
   </sc-if>
 
@@ -2428,7 +2420,6 @@ Project repository: https://github.com/fathomise/MailFathom
         </div>
       </sc-if>
     </div>
-      <div style="flex:0 0 auto;border-top:1px solid var(--line);padding:10px 16px"><div role="status" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)"><span style="width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:var(--ok)"></span>Every account is up to date.</div></div>
     </div>
   </sc-if>
 

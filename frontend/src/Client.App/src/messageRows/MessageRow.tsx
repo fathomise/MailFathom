@@ -96,6 +96,11 @@ const swipeDrawn: Readonly<
     },
 };
 
+// Weight and ink together, because 600 against 400 in one colour read as the same row at a glance.
+function unreadInk(unread: boolean): string {
+    return unread ? 'font-bold text-text' : 'font-normal text-text-soft';
+}
+
 export function MessageRow({
     email,
     position,
@@ -466,9 +471,7 @@ export function MessageRow({
                     {/* Who wrote is read before where they wrote from, so the name keeps up to half the line and the
                         host is what gives way. Half rather than more because the marks and the time hold their own
                         width: a name allowed past it would push the time out of a row that clips rather than wraps. */}
-                    <span
-                        className={`max-w-1/2 shrink-0 truncate text-lg workspace:text-md ${unread ? 'font-semibold' : 'font-normal'}`}
-                    >
+                    <span className={`max-w-1/2 shrink-0 truncate text-lg workspace:text-md ${unreadInk(unread)}`}>
                         {correspondent(email) ?? translate('list.senderUnknown')}
                     </span>
 
@@ -476,9 +479,9 @@ export function MessageRow({
 
                     <MessageMarkers email={email} flagged={flagged} />
 
-                    {/* Unread is drawn as the weight of the sender and the subject, as the design draws it and as
-                        every mail client has taught its readers to scan for, so no mark of its own stands among the
-                        others. These words are what says so to a reader who is not looking at the weight. */}
+                    {/* Unread is drawn as the weight and ink of the sender and the subject, as the design draws it
+                        and as every mail client has taught its readers to scan for, so no mark of its own stands among
+                        the others. These words are what says so to a reader who is not looking at the weight. */}
                     {unread ? <span className="sr-only">{translate('list.unread')}</span> : null}
 
                     {/* How long the correspondence is, drawn where it is longer than the one message. The design
@@ -537,9 +540,7 @@ export function MessageRow({
                     <ReceivedAt at={email.receivedAt} />
                 </div>
 
-                <div
-                    className={`truncate text-md text-text-soft workspace:text-text ${unread ? 'font-semibold' : 'font-normal'}`}
-                >
+                <div className={`truncate text-md ${unreadInk(unread)}`}>
                     {email.subject ?? translate('list.noSubject')}
                 </div>
 

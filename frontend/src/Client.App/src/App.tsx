@@ -1127,11 +1127,6 @@ export function App({
                                                                                                 transport={readMail}
                                                                                                 handOver={handedToAgent}
                                                                                                 onLook={lookFromAgent}
-                                                                                                status={
-                                                                                                    space === 'agent'
-                                                                                                        ? connectionSummary
-                                                                                                        : null
-                                                                                                }
                                                                                             />
                                                                                         )
                                                                                     }

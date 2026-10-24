@@ -110,7 +110,6 @@ function drawn(
                 <AgentSpace
                     session={session}
                     transport={transport}
-                    status={null}
                     handOver={handOver}
                     schedule={neverPolls}
                     onLook={onLook}

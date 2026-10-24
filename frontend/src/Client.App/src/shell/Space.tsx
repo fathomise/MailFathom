@@ -40,7 +40,11 @@ export function Space({
      */
     readonly readingFooted: boolean;
 
-    /** What the deployment says about the connection, which every space shows somewhere. */
+    /**
+     * What the deployment says about the connection, which the Mail space stands at the foot of its folder column and
+     * no other space here draws: how current the mailboxes are is said where mail is read, and Discover is handed it
+     * where it is built.
+     */
     readonly status: ReactNode;
 
     readonly folders: ReactNode;
@@ -63,8 +67,7 @@ export function Space({
     /**
      * The conversations with the agent and the one in front, which is the Agent space and nothing else.
      *
-     * It is handed the connection and draws the one field it has at its own foot — the one the agent is told what to do
-     * in.
+     * It draws the one field it has at its own foot — the one the agent is told what to do in — and no connection.
      */
     readonly agent: ReactNode;
 
@@ -141,9 +144,9 @@ export function Space({
                 const isDiscover = name === 'discover';
                 const isAgent = name === 'agent';
 
-                // The three spaces that compose one shape: their own columns with the connection at the foot. Picking
-                // the node here rather than branching on the name three times in the markup is what
-                // keeps the choice below readable as four cases instead of six.
+                // The three spaces that compose one shape: their own columns, with no connection. Picking the node
+                // here rather than branching on the name three times in the markup is what keeps the choice below
+                // readable as four cases instead of six.
                 const ownColumns = name === 'tasks' ? tasks : name === 'people' ? people : calendar;
 
                 return (
@@ -173,9 +176,9 @@ export function Space({
                             ) : isAgent ? (
                                 agent
                             ) : isMail ? (
-                                /* The footed layout and the connection go to the space in front and to nothing else:
-                                   the AI button is only pressed in the space in front, and two connections would be two
-                                   live copies of one region saying what the deployment is doing. */
+                                /* The footed layout and the connection go to the Mail space in front and to nothing
+                                   else: the AI button is only pressed in the space in front, and two connections would
+                                   be two live copies of one region saying what the deployment is doing. */
                                 <MailSpace
                                     folders={folders}
                                     list={list}
@@ -186,9 +189,8 @@ export function Space({
                                     person={person}
                                 />
                             ) : (
-                                /* A space that composes its own columns, which is Tasks, People and Calendar. The
-                                   connection stands at its foot and is handed to the one in front alone, exactly as it
-                                   is to Mail; none of the three draws a field, because the design draws none there. */
+                                /* A space that composes its own columns, which is Tasks, People and Calendar. None of
+                                   the three draws the connection or a field, because the design draws neither there. */
                                 <div className="flex min-h-0 flex-1 flex-col">
                                     {/* The phone is the one composition where these three do carry a title, because
                                         it has no rail beside them saying where the reader is: every space names itself
@@ -200,13 +202,6 @@ export function Space({
                                     )}
 
                                     {ownColumns}
-                                    {/* A strip of its own, ruled off from the columns above it as the design draws it,
-                                        and gone with the summary when there is nothing for it to say. */}
-                                    {inFront ? (
-                                        <div className="shrink-0 border-t border-line px-4 py-2.5 has-[>div:empty]:hidden">
-                                            {status}
-                                        </div>
-                                    ) : null}
                                 </div>
                             )}
                         </SpaceInFrontContext>

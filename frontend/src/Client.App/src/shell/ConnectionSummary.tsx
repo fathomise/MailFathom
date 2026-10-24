@@ -14,7 +14,7 @@ import { AccountLine } from './AccountLine';
 import { offers } from './capabilities';
 import { mostReconnectionAttempts, type Connection } from './useConnection';
 
-// The line in every space saying what the client is looking at and how current it is, and the short panel behind it
+// The line in Discover and Mail saying what the client is looking at and how current it is, and the short panel behind it
 // naming each account once one of them needs a look. Three different things blur into one spinner unless they are kept apart, so each has its own
 // sentence: whether this client can reach its deployment at all, whether that deployment is refreshing these accounts,
 // and which of them is not current.
