@@ -16,3 +16,80 @@ document.addEventListener('keydown', (event) => {
 document.addEventListener('focusout', (event) => {
   if (event.target && event.target.removeAttribute) event.target.removeAttribute('data-tip-dismissed');
 });
+
+// A control's name, which every artboard writes as its `title`, drawn as the same bubble `[data-tip]` draws rather than
+// as the browser's own title — which no touch browser shows. A mouse rests on it for 400 ms; a finger holds it for
+// 420 ms, and the tap that hold ends in is swallowed so the control is not also pressed; a tap on a control that
+// cannot act (`aria-disabled="true"`) shows why. One bubble at a time, gone at the next press anywhere, on scroll, on
+// Escape, and 4 s after a finger brought it up. An element inside a row whose own hold opens a menu carries
+// `data-tip-hover`: a mouse still reads it, and a finger reads it in that menu instead.
+(() => {
+  let bubble = null, owner = null, clock = 0, held = null, swallow = null;
+  const named = (el) => el && el.closest && el.closest('[title]:not(iframe), [data-tip-name]');
+  const nameOf = (el) => {
+    if (el.hasAttribute('title')) { el.setAttribute('data-tip-name', el.getAttribute('title')); el.removeAttribute('title'); }
+    return el.getAttribute('data-tip-name');
+  };
+  const hide = () => { clearTimeout(clock); if (bubble) bubble.remove(); bubble = null; owner = null; };
+  const show = (el, goesAfter) => {
+    hide();
+    const text = nameOf(el);
+    if (!text) return;
+    owner = el;
+    bubble = document.createElement('div');
+    bubble.className = 'mf-name-tip';
+    bubble.setAttribute('role', 'tooltip');
+    bubble.textContent = text;
+    (el.closest('dialog') || document.body).appendChild(bubble);
+    const r = el.getBoundingClientRect(), b = bubble.getBoundingClientRect();
+    const y = r.bottom + 6 + b.height > innerHeight ? r.top - 6 - b.height : r.bottom + 6;
+    bubble.style.left = Math.max(10, Math.min(r.left, innerWidth - b.width - 10)) + 'px';
+    bubble.style.top = Math.max(10, y) + 'px';
+    if (goesAfter) clock = setTimeout(hide, goesAfter);
+  };
+  document.addEventListener('pointerover', (e) => {
+    const el = named(e.target);
+    if (el) nameOf(el);
+    if (e.pointerType !== 'mouse' || !el || el === owner) return;
+    clearTimeout(clock);
+    clock = setTimeout(() => show(el), 400);
+  });
+  document.addEventListener('pointerout', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    const el = named(e.target);
+    if (el && !el.contains(e.relatedTarget)) { if (el === owner) hide(); else clearTimeout(clock); }
+  });
+  document.addEventListener('pointerdown', (e) => {
+    const el = named(e.target);
+    if (owner && el !== owner) hide();
+    if (e.pointerType === 'mouse') { if (el && el === owner) hide(); else clearTimeout(clock); return; }
+    if (!el || el.hasAttribute('data-tip-hover')) return;
+    // The hold is this element's, so the row around it never also opens its menu or starts a swipe.
+    e.stopPropagation();
+    held = { el, x: e.clientX, y: e.clientY };
+    clearTimeout(clock);
+    clock = setTimeout(() => { swallow = el; show(el, 4000); }, 420);
+  }, true);
+  document.addEventListener('touchstart', (e) => {
+    const el = named(e.target);
+    if (el && !el.hasAttribute('data-tip-hover')) e.stopPropagation();
+  }, true);
+  document.addEventListener('pointermove', (e) => {
+    if (!held || Math.hypot(e.clientX - held.x, e.clientY - held.y) <= 10) return;
+    held = null;
+    if (swallow) { swallow = null; hide(); } else clearTimeout(clock);
+  }, true);
+  document.addEventListener('pointerup', () => { if (held && !swallow) clearTimeout(clock); held = null; }, true);
+  document.addEventListener('contextmenu', (e) => { if (held || swallow) { e.preventDefault(); e.stopPropagation(); } }, true);
+  document.addEventListener('click', (e) => {
+    const el = named(e.target);
+    if (swallow && el === swallow) { swallow = null; e.preventDefault(); e.stopPropagation(); return; }
+    swallow = null;
+    if (el && el.getAttribute('aria-disabled') === 'true' && !el.hasAttribute('data-tip-hover')) show(el, 4000);
+  }, true);
+  document.addEventListener('focusin', (e) => { const el = named(e.target); if (el && el.matches(':focus-visible')) show(el); });
+  document.addEventListener('focusout', (e) => { if (e.target === owner) hide(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bubble) hide(); });
+  addEventListener('scroll', hide, true);
+  addEventListener('resize', hide);
+})();

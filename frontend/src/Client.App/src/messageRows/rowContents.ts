@@ -107,3 +107,8 @@ export function rowWithFlags(mark: RowContents, stated: SignalledFlags): RowCont
         flagged: stated.isFlagged ?? mark.flagged,
     };
 }
+
+/** Who a row is about: the sender, else the address it came from, else who it was written to. */
+export function correspondent(email: MailTimelineEntry): string | undefined {
+    return email.senderDisplayName ?? email.senderAddress ?? email.toAddresses[0];
+}

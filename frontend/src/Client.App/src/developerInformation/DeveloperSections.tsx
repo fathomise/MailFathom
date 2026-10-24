@@ -12,6 +12,7 @@ import {
     type MailFathomPermission,
 } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
+import { SymbolControl } from '../controls/SymbolControl';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { usePendingChanges } from '../pendingChanges/usePendingChanges';
@@ -136,15 +137,13 @@ export function DeveloperSections({
             <header className="flex shrink-0 items-center gap-3 border-b border-line px-4 py-3">
                 <Icon name="code" className="size-icon-lg text-muted" />
                 <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">{translate('developer.title')}</h2>
-                <button
-                    type="button"
-                    aria-label={translate('developer.close')}
-                    title={translate('developer.close')}
+                <SymbolControl
+                    label={translate('developer.close')}
                     className="flex size-9 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-text"
-                    onClick={onClose}
+                    onPress={onClose}
                 >
                     <Icon name="close" className="size-icon-lg" />
-                </button>
+                </SymbolControl>
             </header>
 
             {sideBySide ? (

@@ -461,7 +461,6 @@ describe('Composer, a message of its own', () => {
         expect(screen.getByLabelText('Bcc')).toBeDefined();
         expect(screen.getByText(/Every recipient can see CC addresses/u)).toBeDefined();
         expect(copies.getAttribute('aria-expanded')).toBe('true');
-        expect(copies.getAttribute('title')).toBe('Hide CC and BCC fields');
 
         fireEvent.click(screen.getByRole('button', { name: 'Hide CC and BCC fields' }));
 

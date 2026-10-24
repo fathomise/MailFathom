@@ -100,6 +100,34 @@ describe('SelectionBar', () => {
         expect(everything).toHaveBeenCalledOnce();
     });
 
+    // Narrowed past its words, the bar draws each act as its symbol — except taking everything in, which no symbol
+    // names, so it keeps its words rather than becoming a button with nothing on it.
+    it('keeps taking everything in as words once the bar has narrowed its acts to their symbols', () => {
+        const measured = {
+            offsetWidth: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth'),
+            clientWidth: Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth'),
+        };
+        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, value: 120 });
+        Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, value: 200 });
+
+        try {
+            drawBar(['message-1']);
+
+            expect(screen.getByRole('button', { name: 'Archive' }).textContent).toBe('');
+            expect(screen.getByRole('button', { name: 'Select all' }).textContent).toBe('Select all');
+        } finally {
+            for (const [name, descriptor] of Object.entries(measured)) {
+                const owner = name === 'offsetWidth' ? HTMLElement.prototype : Element.prototype;
+
+                if (descriptor === undefined) {
+                    Reflect.deleteProperty(owner, name);
+                } else {
+                    Object.defineProperty(owner, name, descriptor);
+                }
+            }
+        }
+    });
+
     // The bar goes off the screen the moment the selection does, taking the pressed control with it, so focus has to
     // be somewhere else before that happens or a keyboard reader is left on the document body.
     it.each(['Clear the selection', 'Archive'])(

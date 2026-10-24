@@ -4,6 +4,7 @@
 
 import { useEffect, useRef } from 'react';
 import { chip } from '../controls/chrome';
+import { useTip } from '../controls/useTip';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import { useLocalization } from '../localization/useLocalization';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
@@ -157,16 +158,12 @@ function AskedBefore({
             <ul aria-label={translate('intent.askedBefore')} className="flex flex-wrap items-center gap-2">
                 {asked.map((before) => (
                     <li key={before.question} className="min-w-0 max-w-full">
-                        <button
-                            type="button"
-                            title={before.question}
-                            className={`flex min-w-0 max-w-full items-center gap-1.5 px-2.75 py-1.25 text-sm ${chip}`}
-                            onClick={() => {
+                        <AskedAgain
+                            question={before.question}
+                            onAsk={() => {
                                 onAskAgain(before.question);
                             }}
-                        >
-                            <span className="truncate">{before.question}</span>
-                        </button>
+                        />
                     </li>
                 ))}
 
@@ -175,5 +172,23 @@ function AskedBefore({
                 </li>
             </ul>
         </div>
+    );
+}
+
+/** A question asked before, cut to one line; the whole of it is said to a mouse resting on it and a finger holding it. */
+function AskedAgain({ question, onAsk }: { readonly question: string; readonly onAsk: () => void }) {
+    const { anchor, tip } = useTip({ says: question, onPress: onAsk });
+
+    return (
+        <>
+            <button
+                {...anchor}
+                type="button"
+                className={`flex min-w-0 max-w-full items-center gap-1.5 px-2.75 py-1.25 text-sm ${chip}`}
+            >
+                <span className="truncate">{question}</span>
+            </button>
+            {tip}
+        </>
     );
 }

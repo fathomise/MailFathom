@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Confirmation } from '../confirmation/Confirmation';
 import { Icon } from '../controls/Icon';
+import { useTip } from '../controls/useTip';
 import type { IconName } from '../controls/icons';
 import { swipeSoFar } from '../controls/swipeAcross';
 import type { MessageKey } from '../localization/en';
@@ -90,6 +91,12 @@ export function ToastCard({
     const running = 'operation' in toast.stands;
     const mark = running ? toastMarks.running : toastMarks[toast.stands.kind];
     const closing = running ? translate('toast.stopOperation') : translate('toast.close');
+    const closerName = useTip({
+        says: closing,
+        onPress: () => {
+            close();
+        },
+    });
 
     // An operation that settles while the question stands closes it through the dialog's own path, which is what puts
     // focus back on the control that opened it. Taking the element away instead would drop the focus `showModal`
@@ -214,14 +221,14 @@ export function ToastCard({
             </div>
 
             <button
+                {...closerName.anchor}
                 type="button"
                 aria-label={closing}
-                title={closing}
                 className="flex size-7.5 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-hover hover:text-text"
-                onClick={close}
             >
                 <Icon name="close" className="size-icon-lg" />
             </button>
+            {closerName.tip}
 
             {running ? null : (
                 // The lifetime, drawn. Its duration is the one the toast is actually held for rather than a second

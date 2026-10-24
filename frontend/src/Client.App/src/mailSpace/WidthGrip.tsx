@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useRef, type KeyboardEvent, type PointerEvent } from 'react';
+import { useTip } from '../controls/useTip';
 
 // The grip on a boundary between two columns, which is what lets a reader give either side more room. It draws the
 // line the design puts there and it is the control on it — those are one element rather than two, because a
@@ -65,6 +66,9 @@ export function WidthGrip({
     // its own bookkeeping.
     const dragging = useRef<{ pointer: number; from: number; startedAt: number } | null>(null);
 
+    // The hint stands while a mouse rests on the grip or a key has focused it, and gets out of the way of a drag.
+    const { anchor, tip } = useTip({ says: hint, describes: true, onPress: () => undefined });
+
     function beginDrag(event: PointerEvent<HTMLDivElement>): void {
         const drag = dragging.current;
 
@@ -124,28 +128,46 @@ export function WidthGrip({
     }
 
     return (
-        <div
-            role="separator"
-            aria-orientation="vertical"
-            aria-label={label}
-            aria-valuenow={Math.round(width)}
-            aria-valuemin={narrowest}
-            aria-valuemax={widest}
-            tabIndex={0}
-            title={hint}
-            /* Five pixels is what the design draws, and it is less than a finger or a shaking hand can reliably hit —
+        <>
+            <div
+                {...anchor}
+                role="separator"
+                aria-orientation="vertical"
+                aria-label={label}
+                aria-valuenow={Math.round(width)}
+                aria-valuemin={narrowest}
+                aria-valuemax={widest}
+                tabIndex={0}
+                /* Five pixels is what the design draws, and it is less than a finger or a shaking hand can reliably hit —
                so the line stays five pixels and the target around it is widened to twenty-five with a pseudo-element,
                which is the accessibility obligation rather than a departure from the design. */
-            className="after:-inset-x-2.5 relative w-1.25 shrink-0 cursor-col-resize touch-none bg-line transition hover:bg-accent-line after:absolute after:inset-y-0 after:content-['']"
-            onPointerDown={beginDrag}
-            onPointerMove={moveGrip}
-            onPointerUp={endDrag}
-            onPointerCancel={endDrag}
-            onDoubleClick={() => {
-                onChosen(startingWidth);
-            }}
-            onKeyDown={moveByKey}
-        />
+                className="after:-inset-x-2.5 relative w-1.25 shrink-0 cursor-col-resize touch-none bg-line transition hover:bg-accent-line after:absolute after:inset-y-0 after:content-['']"
+                onPointerDown={(event) => {
+                    anchor.onPointerDown(event);
+                    beginDrag(event);
+                }}
+                onPointerMove={(event) => {
+                    anchor.onPointerMove(event);
+                    moveGrip(event);
+                }}
+                onPointerUp={(event) => {
+                    anchor.onPointerUp();
+                    endDrag(event);
+                }}
+                onPointerCancel={(event) => {
+                    anchor.onPointerCancel();
+                    endDrag(event);
+                }}
+                onDoubleClick={() => {
+                    onChosen(startingWidth);
+                }}
+                onKeyDown={(event) => {
+                    anchor.onKeyDown(event);
+                    moveByKey(event);
+                }}
+            />
+            {tip}
+        </>
     );
 }
 

@@ -9,6 +9,7 @@ import { LocalizationProvider } from '../localization/Localization';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { pressDrift, pressOpensAfter } from '../contextMenu/rowPress';
 import { swipeCarriesTo, swipeDistance, swipeDrift, swipeEngages } from '../controls/swipeAcross';
+import { tipRestsFor } from '../controls/useTip';
 import { ListFoldContext } from './listFold';
 import { MailboxActsContext, nothingActed, type MailboxAct, type MailboxActs } from '../mailboxActs/useMailboxActs';
 import { ReadMarkingContext, nothingMarkedRead, type MarkedIn, type ReadMarking } from '../readMarking/useReadMarking';
@@ -383,9 +384,17 @@ describe('MessageRow', () => {
             </LocalizationProvider>,
         );
 
+        vi.useFakeTimers();
         const row = screen.getByRole('option', { name: /^Anna Kowalska - The quarter is closed/ });
 
-        expect(within(row).getByTitle('Anna Kowalska - The quarter is closed')).toBeDefined();
+        fireEvent.pointerEnter(within(row).getByText('Anna Kowalska - The quarter is closed'), {
+            pointerType: 'mouse',
+        });
+        act(() => {
+            vi.advanceTimersByTime(tipRestsFor);
+        });
+
+        expect(screen.getByRole('tooltip').textContent).toBe('Anna Kowalska - The quarter is closed');
     });
 
     it('says nothing of another message’s act, the pending line belonging to the row it is about', () => {
@@ -794,12 +803,24 @@ function markedRow({
     );
 }
 
+// The mark is hidden from the accessibility tree, so what finds it is the sentence a mouse resting on it reads.
+function readingsMark(): HTMLElement {
+    const sentence = screen.getByText('AI summary');
+    const mark = document.querySelector<HTMLElement>(`[aria-describedby="${sentence.id}"]`);
+
+    if (mark === null) {
+        throw new Error('No mark is described by the readings sentence.');
+    }
+
+    return mark;
+}
+
 describe('MessageRow, the mark that opens what was read', () => {
     it('opens the readings of the message it is drawn on', () => {
         const asked = vi.fn();
 
         markedRow({ onReadings: asked });
-        fireEvent.click(screen.getByTitle('AI summary'));
+        fireEvent.click(readingsMark());
 
         expect(asked).toHaveBeenCalledOnce();
     });
@@ -807,7 +828,7 @@ describe('MessageRow, the mark that opens what was read', () => {
     it('is drawn on no row whose message carries nothing that was read from it', () => {
         markedRow({});
 
-        expect(screen.queryByTitle('AI summary')).toBeNull();
+        expect(screen.queryByText('AI summary')).toBeNull();
     });
 
     it('leaves the row unselected, a press on the mark being about the mark rather than about the message', () => {
@@ -815,7 +836,7 @@ describe('MessageRow, the mark that opens what was read', () => {
 
         markedRow({ onReadings: () => undefined, onPoint: pointed });
 
-        const mark = screen.getByTitle('AI summary');
+        const mark = readingsMark();
 
         fireEvent.pointerDown(mark, { pointerType: 'mouse' });
         fireEvent.pointerUp(mark, { pointerType: 'mouse' });
@@ -826,7 +847,7 @@ describe('MessageRow, the mark that opens what was read', () => {
     it('announces nothing of its own, the row menu being the path that carries this surface a name', () => {
         markedRow({ onReadings: () => undefined });
 
-        expect(screen.getByTitle('AI summary').getAttribute('aria-hidden')).toBe('true');
+        expect(readingsMark().getAttribute('aria-hidden')).toBe('true');
     });
 });
 

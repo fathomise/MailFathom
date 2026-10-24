@@ -194,7 +194,16 @@ p, li, h1, h2, h3, h4 { text-wrap: pretty; }
   box-shadow: 0 6px 18px var(--sh-2); pointer-events: none; visibility: hidden; opacity: 0;
   transition: opacity var(--motion-fast, 120ms) ease;
 }
-@media (hover: hover) { [data-tip]:hover > [role="tooltip"] { visibility: visible; opacity: 1; } }
+@media (hover: hover) { [data-tip]:hover > [role="tooltip"] { visibility: visible; opacity: 1; transition-delay: 400ms; } }
+/* A control's name — its `title` in every artboard — drawn by design.js as the same bubble, one at a time, fixed to the
+   window so a scrolling strip or a clipped column never cuts it. */
+.mf-name-tip {
+  position: fixed; z-index: 1000; pointer-events: none;
+  width: max-content; max-width: min(288px, calc(100vw - 32px)); box-sizing: border-box;
+  padding: 7px 10px; border-radius: 8px; background: var(--text); color: var(--panel);
+  font-family: 'Geist', system-ui, sans-serif; font-size: 13px; font-weight: 400; line-height: 1.4; text-wrap: pretty;
+  box-shadow: 0 6px 18px var(--sh-2);
+}
 [data-tip]:focus-visible:not([data-tip-dismissed]) > [role="tooltip"] { visibility: visible; opacity: 1; }
 @media (hover: none) {
   [data-tip]:focus:not([data-tip-dismissed]) > [role="tooltip"] { visibility: visible; opacity: 1; animation: mf-tip-gone 1ms 4s forwards; }

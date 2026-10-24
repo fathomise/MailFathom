@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { LocalizationProvider } from '../localization/Localization';
 import { PlannedControl } from './PlannedControl';
@@ -41,8 +41,27 @@ describe('PlannedControl', () => {
 
         const control = screen.getByRole('button', { name: 'Archive - this account names no archive folder.' });
 
-        expect(control.getAttribute('title')).toBe('Archive - this account names no archive folder.');
         expect(control.getAttribute('aria-disabled')).toBe('true');
+    });
+
+    // A press is what a finger does to find out what a control is, and this one does nothing else — so the tap says why.
+    it('says why it cannot act when a finger taps it, rather than doing nothing silently', () => {
+        render(
+            <LocalizationProvider>
+                <PlannedControl
+                    label="Archive"
+                    icon="archive"
+                    shape="symbol"
+                    why="Archive - this account names no archive folder."
+                />
+            </LocalizationProvider>,
+        );
+        const control = screen.getByRole('button');
+
+        fireEvent.pointerDown(control, { pointerType: 'touch' });
+        fireEvent.click(control);
+
+        expect(screen.getByRole('tooltip').textContent).toBe('Archive - this account names no archive folder.');
     });
 
     it('shows the words on a labelled shape and only the symbol on a symbol shape', () => {

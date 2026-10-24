@@ -334,6 +334,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
   const isNotifUnread = (n, read) => (read && read[n.id] !== undefined ? !read[n.id] : !!n.unread);
 
+  // The instant behind a relative age, as the client words it in full in a notification row's menu.
+  const notifInstant = (mins) => new Date(Date.now() - (Number(mins) || 0) * 60000).toLocaleString("en-GB", { dateStyle: "full", timeStyle: "short" });
+
   const notifTime = (mins) => {
     const m = Number(mins) || 0;
     if (m < 1) return "now";
@@ -756,11 +759,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       return r ? { x: cx - r.left, y: cy - r.top } : { x: cx, y: cy };
     };
 
-    pressFor = (kind, id, title, items, ms) => {
+    pressFor = (kind, id, title, items, ms, detail) => {
       const open = (cx, cy, fromTouch) => {
         const p = this.localPt(cx, cy);
         this.armCtx(fromTouch);
-        this.setState({ ctxMenu: { x: p.x, y: p.y, title: title, kind: kind, id: id, items: items } });
+        this.setState({ ctxMenu: { x: p.x, y: p.y, title: title, detail: detail, kind: kind, id: id, items: items } });
       };
       return {
         ctx: (e) => { if (e && e.preventDefault) { e.preventDefault(); e.stopPropagation(); } open(e.clientX, e.clientY, false); },
@@ -1159,7 +1162,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const p = this.localPt(cx || 0, cy || 0);
       this.setState({
         ctxMenu: {
-          x: p.x, y: p.y, kind: "mail", id: id, title: th.subject || "Message",
+          x: p.x, y: p.y, kind: "mail", id: id, title: th.subject || "Message", detail: th.from,
           items: [
             { icon: "auto_awesome", label: "AI summary", run: () => this.openAiSum(id) },
             { icon: "check_box", label: "Select messages", run: () => this.toggleSelect(id) },
@@ -2941,6 +2944,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : ""),
         ctxMenuOpen: !!st.ctxMenu,
         ctxMenuTitle: st.ctxMenu ? st.ctxMenu.title : "",
+        ctxMenuDetail: (st.ctxMenu && st.ctxMenu.detail) || "",
+        ctxMenuHasDetail: !!(st.ctxMenu && st.ctxMenu.detail),
         closeCtxMenu: () => { if (this.ctxArmed()) this.setState({ ctxMenu: null }); },
         ctxMenuItems: (st.ctxMenu ? st.ctxMenu.items : []).map(mi => ({
           icon: mi.icon, label: mi.label,
@@ -3671,9 +3676,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           .concat(ACCOUNTS.map(a => ({ key: a.key, label: a.label, title: a.address, dot: a.dot, folders: STD_FOLDERS(a.counts) })))
           .map(g => {
           const open = (st.accOpen || {})[g.key] !== false;
-          const press = g.key === "all" ? null : this.pressFor("account", g.key, g.label, this.accountMenu(g.key, g.label));
+          const press = g.key === "all" ? null : this.pressFor("account", g.key, g.label, this.accountMenu(g.key, g.label), undefined, g.title);
           return {
-            label: g.label, title: g.title, open, chevron: open ? "expand_more" : "chevron_right",
+            label: g.label, title: press ? g.title : null, open, chevron: open ? "expand_more" : "chevron_right",
             showHeader: !sideCollapsed, showDot: sideCollapsed,
             ctxOpen: press ? press.ctx : noop, pressDown: press ? press.down : noop, pressUp: press ? press.up : noop,
             toggle: () => this.setState(s2 => ({ accOpen: Object.assign({}, s2.accOpen, { [g.key]: !((s2.accOpen || {})[g.key] !== false) }) })),
@@ -3700,11 +3705,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               const active = (st.folderKey || "acc1·Inbox") === fk;
               const dragOver = st.dragOverKey === fk;
               const canNest = node.path.split("/").length < this.MAX_DEPTH;
-              const fpress = g.key === "all" ? null : this.pressFor("folder", fk, label, this.folderMenu(g.key, g.label, node.path, canNest, node.custom));
+              const said = g.title + " - " + node.path.split("/").join(" / ") + (node.count ? " · " + node.count : "");
+              const fpress = g.key === "all" ? null : this.pressFor("folder", fk, label, this.folderMenu(g.key, g.label, node.path, canNest, node.custom), undefined, said);
               return {
               ctxOpen: fpress ? fpress.ctx : noop, pressDown: fpress ? fpress.down : noop, pressUp: fpress ? fpress.up : noop,
               icon: node.icon, label: label, count: node.count, expanded: !sideCollapsed,
-              title: g.title + " - " + node.path.split("/").join(" / ") + (node.count ? " · " + node.count : ""),
+              title: fpress ? said : null,
               pick: () => this.pickFolder(fk, label),
               dragOver: (e) => this.dragOverFolder(fk, e),
               dragLeave: () => this.dragLeaveFolder(fk),
@@ -4494,7 +4500,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               { icon: unread ? "mark_email_read" : "mark_email_unread", label: unread ? "Mark as read" : "Mark as unread", run: () => this.toggleNotifRead(n) },
               { icon: "open_in_new", label: "Open source", run: () => this.openNotif(n) },
               { icon: "delete", label: "Delete notification", danger: true, run: () => this.askHide("notifs", [n.id], "Delete notification?", n.title + " will disappear from the notification centre.") },
-            ], 420),
+            ], 420, notifInstant(n.mins)),
             open: this.rowTap("notifs", n.id, () => this.openNotif(n)),
             toggleRead: (e) => this.toggleNotifRead(n, e),
             readIcon: unread ? "mark_email_read" : "mark_email_unread",
@@ -4722,6 +4728,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             this.startLongPress(t.id, p ? p.clientX : 0, p ? p.clientY : 0);
           },
           touchMove: (e) => { this.cancelLongPress(); if (isMobile) this.swipeMove(t.id, e); },
+          // Folded to a strip, the row answers a tap and its menu alone: too narrow to carry a swipe across.
+          stripTouchStart: (e) => { const p = e && e.touches && e.touches[0]; this.startLongPress(t.id, p ? p.clientX : 0, p ? p.clientY : 0); },
+          stripTouchEnd: () => this.cancelLongPress(),
           touchEnd: () => { this.cancelLongPress(); if (isMobile) this.swipeEnd(t.id); },
           dragStart: (e) => this.dragThreadsStart(t.id, e),
           dragEnd: this.dragThreadsEnd,

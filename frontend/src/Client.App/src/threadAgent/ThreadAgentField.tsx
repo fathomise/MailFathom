@@ -4,6 +4,7 @@
 
 import { useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '../controls/Icon';
+import { useTip } from '../controls/useTip';
 import { useLocalization } from '../localization/useLocalization';
 import { useAgentHandOver, type AgentHandOver } from '../routing/agentHandOver';
 import { Departing } from '../shell/Departing';
@@ -149,6 +150,26 @@ export function ThreadAgentField({
         close();
     }
 
+    const chooserName = useTip({
+        says: translate('threadAgent.choose'),
+        onPress: () => {
+            if (choosing) {
+                fold(true);
+            } else {
+                choiceFocusOwed.current = true;
+                setChoosing(true);
+            }
+        },
+    });
+    const askHint = useTip({
+        says: translate('message.askTitle'),
+        describes: true,
+        onPress: () => {
+            setChoosing(false);
+            asking?.();
+        },
+    });
+
     if (!draftingOffered && asking === null) {
         return null;
     }
@@ -197,19 +218,23 @@ export function ThreadAgentField({
                             ) : null}
 
                             {asking === null ? null : (
-                                <button
-                                    ref={draftingOffered ? undefined : takeChoiceFocus}
-                                    type="button"
-                                    title={translate('message.askTitle')}
-                                    className={choiceShape}
-                                    onClick={() => {
-                                        setChoosing(false);
-                                        asking();
-                                    }}
-                                >
-                                    <Icon name="forum" className="size-icon-lg shrink-0 text-accent-deep" />
-                                    {translate('message.ask')}
-                                </button>
+                                <>
+                                    <button
+                                        {...askHint.anchor}
+                                        ref={(element) => {
+                                            askHint.anchor.ref(element);
+                                            if (!draftingOffered) {
+                                                takeChoiceFocus(element);
+                                            }
+                                        }}
+                                        type="button"
+                                        className={choiceShape}
+                                    >
+                                        <Icon name="forum" className="size-icon-lg shrink-0 text-accent-deep" />
+                                        {translate('message.ask')}
+                                    </button>
+                                    {askHint.tip}
+                                </>
                             )}
                         </div>
                     ) : null}
@@ -217,7 +242,9 @@ export function ThreadAgentField({
                     {/* The glyph alone at every width, its name the button's; pressed, it turns to a close while the
                         choices stand, and the expanded state says the same to somebody who cannot see it turn. */}
                     <button
+                        {...chooserName.anchor}
                         ref={(element) => {
+                            chooserName.anchor.ref(element);
                             drafting?.holdField(element);
 
                             if (element !== null && buttonFocusOwed.current) {
@@ -227,21 +254,13 @@ export function ThreadAgentField({
                         }}
                         type="button"
                         aria-label={translate('threadAgent.choose')}
-                        title={translate('threadAgent.choose')}
                         aria-expanded={choosing}
                         aria-controls={choosing ? choices : undefined}
                         className="flex size-14 animate-pop-in items-center justify-center rounded-xl bg-accent text-on-accent shadow-overlay transition hover:bg-accent-strong workspace:size-12"
-                        onClick={() => {
-                            if (choosing) {
-                                fold(true);
-                            } else {
-                                choiceFocusOwed.current = true;
-                                setChoosing(true);
-                            }
-                        }}
                     >
                         <Icon name={choosing ? 'close' : 'auto_awesome'} className="size-icon-xl shrink-0" />
                     </button>
+                    {chooserName.tip}
                 </div>
             )}
 
@@ -292,6 +311,9 @@ function DrafterCard({
 }) {
     const { translate } = useLocalization();
     const leaving = useContext(DepartureContext);
+    const closerName = useTip({ says: translate('threadAgent.close'), onPress: onClose });
+    // Said by a tap as well as a mouse resting on it, since the chip is a statement and does nothing else.
+    const passageSaid = useTip({ says: passageText ?? '', describes: passageText !== undefined });
 
     return (
         <form
@@ -305,14 +327,14 @@ function DrafterCard({
             }}
         >
             <button
+                {...closerName.anchor}
                 type="button"
                 aria-label={translate('threadAgent.close')}
-                title={translate('threadAgent.close')}
                 className="absolute -end-2.75 -top-2.75 z-1 flex size-6.5 items-center justify-center rounded-full border border-line bg-panel text-text-soft shadow-overlay transition hover:bg-hover hover:text-text pointer-coarse:-end-1 pointer-coarse:-top-4.75 pointer-coarse:size-8"
-                onClick={onClose}
             >
                 <Icon name="close" className="size-icon-sm pointer-coarse:size-icon-md" />
             </button>
+            {closerName.tip}
 
             {/* The focus treatment stands on the box rather than on the field inside it: a ring drawn round a
                 transparent field inside a bordered box reads as two nested borders rather than one field that lit up. */}
@@ -357,13 +379,14 @@ function DrafterCard({
                     {/* The passage is not chosen here — it is whatever the reader selected in the message above — so the
                         chip is a statement rather than a control, and it reads as taken in once there is one. */}
                     <span
-                        title={passageText}
+                        {...(passageText === undefined ? {} : passageSaid.anchor)}
                         className={`rounded-full px-2.75 py-1.25 text-sm ${
                             passageChosen ? 'bg-accent-soft text-accent-deep' : 'border border-line bg-rail'
                         }`}
                     >
                         {translate('threadAgent.passage')}
                     </span>
+                    {passageText === undefined ? null : passageSaid.tip}
 
                     <span className="ms-auto text-sm text-muted">{translate('threadAgent.staysLocal')}</span>
                 </div>

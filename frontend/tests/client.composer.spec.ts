@@ -73,7 +73,7 @@ test('sends a new message carrying exactly the recipient, the subject, and the w
     deployment,
 }) => {
     await openMailWriting(page, deployment);
-    await page.getByTitle('New message').click();
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
 
     await address(page, 'To', recipient);
     await page.getByLabel('Subject').fill(subject);
@@ -168,7 +168,7 @@ test('shows the copy headers, keeps what they hold while hidden, and sends nothi
     const blind = 'ledger@example.invalid';
 
     await openMailWriting(page, deployment);
-    await page.getByTitle('New message').click();
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
 
     await address(page, 'To', recipient);
     await page.getByLabel('Subject').fill(subject);
@@ -208,7 +208,7 @@ test('keeps a draft with its file when the composer is left, lists it in Drafts,
     deployment,
 }) => {
     await openMailWriting(page, deployment);
-    await page.getByTitle('New message').click();
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
 
     await address(page, 'To', recipient);
     await page.getByLabel('Subject').fill(subject);
@@ -285,7 +285,7 @@ const drawingOfTheFieldLeft = `${drawing}(window.fieldReached)`;
 
 test('draws a visible focus on every field of the composer reached by the keyboard', async ({ page, deployment }) => {
     await openMailWriting(page, deployment);
-    await page.getByTitle('New message').click();
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
     await page.getByRole('button', { name: 'Show CC and BCC fields' }).click();
 
     for (const field of [
@@ -312,7 +312,7 @@ test('draws a visible focus on every field of the composer reached by the keyboa
 
 /** Opens a new message and writes all of it: the recipient, the subject, the words, and a file. */
 async function writeAll(page: Page): Promise<Locator> {
-    await page.getByTitle('New message').click();
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
     await address(page, 'To', recipient);
     await page.getByLabel('Subject').fill(subject);
     await write(page, words);
@@ -526,14 +526,14 @@ test('keeps what is being written across a reload and while offline, and sends a
     const writtenOffline = ' Written with no network.';
 
     await openMailWriting(page, deployment);
-    await page.getByTitle('New message').click();
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
     await address(page, 'To', recipient);
     await page.getByLabel('Subject').fill(subject);
     await write(page, words);
 
     await page.reload();
     await expect(page.getByRole('navigation', { name: 'Spaces' })).toBeVisible();
-    await page.getByTitle('New message').click();
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
 
     const composer = page.getByRole('region', { name: 'New message' });
     const message = composer.getByRole('textbox', { name: 'Message' });
@@ -565,7 +565,7 @@ test('keeps what is being written across a reload and while offline, and sends a
  */
 async function turnedAwayWhileWriting(page: Page, deployment: FakeDeployment, login: string): Promise<Locator> {
     await openMailWriting(page, deployment);
-    await page.getByTitle('New message').click();
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
     await address(page, 'To', recipient);
     await page.getByLabel('Subject').fill(subject);
     await write(page, words);
@@ -606,7 +606,7 @@ test('offers nothing of what was being written to anybody else who signs in afte
 
     await expect(composer).toHaveCount(0);
 
-    await page.getByTitle('New message').click();
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
 
     await expect(composer.getByLabel('Subject')).toHaveValue('');
     await expect(composer.getByRole('textbox', { name: 'Message' })).toHaveText('');

@@ -12,6 +12,7 @@ import type { Translate } from '../localization/useLocalization';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadMarking, type ReadMarking } from '../readMarking/useReadMarking';
 import { useAgentHandOver } from '../routing/agentHandOver';
+import { correspondent } from './rowContents';
 
 // What a message row offers, which is the design's own menu for it: picking messages out, answering the
 // message, and the five acts that change the mailbox it is in. It is this row's items and nothing else — where the
@@ -90,6 +91,8 @@ export function MessageRowMenu({
     return (
         <ContextMenu
             header={email.subject ?? translate('list.noSubject')}
+            // Who wrote it, which the row folded to a strip of avatars no longer says in words.
+            detail={correspondent(email)}
             at={at}
             items={rowItems({
                 email,

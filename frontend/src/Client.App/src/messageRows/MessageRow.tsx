@@ -12,6 +12,7 @@ import { MessageMarkers } from '../controls/MessageMarkers';
 import { Organisation } from '../controls/Organisation';
 import { ReceivedAt } from '../controls/ReceivedAt';
 import { SenderAvatar } from '../controls/SenderAvatar';
+import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { actsDrawn } from '../mailboxActs/drawnActs';
@@ -26,6 +27,7 @@ import {
     type FilingAct,
 } from '../mailboxActs/useMailboxActs';
 import { drawnUnread, useReadMarking } from '../readMarking/useReadMarking';
+import { correspondent } from './rowContents';
 import { useRowSwipe, type RowSwipeAct } from './rowSwipe';
 
 // One row of mail, which is its own component for the reason a tree's row is: it is what carries state, a keyboard
@@ -216,6 +218,16 @@ export function MessageRow({
         sender: correspondent(email) ?? translate('list.senderUnknown'),
         subject: email.subject ?? translate('list.noSubject'),
     });
+    // Folded, the sender is an avatar: a mouse resting on it reads who it is, and a finger reads it in the row's menu,
+    // since a tap on the strip opens the message and holding it opens that menu.
+    const stripSaid = useTip({ says: stripName, tapReveals: false });
+    const readingsName = useTip({
+        says: translate('list.readings'),
+        describes: true,
+        onPress: () => {
+            onReadings?.();
+        },
+    });
 
     // Whether the primary button went down on this row and has neither left it as a drag nor been let go elsewhere,
     // which is what makes letting it go here a press on the row.
@@ -386,7 +398,7 @@ export function MessageRow({
                 // ringed, an unread one dotted. Its name is the one the whole row would have read out, so the list is
                 // the same list to a screen reader either way.
                 <span
-                    title={stripName}
+                    {...stripSaid.anchor}
                     className={`relative flex size-13 cursor-pointer items-center justify-center rounded-xl transition ${
                         selected || open ? 'bg-accent-soft ring-2 ring-accent-line ring-inset' : 'hover:bg-hover'
                     }`}
@@ -404,6 +416,8 @@ export function MessageRow({
                             <span className="sr-only">{translate('list.unread')}</span>
                         </>
                     ) : null}
+
+                    {stripSaid.tip}
                 </span>
             ) : null}
 
@@ -494,23 +508,30 @@ export function MessageRow({
                         keyboard each reach — this is the pointer's shortcut to it and is hidden from everything that
                         would otherwise announce a second, unreachable copy of it. */}
                     {onReadings === undefined ? null : (
-                        <span
-                            aria-hidden="true"
-                            title={translate('list.readings')}
-                            className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-accent-soft hover:text-accent-deep pointer-coarse:size-8"
-                            onPointerDown={(event) => {
-                                event.stopPropagation();
-                            }}
-                            onPointerUp={(event) => {
-                                event.stopPropagation();
-                            }}
-                            onClick={(event) => {
-                                event.stopPropagation();
-                                onReadings();
-                            }}
-                        >
-                            <Icon name="auto_awesome" className="size-icon-sm pointer-coarse:size-icon-lg" />
-                        </span>
+                        <>
+                            {/* Its own press stops at it rather than reaching the row, so holding it reads its name
+                                and never also opens the row's menu or starts a swipe. */}
+                            <span
+                                {...readingsName.anchor}
+                                aria-hidden="true"
+                                className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-accent-soft hover:text-accent-deep pointer-coarse:size-8"
+                                onPointerDown={(event) => {
+                                    event.stopPropagation();
+                                    readingsName.anchor.onPointerDown(event);
+                                }}
+                                onPointerUp={(event) => {
+                                    event.stopPropagation();
+                                    readingsName.anchor.onPointerUp();
+                                }}
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    readingsName.anchor.onClick(event);
+                                }}
+                            >
+                                <Icon name="auto_awesome" className="size-icon-sm pointer-coarse:size-icon-lg" />
+                            </span>
+                            {readingsName.tip}
+                        </>
                     )}
 
                     <ReceivedAt at={email.receivedAt} />
@@ -533,9 +554,4 @@ export function MessageRow({
             </div>
         </li>
     );
-}
-
-/** Who the row is about: the sender, else the address it came from, else who it was written to. */
-function correspondent(email: MailTimelineEntry): string | undefined {
-    return email.senderDisplayName ?? email.senderAddress ?? email.toAddresses[0];
 }

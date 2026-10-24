@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { Icon } from '../controls/Icon';
+import { useTip } from '../controls/useTip';
 import type { IconName } from '../controls/icons';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
@@ -43,6 +44,8 @@ export function AiFilters({ folded }: { readonly folded: boolean }) {
     const listed = useListedMail();
     const shown = useAiFiltersShown();
     const open = !workspace.foldsToggled.includes(aiFiltersFold);
+    // What pressing the header does next, as the design says it on the header and on every entry, folded or not.
+    const headerName = useTip({ says: translate(open ? 'aiFilters.collapse' : 'aiFilters.show'), onPress: toggle });
 
     // Turned off is the section gone rather than a heading with nothing under it: what it says when it is off is
     // nothing at all, and a heading over three missing entries would say the views had failed.
@@ -66,15 +69,14 @@ export function AiFilters({ folded }: { readonly folded: boolean }) {
             className={`mb-2 flex shrink-0 flex-col border-b border-line pb-2.5 ${folded ? 'gap-0.75' : 'gap-0.5'}`}
         >
             <button
+                {...headerName.anchor}
                 type="button"
                 aria-expanded={open}
-                title={translate(open ? 'aiFilters.collapse' : 'aiFilters.show')}
                 className={`flex items-center rounded-sm transition hover:bg-hover ${
                     folded
                         ? 'h-6 justify-center'
                         : 'gap-2 px-2.25 py-1.25 text-xs font-semibold text-muted hover:text-text'
                 }`}
-                onClick={toggle}
             >
                 <span className="flex w-2 shrink-0 justify-center">
                     <Icon name="auto_awesome" className="size-icon-xs shrink-0 text-accent-deep" />
@@ -91,30 +93,56 @@ export function AiFilters({ folded }: { readonly folded: boolean }) {
 
             {open
                 ? standingViews.map((view) => (
-                      <button
+                      <StandingViewEntry
                           key={view}
-                          type="button"
-                          title={translate('aiFilters.entryTitle', { view: translate(views[view].label) })}
-                          className={`flex cursor-pointer items-center rounded-md text-text-soft transition hover:bg-hover ${
-                              folded ? 'justify-center py-1.25' : 'gap-2.5 px-2.75 py-1.75 text-md'
-                          }`}
-                          onClick={() => {
+                          view={view}
+                          folded={folded}
+                          onStand={() => {
                               listed.stand(view);
                           }}
-                      >
-                          <Icon
-                              name={views[view].icon}
-                              className={folded ? 'size-icon-2xl text-muted' : 'size-icon-md text-muted'}
-                          />
-
-                          {folded ? (
-                              <span className="sr-only">{translate(views[view].label)}</span>
-                          ) : (
-                              <span className="min-w-0 flex-1 truncate text-start">{translate(views[view].label)}</span>
-                          )}
-                      </button>
+                      />
                   ))
                 : null}
+            {headerName.tip}
         </section>
+    );
+}
+
+/** One of the standing views, which says what pressing it puts in force — the design draws no lit state to say so after. */
+function StandingViewEntry({
+    view,
+    folded,
+    onStand,
+}: {
+    readonly view: StandingView;
+    readonly folded: boolean;
+    readonly onStand: () => void;
+}) {
+    const { translate } = useLocalization();
+    const label = translate(views[view].label);
+    const { anchor, tip } = useTip({ says: translate('aiFilters.entryTitle', { view: label }), onPress: onStand });
+
+    return (
+        <>
+            <button
+                {...anchor}
+                type="button"
+                className={`flex cursor-pointer items-center rounded-md text-text-soft transition hover:bg-hover ${
+                    folded ? 'justify-center py-1.25' : 'gap-2.5 px-2.75 py-1.75 text-md'
+                }`}
+            >
+                <Icon
+                    name={views[view].icon}
+                    className={folded ? 'size-icon-2xl text-muted' : 'size-icon-md text-muted'}
+                />
+
+                {folded ? (
+                    <span className="sr-only">{label}</span>
+                ) : (
+                    <span className="min-w-0 flex-1 truncate text-start">{label}</span>
+                )}
+            </button>
+            {tip}
+        </>
     );
 }

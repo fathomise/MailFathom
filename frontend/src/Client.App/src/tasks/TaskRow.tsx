@@ -8,6 +8,7 @@ import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { useRowPress } from '../contextMenu/rowPress';
 import { Control } from '../controls/Control';
 import { Icon } from '../controls/Icon';
+import { SymbolControl } from '../controls/SymbolControl';
 import { wordCalendarDay, wordDueDay } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
@@ -176,19 +177,18 @@ export function TaskRow({
         >
             <div className="flex min-w-60 flex-1 items-start gap-2.75">
                 {selecting ? (
-                    <button
-                        type="button"
-                        aria-pressed={selected}
-                        aria-label={translate('tasks.selectRow', { title: task.title })}
+                    <SymbolControl
+                        pressed={selected}
+                        label={translate('tasks.selectRow', { title: task.title })}
                         className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border transition ${
                             selected
                                 ? 'border-accent bg-accent text-on-accent'
                                 : 'border-line-strong text-transparent hover:border-accent'
                         }`}
-                        onClick={onToggleSelected}
+                        onPress={onToggleSelected}
                     >
                         <Icon name="check" className="size-icon-xs" />
-                    </button>
+                    </SymbolControl>
                 ) : null}
 
                 <input
@@ -229,28 +229,24 @@ export function TaskRow({
 
             <div className="flex flex-wrap items-center gap-2.5">
                 {onReminders === undefined ? null : (
-                    <button
-                        type="button"
-                        aria-label={translate(
-                            task.reminders.length === 0 ? 'tasks.addReminder' : 'tasks.remindersOnRow',
-                            {
-                                title: task.title,
-                                count: wordReminderCount(task.reminders.length, locale, translate),
-                            },
-                        )}
+                    <SymbolControl
+                        label={translate(task.reminders.length === 0 ? 'tasks.addReminder' : 'tasks.remindersOnRow', {
+                            title: task.title,
+                            count: wordReminderCount(task.reminders.length, locale, translate),
+                        })}
                         className={`flex items-center gap-1 rounded-md border px-2.25 py-1 text-xs font-semibold transition hover:border-accent hover:text-accent-deep ${
                             task.reminders.length === 0
                                 ? 'border-line bg-sunken text-muted'
                                 : 'border-accent-line bg-accent-soft text-accent-deep'
                         }`}
-                        onClick={onReminders}
+                        onPress={onReminders}
                     >
                         <Icon
                             name={task.reminders.length === 0 ? 'notifications' : 'notifications_active'}
                             className="size-icon-sm"
                         />
                         {task.reminders.length > 1 ? counted.format(task.reminders.length) : null}
-                    </button>
+                    </SymbolControl>
                 )}
 
                 {task.dueOn === null ? (

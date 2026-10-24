@@ -3,8 +3,9 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useState, type ReactNode } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { focusByKey } from '../controls/useTip.harness';
 import { LocalizationProvider } from '../localization/Localization';
 import type { StandingView } from '../messageList/listing';
 import { ListedMailContext, nothingListed } from '../messageList/useListedMail';
@@ -44,12 +45,23 @@ function drawing(shown = true, stand: (view: StandingView) => void = () => undef
     );
 }
 
+/** What a mouse resting on a control reads, which is what the design writes as the control's title. */
+function sentenceOn(control: HTMLElement): string | null | undefined {
+    focusByKey(control);
+    const said = screen.queryByRole('tooltip')?.textContent;
+    act(() => {
+        control.blur();
+    });
+
+    return said;
+}
+
 describe('AiFilters', () => {
     it('draws the section the design names, open until somebody folds it', () => {
         drawing();
 
         expect(screen.getByRole('region', { name: 'AI filters' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'AI filters', expanded: true }).getAttribute('title')).toBe(
+        expect(sentenceOn(screen.getByRole('button', { name: 'AI filters', expanded: true }))).toBe(
             'Collapse AI filters',
         );
     });
@@ -59,9 +71,7 @@ describe('AiFilters', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'AI filters' }));
 
-        expect(screen.getByRole('button', { name: 'AI filters', expanded: false }).getAttribute('title')).toBe(
-            'Show AI filters',
-        );
+        expect(sentenceOn(screen.getByRole('button', { name: 'AI filters', expanded: false }))).toBe('Show AI filters');
         expect(screen.queryByRole('button', { name: 'Commitments' })).toBeNull();
 
         fireEvent.click(screen.getByRole('button', { name: 'AI filters' }));
@@ -103,9 +113,7 @@ describe('AiFilters', () => {
     it('says what pressing an entry will do, the design drawing no lit state to say it afterwards', () => {
         drawing();
 
-        expect(screen.getByRole('button', { name: 'Commitments' }).getAttribute('title')).toBe(
-            'AI filter: Commitments',
-        );
+        expect(sentenceOn(screen.getByRole('button', { name: 'Commitments' }))).toBe('AI filter: Commitments');
     });
 
     it('keeps every entry named in the folded rail, where the names are not drawn', () => {

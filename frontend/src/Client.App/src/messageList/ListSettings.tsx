@@ -8,6 +8,7 @@ import type { MailEnrichmentAspect, MailTimelineOrder } from '@mailfathom/client
 import { CheckControl } from '../controls/CheckControl';
 import { chip } from '../controls/chrome';
 import { Icon } from '../controls/Icon';
+import { useTip } from '../controls/useTip';
 import { Switch } from '../controls/Switch';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
@@ -203,19 +204,26 @@ export function ListSettings({
         narrow({ dateRange: null, ...moved });
     }
 
+    const openerName = useTip({
+        says: translate(inForce === 0 ? 'list.filters' : 'list.filtersInForce', { count: String(inForce) }),
+        onPress: () => {
+            setOpen(!open);
+        },
+    });
+
     const opener = (
         <button
-            ref={opens}
+            {...openerName.anchor}
+            ref={(drawn) => {
+                opens.current = drawn;
+                openerName.anchor.ref(drawn);
+            }}
             type="button"
             aria-expanded={open}
             aria-controls={panel}
-            title={translate(inForce === 0 ? 'list.filters' : 'list.filtersInForce', { count: String(inForce) })}
             className={`flex h-8.5 shrink-0 cursor-pointer items-center justify-center gap-0.75 rounded-md px-1.75 transition hover:bg-hover ${
                 inForce === 0 ? 'text-muted' : 'bg-accent-soft text-accent-deep'
             }`}
-            onClick={() => {
-                setOpen(!open);
-            }}
         >
             <Icon name={inForce === 0 ? 'tune' : 'filter_alt'} className="size-icon-lg" />
             <span className="sr-only">{translate('list.filters')}</span>
@@ -226,6 +234,7 @@ export function ListSettings({
     return (
         <>
             {headRow === null ? opener : createPortal(opener, headRow)}
+            {openerName.tip}
 
             {/* Drawn out to the edges of the column the way the design draws it, rather than as a card inset
                 inside the header: what is disclosed is a band the list starts underneath, and the line along its foot

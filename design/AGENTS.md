@@ -31,6 +31,21 @@ repeated actions, the smallest text — and a rule for small screens is added to
   finished — the four sizes are `frontend/AGENTS.md`'s — and the desktop composition is checked to be unchanged
   unless the change is about it.
 
+## Nothing only under a hover
+
+**A screen says nothing that only a mouse can read.** A finger has no hover, so a name, a reason, or a fact drawn only
+for a pointer resting on something is missing from every phone, fold and tablet the design is drawn for.
+
+- A control drawn as its symbol alone writes its name as its `title`, which `design.js` draws as the name bubble for a
+  mouse, a key and a finger's hold alike — `state-inventory.md`, *A control's name*. An artboard draws no tooltip of
+  its own and no hover-only label beside it.
+- A control that cannot act says why on a tap, and is marked `aria-disabled="true"` so the bubble answers that tap.
+- Something inside a row whose own hold opens a menu carries `data-tip-hover`, and a fact it said reaches a finger
+  another way: drawn again under that menu's header (`ctxMenuDetail`, passed to `pressFor`), or carried by what the
+  row already draws — `state-inventory.md`, *A row's hidden facts*. One held finger opens one surface — never a name
+  and a menu, or a name and a swipe, at once.
+- An action no glyph names keeps its words where the strip has room for them, and *Select all* keeps them everywhere.
+
 ## Fast, in balance
 
 **The design is authored fast.** Nothing here ships, so what counts is how soon a screen can be looked at and judged,

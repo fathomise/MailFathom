@@ -374,10 +374,17 @@ function row(name: RegExp): HTMLElement {
 
 // The control that opens a row is hidden from the accessibility tree deliberately — a tree already says whether a row
 // is open and opens one from the keyboard — so it is the one thing here that cannot be found by its role. What it
-// still carries is the sentence a pointer resting on it reads, which is what this asks for rather than its place
-// among the row's children.
-function openTwisty(on: HTMLElement): void {
-    fireEvent.click(within(on).getByTitle(/subfolders$/));
+// still carries is the sentence a mouse resting on it reads, which is what this asks for — the element that sentence
+// describes — rather than its place among the row's children.
+function pressTwisty(on: HTMLElement): void {
+    const sentence = within(on).getByText(/subfolders$/);
+    const twisty = on.querySelector(`[aria-describedby="${sentence.id}"]`);
+
+    if (twisty === null) {
+        throw new Error('No control is described by the twisty sentence.');
+    }
+
+    fireEvent.click(twisty);
 }
 
 async function drawn(): Promise<HTMLElement> {
@@ -439,7 +446,7 @@ describe('FolderTree', () => {
         expect(row(/^Archiwum/).getAttribute('aria-expanded')).toBe('false');
         expect(screen.queryByRole('treeitem', { name: /^2024/ })).toBeNull();
 
-        openTwisty(row(/^Archiwum/));
+        pressTwisty(row(/^Archiwum/));
 
         expect(row(/^2024/).getAttribute('aria-level')).toBe('3');
     });
@@ -695,7 +702,7 @@ describe('FolderTree', () => {
         renderTree(answering(JSON.stringify(tree)));
 
         await drawn();
-        openTwisty(row(/^Archiwum/));
+        pressTwisty(row(/^Archiwum/));
         const nested = row(/^2024/);
 
         nested.focus();
@@ -709,11 +716,9 @@ describe('FolderTree', () => {
 
         await drawn();
 
-        // The control that opens a row is hidden from the accessibility tree deliberately — a tree says whether a row
-        // is open and opens one from the keyboard — so this is the one thing here that cannot be found by its role.
         const standing = carried().scope;
 
-        fireEvent.click(row(/^Work/).lastElementChild as HTMLElement);
+        pressTwisty(row(/^Work/));
 
         expect(row(/^Work/).getAttribute('aria-expanded')).toBe('false');
         expect(carried().scope).toEqual(standing);
@@ -724,7 +729,7 @@ describe('FolderTree', () => {
 
         await drawn();
 
-        fireEvent.click(row(/^Work/).lastElementChild as HTMLElement);
+        pressTwisty(row(/^Work/));
 
         expect(row(/^Work/).getAttribute('tabindex')).toBe('0');
     });

@@ -36,7 +36,7 @@ describe('Attachment', () => {
 
         expect(screen.getByText('invoice.pdf')).toBeDefined();
         expect(screen.getByText('pdf')).toBeDefined();
-        expect(screen.getByRole('button', { name: 'Open invoice.pdf' }).getAttribute('title')).toBe('application/pdf');
+        expect(screen.getByRole('button', { name: 'Open invoice.pdf', description: 'application/pdf' })).toBeDefined();
         expect(screen.getByText(sizeReadAs(2_048))).toBeDefined();
     });
 

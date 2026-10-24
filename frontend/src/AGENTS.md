@@ -402,8 +402,18 @@ so this is written to be mechanically visible in a diff rather than remembered.
   44 target past their edge, so `controls/segmentShapes.ts` carries it for every segment and chip shape. A sheet or a
   drawer is pulled closed by `shell/useSurfacePull.ts`, installed once at the frame: the surface says `data-pull="down"`
   or `data-pull="start"` and closes through the platform as its close control does, so no surface writes a gesture. And
-  a symbol drawn alone on the phone keeps its name as the control's label and its title, never as an icon nobody can
-  read out.
+  a symbol drawn alone on the phone keeps its name as the control's label and in `useTip`'s bubble, never as an icon
+  nobody can read out.
+- **Nothing a person needs is said only under a hover, and `title` is not how anything is said.** No touch browser
+  draws a `title`, so a name, a reason or a fact kept there is missing from every phone and tablet. What an element
+  says about itself goes through `controls/useTip.tsx` — `SymbolControl` for a one-off symbol, and `Control`,
+  `PlannedControl` and `SurfaceControl` already carry it — which a mouse rests on, a key focuses, and a finger holds on a
+  control that acts or taps on one that does not; the lint rule refuses a `title` on any element but a frame, whose
+  `title` is its accessible name. **One gesture opens one surface**: the hold that reads a control's name takes the
+  press away from the row it sits in, its menu included, and a fact inside a row whose hold already opens a menu —
+  a sender folded to an avatar, the instant behind a relative age — is a mouse's hover there and a line under that
+  menu's header (`ContextMenu`'s `detail`) for a finger. A control whose words narrow away keeps its name in the bubble;
+  one no symbol names, such as _Select all_, keeps its words.
 - **`prefers-reduced-motion` is honoured**, and that is an accessibility obligation rather than a nicety: motion is
   removed under it, not merely shortened, and any transition conveying meaning still conveys it without the movement.
 - **Everything a screen draws comes out of the bundle, and no screen reaches an external origin for it.** The typeface

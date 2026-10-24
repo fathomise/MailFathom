@@ -108,6 +108,14 @@ describe('MessageRowMenu', () => {
         ]);
     });
 
+    // Folded to a strip, the row is an avatar whose sender a mouse reads by resting on it; a finger holding it reads
+    // the sender here instead.
+    it('names who the message is from under its subject', () => {
+        menuUnder();
+
+        expect(screen.getByText('Anna Kowalska')).toBeDefined();
+    });
+
     // The design draws the row's context menu with *Remove the flag* over a flagged message, so the menu reads the flag
     // the way it reads the read mark: the opposite of the state the row is in.
     it('offers to take the flag off a flagged row, which is the other direction of the one act', () => {
