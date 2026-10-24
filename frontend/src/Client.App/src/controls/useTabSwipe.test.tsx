@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+import type { ReactNode } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { swipeDistance, swipeDrift } from './swipeAcross';
@@ -9,8 +10,21 @@ import { useTabSwipe } from './useTabSwipe';
 
 const tabs = ['day', 'week', 'month', 'agenda'] as const;
 
-function Surface({ current, onChoose }: { readonly current: string; readonly onChoose: (tab: string) => void }) {
-    return <div {...useTabSwipe(tabs, current, onChoose)}>{current}</div>;
+function Surface({
+    current,
+    onChoose,
+    children,
+}: {
+    readonly current: string;
+    readonly onChoose: (tab: string) => void;
+    readonly children?: ReactNode;
+}) {
+    return (
+        <div {...useTabSwipe(tabs, current, onChoose)}>
+            {current}
+            {children}
+        </div>
+    );
 }
 
 /** A finger landing on the surface, travelling, and lifting again. */
@@ -58,6 +72,21 @@ describe('useTabSwipe', () => {
 
     it('switches nothing for a mouse dragged across', () => {
         expect(swiped('week', -swipeDistance, 0, 'mouse')).not.toHaveBeenCalled();
+    });
+
+    // A caret or a selection dragged across a field is the field's gesture, and a section switched under it would take
+    // what was typed away before the field had sent it.
+    it('switches nothing for a finger that lands in a field', () => {
+        const onChoose = vi.fn<(tab: string) => void>();
+        render(
+            <Surface current="week" onChoose={onChoose}>
+                <input />
+            </Surface>,
+        );
+
+        swipe(screen.getByRole('textbox'), -swipeDistance, 0, 'touch');
+
+        expect(onChoose).not.toHaveBeenCalled();
     });
 
     it('switches once for one swipe however far the finger goes on', () => {

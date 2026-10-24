@@ -603,7 +603,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     tabSwipe = (order, cur, pick) => ({
       down: (e) => {
         const t = e.touches && e.touches[0];
-        this._tsw = t ? { x: t.clientX, y: t.clientY } : null;
+        /* A finger that lands in a field is dragging its caret or a selection, not the tabs. */
+        const inField = e.target && e.target.closest && e.target.closest("input, textarea, select, [contenteditable]");
+        this._tsw = t && !inField ? { x: t.clientX, y: t.clientY } : null;
       },
       move: (e) => {
         const s = this._tsw, t = e.touches && e.touches[0];

@@ -13,7 +13,9 @@ import { swipeSoFar } from './swipeAcross';
 // The numbers are `swipeAcross.ts`'s, so a scroll of the list underneath is never a tab change and the distance is the
 // one a row and a toast already taught. It acts the moment the distance is crossed, as a toast does, because nothing
 // was carried that would have to spring back. A mouse drags nothing: the tabs are what a pointer that can aim already
-// has, and a selection dragged across a section would otherwise switch it.
+// has, and a selection dragged across a section would otherwise switch it. Nor does a finger that lands in a field: a
+// caret or a selection dragged across one is the field's own gesture, and a section switched under it would take a
+// field that commits on leaving it — a name, a number of seconds — away with what was typed still unsent.
 
 /** What the surface under the tabs binds, beside the `touch-pan-y` that leaves the sideways travel to it. */
 export interface TabSwipe {
@@ -42,8 +44,14 @@ export function useTabSwipe<Tab>(tabs: readonly Tab[], current: Tab, onChoose: (
 
     return {
         onPointerDown: (event) => {
+            const inField =
+                event.target instanceof Element &&
+                event.target.closest('input, textarea, select, [contenteditable]') !== null;
+
             from.current =
-                event.pointerType === 'mouse' ? null : { pointer: event.pointerId, x: event.clientX, y: event.clientY };
+                event.pointerType === 'mouse' || inField
+                    ? null
+                    : { pointer: event.pointerId, x: event.clientX, y: event.clientY };
         },
         onPointerMove: (event) => {
             const swipe = from.current;
