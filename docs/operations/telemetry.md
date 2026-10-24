@@ -1439,6 +1439,13 @@ before the answer arrived is thrown away rather than flushed: a client that has 
 answer and records into the buffer described below, so an answer of off empties that buffer without ever addressing
 it. Turning it back on begins at that moment and reaches back over nothing.
 
+**The developer information surface is a view, not a recording.** While it is open it hears every occurrence the
+client could record, below the floor and whatever the switch says, together with the requests on the wire and what
+the page measured about itself, and draws them. Nothing it hears leaves the page, is written anywhere, or survives
+its closing, and while it is closed it hears nothing at all. It is unlocked from the version line in *Settings* and
+forgotten on reload, and because it is a developer's tool it shows the identifiers of the person, their accounts,
+their runs, and their requests. It never shows what anybody wrote or was sent.
+
 **A deployment that takes no telemetry from a client offers no switch.** That is one that forwards none at all, one
 whose settings policy holds this person's switch off, and one that cannot say on this replica what governs them. Each
 answers [`"telemetry": "off"` on the session route](client-endpoint.md#the-session-route); the client stops recording

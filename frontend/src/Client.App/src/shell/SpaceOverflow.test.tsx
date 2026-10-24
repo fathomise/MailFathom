@@ -31,6 +31,7 @@ function renderOverflow(
                     current={current}
                     account={<button>{handedTheAccount}</button>}
                     refresh={<button>{handedTheRefresh}</button>}
+                    developer={null}
                 />
             </ScreenLayersContext>
         </LocalizationProvider>,

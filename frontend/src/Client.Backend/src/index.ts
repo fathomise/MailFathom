@@ -499,6 +499,9 @@ export {
 export {
     defaultTelemetryLevel,
     isDeploymentTelemetryLevel,
+    noticeClientEvent,
+    observeClientEvents,
+    recordClientEvent,
     recordDownTo,
     severityOf,
     telemetryEndpoints,
@@ -506,7 +509,9 @@ export {
     worthRecording,
     writeClientEvent,
     type ClientEvent,
+    type ClientEventObserver,
     type ClientEventRecord,
+    type ObservedClientEvent,
     type DeploymentTelemetryLevel,
 } from './telemetry';
 export {

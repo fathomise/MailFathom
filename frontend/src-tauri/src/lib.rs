@@ -70,6 +70,7 @@
 mod credentials;
 mod notifications;
 mod redirects;
+mod windows;
 
 use std::collections::HashMap;
 use tauri::Manager;
@@ -256,10 +257,13 @@ pub fn run() {
     let shell = shell.plugin(tauri_plugin_notification::init());
 
     // A click is answered from the moment the shell is set up, because the plugin reports one only for a notification
-    // raised while something was already listening. `notifications.rs` holds what the answer is.
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    // raised while something was already listening. `notifications.rs` holds what the answer is. The main window is
+    // built here too rather than by the configuration, for the reason `windows.rs` gives.
     let shell = shell.setup(|app| {
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         notifications::answer_clicks(app.handle());
+
+        windows::open_main(app)?;
 
         Ok(())
     });

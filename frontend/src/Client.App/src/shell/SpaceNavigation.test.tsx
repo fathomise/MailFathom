@@ -36,6 +36,7 @@ function renderNavigation(offered: readonly Space[] = spaces, current: Space | n
                 account={<button>{handedTheAccount}</button>}
                 notifications={<button>{handedTheBell}</button>}
                 refresh={<button>{handedTheRefresh}</button>}
+                developer={null}
                 onPointerDown={() => undefined}
                 onClickCapture={() => undefined}
             />

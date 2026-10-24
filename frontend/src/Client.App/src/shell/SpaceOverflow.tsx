@@ -32,6 +32,7 @@ export function SpaceOverflow({
     current,
     account,
     refresh,
+    developer,
 }: {
     /** The spaces the bar had no place for, which this offers in the order the design lists them. */
     readonly spaces: readonly Space[];
@@ -48,6 +49,9 @@ export function SpaceOverflow({
      * is reached rather than squeezed in beside them.
      */
     readonly refresh: ReactNode;
+
+    /** The control that opens the developer information surface, where Settings has unlocked it. */
+    readonly developer: ReactNode;
 }) {
     const { translate } = useLocalization();
 
@@ -102,6 +106,7 @@ export function SpaceOverflow({
                     ))}
 
                     <div className="mt-1 flex flex-col gap-1 border-t border-line-soft pt-2">
+                        {developer}
                         {refresh}
                         {account}
                     </div>

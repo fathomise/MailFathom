@@ -28,6 +28,9 @@ import { Containment } from './containment/Containment';
 import { BrandMark } from './controls/BrandMark';
 import { PlannedControl } from './controls/PlannedControl';
 import { VersionLine } from './controls/VersionLine';
+import { DeveloperInformation } from './developerInformation/DeveloperInformation';
+import { DeveloperInformationButton } from './developerInformation/DeveloperInformationButton';
+import type { DeveloperContext } from './developerInformation/DeveloperSections';
 import {
     forgetDeployment,
     storeDeployment,
@@ -520,6 +523,28 @@ export function App({
     // that turns out to take none refuses a batch of them.
     const telemetryLevel = deploymentSession?.telemetryLevel ?? null;
     const telemetryPermitted = preferences.telemetryEnabled && telemetryLevel !== 'off';
+
+    // What the developer information surface reads about this session beside its own record. A value per render
+    // rather than a memo, because the surface reads it again every second anyway and nothing keys on it.
+    const developerContext: DeveloperContext = {
+        deploymentAddress: baseAddress,
+        deploymentVersion: deploymentSession?.version ?? null,
+        permissions: deploymentSession?.permissions ?? [],
+        telemetryLevel,
+        telemetryAllowed: telemetryPermitted,
+        person,
+        credential:
+            kept !== null
+                ? { kind: 'session', expiresAt: kept.expiresAt, issuer: null }
+                : grant !== null
+                  ? { kind: 'grant', expiresAt: grant.expiresAt, issuer: grant.issuer }
+                  : null,
+        reachable: connection.online,
+        synchronizationEnabled:
+            connection.accounts?.outcome === 'read' ? connection.accounts.value.synchronizationEnabled : null,
+        accounts: mailAccounts,
+        space,
+    };
 
     // Which session has already been reported as having begun, so that it is reported once however many times this
     // effect runs. It runs again whenever the permission changes, and the permission is false until the deployment has
@@ -1472,6 +1497,7 @@ export function App({
                                                                                 // would press it for nothing.
                                                                                 readsMail ? <Refresh /> : null
                                                                             }
+                                                                            developer={<DeveloperInformationButton />}
                                                                             notifications={
                                                                                 // Offered on the grant the routes are admitted under, and absent
                                                                                 // rather than inert without it: a bell that could never answer is
@@ -1527,6 +1553,10 @@ export function App({
                                                                                 swipe={swipe}
                                                                             />
                                                                         ) : null}
+
+                                                                        <DeveloperInformation
+                                                                            context={developerContext}
+                                                                        />
                                                                     </div>
                                                                 </AgentHandOverContext>
                                                             </OpenAttachmentContext>

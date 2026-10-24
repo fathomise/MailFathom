@@ -7,11 +7,12 @@ import { metrics, trace } from '@opentelemetry/api';
 import { SeverityNumber } from '@opentelemetry/api-logs';
 import {
     defaultTelemetryLevel,
+    noticeClientEvent,
+    recordClientEvent,
     recordDownTo,
     severityOf,
     telemetryName,
     worthRecording,
-    writeClientEvent,
     type ClientEvent,
     type ClientSession,
     type DeploymentTelemetryLevel,
@@ -211,14 +212,17 @@ export function clientTelemetryForThisApplication(): ClientTelemetry {
         attributes: Readonly<Record<string, string | number>>,
         severity = severityOf[event],
     ): void {
+        const at = performance.timeOrigin + performance.now();
+
+        // Noticed before either gate, because the observer is told what happened rather than what was recorded.
+        noticeClientEvent({ event, attributes, severity, at });
+
         if (!worthRecording(severity)) {
             return;
         }
 
-        const at = performance.timeOrigin + performance.now();
-
         record(() => {
-            writeClientEvent({ event, attributes, severity, at });
+            recordClientEvent({ event, attributes, severity, at });
         });
     }
 

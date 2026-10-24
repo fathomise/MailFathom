@@ -39,6 +39,7 @@ export function SpaceNavigation({
     account,
     notifications,
     refresh,
+    developer,
     onPointerDown,
     onClickCapture,
 }: {
@@ -55,6 +56,9 @@ export function SpaceNavigation({
 
     /** The control that reads again what the client is already showing, which stands above the bell for the same reason. */
     readonly refresh: ReactNode;
+
+    /** The control that opens the developer information surface, which draws nothing until Settings has unlocked it. */
+    readonly developer: ReactNode;
 
     /**
      * What an upward swipe anywhere on the bar begins, which is the second way into the notification centre on a
@@ -121,6 +125,7 @@ export function SpaceNavigation({
                 draws and what leaves the bar five items wide however many spaces the session offers. */}
             {wide ? (
                 <div className="mt-auto flex flex-none flex-col items-center justify-center gap-3.5 pt-3">
+                    {developer}
                     {refresh}
                     {notifications}
                     {account}
@@ -128,7 +133,13 @@ export function SpaceNavigation({
             ) : (
                 <>
                     {notifications}
-                    <SpaceOverflow spaces={behindMore} current={current} account={account} refresh={refresh} />
+                    <SpaceOverflow
+                        spaces={behindMore}
+                        current={current}
+                        account={account}
+                        refresh={refresh}
+                        developer={developer}
+                    />
                 </>
             )}
         </nav>

@@ -13,6 +13,7 @@ import { attachmentExchange, AttachmentExchangeContext } from './deployment/atta
 import { AttachmentUploadContext, uploadAttachment } from './deployment/attachmentUpload';
 import { portraitExchange } from './deployment/portraitExchange';
 import { transportForThisRun } from './deployment/transportForThisRun';
+import { watchedSignalChannel, watchedSignalSchedule } from './developerInformation/developerRecord';
 import { LocalizationProvider } from './localization/Localization';
 import { configuredConnection } from './shellOperations/configuredConnection';
 import { LinkOpenerContext, linkOpenerForThisApplication } from './shellOperations/linkOpener';
@@ -123,12 +124,12 @@ async function open(root: HTMLElement): Promise<void> {
                                                     <App
                                                         credentials={credentials}
                                                         deployment={deployment}
-                                                        openSignals={openSignalChannel}
+                                                        openSignals={watchedSignalChannel(openSignalChannel)}
                                                         portraits={portraitExchange}
                                                         send={send}
                                                         redirect={redirect}
                                                         redirectAnswer={redirectAnswer}
-                                                        signalSchedule={browserSchedule}
+                                                        signalSchedule={watchedSignalSchedule(browserSchedule)}
                                                         signedInWith={signedInWith}
                                                         signedInWithGrant={signedInWithGrant}
                                                     />

@@ -14,6 +14,7 @@ import { PersonAvatar } from '../controls/PersonAvatar';
 import { Switch } from '../controls/Switch';
 import { VersionLine } from '../controls/VersionLine';
 import type { TelemetryForwarding } from '../deployment/telemetryForwarding';
+import { pressVersionLine } from '../developerInformation/developerAccess';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useScreenLayer } from '../shell/screenLayers';
@@ -228,6 +229,7 @@ export function Settings({
                     <VersionLine
                         deploymentVersion={deploymentVersion}
                         className="border-t border-line bg-sunken px-4 py-2.5 text-center text-sm text-faint"
+                        onPress={pressVersionLine}
                     />
                 </>
             )}
@@ -331,7 +333,8 @@ function SettingsNavigation({
 
             <VersionLine
                 deploymentVersion={deploymentVersion}
-                className="mt-auto truncate px-3 pt-3 pb-0.5 text-sm text-faint"
+                className="mt-auto truncate px-3 pt-3 pb-0.5 text-start text-sm text-faint"
+                onPress={pressVersionLine}
             />
         </nav>
     );

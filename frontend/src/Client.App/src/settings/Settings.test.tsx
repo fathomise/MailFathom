@@ -2,10 +2,11 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { act, fireEvent, render, screen, within, type RenderResult } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen, within, type RenderResult } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { largestPortraitOctets } from '@mailfathom/client-backend';
 import type { TelemetryForwarding } from '../deployment/telemetryForwarding';
+import { lockDeveloperInformation, pressesToUnlock, useDeveloperAccess } from '../developerInformation/developerAccess';
 import { LocalizationProvider } from '../localization/Localization';
 import { chooseSystemNotifications } from '../preferences/systemNotifications';
 import { TelemetryContext, noTelemetry, type ClientTelemetry } from '../telemetry/clientTelemetry';
@@ -631,7 +632,7 @@ describe('Settings', () => {
             const navigation = within(screen.getByRole('navigation', { name: 'Settings sections' }));
 
             expect(screen.queryByRole('tablist')).toBeNull();
-            expect(navigation.getAllByRole('button').map((button) => button.textContent)).toEqual([
+            expect(navigation.getAllByRole('listitem').map((section) => section.textContent)).toEqual([
                 'Profile',
                 'Notifications',
                 'Application',
@@ -672,7 +673,7 @@ describe('Settings', () => {
 
             const navigation = within(screen.getByRole('navigation', { name: 'Settings sections' }));
 
-            expect(navigation.getAllByRole('button').map((button) => button.textContent)).toEqual(['Application']);
+            expect(navigation.getAllByRole('listitem').map((section) => section.textContent)).toEqual(['Application']);
             expect(navigation.queryByText('You')).toBeNull();
             expect(screen.getByRole('region', { name: 'Profile' })).toBeDefined();
         });
@@ -687,7 +688,7 @@ describe('Settings', () => {
 
             expect(screen.getByText('No section matches.')).toBeDefined();
             expect(
-                within(screen.getByRole('navigation', { name: 'Settings sections' })).queryAllByRole('button'),
+                within(screen.getByRole('navigation', { name: 'Settings sections' })).queryAllByRole('listitem'),
             ).toHaveLength(0);
         });
 
@@ -698,6 +699,22 @@ describe('Settings', () => {
             expect(
                 within(screen.getByRole('navigation', { name: 'Settings sections' })).getByText(/server 0\.9\.0/u),
             ).toBeDefined();
+        });
+
+        it('unlocks the developer information surface after a quick run of presses on what is running', () => {
+            theCompositionHasTwoPanes();
+            renderSettings({ deploymentVersion: '0.9.0' });
+
+            const running = within(screen.getByRole('navigation', { name: 'Settings sections' })).getByRole('button', {
+                name: /server 0\.9\.0/u,
+            });
+
+            for (let press = 0; press < pressesToUnlock; press += 1) {
+                fireEvent.click(running);
+            }
+
+            expect(renderHook(() => useDeveloperAccess()).result.current.unlocked).toBe(true);
+            lockDeveloperInformation();
         });
     });
 

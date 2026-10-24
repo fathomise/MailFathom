@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { context, metrics, SpanStatusCode, trace } from '@opentelemetry/api';
+import { context, isSpanContextValid, metrics, SpanStatusCode, trace } from '@opentelemetry/api';
 import { logs, SeverityNumber } from '@opentelemetry/api-logs';
 import type { ClientFailureReason, ClientResult } from './failure';
 import { routeFor, type DeploymentAddress } from './session';
@@ -269,12 +269,52 @@ export interface ClientEventRecord {
     readonly at?: number;
 }
 
+/** One record as something inside this process observes it: stamped, and joined to the trace it was written under. */
+export interface ObservedClientEvent extends ClientEventRecord {
+    readonly at: number;
+
+    /** The trace the occurrence belongs to, where a recording one stood — which is never the case before a sign-in. */
+    readonly traceId?: string;
+}
+
+/** What hears every occurrence, before the floor and before the person's switch decide whether it is recorded. */
+export type ClientEventObserver = (record: ObservedClientEvent) => void;
+
+// One observer rather than a list, because there is one thing that listens — the developer information surface — and
+// it never leaves the process: what it hears is held in memory and drawn, and nothing it holds is recorded or exported.
+let observer: ClientEventObserver | null = null;
+
+/** States what hears every occurrence from now on, or `null` for nothing. */
+export function observeClientEvents(next: ClientEventObserver | null): void {
+    observer = next;
+}
+
 /**
- * Writes one record, unless the deployment asked for nothing that quiet.
+ * Hands one occurrence to the observer, whether or not it is going to be recorded.
+ *
+ * It is separate from {@link recordClientEvent} because the application decides whether to record on its own terms —
+ * the person's switch, and a queue behind its pipeline — and an occurrence it refuses is still one that happened.
+ */
+export function noticeClientEvent(record: ClientEventRecord, traceId?: string): void {
+    observer?.({ ...record, at: record.at ?? Date.now(), ...(traceId === undefined ? {} : { traceId }) });
+}
+
+/**
+ * Hands one record to the observer and writes it, unless the deployment asked for nothing that quiet.
  *
  * @param record What happened.
  */
 export function writeClientEvent(record: ClientEventRecord): void {
+    noticeClientEvent(record);
+    recordClientEvent(record);
+}
+
+/**
+ * Writes one record, unless the deployment asked for nothing that quiet, without handing it to the observer.
+ *
+ * @param record What happened, which whoever calls this has already noticed.
+ */
+export function recordClientEvent(record: ClientEventRecord): void {
     const severity = record.severity ?? severityOf[record.event];
 
     if (!worthRecording(severity)) {
@@ -377,10 +417,14 @@ export async function reported<TOutcome>(
         // order, and where the sequence stopped making sense — which is the account somebody reporting a stuck screen
         // cannot give. A failure is a record of its own and one level above the rest, because the interesting requests
         // are rare enough to be worth having without the stream around them.
-        writeClientEvent({
+        const occurrence: ClientEventRecord = {
             event: failure === null ? 'request_completed' : 'request_failed',
             attributes: { ...outcome, 'mailfathom.client.request.duration_ms': Date.now() - startedAt },
-        });
+        };
+        const spanContext = span.spanContext();
+
+        noticeClientEvent(occurrence, isSpanContextValid(spanContext) ? spanContext.traceId : undefined);
+        recordClientEvent(occurrence);
 
         return answer;
     } finally {
