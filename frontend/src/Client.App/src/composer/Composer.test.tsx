@@ -1989,7 +1989,7 @@ describe('Composer, the context it drafts from', () => {
             true,
         );
 
-        expect(await screen.findByRole('button', { name: 'Remove from the context' })).toBeDefined();
+        expect(await screen.findByRole('button', { name: 'Remove Quarterly invoice from the context' })).toBeDefined();
         expect(await screen.findByText('Quarterly invoice')).toBeDefined();
 
         cleanup();
@@ -2026,11 +2026,11 @@ describe('Composer, the context it drafts from', () => {
             true,
         );
 
-        await screen.findByRole('button', { name: 'Remove from the context' });
+        await screen.findByRole('button', { name: 'Remove Quarterly invoice from the context' });
         point({ selected: ['listed-1', 'listed-2'] });
 
         expect(await screen.findByRole('img', { name: 'The context changed since you started' })).toBeDefined();
-        expect(screen.getAllByRole('button', { name: 'Remove from the context' })).toHaveLength(2);
+        expect(screen.getAllByRole('button', { name: /^Remove .+ from the context$/ })).toHaveLength(2);
         expect(
             screen.getByText(
                 'This message started from “Quarterly invoice” - the context has changed since. Check it before the AI drafts.',
@@ -2055,12 +2055,12 @@ describe('Composer, the context it drafts from', () => {
             true,
         );
 
-        await screen.findByRole('button', { name: 'Remove from the context' });
+        await screen.findByRole('button', { name: 'Remove Quarterly invoice from the context' });
         point({ selection: 'listed-1' });
         fireEvent.click(await screen.findByRole('button', { name: 'Restore' }));
 
         expect(screen.queryByRole('img', { name: 'The context changed since you started' })).toBeNull();
-        expect(screen.getAllByRole('button', { name: 'Remove from the context' })).toHaveLength(1);
+        expect(screen.getAllByRole('button', { name: /^Remove .+ from the context$/ })).toHaveLength(1);
     });
 
     it('warns once a message is taken out of where it started', async () => {
@@ -2073,7 +2073,7 @@ describe('Composer, the context it drafts from', () => {
             true,
         );
 
-        fireEvent.click(await screen.findByRole('button', { name: 'Remove from the context' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Remove Quarterly invoice from the context' }));
 
         expect(screen.getByRole('img', { name: 'The context changed since you started' })).toBeDefined();
     });
@@ -2084,6 +2084,6 @@ describe('Composer, the context it drafts from', () => {
         await screen.findByText('none - the AI drafts from what you write above');
         point({ selection: 'listed-1' });
 
-        expect(screen.queryByRole('button', { name: 'Remove from the context' })).toBeNull();
+        expect(screen.queryByRole('button', { name: /^Remove .+ from the context$/ })).toBeNull();
     });
 });

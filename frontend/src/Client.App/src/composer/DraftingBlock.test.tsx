@@ -71,7 +71,7 @@ describe('DraftingBlock', () => {
     it('takes a message out of the context from its chip', () => {
         const { removed } = drawBlock();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Remove from the context' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Remove Quarterly invoice from the context' }));
 
         expect(removed).toHaveBeenCalledExactlyOnceWith('m1');
     });
@@ -80,7 +80,7 @@ describe('DraftingBlock', () => {
         drawBlock(false, { context: [] });
 
         expect(screen.getByText('none yet - click a message in the list to draft from it')).toBeDefined();
-        expect(screen.queryByRole('button', { name: 'Remove from the context' })).toBeNull();
+        expect(screen.queryByRole('button', { name: /^Remove .+ from the context$/ })).toBeNull();
     });
 
     it('marks a context that changed in the field and in words, and offers the way back', () => {

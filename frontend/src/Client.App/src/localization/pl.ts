@@ -905,7 +905,7 @@ export const pl: Catalogue = {
     'compose.aiContextNone': 'na razie brak - kliknij wiadomość na liście, aby pisać na jej podstawie',
     'compose.aiContextNoneHere': 'brak - AI pisze na podstawie tego, co wpiszesz powyżej',
     'compose.aiContextReading': 'Wczytuj\u0119\u2026',
-    'compose.aiContextRemove': 'Usuń z kontekstu',
+    'compose.aiContextRemove': 'Usuń {subject} z kontekstu',
     'compose.aiContextChanged': 'Kontekst zmienił się od początku pisania',
     'compose.aiContextStartedFrom':
         'Ta wiadomość zaczęła się od \u201e{subject}\u201d - kontekst od tego czasu się zmienił. Sprawdź go, zanim AI napisze szkic.',

@@ -890,7 +890,7 @@ export const en = {
     'compose.aiContextNone': 'none yet - click a message in the list to draft from it',
     'compose.aiContextNoneHere': 'none - the AI drafts from what you write above',
     'compose.aiContextReading': 'Reading\u2026',
-    'compose.aiContextRemove': 'Remove from the context',
+    'compose.aiContextRemove': 'Remove {subject} from the context',
     'compose.aiContextChanged': 'The context changed since you started',
     'compose.aiContextStartedFrom':
         'This message started from \u201c{subject}\u201d - the context has changed since. Check it before the AI drafts.',

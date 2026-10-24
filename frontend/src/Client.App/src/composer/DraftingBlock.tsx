@@ -253,7 +253,7 @@ export function DraftingBlock({
                         <span className="min-w-0 truncate">{message.subject}</span>
 
                         <SymbolControl
-                            label={translate('compose.aiContextRemove')}
+                            label={translate('compose.aiContextRemove', { subject: message.subject })}
                             className="flex shrink-0 items-center justify-center rounded-xs text-muted transition hover:bg-hover hover:text-text pointer-coarse:size-8"
                             onPress={() => {
                                 onRemove(message.storedEmailId);

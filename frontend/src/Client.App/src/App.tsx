@@ -209,6 +209,7 @@ export function App({
     const [written, setWritten] = useState<ComposerOpening | null>(null);
     const [blockedOn, setBlockedOn] = useState<BlockingOperation | null>(null);
     const askedFrom = useRef<HTMLElement | null>(null);
+    const [focusReturnsUnder, setFocusReturnsUnder] = useState<string | null>(null);
     const focusedFor = useRef(signedInAs);
 
     // Built once per address and credential rather than per render, because it is what the message read below depends
@@ -452,13 +453,20 @@ export function App({
                 // threaded through each of them.
                 askedFrom.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
+                setFocusReturnsUnder(null);
                 setWritten(writesMail ? asked : null);
             },
             close: (handFocusBack: boolean) => {
                 setWritten(null);
 
                 if (handFocusBack) {
-                    askedFrom.current?.focus();
+                    if (askedFrom.current?.isConnected === true) {
+                        askedFrom.current.focus();
+                    } else if (written?.kind === 'answer' && written.drafting !== undefined) {
+                        // The drafter that asked went with the reading column the composer stood in, so the AI button
+                        // drawn under the same message again is what takes the keyboard back, once it is drawn.
+                        setFocusReturnsUnder(written.storedEmailId);
+                    }
                 }
 
                 askedFrom.current = null;
@@ -887,7 +895,17 @@ export function App({
     // the next.
     const readingFoot: ReadingFoot | null =
         written === null && asksMail && !workspace.panelsHidden && readingACorrespondence(workspace, inTabs)
-            ? (thread) => <ThreadAgentField key={workspace.selection} thread={thread} drafts={drafts} />
+            ? (thread) => (
+                  <ThreadAgentField
+                      key={workspace.selection}
+                      thread={thread}
+                      drafts={drafts}
+                      takesTheKeyboard={focusReturnsUnder !== null && focusReturnsUnder === workspace.selection}
+                      onKeyboardTaken={() => {
+                          setFocusReturnsUnder(null);
+                      }}
+                  />
+              )
             : null;
 
     // What the reading column holds: the empty state where somebody working in tabs has closed all of them, and what

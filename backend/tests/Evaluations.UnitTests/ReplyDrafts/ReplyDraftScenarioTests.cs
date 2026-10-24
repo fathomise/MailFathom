@@ -140,8 +140,12 @@ public sealed class ReplyDraftScenarioTests : IDisposable
                 AnswersCorrespondent: scenario.Conversation[^1].Sender != CorpusMailbox.OwnerAddress,
                 Wrote: wrote,
                 Numbered: sources.Participants.Select(static person => person.Address.NormalizedAddress).Order(StringComparer.Ordinal).ToArray(),
-                Answered: scenario.Context.All(conversation =>
-                    sources.Messages.Any(message => message.StoredEmailId == conversation[^1].Id)));
+                // One conversation is answered at its end, which is where the merge has to leave it; several are each
+                // somewhere in one correspondence, whose order the test below holds.
+                Answered: scenario.Context.Count is 1
+                    ? sources.Messages[^1].StoredEmailId == scenario.Conversation[^1].Id
+                    : scenario.Context.All(conversation =>
+                        sources.Messages.Any(message => message.StoredEmailId == conversation[^1].Id)));
         });
 
         // Assert

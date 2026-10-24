@@ -22,9 +22,9 @@ namespace MailFathom.Infrastructure.Persistence.ReplyDrafts;
 /// query names the columns a drafting is shown, and no row enters the change tracker on a path that only reads.
 /// </para>
 /// <para>
-/// The answered message decides everything. Its conversation is what the reply is grounded in, and its account is the
-/// only one whose sent mail is read for a manner — asking the caller for either would let a reply be written in one
-/// person's voice out of another's correspondence.
+/// The context message decides its own conversation and account. Its conversation is what the reply is grounded in,
+/// and its account is the only one whose sent mail is read for a manner — asking the caller for either would let a reply
+/// be written in one person's voice out of another's correspondence.
 /// </para>
 /// <para>
 /// The style read is inside the caller's scope like every other read here, so a deployment that withholds the sent
@@ -41,7 +41,7 @@ internal sealed class ReplyDraftSourceStore(
 {
     /// <inheritdoc />
     public async Task<ReplyDraftSources?> ReadSourcesAsync(
-        StoredEmailId answeredEmailId,
+        StoredEmailId contextEmailId,
         MailboxScope scope,
         ReplyDraftBounds bounds,
         CancellationToken cancellationToken)
@@ -49,19 +49,19 @@ internal sealed class ReplyDraftSourceStore(
         ArgumentNullException.ThrowIfNull(scope);
         ArgumentNullException.ThrowIfNull(bounds);
 
-        var answered = await this.Readable(scope)
-            .Where(email => email.Id == answeredEmailId.Value)
-            .Select(email => new AnsweredEmailRow(email.MailboxAccountId, email.EmailThreadId))
+        var contextMessage = await this.Readable(scope)
+            .Where(email => email.Id == contextEmailId.Value)
+            .Select(email => new ContextEmailRow(email.MailboxAccountId, email.EmailThreadId))
             .SingleOrDefaultAsync(cancellationToken);
 
-        if (answered is null)
+        if (contextMessage is null)
         {
             return null;
         }
 
         // The recent end of the conversation rather than its opening, because a reply answers where an exchange got to.
         // Ordering descending and reversing afterwards is what makes the bound cut the beginning rather than the end.
-        var recent = await MostRecent(this.ReadableWithText(scope, answered, answeredEmailId), bounds.MaximumMessages)
+        var recent = await MostRecent(this.ReadableWithText(scope, contextMessage, contextEmailId), bounds.MaximumMessages)
             .Select(email => new ConversationMessageRow(
                 email.Id,
                 email.Subject,
@@ -73,8 +73,8 @@ internal sealed class ReplyDraftSourceStore(
 
         return Assemble(
             recent,
-            this.SendingAddressOf(answered.MailboxAccountId),
-            await this.StyleSamplesAsync(scope, answered, bounds, cancellationToken));
+            this.SendingAddressOf(contextMessage.MailboxAccountId),
+            await this.StyleSamplesAsync(scope, contextMessage, bounds, cancellationToken));
     }
 
     /// <summary>Orders mail newest first, by when it was sent and then by identity, and keeps the most recent of it.</summary>
@@ -158,34 +158,34 @@ internal sealed class ReplyDraftSourceStore(
     private IQueryable<StoredEmailEntity> Readable(MailboxScope scope) =>
         StoredEmailSelectionPredicate.WithinScope(dbContext.StoredEmails.AsNoTracking(), scope);
 
-    /// <summary>Narrows that mail to the conversation being answered, and to the messages a body was extracted from.</summary>
+    /// <summary>Narrows that mail to the context message's conversation, and to the messages a body was extracted from.</summary>
     /// <remarks>
     /// A message whose body extraction has not reached it is in no turn, because a drafting shown a subject and nothing
-    /// else would write a reply to a message it never read. A message belonging to no conversation is answered on its
+    /// else would write a reply to a message it never read. A message belonging to no conversation is read on its
     /// own, which is the ordinary shape of a first message somebody replies to.
     /// </remarks>
     private IQueryable<StoredEmailEntity> ReadableWithText(
         MailboxScope scope,
-        AnsweredEmailRow answered,
-        StoredEmailId answeredEmailId)
+        ContextEmailRow contextMessage,
+        StoredEmailId contextEmailId)
     {
         var readable = this.Readable(scope)
             .Where(email => email.SearchDocument != null && email.SearchDocument.BodyText != null);
 
-        return answered.EmailThreadId is { } threadId
+        return contextMessage.EmailThreadId is { } threadId
             ? readable.Where(email => email.EmailThreadId == threadId)
-            : readable.Where(email => email.Id == answeredEmailId.Value);
+            : readable.Where(email => email.Id == contextEmailId.Value);
     }
 
     /// <summary>Reads the openings of the account's own recent sent mail, or nothing where this deployment derives no manner.</summary>
     /// <remarks>
-    /// The conversation being answered is left out of the sample. Its messages are already in the turn, and sending
+    /// The context message's conversation is left out of the sample. Its messages are already in the turn, and sending
     /// them twice would spend the request on text the drafting has, while making the person's own last reply the
     /// loudest example of how they write.
     /// </remarks>
     private async Task<IReadOnlyList<string>> StyleSamplesAsync(
         MailboxScope scope,
-        AnsweredEmailRow answered,
+        ContextEmailRow contextMessage,
         ReplyDraftBounds bounds,
         CancellationToken cancellationToken)
     {
@@ -194,16 +194,16 @@ internal sealed class ReplyDraftSourceStore(
             return [];
         }
 
-        var answeredThreadId = answered.EmailThreadId;
+        var contextThreadId = contextMessage.EmailThreadId;
 
         // The folder playing the sent role on the account, read off the folder itself, so a held account's sent folder
         // answers exactly as a mirrored one's does.
         return await MostRecent(
-                this.Readable(scope).Where(email => email.MailboxAccountId == answered.MailboxAccountId
+                this.Readable(scope).Where(email => email.MailboxAccountId == contextMessage.MailboxAccountId
                     && email.Folder.Role == MailFolderSpecialUse.Sent
                     && email.SearchDocument != null
                     && email.SearchDocument.BodyText != null
-                    && (answeredThreadId == null || email.EmailThreadId != answeredThreadId)),
+                    && (contextThreadId == null || email.EmailThreadId != contextThreadId)),
                 bounds.MaximumStyleMessages)
             .Select(email => email.SearchDocument!.BodyText!.Substring(0, bounds.MaximumStyleCharactersPerMessage))
             .ToArrayAsync(cancellationToken);
@@ -228,5 +228,5 @@ internal sealed class ReplyDraftSourceStore(
         DateTimeOffset? SentAt,
         string Text);
 
-    private sealed record AnsweredEmailRow(string MailboxAccountId, Guid? EmailThreadId);
+    private sealed record ContextEmailRow(string MailboxAccountId, Guid? EmailThreadId);
 }

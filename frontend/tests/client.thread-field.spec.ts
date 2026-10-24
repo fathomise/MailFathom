@@ -94,7 +94,7 @@ test('moves the reply’s context to a message clicked in the list, warns, and p
     await page.getByRole('button', { name: 'Restore', exact: true }).click();
 
     await expect(warning).toBeHidden();
-    await expect(page.getByRole('button', { name: 'Remove from the context' })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: /^Remove .+ from the context$/ })).toHaveCount(1);
 });
 
 // What is typed under one message is about that message, so opening another row of the list closes the drafter and

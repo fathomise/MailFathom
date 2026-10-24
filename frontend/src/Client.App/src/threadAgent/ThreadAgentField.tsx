@@ -47,12 +47,23 @@ const choiceShape =
 export function ThreadAgentField({
     thread,
     drafts,
+    takesTheKeyboard = false,
+    onKeyboardTaken,
 }: {
     /** The conversation as it is handed to the agent, or `null` where what is open belongs to none. */
     readonly thread: AgentHandOver | null;
 
     /** Whether this deployment drafts replies, which is what decides whether *Draft a reply* is offered at all. */
     readonly drafts: boolean;
+
+    /**
+     * Whether the AI button takes the keyboard as it is drawn, which is where a composer opened from the drafter hands it
+     * back: the drafter went with the reading column the composer stood in, and this button is what stands in its place.
+     */
+    readonly takesTheKeyboard?: boolean;
+
+    /** Called once the button has taken the keyboard, so it is taken once rather than on every later render. */
+    readonly onKeyboardTaken?: () => void;
 }) {
     const { translate } = useLocalization();
     const { workspace } = useWorkspace();
@@ -131,7 +142,8 @@ export function ThreadAgentField({
         setChoosing(false);
     }
 
-    // The composer takes the keyboard as it opens, so the card folding owes the button nothing.
+    // The composer takes the keyboard as it opens, so the card folding owes the button nothing; the composer closing owes
+    // it the keyboard back, which `takesTheKeyboard` carries because this field is drawn anew by then.
     function draftAReply(): void {
         if (composing === null || answering === null) {
             return;
@@ -243,9 +255,13 @@ export function ThreadAgentField({
                         ref={(element) => {
                             chooserName.anchor.ref(element);
 
-                            if (element !== null && buttonFocusOwed.current) {
+                            if (element !== null && (buttonFocusOwed.current || takesTheKeyboard)) {
                                 buttonFocusOwed.current = false;
                                 element.focus();
+
+                                if (takesTheKeyboard) {
+                                    onKeyboardTaken?.();
+                                }
                             }
                         }}
                         type="button"
