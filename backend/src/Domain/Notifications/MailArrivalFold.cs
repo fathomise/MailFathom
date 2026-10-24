@@ -5,6 +5,7 @@
 using System.Globalization;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 
 namespace MailFathom.Domain.Notifications;
 
@@ -142,7 +143,10 @@ public sealed record MailArrivalFold(
             occurredAt);
 
     // A sender's name and a subject are somebody else's text and nothing bounds their length, while the record's
-    // columns are bounded. The row is a headline rather than the message, so the end is cut and marked as cut.
+    // columns are bounded. The row is a headline rather than the message, so the end is cut and marked as cut — on a
+    // text-element boundary, since a cut through a surrogate pair is a string PostgreSQL refuses to store.
     private static string Shortened(string text, int maximumLength) =>
-        text.Length <= maximumLength ? text : string.Concat(text.AsSpan(0, maximumLength - 1), "…");
+        text.Length <= maximumLength
+            ? text
+            : MailTextBounds.TruncateAtTextElementBoundary(text, maximumLength - 1) + "…";
 }

@@ -1016,6 +1016,41 @@ describe('useNotificationCentre', () => {
         expect([...result.current.arrived]).toEqual(['n-merged']);
     });
 
+    it('counts an arrival once when its signals land after the count already rose by it', async () => {
+        const signalling = deploymentSaying();
+        const older = [
+            { ...mail, id: 'n-older-first' },
+            { ...mail, id: 'n-older-second' },
+        ];
+        const { transport, hold } = deployment({ unreadCount: 2, notifications: older });
+        const { result } = centreOf(transport, session, signalling.changes);
+
+        await settled();
+
+        const arriving = [
+            { ...mail, id: 'n-third' },
+            { ...mail, id: 'n-second' },
+            { ...mail, id: 'n-first' },
+        ];
+        const raised = {
+            kind: 'notification.raised',
+            notificationKind: 'Mail',
+            headline: 'Ada',
+            secondLine: 'Figures',
+            unreadCount: 5,
+        } as const;
+
+        hold(5, [...arriving, ...older]);
+        await act(async () => {
+            signalling.say(raised);
+            signalling.say(raised);
+            signalling.say(raised);
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        expect([...result.current.arrived]).toEqual(['n-third', 'n-second', 'n-first']);
+    });
+
     it('reads nothing about a signal that is not about a notification', async () => {
         const signalling = deploymentSaying();
         const held = { unreadCount: 1, notifications: [mail] };

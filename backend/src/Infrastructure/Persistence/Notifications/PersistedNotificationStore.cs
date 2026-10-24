@@ -363,12 +363,15 @@ internal sealed class PersistedNotificationStore(
             })
             .ToArrayAsync(cancellationToken);
 
+        // A stored email's identifier is a version 7 UUID minted when it was stored, so ordering by it is ordering by
+        // arrival, which is what lets the fold keep the newest when a merged row outgrows what it may name.
         var mergedIds = rows.Where(static row => row.Merged).Select(static row => row.Id).ToArray();
         var named = mergedIds.Length == 0
             ? []
             : await writeContext.NotificationNamedEmails
                 .AsNoTracking()
                 .Where(pair => mergedIds.Contains(pair.NotificationId))
+                .OrderBy(pair => pair.StoredEmailId)
                 .ToArrayAsync(cancellationToken);
         var namedByNotification = named.ToLookup(
             static pair => pair.NotificationId,

@@ -53,6 +53,21 @@ public sealed class MailArrivalFoldTests
         Assert.EndsWith("…", title, StringComparison.Ordinal);
     }
 
+    /// <summary>A cut that would fall inside a surrogate pair stops before it, so no lone half reaches the store.</summary>
+    [Fact]
+    public void Decide_SenderNameCutThroughASurrogatePair_CutsBeforeThePair()
+    {
+        // Arrange
+        var keptPrefix = new string('a', Notification.MaximumTitleLength - 2);
+        var email = new ArrivedEmail(StoredEmailId.Create(Guid.NewGuid()), keptPrefix + "\U0001F600tail", "Subject");
+
+        // Act
+        var fold = MailArrivalFold.Decide(User, Account, [], [email], ArrivedAt);
+
+        // Assert
+        Assert.Equal(keptPrefix + "…", Assert.Single(fold.Raised).Notification.Title);
+    }
+
     /// <summary>A message a merged notification already names is not news again, so its second report changes nothing.</summary>
     [Fact]
     public void Decide_ArrivalAMergedNotificationAlreadyNames_ChangesNothing()

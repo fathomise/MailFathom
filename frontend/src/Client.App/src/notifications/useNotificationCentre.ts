@@ -103,6 +103,18 @@ interface Counted {
 }
 
 /**
+ * What the count says arrived since the page was last read: how far it rose, and how many raises the deployment
+ * signalled. Each undercounts in its own case — a merge lowers the count, and several rows written together are one
+ * signal — so what arrived is the larger of the two rather than their sum, which would count one arrival twice once a
+ * poll and its signal both saw it.
+ */
+interface Risen {
+    readonly session: ClientSession;
+    readonly measured: number;
+    readonly raised: number;
+}
+
+/**
  * Holds the centre for as long as one credential does.
  *
  * @param session Who is asking, or `null` where nobody is signed in or the credential may not read mail.
@@ -137,10 +149,10 @@ export function useNotificationCentre(
     // and setting it must not start a read of its own.
     const quietly = useRef(false);
 
-    // How far the count rose since the page was last asked for, handed from the count that saw it to the read it asks
+    // What arrived since the page was last asked for, handed from the count that saw it to the read it asks
     // for. It is what an arrival is measured by where this client has drawn no page to compare against — which is every
     // session until somebody opens the panel — and it is a ref for the reason the flag above is.
-    const risen = useRef<Counted | null>(null);
+    const risen = useRef<Risen | null>(null);
 
     // What has already been drawn or announced, so an arrival is a notification this client has not seen rather than
     // one it has stopped showing. A ref because nothing on the screen is drawn from it, and it must not restart the
@@ -205,8 +217,8 @@ export function useNotificationCentre(
             }
 
             const before = counted.current?.session === session ? counted.current.count : null;
-            const rise = Math.max(before === null ? 0 : answer.value - before, raised);
-            const rose = rise > 0;
+            const measured = before === null ? 0 : Math.max(0, answer.value - before);
+            const rose = measured > 0 || raised > 0;
 
             counted.current = { session, count: answer.value };
             setUnreadCount(answer.value);
@@ -215,9 +227,13 @@ export function useNotificationCentre(
             // landing, and a count that did not move is the ordinary poll — neither is anything a reader has to be told
             // about.
             if (rose && asksForThePage) {
-                const alreadyRisen = risen.current?.session === session ? risen.current.count : 0;
+                const standing = risen.current?.session === session ? risen.current : null;
 
-                risen.current = { session, count: alreadyRisen + rise };
+                risen.current = {
+                    session,
+                    measured: (standing?.measured ?? 0) + measured,
+                    raised: (standing?.raised ?? 0) + raised,
+                };
                 setAsked((token) => token + 1);
             }
         }
@@ -389,7 +405,8 @@ export function useNotificationCentre(
         quietly.current = false;
 
         // Spent only by a read that lands: one refused or superseded leaves it for the read after it.
-        const risenBy = risen.current?.session === session ? risen.current.count : 0;
+        const taken = risen.current?.session === session ? risen.current : null;
+        const risenBy = Math.max(taken?.measured ?? 0, taken?.raised ?? 0);
 
         setReading(known.current?.session !== session);
 
@@ -412,9 +429,14 @@ export function useNotificationCentre(
 
             const page = answer.value.notifications;
             const seen = known.current?.session === session ? known.current.ids : null;
-            const stillRisen = (risen.current?.session === session ? risen.current.count : 0) - risenBy;
+            const standing = risen.current?.session === session ? risen.current : null;
+            const stillMeasured = (standing?.measured ?? 0) - (taken?.measured ?? 0);
+            const stillRaised = (standing?.raised ?? 0) - (taken?.raised ?? 0);
 
-            risen.current = stillRisen > 0 ? { session, count: stillRisen } : null;
+            risen.current =
+                stillMeasured > 0 || stillRaised > 0
+                    ? { session, measured: Math.max(0, stillMeasured), raised: Math.max(0, stillRaised) }
+                    : null;
 
             // What arrived is what the last page did not hold. Where no page has been drawn yet, the count is the only
             // thing this client measured before, and it rose by exactly the rows that arrived — which a centre read
