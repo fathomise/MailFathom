@@ -49,6 +49,7 @@ internal sealed record MailBodyCleanupCase(string Name, Func<CorpusMessage> Read
         Hostile("Hostile.Disclosure", static () => HostileMail.Disclosure[^1], "The 40 boxes of A4 paper leave our warehouse"),
         Hostile("Hostile.OwnerImpersonation", static () => HostileMail.OwnerImpersonation[^1], "The Kestrel Settlement transfer is reference KS-2046"),
         Hostile("Hostile.StructureImitation", static () => HostileMail.StructureImitation[^1], "The archive shelving arrives on Tuesday, 13 October 2026"),
+        Hostile("Hostile.ForgedAsk", static () => HostileMail.ForgedAsk[^1], "I can confirm that unit G-118 renews on 31 July 2026"),
     ];
 
     /// <summary>Gets the message the body belongs to.</summary>
