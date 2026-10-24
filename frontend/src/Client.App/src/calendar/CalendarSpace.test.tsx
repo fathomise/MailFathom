@@ -5,6 +5,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
+import { swipeDistance } from '../controls/swipeAcross';
 import { LocalizationProvider } from '../localization/Localization';
 import { CalendarSpace } from './CalendarSpace';
 
@@ -143,6 +144,13 @@ function deployment({
     };
 }
 
+/** A finger landing on what the tabs show and swiped a whole swipe to the left. */
+function swipeLeftAcross(surface: Element): void {
+    fireEvent.pointerDown(surface, { pointerId: 1, pointerType: 'touch', clientX: 300, clientY: 200 });
+    fireEvent.pointerMove(surface, { pointerId: 1, pointerType: 'touch', clientX: 300 - swipeDistance, clientY: 200 });
+    fireEvent.pointerUp(surface, { pointerId: 1, pointerType: 'touch', clientX: 300 - swipeDistance, clientY: 200 });
+}
+
 function drawSpace(transport: MailFathomTransport, onOpenMessage = vi.fn()): void {
     render(
         <LocalizationProvider>
@@ -215,6 +223,15 @@ describe('CalendarSpace', () => {
         expect(windowsAsked(sent())[1]?.path).toContain(
             `from=${encodeURIComponent(new Date(2026, 7, 31).toISOString())}`,
         );
+    });
+
+    it('steps to the next view when a finger is swiped to the left across the calendar', async () => {
+        const { transport } = deployment();
+        drawSpace(transport);
+
+        swipeLeftAcross(await screen.findByRole('option', { name: /Review with Anna/u }));
+
+        expect(screen.getByRole('radio', { name: 'Month', checked: true })).toBeDefined();
     });
 
     it('draws the week as an agenda below the width seven columns need, and says that is what it did', async () => {

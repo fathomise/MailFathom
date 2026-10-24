@@ -6,6 +6,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Contact } from '@mailfathom/client-backend';
 import { ComposingContext, type Composing } from '../composer/useComposing';
+import { swipeDistance } from '../controls/swipeAcross';
 import { LocalizationProvider } from '../localization/Localization';
 import { ContactBook } from './ContactBook';
 import type { ContactBookInForce, ContactBookName } from './useContactBook';
@@ -21,6 +22,13 @@ function personCalled(id: string, displayName: string): Contact {
         recordedAt: '2026-08-31T09:41:00+00:00',
         amendedAt: '2026-08-31T09:41:00+00:00',
     };
+}
+
+/** A finger landing on what the tabs show and swiped a whole swipe to the left. */
+function swipeLeftAcross(surface: Element): void {
+    fireEvent.pointerDown(surface, { pointerId: 1, pointerType: 'touch', clientX: 300, clientY: 200 });
+    fireEvent.pointerMove(surface, { pointerId: 1, pointerType: 'touch', clientX: 300 - swipeDistance, clientY: 200 });
+    fireEvent.pointerUp(surface, { pointerId: 1, pointerType: 'touch', clientX: 300 - swipeDistance, clientY: 200 });
 }
 
 const anna = personCalled('anna', 'Anna Kowalska');
@@ -112,6 +120,15 @@ describe('ContactBook', () => {
         drawBook({ onBook });
 
         fireEvent.click(screen.getByRole('radio', { name: 'Collected' }));
+
+        expect(onBook).toHaveBeenCalledWith('collected');
+    });
+
+    it('asks for the next book when a finger is swiped to the left across the people', () => {
+        const onBook = vi.fn();
+        drawBook({ onBook });
+
+        swipeLeftAcross(screen.getByRole('listbox'));
 
         expect(onBook).toHaveBeenCalledWith('collected');
     });
