@@ -17,8 +17,17 @@ export type OutboxPage =
     | { readonly kind: 'failed'; readonly reason: ClientFailureReason }
     | { readonly kind: 'read'; readonly sends: readonly OutgoingMail[] };
 
+/** A decision about one send that the deployment has not answered yet, which holds that send's controls. */
+export interface OutboxDecisionUnderWay {
+    readonly outgoingEmailId: string;
+    readonly decision: 'cancel' | 'again';
+}
+
 export interface MailOutbox {
     readonly page: OutboxPage;
+
+    /** The decisions asked for and not answered yet; a send named here takes no other until its answer lands. */
+    readonly underWay: readonly OutboxDecisionUnderWay[];
 
     /** Reads the page again, which is the way out of a read the deployment did not answer. */
     readonly readAgain: () => void;

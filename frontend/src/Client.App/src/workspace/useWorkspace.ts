@@ -181,9 +181,15 @@ export interface OpenOutbox {
 export interface WorkspaceRevision {
     readonly workspace: Workspace;
 
-    /** Changes the named parts and leaves the rest of the workspace as it was. */
-    readonly revise: (change: Partial<Workspace>) => void;
+    /**
+     * Changes the named parts and leaves the rest of the workspace as it was. A change worked out from the workspace as
+     * it stands when it lands is a function of it, which is how an answer that arrives later asks only if the reader has
+     * not moved on meanwhile.
+     */
+    readonly revise: (change: WorkspaceChange) => void;
 }
+
+export type WorkspaceChange = Partial<Workspace> | ((current: Workspace) => Partial<Workspace>);
 
 // Where a workspace nobody has chosen a mailbox in stands, which is the inbox rather than the widest scope. It is
 // stated as the role scope rather than resolved from a directory nothing has read yet, and that is what makes the two

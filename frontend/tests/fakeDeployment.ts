@@ -1262,6 +1262,11 @@ export class FakeDeployment {
         this.outboxHeld = this.outboxHeld.filter((held) => held.outgoingEmail !== outgoingEmail);
     }
 
+    /** Whether the session may see an Outbox at all, which the service counts only for a caller holding both grants. */
+    private readsAndSends(): boolean {
+        return this.permissions.includes('mailfathom.mail.read') && this.permissions.includes('mailfathom.mail.send');
+    }
+
     /** What the folders route counts in the Outbox: what is on its way, and what the mail server refused. */
     private outboxCount() {
         const sends = this.outboxSends();
@@ -1735,7 +1740,7 @@ export class FakeDeployment {
             ...deployment.mailFolders,
             accounts: deployment.mailFolders.accounts.map(({ account, folders }) => ({
                 account,
-                outbox: this.outboxCount(),
+                outbox: this.readsAndSends() ? this.outboxCount() : null,
                 folders: [
                     ...folders,
                     ...[...this.made].map((id) => ({

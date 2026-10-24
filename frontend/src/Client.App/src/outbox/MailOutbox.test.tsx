@@ -2,8 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { ClientRequest, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import type { ClientRequest, ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { workAccount } from '../../../../tests/fixtures/deployment';
 import * as outbox from '../../../../tests/fixtures/outbox';
@@ -40,6 +40,7 @@ function deployment(sends: readonly Send[] = outbox.outboxPage.sends, refusing =
     let pagesHeldBack = false;
     let decided: { readonly outcome: string } | { readonly status: number } = { outcome: 'Accepted' };
     let previewsRefused = false;
+    let decisionsHeldBack: (() => void)[] | null = null;
 
     const transport: MailFathomTransport = (request) => {
         requests.push(request);
@@ -52,15 +53,26 @@ function deployment(sends: readonly Send[] = outbox.outboxPage.sends, refusing =
         const named = (JSON.parse(request.body ?? '{}') as { outgoingEmail?: string }).outgoingEmail;
 
         if (request.method === 'POST') {
-            if ('status' in decided) {
-                return Promise.resolve({ status: decided.status, body: '', headers: {} });
-            }
+            const decide = () => {
+                if ('status' in decided) {
+                    return Promise.resolve({ status: decided.status, body: '', headers: {} });
+                }
 
-            if (decided.outcome === 'Accepted' && path !== '/outbox/requeue') {
-                held = held.filter((send) => send.outgoingEmail !== named);
-            }
+                if (decided.outcome === 'Accepted' && path !== '/outbox/requeue') {
+                    held = held.filter((send) => send.outgoingEmail !== named);
+                }
 
-            return answering({ outgoingEmail: named, outcome: decided.outcome });
+                return answering({ outgoingEmail: named, outcome: decided.outcome });
+            };
+            const waiting = decisionsHeldBack;
+
+            return waiting === null
+                ? decide()
+                : new Promise<ClientResponse>((resolve) => {
+                      waiting.push(() => {
+                          resolve(decide());
+                      });
+                  });
         }
 
         if (path === '/outbox') {
@@ -101,6 +113,17 @@ function deployment(sends: readonly Send[] = outbox.outboxPage.sends, refusing =
         },
         answerDecisionsWith: (answer: { readonly outcome: string } | { readonly status: number }) => {
             decided = answer;
+        },
+        holdDecisionsBack: () => {
+            decisionsHeldBack = [];
+        },
+        releaseDecisions: () => {
+            const waiting = decisionsHeldBack ?? [];
+
+            decisionsHeldBack = null;
+            waiting.forEach((answer) => {
+                answer();
+            });
         },
     };
 }
@@ -282,7 +305,12 @@ describe('the Outbox list', () => {
         const { signal } = drawing(held.transport);
 
         await listed();
-        signal('another-account');
+        await act(async () => {
+            signal('another-account');
+            await Promise.resolve();
+        });
+        expect(held.pageReads()).toBe(1);
+
         signal(workAccount.id);
 
         await waitFor(() => {
@@ -318,6 +346,29 @@ describe('the Outbox preview', () => {
         await waitFor(() => {
             expect(within(screen.getByRole('list', { name: 'Outbox' })).queryByText('Re: UAT testing date')).toBeNull();
         });
+    });
+
+    // A second press before the first is answered would ask again, and the deployment would answer the repeat as a
+    // decision it could not take beside the first one's success.
+    it('holds a send’s decisions while one is unanswered, says what is under way, and asks once', async () => {
+        const held = deployment();
+
+        held.holdDecisionsBack();
+        drawing(held.transport, { entry: outbox.waitingSend.outgoingEmail });
+
+        const withdrawing = await screen.findByRole('button', { name: 'Cancel sending' });
+
+        fireEvent.click(withdrawing);
+
+        expect(await screen.findByText('Cancelling sending…')).toBeDefined();
+        expect(withdrawing.getAttribute('aria-disabled')).toBe('true');
+
+        fireEvent.click(withdrawing);
+        held.releaseDecisions();
+
+        expect(await screen.findByText('Nothing was sent to t.bak@fabrikam.example.')).toBeDefined();
+        expect(held.posted('/outbox/cancellation')).toHaveLength(1);
+        expect(screen.queryByText('Nothing changed')).toBeNull();
     });
 
     // A decision the deployment did not take changes nothing, so the send stays where it was and the toast says why in

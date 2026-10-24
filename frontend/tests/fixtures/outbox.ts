@@ -6,6 +6,10 @@
 //
 // Four of the five are still on their way and one was refused, which is what the folders route counts for the mailbox
 // in `deployment.ts` — the mark on the Sent row and the list it opens describe the same five sends.
+//
+// A row names its recipients as the service does: those of the first role that names anybody — `To`, else `Cc`, else
+// `Bcc` — and a count of the rest. Everyone a send is for is the preview's to name, so the recipients a row leaves to
+// that count are kept beside the rows rather than on them.
 
 import { workAccount } from './deployment';
 
@@ -44,10 +48,8 @@ export const sendingSend = {
 export const retryingSend = {
     ...waitingSend,
     outgoingEmail: '00000000-0000-4000-8000-0000000000f6',
-    recipients: [
-        { address: 'p.zielinski@company.example', role: 'To' },
-        { address: 'j.wrona@company.example', role: 'Cc' },
-    ],
+    recipients: [{ address: 'p.zielinski@company.example', role: 'To' }],
+    otherRecipientCount: 1,
     subject: 'Re: rollout schedule',
     recordedAt: '2026-08-31T10:12:00+00:00',
     availableAt: '2026-08-31T10:55:00+00:00',
@@ -73,10 +75,8 @@ export const refusedOutgoingSend = {
     ...waitingSend,
     outgoingEmail: '00000000-0000-4000-8000-0000000000f1',
     stage: 'Refused',
-    recipients: [
-        { address: 'a.kowalska@contoso.example', role: 'To' },
-        { address: 'm.nowak@company.example', role: 'Cc' },
-    ],
+    recipients: [{ address: 'a.kowalska@contoso.example', role: 'To' }],
+    otherRecipientCount: 1,
     subject: 'Re: Contract addendum - signatures',
     recordedAt: '2026-08-31T09:52:00+00:00',
     availableAt: '2026-08-31T09:52:00+00:00',
@@ -84,6 +84,12 @@ export const refusedOutgoingSend = {
     lastFailureCode: 5,
     lastReplyCode: 554,
     failure: 'The mail server would not take it: this account has sent as much mail as it may today.',
+};
+
+/** The recipients each send's row counts rather than names, which only its preview names. */
+const countedOnTheRow: Readonly<Record<string, readonly { readonly address: string; readonly role: string }[]>> = {
+    [retryingSend.outgoingEmail]: [{ address: 'j.wrona@company.example', role: 'Cc' }],
+    [refusedOutgoingSend.outgoingEmail]: [{ address: 'm.nowak@company.example', role: 'Cc' }],
 };
 
 /** What the Outbox route answers for the corpus mailbox, newest first. */
@@ -129,7 +135,7 @@ export function outgoingMailPreview(send: {
         dismissedAt: null,
         subject: send.subject,
         sender: { role: 'From', address: 'k.kowalska@nordwind.example', displayName: 'Karolina Kowalska' },
-        recipients: send.recipients.map((recipient) => ({
+        recipients: [...send.recipients, ...(countedOnTheRow[send.outgoingEmail] ?? [])].map((recipient) => ({
             address: recipient.address,
             role: recipient.role,
             status: refused ? 'Refused' : 'Pending',

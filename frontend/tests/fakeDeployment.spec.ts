@@ -352,6 +352,15 @@ test('puts a send taken back into the drafts folder as it was sent, and knows no
     });
 });
 
+/** A deployment whose session may send, which is the session the folders route counts an Outbox for. */
+function sendingDeployment(): FakeDeployment {
+    const deployment = new FakeDeployment('0.0.0');
+
+    deployment.grant('mailfathom.mail.send');
+
+    return deployment;
+}
+
 /** The identities the Outbox lists, newest first, and what the folders route counts in it. */
 function inTheOutbox(deployment: FakeDeployment): { sends: string[]; counted: unknown } {
     const page = ask(deployment, 'GET', `/outbox?account=${fixtures.workAccount.id}&pageSize=200`) as {
@@ -362,8 +371,14 @@ function inTheOutbox(deployment: FakeDeployment): { sends: string[]; counted: un
     return { sends: page.sends.map(({ outgoingEmail }) => outgoingEmail), counted: folders.accounts[0]?.outbox };
 }
 
+test('counts no Outbox for a session that reads mail and cannot send it, as the service answers', () => {
+    const folders = ask(new FakeDeployment('0.0.0'), 'GET', '/folders') as { accounts: { outbox: unknown }[] };
+
+    expect(folders.accounts.map(({ outbox: counted }) => counted)).toStrictEqual(folders.accounts.map(() => null));
+});
+
 test('lists a queued send in the Outbox and counts it until it is taken back', () => {
-    const deployment = new FakeDeployment('0.0.0');
+    const deployment = sendingDeployment();
     const written = ask(deployment, 'POST', '/drafts', { account: fixtures.workAccount.id, subject: 'The yard' }) as {
         draft: { draftId: string };
     };
@@ -426,7 +441,7 @@ test('answers the preview of a send that left at the stage it ended at, out of t
 });
 
 test('withdraws a waiting send and refuses to withdraw one an attempt holds or the server refused', () => {
-    const deployment = new FakeDeployment('0.0.0');
+    const deployment = sendingDeployment();
     const cancelled = (send: { outgoingEmail: string }) =>
         ask(deployment, 'POST', '/outbox/cancellation', { outgoingEmail: send.outgoingEmail });
 
@@ -445,7 +460,7 @@ test('withdraws a waiting send and refuses to withdraw one an attempt holds or t
 });
 
 test('offers a refused send again only once its refusal was restated, as one no attempt has reached', () => {
-    const deployment = new FakeDeployment('0.0.0');
+    const deployment = sendingDeployment();
     const { outgoingEmail } = outbox.refusedOutgoingSend;
 
     expect(ask(deployment, 'POST', '/outbox/requeue', { outgoingEmail, refusalRestated: false })).toMatchObject({
@@ -459,7 +474,7 @@ test('offers a refused send again only once its refusal was restated, as one no 
 });
 
 test('dismisses a send nobody knows the fate of and lets a delivered one leave, each out of the Outbox', () => {
-    const deployment = new FakeDeployment('0.0.0');
+    const deployment = sendingDeployment();
 
     expect(
         ask(deployment, 'POST', '/outbox/dismissal', { outgoingEmail: outbox.unknownSend.outgoingEmail }),

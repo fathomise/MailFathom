@@ -71,6 +71,7 @@ test('withdraws a waiting send from its preview, and the list and the mark both 
     page,
     deployment,
 }) => {
+    deployment.grant('mailfathom.mail.send');
     await page.clock.install();
     await openWithTheChannel(page, deployment);
     await holdTheClock(page);
@@ -93,6 +94,7 @@ test('takes the mark off the Sent row once the last send has left, as the deploy
     page,
     deployment,
 }) => {
+    deployment.grant('mailfathom.mail.send');
     await page.clock.install();
     await openWithTheChannel(page, deployment);
     await holdTheClock(page);

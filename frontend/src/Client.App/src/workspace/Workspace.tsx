@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { rememberedWorkspace, rememberWorkspace } from './rememberedWorkspace';
-import { WorkspaceContext, type Workspace, type WorkspaceRevision } from './useWorkspace';
+import { WorkspaceContext, type Workspace, type WorkspaceChange, type WorkspaceRevision } from './useWorkspace';
 
 // Mounted above the frame rather than inside a space, which is the whole mechanism: a space is what the address
 // changes, and this is not below the address.
@@ -54,8 +54,11 @@ function withoutAStaleOutbox(current: Workspace, change: Partial<Workspace>): Pa
 export function WorkspaceProvider({ children }: { readonly children: ReactNode }) {
     const [workspace, setWorkspace] = useState<Workspace>(rememberedWorkspace);
 
-    const revise = useCallback((change: Partial<Workspace>) => {
-        setWorkspace((current) => ({ ...current, ...withoutAStaleFront(current, change) }));
+    const revise = useCallback((change: WorkspaceChange) => {
+        setWorkspace((current) => ({
+            ...current,
+            ...withoutAStaleFront(current, typeof change === 'function' ? change(current) : change),
+        }));
     }, []);
 
     useEffect(() => {

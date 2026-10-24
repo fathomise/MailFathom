@@ -23,7 +23,7 @@ import { useSignalledChanges } from '../signals/signalledChanges';
 import { useToasts, type Toast } from '../toasts/useToasts';
 import { useWorkspace } from '../workspace/useWorkspace';
 import { addresseeOf, standingOf, type OutboxWording } from './outboxStanding';
-import { MailOutboxContext, type MailOutbox, type OutboxPage } from './useMailOutbox';
+import { MailOutboxContext, type MailOutbox, type OutboxDecisionUnderWay, type OutboxPage } from './useMailOutbox';
 
 // The one reader of the open account's Outbox. It reads the newest page while an Outbox is open and nothing while none
 // is, reads it again whenever the deployment says that account's Outbox moved, and performs the three decisions a
@@ -76,6 +76,7 @@ export function MailOutboxProvider({
     const [answered, setAnswered] = useState<Answered | null>(null);
     const [asked, setAsked] = useState(0);
     const [hidden, setHidden] = useState<readonly { readonly account: string; readonly id: string }[]>([]);
+    const [underWay, setUnderWay] = useState<readonly OutboxDecisionUnderWay[]>([]);
 
     // The page before the one arriving, which is what says a send that was being sent has left.
     const lastSends = useRef<{ readonly account: string; readonly sends: readonly OutgoingMail[] } | null>(null);
@@ -181,12 +182,28 @@ export function MailOutboxProvider({
         );
     }
 
+    function heldByDecision(send: OutgoingMail): boolean {
+        return underWay.some((held) => held.outgoingEmailId === send.outgoingEmailId);
+    }
+
+    // A second press while the first is unanswered would ask again, and the deployment would answer the repeat as a
+    // decision it cannot take beside the first one's success.
+    function holdWhileAsking<T>(send: OutgoingMail, decision: OutboxDecisionUnderWay['decision'], asked: Promise<T>): Promise<T> {
+        const outgoingEmailId = send.outgoingEmailId;
+
+        setUnderWay((current) => [...current, { outgoingEmailId, decision }]);
+
+        return asked.finally(() => {
+            setUnderWay((current) => current.filter((held) => held.outgoingEmailId !== outgoingEmailId));
+        });
+    }
+
     function cancel(send: OutgoingMail): void {
-        if (session === null) {
+        if (session === null || heldByDecision(send)) {
             return;
         }
 
-        void withdrawOutgoingMail(session, transport, send.outgoingEmailId).then((result) => {
+        void holdWhileAsking(send, 'cancel', withdrawOutgoingMail(session, transport, send.outgoingEmailId)).then((result) => {
             decided(
                 result.outcome === 'failed'
                     ? result
@@ -203,7 +220,7 @@ export function MailOutboxProvider({
     }
 
     function sendAgain(send: OutgoingMail): void {
-        if (session === null) {
+        if (session === null || heldByDecision(send)) {
             return;
         }
 
@@ -211,7 +228,11 @@ export function MailOutboxProvider({
         // it is pressed in states the server's reason above it.
         const refusalRestated = standingOf(send) === 'refused';
 
-        void offerOutgoingMailAgain(session, transport, send.outgoingEmailId, refusalRestated).then((result) => {
+        void holdWhileAsking(
+            send,
+            'again',
+            offerOutgoingMailAgain(session, transport, send.outgoingEmailId, refusalRestated),
+        ).then((result) => {
             decided(result, {
                 kind: 'neutral',
                 title: translate('outbox.againTitle'),
@@ -221,7 +242,7 @@ export function MailOutboxProvider({
     }
 
     function dismiss(send: OutgoingMail): void {
-        if (session === null || account === null) {
+        if (session === null || account === null || heldByDecision(send)) {
             return;
         }
 
@@ -278,7 +299,7 @@ export function MailOutboxProvider({
                   ),
               };
 
-    const outbox: MailOutbox = { page, readAgain, cancel, sendAgain, dismiss };
+    const outbox: MailOutbox = { page, underWay, readAgain, cancel, sendAgain, dismiss };
 
     return <MailOutboxContext value={outbox}>{children}</MailOutboxContext>;
 }

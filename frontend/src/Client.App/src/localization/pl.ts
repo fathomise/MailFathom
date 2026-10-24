@@ -1114,6 +1114,8 @@ export const pl: Catalogue = {
     'outbox.cancel': 'Anuluj wysyłanie',
     'outbox.sendAgain': 'Wyślij ponownie',
     'outbox.dismiss': 'Usuń z listy',
+    'outbox.cancelling': 'Anulujemy wysyłanie…',
+    'outbox.offeringAgain': 'Wysyłamy ponownie…',
     'outbox.fact.from': 'Od',
     'outbox.fact.handed': 'Przekazana',
     'outbox.fact.leaves': 'Wyjdzie',

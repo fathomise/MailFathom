@@ -262,25 +262,22 @@ function drawComposer(
     drafts = false,
     telemetry: ClientTelemetry = noTelemetry,
     exchange: AttachmentExchange = takesNothing,
-    showsOutbox = true,
+    showsOutbox = false,
 ): {
     closed: ReturnType<typeof vi.fn>;
     asked: ClientRequest[];
     upload: AttachmentUpload;
     point: (change: Partial<Workspace>) => void;
-    workspace: () => Workspace | null;
 } {
     const closed = vi.fn();
     const { transport, asked } = deployment(answers);
     let revise: ((change: Partial<Workspace>) => void) | null = null;
-    let seen: Workspace | null = null;
 
     // What the list beside the composer points at, moved the way a click on a row moves it.
     function Pointing() {
         const revision = useWorkspace();
 
         revise = revision.revise;
-        seen = revision.workspace;
 
         return null;
     }
@@ -338,7 +335,6 @@ function drawComposer(
                 revise?.(change);
             });
         },
-        workspace: () => seen,
     };
 }
 
@@ -753,26 +749,22 @@ describe('Composer, a message of its own', () => {
         elsewhere.remove();
     });
 
-    // The corner leads to where the message now waits, which is its account's Outbox, opened on that account's Sent
-    // folder the way the mark on the Sent row opens it, with the send itself open in the pane.
-    it('leads from the queued message to its entry in the Outbox, in the Mail space', async () => {
-        const { workspace } = drawComposer();
+    // The corner leads to where the message now waits, in the Mail space. Which Outbox opens and which send in it is
+    // a journey across the list and the pane, and `client.outbox.spec.ts` is where it is held.
+    it('leads from the queued message to the Mail space', async () => {
+        drawComposer({ kind: 'new' }, {}, [work], true, uploadsOneFile, false, noTelemetry, takesNothing, true);
 
         address('ada@example.invalid');
         confirmSend();
         fireEvent.click(await screen.findByRole('button', { name: 'Show in Outbox' }));
 
-        await waitFor(() => {
-            expect(workspace()?.outbox).toStrictEqual({ account: work.id, entry: 'o1' });
-        });
-        expect(workspace()?.scope).toStrictEqual({ kind: 'folder', accountId: work.id, folderId: 'SENT' });
         expect(window.location.hash).toBe('#/mail');
     });
 
     // An Outbox is read under the grant that reads mail, so a credential that only sends is led to no send it could not
     // open.
     it('leads nowhere from a queued message where the session does not read mail', async () => {
-        drawComposer({ kind: 'new' }, {}, [work], true, uploadsOneFile, false, noTelemetry, takesNothing, false);
+        drawComposer();
 
         address('ada@example.invalid');
         confirmSend();

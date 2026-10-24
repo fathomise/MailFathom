@@ -22,7 +22,7 @@ function HeldWorkspace({ children }: { readonly children: ReactNode }) {
             value={{
                 workspace,
                 revise: (change) => {
-                    setWorkspace((held) => ({ ...held, ...change }));
+                    setWorkspace((held) => ({ ...held, ...(typeof change === 'function' ? change(held) : change) }));
                 },
             }}
         >

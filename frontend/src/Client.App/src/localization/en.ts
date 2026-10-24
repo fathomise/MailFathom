@@ -1095,6 +1095,8 @@ export const en = {
     'outbox.cancel': 'Cancel sending',
     'outbox.sendAgain': 'Send again',
     'outbox.dismiss': 'Dismiss',
+    'outbox.cancelling': 'Cancelling sending…',
+    'outbox.offeringAgain': 'Sending it again…',
     'outbox.fact.from': 'From',
     'outbox.fact.handed': 'Handed',
     'outbox.fact.leaves': 'Leaves',

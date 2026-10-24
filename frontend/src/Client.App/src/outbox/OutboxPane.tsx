@@ -36,7 +36,7 @@ import {
     type OutboxStanding,
     type OutboxWording,
 } from './outboxStanding';
-import { useMailOutbox } from './useMailOutbox';
+import { useMailOutbox, type OutboxDecisionUnderWay } from './useMailOutbox';
 
 // One send of an Outbox read whole, in the pane's place: what it is about, where it stands and what may be decided
 // about it there, whom it is from and for and what the server said about each of them, the files it carries, and the
@@ -52,6 +52,12 @@ const failureLabels: Readonly<Record<ClientFailureReason, MessageKey>> = {
     unavailable: 'failure.unavailable',
     unreadable: 'failure.unreadable',
     missing: 'failure.missing',
+};
+
+// What a send's held controls say while the deployment has not answered the decision they asked for.
+const askingSaid: Readonly<Record<OutboxDecisionUnderWay['decision'], MessageKey>> = {
+    cancel: 'outbox.cancelling',
+    again: 'outbox.offeringAgain',
 };
 
 const roleLabels: Readonly<Record<OutgoingMailRecipientRole, MessageKey>> = {
@@ -327,12 +333,14 @@ function StateBox({
 }) {
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
-    const { cancel, sendAgain, dismiss } = useMailOutbox();
+    const { underWay, cancel, sendAgain, dismiss } = useMailOutbox();
     const [now] = useState(() => Date.now());
     const wording: OutboxWording = { locale, timeZone, translate, now };
     const shape = standingShapes[standing];
     const tone = toneBox[shape.tone];
     const send = decidedAbout(preview, row);
+    const asking = underWay.find((held) => held.outgoingEmailId === send.outgoingEmailId)?.decision ?? null;
+    const held = asking !== null;
     const said: OutgoingMailPreview =
         row === undefined
             ? preview
@@ -347,7 +355,11 @@ function StateBox({
               };
 
     return (
-        <div role="status" className={`flex items-start gap-2.75 rounded-xl border px-3.5 py-3 ${tone.box}`}>
+        <div
+            role="status"
+            aria-busy={held}
+            className={`flex items-start gap-2.75 rounded-xl border px-3.5 py-3 ${tone.box}`}
+        >
             <Icon
                 name={shape.icon}
                 className={`size-icon-lg ${toneInk[shape.tone]} ${shape.moving ? 'animate-working' : ''}`}
@@ -361,6 +373,7 @@ function StateBox({
                         <Control
                             label={translate('outbox.sendAgain')}
                             shape="primary"
+                            held={held}
                             onPress={() => {
                                 sendAgain(send);
                             }}
@@ -368,6 +381,7 @@ function StateBox({
                         <SecondaryButton
                             label={translate('outbox.dismiss')}
                             shape="form"
+                            held={held}
                             onActivate={() => {
                                 dismiss(send);
                             }}
@@ -378,12 +392,17 @@ function StateBox({
                         <SecondaryButton
                             label={translate('outbox.cancel')}
                             shape="form"
+                            held={held}
                             onActivate={() => {
                                 cancel(send);
                             }}
                         />
                     </div>
                 ) : null}
+
+                {asking === null ? null : (
+                    <p className="text-base text-muted">{translate(askingSaid[asking])}</p>
+                )}
             </div>
         </div>
     );
