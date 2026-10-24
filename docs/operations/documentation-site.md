@@ -349,11 +349,13 @@ the workflow, which is what makes this worth stating rather than leaving to be w
 that failed is spent, and the fix is a new one.
 
 What fails a publish in the first place is usually the Pages queue rather than anything here — the deployment reports
-`deployment_queued` until `actions/deploy-pages` gives up and cancels it. The step therefore waits thirty minutes
-rather than the action's default of ten, which is enough for every degradation seen so far.
+`deployment_queued` until `actions/deploy-pages` gives up and cancels it. The step waits eight minutes, inside the
+deploy job's ten: that covers the four and a half minutes one degraded queue was measured at, and a queue slower than
+that ends in a failed publish and a run dispatched by hand rather than in a runner held for half an hour. The build
+jobs are bounded at twelve minutes on the same reasoning, against builds that take two to five.
 
 A slow queue is not something the repository can see from the outside, and it is worth knowing that
 [GitHub's status page](https://www.githubstatus.com/) may not show it either: it read *all systems operational*
-throughout the degradation that prompted the thirty minutes, while two consecutive publishes were cancelled at exactly
-the old ten. So the evidence that this is the platform rather than the site is the deployment's own log — a step that
+through one degradation in which two consecutive publishes were still `deployment_queued` when they were cancelled
+at ten minutes. So the evidence that this is the platform rather than the site is the deployment's own log — a step that
 reports `deployment_queued` on every poll and never advances has not been given anything to fail on.

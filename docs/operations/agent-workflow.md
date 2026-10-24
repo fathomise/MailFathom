@@ -1049,9 +1049,13 @@ which is every pipeline here. The workflows are named one at a time because ther
 `workflows-ignore`, and naming them is also what keeps this workflow off its own list — a
 run that triggered itself would conclude, raise the event again, and chain until GitHub's
 three-level limit stopped it. `CodeQL` is left off for a different reason, the one the rules
-below leave it out for. `scripts/test-agent-workflow.sh` holds the list to exactly the
-workflows a pull request runs, in both directions, so a new pipeline cannot be forgotten
-into a pull request that then never reaches `Ready to merge`.
+below leave it out for. Every other workflow is listed whether a ruleset requires its checks
+today or not, because which checks are required is a repository setting that changes without
+a commit, and a listed workflow whose checks are not required only asks the same question
+again; `Fathom review` is listed because its verdict is a review rather than a check, and its
+run concluding is the event that says one arrived. `scripts/test-agent-workflow.sh` holds the
+list to exactly the workflows a pull request runs, in both directions, so a pipeline that
+becomes required later is already one whose conclusion decides the board.
 
 A **clean head**, below, is one the reviewer approved, or one it found nothing on and
 published as a `COMMENT` under `NO FINDINGS` because the author is not a maintainer. The rules
@@ -1066,9 +1070,9 @@ Six rules live in `.github/pull-request/select-board-status.sh`, read top to bot
   owner or the agent, and nothing on its head can say otherwise: the queue's checks run on the
   merge group's commit. The workflow also runs on the `enqueued` and `dequeued` events of a pull
   request for this reason alone, since no pipeline concluding on the head announces either.
-- A **check that failed** on the head earns `Changes requested`, whatever the review said.
-  That column says the change is waiting on the agent rather than on the owner, and a red
-  pipeline is exactly that whether the objection was written by a reader or produced by a
+- A **required check that failed** on the head earns `Changes requested`, whatever the review
+  said. That column says the change is waiting on the agent rather than on the owner, and a red
+  required check is exactly that whether the objection was written by a reader or produced by a
   build. `FAILURE`, `TIMED_OUT`, `ACTION_REQUIRED`, and `STARTUP_FAILURE` are what count;
   `SKIPPED` and `NEUTRAL` are the ordinary shape of a job a path filter turned off, and
   `CANCELLED` is what a superseded run leaves behind on a head that has since been read
@@ -1104,14 +1108,24 @@ Six rules live in `.github/pull-request/select-board-status.sh`, read top to bot
   that moved those would report the same conflict on every push to `main` for as long as it
   went unresolved.
 
-**Every rule but the merge queue's and a draft's is decided only once every pipeline outside
-the ignored set has finished** — the queue's because it reads no check on the head at all. That
-is one condition stated where the checks are counted rather than a copy of it in each rule, and
-it holds for every verdict because each claims something about the whole state of the change:
-`Ready to merge` says nothing is left to wait for but a merge, and `Changes requested` says what is owed is the agent's answer — while a run still in
-flight can add to what that answer has to cover. So a review published minutes before
-`Required CI` finishes moves nothing until it does, a check that failed beside one still
-running waits with it, and the pipeline that concludes last raises the event that asks again.
+**Every rule but the merge queue's and a draft's is decided only once every check the branch
+rules on `main` require has finished** — the queue's because it reads no check on the head at
+all. That is one condition stated where the checks are counted rather than a copy of it in each
+rule, and it holds for every verdict because each claims something about the whole state of the
+change: `Ready to merge` says nothing is left to wait for but a merge, and `Changes requested`
+says what is owed is the agent's answer — while a required run still in flight can add to what
+that answer has to cover. So a review published minutes before `Required CI` finishes moves
+nothing until it does, a required check that failed beside one still running waits with it, and
+the pipeline that concludes last raises the event that asks again.
+
+The required set is read on every run from `GET /repos/{owner}/{repo}/rules/branches/main`,
+which returns the effective rules of every active ruleset whatever level it is configured at,
+and `read-pull-request-state.sh` copies its status check contexts onto each pull request as
+`requiredChecks`. A required context with no check on the head yet counts as still running:
+a required check reports on every pull request, or nothing could merge, so its absence only
+means it has not started. A head that conflicts is the exception, because GitHub runs no
+`pull_request` workflow while a pull request conflicts with its base — the missing check will
+not start until a rebase, and waiting on it would keep the conflict off the board.
 
 **Whether the change still merges is asked after the verdicts, not before them.** A conflict
 is not an answer to what a reader or a pipeline objected to: a head the reviewer found
@@ -1120,18 +1134,15 @@ something is `Changes requested`. Asked first, the conflict rule would print a s
 write is refused everywhere but `Ready to merge`, and the verdict it shadowed would never be
 published — the item would stay in `In review` until a hand moved it.
 
-Two sets of checks are not read, and a draft earns none of the verdicts. `CodeQL`
-is not a required check on `main`: a finding there is worth acting on and does not make the
-change unmergeable, so reading it would hold every pull request out of `Ready to merge` for
-a question the ruleset does not ask. `Apply pull request rules`'s own checks are not read
-because nothing they publish says whether the change builds — they are a label and a board
-write — and a rule that read them would be deciding partly from its own run. And a draft is
-work being written rather than a change asking for anything, its checks red as often as not
+A check no rule requires is not read at all, running or failed, and a draft earns none of the
+verdicts. Merging does not wait on such a check, so neither does the column: `CodeQL`, a
+documentation build, `Fathom review`'s own jobs, and this workflow's checks would otherwise
+hold an item where the merge has already moved past — which is what kept an item in `In merge`
+for twelve minutes after the queue let its pull request go, while a documentation build nothing
+required ran three times its usual length. A failed run of `Fathom review` likewise turns
+nothing back; what the board reads from that workflow is the review it publishes. And a draft
+is work being written rather than a change asking for anything, its checks red as often as not
 while it is.
-
-That is also why `CodeQL` may still be running when a verdict is published: it is outside
-the wait for the same reason it is outside the rules, which is that merging does not wait on
-it either.
 
 A draft is still asked the last rule, and deliberately: it is true of an item already in
 `Ready to merge`, which is a pull request that had been ready and has since stopped merging.
@@ -2719,8 +2730,8 @@ pressing the button, and `Changes requested` says what is owed is the agent's
 answer — and a pipeline still running can add to what that answer has to cover.
 This workflow reads the diff and cannot see the pipeline, so both are asked in
 [The board status the state earns](#the-board-status-the-state-earns), where the
-review and the checks are visible at once and where both wait for every pipeline
-outside `CodeQL` to finish. An item therefore sits in `In review` for as long as
+review and the checks are visible at once and where both wait for every check
+the branch rules require to finish. An item therefore sits in `In review` for as long as
 the change is still being decided about — which is what that column says — and a
 run that publishes no verdict leaves it there too, where a reader sees that a
 review was asked for and produced nothing.
