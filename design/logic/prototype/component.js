@@ -676,7 +676,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this._tasks = this._tasks || {};
       this._tasks[id] = setTimeout(() => {
         delete this._tasks[id];
-        this.setState(s => ({ toasts: (s.toasts || []).map(x => (x.id === id ? Object.assign({}, x, { kind: "success", title: o.doneTitle, body: o.doneBody || "", sticky: false }) : x)) }));
+        this.setState(s => ({ toasts: (s.toasts || []).map(x => (x.id === id ? Object.assign({}, x, { kind: "success", title: o.doneTitle, body: o.doneBody || "", sticky: false, actionLabel: o.doneActionLabel || "", onAction: o.doneAction ? () => { this.dismissToast(id); o.doneAction(); } : null }) : x)) }));
         this.armToast(id, 5000);
       }, o.ms || 2200);
       return id;
@@ -5078,15 +5078,26 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         sendConfirmLabel: st.sendAsk && st.sendAsk.warnings.length ? "Send anyway" : "Send",
         sendSummaryTo: composeTo.length ? composeTo.join(", ") : "- no recipient -",
         sendSummarySubj: curSubj.trim() || "- no subject -",
+        /* A send is handed to the account's Outbox, so the toast saying it was sent leads to its entry there, which is
+           where withdrawing it is offered for as long as it can be. */
         confirmSend: () => {
           const to = composeTo.length ? composeTo.join(", ") : "no recipient";
+          const entry = { id: "ob" + Date.now(), stage: "waiting", at: "10:47", attempts: 0,
+            rcpt: composeTo.map(n => ({ hdr: "To", name: n, mail: (CONTACTS.find(c => c.name === n) || { mail: n }).mail })), subject: curSubj.trim() || "(no subject)", body: [bodyTxt()] };
           finishCompose();
+          this.setOutbox("acc1", [entry].concat(this.outboxOf("acc1")));
           this.notifyTask({
             title: "Sending message…",
             body: "Do: " + to,
             cancelText: "The message is being sent. Aborting stops delivery and saves it as a draft.",
             doneTitle: "Message sent",
             doneBody: "Do: " + to,
+            doneActionLabel: "Show in Outbox",
+            doneAction: () => {
+              this.goScreen("mail", { mailPane: "list" });
+              this.openOutbox("acc1");
+              this.pickOutboxEntry(entry.id);
+            },
             ms: 2400,
           });
         },
