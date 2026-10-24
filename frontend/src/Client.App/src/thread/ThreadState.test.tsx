@@ -298,6 +298,23 @@ describe('ThreadState', () => {
         expect(screen.getByRole<HTMLDialogElement>('dialog', { hidden: true }).open).toBe(false);
     });
 
+    // A finger pulling the sheet down, and a press beside it, close it through the platform rather than through the
+    // sheet's own control — which is the way out a sheet that kept its own copy of being open never heard of. The event
+    // is dispatched as well, because `close()` leaves it for a task jsdom never drains.
+    it('opens the sheet again after the platform closed it', () => {
+        render(drawing(stateOf([entry()])));
+
+        const sheet = screen.getByRole<HTMLDialogElement>('dialog', { hidden: true });
+        const control = screen.getByRole('button', { name: 'Where this conversation stands' });
+
+        fireEvent.click(control);
+        sheet.close();
+        fireEvent(sheet, new Event('close'));
+        fireEvent.click(control);
+
+        expect(sheet.open).toBe(true);
+    });
+
     // The same rule the desktop card keeps, on the composition that draws the citation in a sheet instead: the sheet is
     // reached from the conversation it would cite back into.
     it('draws no source in the sheet either, in a conversation of one message', () => {
