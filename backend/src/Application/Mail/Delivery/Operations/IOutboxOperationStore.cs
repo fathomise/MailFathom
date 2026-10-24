@@ -9,20 +9,21 @@ using MailFathom.Domain.Delivery;
 
 namespace MailFathom.Application.Mail.Delivery.Operations;
 
-/// <summary>Reads an outbox as an operator sees it, and carries out the two decisions they can take about one send.</summary>
+/// <summary>Reads an outbox as an operator and as an account's user see it, and carries out the three decisions about one send.</summary>
 /// <remarks>
 /// <para>
 /// Separate from <see cref="IOutgoingEmailStore" /> because the callers are separate, for the reason the dead-letter
 /// store is separate from the job store. That contract is the delivery attempt's, and every write on it names the lease
-/// the calling attempt holds; nothing here holds a lease, because an operator is not an attempt. Folding the two
-/// together would put an operator's decision behind a lease owner it would have to invent, and would widen the surface a
-/// worker sees to include writes no worker may make.
+/// the calling attempt holds; nothing here holds a lease, because a decision is not an attempt. Folding the two together
+/// would put a decision behind a lease owner it would have to invent, and would widen the surface a worker sees to
+/// include writes no worker may make.
 /// </para>
 /// <para>
-/// Both decisions are conditional on the record still being in the state the decision applies to, and on no live lease
-/// holding it. That is what makes them safe to repeat and safe to race: an operator acting on a listing a few minutes
-/// old, or two terminals acting together, produce one change and one refusal that says what happened instead — rather
-/// than a cancellation that lands while a worker is offering the message to a server.
+/// Every decision — withdrawing a send, offering it again, and dismissing it — is conditional on the record still being
+/// in the state the decision applies to, and on no live lease holding it. That is what makes them safe to repeat and
+/// safe to race: a caller acting on a listing a few minutes old, or two callers acting together, produce one change and
+/// one refusal that says what happened instead — rather than a cancellation that lands while a worker is offering the
+/// message to a server, or a dismissal undone by a requeue that read the record before it.
 /// </para>
 /// </remarks>
 public interface IOutboxOperationStore
@@ -150,10 +151,10 @@ public interface IOutboxOperationStore
         CancellationToken cancellationToken);
 }
 
-/// <summary>States what became of a send an operator decided about.</summary>
+/// <summary>States what became of a send an operator or an account's user decided about.</summary>
 /// <remarks>
-/// One set for both decisions, because what the refusals say is the same in both: a send this deployment does not hold,
-/// a send that has moved past the point the decision applies at, and a send an attempt is holding right now. Which
+/// One set for all three decisions, because what the refusals say is the same in each: a send this deployment does not
+/// hold, a send that has moved past the point the decision applies at, and a send an attempt is holding right now. Which
 /// decision was asked for is already the method that was called.
 /// </remarks>
 public enum OutboxDecisionOutcome
@@ -167,8 +168,9 @@ public enum OutboxDecisionOutcome
     /// <summary>The send has moved past the point at which the decision could be taken.</summary>
     /// <remarks>
     /// For a cancellation it is a send whose transmission has begun or which has already reached a terminal stage; for a
-    /// re-queue it is one that was delivered or withdrawn. It is the answer to a second terminal acting on a listing
-    /// the first one has already acted on.
+    /// re-queue it is one that was delivered or withdrawn, or one that was dismissed where the caller may not reach a
+    /// dismissal; for a dismissal it is one still waiting to be attempted, one that was delivered or withdrawn, or one
+    /// already dismissed. It is the answer to a second caller acting on a listing the first one has already acted on.
     /// </remarks>
     StageDoesNotAllowIt = 2,
 
