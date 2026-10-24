@@ -25,7 +25,7 @@ test('describes an attached file before it is fetched, and fetches it only when 
     const chip = page.getByRole('button', { name: 'Open orders.csv' });
     const download = page.getByRole('button', { name: 'Download orders.csv' });
     await expect(chip).toBeVisible();
-    await expect(chip).toHaveAttribute('title', 'text/csv');
+    await expect(chip).toHaveAccessibleDescription('text/csv');
     await expect(chip.getByText('csv', { exact: true })).toBeVisible();
     await expect(download).toBeVisible();
 
