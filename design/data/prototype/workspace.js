@@ -26,7 +26,7 @@ MailFathomDesign.data.accounts = [
 // `leaveAt`), retrying (an attempt failed before the body went out; the next one is at `retryAt`), sending (an attempt
 // holds it now), unknown (the body went out and no answer came back, so nobody knows whether it arrived) or refused
 // (the server would not take it, `reason` in words). `rcpt` is every recipient with its header and, where the server
-// answered for it, what it said. An account missing here has nothing waiting, so its Sent row carries no mark.
+// refused it, what it said; a send names a recipient by address alone, so the address is what is drawn. An account missing here has nothing waiting, so its Sent row carries no mark.
 MailFathomDesign.data.outbox = {
   acc1: [
     { id: "ob3", stage: "waiting", at: "10:44", attempts: 0,
@@ -48,8 +48,8 @@ MailFathomDesign.data.outbox = {
       body: ["Anna,", "Thank you - we will come back with the 2027 terms by Friday.", "Karolina"] },
     { id: "ob1", stage: "refused", at: "09:52", attempts: 1,
       rcpt: [
-        { hdr: "To", name: "Anna Kowalska", mail: "a.kowalska@contoso.example", said: "Not taken - sending limit reached" },
-        { hdr: "Cc", name: "Marta Nowak", mail: "m.nowak@company.example", said: "Not taken - sending limit reached" },
+        { hdr: "To", name: "Anna Kowalska", mail: "a.kowalska@contoso.example", said: "Not taken" },
+        { hdr: "Cc", name: "Marta Nowak", mail: "m.nowak@company.example", said: "Not taken" },
       ],
       subject: "Re: Contract addendum - signatures",
       reason: "Nordwind's mail server would not take it: this account has sent as much mail as it may today. Nothing reached Anna or Marta. The limit resets at midnight.",

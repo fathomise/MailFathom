@@ -503,7 +503,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     cancelOutboxEntry = (acc, id) => {
       const entry = this.outboxOf(acc).find(x => x.id === id);
       this.setOutbox(acc, this.outboxOf(acc).filter(x => x.id !== id));
-      if (entry) this.notify("Nothing was sent to " + entry.rcpt.map(r => r.name).join(", ") + ".", { kind: "success", title: "Sending cancelled" });
+      if (entry) this.notify("Nothing was sent to " + entry.rcpt.map(r => r.mail).join(", ") + ".", { kind: "success", title: "Sending cancelled" });
     };
     /* Dismissing takes a refused send, or one nobody knows the fate of, out of the Outbox and changes nothing else.
        The person cannot offer a dismissed send again, so the toast holds an Undo for as long as it stands. */
@@ -2970,7 +2970,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       };
       const firstAddressee = (x) => {
         const lead = x.rcpt.find(r => r.hdr === "To") || x.rcpt.find(r => r.hdr === "Cc") || x.rcpt[0];
-        return lead.name + (x.rcpt.length > 1 ? " +" + (x.rcpt.length - 1) : "");
+        return lead.mail + (x.rcpt.length > 1 ? " +" + (x.rcpt.length - 1) : "");
       };
       const outboxMarkFor = (accKey) => {
         const entries = outboxAll[accKey] || [];
@@ -3048,7 +3048,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         outboxResendStyle: obBtn + "font-weight:600;color:var(--onaccent);background:var(--accent)",
         outboxQuietBtnStyle: obBtn + "color:var(--text2);background:var(--panel);border:1px solid var(--border2)",
         outboxFacts: !outboxEntry ? [] : [{ k: "From", v: outboxAccount.address }]
-          .concat(outboxEntry.rcpt.map(r => ({ k: r.hdr, v: r.name + " <" + r.mail + ">", said: r.said || "" })))
+          .concat(outboxEntry.rcpt.map(r => ({ k: r.hdr, v: r.mail, said: r.said || "" })))
           .concat([{ k: "Handed", v: "today, " + outboxEntry.at }])
           .concat(outboxEntry.leaveAt ? [{ k: "Leaves", v: outboxEntry.leaveAt }] : [])
           .concat(outboxEntry.attempts ? [{ k: "Tried", v: attemptsSaid(outboxEntry) }] : [])
