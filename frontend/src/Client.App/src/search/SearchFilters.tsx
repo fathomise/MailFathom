@@ -7,6 +7,7 @@ import type { MailAccount } from '@mailfathom/client-backend';
 import { borderedControl } from '../controls/chrome';
 import { CheckControl } from '../controls/CheckControl';
 import { Icon } from '../controls/Icon';
+import { SymbolControl } from '../controls/SymbolControl';
 import type { MessageKey } from '../localization/en';
 import { wordCalendarDay } from '../localization/instants';
 import type { Locale } from '../localization/locale';
@@ -310,16 +311,15 @@ function FilterInForce({ label, onRemove }: { readonly label: string; readonly o
         <li className="flex items-center gap-1 rounded-md bg-accent-soft px-2 py-1 text-sm text-accent-strong">
             {label}
 
-            <button
-                type="button"
-                aria-label={translate('search.remove', { filter: label })}
+            <SymbolControl
+                label={translate('search.remove', { filter: label })}
                 className="rounded-sm px-1 leading-none transition hover:bg-hover"
-                onClick={onRemove}
+                onPress={onRemove}
             >
                 {/* Drawn rather than written, for the reason the list's own marks are drawn: a glyph is a string
                     somebody reads in one language, and what names this control is the label above. */}
                 <Icon name="close" className="size-icon-xs" />
-            </button>
+            </SymbolControl>
         </li>
     );
 }
@@ -334,14 +334,13 @@ function CriterionInForce({ criterion, onRemove }: { readonly criterion: string;
         <li className="flex items-center gap-1 rounded-md border border-line px-2 py-1 text-sm text-text">
             {criterion}
 
-            <button
-                type="button"
-                aria-label={translate('search.removeCriterion', { criterion })}
+            <SymbolControl
+                label={translate('search.removeCriterion', { criterion })}
                 className="rounded-sm px-1 leading-none transition hover:bg-hover"
-                onClick={onRemove}
+                onPress={onRemove}
             >
                 <Icon name="close" className="size-icon-xs" />
-            </button>
+            </SymbolControl>
         </li>
     );
 }

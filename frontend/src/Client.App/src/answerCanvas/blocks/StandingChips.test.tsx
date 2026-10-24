@@ -4,6 +4,8 @@
 
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { tipRestsFor } from '../../controls/useTip';
+import { focusByKey } from '../../controls/useTip.harness';
 import { LocalizationProvider } from '../../localization/Localization';
 import { ConfidenceBandChip, SupportVerdictChip } from './StandingChips';
 
@@ -38,12 +40,16 @@ describe('SupportVerdictChip', () => {
         expect(explanation().hidden).toBe(true);
     });
 
-    it('shows the explanation while a mouse is over the chip and hides it once the mouse leaves', () => {
+    it('shows the explanation once a mouse rests on the chip and hides it once the mouse leaves', () => {
         // Arrange
+        vi.useFakeTimers();
         const { chip, explanation } = renderVerdict();
 
         // Act
         fireEvent.pointerEnter(chip, { pointerType: 'mouse' });
+        act(() => {
+            vi.advanceTimersByTime(tipRestsFor);
+        });
         const whileOver = explanation().hidden;
         fireEvent.pointerLeave(chip, { pointerType: 'mouse' });
 
@@ -57,12 +63,15 @@ describe('SupportVerdictChip', () => {
         const { chip, explanation } = renderVerdict();
 
         // Act
-        fireEvent.focus(chip);
+        focusByKey(chip);
         const focused = explanation().hidden;
         fireEvent.keyDown(chip, { key: 'Escape' });
         const escaped = explanation().hidden;
-        fireEvent.focus(chip);
-        fireEvent.blur(chip);
+        act(() => {
+            chip.blur();
+            chip.focus();
+            chip.blur();
+        });
 
         // Assert
         expect(focused).toBe(false);
@@ -96,7 +105,7 @@ describe('SupportVerdictChip', () => {
         // Act
         fireEvent.pointerDown(chip, { pointerType: 'touch' });
         fireEvent.pointerCancel(chip, { pointerType: 'touch' });
-        fireEvent.focus(chip);
+        focusByKey(chip);
         fireEvent.click(chip);
         act(() => {
             vi.advanceTimersByTime(4000);
@@ -113,6 +122,9 @@ describe('SupportVerdictChip', () => {
 
         // Act
         fireEvent.pointerEnter(chip, { pointerType: 'mouse' });
+        act(() => {
+            vi.advanceTimersByTime(tipRestsFor);
+        });
         fireEvent.pointerDown(chip, { pointerType: 'mouse' });
         fireEvent.click(chip);
         act(() => {
@@ -141,7 +153,7 @@ describe('ConfidenceBandChip', () => {
         );
 
         // Act
-        fireEvent.focus(screen.getByRole('button', { name: label }));
+        focusByKey(screen.getByRole('button', { name: label }));
 
         // Assert
         expect(screen.getByRole('tooltip').textContent).toBe(meaning);

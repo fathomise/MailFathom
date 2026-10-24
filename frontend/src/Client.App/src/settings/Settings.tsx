@@ -9,6 +9,7 @@ import {
     shortestNotificationSeconds,
 } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
+import { SymbolControl } from '../controls/SymbolControl';
 import type { IconName } from '../controls/icons';
 import { PersonAvatar } from '../controls/PersonAvatar';
 import { Switch } from '../controls/Switch';
@@ -177,16 +178,15 @@ export function Settings({
 
                 {/* Closed through the element rather than by answering upwards, so that the native `close` event is
                     the one path out and `onClose` is called once however the surface was left. */}
-                <button
-                    type="button"
-                    aria-label={translate('settings.close')}
+                <SymbolControl
+                    label={translate('settings.close')}
                     className="ms-auto flex size-6.5 items-center justify-center rounded-md text-muted transition hover:bg-hover hover:text-text"
-                    onClick={() => {
+                    onPress={() => {
                         panel.current?.close();
                     }}
                 >
                     <Icon name="close" className="size-icon-md" />
-                </button>
+                </SymbolControl>
             </div>
 
             {twoPanes ? (

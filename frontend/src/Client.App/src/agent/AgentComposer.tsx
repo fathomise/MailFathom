@@ -4,6 +4,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { Icon } from '../controls/Icon';
+import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
@@ -58,6 +59,20 @@ export function AgentComposer({
     const [writtenFor, setWrittenFor] = useState(conversation);
     const [sentInto, setSentInto] = useState<string | null>(null);
     const input = useRef<HTMLInputElement>(null);
+    const clearName = useTip({
+        says: translate('agent.clearContext'),
+        onPress: () => {
+            onClearContext();
+            input.current?.focus();
+        },
+    });
+    // The send button's press is the form's own; the hold that reads its name hands nothing to do.
+    const sendName = useTip({ says: translate('agent.send'), onPress: () => undefined });
+    // Idle, the cancel control does nothing, so a tap is what says why — as it does for every control that cannot act.
+    const cancelName = useTip({
+        says: translate(running ? 'agent.cancelRunning' : 'agent.cancelIdle'),
+        onPress: running ? onCancel : undefined,
+    });
 
     // Adjusted while rendering rather than in an effect, so the old draft is never drawn under the new conversation.
     if (writtenFor !== conversation) {
@@ -102,17 +117,14 @@ export function AgentComposer({
                         <Icon name="attach_file" className="size-icon-md shrink-0" />
                         <span className="min-w-0 flex-1 truncate text-base">{context}</span>
                         <button
+                            {...clearName.anchor}
                             type="button"
                             aria-label={translate('agent.clearContext')}
-                            title={translate('agent.clearContext')}
                             className="flex shrink-0 items-center justify-center rounded-xs transition hover:text-text"
-                            onClick={() => {
-                                onClearContext();
-                                input.current?.focus();
-                            }}
                         >
                             <Icon name="close" className="size-icon-md" />
                         </button>
+                        {clearName.tip}
                     </p>
                 )}
 
@@ -161,10 +173,10 @@ export function AgentComposer({
                     {/* The phone draws both buttons as their symbols, so the field keeps the width its prompt needs; and no
                     button names a key where a finger drives the client, since there is no keyboard to press it on. */}
                     <button
+                        {...(wide ? {} : sendName.anchor)}
                         type="submit"
                         disabled={sending}
                         aria-label={wide ? undefined : translate('agent.send')}
-                        title={wide ? undefined : translate('agent.send')}
                         className="flex size-11 shrink-0 items-center justify-center rounded-md bg-accent text-base whitespace-nowrap text-on-accent transition hover:opacity-90 disabled:opacity-60 workspace:size-auto workspace:px-4.5 workspace:py-2 desktop:px-4"
                     >
                         {wide ? (
@@ -178,26 +190,30 @@ export function AgentComposer({
                             <Icon name="send" className="size-icon-xl" />
                         )}
                     </button>
+                    {wide ? null : sendName.tip}
 
                     <button
                         type="button"
                         aria-disabled={!running}
+                        {...(wide && running ? {} : cancelName.anchor)}
                         aria-label={translate(running ? 'agent.cancelRunning' : 'agent.cancelIdle')}
-                        title={wide ? undefined : translate(running ? 'agent.cancelRunning' : 'agent.cancelIdle')}
                         tabIndex={running ? 0 : -1}
                         className={`flex size-11 shrink-0 items-center justify-center rounded-md border text-base whitespace-nowrap transition workspace:size-auto workspace:px-4 workspace:py-2 desktop:px-3.5 ${
                             running
                                 ? 'border-error bg-error font-semibold text-on-accent hover:opacity-90'
                                 : 'cursor-default border-line text-faint'
                         }`}
-                        onClick={() => {
-                            if (running) {
+                        onClick={(event) => {
+                            if (wide && running) {
                                 onCancel();
+                            } else {
+                                cancelName.anchor.onClick(event);
                             }
                         }}
                     >
                         {wide ? translate('agent.cancel') : <Icon name="cancel" className="size-icon-xl" />}
                     </button>
+                    {wide && running ? null : cancelName.tip}
                 </form>
 
                 {notSent === null ? null : (

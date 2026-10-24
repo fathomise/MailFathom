@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import type { DeclaredSource } from '@mailfathom/client-backend';
+import { useTip } from '../../controls/useTip';
 import { useLocalization, type Translate } from '../../localization/useLocalization';
 import { useAnswerSources } from '../answerSources';
 
@@ -72,21 +73,26 @@ export function Citation({ source, position }: { readonly source: string; readon
 
     const unfollowable = following === undefined;
     const why = wordCitation(declared, at, !unfollowable, translate);
+    // What it cites, said to a mouse resting on it, a key focusing it, and a finger: held, on one that follows, and
+    // tapped, on one that cannot — whose tap would otherwise do nothing and say nothing.
+    const { anchor, tip } = useTip({ says: why, onPress: following });
 
     return (
-        <button
-            aria-disabled={unfollowable ? true : undefined}
-            aria-label={why}
-            className={`rounded-xs px-1.75 py-0.5 align-baseline text-xs tabular-nums transition ${
-                unfollowable
-                    ? 'cursor-not-allowed bg-rail text-muted'
-                    : 'bg-accent-soft text-accent-deep hover:bg-accent hover:text-on-accent'
-            }`}
-            title={why}
-            type="button"
-            onClick={following}
-        >
-            {at}
-        </button>
+        <>
+            <button
+                {...anchor}
+                aria-disabled={unfollowable ? true : undefined}
+                aria-label={why}
+                className={`rounded-xs px-1.75 py-0.5 align-baseline text-xs tabular-nums transition ${
+                    unfollowable
+                        ? 'cursor-not-allowed bg-rail text-muted'
+                        : 'bg-accent-soft text-accent-deep hover:bg-accent hover:text-on-accent'
+                }`}
+                type="button"
+            >
+                {at}
+            </button>
+            {tip}
+        </>
     );
 }

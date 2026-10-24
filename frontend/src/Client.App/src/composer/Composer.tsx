@@ -15,6 +15,8 @@ import {
     type MailFathomTransport,
 } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
+import { SymbolControl } from '../controls/SymbolControl';
+import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
 import type { Locale } from '../localization/locale';
 import { sizeOf } from '../localization/octets';
@@ -208,6 +210,14 @@ export function Composer({
     const [draftGeneration, setDraftGeneration] = useState(0);
 
     const files = useRef<HTMLInputElement>(null);
+    // The symbol alone below the workspace width, where it names the act beyond doubt; the name stays the control's,
+    // read out and shown to a mouse resting on it or a finger holding it.
+    const attachName = useTip({
+        says: translate('compose.attach'),
+        onPress: () => {
+            files.current?.click();
+        },
+    });
     const asked = useRef<HTMLDialogElement>(null);
     const frame = useRef<HTMLElement>(null);
     const subjectId = useId();
@@ -646,7 +656,6 @@ export function Composer({
                                 type="button"
                                 aria-expanded={copiesShown}
                                 aria-label={translate(copiesShown ? 'compose.hideCopies' : 'compose.showCopies')}
-                                title={translate(copiesShown ? 'compose.hideCopies' : 'compose.showCopies')}
                                 className={`shrink-0 rounded-md px-2 py-0.5 text-sm transition hover:text-text ${
                                     copiesShown ? 'bg-accent-soft text-accent-deep' : 'text-muted'
                                 }`}
@@ -797,19 +806,15 @@ export function Composer({
                         />
 
                         <button
+                            {...(wide ? { onClick: attachName.anchor.onClick } : attachName.anchor)}
                             type="button"
                             disabled={!stillBeingWritten}
-                            title={translate('compose.attach')}
-                            // The symbol alone on the phone, where it names the act beyond doubt; the name stays the
-                            // control's, read out and shown on hover.
                             className="flex items-center justify-center gap-1.75 rounded-md border border-line-strong px-3 py-2 text-sm text-text-soft transition hover:bg-hover disabled:opacity-60 max-workspace:px-2 pointer-coarse:text-md"
-                            onClick={() => {
-                                files.current?.click();
-                            }}
                         >
                             <Icon name="attach_file" className="size-icon-md" />
                             <span className="max-workspace:sr-only">{translate('compose.attach')}</span>
                         </button>
+                        {wide ? null : attachName.tip}
 
                         {/* The platform's own file picker, kept out of the accessible tree because the control above is
                             what carries the name and the keyboard path. */}
@@ -976,16 +981,15 @@ function AttachedFiles({
                     <span className="max-w-60 truncate">{file.fileName}</span>
                     <span className="text-sm text-faint">{sizeOf(file.sizeOctets, locale)}</span>
 
-                    <button
-                        type="button"
-                        aria-label={translate('compose.removeFile', { name: file.fileName })}
+                    <SymbolControl
+                        label={translate('compose.removeFile', { name: file.fileName })}
                         className="flex items-center rounded-xs text-faint transition hover:text-text"
-                        onClick={() => {
+                        onPress={() => {
                             onDetach(file.attachmentId);
                         }}
                     >
                         <Icon name="close" className="size-icon-xs" />
-                    </button>
+                    </SymbolControl>
                 </li>
             ))}
         </ul>

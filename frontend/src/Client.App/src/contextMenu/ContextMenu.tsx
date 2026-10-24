@@ -43,12 +43,20 @@ const menuItem =
 
 export function ContextMenu({
     header,
+    detail,
     at,
     items,
     onClose,
 }: {
     /** What the menu is about, in the row's own words, which is also the name the menu carries. */
     readonly header: string;
+
+    /**
+     * What the row draws only where a mouse can rest on it — a sender folded to an avatar, the exact time behind a
+     * relative one — said under the header, since the press that opened this menu is the one a finger would have
+     * used to ask.
+     */
+    readonly detail?: string | undefined;
 
     /** Where the gesture happened, in the window's own coordinates. */
     readonly at: MenuPoint;
@@ -209,6 +217,9 @@ export function ContextMenu({
                     <p id={names} className="truncate px-3 pt-1 pb-1.5 text-xs font-semibold text-muted">
                         {header}
                     </p>
+                    {detail === undefined ? null : (
+                        <p className="-mt-1 truncate px-3 pb-1.5 text-xs text-faint">{detail}</p>
+                    )}
 
                     {/* Nothing but the items sits inside the element carrying the role, which is what a menu is
                         allowed to hold — the header names it from outside rather than standing in it as one more

@@ -5,6 +5,8 @@
 import { useEffect, useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { longestContactSearch, type ClientSession, type MailFathomTransport } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
+import { SymbolControl } from '../controls/SymbolControl';
+import { useTip } from '../controls/useTip';
 import { useLocalization } from '../localization/useLocalization';
 import { looksLikeAnAddress, mostRecipientsInOneHeader } from './composition';
 import { searchContacts, suggestionsFor, type ContactLookup, type RecipientSuggestion } from './recipientSuggestions';
@@ -180,20 +182,16 @@ export function RecipientField({
                     key={address}
                     className="flex max-w-full min-w-0 items-center gap-1.75 rounded-lg border border-line bg-rail px-2.5 py-0.75 text-base whitespace-nowrap"
                 >
-                    {/* One line however long the address, cut rather than wrapped, so a chip never outgrows the row. */}
-                    <span className="min-w-0 truncate" title={address}>
-                        {address}
-                    </span>
-                    <button
-                        type="button"
-                        aria-label={translate('compose.removeRecipient', { address, header: label })}
+                    <CutAddress address={address} />
+                    <SymbolControl
+                        label={translate('compose.removeRecipient', { address, header: label })}
                         className="flex shrink-0 items-center rounded-xs text-faint transition hover:text-text"
-                        onClick={() => {
+                        onPress={() => {
                             onChanged(addresses.filter((kept) => kept !== address));
                         }}
                     >
                         <Icon name="close" className="size-icon-xs" />
-                    </button>
+                    </SymbolControl>
                 </span>
             ))}
 
@@ -302,5 +300,22 @@ function SuggestedRecipient({
                 {suggestion.address}
             </span>
         </li>
+    );
+}
+
+/**
+ * One line however long the address, cut rather than wrapped, so a chip never outgrows the row — and the whole of it
+ * said to a mouse resting on it and a finger tapping it, since a tap on the address does nothing else.
+ */
+function CutAddress({ address }: { readonly address: string }) {
+    const { anchor, tip } = useTip({ says: address });
+
+    return (
+        <>
+            <span {...anchor} className="min-w-0 truncate">
+                {address}
+            </span>
+            {tip}
+        </>
     );
 }

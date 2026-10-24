@@ -2,8 +2,9 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { pressOpensAfter } from '../contextMenu/rowPress';
 import { Control } from './Control';
 
 describe('Control', () => {
@@ -47,16 +48,36 @@ describe('Control', () => {
         expect(screen.getByRole('button', { name: 'New message' }).hasAttribute('aria-pressed')).toBe(false);
     });
 
-    // A control whose words are shorter than what it does says the rest on hovering, and every other one says its own
-    // name there — so a hint is an addition to the name rather than a replacement for it.
-    it('says what it is for on hovering, which is its own name where nothing else was given', () => {
+    // A control whose words are shorter than what it does describes the rest, and a symbol drawn alone says its name to
+    // the eye as well as to the accessibility tree — while a control already reading its words says nothing twice.
+    it('describes a hint in addition to its name, and adds nothing to words already on it', () => {
         render(<Control label="Ask" hint="Ask the agent about this conversation" onPress={() => undefined} />);
         render(<Control label="New message" onPress={() => undefined} />);
 
-        expect(screen.getByRole('button', { name: 'Ask' }).getAttribute('title')).toBe(
+        const hinted = screen.getByRole('button', { name: 'Ask' });
+
+        expect(document.getElementById(hinted.getAttribute('aria-describedby') ?? '')?.textContent).toBe(
             'Ask the agent about this conversation',
         );
-        expect(screen.getByRole('button', { name: 'New message' }).getAttribute('title')).toBe('New message');
+        expect(screen.getByRole('button', { name: 'New message' }).hasAttribute('aria-describedby')).toBe(false);
+    });
+
+    it('shows the name of a symbol drawn alone to a finger holding it, without pressing it', () => {
+        vi.useFakeTimers();
+        const pressed = vi.fn();
+        render(<Control label="Reply" icon="reply" shape="symbol" onPress={pressed} />);
+        const control = screen.getByRole('button', { name: 'Reply' });
+
+        fireEvent.pointerDown(control, { pointerType: 'touch' });
+        act(() => {
+            vi.advanceTimersByTime(pressOpensAfter);
+        });
+        fireEvent.pointerUp(control, { pointerType: 'touch' });
+        fireEvent.click(control);
+
+        expect(screen.getByRole('tooltip').textContent).toBe('Reply');
+        expect(pressed).not.toHaveBeenCalled();
+        vi.useRealTimers();
     });
 
     it('does what it is for when it is pressed, which is what makes it not a planned one', () => {

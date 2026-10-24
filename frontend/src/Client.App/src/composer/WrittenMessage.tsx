@@ -5,6 +5,7 @@
 import { createElement, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Icon } from '../controls/Icon';
 import type { IconName } from '../controls/icons';
+import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useCoarsePointer } from '../shell/useWideWorkspace';
@@ -178,20 +179,12 @@ export function WrittenMessage({
                     className="flex shrink-0 flex-wrap items-center gap-0.5 border-b border-line-soft px-3 py-1.5 pointer-coarse:gap-1.5 pointer-coarse:py-2.25"
                 >
                     {formattingControls.map((control) => (
-                        <button
+                        <FormattingControl
                             key={control.key}
-                            type="button"
-                            aria-label={translate(control.named)}
-                            aria-expanded={control.asksForAnAddress === true ? address !== null : undefined}
-                            className={`flex h-7.5 min-w-7.5 items-center justify-center rounded-md px-1.75 text-base text-text-soft transition hover:bg-hover hover:text-text pointer-coarse:border pointer-coarse:border-line ${
-                                control.marked ?? ''
-                            }`}
-                            onMouseDown={(event) => {
-                                // The selection is what every one of these acts on, and a press that moved the focus
-                                // would have collapsed it before the command ran.
-                                event.preventDefault();
-                            }}
-                            onClick={() => {
+                            name={translate(control.named)}
+                            expanded={control.asksForAnAddress === true ? address !== null : undefined}
+                            marked={control.marked}
+                            onPress={() => {
                                 if (control.asksForAnAddress === true) {
                                     askForAnAddress();
                                 } else {
@@ -204,7 +197,7 @@ export function WrittenMessage({
                             ) : (
                                 <Icon name={control.icon} className="size-icon-md" />
                             )}
-                        </button>
+                        </FormattingControl>
                     ))}
 
                     {coarse ? null : (
@@ -338,5 +331,44 @@ function WrittenPart({ node }: { readonly node: WrittenNode }): ReactNode {
         node.element,
         node.address === null ? null : { href: node.address },
         <WrittenTree written={node.holds} />,
+    );
+}
+
+/** One formatting command, drawn as its mark or its symbol, whose name a mouse resting on it and a finger holding it read. */
+function FormattingControl({
+    name,
+    expanded,
+    marked,
+    onPress,
+    children,
+}: {
+    readonly name: string;
+    readonly expanded: boolean | undefined;
+    readonly marked: string | undefined;
+    readonly onPress: () => void;
+    readonly children: ReactNode;
+}) {
+    const { anchor, tip } = useTip({ says: name, onPress });
+
+    return (
+        <>
+            <button
+                {...anchor}
+                type="button"
+                aria-label={name}
+                aria-expanded={expanded}
+                className={`flex h-7.5 min-w-7.5 items-center justify-center rounded-md px-1.75 text-base text-text-soft transition hover:bg-hover hover:text-text pointer-coarse:border pointer-coarse:border-line ${
+                    marked ?? ''
+                }`}
+                onMouseDown={(event) => {
+                    // The selection is what every one of these acts on, and a press that moved the focus would have
+                    // collapsed it before the command ran.
+                    event.preventDefault();
+                }}
+            >
+                {children}
+            </button>
+            {tip}
+        </>
     );
 }

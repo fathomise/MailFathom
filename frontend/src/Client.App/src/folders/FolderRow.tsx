@@ -7,6 +7,7 @@ import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { useRowPress } from '../contextMenu/rowPress';
 import { Icon } from '../controls/Icon';
 import { MailboxMark } from '../controls/MailboxMark';
+import { useTip } from '../controls/useTip';
 import { useLocalization } from '../localization/useLocalization';
 import { folderRoleIcons } from '../workspace/mailScope';
 import { folderRowName } from './folderRowNames';
@@ -230,27 +231,35 @@ function Twist({
 }: {
     readonly expanded: boolean | null;
 
-    /** What a pointer resting on it says, which is the design's *Show* and *Collapse subfolders*. */
+    /**
+     * What a mouse resting on it says, which is the design's *Show* and *Collapse subfolders*. A finger reads the
+     * turn of the chevron instead: holding the row opens its menu, so the twist claims no hold of its own.
+     */
     readonly said: string;
 
     readonly onToggle: () => void;
 }) {
+    const { anchor, tip } = useTip({ says: said, describes: true, tapReveals: false });
+
     if (expanded === null) {
         return null;
     }
 
     return (
-        <span
-            aria-hidden="true"
-            title={said}
-            className="shrink-0 rounded-xs p-0.5 hover:bg-hover"
-            onClick={(event) => {
-                event.stopPropagation();
-                onToggle();
-            }}
-        >
-            <Icon name="chevron_right" className={`size-icon-sm transition ${expanded ? 'rotate-90' : ''}`} />
-        </span>
+        <>
+            <span
+                {...anchor}
+                aria-hidden="true"
+                className="shrink-0 rounded-xs p-0.5 hover:bg-hover"
+                onClick={(event) => {
+                    event.stopPropagation();
+                    onToggle();
+                }}
+            >
+                <Icon name="chevron_right" className={`size-icon-sm transition ${expanded ? 'rotate-90' : ''}`} />
+            </span>
+            {tip}
+        </>
     );
 }
 

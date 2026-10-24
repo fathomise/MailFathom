@@ -5,7 +5,9 @@
 import type { ClientNotification } from '@mailfathom/client-backend';
 import { ContextMenu, type ContextMenuItem } from '../contextMenu/ContextMenu';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
+import { wordInstant } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
+import { useReadingZone } from '../localization/useReadingZone';
 
 // What a notification row answers a press with. It is this row's items and nothing else: where the menu stands, how it
 // is walked, and how it is left are `contextMenu/ContextMenu.tsx`'s, which is the same component five other lists open.
@@ -46,7 +48,8 @@ export function NotificationRowMenu({
 
     readonly onClose: () => void;
 }) {
-    const { translate } = useLocalization();
+    const { locale, translate } = useLocalization();
+    const timeZone = useReadingZone();
 
     const items: readonly ContextMenuItem[] = [
         { icon: 'check_box', label: translate('notifications.select'), choose: onSelect },
@@ -61,5 +64,8 @@ export function NotificationRowMenu({
         { icon: 'delete', label: translate('notifications.delete'), destroys: true, choose: onDelete },
     ];
 
-    return <ContextMenu header={notification.title} at={at} items={items} onClose={onClose} />;
+    // The row shows how long ago it happened; the instant itself stands here for a finger, which has no hover to ask.
+    const happened = wordInstant(notification.occurredAt, locale, 'full', timeZone) ?? undefined;
+
+    return <ContextMenu header={notification.title} detail={happened} at={at} items={items} onClose={onClose} />;
 }

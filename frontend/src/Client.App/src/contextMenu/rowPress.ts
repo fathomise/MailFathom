@@ -40,6 +40,16 @@ export function pressedByFinger(pointerType: string): boolean {
     return pointerType === 'touch' || pointerType === 'pen';
 }
 
+// Presses something inside a row has already taken for a hold of its own — a control a finger holds to read its name —
+// which the row then leaves alone, so one held finger never opens both. Marked on the event rather than stopped at the
+// element, because a press outside a surface is listened for on the document and has to keep arriving there.
+const claimedPresses = new WeakSet<Event>();
+
+/** Takes this press for the element it began on, so the row it sits in does not also answer it with a menu. */
+export function claimPress(event: PointerEvent): void {
+    claimedPresses.add(event.nativeEvent);
+}
+
 /** What a row binds to answer a press, beside the question every tap on it has to ask first. */
 export interface RowPress {
     readonly onContextMenu: (event: MouseEvent) => void;
@@ -104,7 +114,7 @@ export function useRowPress(open: ((at: MenuPoint) => void) | undefined): RowPre
         onPointerDown: (event) => {
             stopArming();
 
-            if (open === undefined || !pressedByFinger(event.pointerType)) {
+            if (open === undefined || !pressedByFinger(event.pointerType) || claimedPresses.has(event.nativeEvent)) {
                 return;
             }
 

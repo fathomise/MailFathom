@@ -7,6 +7,7 @@ import type { ClientNotification } from '@mailfathom/client-backend';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { pressedByFinger, useRowPress } from '../contextMenu/rowPress';
 import { Icon } from '../controls/Icon';
+import { useTip } from '../controls/useTip';
 import { wordInstant } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
@@ -68,6 +69,13 @@ export function NotificationRow({
     const age = wordNotificationAge(notification.occurredAt, locale, now);
     const at = wordInstant(notification.occurredAt, locale, 'full', timeZone);
     const said = wordNotification(notification, locale, translate);
+    // The exact instant behind the relative one, for a mouse resting on it; a finger finds it in the row's menu, since
+    // a tap on the row already opens what it is about.
+    const instantSaid = useTip({ says: at ?? '', tapReveals: false });
+    const markName = useTip({
+        says: translate(notification.read ? 'notifications.markUnread' : 'notifications.markRead'),
+        onPress: onToggleRead,
+    });
 
     // A modifier held under a pointer is what picks a row out where there is no selection yet, which is the one
     // gesture a finger has no equivalent of — the row's own menu is how it reaches the same thing.
@@ -146,12 +154,13 @@ export function NotificationRow({
                         </span>
 
                         <time
+                            {...(age === null || at === null ? {} : instantSaid.anchor)}
                             dateTime={notification.occurredAt}
-                            title={at ?? undefined}
                             className="shrink-0 text-xs whitespace-nowrap text-faint"
                         >
                             {age ?? at}
                         </time>
+                        {instantSaid.tip}
                     </span>
 
                     <span className="text-base text-pretty text-text-soft">{said.body}</span>
@@ -172,18 +181,18 @@ export function NotificationRow({
                 )}
 
                 <button
+                    {...markName.anchor}
                     type="button"
                     aria-label={translate(notification.read ? 'notifications.markUnread' : 'notifications.markRead')}
-                    title={translate(notification.read ? 'notifications.markUnread' : 'notifications.markRead')}
                     className={`flex size-8 cursor-pointer items-center justify-center rounded-lg border transition pointer-coarse:size-9.5 ${
                         notification.read
                             ? 'border-line bg-panel text-muted'
                             : 'border-transparent bg-accent text-on-accent'
                     }`}
-                    onClick={onToggleRead}
                 >
                     <Icon name={notification.read ? 'mark_email_unread' : 'mark_email_read'} className="size-icon-lg" />
                 </button>
+                {markName.tip}
             </span>
         </li>
     );

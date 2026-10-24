@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MailThreadMessage, MailThreadState, MailThreadStateAspect } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
+import { SymbolControl } from '../controls/SymbolControl';
 import { Skeleton } from '../controls/Skeleton';
 import type { MessageKey } from '../localization/en';
 import { wordInstant } from '../localization/instants';
@@ -231,16 +232,15 @@ function StateLine({
                 {/* Icon alone, which is what the design draws at this width: the label beside it belongs to the wider
                     bands, and a bar holding a statement plus a worded control leaves the statement no room. The name
                     is the control's rather than the glyph's, so it is still what a screen reader announces. */}
-                <button
-                    type="button"
-                    aria-label={translate('threadState.open')}
+                <SymbolControl
+                    label={translate('threadState.open')}
                     className="flex size-9 shrink-0 items-center justify-center rounded-full border border-line-strong text-text-soft transition hover:bg-hover"
-                    onClick={() => {
+                    onPress={() => {
                         setShown(true);
                     }}
                 >
                     <Icon name="insights" className="size-icon-md" />
-                </button>
+                </SymbolControl>
             </div>
 
             <StateSheet

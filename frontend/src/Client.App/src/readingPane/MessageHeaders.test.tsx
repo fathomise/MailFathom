@@ -150,6 +150,11 @@ afterEach(() => {
     }
 });
 
+/** The sentence an element is described by, which is what a mouse resting on it reads as well. */
+function describedAs(element: Element | null | undefined): string | null | undefined {
+    return document.getElementById(element?.getAttribute('aria-describedby') ?? '')?.textContent;
+}
+
 describe('MessageHeaders', () => {
     it('draws the subject as the heading of the message', () => {
         drawing();
@@ -245,12 +250,12 @@ describe('MessageHeaders', () => {
 
         fireEvent.click(line);
         await waitFor(() => {
-            expect(line.closest('summary')?.title).toBe('Collapse the address details');
+            expect(describedAs(line.closest('summary'))).toBe('Collapse the address details');
         });
 
         fireEvent.click(line);
         await waitFor(() => {
-            expect(line.closest('summary')?.title).toBe('Everybody else this message names');
+            expect(describedAs(line.closest('summary'))).toBe('Everybody else this message names');
         });
         expect(disclosure().open).toBe(false);
     });
@@ -415,7 +420,7 @@ describe('MessageHeaders at the width its column has', () => {
 
         const line = screen.getByText('everybody else (2)').closest('summary');
 
-        expect(line?.title).toBe('Everybody else this message names');
+        expect(describedAs(line)).toBe('Everybody else this message names');
 
         fireEvent(disclosure(), new Event('toggle', { bubbles: false }));
         expect(disclosure().open).toBe(false);

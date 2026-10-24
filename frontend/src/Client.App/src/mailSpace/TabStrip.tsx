@@ -5,6 +5,8 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { Confirmation } from '../confirmation/Confirmation';
 import { Icon } from '../controls/Icon';
+import { SymbolControl } from '../controls/SymbolControl';
+import { useTip } from '../controls/useTip';
 import type { IconName } from '../controls/icons';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
@@ -158,17 +160,16 @@ export function TabStrip({
                                 <span className={`truncate ${selected ? 'font-semibold' : ''}`}>{title}</span>
                             </button>
 
-                            <button
-                                type="button"
-                                aria-label={translate('tabs.close', { title })}
-                                tabIndex={tab.key === focusable ? 0 : -1}
+                            <SymbolControl
+                                label={translate('tabs.close', { title })}
+                                focusable={tab.key === focusable}
                                 className="me-1.5 ms-1 flex size-5 shrink-0 items-center justify-center rounded-xs text-faint transition hover:bg-hover hover:text-text"
-                                onClick={() => {
+                                onPress={() => {
                                     close(tab.key);
                                 }}
                             >
                                 <Icon name="close" className="size-icon-sm" />
-                            </button>
+                            </SymbolControl>
                         </div>
                     );
                 })}
@@ -221,20 +222,24 @@ function CloseEverything({
 }) {
     const { locale, translate } = useLocalization();
     const asked = useRef<HTMLDialogElement>(null);
+    const { anchor, tip } = useTip({
+        says: translate('tabs.closeAll'),
+        onPress: () => {
+            asked.current?.showModal();
+        },
+    });
 
     return (
         <>
             <button
+                {...anchor}
                 type="button"
                 aria-label={translate('tabs.closeAll')}
-                title={translate('tabs.closeAll')}
                 className="mx-1.5 my-auto flex size-7 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-hover hover:text-text"
-                onClick={() => {
-                    asked.current?.showModal();
-                }}
             >
                 <Icon name="cancel" className="size-icon-md" />
             </button>
+            {tip}
 
             <Confirmation
                 asked={asked}

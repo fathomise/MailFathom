@@ -4,6 +4,7 @@
 
 import { useId, useState, type RefObject } from 'react';
 import { Icon } from '../controls/Icon';
+import { SymbolControl } from '../controls/SymbolControl';
 import { useLocalization } from '../localization/useLocalization';
 import { useTopLayerSurface } from '../shell/screenLayers';
 import {
@@ -204,16 +205,15 @@ export function ReminderPanel({
                                 >
                                     {said}
 
-                                    <button
-                                        type="button"
-                                        aria-label={translate('reminders.remove', { lead: said })}
+                                    <SymbolControl
+                                        label={translate('reminders.remove', { lead: said })}
                                         className="text-faint"
-                                        onClick={() => {
+                                        onPress={() => {
                                             onRemindersChanged(withoutReminderLead(reminders, lead));
                                         }}
                                     >
                                         <Icon name="close" className="size-icon-sm" />
-                                    </button>
+                                    </SymbolControl>
                                 </li>
                             );
                         })}

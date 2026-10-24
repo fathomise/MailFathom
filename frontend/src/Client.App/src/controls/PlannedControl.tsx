@@ -6,6 +6,7 @@ import { Icon } from './Icon';
 import type { IconName } from './icons';
 import { controlShapes, labelledShape, symbolShown, type ControlShape } from './controlShapes';
 import { useLocalization } from '../localization/useLocalization';
+import { useTip } from './useTip';
 
 // A control the design draws that cannot act here. It is present because leaving it out would make the client
 // a different product from the one that was designed, and it is inert because drawing it as though it worked would be
@@ -15,7 +16,8 @@ import { useLocalization } from '../localization/useLocalization';
 // Two reasons a control cannot act, and the difference is the whole of what a reader needs. The client has not built
 // it yet, which is the default sentence and is about the product; or this deployment, this credential, or this account
 // cannot do it, which the caller states in `why` and is about the person's own mailbox. Neither is a state to discover
-// by pressing.
+// by pressing — and a press is exactly what a finger does to find out, so a tap brings the reason up in `useTip`'s
+// bubble, as a mouse resting on it and a key focusing it do.
 //
 // `aria-disabled` rather than `disabled`, so a screen reader still reaches it and hears the name — a control that is
 // silently absent from the tab order is one a reader cannot learn the product has.
@@ -38,19 +40,23 @@ export function PlannedControl({
     const { translate } = useLocalization();
     const labelled = labelledShape(shape);
     const named = why ?? translate('control.notBuiltYet', { control: label });
+    const { anchor, tip } = useTip({ says: named });
 
     return (
-        <button
-            type="button"
-            aria-disabled="true"
-            aria-label={named}
-            title={named}
-            className={`flex shrink-0 cursor-not-allowed items-center whitespace-nowrap opacity-60 transition ${controlShapes[shape]} ${className ?? ''}`}
-        >
-            {icon === undefined || !symbolShown(shape) ? null : (
-                <Icon name={icon} className={shape === 'floating' ? 'size-icon-2xl' : 'size-icon-md'} />
-            )}
-            {labelled ? <span>{label}</span> : null}
-        </button>
+        <>
+            <button
+                {...anchor}
+                type="button"
+                aria-disabled="true"
+                aria-label={named}
+                className={`flex shrink-0 cursor-not-allowed items-center whitespace-nowrap opacity-60 transition ${controlShapes[shape]} ${className ?? ''}`}
+            >
+                {icon === undefined || !symbolShown(shape) ? null : (
+                    <Icon name={icon} className={shape === 'floating' ? 'size-icon-2xl' : 'size-icon-md'} />
+                )}
+                {labelled ? <span>{label}</span> : null}
+            </button>
+            {tip}
+        </>
     );
 }

@@ -4,6 +4,7 @@
 
 import type { MailAttachment } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
+import { useTip } from '../controls/useTip';
 import { useLocalization } from '../localization/useLocalization';
 import { sizeOf } from '../localization/octets';
 import { kindOf } from './fileKind';
@@ -40,16 +41,25 @@ export function Attachment({
     const { locale, translate } = useLocalization();
 
     const shown = attachment.fileName ?? translate('attachment.unnamed');
+    // The media type the sender declared is the one thing about the file the row does not draw.
+    const typeSaid = useTip({ says: attachment.mediaType, describes: true, onPress: onOpen });
+    const downloadName = useTip({
+        says: translate('attachment.download', { name: shown }),
+        onPress: () => {
+            if (!arriving) {
+                onDownload();
+            }
+        },
+    });
 
     return (
         <li className="flex max-w-full flex-col gap-1 text-sm">
             <div className="flex max-w-full items-stretch overflow-hidden rounded-md border border-line bg-sunken transition hover:border-accent">
                 <button
+                    {...typeSaid.anchor}
                     aria-label={translate('attachment.open', { name: shown })}
-                    title={attachment.mediaType}
                     className="flex min-w-0 cursor-pointer items-center gap-2.25 px-3 py-2.25 text-start transition hover:bg-hover"
                     type="button"
-                    onClick={onOpen}
                 >
                     <span className="shrink-0 text-xs text-muted uppercase">
                         {kindOf(attachment.fileName, attachment.mediaType)}
@@ -62,19 +72,17 @@ export function Attachment({
                     gives: a disabled control is not focusable, so disabling the one somebody has just pressed drops
                     their focus to the top of the document. The handler is what refuses the second press. */}
                 <button
+                    {...downloadName.anchor}
                     aria-disabled={arriving}
                     aria-label={translate('attachment.download', { name: shown })}
                     className="flex w-8 shrink-0 cursor-pointer items-center justify-center border-s border-line text-muted transition hover:bg-hover hover:text-text aria-disabled:opacity-60"
                     type="button"
-                    onClick={() => {
-                        if (!arriving) {
-                            onDownload();
-                        }
-                    }}
                 >
                     <Icon name="download" className="size-icon-md" />
                 </button>
             </div>
+            {typeSaid.tip}
+            {downloadName.tip}
 
             {/* Said where a sender wrote a name this client would not use. It is the case worth drawing carefully
                 rather than one to hide: what is on the screen is not what the message wrote. */}

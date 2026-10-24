@@ -84,8 +84,9 @@ export function SelectionBar() {
             <MailboxActControls messages={messages} shape={actShape} onActed={clear} />
 
             {/* Against the far edge, which is a margin the measurement above knows to leave out of what the bar
-                needs. */}
-            <Control label={translate('select.all')} shape={actShape} className="ms-auto" onPress={listed.selectAll} />
+                needs. Words at every width, as the design draws it: no symbol names it, so narrowed to one it would be
+                a button with nothing on it. */}
+            <Control label={translate('select.all')} shape="selected" className="ms-auto" onPress={listed.selectAll} />
         </div>
     );
 }

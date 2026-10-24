@@ -5,6 +5,7 @@
 import { useState, type ReactNode } from 'react';
 import type { MailMessageHeaders, MailParticipant, MailParticipantRole } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
+import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
 import { wordInstant } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
@@ -194,8 +195,13 @@ function OtherParticipants({
 
     // Whether the disclosure is open, read back from the element rather than decided here, because the element is what
     // opens it: the platform toggles it on a press and on a key, and what this changes with it is the sentence the
-    // control offers on hover.
+    // control offers. The platform's own toggle is the press, so the hold that reads that sentence hands nothing to do.
     const [open, setOpen] = useState(false);
+    const { anchor, tip } = useTip({
+        says: translate(open ? 'message.collapseAddressDetails' : 'message.addressDetails'),
+        describes: true,
+        onPress: () => undefined,
+    });
 
     return (
         <details
@@ -205,7 +211,7 @@ function OtherParticipants({
             }}
         >
             <summary
-                title={translate(open ? 'message.collapseAddressDetails' : 'message.addressDetails')}
+                {...anchor}
                 className={`flex max-w-full cursor-pointer items-center gap-1 self-start rounded-md px-1.25 py-px text-muted transition hover:bg-hover hover:text-text-soft [&::-webkit-details-marker]:hidden ${
                     compact ? 'ms-px text-sm' : '-ms-1.25 text-base'
                 }`}
@@ -221,6 +227,7 @@ function OtherParticipants({
                     })}
                 </span>
             </summary>
+            {tip}
 
             <dl className={`flex flex-col gap-0.75 pt-0.5 pb-0.75 text-sm ${compact ? 'ps-6.75' : 'ps-5.5'}`}>
                 {roleOrder

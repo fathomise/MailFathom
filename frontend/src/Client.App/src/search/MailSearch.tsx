@@ -14,6 +14,7 @@ import {
 } from '@mailfathom/client-backend';
 import { controlShapes } from '../controls/controlShapes';
 import { Icon } from '../controls/Icon';
+import { useTip } from '../controls/useTip';
 import { SurfaceControl } from '../controls/SurfaceControl';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
@@ -90,6 +91,8 @@ export function MailSearch({
 }) {
     const { translate } = useLocalization();
     const desktop = useDesktopComposition();
+    // A submit button's press is the form's own, so the hold that reads its name hands nothing to do.
+    const submitName = useTip({ says: translate('search.submit'), onPress: () => undefined });
     const { workspace, revise } = useWorkspace();
     const openMailboxes = useMailboxesDrawer();
     const fold = useListFold();
@@ -283,13 +286,14 @@ export function MailSearch({
                     the desktop composition the list pane is too narrow to spend a target on a second way into the same
                     search — the field submits it, from a keyboard's Enter or a phone's own search key. */}
                 <button
+                    {...submitName.anchor}
                     type="submit"
                     aria-label={translate('search.submit')}
-                    title={translate('search.submit')}
                     className={`hidden shrink-0 items-center whitespace-nowrap text-muted transition desktop:flex ${controlShapes.symbol}`}
                 >
                     <Icon name="search" className="size-icon-lg" />
                 </button>
+                {submitName.tip}
 
                 {ask === null && beingRead === null ? null : (
                     <SecondaryButton label={translate('search.stop')} onActivate={stopSearching} />

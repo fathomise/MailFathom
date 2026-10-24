@@ -54,7 +54,7 @@ test('offers a person it wrote down to a message, opens their page, and lets the
 
     // At once somebody to write to: the composer finds them by a fragment, and choosing them addresses the message.
     await page.getByRole('link', { name: 'Mail' }).click();
-    await page.getByTitle('New message').click();
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
 
     const offered = await offeredFor(page);
 

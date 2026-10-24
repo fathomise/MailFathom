@@ -90,6 +90,18 @@ const srcdocSyntax = [
     },
 ];
 
+// A `title` attribute is a sentence only a mouse can read: no touch browser draws one, so a name, a reason or a fact
+// kept there is missing from every phone and tablet the client runs on. What an element says about itself is
+// `controls/useTip.tsx`'s bubble, which a mouse, a key and a finger all reach. A frame keeps its `title`, because there
+// it is the frame's accessible name rather than a tooltip, and a component's own prop of that name is not an attribute.
+const tipSyntax = [
+    {
+        selector: 'JSXOpeningElement[name.name=/^[a-z]/][name.name!="iframe"] > JSXAttribute[name.name="title"]',
+        message:
+            'No touch browser shows a title, so what it says exists only under a mouse. Say it with useTip from src/Client.App/src/controls/useTip.tsx, or SymbolControl for a symbol drawn alone.',
+    },
+];
+
 // Every user-visible string leaves the component that shows it, which is the one rule that decides whether a third
 // language is a catalogue or a sweep through every screen written before it. A literal in markup is refused here
 // rather than noticed in review, because review is exactly what stops catching it once there are enough screens to
@@ -204,7 +216,13 @@ export default defineConfig(
     {
         files: ['src/Client.App/**/*.tsx'],
         rules: {
-            'no-restricted-syntax': ['error', ...markupWritingSyntax, ...srcdocSyntax, ...localizationSyntax],
+            'no-restricted-syntax': [
+                'error',
+                ...markupWritingSyntax,
+                ...srcdocSyntax,
+                ...localizationSyntax,
+                ...tipSyntax,
+            ],
         },
     },
     {
@@ -214,7 +232,7 @@ export default defineConfig(
         // rule added to either list reaches it without anybody remembering to.
         files: [theOneMarkupSurface],
         rules: {
-            'no-restricted-syntax': ['error', ...markupWritingSyntax, ...localizationSyntax],
+            'no-restricted-syntax': ['error', ...markupWritingSyntax, ...localizationSyntax, ...tipSyntax],
         },
     },
     prettier,

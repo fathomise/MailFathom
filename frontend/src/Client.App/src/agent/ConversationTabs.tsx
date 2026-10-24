@@ -5,6 +5,7 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { Control } from '../controls/Control';
 import { Icon } from '../controls/Icon';
+import { SymbolControl } from '../controls/SymbolControl';
 import { useLocalization } from '../localization/useLocalization';
 
 // The keyboard contract is `mailSpace/TabStrip.tsx`'s, stated for conversations rather than for the mail space's four
@@ -140,18 +141,16 @@ export function ConversationTabs({
                                 <span className="truncate">{title}</span>
                             </button>
 
-                            <button
-                                type="button"
-                                aria-label={translate('agent.closeTab', { title })}
-                                title={translate('agent.closeTab', { title })}
-                                tabIndex={conversation.id === focusable ? 0 : -1}
+                            <SymbolControl
+                                label={translate('agent.closeTab', { title })}
+                                focusable={conversation.id === focusable}
                                 className="me-1.5 rounded-sm p-0.5 text-faint hover:text-text"
-                                onClick={() => {
+                                onPress={() => {
                                     close(conversation.id);
                                 }}
                             >
                                 <Icon name="close" className="size-icon-sm" />
-                            </button>
+                            </SymbolControl>
                         </div>
                     );
                 })}

@@ -334,6 +334,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
   const isNotifUnread = (n, read) => (read && read[n.id] !== undefined ? !read[n.id] : !!n.unread);
 
+  // The instant behind a relative age, as the client words it in full in a notification row's menu.
+  const notifInstant = (mins) => new Date(Date.now() - (Number(mins) || 0) * 60000).toLocaleString("en-GB", { dateStyle: "full", timeStyle: "short" });
+
   const notifTime = (mins) => {
     const m = Number(mins) || 0;
     if (m < 1) return "now";
@@ -756,11 +759,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       return r ? { x: cx - r.left, y: cy - r.top } : { x: cx, y: cy };
     };
 
-    pressFor = (kind, id, title, items, ms) => {
+    pressFor = (kind, id, title, items, ms, detail) => {
       const open = (cx, cy, fromTouch) => {
         const p = this.localPt(cx, cy);
         this.armCtx(fromTouch);
-        this.setState({ ctxMenu: { x: p.x, y: p.y, title: title, kind: kind, id: id, items: items } });
+        this.setState({ ctxMenu: { x: p.x, y: p.y, title: title, detail: detail, kind: kind, id: id, items: items } });
       };
       return {
         ctx: (e) => { if (e && e.preventDefault) { e.preventDefault(); e.stopPropagation(); } open(e.clientX, e.clientY, false); },
@@ -1159,7 +1162,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const p = this.localPt(cx || 0, cy || 0);
       this.setState({
         ctxMenu: {
-          x: p.x, y: p.y, kind: "mail", id: id, title: th.subject || "Message",
+          x: p.x, y: p.y, kind: "mail", id: id, title: th.subject || "Message", detail: th.from,
           items: [
             { icon: "auto_awesome", label: "AI summary", run: () => this.openAiSum(id) },
             { icon: "check_box", label: "Select messages", run: () => this.toggleSelect(id) },
@@ -2941,6 +2944,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : ""),
         ctxMenuOpen: !!st.ctxMenu,
         ctxMenuTitle: st.ctxMenu ? st.ctxMenu.title : "",
+        ctxMenuDetail: (st.ctxMenu && st.ctxMenu.detail) || "",
+        ctxMenuHasDetail: !!(st.ctxMenu && st.ctxMenu.detail),
         closeCtxMenu: () => { if (this.ctxArmed()) this.setState({ ctxMenu: null }); },
         ctxMenuItems: (st.ctxMenu ? st.ctxMenu.items : []).map(mi => ({
           icon: mi.icon, label: mi.label,
@@ -4494,7 +4499,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               { icon: unread ? "mark_email_read" : "mark_email_unread", label: unread ? "Mark as read" : "Mark as unread", run: () => this.toggleNotifRead(n) },
               { icon: "open_in_new", label: "Open source", run: () => this.openNotif(n) },
               { icon: "delete", label: "Delete notification", danger: true, run: () => this.askHide("notifs", [n.id], "Delete notification?", n.title + " will disappear from the notification centre.") },
-            ], 420),
+            ], 420, notifInstant(n.mins)),
             open: this.rowTap("notifs", n.id, () => this.openNotif(n)),
             toggleRead: (e) => this.toggleNotifRead(n, e),
             readIcon: unread ? "mark_email_read" : "mark_email_unread",
