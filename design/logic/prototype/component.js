@@ -538,7 +538,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* Some threads have an unread message from the middle of the history —
          we open exactly that one, not the newest. */
       const entry = { piotr: 2 };
-      const patch = Object.assign(this.leaveOutbox(), { threadId: id, listWide: false, mailAnswer: false, replyDock: null, replyChooser: null, cameFrom: this.state.cameFrom && id === "contoso", mailPane: "thread", threadOpen: true, unread: unread,
+      const patch = Object.assign(this.leaveOutbox(), { threadId: id, listWide: !!this.state.listKept, mailAnswer: false, replyDock: null, replyChooser: null, cameFrom: this.state.cameFrom && id === "contoso", mailPane: "thread", threadOpen: true, unread: unread,
         activeMsg: Object.assign({}, this.state.activeMsg, { [id]: typeof entry[id] === "number" ? entry[id] : null }),
         histOpen: Object.assign({}, this.state.histOpen, { [id]: !!this.state.autoExpand }) }, this.composeCtxPatch([id]));
       patch.msgLoading = true;
@@ -2888,7 +2888,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const emptyMail = !composeInPane && !docInPane && !htmlInPane &&
         (tabsMode ? tabItems.length === 0 : (!singlePane && !st.threadOpen));
       /* Two panes in less than 1020 px: while a thread is open the list folds to a strip of senders, so the thread
-         gets the width; the strip's head widens it again. A width rule — a mouse gets the same strip as a finger. */
+         gets the width; the toolbar's list control widens it again. A width rule — a mouse gets the same strip as a finger. */
       const foldTwoPanes = !singlePane && narrow;
       /* The Outbox: one per account, read-only, holding what has not left it yet. It has no row of its own in the tree;
          it is a mark on the account's Sent row, drawn only while something waits or was refused. */
@@ -3790,7 +3790,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         showSide: !drawer || drawerOpen,
         sideScrim: drawer && drawerOpen,
         closeDrawer: () => this.setState({ sideDrawer: false }),
-        showFolderBtn: drawer,
+        /* The list's head keeps the drawer's opener only where no toolbar stands to lead with it: the phone, and a
+           selection, whose bar replaces the toolbar. */
+        showFolderBtn: drawer && (singlePane || selectionOn),
         listSearchRef: this.listSearchRef,
         listSearchActive: !!st.listSearchOn,
         listSearchIdle: !st.listSearchOn,
@@ -4465,11 +4467,29 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         listStrip,
         listFull: !listStrip && !outboxOn,
         ...outboxView,
-        listNarrowable: foldTwoPanes && !emptyMail && !!st.listWide && !selectionOn && !outboxOn,
-        widenList: () => this.setState({ listWide: true }),
-        narrowList: () => this.setState({ listWide: false }),
-        stripHeadStyle: "flex:0 0 auto;display:flex;justify-content:center;padding:8px 0;border-bottom:1px solid var(--line)",
-        stripBtnStyle: "width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:12px;color:var(--text2)",
+        /* The toolbar leads with the controls that change the view rather than the message: below 1020 px with a
+           thread open the list's own fold, one control for both ways, and then the folder pane's — its show and hide
+           where it stands beside the list, its drawer's opener where it is a drawer. The strip has no head of its own,
+           so the list control is there under a mouse as well as a finger. Holding it while the list is widened keeps
+           the list open as other threads are opened (`st.listKept`), drawn on `--accent-soft`; holding again lets
+           it fold, and a tap narrows it and lets go of the hold. */
+        viewLeadShown: st.screen === "mail",
+        drawerOpenerShown: drawer && st.screen === "mail",
+        listToggleShown: listStrip || (foldTwoPanes && !emptyMail && !!st.listWide && !selectionOn && !outboxOn),
+        listToggleIcon: listStrip ? "left_panel_open" : "left_panel_close",
+        listToggleLabel: listStrip ? "Show the list" : "Narrow the list",
+        listToggleTitle: listStrip
+          ? "Show the list"
+          : st.listKept
+            ? "The list stays open as you open other messages. Hold to let it fold again, or tap to narrow it."
+            : "Narrow the list. Hold to keep it open as you open other messages.",
+        toggleList: () => this.setState(listStrip ? { listWide: true } : { listWide: false, listKept: false }),
+        keepList: (e) => {
+          if (e && e.preventDefault) { e.preventDefault(); e.stopPropagation(); }
+          if (!listStrip) this.setState(s2 => ({ listKept: !s2.listKept }));
+        },
+        listToggleStyle: "flex:0 0 auto;width:" + (touch ? 44 : 32) + "px;height:" + (touch ? 44 : 32) + "px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;"
+          + (st.listKept && !listStrip ? "color:var(--accent-strong);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line)" : "color:var(--muted)"),
         stripScrollStyle: "flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0",
         selectionOn,
         selectionOff: !selectionOn,

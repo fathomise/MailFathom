@@ -71,6 +71,7 @@ export function useTip({
     says,
     describes = false,
     onPress,
+    onHold,
     tapReveals = true,
 }: {
     readonly says: string;
@@ -87,6 +88,13 @@ export function useTip({
      * more, which still claims the hold.
      */
     readonly onPress?: (() => void) | undefined;
+
+    /**
+     * What a hold does besides reading the sentence, on an element that does a second thing. The sentence it then
+     * brings up is the one the hold left standing, so it says what just happened. A secondary click and the keyboard's
+     * context-menu key reach the same thing, so the hold is never the only way to it.
+     */
+    readonly onHold?: (() => void) | undefined;
 
     /**
      * Whether a tap brings the sentence up on an element that does nothing else. Off for an element inside something
@@ -233,6 +241,7 @@ export function useTip({
                 forget();
                 clock.current = window.setTimeout(() => {
                     revealedByHold.current = true;
+                    onHold?.();
                     show(tipStandsFor);
                 }, pressOpensAfter);
             }
@@ -300,6 +309,15 @@ export function useTip({
             if (byFinger.current && onPress !== undefined) {
                 event.preventDefault();
                 event.stopPropagation();
+            } else if (onHold !== undefined) {
+                // A hold already acted on is the same gesture as the platform's menu that follows it, even where a
+                // browser cancelled the pointer in between.
+                event.preventDefault();
+                event.stopPropagation();
+                if (!revealedByHold.current) {
+                    onHold();
+                    show(tipStandsFor);
+                }
             }
         },
     };

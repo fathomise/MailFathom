@@ -784,6 +784,8 @@ export const en = {
     'mail.listColumn': 'Message list',
     'mail.showList': 'Show the list',
     'mail.narrowList': 'Narrow the list',
+    'mail.narrowListHold': 'Narrow the list. Hold to keep it open as you open other messages.',
+    'mail.listKept': 'The list stays open as you open other messages. Hold to let it fold again, or tap to narrow it.',
     'mail.readingColumn': 'What is open',
     'mail.listWidth': 'Message list width',
     'mail.listWidthHint':

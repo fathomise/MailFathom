@@ -28,6 +28,7 @@ export function Control({
     pressed,
     hint,
     onPress,
+    onHold,
 }: {
     readonly label: string;
     readonly icon?: IconName;
@@ -41,9 +42,12 @@ export function Control({
     readonly pressed?: boolean;
 
     readonly onPress: () => void;
+
+    /** What holding the control does, for one that does a second thing on a hold — `useTip` says how it is reached. */
+    readonly onHold?: () => void;
 }) {
     const labelled = labelledShape(shape);
-    const { anchor, tip } = useTip({ says: hint ?? label, describes: hint !== undefined, onPress });
+    const { anchor, tip } = useTip({ says: hint ?? label, describes: hint !== undefined, onPress, onHold });
     const spoken = !labelled || hint !== undefined;
 
     return (

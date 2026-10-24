@@ -24,7 +24,7 @@ document.addEventListener('focusout', (event) => {
 // Escape, and 4 s after a finger brought it up. An element inside a row whose own hold opens a menu carries
 // `data-tip-hover`: a mouse still reads it, and a finger reads it in that menu instead.
 (() => {
-  let bubble = null, owner = null, clock = 0, held = null, swallow = null;
+  let bubble = null, owner = null, clock = 0, held = null, swallow = null, handing = false;
   const named = (el) => el && el.closest && el.closest('[title]:not(iframe), [data-tip-name]');
   const nameOf = (el) => {
     if (el.hasAttribute('title')) { el.setAttribute('data-tip-name', el.getAttribute('title')); el.removeAttribute('title'); }
@@ -68,7 +68,19 @@ document.addEventListener('focusout', (event) => {
     e.stopPropagation();
     held = { el, x: e.clientX, y: e.clientY };
     clearTimeout(clock);
-    clock = setTimeout(() => { swallow = el; show(el, 4000); }, 420);
+    clock = setTimeout(() => {
+      swallow = el;
+      // An element marked `data-hold` does something on a hold as well: it is handed the hold as the menu gesture a
+      // mouse's right-click is, and the bubble then reads the name that act left standing.
+      if (el.hasAttribute('data-hold')) {
+        handing = true;
+        el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+        handing = false;
+        setTimeout(() => show(el, 4000));
+        return;
+      }
+      show(el, 4000);
+    }, 420);
   }, true);
   document.addEventListener('touchstart', (e) => {
     const el = named(e.target);
@@ -80,7 +92,7 @@ document.addEventListener('focusout', (event) => {
     if (swallow) { swallow = null; hide(); } else clearTimeout(clock);
   }, true);
   document.addEventListener('pointerup', () => { if (held && !swallow) clearTimeout(clock); held = null; }, true);
-  document.addEventListener('contextmenu', (e) => { if (held || swallow) { e.preventDefault(); e.stopPropagation(); } }, true);
+  document.addEventListener('contextmenu', (e) => { if (!handing && (held || swallow)) { e.preventDefault(); e.stopPropagation(); } }, true);
   document.addEventListener('click', (e) => {
     const el = named(e.target);
     if (swallow && el === swallow) { swallow = null; e.preventDefault(); e.stopPropagation(); return; }
