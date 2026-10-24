@@ -500,7 +500,18 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.timers.push(t);
     };
     pickOutboxEntry = (id) => this.setState({ outboxSel: id, mailPane: "thread" });
-    cancelOutboxEntry = (acc, id) => {
+    /* Cancelling and sending again are each a request the server answers a moment later. While it has not, the entry's
+       controls are held and say what is under way, so a second press cannot ask twice. */
+    decideOutboxEntry = (id, decision, apply) => {
+      if (this.state.outboxDeciding) return;
+      this.setState({ outboxDeciding: { id, decision } });
+      this.timers.push(setTimeout(() => {
+        this.setState({ outboxDeciding: null });
+        apply();
+      }, 900));
+    };
+    cancelOutboxEntry = (acc, id) => this.decideOutboxEntry(id, "cancel", () => this.cancelOutboxEntryNow(acc, id));
+    cancelOutboxEntryNow = (acc, id) => {
       const entry = this.outboxOf(acc).find(x => x.id === id);
       this.setOutbox(acc, this.outboxOf(acc).filter(x => x.id !== id));
       if (entry) this.notify("Nothing was sent to " + entry.rcpt.map(r => r.mail).join(", ") + ".", { kind: "success", title: "Sending cancelled" });
@@ -523,7 +534,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         },
       });
     };
-    sendOutboxEntryAgain = (acc, id) => {
+    sendOutboxEntryAgain = (acc, id) => this.decideOutboxEntry(id, "again", () => this.sendOutboxEntryAgainNow(acc, id));
+    sendOutboxEntryAgainNow = (acc, id) => {
       this.setOutbox(acc, this.outboxOf(acc).map(x => (x.id === id ? Object.assign({}, x, { stage: "sending" }) : x)));
       this.notify("It goes out again now.", { title: "Sending again" });
       this.outboxLeaveSoon(acc);
@@ -2998,6 +3010,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const outboxEntry = outboxEntries.find(x => x.id === st.outboxSel) || null;
       const obStage = outboxEntry ? OB_STAGE[outboxEntry.stage] : OB_STAGE.waiting;
       const obTone = OB_TONE[obStage.tone];
+      const outboxDecidingHere = !!outboxEntry && !!st.outboxDeciding && st.outboxDeciding.id === outboxEntry.id;
+      const obHeld = outboxDecidingHere ? ";opacity:0.6;cursor:default" : "";
       const obBtn = "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:" + (touch ? 44 : 32) + "px;padding:0 14px;border-radius:8px;font-size:13px;";
       const outboxView = {
         outboxListShown: outboxOn,
@@ -3044,9 +3058,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         outboxCanDecide: !!outboxEntry && obStage.act === "decide",
         outboxCancel: () => outboxEntry && this.cancelOutboxEntry(outboxAcc, outboxEntry.id),
         outboxResend: () => outboxEntry && this.sendOutboxEntryAgain(outboxAcc, outboxEntry.id),
-        outboxDismiss: () => outboxEntry && this.dismissOutboxEntry(outboxAcc, outboxEntry.id),
-        outboxResendStyle: obBtn + "font-weight:600;color:var(--onaccent);background:var(--accent)",
-        outboxQuietBtnStyle: obBtn + "color:var(--text2);background:var(--panel);border:1px solid var(--border2)",
+        outboxDismiss: () => outboxEntry && !outboxDecidingHere && this.dismissOutboxEntry(outboxAcc, outboxEntry.id),
+        outboxHeld: outboxDecidingHere,
+        outboxDecidingShown: outboxDecidingHere,
+        outboxDecidingSaid: outboxDecidingHere ? (st.outboxDeciding.decision === "cancel" ? "Cancelling sending…" : "Sending it again…") : "",
+        outboxResendStyle: obBtn + "font-weight:600;color:var(--onaccent);background:var(--accent)" + obHeld,
+        outboxQuietBtnStyle: obBtn + "color:var(--text2);background:var(--panel);border:1px solid var(--border2)" + obHeld,
         outboxFacts: !outboxEntry ? [] : [{ k: "From", v: outboxAccount.address }]
           .concat(outboxEntry.rcpt.map(r => ({ k: r.hdr, v: r.mail, said: r.said || "" })))
           .concat([{ k: "Handed", v: "today, " + outboxEntry.at }])

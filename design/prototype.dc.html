@@ -900,10 +900,13 @@ Project repository: https://github.com/fathomise/MailFathom
                   <div style="{{ outboxStageTitleStyle }}">{{ outboxStageTitle }}</div>
                   <div style="font-size:13px;line-height:1.55;color:var(--text2);text-wrap:pretty">{{ outboxStageText }}</div>
                   <sc-if value="{{ outboxCanDecide }}" hint-placeholder-val="{{ false }}">
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:6px"><div role="button" tabindex="0" onClick="{{ outboxResend }}" style="{{ outboxResendStyle }}" style-hover="cursor:pointer;opacity:0.9">Send again</div><div role="button" tabindex="0" onClick="{{ outboxDismiss }}" style="{{ outboxQuietBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Dismiss</div></div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:6px"><div role="button" tabindex="0" aria-disabled="{{ outboxHeld }}" onClick="{{ outboxResend }}" style="{{ outboxResendStyle }}" style-hover="cursor:pointer;opacity:0.9">Send again</div><div role="button" tabindex="0" aria-disabled="{{ outboxHeld }}" onClick="{{ outboxDismiss }}" style="{{ outboxQuietBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Dismiss</div></div>
                   </sc-if>
                   <sc-if value="{{ outboxCanCancel }}" hint-placeholder-val="{{ false }}">
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:6px"><div role="button" tabindex="0" onClick="{{ outboxCancel }}" style="{{ outboxQuietBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Cancel sending</div></div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:6px"><div role="button" tabindex="0" aria-disabled="{{ outboxHeld }}" onClick="{{ outboxCancel }}" style="{{ outboxQuietBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Cancel sending</div></div>
+                  </sc-if>
+                  <sc-if value="{{ outboxDecidingShown }}" hint-placeholder-val="{{ false }}">
+                    <div role="status" style="font-size:13px;color:var(--muted)">{{ outboxDecidingSaid }}</div>
                   </sc-if>
                 </div>
               </div>
