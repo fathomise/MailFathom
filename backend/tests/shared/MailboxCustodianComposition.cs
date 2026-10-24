@@ -301,7 +301,6 @@ internal sealed class MailboxCustodianComposition
     internal OutgoingMailFilingPass OutgoingFilings => field ??= new(
         this.OutgoingEmails,
         this.OutgoingFiler,
-        this.Mappings,
         this.FilingPolicies,
         this.Filings,
         this.Custodians,

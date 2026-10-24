@@ -2553,11 +2553,22 @@
               "$ref": "#/components/schemas/ClientMailFolderResponse"
             },
             "type": "array"
+          },
+          "outbox": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientOutboxCountResponse"
+              }
+            ]
           }
         },
         "required": [
           "account",
-          "folders"
+          "folders",
+          "outbox"
         ],
         "type": "object"
       },
@@ -4074,6 +4085,170 @@
           "screen",
           "calendarEventId",
           "taskId"
+        ],
+        "type": "object"
+      },
+      "ClientOutboxCountResponse": {
+        "properties": {
+          "refused": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "waiting": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "waiting",
+          "refused"
+        ],
+        "type": "object"
+      },
+      "ClientOutboxEntryResponse": {
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "attemptCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "dueAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dueTimeZone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "failure": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "heldByAttempt": {
+            "type": "boolean"
+          },
+          "lastFailureCode": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ]
+          },
+          "lastReplyCode": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ]
+          },
+          "otherRecipientCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "outgoingEmail": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "recipients": {
+            "items": {
+              "$ref": "#/components/schemas/ClientOutboxRecipientResponse"
+            },
+            "type": "array"
+          },
+          "recordedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "subject": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "outgoingEmail",
+          "account",
+          "stage",
+          "heldByAttempt",
+          "recipients",
+          "otherRecipientCount",
+          "subject",
+          "recordedAt",
+          "dueAt",
+          "dueTimeZone",
+          "attemptCount",
+          "lastFailureCode",
+          "lastReplyCode",
+          "failure"
+        ],
+        "type": "object"
+      },
+      "ClientOutboxPageResponse": {
+        "properties": {
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sends": {
+            "items": {
+              "$ref": "#/components/schemas/ClientOutboxEntryResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "sends",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "ClientOutboxRecipientResponse": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "address",
+          "role"
         ],
         "type": "object"
       },
@@ -9017,6 +9192,21 @@
         "required": [
           "outgoingEmail",
           "outcome"
+        ],
+        "type": "object"
+      },
+      "OutboxDismissalRequest": {
+        "properties": {
+          "outgoingEmail": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "outgoingEmail"
         ],
         "type": "object"
       },
@@ -19054,7 +19244,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OutboxPageResponse"
+                  "$ref": "#/components/schemas/ClientOutboxPageResponse"
                 }
               }
             },
@@ -19083,6 +19273,46 @@
                   },
                   {
                     "$ref": "#/components/schemas/OutboxCancellationRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboxDecisionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/outbox/dismissal": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/OutboxDismissalRequest"
                   }
                 ]
               }

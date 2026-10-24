@@ -984,7 +984,7 @@ account's folders through `IRemoteFolderCatalog` and matches the mapping against
 | Mapping | Matches |
 | --- | --- |
 | `RemotePath` | The advertised folder whose path is the configured text. |
-| `SpecialUse`, alone | The advertised folder carrying that RFC 6154 role. `Outbox` is refused here, because no server advertises one. |
+| `SpecialUse`, alone | The advertised folder carrying that RFC 6154 role. |
 | `RemotePath` and `SpecialUse` together | The advertised folder whose path is the configured text; the role is what that folder *plays* rather than how it is found. |
 
 A role several folders carry does **not** resolve to whichever the server listed first. `LIST` ordering is a response
@@ -992,12 +992,12 @@ order rather than an identity contract, so taking the first would let a reordere
 generation, and resynchronize a different folder with no configuration having changed. The alias is reported ambiguous
 instead, and the log names the remedy: configure its `RemotePath`.
 
-One role is MailFathom's own and is therefore never matched against what a server advertised. RFC 6154 defines no
-outbox attribute — the outbox a mail client shows is that client's own local queue — so `SpecialUse: Outbox` names a
-folder only beside a `RemotePath`, and startup refuses the role written alone, naming the alias and the key it wants. A
-provider folder merely *named* like an outbox plays no role either, because nothing here reads a folder's name. What
-the role is for is [the copy of a waiting message](mail-delivery.md#the-copy-in-the-accounts-own-folders), which is
-mirrored into that folder and withdrawn when the message leaves; an account that maps none mirrors nothing.
+No folder plays an outbox. RFC 6154 defines no outbox attribute — the outbox a mail client shows is that client's own
+local queue — and each account's outbox is MailFathom's own record of what it has not sent, served
+[beside the account's folders](../operations/client-endpoint.md#the-outbox-routes) rather than synchronized from one.
+So `SpecialUse: Outbox` is refused at startup, with or without a `RemotePath`, naming the alias and the mapping to
+remove, and a provider folder merely *named* like an outbox is an ordinary folder, because nothing here reads a
+folder's name.
 
 A `SpecialUse: Inbox` mapping additionally falls back to the folder named `INBOX` when the server advertises no
 special-use attribute at all, because RFC 3501 mandates that name and makes it case-insensitive. That fallback exists

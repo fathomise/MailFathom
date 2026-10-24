@@ -12,9 +12,10 @@ namespace MailFathom.Domain.UnitTests.Delivery.Filing;
 public sealed class OutgoingMailFilingTests
 {
     /// <summary>
-    /// The set is the answer to a decision rather than a list that grows with call sites: three stages of an outgoing
-    /// message have a place in the mailbox, and a fourth is a member to append deliberately rather than a second
-    /// filing mechanism to build somewhere else. This test is what makes appending one a deliberate act.
+    /// The set is the answer to a decision rather than a list that grows with call sites: two stages of an outgoing
+    /// message have a place in the mailbox, and a third is a member to append deliberately rather than a second
+    /// filing mechanism to build somewhere else. This test is what makes appending one a deliberate act — and a message
+    /// waiting to leave has none, because each account's outbox is MailFathom's own rather than a folder.
     /// </summary>
     [Fact]
     public void All_HoldsExactlyThePlacesAnOutgoingMessageIsFiled()
@@ -22,7 +23,6 @@ public sealed class OutgoingMailFilingTests
         // Arrange
         OutgoingMailFiling[] expected = [
             OutgoingMailFiling.Draft,
-            OutgoingMailFiling.Held,
             OutgoingMailFiling.Sent,
         ];
 
@@ -36,7 +36,6 @@ public sealed class OutgoingMailFilingTests
     /// <summary>The role and the flags are one answer, because what a folder means is what its copy looks like.</summary>
     [Theory]
     [InlineData("draft", MailFolderSpecialUse.Drafts, true, false)]
-    [InlineData("held", MailFolderSpecialUse.Outbox, true, false)]
     [InlineData("sent", MailFolderSpecialUse.Sent, false, true)]
     public void Members_NameTheRoleAndTheFlagsThatFolderMeans(
         string name,
@@ -56,21 +55,9 @@ public sealed class OutgoingMailFilingTests
         Assert.Equal(isSeen, flags.IsSeen);
     }
 
-    /// <summary>Only the mirror of a waiting message goes away; a draft and a sent copy are what the user keeps.</summary>
-    [Fact]
-    public void IsWithdrawnWhenTheMessageLeaves_IsTrueOfTheOutboxMirrorAlone()
-    {
-        // Act
-        var withdrawn = OutgoingMailFiling.All.Where(filing => filing.IsWithdrawnWhenTheMessageLeaves);
-
-        // Assert
-        Assert.Equal([OutgoingMailFiling.Held], withdrawn);
-    }
-
     /// <summary>The name is what a durable row, a log line, and a counter dimension all show, so it is the identity.</summary>
     [Theory]
     [InlineData("draft")]
-    [InlineData("held")]
     [InlineData("sent")]
     public void TryParseName_AnAllocatedName_ReturnsTheFilingItNames(string name)
     {
@@ -84,6 +71,7 @@ public sealed class OutgoingMailFilingTests
 
     [Theory]
     [InlineData("outbox")]
+    [InlineData("held")]
     [InlineData("archived")]
     [InlineData("junk")]
     [InlineData("")]

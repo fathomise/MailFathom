@@ -169,20 +169,12 @@ public interface IMailboxCustodian
     /// </remarks>
     Task<LocalMailCopy?> PrepareSentCopyAsync(OutgoingEmailRecord send, CancellationToken cancellationToken);
 
-    /// <summary>Brings the server copies of one settled send up to date: the outbox copy goes, and the sent copy arrives.</summary>
+    /// <summary>Brings the server copies of one settled send up to date by filing its sent copy.</summary>
     /// <param name="send">The send, read after its attempt ended.</param>
     /// <param name="cancellationToken">Cancels the appends and the withdrawals.</param>
     /// <returns>What each attempt did, which is empty where no copy of a send is kept on a server.</returns>
     Task<IReadOnlyList<OutgoingMailFilingResult>> SettleFiledCopiesAsync(
         OutgoingEmailRecord send,
-        CancellationToken cancellationToken);
-
-    /// <summary>Puts a copy of each waiting send into the folder the account mapped as its outbox.</summary>
-    /// <param name="account">The account.</param>
-    /// <param name="cancellationToken">Cancels the reads and the appends.</param>
-    /// <returns>What each attempt did, which is empty where no copy of a send is kept on a server.</returns>
-    Task<IReadOnlyList<OutgoingMailFilingResult>> MirrorWaitingSendsAsync(
-        MailAccountId account,
         CancellationToken cancellationToken);
 
     /// <summary>Takes back the sent copies whose provider has since filed one of its own beside them.</summary>

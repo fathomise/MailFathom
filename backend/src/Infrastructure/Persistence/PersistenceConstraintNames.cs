@@ -444,6 +444,9 @@ internal static class PersistenceConstraintNames
     /// </remarks>
     internal const string OutgoingEmailPeriodUsageIndexName = "ix_outgoing_emails_period_usage";
 
+    /// <summary>Names the index each account's outbox is listed and counted through.</summary>
+    internal const string OutgoingEmailOutboxIndexName = "ix_outgoing_emails_outbox";
+
     /// <summary>The foreign key that removes an outgoing email's recipients with the record.</summary>
     /// <remarks>
     /// Named because EF's convention composes one from both table names and PostgreSQL truncates an identifier at 63

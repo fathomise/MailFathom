@@ -699,7 +699,7 @@ mailbox state nobody here is still reading.
 states what each of the two is and what makes both unreachable everywhere else too.
 
 **A copy of this deployment's own outgoing mail is not arriving mail.** A message MailFathom
-[filed](mail-delivery.md#the-copy-in-the-accounts-own-folders) into the account's own sent or outbox folder comes back
+[filed](mail-delivery.md#the-copy-in-the-accounts-own-folders) into the account's own sent folder comes back
 through the next synchronization like anything else, and it is recognized as this system's own and joined to the send
 it is a copy of. Neither pass ever offers it to a rule: a rule conditioned on mail arriving would otherwise fire on
 what the user just sent, and a rule that files or deletes would act on the copy of a message the record above it still

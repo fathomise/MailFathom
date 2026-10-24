@@ -53,6 +53,9 @@ internal static class OutgoingEmailRecordMapping
             LastReplyCode = entity.LastReplyCode,
             Filings = [.. entity.Filings.Select(ToFiling).OrderBy(filing => filing.Filing.Name, StringComparer.Ordinal)],
             LastFilingFailure = StoredFailureCode.ToErrorCode(entity.LastFilingFailureCode),
+            Subject = entity.Subject,
+            Dismissal = ToDismissal(entity),
+            AttemptLeaseExpiresAt = entity.LeaseExpiresAt,
         };
     }
 
@@ -108,6 +111,11 @@ internal static class OutgoingEmailRecordMapping
     /// naming no due time at all. The zone is what makes the instant answerable — which nine in the morning was meant —
     /// so reading such a row as a due time would state a moment nobody can check against the schedule it came from.
     /// </remarks>
+    private static OutgoingEmailDismissal? ToDismissal(OutgoingEmailEntity entity) =>
+        entity is { DismissedAt: { } dismissedAt, DismissedByUserId: { } dismissedBy }
+            ? new OutgoingEmailDismissal(dismissedAt, UserId.Create(dismissedBy))
+            : null;
+
     private static ZonedInstant? ToDueTime(OutgoingEmailEntity entity) =>
         entity is { DueAt: { } dueAt, DueZoneId: { Length: > 0 } zoneId }
             ? ZonedInstant.Restore(dueAt, zoneId)

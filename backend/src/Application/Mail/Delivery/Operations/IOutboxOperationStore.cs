@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Mail.Delivery.Tracking;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 
@@ -44,6 +46,28 @@ public interface IOutboxOperationStore
     /// never puts anybody's address into memory on its way to being left out of the answer.
     /// </remarks>
     Task<OutboxPage> ReadPageAsync(OutboxQuery query, CancellationToken cancellationToken);
+
+    /// <summary>Serves one bounded page of one account's outbox: what has not left, and what was refused and not dismissed.</summary>
+    /// <param name="query">The account, the stage among the outbox's to narrow to, and how the page is continued.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The page, newest first, and the boundary the next one is asked with where the outbox continues.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="query" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentException">Thrown when the query names no account, or a stage the outbox does not hold.</exception>
+    /// <remarks>
+    /// Unlike <see cref="ReadPageAsync" />, this reads who each send is for and what it is about, because it serves the
+    /// person whose mail it is rather than an operator; the use case in front of it is what decides that the caller may
+    /// read it. A subject an earlier build did not keep is answered absent rather than read from the message here.
+    /// </remarks>
+    Task<AccountOutboxPage> ReadAccountOutboxAsync(OutboxQuery query, CancellationToken cancellationToken);
+
+    /// <summary>Counts what each named account's outbox holds.</summary>
+    /// <param name="accounts">The accounts to count.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>One count per account named, in no particular order, zero where an account's outbox holds nothing.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="accounts" /> is <see langword="null" />.</exception>
+    Task<IReadOnlyList<AccountOutboxCount>> CountAccountOutboxesAsync(
+        IReadOnlyCollection<MailAccountId> accounts,
+        CancellationToken cancellationToken);
 
     /// <summary>Withdraws one send that has not begun transmitting.</summary>
     /// <param name="outgoingEmailId">The send to cancel.</param>
@@ -89,10 +113,36 @@ public interface IOutboxOperationStore
     /// still says why it stopped until something newer replaces it, and the recipients keep the answers they already
     /// have: an address a server settled is never offered a second time, whoever asked for the send to run again.
     /// </para>
+    /// <para>
+    /// A dismissal is cleared, because a send offered again is back in its account's outbox whatever somebody decided
+    /// about it before.
+    /// </para>
     /// </remarks>
     Task<OutboxDecisionOutcome> RequeueAsync(
         OutgoingEmailId outgoingEmailId,
         bool refusalRestated,
+        CancellationToken cancellationToken);
+
+    /// <summary>Takes one refused send, or one whose outcome nobody will learn, out of its account's outbox.</summary>
+    /// <param name="outgoingEmailId">The send to dismiss.</param>
+    /// <param name="dismissedBy">The user deciding.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>What happened to the send.</returns>
+    /// <remarks>
+    /// <para>
+    /// It records the dismissal and changes nothing else: the stage stays where it stood and the recipients keep what
+    /// each server said. Two stages reach it — <see cref="OutgoingEmailStage.Refused" />, and
+    /// <see cref="OutgoingEmailStage.TransmissionBegun" /> where no live lease holds the send — and a send already
+    /// dismissed is refused as one the decision no longer applies to.
+    /// </para>
+    /// <para>
+    /// A send at <see cref="OutgoingEmailStage.TransmissionBegun" /> that a lease holds is being transmitted right now,
+    /// and dismissing it would hide an outcome that is about to be known, so it is refused as an attempt under way.
+    /// </para>
+    /// </remarks>
+    Task<OutboxDecisionOutcome> DismissAsync(
+        OutgoingEmailId outgoingEmailId,
+        UserId dismissedBy,
         CancellationToken cancellationToken);
 }
 

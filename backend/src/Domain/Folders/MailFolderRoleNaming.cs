@@ -14,11 +14,10 @@ namespace MailFathom.Domain.Folders;
 /// person sees is theirs to draw from the role.
 /// </para>
 /// <para>
-/// The set is narrower than <see cref="MailFolderSpecialUse" /> by three kinds. An inbox is never created, because
+/// The set is narrower than <see cref="MailFolderSpecialUse" /> by two kinds. An inbox is never created, because
 /// RFC 3501 has every server hold one already. <see cref="MailFolderSpecialUse.All" />,
 /// <see cref="MailFolderSpecialUse.Flagged" />, and <see cref="MailFolderSpecialUse.Important" /> are views a server
-/// presents rather than folders anybody makes. <see cref="MailFolderSpecialUse.Outbox" /> is MailFathom's own label
-/// with no attribute behind it, so a server would have nothing to be told and nothing to advertise afterwards.
+/// presents rather than folders anybody makes.
 /// </para>
 /// </remarks>
 public static class MailFolderRoleNaming

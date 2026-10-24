@@ -14,12 +14,15 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace MailFathom.Host.Api;
 
-/// <summary>Serves what the signed-in user does about their own outbox: watch it, and decide about one send in it.</summary>
+/// <summary>Serves what the signed-in user does about each of their accounts' outboxes: read one, and decide about one send in it.</summary>
 /// <remarks>
 /// <para>
 /// It is what a client draws after a message has been sent. Sending queues, so the send the user just asked for has
-/// not left yet, and these routes are where the screen watches it go — and where a send that is still queued is taken
-/// back, or one that failed is offered another chance.
+/// not left yet, and an account's outbox is where the screen watches it go — and where a send that is still queued is
+/// taken back, one that failed is offered another chance, and one that failed for good is dismissed. The outbox holds
+/// what has not left and what was refused; a delivered send has left it, and a withdrawn or dismissed one is gone from
+/// it. It is read-only as a mailbox: it is no folder, so no route that moves, copies, or flags a message can name it,
+/// and a send in it is named by the identifier it answered with rather than as a stored email.
 /// </para>
 /// <para>
 /// <b>A listing names an account and never the deployment.</b> The narrowing is required rather than optional, so
@@ -29,15 +32,14 @@ namespace MailFathom.Host.Api;
 /// nobody made.
 /// </para>
 /// <para>
-/// What the answers may carry is what the administrative outbox already settled and for the same reasons. A page names
-/// no recipient and no subject, because a page of an outbox would otherwise be an export of who this user writes to,
-/// a page at a time; one send read by identity names its recipients and what the server told this deployment about
-/// each, because that is the question it was asked. Neither reads the message, at any size.
+/// A page and a preview carry mail — who a send is addressed to, its subject, and the message itself — so they are read
+/// under both <c>mailfathom.mail.read</c> and <c>mailfathom.mail.send</c>, and a caller holding only one of them is
+/// refused the page. A send-only credential still reads one send by identity, as the stage, the attempts, and each
+/// recipient's outcome without the subject or the message, because that is what watching its own send needs.
 /// </para>
 /// <para>
-/// Every route here is <c>mailfathom.mail.send</c>, including the two readings. What an outbox says is what this user
-/// is sending, so a credential granted to read a mailbox learns nothing here — and withdrawing a send is part of
-/// sending rather than a power beside it.
+/// Every decision here is <c>mailfathom.mail.send</c>. Withdrawing, offering again, and dismissing a send are part of
+/// sending rather than powers beside it, so a credential granted to read a mailbox decides nothing here.
 /// </para>
 /// </remarks>
 internal static class ClientOutboxEndpoints
@@ -58,6 +60,9 @@ internal static class ClientOutboxEndpoints
     /// difference between withdrawing a message and sending it a second time.
     /// </remarks>
     internal const string OutboxRequeueRoute = $"{OutboxRoute}/requeue";
+
+    /// <summary>The route one send is dismissed from its account's outbox on.</summary>
+    internal const string OutboxDismissalRoute = $"{OutboxRoute}/dismissal";
 
     /// <summary>Maps the outbox routes into the client group, so they inherit its requirement, its policy, and its limits.</summary>
     /// <param name="api">The client route group.</param>
@@ -82,22 +87,26 @@ internal static class ClientOutboxEndpoints
         api.MapPost(OutboxRequeueRoute, RequeueAsync)
             .WithMetadata(new RequestSizeLimitAttribute(OutboxEndpoints.MaxDecisionRequestBytes))
             .RequirePermission(MailFathomPermission.MailSend);
+
+        api.MapPost(OutboxDismissalRoute, DismissAsync)
+            .WithMetadata(new RequestSizeLimitAttribute(OutboxEndpoints.MaxDecisionRequestBytes))
+            .RequirePermission(MailFathomPermission.MailSend);
     }
 
-    /// <summary>Serves one page of what the named account of the acting user is sending, newest first.</summary>
+    /// <summary>Serves one page of the named account's outbox, newest first.</summary>
     /// <param name="account">The account to read, by its identifier or its display name, which is required rather than optional.</param>
-    /// <param name="stage">The stage to narrow to, or <see langword="null" /> for every stage.</param>
+    /// <param name="stage">The stage among the three the outbox holds to narrow to, or <see langword="null" /> for all three.</param>
     /// <param name="pageSize">How many sends the page may hold, or <see langword="null" /> for the default.</param>
     /// <param name="cursor">The cursor the previous page returned, or <see langword="null" /> for the first page.</param>
     /// <param name="outbox">Reads the page, for the user the credential names.</param>
     /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
-    /// <returns><c>200</c> with the page, or <c>400</c> naming what was wrong with the request.</returns>
+    /// <returns><c>200</c> with the page, <c>400</c> naming what was wrong with the request, or <c>403</c> for a caller that does not hold both <c>mailfathom.mail.read</c> and <c>mailfathom.mail.send</c>.</returns>
     /// <remarks>
     /// An account this user is not assigned is <c>400</c> rather than <c>404</c>, which is how every other narrowing on
     /// this surface answers one: it is a mistake in the request the client wrote rather than a missing resource, and it
     /// answers identically for an account nobody configured so that nothing here reports whose accounts exist.
     /// </remarks>
-    internal static async Task<Results<Ok<OutboxPageResponse>, ProblemHttpResult>> ReadPageAsync(
+    internal static async Task<Results<Ok<ClientOutboxPageResponse>, ProblemHttpResult>> ReadPageAsync(
         [FromQuery] string? account,
         [FromQuery] string? stage,
         [FromQuery] int? pageSize,
@@ -134,7 +143,7 @@ internal static class ClientOutboxEndpoints
                 cancellationToken);
 
             return result.Page is { } page
-                ? TypedResults.Ok(OutboxPageResponse.For(page))
+                ? TypedResults.Ok(ClientOutboxPageResponse.For(page))
                 : Refuse(DescribeRefusal(result.Outcome));
         }
         catch (MailAccountNotAccessibleException)
@@ -143,17 +152,17 @@ internal static class ClientOutboxEndpoints
         }
     }
 
-    /// <summary>Serves one of the acting user's sends, with what each of its recipients was told.</summary>
+    /// <summary>Serves one of the acting user's sends: as the message it is to a caller that may read the outbox, and as its delivery to one that may only send.</summary>
     /// <param name="outgoingEmailId">The send to read.</param>
-    /// <param name="outbox">Reads the record, for the user the credential names.</param>
+    /// <param name="outbox">Reads the send, for the user the credential names.</param>
     /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
-    /// <returns><c>200</c> with the send, or <c>404</c> where this user has no send under that identifier.</returns>
+    /// <returns><c>200</c> with the preview or the delivery, or <c>404</c> where this user has no send under that identifier.</returns>
     /// <remarks>
     /// A send another user made and one nobody made answer identically. This route addresses one record by identity,
-    /// so its absence is the absence of the thing addressed — unlike the two decisions beside it, which address the
-    /// outbox and report what became of the send they named.
+    /// so its absence is the absence of the thing addressed — unlike the decisions beside it, which address the outbox
+    /// and report what became of the send they named.
     /// </remarks>
-    internal static async Task<Results<Ok<OutboxSendResponse>, NotFound>> ReadSendAsync(
+    internal static async Task<Results<Ok<ClientOutboxPreviewResponse>, Ok<OutboxSendResponse>, NotFound>> ReadSendAsync(
         [FromRoute] Guid outgoingEmailId,
         [FromServices] UserOutbox outbox,
         CancellationToken cancellationToken)
@@ -163,6 +172,13 @@ internal static class ClientOutboxEndpoints
         if (NamedSend(outgoingEmailId) is not { } identifier)
         {
             return TypedResults.NotFound();
+        }
+
+        if (outbox.MayReadOutbox)
+        {
+            return await outbox.ReadPreviewAsync(identifier, cancellationToken) is { } preview
+                ? TypedResults.Ok(ClientOutboxPreviewResponse.For(preview))
+                : TypedResults.NotFound();
         }
 
         return await outbox.FindAsync(identifier, cancellationToken) is { } record
@@ -227,6 +243,32 @@ internal static class ClientOutboxEndpoints
         return TypedResults.Ok(OutboxDecisionResponse.For(identifier, outcome));
     }
 
+    /// <summary>Takes one of the acting user's refused sends, or one whose outcome nobody will learn, out of its account's outbox.</summary>
+    /// <param name="request">The send to dismiss.</param>
+    /// <param name="outbox">Performs the decision, for the user the credential names.</param>
+    /// <param name="cancellationToken">Cancels the read and the write.</param>
+    /// <returns><c>200</c> with what happened, or <c>400</c> where the request named no send.</returns>
+    /// <remarks>
+    /// It is offered at <c>Refused</c>, and at <c>TransmissionBegun</c> once no attempt holds the send. The stage is
+    /// unchanged by it: a dismissal records that the person accepted the failure, not that the message was withdrawn.
+    /// </remarks>
+    internal static async Task<Results<Ok<OutboxDecisionResponse>, ProblemHttpResult>> DismissAsync(
+        [FromBody] OutboxDismissalRequest? request,
+        [FromServices] UserOutbox outbox,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(outbox);
+
+        if (NamedSend(request?.OutgoingEmail) is not { } identifier)
+        {
+            return Refuse(NoSendNamed());
+        }
+
+        var outcome = await outbox.DismissAsync(identifier, cancellationToken);
+
+        return TypedResults.Ok(OutboxDecisionResponse.For(identifier, outcome));
+    }
+
     /// <summary>Reads the account a request narrows to, refusing text no name of this system is spelled with.</summary>
     private static MailAccountSelector? NamedAccount(string? account)
     {
@@ -280,9 +322,10 @@ internal static class ClientOutboxEndpoints
         _ => "The continuation cursor was issued for a different set of outbox filters.",
     };
 
-    /// <summary>States that the request named no stage a send can stand at.</summary>
+    /// <summary>States that the request named no stage a send in the outbox stands at.</summary>
     private static string UnknownStage() =>
-        $"The stage filter names no stage a queued message stands at. It is one of {OutboxQuery.DeclaredStages()}.";
+        "The stage filter names no stage a message in the outbox stands at. It is one of "
+        + $"{string.Join(", ", OutgoingEmailRecord.OutboxStages)}.";
 
     /// <summary>States that the request named no send to decide about.</summary>
     private static string NoSendNamed() =>

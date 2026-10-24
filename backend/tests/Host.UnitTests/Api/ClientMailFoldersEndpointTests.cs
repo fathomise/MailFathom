@@ -99,7 +99,6 @@ public sealed class ClientMailFoldersEndpointTests
     [InlineData(MailFolderSpecialUse.Inbox)]
     [InlineData(MailFolderSpecialUse.Sent)]
     [InlineData(MailFolderSpecialUse.Junk)]
-    [InlineData(MailFolderSpecialUse.Outbox)]
     public void For_AFolderPlayingARole_PublishesItUnderItsOwnName(MailFolderSpecialUse role)
     {
         // Arrange

@@ -60,6 +60,15 @@ public readonly record struct ClientSignalKind
     /// </remarks>
     public static ClientSignalKind RunAdvanced { get; } = new("run.advanced");
 
+    /// <summary>Gets the kind raised when what one account's outbox holds, or the stage of a send in it, moved.</summary>
+    /// <remarks>
+    /// It names the account and nothing else — no send, no subject, no recipient, and no count — so the client re-reads
+    /// the count and the page it has open, which is the guarantee; the signal only says when.
+    /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0040-each-account-outbox-as-a-read-only-list-beside-its-folders.md">ADR 0040</see>
+    /// decides it.
+    /// </remarks>
+    public static ClientSignalKind OutboxChanged { get; } = new("outbox.changed");
+
     /// <summary>Gets every kind this deployment publishes.</summary>
     /// <remarks>Declared last so the members it lists are already initialized when this initializer runs.</remarks>
     public static IReadOnlyList<ClientSignalKind> All { get; } =
@@ -71,6 +80,7 @@ public readonly record struct ClientSignalKind
         NotificationRaised,
         AccountState,
         RunAdvanced,
+        OutboxChanged,
     ];
 
     /// <summary>Gets whether this value names a kind rather than the unusable struct default.</summary>

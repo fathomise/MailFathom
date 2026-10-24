@@ -664,7 +664,10 @@ internal sealed class MimeKitAuthoredEmailComposer(
             account,
             author,
             requester,
-            [.. message.Recipients.Select(static recipient => recipient.Recipient)]);
+            [.. message.Recipients.Select(static recipient => recipient.Recipient)]) with
+        {
+            Subject = message.Subject,
+        };
 
         return AuthoredEmailComposition.Composed(
             new ComposedOutgoingEmail(request, message.MessageId, message.RawMime));

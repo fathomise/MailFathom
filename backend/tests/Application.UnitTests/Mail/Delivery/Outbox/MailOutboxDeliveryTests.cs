@@ -208,6 +208,36 @@ public sealed class MailOutboxDeliveryTests
             Arg.Any<CancellationToken>());
     }
 
+    /// <summary>A send that left or was refused moved in its account's outbox, so an open client is told the outbox changed.</summary>
+    [Theory]
+    [InlineData(MailTransmissionOutcome.Accepted)]
+    [InlineData(MailTransmissionOutcome.RefusedPermanently)]
+    public async Task DeliverAsync_AnAttemptThatEndsTheSend_TellsAnOpenClientTheAccountsOutboxChanged(
+        MailTransmissionOutcome outcome)
+    {
+        // Arrange
+        var context = new DeliveryContext();
+        var claimed = await context.ClaimAsync("anna@example.test");
+        context.Transmit = (request, envelope, _) =>
+        {
+            if (outcome == MailTransmissionOutcome.Accepted)
+            {
+                AcceptEveryRecipient(request, envelope);
+            }
+
+            return Task.FromResult(new MailTransmission(outcome, outcome == MailTransmissionOutcome.Accepted ? 250 : 550));
+        };
+
+        // Act
+        await context.DeliverAsync(claimed, TestContext.Current.CancellationToken);
+        var published = await context.PublishedSignalsAsync();
+
+        // Assert
+        var signal = Assert.Single(published);
+        Assert.Equal(ClientSignalKind.OutboxChanged, signal.Kind);
+        Assert.Equal(claimed.Record.AccountId, signal.Account);
+    }
+
     /// <summary>A permanent refusal ends the send at the server's first answer, with nothing left to attempt.</summary>
     [Fact]
     public async Task DeliverAsync_ServerRefusesTheMessagePermanently_EndsTheSendWithoutAnotherAttempt()
@@ -761,6 +791,7 @@ public sealed class MailOutboxDeliveryTests
                 return session;
             });
 
+            this.Signals = new ClientSignals([this.SignalChannel], this.clock);
             this.delivery = new MailOutboxDelivery(
                 this.Session,
                 this.Store,
@@ -776,12 +807,26 @@ public sealed class MailOutboxDeliveryTests
                     TimeSpan.FromMinutes(1),
                     TimeSpan.FromHours(1),
                     allowedLateness ?? TimeSpan.FromHours(8)),
-                this.clock);
+                this.clock,
+                this.Signals);
         }
 
         internal InMemoryOutgoingEmailStore Store { get; }
 
         internal ScriptedMailDeliverySession Session { get; }
+
+        internal RecordingClientSignalChannel SignalChannel { get; } = new();
+
+        internal ClientSignals Signals { get; }
+
+        /// <summary>Lets the publisher's folding window pass and returns what an open client was told.</summary>
+        internal async Task<IReadOnlyList<ClientSignal>> PublishedSignalsAsync()
+        {
+            this.clock.Advance(ClientSignals.FoldingWindow);
+            await this.Signals.DrainAsync();
+
+            return this.SignalChannel.Published;
+        }
 
         /// <summary>Gets or sets the exchange with the submission server, which every test writes for itself.</summary>
         internal Func<MailTransmissionRequest, MailEnvelopeLedger, CancellationToken, Task<MailTransmission>> Transmit

@@ -4,8 +4,14 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.EmailContent;
+using MailFathom.Application.EmailContent.Rendering;
+using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Folders;
+using MailFathom.Application.Mail.Delivery.Operations;
+using MailFathom.Application.Mail.Delivery.Screening;
+using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Application.Synchronization.Administration;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Application.UnitTests.TestDoubles;
@@ -52,6 +58,56 @@ public sealed class MailFolderDirectoryReaderTests
         // Assert
         Assert.Equal([Work, Private], directory.Accounts.Select(account => account.Account.Account));
         Assert.Equal([1, 1], directory.Accounts.Select(account => account.Folders.Count));
+    }
+
+    /// <summary>A caller that may read the outbox is told how much each account's outbox holds, so it can leave an empty one out.</summary>
+    [Fact]
+    public async Task ReadAsync_ACallerHoldingBothOutboxGrants_CarriesEachAccountsOutboxCount()
+    {
+        // Arrange
+        var outbox = Substitute.For<IOutboxOperationStore>();
+        outbox
+            .CountAccountOutboxesAsync(Arg.Any<IReadOnlyCollection<MailAccountId>>(), Arg.Any<CancellationToken>())
+            .Returns([new AccountOutboxCount(Work.Id, Waiting: 2, Refused: 1), new AccountOutboxCount(Private.Id, 0, 0)]);
+        var reader = ReaderOver(
+            Freshness((Work.Id, "inbox", Now), (Private.Id, "inbox", Now)),
+            OwningAccounts(Work, Private),
+            StoredFolders(Stored(Work.Id, 1, "inbox", ["INBOX"]), Stored(Private.Id, 2, "inbox", ["INBOX"])),
+            StubMailFolderMappings.Nothing,
+            Ledger(),
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead, MailFathomPermission.MailSend),
+            outbox);
+
+        // Act
+        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            [new AccountOutboxCount(Work.Id, 2, 1), new AccountOutboxCount(Private.Id, 0, 0)],
+            directory.Accounts.Select(account => account.Outbox));
+    }
+
+    /// <summary>A caller that may not read the outbox is not told its size, and nothing counts it.</summary>
+    [Fact]
+    public async Task ReadAsync_ACallerHoldingOnlyTheReadingGrant_CarriesNoOutboxAndCountsNothing()
+    {
+        // Arrange
+        var outbox = Substitute.For<IOutboxOperationStore>();
+        var reader = ReaderOver(
+            Freshness((Work.Id, "inbox", Now)),
+            OwningAccounts(Work),
+            StoredFolders(Stored(Work.Id, 1, "inbox", ["INBOX"])),
+            StubMailFolderMappings.Nothing,
+            Ledger(),
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            outbox);
+
+        // Act
+        var directory = await reader.ReadAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(Assert.Single(directory.Accounts).Outbox);
+        Assert.Empty(outbox.ReceivedCalls());
     }
 
     /// <summary>The counts are what the store answered, and they reach the folder they were counted for.</summary>
@@ -351,7 +407,8 @@ public sealed class MailFolderDirectoryReaderTests
         IStoredMailFolderReader storedFolders,
         StubMailFolderMappings mappings,
         MailSynchronizationRunLedger runLedger,
-        AccessAuthorization authorization)
+        AccessAuthorization authorization,
+        IOutboxOperationStore? outboxOperations = null)
     {
         var scopeResolver = new MailboxScopeResolver(
             catalog,
@@ -370,6 +427,19 @@ public sealed class MailFolderDirectoryReaderTests
                     authorization),
                 runLedger),
             scopeResolver,
-            storedFolders);
+            storedFolders,
+            new UserOutbox(
+                catalog,
+                new InMemoryOutgoingEmailStore(),
+                outboxOperations ?? Substitute.For<IOutboxOperationStore>(),
+                Substitute.For<IEmailContentStore>(),
+                Substitute.For<IEmailContentRenderer>(),
+                Substitute.For<IOutgoingMailTextReader>(),
+                SensitiveContentEgressGuards.Inactive(),
+                new EmailContentReadOptions(),
+                Substitute.For<IUserLanguages>(),
+                authorization,
+                ClientSignalPublishers.ReachingNobody,
+                TimeProvider.System));
     }
 }

@@ -190,7 +190,7 @@ no user.
 
 A folder entry names `Alias` (required — your stable name for the folder) and **at least one** of `RemotePath` (the
 server's own path) or `SpecialUse` (`Inbox`, `Archive`, `Drafts`, `Sent`, `Junk`, `Trash`, `All`, `Flagged`,
-`Important`, `Outbox`). Configuring no folder synchronizes the inbox by role.
+`Important`). Configuring no folder synchronizes the inbox by role.
 
 **An alias is a name and not a place.** It may carry `/`, but that nests nothing: where a folder sits is its
 `RemotePath`, and that is what MailFathom's own client draws its tree from — `Archive/Suppliers` on a server nesting
@@ -199,10 +199,10 @@ is your stable name for the folder, which is why renaming or moving the folder o
 `RemotePath` and never its alias. Nothing here requires a parent to be declared: a path whose outer level no entry
 names simply draws that level as a heading with no folder of its own.
 
-`Outbox` is the one role that cannot be written alone: no mail server advertises one, so it names a folder only beside
-a `RemotePath` and startup refuses it without one, naming the alias. It is the folder a message waiting for an instant
-still ahead is [mirrored into](../features/mail-delivery.md#the-copy-in-the-accounts-own-folders); mapping none is the
-default and mirrors nothing.
+**`SpecialUse: Outbox` is refused at startup**, with or without a `RemotePath`, naming the alias and saying to remove
+the mapping. Each account's outbox is MailFathom's own — the sends written down for it that have not left, and the
+refused ones nobody dismissed — and is [served beside its folders](client-endpoint.md#the-outbox-routes) rather than as one of them, so no folder on the mail
+server plays that role. A provider folder named like an outbox is an ordinary folder, mapped like any other.
 
 **This list is what the deployment has.** A folder no entry names does not exist for any reader: nothing lists, searches,
 reads, or answers from it, no rule is evaluated against its mail, nothing cuts it into passages or embeds it, and no

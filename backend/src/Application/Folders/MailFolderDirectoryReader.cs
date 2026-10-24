@@ -5,7 +5,9 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
 
 namespace MailFathom.Application.Folders;
 
@@ -39,24 +41,29 @@ public sealed class MailFolderDirectoryReader
     private readonly MailAccountFreshnessReader accountReader;
     private readonly MailboxScopeResolver scopeResolver;
     private readonly IStoredMailFolderReader storedFolders;
+    private readonly UserOutbox outbox;
 
     /// <summary>Initializes the use case.</summary>
     /// <param name="accountReader">Reads the caller's accounts and how current each one and each of its folders is.</param>
     /// <param name="scopeResolver">Answers which of those accounts' folders may be reported on.</param>
     /// <param name="storedFolders">Reads each folder's place, role, and how much of it is stored.</param>
+    /// <param name="outbox">Counts each account's outbox, for a caller that may read it.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public MailFolderDirectoryReader(
         MailAccountFreshnessReader accountReader,
         MailboxScopeResolver scopeResolver,
-        IStoredMailFolderReader storedFolders)
+        IStoredMailFolderReader storedFolders,
+        UserOutbox outbox)
     {
         ArgumentNullException.ThrowIfNull(accountReader);
         ArgumentNullException.ThrowIfNull(scopeResolver);
         ArgumentNullException.ThrowIfNull(storedFolders);
+        ArgumentNullException.ThrowIfNull(outbox);
 
         this.accountReader = accountReader;
         this.scopeResolver = scopeResolver;
         this.storedFolders = storedFolders;
+        this.outbox = outbox;
     }
 
     /// <summary>Reads the user's mailboxes and every folder a screen may draw beneath them.</summary>
@@ -86,10 +93,33 @@ public sealed class MailFolderDirectoryReader
 
         var stored = await this.storedFolders.ReadAsync(scope, cancellationToken);
         var foldersByAccount = stored.ToLookup(static folder => folder.Account);
+        var outboxes = await this.ReadOutboxCountsAsync(accounts.Accounts, cancellationToken);
 
         return new MailFolderDirectory(
             accounts.SynchronizationEnabled,
-            [.. accounts.Accounts.Select(account => Describe(account, foldersByAccount[account.Account.Id]))]);
+            [
+                .. accounts.Accounts.Select(account => Describe(account, foldersByAccount[account.Account.Id]) with
+                {
+                    Outbox = outboxes.GetValueOrDefault(account.Account.Id),
+                }),
+            ]);
+    }
+
+    /// <summary>Counts each account's outbox, for a caller that may read the outbox at all.</summary>
+    private async Task<IReadOnlyDictionary<MailAccountId, AccountOutboxCount>> ReadOutboxCountsAsync(
+        IReadOnlyList<MailAccountFreshness> accounts,
+        CancellationToken cancellationToken)
+    {
+        if (!this.outbox.MayReadOutbox)
+        {
+            return new Dictionary<MailAccountId, AccountOutboxCount>();
+        }
+
+        var counted = await this.outbox.CountAsync(
+            [.. accounts.Select(static account => account.Account.Id)],
+            cancellationToken);
+
+        return counted.ToDictionary(static count => count.AccountId);
     }
 
     /// <summary>Describes one account's folders, ordered by their place in its hierarchy.</summary>

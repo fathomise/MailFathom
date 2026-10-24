@@ -507,7 +507,8 @@ public sealed class MailDraftPromotionTests
             AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend),
             governor ?? OutgoingMailGovernors.Permitting(),
             OutgoingMailScreenings.Inactive(),
-            new FakeTimeProvider(Moment));
+            new FakeTimeProvider(Moment),
+            ClientSignalPublishers.ReachingNobody);
 
         return new MailDraftPromotion(
             harness.Drafts,

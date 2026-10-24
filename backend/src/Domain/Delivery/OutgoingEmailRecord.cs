@@ -106,8 +106,7 @@ public sealed record OutgoingEmailRecord
     /// <remarks>
     /// It is read rather than only written because it is the one value that says a message is <em>waiting</em> rather
     /// than merely queued. A send whose instant has passed is claimed by the next pass and is gone in seconds; one whose
-    /// instant lies ahead sits in the outbox until then, which is the message worth mirroring into a folder the user
-    /// can see.
+    /// instant lies ahead sits in the outbox until then.
     /// </remarks>
     public required DateTimeOffset AvailableAt { get; init; }
 
@@ -160,6 +159,46 @@ public sealed record OutgoingEmailRecord
     /// </remarks>
     public required MailFathomErrorCode? LastFilingFailure { get; init; }
 
+    /// <summary>Gets the subject the message was composed with, or <see langword="null" /> for a record written before the subject was kept.</summary>
+    /// <remarks>
+    /// It is kept beside the record so a page of the outbox can name each send without loading its MIME. It is the
+    /// person's correspondence, under the classification, retention, export, and erasure of the record and the MIME
+    /// beside it, and it is never logged. Absence means an earlier build wrote the record, never a message without a
+    /// subject, which is the empty string; a reader that needs the subject of such a record reads it from the MIME.
+    /// </remarks>
+    public string? Subject { get; init; }
+
+    /// <summary>Gets the decision that took this send out of its account's outbox, or <see langword="null" /> while nobody has taken it.</summary>
+    /// <remarks>
+    /// A dismissal changes nothing else about the send. The stage stays where it stood and the recipients keep what each
+    /// server said, because a refusal can follow a partial acceptance and calling it withdrawn would be untrue.
+    /// </remarks>
+    public OutgoingEmailDismissal? Dismissal { get; init; }
+
+    /// <summary>Gets when the lease of the attempt that last claimed this send runs out, or <see langword="null" /> where none was taken or it was given back.</summary>
+    /// <remarks>
+    /// It is what tells a send being transmitted now from one whose outcome nobody knows, which stand at the same stage:
+    /// while a lease is live an attempt holds the send, and once it has run out nothing will move it on its own.
+    /// </remarks>
+    public DateTimeOffset? AttemptLeaseExpiresAt { get; init; }
+
+    /// <summary>Reports whether an attempt holds this send at an instant.</summary>
+    /// <param name="asOf">The instant the question is asked at.</param>
+    /// <returns><see langword="true" /> while the lease the last claim took has not run out.</returns>
+    public bool IsHeldByAttemptAt(DateTimeOffset asOf) => this.AttemptLeaseExpiresAt is { } expiresAt && expiresAt > asOf;
+
+    /// <summary>Gets whether this send is in its account's outbox: not yet left, or refused, and not dismissed.</summary>
+    /// <remarks>
+    /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0040-each-account-outbox-as-a-read-only-list-beside-its-folders.md">ADR 0040</see>
+    /// decides it: a refusal stays where the person looks until somebody decides about it, and delivery and withdrawal
+    /// take a send out on their own.
+    /// </remarks>
+    public bool IsInOutbox => this.Dismissal is null && OutboxStages.Contains(this.Stage);
+
+    /// <summary>Gets the stages a send can be in its account's outbox at, in the order a listing names them.</summary>
+    public static IReadOnlyList<OutgoingEmailStage> OutboxStages { get; } =
+        [OutgoingEmailStage.Recorded, OutgoingEmailStage.TransmissionBegun, OutgoingEmailStage.Refused];
+
     /// <summary>Gets whether the record has reached a stage nothing moves it out of.</summary>
     public bool IsTerminal => this.Stage
         is OutgoingEmailStage.Sent
@@ -178,9 +217,8 @@ public sealed record OutgoingEmailRecord
     /// <param name="asOf">The instant the question is asked at.</param>
     /// <returns><see langword="true" /> when the message is queued and nothing will attempt it yet.</returns>
     /// <remarks>
-    /// A send held for seconds and one held until Monday are the same record, and this is what tells them apart. Only a
-    /// waiting send is worth mirroring into a folder: a message the next pass will take needs no copy anywhere, and
-    /// making one would append and withdraw a message on somebody's mail server for every send.
+    /// A send held for seconds and one held until Monday are the same record, and this is what tells them apart: a
+    /// message the next pass will take needs nothing scheduled for it, and one waiting for Monday does.
     /// </remarks>
     public bool IsWaitingAt(DateTimeOffset asOf) =>
         this.Stage == OutgoingEmailStage.Recorded && asOf < this.AvailableAt;

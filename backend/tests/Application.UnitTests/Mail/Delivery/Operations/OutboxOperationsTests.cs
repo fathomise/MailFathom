@@ -5,9 +5,11 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Mail.Delivery;
 using MailFathom.Application.Mail.Delivery.Operations;
+using MailFathom.Application.Signals;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Delivery;
 using MailFathom.TestSupport;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Xunit;
 
@@ -151,6 +153,34 @@ public sealed class OutboxOperationsTests
         await this.outbox.Received(1).RequeueAsync(Send, refusalRestated: true, Arg.Any<CancellationToken>());
     }
 
+    /// <summary>An operator's requeue moved the send back into its account's outbox, so an open client is told the outbox changed.</summary>
+    [Fact]
+    public async Task RequeueAsync_AnAcceptedRequeue_TellsAnOpenClientTheAccountsOutboxChanged()
+    {
+        // Arrange
+        var clock = new FakeTimeProvider();
+        var channel = new RecordingClientSignalChannel();
+        await using var clientSignals = new ClientSignals([channel], clock);
+        this.sends.FindAsync(Send, Arg.Any<CancellationToken>()).Returns(QueuedRecord());
+        this.outbox.RequeueAsync(Send, refusalRestated: true, Arg.Any<CancellationToken>())
+            .Returns(OutboxDecisionOutcome.Accepted);
+        var operations = new OutboxOperations(
+            this.sends,
+            this.outbox,
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.AdminOperate),
+            clientSignals);
+
+        // Act
+        await operations.RequeueAsync(Send, refusalRestated: true, TestContext.Current.CancellationToken);
+        clock.Advance(ClientSignals.FoldingWindow);
+        await clientSignals.DrainAsync();
+
+        // Assert
+        var signal = Assert.Single(channel.Published);
+        Assert.Equal(ClientSignalKind.OutboxChanged, signal.Kind);
+        Assert.Equal(AccessAuthorizations.ScopedAccount, signal.Account);
+    }
+
     public static TheoryData<AssignmentScope> ScopesCoveringTheAccount => [.. AccessAuthorizations.ScopesCoveringTheirTarget];
 
     public static TheoryData<AssignmentScope> ScopesOutsideTheAccount => [.. AccessAuthorizations.ScopesOutsideTheirTarget];
@@ -216,5 +246,5 @@ public sealed class OutboxOperationsTests
         OutboxQuery.Create(account: null, stage: null, pageSize: null, cursor: null).Query!;
 
     private OutboxOperations OperationsFor(AccessAuthorization authorization) =>
-        new(this.sends, this.outbox, authorization);
+        new(this.sends, this.outbox, authorization, ClientSignalPublishers.ReachingNobody);
 }

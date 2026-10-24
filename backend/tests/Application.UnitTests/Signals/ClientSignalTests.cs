@@ -227,12 +227,13 @@ public sealed class ClientSignalTests
                 "mail.changed",
                 "mail.flags.changed",
                 "notification.raised",
+                "outbox.changed",
                 "run.advanced",
             ],
             [.. names.Order(StringComparer.Ordinal)]);
     }
 
-    /// <summary>A kind nobody named is not one of the seven, so a value that reached a channel by accident says so.</summary>
+    /// <summary>A kind nobody named is not one of the eight, so a value that reached a channel by accident says so.</summary>
     [Fact]
     public void IsSpecified_ForTheStructDefault_ReportsThatNoKindWasNamed() =>
         Assert.False(default(ClientSignalKind).IsSpecified);

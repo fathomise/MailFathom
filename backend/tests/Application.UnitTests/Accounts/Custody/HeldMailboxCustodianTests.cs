@@ -108,21 +108,6 @@ public sealed class HeldMailboxCustodianTests
         Assert.Contains(MailFolderAct.Create, management.AllowedActs);
     }
 
-    /// <summary>No copy of a send is kept on a drained server, so the passes keeping those copies in step have nothing to do.</summary>
-    [Fact]
-    public async Task MirrorWaitingSendsAsync_AHeldAccount_AppendsNothing()
-    {
-        // Arrange
-        var composition = this.Composition();
-
-        // Act
-        var results = await composition.Held.MirrorWaitingSendsAsync(Account, Token);
-
-        // Assert
-        Assert.Empty(results);
-        await composition.OutgoingEmails.DidNotReceiveWithAnyArgs().ReadOutstandingAsync(default!, default, Token);
-    }
-
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
     private MailboxCustodianComposition Composition() => new(new FakeTimeProvider())

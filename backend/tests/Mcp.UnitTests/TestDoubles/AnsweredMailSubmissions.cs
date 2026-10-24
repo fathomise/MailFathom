@@ -277,7 +277,8 @@ internal static class AnsweredMailSubmissions
             granted,
             OutgoingMailGovernors.Permitting(),
             OutgoingMailScreenings.Inactive(),
-            new FakeTimeProvider(RecordedAt));
+            new FakeTimeProvider(RecordedAt),
+            ClientSignalPublishers.ReachingNobody);
     }
 
     private static EmailAddress Address(string address) =>

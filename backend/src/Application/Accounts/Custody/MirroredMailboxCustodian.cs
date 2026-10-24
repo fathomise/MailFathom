@@ -213,12 +213,6 @@ public sealed class MirroredMailboxCustodian : IMailboxCustodian
         this.outgoingFilings.SettleFiledCopiesOnSourceAsync(send, cancellationToken);
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<OutgoingMailFilingResult>> MirrorWaitingSendsAsync(
-        MailAccountId account,
-        CancellationToken cancellationToken) =>
-        this.outgoingFilings.MirrorWaitingSendsOnSourceAsync(account, cancellationToken);
-
-    /// <inheritdoc />
     public Task<IReadOnlyList<OutgoingMailFilingResult>> WithdrawDuplicatedSentCopiesAsync(
         MailAccountId account,
         CancellationToken cancellationToken) =>

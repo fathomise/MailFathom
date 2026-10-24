@@ -13,6 +13,7 @@ using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Delivery.Screening;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.SensitiveContent.Detection;
+using MailFathom.Application.Signals;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Delivery;
 
@@ -79,6 +80,7 @@ namespace MailFathom.Application.Mail.Delivery;
 /// <param name="governor">Answers whether this deployment may send this message at all, whoever is asking.</param>
 /// <param name="screening">Answers whether what the message says is something this deployment lets leave.</param>
 /// <param name="timeProvider">Says whether a recorded send is due now or is being held for later.</param>
+/// <param name="clientSignals">Tells an open client that the account's outbox now holds the send.</param>
 public sealed class MailOutbox(
     IOutgoingEmailStore outgoingEmails,
     IEmailContentStore contentStore,
@@ -89,7 +91,8 @@ public sealed class MailOutbox(
     AccessAuthorization authorization,
     OutgoingMailGovernor governor,
     OutgoingMailScreening screening,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ClientSignals clientSignals)
 {
     /// <summary>The word every held send's dispatch job is keyed by, so one record has one such job however often it is enqueued.</summary>
     private const string HeldSendKeyPrefix = "held-send";
@@ -170,6 +173,12 @@ public sealed class MailOutbox(
                 return opened;
             },
             cancellationToken);
+
+        // Only where this call wrote the record: one read back for a repeated request changed nothing a client draws.
+        if (committed.WasRecordedNow)
+        {
+            clientSignals.Publish(ClientSignal.OutboxChanged(committed.Record.AccountId));
+        }
 
         if (committed.Record.IsWaitingAt(timeProvider.GetUtcNow()))
         {

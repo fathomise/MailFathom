@@ -97,5 +97,21 @@ internal sealed class OutgoingEmailConfiguration : IEntityTypeConfiguration<Outg
 
         entity.HasIndex(message => new { message.RecordedAt, message.MailboxAccountId })
             .HasDatabaseName(PersistenceConstraintNames.OutgoingEmailPeriodUsageIndexName);
+
+        // Filtered to exactly what an account's outbox holds, and ordered the way its page and its count read it, so
+        // neither walks an account's whole history of delivered and withdrawn sends to find what is still waiting or
+        // was refused.
+        entity.HasIndex(message => new
+        {
+            message.MailboxAccountId,
+            message.RecordedAt,
+            message.Id,
+        })
+            .HasDatabaseName(PersistenceConstraintNames.OutgoingEmailOutboxIndexName)
+            .HasFilter(
+                $"\"{nameof(OutgoingEmailEntity.DismissedAt)}\" IS NULL AND \"{nameof(OutgoingEmailEntity.Stage)}\" IN ("
+                + $"'{nameof(OutgoingEmailStage.Recorded)}', "
+                + $"'{nameof(OutgoingEmailStage.TransmissionBegun)}', "
+                + $"'{nameof(OutgoingEmailStage.Refused)}')");
     }
 }

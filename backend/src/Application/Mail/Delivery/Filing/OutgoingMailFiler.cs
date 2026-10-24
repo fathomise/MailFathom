@@ -17,10 +17,10 @@ namespace MailFathom.Application.Mail.Delivery.Filing;
 /// <summary>Puts a copy of an outgoing message into the folder the message's own state calls for.</summary>
 /// <remarks>
 /// <para>
-/// One mechanism for every place a message MailFathom authored belongs: a draft in the drafts folder, a message still
-/// waiting in the folder an operator mapped as the outbox, a delivered message in the sent folder. What differs between
-/// them is the role of the destination and the flags the copy carries, and both travel on
-/// <see cref="OutgoingMailFiling" /> — so a fourth place is a member there rather than a second filer here.
+/// One mechanism for every place a message MailFathom authored belongs: a draft in the drafts folder and a delivered
+/// message in the sent folder. What differs between them is the role of the destination and the flags the copy
+/// carries, and both travel on <see cref="OutgoingMailFiling" /> — so a third place is a member there rather than a
+/// second filer here.
 /// </para>
 /// <para>
 /// The destination is found by role and never by name, because every one of these folders is spelled differently in

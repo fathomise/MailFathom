@@ -20,15 +20,8 @@ namespace MailFathom.Domain.Delivery.Filing;
 /// <para>
 /// The type is a closed enumeration of values rather than a C# <see langword="enum" />, because the name is the
 /// identity: it is what the durable filing row stores, what a log line records, and what a counter is broken down by.
-/// The set is closed for the reason <see cref="Mutations.MailboxMutation" />'s is, and a fourth place an outgoing
+/// The set is closed for the reason <see cref="Mutations.MailboxMutation" />'s is, and a third place an outgoing
 /// message can be is a member to append rather than a second filing mechanism to build.
-/// </para>
-/// <para>
-/// <see cref="Held" /> is the one member naming a role no mail server publishes. RFC 6154 defines the special-use
-/// attributes a server may advertise and there is no <c>\Outbox</c> among them, because the outbox a mail client shows
-/// is that client's own local queue of what it has not managed to send yet. MailFathom's outbox is the durable
-/// outgoing record, which is the truth about what will be sent; this member is the optional mirror of it into a folder
-/// an operator chose, for the message that will sit there long enough to be worth seeing in a mail client.
 /// </para>
 /// <para>
 /// Being a struct, <see langword="default" /> is reachable and names no filing. <see cref="IsSpecified" /> reports that.
@@ -50,22 +43,13 @@ public readonly record struct OutgoingMailFiling
     public static OutgoingMailFiling Draft { get; } =
         new("draft", MailFolderSpecialUse.Drafts, AppendedMailFlags.Draft);
 
-    /// <summary>Gets the filing of a message that is waiting to go out, into the folder an operator mapped as the outbox.</summary>
-    /// <remarks>
-    /// It carries <c>\Draft</c> for the same reason a draft does — the message has not left — and the copy is withdrawn
-    /// when it does leave. Deleting that copy in a mail client cancels nothing: the outgoing record is what will be
-    /// sent, and withdrawing a send is its own command.
-    /// </remarks>
-    public static OutgoingMailFiling Held { get; } =
-        new("held", MailFolderSpecialUse.Outbox, AppendedMailFlags.Draft);
-
     /// <summary>Gets the filing of a message a submission server has already accepted, into the sent folder.</summary>
     public static OutgoingMailFiling Sent { get; } =
         new("sent", MailFolderSpecialUse.Sent, AppendedMailFlags.Seen);
 
     /// <summary>Gets every place an outgoing message is filed.</summary>
     /// <remarks>Declared last so the members it lists are already initialized when this initializer runs.</remarks>
-    public static IReadOnlyList<OutgoingMailFiling> All { get; } = [Draft, Held, Sent];
+    public static IReadOnlyList<OutgoingMailFiling> All { get; } = [Draft, Sent];
 
     /// <summary>Gets the role the destination folder plays, which is what identifies it on any account in any language.</summary>
     public MailFolderSpecialUse Role { get; }
@@ -75,15 +59,6 @@ public readonly record struct OutgoingMailFiling
 
     /// <summary>Gets whether this value names a filing rather than the unusable struct default.</summary>
     public bool IsSpecified => this.name is not null;
-
-    /// <summary>Gets whether the copy is withdrawn once the message leaves the stage this filing describes.</summary>
-    /// <remarks>
-    /// Only the outbox mirror is. A draft and a sent copy are what the user keeps; the mirror exists to show a message
-    /// that has not gone yet, so leaving it behind after the message went would show an outbox that never drains. A
-    /// sent copy is still withdrawable on its own terms — the provider filing one of its own beside it is the one
-    /// thing that takes it back out — and that is a second occurrence of the message rather than the message leaving.
-    /// </remarks>
-    public bool IsWithdrawnWhenTheMessageLeaves => this == Held;
 
     /// <summary>Gets the name a durable row, a log line, and a counter dimension all use for the filing.</summary>
     /// <exception cref="InvalidOperationException">Thrown when the value is the struct default rather than a filing.</exception>

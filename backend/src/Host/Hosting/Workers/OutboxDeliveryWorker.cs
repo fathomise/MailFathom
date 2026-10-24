@@ -247,8 +247,7 @@ internal sealed partial class OutboxDeliveryWorker : BackgroundService
 
                 // A sent copy withdrawn is the one ordinary ending worth a line: it is the only place this system takes
                 // a message the user can already see back out of their own folder, and an operator reading a folder
-                // that lost a message needs the act named. The outbox mirror reaching the same outcome is what its
-                // whole existence is for and says nothing.
+                // that lost a message needs the act named.
                 case OutgoingMailFilingOutcome.Withdrawn
                     when filing.Filing == OutgoingMailFiling.Sent:
                     this.LogDuplicateSentCopyWithdrawn(accountId.Value, filing.FilingName);

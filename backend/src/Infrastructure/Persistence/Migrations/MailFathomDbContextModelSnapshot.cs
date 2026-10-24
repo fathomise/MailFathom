@@ -2852,6 +2852,12 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasColumnType("xid")
                         .HasColumnName("xmin");
 
+                    b.Property<DateTimeOffset?>("DismissedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DismissedByUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset?>("DueAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -2907,6 +2913,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("StageChangedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Subject")
+                        .HasColumnType("text");
+
                     b.Property<Guid?>("UserId")
                         .HasColumnType("uuid");
 
@@ -2922,6 +2931,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.HasIndex("MailboxAccountId", "AvailableAt", "Id")
                         .HasDatabaseName("ix_outgoing_emails_claimable")
                         .HasFilter("\"Stage\" = 'Recorded'");
+
+                    b.HasIndex("MailboxAccountId", "RecordedAt", "Id")
+                        .HasDatabaseName("ix_outgoing_emails_outbox")
+                        .HasFilter("\"DismissedAt\" IS NULL AND \"Stage\" IN ('Recorded', 'TransmissionBegun', 'Refused')");
 
                     b.HasIndex("MailboxAccountId", "UserId", "RequesterOrigin", "RequesterIdentity")
                         .IsUnique()

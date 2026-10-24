@@ -4,8 +4,15 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.EmailContent;
+using MailFathom.Application.EmailContent.Rendering;
+using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Folders;
+using MailFathom.Application.Mail.Delivery;
+using MailFathom.Application.Mail.Delivery.Operations;
+using MailFathom.Application.Mail.Delivery.Screening;
+using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Application.Observability;
 using MailFathom.Application.Synchronization.Administration;
 using MailFathom.Application.Synchronization.Checkpoints;
@@ -841,7 +848,8 @@ public sealed class ClientApiEndpointsTests
         services.AddScoped(_ => new MailFolderDirectoryReader(
             UnreachedFreshnessReader(granted),
             UnreachedScopeResolver(),
-            Substitute.For<IStoredMailFolderReader>()));
+            Substitute.For<IStoredMailFolderReader>(),
+            UnreachedOutbox(granted)));
 
         // A destination is registered so the telemetry routes are mapped, because every surface-wide claim in this
         // file — the group's requirement, the CORS policy, the prefix, the published decision — has to hold over them
@@ -1037,6 +1045,21 @@ public sealed class ClientApiEndpointsTests
                 Substitute.For<IMailboxReadTelemetry>(),
                 granted),
             new MailSynchronizationRunLedger(new FakeTimeProvider()));
+
+    private static UserOutbox UnreachedOutbox(AccessAuthorization granted) =>
+        new(
+            Substitute.For<ICallerMailAccountCatalog>(),
+            Substitute.For<IOutgoingEmailStore>(),
+            Substitute.For<IOutboxOperationStore>(),
+            Substitute.For<IEmailContentStore>(),
+            Substitute.For<IEmailContentRenderer>(),
+            Substitute.For<IOutgoingMailTextReader>(),
+            SensitiveContentEgressGuards.Inactive(),
+            new EmailContentReadOptions(),
+            Substitute.For<IUserLanguages>(),
+            granted,
+            ClientSignalPublishers.ReachingNobody,
+            new FakeTimeProvider());
 
     private static MailboxScopeResolver UnreachedScopeResolver() =>
         new(

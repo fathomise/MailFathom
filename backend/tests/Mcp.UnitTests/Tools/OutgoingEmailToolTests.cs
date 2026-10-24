@@ -180,7 +180,8 @@ public sealed class OutgoingEmailToolTests
         ReaderOver(store),
         outbox,
         AccessAuthorizations.ForPrincipal(
-            AuthorizedPrincipal.CallerActingFor(SyntheticUser.Deployment, CallerIdentity, [MailFathomPermission.MailSend])));
+            AuthorizedPrincipal.CallerActingFor(SyntheticUser.Deployment, CallerIdentity, [MailFathomPermission.MailSend])),
+        ClientSignalPublishers.ReachingNobody);
 
     private static IOutgoingEmailStore StoreHolding(OutgoingEmailRecord record)
     {

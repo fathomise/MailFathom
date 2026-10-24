@@ -453,7 +453,8 @@ public sealed class MailOutboxPassTests
                     this.clock),
                 LocalMailFilers.HoldingNothing(this.clock),
                 this.settings,
-                this.clock);
+                this.clock,
+                ClientSignalPublishers.ReachingNobody);
         }
 
         internal InMemoryOutgoingEmailStore Store { get; }

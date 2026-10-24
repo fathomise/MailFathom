@@ -104,6 +104,9 @@ internal sealed class MailFolderMappingOptions : IValidatableObject
             $"Folder alias '{this.Alias}' names neither a remote path nor a supported special-use role.");
     }
 
+    /// <summary>The role name an operator wrote for the outbox a folder used to play, which is refused where it binds.</summary>
+    internal const string RetiredOutboxRole = "Outbox";
+
     /// <summary>Gets the role this folder plays, or <see langword="null" /> when it names none this system supports.</summary>
     /// <remarks>
     /// Read without raising, so the rule that refuses two folders of one account sharing a role can group by it while a
@@ -146,7 +149,17 @@ internal sealed class MailFolderMappingOptions : IValidatableObject
             yield break;
         }
 
-        if (namesSpecialUse && !TryParseSpecialUse(this.SpecialUse, out _))
+        // The outbox an operator once mapped onto a folder is retired rather than unknown, so it is answered with what to
+        // do about it instead of with the list of roles that are left. ADR 0040 replaced it with each account's own
+        // outbox beside its folders, which nothing maps.
+        if (namesSpecialUse
+            && string.Equals(this.SpecialUse!.Trim(), RetiredOutboxRole, StringComparison.OrdinalIgnoreCase))
+        {
+            yield return new ValidationResult(
+                $"Folder alias '{this.Alias}' names the '{RetiredOutboxRole}' role, which no folder plays any more: each account's outbox is now MailFathom's own and is not a folder. Remove this folder mapping, or its 'SpecialUse'. The folder it named stays on the mail server as an ordinary folder, and any copies already filed into it stay there until they are deleted by hand.",
+                [nameof(this.SpecialUse)]);
+        }
+        else if (namesSpecialUse && !TryParseSpecialUse(this.SpecialUse, out _))
         {
             yield return new ValidationResult(
                 $"Folder alias '{this.Alias}' names special-use role '{this.SpecialUse}', which is not supported. Supported roles are {string.Join(", ", Enum.GetNames<MailFolderSpecialUse>())}.",
@@ -161,17 +174,6 @@ internal sealed class MailFolderMappingOptions : IValidatableObject
             yield return new ValidationResult(
                 $"Folder alias '{this.Alias}' asks for its folder to be created while being found by a special-use role, and a folder that does not exist advertises no role. Name the path the folder is to be created at in 'RemotePath'.",
                 [nameof(this.CreateIfMissing)]);
-        }
-
-        // The one role no server ever advertises. RFC 6154 declares no outbox attribute and MailFathom does not invent
-        // one from a folder's name, so a mapping that expects discovery to find it would resolve to nothing and the
-        // deployment would learn that from mail it never saw mirrored. Written beside a path the role is a label like
-        // any other, which is exactly how an operator says which of their folders holds what is waiting to go out.
-        if (!namesRemotePath && this.DeclaredRole == MailFolderSpecialUse.Outbox)
-        {
-            yield return new ValidationResult(
-                $"Folder alias '{this.Alias}' names the '{nameof(MailFolderSpecialUse.Outbox)}' role without a remote path, and no mail server advertises an outbox folder for discovery to find. Name the folder the role applies to in 'RemotePath'.",
-                [nameof(this.SpecialUse)]);
         }
 
         foreach (var result in this.ValidateConfiguredValues(namesRemotePath))

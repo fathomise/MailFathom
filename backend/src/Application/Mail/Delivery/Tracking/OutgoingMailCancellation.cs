@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Mail.Delivery.Operations;
+using MailFathom.Application.Signals;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Delivery;
 
@@ -36,10 +37,12 @@ namespace MailFathom.Application.Mail.Delivery.Tracking;
 /// <param name="reader">Decides which send this caller may act on at all, in the one place that is decided.</param>
 /// <param name="outbox">Performs the conditional withdrawal, and reports what stopped it where it wrote nothing.</param>
 /// <param name="authorization">Answers whether the caller holds the grant that lets it send.</param>
+/// <param name="clientSignals">Tells an open client that the account's outbox no longer holds the send.</param>
 public sealed class OutgoingMailCancellation(
     OutgoingMailReader reader,
     IOutboxOperationStore outbox,
-    AccessAuthorization authorization)
+    AccessAuthorization authorization,
+    ClientSignals clientSignals)
 {
     /// <summary>Withdraws the send one identifier names, where nothing has begun transmitting it.</summary>
     /// <param name="outgoingEmailId">The record to withdraw.</param>
@@ -80,6 +83,11 @@ public sealed class OutgoingMailCancellation(
         // still be withdrawn is therefore the statement's answer rather than that reading, and the record is read once
         // more either way: to report the withdrawal that happened, or to find that a second call had already made it.
         var current = await reader.ReadAsync(outgoingEmailId, cancellationToken);
+
+        if (outcome == OutboxDecisionOutcome.Accepted)
+        {
+            clientSignals.Publish(ClientSignal.OutboxChanged(current.AccountId));
+        }
 
         return outcome == OutboxDecisionOutcome.Accepted || current.Stage == OutgoingEmailStage.Cancelled
             ? current

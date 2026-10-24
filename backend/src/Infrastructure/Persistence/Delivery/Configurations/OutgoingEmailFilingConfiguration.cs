@@ -38,7 +38,7 @@ internal sealed class OutgoingEmailFilingConfiguration : IEntityTypeConfiguratio
     /// <summary>What every filing index is filtered to, which is exactly the copies a folder may still hold.</summary>
     /// <remarks>
     /// The stage is the whole of it. A row is a candidate while it is confirmed and stops being one when it is
-    /// withdrawn, which is what keeps a mirror taken back out and an append the server never answered from sitting in
+    /// withdrawn, which is what keeps a copy taken back out and an append the server never answered from sitting in
     /// either structure for the life of the deployment. Having been met is deliberately not part of it: a provider that
     /// files the sent copy itself puts a second occurrence of the same message in the same folder, and a row that
     /// dropped out of the index on meeting the first would leave the second unrecognized — which is the user's own
@@ -75,7 +75,7 @@ internal sealed class OutgoingEmailFilingConfiguration : IEntityTypeConfiguratio
         entity.Property(filing => filing.ConcurrencyVersion).IsRowVersion();
 
         // The join a synchronized batch runs, filtered to exactly the rows that join can still match. What bounds every
-        // structure here is the stage: a mirror withdrawn before any run saw it, and an append the server never
+        // structure here is the stage: a copy withdrawn before any run saw it, and an append the server never
         // answered, would each otherwise leave a row nothing can match sitting in them for the life of the deployment.
         entity.HasIndex(filing => new
         {

@@ -157,18 +157,10 @@ public sealed class HeldMailboxCustodian : IMailboxCustodian
     /// <inheritdoc />
     /// <remarks>
     /// Its sent copy was filed into the local sent folder in the commit that recorded the delivery, an append to a
-    /// drained source would be drained straight back, and an outbox copy appended while the account was still mirrored is
-    /// left for the drain to remove rather than withdrawn over IMAP.
+    /// drained source would be drained straight back.
     /// </remarks>
     public Task<IReadOnlyList<OutgoingMailFilingResult>> SettleFiledCopiesAsync(
         OutgoingEmailRecord send,
-        CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<OutgoingMailFilingResult>>([]);
-
-    /// <inheritdoc />
-    /// <remarks>A held account has no outbox mirror at all: its outgoing record is its outbox.</remarks>
-    public Task<IReadOnlyList<OutgoingMailFilingResult>> MirrorWaitingSendsAsync(
-        MailAccountId account,
         CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<OutgoingMailFilingResult>>([]);
 

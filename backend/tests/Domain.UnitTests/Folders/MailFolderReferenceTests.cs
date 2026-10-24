@@ -59,6 +59,7 @@ public sealed class MailFolderReferenceTests
     [InlineData("role:   ")]
     [InlineData("role:NotARole")]
     [InlineData("role:4")]
+    [InlineData("role:Outbox")]
     public void Create_TextNamingNoFolder_ThrowsArgumentException(string written)
     {
         // Arrange, Act, Assert
@@ -139,6 +140,7 @@ public sealed class MailFolderReferenceTests
     [InlineData("INBOX")]
     [InlineData("Archive/2026")]
     [InlineData("role:Archive,Drafts")]
+    [InlineData("role:Outbox")]
     [InlineData("")]
     public void TryCreateNamedByCaller_TextNamingNoIdentifierAndNoRole_IsRefused(string written)
     {

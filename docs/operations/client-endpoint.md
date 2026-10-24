@@ -109,10 +109,11 @@ AppHost provisions its synthetic credential after the service reports ready;
 | `POST /api/client/drafts/{draftId}/send` | `mailfathom.mail.send` |
 | `GET /api/client/replies/drafting` | `mailfathom.assistant.use` |
 | `POST /api/client/replies/drafting` | `mailfathom.assistant.use` with `mailfathom.mail.read` |
-| `GET /api/client/outbox` | `mailfathom.mail.send` |
-| `GET /api/client/outbox/{outgoingEmailId}` | `mailfathom.mail.send` |
+| `GET /api/client/outbox` | `mailfathom.mail.read` and `mailfathom.mail.send` |
+| `GET /api/client/outbox/{outgoingEmailId}` | `mailfathom.mail.send`; the preview needs `mailfathom.mail.read` too |
 | `POST /api/client/outbox/cancellation` | `mailfathom.mail.send` |
 | `POST /api/client/outbox/requeue` | `mailfathom.mail.send` |
+| `POST /api/client/outbox/dismissal` | `mailfathom.mail.send` |
 | `GET /api/client/contacts` | `mailfathom.contacts.read` |
 | `GET /api/client/contacts/collected` | `mailfathom.contacts.read` |
 | `GET /api/client/contacts/{contactId}` | `mailfathom.contacts.read` |
@@ -544,7 +545,8 @@ It answers with the user's mailboxes and every folder in them, which is the one 
           "lastSynchronizedAt": null,
           "behind": false
         }
-      ]
+      ],
+      "outbox": { "waiting": 1, "refused": 0 }
     }
   ]
 }
@@ -563,7 +565,7 @@ reachable asks there and a client drawing a tree asks here.
 **`role` is the answer a client cannot work out for itself.** Special-use folders are advertised by server attribute
 rather than by name, and the names differ per provider and per language, so a screen that guessed which folder is the
 sent one from its name would guess wrong on somebody's Polish provider. The value is one of `Inbox`, `Archive`,
-`Drafts`, `Sent`, `Junk`, `Trash`, `All`, `Flagged`, `Important`, or `Outbox` — the role
+`Drafts`, `Sent`, `Junk`, `Trash`, `All`, `Flagged`, or `Important` — the role
 [configuration labelled the folder with](configuration-mail.md), and `null` where it labelled it with none. Nothing is
 guessed from a folder's name to fill it in.
 
@@ -2910,25 +2912,55 @@ deadline is not one, and what reaches the provider.
 
 ### The outbox routes
 
-These are what a client draws after a message has been sent: the send the user just asked for has not left yet, and
-this is where the screen watches it go, takes one back while it is still queued, or offers a failed one another chance.
+Each of a user's accounts has an outbox: the sends written down for it that have not left yet, and the ones a server
+refused that nobody has dismissed. It is what a client draws after a message has been sent — the send the user just
+asked for has not left yet, and this is where the screen watches it go, takes one back while it is still queued,
+offers a failed one another chance, or dismisses one that failed for good.
 
 | Route | What it does |
 | --- | --- |
-| `GET /api/client/outbox` | Reads one page of the named account's outbox, optionally narrowed to one stage |
-| `GET /api/client/outbox/{outgoingEmailId}` | Reads one send, with what the server told this deployment about each recipient |
+| `GET /api/client/outbox` | Reads one page of the named account's outbox, newest first, optionally narrowed to one stage |
+| `GET /api/client/outbox/{outgoingEmailId}` | Reads one send: as the message it is, or as its delivery to a send-only credential |
 | `POST /api/client/outbox/cancellation` | Withdraws one send that has not begun transmitting |
 | `POST /api/client/outbox/requeue` | Offers one send again |
+| `POST /api/client/outbox/dismissal` | Takes one refused send, or one whose outcome nobody will learn, out of the outbox |
+
+**The outbox is beside an account's folders, never one of them.** [The folders route](#the-folders-route) carries it as
+an `outbox` member of each account — `{ "waiting": 2, "refused": 1 }`, where `waiting` counts the sends recorded or
+whose transmission began and `refused` the refused ones nobody dismissed — and a client draws it while either number is
+above zero. The member is `null` for a caller that does not hold both `mailfathom.mail.read` and
+`mailfathom.mail.send`, because how much an outbox holds is part of what it says. It has no folder identity, so no route that moves, copies, flags, or files a message can name it, and a send
+in it is named by the `outgoingEmail` identifier its send answered with rather than as a stored email: handed to a
+route that takes an email, that identifier answers as an email nobody holds. No folder on the mail server plays this
+role either; `SpecialUse: Outbox` is refused at startup, as
+[the mail configuration](configuration-mail.md#one-account--a-mailbox-in-a-users-record) state.
 
 **A listing names an account and never the deployment.** The narrowing is required rather than optional, so there is no
 unnarrowed reading here at all: one that fell back to every account would page through every user's outgoing mail,
-which is the deployment-wide catalog a user-facing surface must never compose. An account another user owns is
+which is the deployment-wide catalog a user-facing surface must never compose. An account another user is assigned is
 refused exactly as one nobody configured, and a send another user made answers exactly as one nobody made.
 
-**What the answers carry is what [the administrative outbox](admin-endpoint.md) already settled.** A page names no
-recipient and no subject, because a page of an outbox would otherwise be an export of who this user writes to, a page
-at a time; one send read by identity names its recipients and what the server said about each, because that is the
-question it was asked. Neither reads the message, at any size.
+**What a page holds is three stages.** `Recorded` has not left, `TransmissionBegun` is being transmitted or ended with
+an outcome nobody knows, and `Refused` was refused; a delivered send has left the outbox and a withdrawn or dismissed one
+is gone from it, so narrowing to `Sent` or `Cancelled` is refused as a stage the outbox does not hold. A page holds at
+most `OutboxQuery.MaximumPageSize` rows, newest first, and continues with the cursor it returns. A row carries the send's
+identifier, its account, its stage, `heldByAttempt` — whether an attempt holds it right now, which at
+`TransmissionBegun` tells a send being transmitted from one whose outcome nobody knows — up to three recipients from
+`To` (or from `Cc`, then `Bcc`, where `To` is empty) with `otherRecipientCount` for the rest, the subject, when it was
+recorded, the time it was written to leave at and the zone that time was named in, how many attempts it has taken, and
+the failure it stopped on as a code, a reply code, and a sentence in the reader's language.
+
+**A page and a preview are mail, so they take both grants.** Who a send is addressed to, its subject, and the message
+itself are what [the mail list](#the-mail-list-route) and [the message route](#the-message-route) guard, so the page is read under
+`mailfathom.mail.read` and `mailfathom.mail.send` together and a caller holding only one of them is answered `403`. The
+read by identity serves both kinds of caller. One holding both is answered the preview: the row's fields plus every
+recipient with the header it is named in and what the server said about it, the sender as the message's `From` names
+it, the body rendered from the MIME the send will transmit into the same closed document
+[the message body route](#the-message-body-route) answers with, and each attachment by name, media type, and size — none of them served
+from here. One holding only the sending grant is answered the delivery it watched before: the stage, the attempts, and
+each recipient's outcome, with no subject and no message. Subjects on a page are screened at the listing point and a
+preview at the content point, exactly as a stored message's would be, when the account's sensitive-content posture
+asks for it.
 
 **A decision reports what became of the send it named rather than refusing.** A send that has gone past the point of
 recall, and one this user does not hold, are outcomes in the answer — which is exactly what somebody acting on a
@@ -2936,9 +2968,17 @@ screen a moment old needs. Only a request naming no send at all is refused. Each
 set, because a message whose outcome nobody knows may already be in somebody's mailbox, so a filtered re-queue would be
 an unknown number of duplicates asked for in one request.
 
-**Every route here is `mailfathom.mail.send`, the two readings included.** What an outbox says is what this user is
-sending, so a credential granted to read a mailbox learns nothing here, and withdrawing a send is part of sending
-rather than a power beside it.
+**A dismissal is the person accepting the failure.** It is offered at `Refused`, and at `TransmissionBegun` once no
+attempt holds the send; the stage stays what it was, and the record keeps when the send was dismissed and by which
+user. A dismissed send is out of every outbox a person reads, so offering it again is the operator's, from
+[the administrative outbox](admin-endpoint.md), and a requeue here answers `StageDoesNotAllowIt`.
+
+**Every decision here is `mailfathom.mail.send`.** Withdrawing, offering again, and dismissing a send are part of
+sending rather than powers beside it, so a credential granted to read a mailbox decides nothing here.
+
+**An open client is told when an account's outbox moves.** A send written down, one that left, one refused, and one
+withdrawn, offered again, or dismissed each raise `outbox.changed` on [the signal channel](#the-signal-channel), naming
+the account and nothing of the send, and the client reads the page again.
 
 ### The contact routes
 
@@ -3991,7 +4031,7 @@ no subject, address, body fragment, filename, or attachment name reaches it at a
 flags `mail.flags.changed` carries, which say where each of those two stands rather than that one moved, for the reason
 the paragraph below the table gives. The second is a raised notification's own headline and second line, which are the
 record's already-derived text and reach a client entitled to read that record over
-[the notification routes](#the-notification-routes). Seven things are said:
+[the notification routes](#the-notification-routes). Eight things are said:
 
 | Signal | What it says |
 | --- | --- |
@@ -3999,6 +4039,7 @@ record's already-derived text and reach a client entitled to read that record ov
 | `mail.changed` | Stored mail in one folder, or in every folder of one account, is no longer what a client last read, naming up to 100 of the rows |
 | `mail.flags.changed` | Nothing moved but the `\Seen` or `\Flagged` flag of up to 100 rows, and where each of those flags now stands |
 | `folders.changed` | The set of folders an account mirrors, or a held account's local folders, has moved |
+| `outbox.changed` | A send in an account's [outbox](#the-outbox-routes) was written down, left, was refused, or was withdrawn, offered again, or dismissed, naming the account and nothing of the send |
 | `notification.raised` | A notification was written, with its kind, its two lines, and how many now stand unread |
 | `account.state` | An account's synchronization run finished, so what a client says about it is out of date |
 | `run.advanced` | A [Discover run](../features/discovery-run.md#a-run-is-watched-rather-than-waited-for) or an [Agent conversation](#the-agent-conversation-routes) had something written, naming the run, the conversation where it is one, and the place reached — and no part of what was written |
@@ -4012,8 +4053,8 @@ else that moved — a message that changed folder, was deleted, or whose keyword
 whole of what a run found, and a client re-reads. A flag a publisher did not observe is left out rather than reported as
 cleared: a reconciliation window states both, and a change this deployment authored states the one it wrote.
 
-**A client that does not know a kind ignores it and catches up on its next refresh**, which is what made the sixth and
-the seventh additions rather than breaks; the client and the service ship under one version.
+**A client that does not know a kind ignores it and catches up on its next refresh**, which is what made the sixth, the
+seventh, and the eighth additions rather than breaks; the client and the service ship under one version.
 
 **A statement names no folder where the change is known only by where it stands on the mail server.** A change
 settled against the server — a move, a copy, a delete, a keyword or a flag change MailFathom wrote there — and what a

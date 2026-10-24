@@ -3,9 +3,12 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Mail.Delivery.Operations;
+using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.CodeCoverage;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Scheduling;
 using MailFathom.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -144,7 +147,9 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
                  "AvailableAt" = {requeuedAt},
                  "AttemptCount" = 0,
                  "LeaseOwner" = NULL,
-                 "LeaseExpiresAt" = NULL
+                 "LeaseExpiresAt" = NULL,
+                 "DismissedAt" = NULL,
+                 "DismissedByUserId" = NULL
              WHERE "Id" = {recordId}
                AND ("Stage" IN ({recorded}, {transmissionBegun})
                     OR ("Stage" = {refused} AND {refusalRestated}))
@@ -157,10 +162,137 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
             : await this.ExplainRefusalAsync(recordId, RequeueableStages, refusalRestated, requeuedAt, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<AccountOutboxPage> ReadAccountOutboxAsync(OutboxQuery query, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        if (query.AccountId is not { } account)
+        {
+            throw new ArgumentException("An account's outbox is read for one account.", nameof(query));
+        }
+
+        if (query.Stage is { } stage && !OutgoingEmailRecord.OutboxStages.Contains(stage))
+        {
+            throw new ArgumentException($"An account's outbox holds no send at {stage}.", nameof(query));
+        }
+
+        var readAt = timeProvider.GetUtcNow();
+        var outboxStages = OutgoingEmailRecord.OutboxStages.ToArray();
+
+        var rows = await this.Filter(query)
+            .Where(message => message.DismissedAt == null && outboxStages.Contains(message.Stage))
+            .OrderByDescending(message => message.RecordedAt)
+            .ThenByDescending(message => message.Id)
+            .Take(query.PageSize + 1)
+            .Select(message => new AccountOutboxRow(
+                message.Id,
+                message.Stage,
+                message.LeaseExpiresAt,
+                message.Subject,
+                message.RecordedAt,
+                message.DueAt,
+                message.DueZoneId,
+                message.AttemptCount,
+                message.LastFailureCode,
+                message.LastReplyCode))
+            .ToArrayAsync(cancellationToken);
+
+        var (pageRows, hasMore) = KeysetPageSplit.Of(rows, query.PageSize);
+        var recipients = await this.ReadRecipientsAsync([.. pageRows.Select(row => row.Id)], cancellationToken);
+
+        return new AccountOutboxPage(
+            [.. pageRows.Select(row => ToAccountOutboxEntry(account, row, recipients[row.Id], readAt))],
+            hasMore
+                ? OutboxCursor.After(
+                    pageRows[^1].RecordedAt,
+                    OutgoingEmailId.Create(pageRows[^1].Id),
+                    query.FilterFingerprint)
+                : null);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<AccountOutboxCount>> CountAccountOutboxesAsync(
+        IReadOnlyCollection<MailAccountId> accounts,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(accounts);
+
+        var named = accounts.Distinct().ToArray();
+        if (named.Length == 0)
+        {
+            return [];
+        }
+
+        var accountValues = named.Select(account => account.Value).ToArray();
+        var outboxStages = OutgoingEmailRecord.OutboxStages.ToArray();
+
+        var counted = await dbContext.OutgoingEmails
+            .AsNoTracking()
+            .Where(message => accountValues.Contains(message.MailboxAccountId)
+                && message.DismissedAt == null
+                && outboxStages.Contains(message.Stage))
+            .GroupBy(message => new { message.MailboxAccountId, message.Stage })
+            .Select(group => new { group.Key.MailboxAccountId, group.Key.Stage, Count = group.Count() })
+            .ToArrayAsync(cancellationToken);
+
+        return
+        [
+            .. named.Select(account => new AccountOutboxCount(
+                account,
+                Waiting: counted
+                    .Where(group => group.MailboxAccountId == account.Value && group.Stage != OutgoingEmailStage.Refused)
+                    .Sum(group => group.Count),
+                Refused: counted
+                    .Where(group => group.MailboxAccountId == account.Value && group.Stage == OutgoingEmailStage.Refused)
+                    .Sum(group => group.Count))),
+        ];
+    }
+
+    /// <inheritdoc />
+    public async Task<OutboxDecisionOutcome> DismissAsync(
+        OutgoingEmailId outgoingEmailId,
+        UserId dismissedBy,
+        CancellationToken cancellationToken)
+    {
+        var dismissedAt = timeProvider.GetUtcNow();
+        var recordId = outgoingEmailId.Value;
+        var userId = dismissedBy.Value;
+        var transmissionBegun = nameof(OutgoingEmailStage.TransmissionBegun);
+        var refused = nameof(OutgoingEmailStage.Refused);
+
+        // The stage and the lease are conditions of the statement rather than of a read before it, for the reason every
+        // decision here is one write: a send whose attempt is claimed between a check and the update would otherwise be
+        // dismissed while it is being transmitted.
+        var dismissedRows = await dbContext.Database.ExecuteSqlAsync(
+            $"""
+             UPDATE outgoing_emails
+             SET "DismissedAt" = {dismissedAt},
+                 "DismissedByUserId" = {userId}
+             WHERE "Id" = {recordId}
+               AND "DismissedAt" IS NULL
+               AND ("Stage" = {refused}
+                    OR ("Stage" = {transmissionBegun}
+                        AND ("LeaseExpiresAt" IS NULL OR "LeaseExpiresAt" <= {dismissedAt})))
+             """,
+            cancellationToken);
+
+        return dismissedRows == 1
+            ? OutboxDecisionOutcome.Accepted
+            : await this.ExplainRefusalAsync(recordId, DismissibleStages, refusalRestated: true, dismissedAt, cancellationToken);
+    }
+
     /// <summary>The stages a withdrawal may be written from.</summary>
     private static OutgoingEmailStage[] CancellableStages => [OutgoingEmailStage.Recorded];
 
     /// <summary>The stages a send may be offered again from, before the restatement rule narrows them.</summary>
+    /// <summary>The headers a row of an account's outbox names recipients from, the first that names anybody winning.</summary>
+    private static OutgoingRecipientRole[] RowNamingOrder =>
+        [OutgoingRecipientRole.To, OutgoingRecipientRole.Cc, OutgoingRecipientRole.Bcc];
+
+    private static OutgoingEmailStage[] DismissibleStages =>
+        [OutgoingEmailStage.TransmissionBegun, OutgoingEmailStage.Refused];
+
     private static OutgoingEmailStage[] RequeueableStages =>
         [OutgoingEmailStage.Recorded, OutgoingEmailStage.TransmissionBegun, OutgoingEmailStage.Refused];
 
@@ -240,6 +372,79 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
     }
 
     /// <summary>Rebuilds the listing entry one projected row describes.</summary>
+    /// <summary>Reads the recipients of the sends one page names, in the order each message names them.</summary>
+    /// <remarks>
+    /// Every recipient of the page is read, at most a page of sends by the bound one message may be addressed to, and the
+    /// row is chosen from them in memory. Choosing in the statement would take a window per send and role, which is
+    /// worth writing only once a page measured slow.
+    /// </remarks>
+    private async Task<ILookup<Guid, OutgoingRecipient>> ReadRecipientsAsync(
+        IReadOnlyCollection<Guid> recordIds,
+        CancellationToken cancellationToken)
+    {
+        if (recordIds.Count == 0)
+        {
+            return Array.Empty<OutgoingRecipient>().ToLookup(_ => Guid.Empty);
+        }
+
+        var rows = await dbContext.OutgoingEmailRecipients
+            .AsNoTracking()
+            .Where(recipient => recordIds.Contains(recipient.OutgoingEmailId))
+            .OrderBy(recipient => recipient.OutgoingEmailId)
+            .ThenBy(recipient => recipient.Ordinal)
+            .Select(recipient => new
+            {
+                recipient.OutgoingEmailId,
+                recipient.Ordinal,
+                recipient.Address,
+                recipient.Role,
+                recipient.ContactId,
+            })
+            .ToArrayAsync(cancellationToken);
+
+        return rows.ToLookup(
+            row => row.OutgoingEmailId,
+            row => StoredOutgoingRecipient.ToRecipient(
+                "Outgoing email record",
+                row.OutgoingEmailId,
+                row.Ordinal,
+                row.Address,
+                row.Role,
+                row.ContactId));
+    }
+
+    private static AccountOutboxEntry ToAccountOutboxEntry(
+        MailAccountId account,
+        AccountOutboxRow row,
+        IEnumerable<OutgoingRecipient> recipients,
+        DateTimeOffset readAt)
+    {
+        var all = recipients.ToArray();
+        var namedRole = RowNamingOrder.FirstOrDefault(role => all.Any(recipient => recipient.Role == role));
+        var named = all
+            .Where(recipient => recipient.Role == namedRole)
+            .Take(AccountOutboxEntry.MaximumNamedRecipients)
+            .ToArray();
+
+        return new AccountOutboxEntry
+        {
+            OutgoingEmailId = OutgoingEmailId.Create(row.Id),
+            AccountId = account,
+            Stage = row.Stage,
+            IsHeldByAttempt = row.LeaseExpiresAt is { } expiresAt && expiresAt > readAt,
+            NamedRecipients = named,
+            OtherRecipientCount = all.Length - named.Length,
+            Subject = row.Subject,
+            RecordedAt = row.RecordedAt,
+            DueAt = row is { DueAt: { } dueAt, DueZoneId: { Length: > 0 } zoneId }
+                ? ZonedInstant.Restore(dueAt, zoneId)
+                : null,
+            AttemptCount = row.AttemptCount,
+            LastFailure = StoredFailureCode.ToErrorCode(row.LastFailureCode),
+            LastReplyCode = row.LastReplyCode,
+        };
+    }
+
     private static OutboxEntry ToEntry(OutboxRow row) => new()
     {
         OutgoingEmailId = OutgoingEmailId.Create(row.Id),
@@ -256,6 +461,18 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
     };
 
     /// <summary>The columns one listing row is read from, which are the ones that name no person.</summary>
+    private sealed record AccountOutboxRow(
+        Guid Id,
+        OutgoingEmailStage Stage,
+        DateTimeOffset? LeaseExpiresAt,
+        string? Subject,
+        DateTimeOffset RecordedAt,
+        DateTimeOffset? DueAt,
+        string? DueZoneId,
+        int AttemptCount,
+        int? LastFailureCode,
+        int? LastReplyCode);
+
     private sealed record OutboxRow(
         Guid Id,
         string MailboxAccountId,
