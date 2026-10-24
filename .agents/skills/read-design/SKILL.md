@@ -70,7 +70,9 @@ every one of those is a fact about the design — the manifest in `frontend/` de
 in it whatever the browser was told — and both sides of a pair are captured under one `prefers-color-scheme`. Beyond
 that, a step names an element by its `text`, or by `role` and `name` where the artboard has an accessibility tree; `nth`
 picks one of several, and `exact` holds a `name` to the whole accessible name rather than a substring of one — which a
-name that is also the tail of another control's name needs.
+name that is also the tail of another control's name needs. A click marked `"optional": true` is pressed only where its
+element is drawn at that composition — opening the drawer a touch composition hides the folder tree in, say — and is
+passed over where it is not, so one list of steps reaches the same state at every size.
 
 ## What the inventory holds
 

@@ -64,7 +64,7 @@ test('opens the Outbox from the mark on the Sent row and reads a send in it, off
     await page.getByRole('tree', { name: 'Mailboxes and folders' }).getByText('Sent', { exact: true }).click();
 
     await expect(sends(page)).toHaveCount(0);
-    await expect(page.getByRole('listbox', { name: 'Messages' })).toBeVisible();
+    await expect(page.getByText('There is no mail in this folder.')).toBeVisible();
 });
 
 test('withdraws a waiting send from its preview, and the list and the mark both let it go', async ({
