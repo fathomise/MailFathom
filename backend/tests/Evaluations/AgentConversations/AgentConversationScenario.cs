@@ -1351,14 +1351,14 @@ internal sealed record AgentConversationScenario(
         _ => throw new ArgumentOutOfRangeException(nameof(turn), turn, "The turn is of a kind no case writes."),
     };
 
-    private static AgentHistoryTurn Person(string text) => new AgentWrittenTurn(AgentMessageAuthor.Person, text);
+    private static AgentWrittenTurn Person(string text) => new(AgentMessageAuthor.Person, text);
 
-    private static AgentHistoryTurn Agent(string text) => new AgentWrittenTurn(AgentMessageAuthor.Agent, text);
+    private static AgentWrittenTurn Agent(string text) => new(AgentMessageAuthor.Agent, text);
 
-    private static AgentHistoryTurn Proposed(string subject, string recipient) => new AgentProposedMessageTurn(subject, [recipient]);
+    private static AgentProposedMessageTurn Proposed(string subject, string recipient) => new(subject, [recipient]);
 
     /// <summary>Writes the turn a compacted conversation opens with, as a deployment composes it from the summary.</summary>
-    private static AgentHistoryTurn Summarised(string summary) => new AgentSummaryTurn(summary);
+    private static AgentSummaryTurn Summarised(string summary) => new(summary);
 
     /// <summary>Reads the history the way a deployment reads a conversation's record before a turn.</summary>
     /// <returns>What a turn is composed from, and what a compaction is planned over.</returns>

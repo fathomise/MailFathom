@@ -133,7 +133,7 @@ internal sealed record AgentConversationSummaryCase(
     /// <inheritdoc />
     public override string ToString() => this.Name;
 
-    private static AgentHistoryTurn Person(string text) => new AgentWrittenTurn(AgentMessageAuthor.Person, text);
+    private static AgentWrittenTurn Person(string text) => new(AgentMessageAuthor.Person, text);
 
-    private static AgentHistoryTurn Agent(string text) => new AgentWrittenTurn(AgentMessageAuthor.Agent, text);
+    private static AgentWrittenTurn Agent(string text) => new(AgentMessageAuthor.Agent, text);
 }

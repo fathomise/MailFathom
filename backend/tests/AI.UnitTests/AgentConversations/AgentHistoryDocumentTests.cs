@@ -7,7 +7,6 @@ using MailFathom.AI.AgentConversations;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.Chat;
-using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
