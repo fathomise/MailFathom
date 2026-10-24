@@ -48,7 +48,7 @@ public sealed class CalendarEventExtractionAgentCompositionTests
         // Assert
         Assert.All(
             chatClient.Calls,
-            call => Assert.Equal(CalendarEventExtractionInstructions.Text, call.Options?.Instructions));
+            call => Assert.Equal(AgentComposition.InstructionFor(CalendarEventExtractionInstructions.Text), call.Options?.Instructions));
     }
 
     /// <summary>One name for both halves, because they are one reading put to two inputs.</summary>

@@ -30,17 +30,6 @@ public sealed class ThreadStateInstructionsTests
         Assert.Contains(field, text, StringComparison.Ordinal);
     }
 
-    /// <summary>Mail is the most adversarial text this system reads, so the instruction says what the exchange is.</summary>
-    [Fact]
-    public void Text_TheInstruction_SaysTheConversationIsDataRatherThanAnInstruction()
-    {
-        // Act
-        var text = ThreadStateInstructions.TextFor(MailAccountLanguage.English);
-
-        // Assert
-        Assert.Contains("data rather than an instruction", text, StringComparison.Ordinal);
-    }
-
     /// <summary>The agent writes down where a conversation stands and never what to do about it.</summary>
     [Fact]
     public void Text_TheInstruction_AsksForNoActionOfAnyKind()

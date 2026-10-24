@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.AI.AgentConversations;
+using MailFathom.AI.Orchestration;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -40,7 +41,7 @@ public sealed class AgentConversationInstructionsTests
         // Assert
         Assert.Contains("The person's accounts: primary.", naming, StringComparison.Ordinal);
         Assert.DoesNotContain("accounts", silent, StringComparison.OrdinalIgnoreCase);
-        Assert.EndsWith("What is due?", silent, StringComparison.Ordinal);
+        Assert.EndsWith($"<{AgentTurnDocument.AskElementName}>What is due?</{AgentTurnDocument.AskElementName}>", silent, StringComparison.Ordinal);
     }
 
     /// <summary>A question about a merged arrival names its messages by identifier, for the model to read through its tools.</summary>

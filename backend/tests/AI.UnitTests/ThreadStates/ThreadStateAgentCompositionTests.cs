@@ -64,7 +64,7 @@ public sealed class ThreadStateAgentCompositionTests
         // Assert
         Assert.All(
             chatClient.Calls,
-            call => Assert.Equal(ThreadStateInstructions.TextFor(language), call.Options?.Instructions));
+            call => Assert.Equal(AgentComposition.InstructionFor(ThreadStateInstructions.TextFor(language)), call.Options?.Instructions));
     }
 
     /// <summary>The name is what the composition is recorded under, so it is this agent's alone.</summary>

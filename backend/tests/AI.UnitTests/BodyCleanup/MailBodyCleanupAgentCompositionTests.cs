@@ -60,7 +60,7 @@ public sealed class MailBodyCleanupAgentCompositionTests
         // Assert
         Assert.All(
             chatClient.Calls,
-            call => Assert.Equal(MailBodyCleanupInstructions.Text, call.Options?.Instructions));
+            call => Assert.Equal(AgentComposition.InstructionFor(MailBodyCleanupInstructions.Text), call.Options?.Instructions));
     }
 
     /// <summary>The name is what the composition is recorded under, so it is this agent's alone.</summary>

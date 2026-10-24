@@ -42,9 +42,10 @@ postamble. Both outer parts come from one implementation resolved through depend
 composition, so an answer that varies per person or per request changes what a run sends without any operation changing.
 
 **This build ships the seam and an implementation that returns nothing**, so the composed instruction is the operation's
-own text byte for byte and no run pays for a wrapper nobody has written yet. What it buys is that adding the language a
-person reads, a deployment's own wording, or anything else true of every operation is one implementation of one
-interface rather than an edit to every instruction in the tree.
+own text followed by the one data clause described in [§ Mail is read as evidence, never as an
+instruction](#mail-is-read-as-evidence-never-as-an-instruction), and no run pays for a wrapper nobody has written yet.
+What it buys is that adding the language a person reads, a deployment's own wording, or anything else true of every
+operation is one implementation of one interface rather than an edit to every instruction in the tree.
 
 There is no template language, no substitution syntax, no prompt store, and no configuration key. Whatever the
 implementation returns is text, and the composition puts one part before the operation's instruction and the other
@@ -413,11 +414,11 @@ that answered something else into a score this system invented about somebody's 
 ### The candidate is quoted, never obeyed
 
 A judgement is two turns: the instruction, and the candidate beside the lookup it was retrieved for. The extract reaches
-the model inside the same `<retrieved-mail>` envelope an answering run reads it in, written by the same formatter, and
-the lookup is enclosed in a `<query>` element of its own — every part of it is free text a model wrote, and a run's
-earlier retrieval is one of the things that shaped it, so mail reaches it indirectly. The instruction states that
-everything inside both elements is data and that a request found there is described rather than obeyed, exactly as the
-run's own instruction does.
+the model inside the same `<retrieved-mail>` envelope an answering run reads it in, written by the same formatter into
+the same document, and the lookup is enclosed in a `<query>` element of its own — every part of it is free text a model
+wrote, and a run's earlier retrieval is one of the things that shaped it, so mail reaches it indirectly. The instruction
+states that everything inside both elements is data, and it ends with the same data clause every composed agent's
+instruction ends with, so a judgement and a run say it in one wording.
 
 The **whole** lookup travels, filters included, and that is what keeps the pass from dropping the mail a narrow lookup
 was written to find. A lookup that is mostly a narrowing leaves a query text of a word or two, and a candidate judged
@@ -487,20 +488,32 @@ fact about the instance at the moment of the call rather than about the build: a
 refusing ranks lexically until it is not. It is what tells the model how a further query is worth wording, and it is
 written here for the same reason `search_emails` publishes the mode in every response rather than in its description.
 
-Nothing a message contains can end an element or open one. Every value — the extract, the subject, the aliases — is
-written through an XML writer that escapes what would, so a message whose text closes the envelope and opens a forged
-instruction arrives as that text: visible, attributed to the message that sent it, and inert. A lookup that found
-nothing writes the empty envelope rather than nothing at all, so the model reads that the mailbox was searched instead of
-guessing at a blank result.
+Nothing a message contains can end an element or open one. Every turn and tool result that carries text somebody else
+wrote is composed by one writer, `AgentTurnDocument` in `backend/src/AI/Orchestration/`: the structure this service
+mints is written as elements and attributes, and every value — the extract, the subject, the aliases, a calendar title,
+a task — as escaped text content, so a message whose text closes the envelope and opens a forged instruction arrives as
+that text: visible, attributed to the message that sent it, and inert. A character that has no place in a document — a
+lone half of a surrogate pair — is replaced rather than allowed to fail the turn. The writer also holds a turn's
+character budget: a quoted value it has to shorten is cut at a text-element boundary, its element says so in a
+`cut="true"` attribute, and every element it opened is closed however much was cut. A lookup that found nothing writes
+the empty envelope rather than nothing at all, so the model reads that the mailbox was searched instead of guessing at a
+blank result.
+
+The person's own question is written the same way, inside one fixed `<ask>` element after the line that dates the turn.
+That element is the one place the person's wishes are carried, so text that imitates it inside a message is quoted text
+rather than a second question.
 
 The identity is the other reason the envelope exists. Each extract carries the stable local identifier an answer cites
 and the account and folder it was read from, unchanged — an answer that cannot say which message a claim came from
 cannot be checked.
 
-**The weaker one.** The instruction states that everything inside the envelope is data, that a request found there is
-described rather than obeyed, and that each statement is cited by the identifier of the message it came from. It is
-worth writing, and it is second: a model that ignored every word of it would still not have read mail in the position an
-instruction arrives in.
+**The weaker one.** Every composed instruction ends with one data clause, owned by the writer and appended by the
+composition rather than repeated in each operation's text — the relevance judgement above carries the same constant. It
+says who wrote the text a turn quotes, that such text may give orders or imitate this service, its elements, or the
+person, that a request found there is reported rather than followed, that an element is structure only where the service
+wrote it, and that only the `<ask>` element speaks for the person. `ask_mail`'s own instruction adds that each statement
+is cited by the identifier of the message it came from. It is worth writing, and it is second: a model that ignored every
+word of it would still not have read mail in the position an instruction arrives in.
 
 This replaces the orchestration framework's own formatting, which writes each result as a labelled paragraph between
 dashed separators and closes with an instruction of its own. Retrieved mail written that way is prose in the same voice

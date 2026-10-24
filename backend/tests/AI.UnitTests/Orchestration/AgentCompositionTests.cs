@@ -19,9 +19,12 @@ public sealed class AgentCompositionTests
 {
     private const string Instruction = "Answer the question you were asked.";
 
-    /// <summary>The whole of what this build ships: a composition over the registered default is the operation's own text.</summary>
+    /// <summary>
+    /// The data rule is stated once, here, rather than once per instruction: whatever an operation says, the instruction
+    /// it is composed with carries the clause after it, so no operation can ship without it.
+    /// </summary>
     [Fact]
-    public async Task Compose_TheEmptyEnvelope_CarriesTheOperationsInstructionUnchanged()
+    public async Task Compose_AnyOperation_CarriesTheDataClauseAfterItsOwnInstruction()
     {
         // Arrange
         using var chatClient = ScriptedChatClient.Answering("answered");
@@ -36,10 +39,32 @@ public sealed class AgentCompositionTests
         await agent.RunAsync("a question", session: null, options: null, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(Instruction, Assert.Single(chatClient.Calls).Options?.Instructions);
+        Assert.Equal(
+            $"{Instruction}\n\n{AgentTurnDocument.DataClause}",
+            Assert.Single(chatClient.Calls).Options?.Instructions);
     }
 
-    /// <summary>Concatenated and nothing else: the operation's text sits between the two halves, with no separator of the composition's own.</summary>
+    /// <summary>The whole of what this build ships: a composition over the registered default is the operation's own instruction as composed.</summary>
+    [Fact]
+    public async Task Compose_TheEmptyEnvelope_CarriesTheComposedInstructionUnchanged()
+    {
+        // Arrange
+        using var chatClient = ScriptedChatClient.Answering("answered");
+        var agent = AgentComposition.Compose(
+            chatClient,
+            ChatDeclarations.Plan(),
+            new AgentOperation("an-operation", Instruction, []),
+            new EmptyAgentInstructionEnvelope(),
+            NullLoggerFactory.Instance);
+
+        // Act
+        await agent.RunAsync("a question", session: null, options: null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(AgentComposition.InstructionFor(Instruction), Assert.Single(chatClient.Calls).Options?.Instructions);
+    }
+
+    /// <summary>Concatenated and nothing else: the composed instruction sits between the two halves, with no separator of the composition's own.</summary>
     [Fact]
     public async Task Compose_AnEnvelopeSupplyingBothHalves_PlacesThemFirstAndLast()
     {
@@ -57,18 +82,15 @@ public sealed class AgentCompositionTests
 
         // Assert
         Assert.Equal(
-            $"before. {Instruction} after.",
+            $"before. {AgentComposition.InstructionFor(Instruction)} after.",
             Assert.Single(chatClient.Calls).Options?.Instructions);
     }
 
     /// <summary>Either half stands on its own, so an implementation with something to say in one position says nothing in the other.</summary>
     [Theory]
-    [InlineData("before. ", "", "before. Answer the question you were asked.")]
-    [InlineData("", " after.", "Answer the question you were asked. after.")]
-    public async Task Compose_AnEnvelopeSupplyingOneHalf_PlacesThatHalfAlone(
-        string preamble,
-        string postamble,
-        string expected)
+    [InlineData("before. ", "")]
+    [InlineData("", " after.")]
+    public async Task Compose_AnEnvelopeSupplyingOneHalf_PlacesThatHalfAlone(string preamble, string postamble)
     {
         // Arrange
         using var chatClient = ScriptedChatClient.Answering("answered");
@@ -83,7 +105,9 @@ public sealed class AgentCompositionTests
         await agent.RunAsync("a question", session: null, options: null, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(expected, Assert.Single(chatClient.Calls).Options?.Instructions);
+        Assert.Equal(
+            $"{preamble}{AgentComposition.InstructionFor(Instruction)}{postamble}",
+            Assert.Single(chatClient.Calls).Options?.Instructions);
     }
 
     /// <summary>
@@ -117,8 +141,8 @@ public sealed class AgentCompositionTests
         await second.RunAsync("a question", session: null, options: null, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal($"1. {Instruction}", Assert.Single(firstClient.Calls).Options?.Instructions);
-        Assert.Equal($"2. {Instruction}", Assert.Single(secondClient.Calls).Options?.Instructions);
+        Assert.Equal($"1. {AgentComposition.InstructionFor(Instruction)}", Assert.Single(firstClient.Calls).Options?.Instructions);
+        Assert.Equal($"2. {AgentComposition.InstructionFor(Instruction)}", Assert.Single(secondClient.Calls).Options?.Instructions);
     }
 
     /// <summary>

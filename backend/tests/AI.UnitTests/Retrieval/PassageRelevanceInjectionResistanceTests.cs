@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.AI.Orchestration;
 using MailFathom.AI.Retrieval;
 using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.AiProviders;
@@ -111,7 +112,7 @@ public sealed class PassageRelevanceInjectionResistanceTests
         var conversation = Assert.Single(judge.Conversations);
 
         Assert.Equal(ChatRole.System, conversation[0].Role);
-        Assert.Equal(PassageRelevanceInstructions.Text, conversation[0].Text);
+        Assert.Equal(AgentComposition.InstructionFor(PassageRelevanceInstructions.Text), conversation[0].Text);
         Assert.DoesNotContain(message.Text, conversation[0].Text, StringComparison.Ordinal);
         Assert.DoesNotContain(message.Subject, conversation[0].Text, StringComparison.Ordinal);
         Assert.Equal(ChatRole.User, conversation[1].Role);

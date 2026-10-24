@@ -77,7 +77,7 @@ internal static class MailAnsweringInstructions
     /// <remarks>Short because it distinguishes this build's instruction from another build's, which is a comparison rather than a search for a collision.</remarks>
     private const int VersionLength = 12;
 
-    /// <summary>The version of <see cref="Text" />, which every audited run is recorded as having been conducted under.</summary>
+    /// <summary>The version of the instruction a run composes from <see cref="Text" />, which every audited run is recorded as having been conducted under.</summary>
     /// <remarks>
     /// <para>
     /// The policy half of "what produced this answer". The instruction states how retrieved mail is to be read, what may
@@ -90,7 +90,11 @@ internal static class MailAnsweringInstructions
     /// from, and a record that misstates the policy an answer was produced under is worse than one that states none.
     /// The text itself is never stored — it is a constant of the build, so the version names it and the build carries it.
     /// </para>
+    /// <para>
+    /// What is digested is the composed instruction rather than <see cref="Text" /> alone, because the data clause every
+    /// operation carries is part of the policy a run was conducted under, and a change to it is a change to that policy.
+    /// </para>
     /// </remarks>
     internal static string Version { get; } =
-        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(Text)))[..VersionLength];
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(AgentComposition.InstructionFor(Text))))[..VersionLength];
 }

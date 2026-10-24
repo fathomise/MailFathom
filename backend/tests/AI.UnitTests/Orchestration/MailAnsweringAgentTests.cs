@@ -102,16 +102,19 @@ public sealed class MailAnsweringAgentTests
         Assert.Empty(observation.Retrieval.Passages);
     }
 
-    /// <summary>The version has to move with the text, or a record would name a policy an answer was not produced under.</summary>
+    /// <summary>
+    /// The version has to move with the instruction a run is composed with, data clause included, or a record would
+    /// name a policy an answer was not produced under.
+    /// </summary>
     [Fact]
-    public void InstructionsVersion_IsDerivedFromTheInstructionItNames()
+    public void InstructionsVersion_IsDerivedFromTheComposedInstructionItNames()
     {
         // Arrange, Act
         var version = MailAnsweringInstructions.Version;
 
         // Assert
         Assert.Equal(
-            Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(MailAnsweringInstructions.Text)))[..12],
+            Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(AgentComposition.InstructionFor(MailAnsweringInstructions.Text))))[..12],
             version);
     }
 
