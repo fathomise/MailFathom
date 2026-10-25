@@ -925,8 +925,8 @@ made, and a pull request opened by neither
 `finish-change` nor `prepare-release` moves nothing.
 
 Those rules describe an issue an agent opened. A public repository also receives
-issues nobody here opened, and one arrives with no issue type, no stack
-label, and no board fields because none of the rules reached its author. The
+issues nobody here opened, and one arrives with no issue type, no stack or
+`design` label, and no board fields because none of the rules reached its author. The
 same page holds that path too: the missing issue type is what marks an issue
 untriaged, triage either places it by the ordinary rules or closes it as `not
 planned` with a reason, a question moves to Discussions instead of being given an

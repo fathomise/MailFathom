@@ -120,8 +120,15 @@ milestone if the release rule assigns one, all of which need write access to the
 the issue was opened with. A change that grew past what the issue described may have outgrown its
 placement too.
 
-The `design` label is the one placement the diff can prove, so hold it against
-`git diff --name-only <base>...HEAD -- design/`. Output with no label on the issue: add it. The label
+The `design` label is the one placement the diff can prove, so hold it against the design files the
+change touched, leaving out the directory's own page and authoring rules:
+
+```bash
+git diff --name-only <base>...HEAD -- design/ \
+  ':!design/README.md' ':!design/AGENTS.md' ':!design/CLAUDE.md'
+```
+
+Output with no label on the issue: add it. The label
 with no output: remove it when the design already showed what the change produces, and treat it as
 unfinished work instead when the client now shows something `design/` does not draw — the root
 `AGENTS.md` § *The design leads the client, never the other way round* puts that design half in this
