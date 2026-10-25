@@ -113,7 +113,7 @@ Do not proceed while a gate fails.
    than as incomplete.
 
 Confirm the issue is still placed, against `docs/operations/issue-tracking.md`, as far as this
-session's access reaches: exactly one `type:*` label, a `backend` or `frontend` label where the work
+session's access reaches: its issue type, a `backend` or `frontend` label where the work
 landed in one of the two stacks, and a milestone if the release rule assigns one, all of which need
 write access to the repository, and an `Area` and a `Size` on the board, the `Size` being what step 8
 measured rather than the placeholder the issue was opened with. A change that grew past what the
@@ -138,7 +138,7 @@ Issue link: <Closes #N confirmed in the published body>
 Related pull requests: <the ones scripts/report-related-pull-requests.sh named and what each changed here, or none>
 Queue: <Next confirmed on the board after the pull request existed, or not applicable (no board write)>
 Size: <the band written from this pull request's own diff and confirmed, or not applicable (no board write, or a parent issue)>
-Placement: <type label, stack label or neither, Area, milestone or none — or what this session's access left to triage>
+Placement: <issue type, stack label or neither, Area, milestone or none — or what this session's access left to triage>
 ```
 
 Never claim completion without fresh evidence for every line.
