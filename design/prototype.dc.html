@@ -2036,7 +2036,7 @@ Project repository: https://github.com/fathomise/MailFathom
           <div onClick="{{ agentSend }}" title="Send" style="{{ agentSendStyle }}" style-hover="cursor:pointer;opacity:0.88"><sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}"><span style="{{ agentBtnIconStyle }}">send</span></sc-if><sc-if value="{{ notMobile }}" hint-placeholder-val="{{ true }}">{{ agentSendLabel }}</sc-if></div>
           <div role="button" tabIndex="{{ agentCancelTab }}" aria-disabled="{{ agentCancelDisabled }}" aria-label="{{ agentCancelAria }}" onClick="{{ agentCancel }}" onKeyDown="{{ agentCancelKey }}" style="{{ agentCancelStyle }}" style-hover="{{ agentCancelHover }}" style-focus="outline:2px solid var(--accent);outline-offset:2px"><sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}"><span style="{{ agentBtnIconStyle }}">cancel</span></sc-if><sc-if value="{{ notMobile }}" hint-placeholder-val="{{ true }}">Cancel</sc-if></div>
         </div>
-        <div style="font-size:11px;color:var(--faint)">The agent proposes actions - nothing is sent without your approval.</div>
+        <div style="font-size:11px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ agentHint }}</div>
       </div>
       </div>
 
@@ -2274,9 +2274,8 @@ Project repository: https://github.com/fathomise/MailFathom
   </sc-if>
 
   <sc-if value="{{ fathomFabShown }}" hint-placeholder-val="{{ true }}">
-    <div data-fathom-ui="1" role="button" tabIndex="0" aria-haspopup="menu" aria-expanded="{{ fathomFabExpanded }}" aria-label="{{ fathomFabTitle }}" title="{{ fathomFabTitle }}" onClick="{{ toggleFathom }}" style="{{ fathomFabStyle }}" style-hover="cursor:pointer;filter:brightness(1.08)">
+    <div data-fathom-ui="1" data-fathom-fab="1" data-smart-on="{{ fathomFabSmart }}" role="button" tabIndex="0" aria-haspopup="menu" aria-expanded="{{ fathomFabExpanded }}" aria-label="{{ fathomFabTitle }}" title="{{ fathomFabTitle }}" onClick="{{ toggleFathom }}" style="{{ fathomFabStyle }}" style-hover="cursor:pointer">
       <span style="{{ fathomFabGlyph }}">{{ fathomFabIcon }}</span>
-      <sc-if value="{{ fathomFabWide }}" hint-placeholder-val="{{ true }}"><span>{{ fathomFabLabel }}</span></sc-if>
     </div>
   </sc-if>
 

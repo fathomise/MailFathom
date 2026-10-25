@@ -185,7 +185,7 @@ MailFathomDesign.fathomUi = (() => {
       : st.screen === "agent" ? "the conversation" : "your day";
     const space = { start: "Start", mail: "Mail", cal: "Calendar", tasks: "Tasks", people: "People", agent: "Agent" }[st.screen] || "Start";
     const fabShown = !st.catchupOpen && !st.compose && !st.doc && !st.htmlDoc && !st.settings;
-    const fabSize = touch ? 56 : 48;
+    const fabSize = touch ? 56 : 52;
     const fabBottom = 16 + barH;
     const smartOn = !!st.fathomSmart;
     const menuRun = (a) => () => {
@@ -197,19 +197,17 @@ MailFathomDesign.fathomUi = (() => {
     const v = {
       fathomFabShown: fabShown,
       fathomFabIcon: st.fathomMenu || smartOn ? "close" : "auto_awesome",
-      fathomFabLabel: smartOn ? "Done" : "Fathom",
-      fathomFabWide: !touch,
       fathomFabTitle: smartOn ? "Leave Smart" : st.fathomMenu ? "Close" : "Fathom - ask or act on what is on screen",
       fathomFabExpanded: !!st.fathomMenu,
       toggleFathom: () => {
         if (self.state.fathomSmart) { self.setState({ fathomSmart: false, smartHover: null }); return; }
         self.setState(s => ({ fathomMenu: !s.fathomMenu, fathomAnswer: null }));
       },
-      fathomFabStyle: "position:fixed;z-index:88;right:16px;bottom:" + fabBottom + "px;display:flex;align-items:center;justify-content:center;gap:8px;box-sizing:border-box;color:var(--onaccent);background:var(--accent);" +
-        "box-shadow:inset 0 1px 0 rgba(255,255,255,0.18),0 10px 26px var(--sh-3),0 2px 6px var(--sh-2);font-weight:600;" +
-        (touch ? "width:" + fabSize + "px;height:" + fabSize + "px;border-radius:18px;" : "height:" + fabSize + "px;padding:0 18px 0 14px;border-radius:14px;font-size:14px;") +
-        (smartOn ? "outline:3px solid var(--accent-line);outline-offset:3px;" : ""),
-      fathomFabGlyph: GLYPH + "font-size:" + (touch ? 24 : 20) + "px;font-variation-settings:'wght' 400",
+      fathomFabSmart: smartOn ? "1" : "0",
+      /* A disc whose glyph alone names it; its gradient, gloss and sheen live in prototype.css. */
+      fathomFabStyle: "position:fixed;z-index:88;right:16px;bottom:" + fabBottom + "px;width:" + fabSize + "px;height:" + fabSize + "px;box-sizing:border-box;" +
+        "display:flex;align-items:center;justify-content:center;border-radius:50%;color:#fff",
+      fathomFabGlyph: GLYPH + "position:relative;z-index:1;font-size:" + (touch ? 27 : 25) + "px;font-variation-settings:'FILL' 1,'wght' 500;text-shadow:0 1px 2px rgba(0,0,0,0.22)",
       fathomMenuOpen: !!st.fathomMenu,
       closeFathomMenu: () => self.setState({ fathomMenu: false }),
       fathomMenuWhere: space + " · " + where,

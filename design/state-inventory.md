@@ -705,6 +705,10 @@ phone. The line above a reply is `AI · <scope>` in 11 px semibold `--muted` wit
 thread (`agentScrollStyle`) and the field under it (`agentInputWrapStyle`) take the same
 side padding, `max(26px, calc((100% - 1290px) / 2))` — a rule on the pane's own width, so it reads no breakpoint
 of the window's. So the field lines up with the thread at every width, and a wide window keeps both in the middle instead of stretching them. The
+one exception is the field's right edge, which keeps Fathom's corner free: it stands at least the disc plus 28 px from
+the edge (80 px under a mouse, 84 px under a finger, and on the phone too), so the button sits beside *Send* and
+*Cancel* rather than over them. The line under the field reads *Nothing is sent without your approval.* on the phone,
+where the longer sentence does not fit beside the corner. The
 thread used to stop at a `max-width` of 1520 px, or 780 px under `compact`, and the framed box around
 the field (`agentBoxStyle`) carried the same cap; neither has one now.
 
@@ -927,16 +931,18 @@ Every label in the prototype is English, among them the Settings tabs *Profile* 
 ### Fathom
 
 **Fathom is the one button that stands in the same place on every space**, so a reader knows where to find it before
-they look: the bottom-right corner, 16 px from both edges, above the bottom bar on a phone. Under a mouse it is a 48 px
-accent pill reading `auto_awesome` *Fathom*; under a finger a 56 px accent square on an 18 px radius holding the glyph,
-titled *Fathom - ask or act on what is on screen*. A space's own floating button stands above it, and the thread's
+they look: the bottom-right corner, 16 px from both edges, above the bottom bar on a phone. It is a disc holding the filled
+`auto_awesome` glyph in white and no word — 52 px under a mouse, 56 px under a finger — titled *Fathom - ask or act on
+what is on screen*. The disc runs from the accent's blue at its top left into green at its bottom right, with a white
+gloss across its upper half, a teal glow beneath it, and a band of light that crosses it every six seconds; reduced
+motion keeps the band off the disc. A hover lifts it a pixel and grows it to 105 %, and a press presses it to 95 %. A space's own floating button stands above it, and the thread's
 former AI button is this one. It is drawn on Start, Agent, Mail, Tasks, Calendar and People, and stands aside only for
 the composer, a document, Settings and the catch-up (`fathomFabShown`).
 
 | State | Flag | Reveal |
 |---|---|---|
 | Its menu | `fathomMenuOpen` / `mo.fathomMenu` | pressing it — the glyph turns to `close`, and a 296 px `--panel` menu (`min(320px, 100% - 32px)` on a phone) rises above it with `pop`, headed *Fathom* and where it is (`fathomMenuWhere`, *Mail · Re: rollout schedule*). The space's own actions come first (`fathom.menu`): Start *Ask about your day*, *Plan the rest of today*; Mail's list *Ask about this folder*, *Summarize what is unread*; a thread *Draft a reply*, *Ask*; Calendar *Ask about this week*, *Find a free slot*; Tasks *Ask about your tasks*, *What slipped this week?*; People *Ask about* the person open, *What do they wait for?*; Agent *New conversation*. Then *Smart*, and *Open the Agent*. A press outside, Escape or back folds it |
-| Smart | `smartOn` | *Smart* in the menu — the button reads `close` *Done* with an accent ring, and a pill at the top says *Smart · Point at anything to see what Fathom can do with it* (*Tap anything …* under a finger, *Tap anything for its actions* on a phone) with *Done*. The page still scrolls; a press no longer acts, it lands on a component |
+| Smart | `smartOn` | *Smart* in the menu — the glyph turns to `close` (titled *Leave Smart*) and a green ring stands off the disc, and a pill at the top says *Smart · Point at anything to see what Fathom can do with it* (*Tap anything …* under a finger, *Tap anything for its actions* on a phone) with *Done*. The page still scrolls; a press no longer acts, it lands on a component |
 | A component under the pointer | `smartHoverShown` | a mouse over anything carrying `data-smart` — a 2 px accent outline 4 px outside it on a 12 px radius, tinted with 9% accent, and a tag above it naming the component and what it holds (*Message · Re: rollout schedule*). A finger has no hover: its tap draws the outline and opens the menu at once |
 | A component's actions | `ctxMenu` | pressing a component in Smart — the context menu headed by the component's name and what it holds, with that component's actions (`fathom.components`). Closing the menu leaves Smart on; choosing an action ends it |
 | An answer | `fathomAnswerOpen` / `mo.fathomAnswer` | an action that answers — a 380 px card above the button (across the phone, above the button and the bar): a *Fathom* tag, the action, what it was about, the answer at 15 px, and *Continue with the agent*, which carries it to the Agent as the conversation's context. × or Escape closes it |

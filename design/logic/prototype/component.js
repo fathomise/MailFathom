@@ -3877,9 +3877,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:14px;padding:16px 14px"
           : "flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:16px;padding:22px max(26px, calc((100% - 1290px) / 2))",
         agentBoxStyle: "display:flex;align-items:center;gap:" + (isMobile ? 8 : 12) + "px;background:var(--panel);border:2px solid var(--accent);border-radius:12px;" + (touch ? "padding:6px 6px 6px 14px" : "padding:10px 13px"),
+        /* The composer keeps Fathom's corner free (its disc, 16 px of edge and 12 px of air), so the button never stands
+           over Send, Cancel or the line under them. */
         agentInputWrapStyle: isMobile
-          ? "display:flex;flex-direction:column;gap:9px;background:var(--panel);border-top:1px solid var(--line);padding:12px 14px"
-          : "display:flex;flex-direction:column;gap:10px;background:var(--panel);border-top:1px solid var(--line);padding:14px max(26px, calc((100% - 1290px) / 2)) 16px",
+          ? "display:flex;flex-direction:column;gap:9px;background:var(--panel);border-top:1px solid var(--line);padding:12px " + ((touch ? 56 : 52) + 28) + "px 12px 14px"
+          : "display:flex;flex-direction:column;gap:10px;background:var(--panel);border-top:1px solid var(--line);padding:14px max(" + ((touch ? 56 : 52) + 28) + "px, calc((100% - 1290px) / 2)) 16px max(26px, calc((100% - 1290px) / 2))",
+        agentHint: isMobile ? "Nothing is sent without your approval." : "The agent proposes actions - nothing is sent without your approval.",
         agentThinking: !!st.agentThinking,
         agentScrollRef: this.agentScrollRef,
         onAgentScroll: this.onAgentScroll,
@@ -5125,10 +5128,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         tbPrimaryShown: tbPriInBar,
         showFab: !st.compose && !st.doc && !selectionOn && (singlePane ? mailPane === "list" : tbFabForced),
         /* A space's own button stands above Fathom's, which keeps the corner on every space. */
-        fabStyle: "position:absolute;right:16px;bottom:" + (16 + (touch ? 56 : 48) + 12) + "px;z-index:30;width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--accent);color:var(--onaccent);box-shadow:0 6px 18px var(--sh-2)",
+        fabStyle: "position:absolute;right:16px;bottom:" + (16 + (touch ? 56 : 52) + 12) + "px;z-index:30;width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--accent);color:var(--onaccent);box-shadow:0 6px 18px var(--sh-2)",
         /* In multi-panel layouts the circle sits over the thread list, not the reading panel —
            otherwise it would cover the reply composer. */
-        mailFabStyle: "position:absolute;right:16px;bottom:" + (singlePane ? 16 + (touch ? 56 : 48) + 12 : 16) + "px;z-index:30;" +
+        mailFabStyle: "position:absolute;right:16px;bottom:" + (singlePane ? 16 + (touch ? 56 : 52) + 12 : 16) + "px;z-index:30;" +
           "width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--accent);color:var(--onaccent);box-shadow:0 6px 18px var(--sh-2)",
         selectionCount: sel.length + " selected",
         clearSelection: () => this.setState({ sel: [] }),
