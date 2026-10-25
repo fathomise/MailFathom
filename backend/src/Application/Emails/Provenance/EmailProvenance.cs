@@ -36,8 +36,10 @@ public sealed record EmailProvenance
     /// <summary>Gets whether nothing the mailbox held from before the email was written by its sender or addressed to them.</summary>
     /// <remarks>
     /// Earlier mail in the junk, trash, and drafts folders is not correspondence, for the reason contact collection
-    /// ignores those folders, so a sender whose only earlier mail sat there is still a first contact. A message carrying
-    /// no usable sender address is one too, since nobody can be said to have written to the mailbox before.
+    /// ignores those folders, so a sender whose only earlier mail sat there is still a first contact. Neither is mail a
+    /// tool may not read — a folder no mapping admits, a message the server expunged — because the flag reaches the
+    /// model and the caller and must not tell them that such mail exists. A message carrying no usable sender address is
+    /// a first contact too, since nobody can be said to have written to the mailbox before.
     /// </remarks>
     public required bool IsFirstContact { get; init; }
 }

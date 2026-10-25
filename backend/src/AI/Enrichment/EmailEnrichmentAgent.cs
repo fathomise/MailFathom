@@ -21,9 +21,11 @@ namespace MailFathom.AI.Enrichment;
 /// <summary>Derives one message's marks by putting it to the composed enrichment agent.</summary>
 /// <remarks>
 /// <para>
-/// One call, no tools, and one message. What leaves this deployment is the subject, the arrival instant, and the
-/// passages the pass selected, every one of them guarded first — so a derivation sends the message and nothing about
-/// the mailbox it sits in.
+/// One call, no tools, and one message. What leaves this deployment is the subject, the arrival instant, the passages
+/// the pass selected, every one of them guarded first, and the message's provenance: the sender verdict, whether the
+/// deployment trusts the author, whether the message sits in junk, and whether the mailbox had corresponded with its
+/// sender before. The last two are facts about the mailbox, and the only ones a derivation sends; no address, no
+/// folder name, and no other message travels with it.
 /// </para>
 /// <para>
 /// It opens no chat call of its own. The agent is composed by <see cref="AgentComposition" /> like every other

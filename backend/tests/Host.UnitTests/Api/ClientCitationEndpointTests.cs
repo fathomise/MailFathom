@@ -19,6 +19,7 @@ using MailFathom.Application.Observability;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Folders;
 using MailFathom.Host.Api;
 using MailFathom.TestSupport;
@@ -130,6 +131,31 @@ public sealed class ClientCitationEndpointTests
         var provenance = Assert.Single(response.Citations).Message!.Provenance;
         Assert.Equal(
             ("NotEstablished", "Unknown", true, true),
+            (provenance.AuthorAuthentication, provenance.DeploymentTrust, provenance.InJunkFolder, provenance.FirstContact));
+    }
+
+    /// <summary>A trusted, authenticated correspondent reaches the client as such, so the verdict is the one recorded rather than a default.</summary>
+    [Fact]
+    public void For_AMessageFromATrustedCorrespondent_PublishesThatVerdictAndNoQualification()
+    {
+        // Arrange
+        var trusted = StubEmailProvenanceReader.KnownCorrespondent with
+        {
+            Sender = new SenderVerification
+            {
+                AuthorAuthentication = AuthorAuthenticationOutcome.Authenticated,
+                DeploymentTrust = SenderTrustLevel.Trusted,
+            },
+        };
+
+        // Act
+        var response = ClientCitationResolutionResponse.For(
+            [ResolvedCitation.Resolved(CitedMessageOf() with { Provenance = trusted })]);
+
+        // Assert
+        var provenance = Assert.Single(response.Citations).Message!.Provenance;
+        Assert.Equal(
+            ("Authenticated", "Trusted", false, false),
             (provenance.AuthorAuthentication, provenance.DeploymentTrust, provenance.InJunkFolder, provenance.FirstContact));
     }
 

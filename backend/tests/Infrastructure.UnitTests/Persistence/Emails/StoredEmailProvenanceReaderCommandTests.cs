@@ -2,7 +2,9 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.Infrastructure.Persistence;
 using MailFathom.Infrastructure.Persistence.Emails;
 using MailFathom.Infrastructure.Persistence.Entities;
@@ -22,6 +24,11 @@ public sealed class StoredEmailProvenanceReaderCommandTests
     [
         StoredEmailId.Create(new Guid("22222222-2222-2222-2222-222222222222")),
         StoredEmailId.Create(new Guid("33333333-3333-3333-3333-333333333333")),
+    ];
+
+    private static readonly MailFolderIdentity[] VisibleToTools =
+    [
+        new(MailAccountId.Create("work"), MailFolderAlias.Create("INBOX")),
     ];
 
     /// <summary>The read is narrowed to the emails a caller already holds, which the primary key serves.</summary>
@@ -49,6 +56,29 @@ public sealed class StoredEmailProvenanceReaderCommandTests
         Assert.Contains(nameof(StoredEmailEntity.CcAddresses), command, StringComparison.Ordinal);
     }
 
+    /// <summary>Earlier correspondence is looked for only in mail still part of the mailbox and in folders a tool may read.</summary>
+    /// <remarks>
+    /// Read from the existence test alone: the flag is published, so an expunged message or one in an unmapped folder
+    /// deciding it would tell a caller that mail it cannot read exists.
+    /// </remarks>
+    [Fact]
+    public void ProvenanceOf_EarlierCorrespondence_IsNarrowedToLiveMailInFoldersVisibleToTools()
+    {
+        // Arrange
+        using var context = new MailFathomDbContextDesignTimeFactory().CreateDbContext([]);
+        var aliasColumn = context.Model
+            .FindEntityType(typeof(MailFolderEntity))!
+            .FindProperty(nameof(MailFolderEntity.Alias))!
+            .GetColumnName();
+
+        // Act
+        var existenceTest = ExistenceTestIn(CommandFor(Emails));
+
+        // Assert
+        Assert.Contains($"\"{nameof(StoredEmailEntity.RemoteExpungeObservedAt)}\"", existenceTest, StringComparison.Ordinal);
+        Assert.Contains($"\"{aliasColumn}\"", existenceTest, StringComparison.Ordinal);
+    }
+
     /// <summary>Whether an email is junk is read off the role its folder was configured with, as a column the command selects.</summary>
     /// <remarks>
     /// Read from the projection alone, ahead of the first <c>FROM</c>: the earlier-correspondence test filters on the
@@ -69,7 +99,16 @@ public sealed class StoredEmailProvenanceReaderCommandTests
     {
         using var context = new MailFathomDbContextDesignTimeFactory().CreateDbContext([]);
 
-        return StoredEmailProvenanceReader.ProvenanceOf(context, emails).ToQueryString();
+        return StoredEmailProvenanceReader.ProvenanceOf(context, emails, VisibleToTools).ToQueryString();
+    }
+
+    /// <summary>Keeps the existence test, from its opening to the outermost <c>WHERE</c> that narrows by identity.</summary>
+    private static string ExistenceTestIn(string command)
+    {
+        var existsIndex = command.IndexOf("EXISTS (", StringComparison.Ordinal);
+        var whereIndex = command.LastIndexOf("WHERE", StringComparison.Ordinal);
+
+        return existsIndex < 0 || whereIndex < existsIndex ? string.Empty : command[existsIndex..whereIndex];
     }
 
     /// <summary>Keeps what precedes the first <c>FROM</c>, which is the select list up to the first subquery it holds.</summary>

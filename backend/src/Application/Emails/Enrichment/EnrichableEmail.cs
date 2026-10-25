@@ -16,13 +16,13 @@ namespace MailFathom.Application.Emails.Enrichment;
 /// <remarks>
 /// <para>
 /// Deliberately narrow. A derivation is shown the subject, the arrival instant, and the text — never the sender, the
-/// addressees, the folder, or the account — because none of those is what a sentence about the message is derived from,
+/// addressees, the folder's identity, or the account — because none of those is what a sentence about the message is derived from,
 /// and every one of them is a participant this deployment would then be sending to a provider for no reading it buys.
 /// </para>
 /// <para>
-/// The provenance is the one thing about the sender it is shown, and it names nobody: three facts the deployment recorded
-/// — whether the author was authenticated, whether the message sits in junk, whether its sender is a first contact —
-/// which are what lets a derivation describe a request to change payment details as a claim rather than as a task.
+/// The provenance is the one thing about the sender and the mailbox it is shown, and it names nobody: four facts the
+/// deployment recorded — whether the author was authenticated, whether the deployment trusts them, whether the message
+/// sits in junk, and whether its sender is a first contact — which are what lets a derivation describe a request to change payment details as a claim rather than as a task.
 /// </para>
 /// <para>
 /// The arrival instant is here so that a relative date the text states can be resolved into one a row can show. It is

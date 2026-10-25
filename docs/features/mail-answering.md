@@ -554,20 +554,24 @@ in, and the mail the same mailbox held earlier — and none is read from the mes
 verified, or writes these attributes into its own subject, changes nothing the service wrote: the writer escapes it like
 any other text. *First contact* reads earlier correspondence the way [contact collection](contacts.md) does — the
 sender wrote the earlier mail, or it was addressed to them in `To` or `Cc` — within the same account, received strictly
-before the message, and outside the junk, trash, and drafts folders; a message with no usable sender address is a first
-contact. A signature verification recorded as the sender verdict later reaches every operation listed above through
+before the message (or, for a copy in Sent that carries no arrival instant, sent before it), outside the junk, trash,
+and drafts folders, and only among mail still part of the mailbox in a folder the mapping admits to tools; a message
+with no usable sender address is a first contact. A signature verification recorded as the sender verdict later reaches every operation listed above through
 `sender-authentication` without anything here changing.
 
 The data clause carries the rule a model is given about them: a claim resting only on a message whose sender is not
 authenticated, or that is junk or a first contact, is reported with that qualification rather than as settled fact; a
 request from such a message to change payment details, a bank account, or credentials, or to do something urgently, is
-flagged as coming from a sender the deployment could not verify instead of restated; and a claim from an authenticated
-sender is not doubted for where it came from alone. Like the rest of the clause it is the weaker mechanism — what is
+flagged with what the attributes say — a sender the deployment could not verify, a message in junk, a sender the
+mailbox had not corresponded with — instead of restated; and a claim from an authenticated sender whose message is
+neither junk nor a first contact is not doubted for where it came from alone. Like the rest of the clause it is the weaker mechanism — what is
 structural is that the attributes are the service's own, in a place no message can write to.
 
 The provenance is personal data: whether somebody has written to a mailbox before is a fact about who its owner
 corresponds with. It inherits the classification of the mail it describes, travels only with a message the run already
-read, and is read by identity from those messages alone, so it says nothing about mail the caller could not read.
+read, and is read by identity from those messages alone; earlier correspondence is looked for only in mail a tool may
+read, so a sender whose only earlier message sits in an unmapped folder or was expunged is a first contact, and the flag
+says nothing about mail the caller could not read.
 
 The identity is the other reason the envelope exists. Each extract carries the stable local identifier an answer cites
 and the account and folder it was read from, unchanged — an answer that cannot say which message a claim came from

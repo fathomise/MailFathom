@@ -4,15 +4,19 @@
 
 using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Summaries;
+using MailFathom.Application.Folders;
 using MailFathom.Application.Persistence;
+using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Folders;
 using MailFathom.Infrastructure.Persistence;
+using MailFathom.Infrastructure.Persistence.Emails;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Sessions;
 using MailFathom.IntegrationTests.Orchestration;
 using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
 using Xunit;
 
 namespace MailFathom.IntegrationTests.Persistence;
@@ -32,6 +36,11 @@ namespace MailFathom.IntegrationTests.Persistence;
 /// one place a junk, trash, and drafts folder can be given their roles without taking them from another class's folders.
 /// Nothing here is served or bound, so no other class's reads reach these rows, and they stay behind like the rest of
 /// the run's data.
+/// </para>
+/// <para>
+/// Those accounts are no account the harness serves, so the reader is composed here over the scoped context and a
+/// folder port admitting each seeded account's mapped folder, rather than resolved with the harness's own port, which
+/// would admit none of them and leave every sender a first contact.
 /// </para>
 /// </remarks>
 [Collection(OrchestratedInfrastructureCollectionDefinition.Name)]
@@ -78,6 +87,7 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
         // Act
         var provenance = await ReadAsync(
             services,
+            [mailbox, elsewhere],
             [wrote, addressed, copied, quarantined, fromElsewhere, anonymous],
             cancellationToken);
 
@@ -135,6 +145,7 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
         // Act
         var provenance = await ReadAsync(
             services,
+            [mailbox],
             [firstOfTwo, secondOfTwo, copyInInbox, copyInArchive, undated, undatedKnown],
             cancellationToken);
 
@@ -145,6 +156,54 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
         Assert.True(provenance[copyInArchive].IsFirstContact);
         Assert.True(provenance[undated].IsFirstContact);
         Assert.False(provenance[undatedKnown].IsFirstContact);
+    }
+
+    /// <summary>
+    /// Earlier mail counts only while it is still part of the mailbox and sits in a folder a tool may read, and a copy of
+    /// the person's own mail filed in Sent, which carries no arrival instant, is placed by when it was sent.
+    /// </summary>
+    [Fact]
+    public async Task ReadAsync_EarlierMailExpungedHiddenOrOnlySent_CountsOnlyLiveMailInFoldersVisibleToTools()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var mailbox = new SeededMailbox();
+
+        mailbox.Add(folder: null, "expunged@provenance.test", Earliest, expungedAt: Earlier);
+        mailbox.Add(folder: null, "hidden@provenance.test", Earliest, inUnmappedFolder: true);
+        mailbox.Add(
+            MailFolderSpecialUse.Sent,
+            "owner@provenance.test",
+            receivedAt: null,
+            to: ["answered@provenance.test"],
+            sentAt: Earliest);
+        mailbox.Add(
+            MailFolderSpecialUse.Sent,
+            "owner@provenance.test",
+            receivedAt: null,
+            to: ["answered-later@provenance.test"],
+            sentAt: Latest.AddHours(1));
+
+        var afterExpunged = mailbox.Add(MailFolderSpecialUse.Inbox, "expunged@provenance.test", Latest);
+        var afterHidden = mailbox.Add(MailFolderSpecialUse.Inbox, "hidden@provenance.test", Latest);
+        var afterSent = mailbox.Add(MailFolderSpecialUse.Inbox, "answered@provenance.test", Latest);
+        var beforeSent = mailbox.Add(MailFolderSpecialUse.Inbox, "answered-later@provenance.test", Latest);
+
+        await SeedAsync(services, [mailbox], cancellationToken);
+
+        // Act
+        var provenance = await ReadAsync(
+            services,
+            [mailbox],
+            [afterExpunged, afterHidden, afterSent, beforeSent],
+            cancellationToken);
+
+        // Assert
+        Assert.True(provenance[afterExpunged].IsFirstContact);
+        Assert.True(provenance[afterHidden].IsFirstContact);
+        Assert.False(provenance[afterSent].IsFirstContact);
+        Assert.True(provenance[beforeSent].IsFirstContact);
     }
 
     /// <summary>
@@ -175,7 +234,7 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
         await SeedAsync(services, [mailbox], cancellationToken);
 
         // Act
-        var provenance = await ReadAsync(services, [inJunk, inInbox, neverStored], cancellationToken);
+        var provenance = await ReadAsync(services, [mailbox], [inJunk, inInbox, neverStored], cancellationToken);
 
         // Assert
         Assert.Equal(
@@ -229,10 +288,21 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
 
     private static Task<IReadOnlyDictionary<StoredEmailId, EmailProvenance>> ReadAsync(
         OrchestratedMailFathomServices services,
+        IReadOnlyList<SeededMailbox> visibleToTools,
         IReadOnlyCollection<StoredEmailId> emails,
-        CancellationToken cancellationToken) => services.InScopeAsync(
-            (scope, token) => scope.GetRequiredService<IEmailProvenanceReader>().ReadAsync(emails, token),
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<MailFolderIdentity> folders = [.. visibleToTools.Select(static mailbox => mailbox.MappedFolder)];
+        var deploymentFolders = Substitute.For<IDeploymentMailFolders>();
+        deploymentFolders.ReadAsync(MailFolderSelection.VisibleToTools, Arg.Any<CancellationToken>()).Returns(folders);
+
+        return services.InScopeAsync(
+            (scope, token) => new StoredEmailProvenanceReader(
+                    scope.GetRequiredService<MailFathomDbContext>(),
+                    deploymentFolders)
+                .ReadAsync(emails, token),
             cancellationToken);
+    }
 
     private static string Normalized(string address) =>
         EmailAddress.TryCreate(displayName: null, address, out var emailAddress)
@@ -242,7 +312,9 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
     /// <summary>One mailbox account of a test's own, with a folder per role and the mail written into them.</summary>
     /// <remarks>
     /// The account identifier is fresh per instance and in the form a deployment generates, so two tests never meet over
-    /// a folder role, which the schema holds unique among an account's live folders.
+    /// a folder role, which the schema holds unique among an account's live folders. Its folders carry no alias, which
+    /// admits them within an admitted account the way a folder a person made is admitted, apart from one folder whose
+    /// alias no mapping names.
     /// </remarks>
     private sealed class SeededMailbox
     {
@@ -253,6 +325,8 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
         private readonly List<StoredEmailEntity> emails = [];
 
         private MailFolderEntity? folderWithoutRole;
+
+        private MailFolderEntity? unmappedFolder;
 
         private readonly MailFolderBindingEntity binding;
 
@@ -267,6 +341,11 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
             };
         }
 
+        /// <summary>Gets the folder identity a tool may read, which admits this account and no alias but its own.</summary>
+        public MailFolderIdentity MappedFolder => new(
+            MailAccountId.Create(this.account.Id),
+            MailFolderAlias.Create("provenance-mapped"));
+
         public StoredEmailId Add(
             MailFolderSpecialUse? folder,
             string? sender,
@@ -275,16 +354,21 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
             string[]? cc = null,
             string? messageId = null,
             AuthorAuthenticationOutcome authentication = AuthorAuthenticationOutcome.NotEstablished,
-            SenderTrustLevel trust = SenderTrustLevel.Unknown)
+            SenderTrustLevel trust = SenderTrustLevel.Unknown,
+            DateTimeOffset? sentAt = null,
+            DateTimeOffset? expungedAt = null,
+            bool inUnmappedFolder = false)
         {
             var email = new StoredEmailEntity
             {
                 Id = Guid.NewGuid(),
                 MailboxAccountId = this.account.Id,
                 MailFolderBinding = this.binding,
-                Folder = this.FolderOf(folder),
+                Folder = inUnmappedFolder ? this.UnmappedFolder() : this.FolderOf(folder),
                 InternetMessageId = messageId,
                 ReceivedAt = receivedAt,
+                SentAt = sentAt,
+                RemoteExpungeObservedAt = expungedAt,
                 SenderAddress = sender,
                 SenderNormalizedAddress = sender is null ? null : Normalized(sender),
                 ToAddresses = [.. (to ?? []).Select(Normalized)],
@@ -311,8 +395,22 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
                 context.MailFolders.Add(this.folderWithoutRole);
             }
 
+            if (this.unmappedFolder is not null)
+            {
+                context.MailFolders.Add(this.unmappedFolder);
+            }
+
             context.StoredEmails.AddRange(this.emails);
         }
+
+        private MailFolderEntity UnmappedFolder() => this.unmappedFolder ??= new MailFolderEntity
+        {
+            Id = Guid.NewGuid(),
+            MailboxAccountId = this.account.Id,
+            Alias = "provenance-unmapped",
+            Name = "Unmapped",
+            NameKey = "UNMAPPED",
+        };
 
         private MailFolderEntity FolderOf(MailFolderSpecialUse? role)
         {

@@ -16,9 +16,11 @@ namespace MailFathom.Application.Emails.ThreadStates;
 /// <remarks>
 /// <para>
 /// Deliberately narrow, exactly as one message's derivation is. A reading is shown the subject, who wrote each message,
-/// when they wrote it, and what they said; it is shown no folder, no account, no addressee list, and no mailbox. None
-/// of those is what *where did we leave this* is derived from, and every one of them is somebody this deployment would
-/// then be sending to a provider for no reading it buys.
+/// when they wrote it, and what they said; it is shown no folder's identity, no account, no addressee list, and no other
+/// mail. None of those is what *where did we leave this* is derived from, and every one of them is somebody this
+/// deployment would then be sending to a provider for no reading it buys. What it is shown about the mailbox is each
+/// message's provenance — whether it sits in junk, and whether the mailbox had corresponded with its sender before —
+/// which is what lets a request from a sender nobody verified be recorded as a claim rather than as something owed.
 /// </para>
 /// <para>
 /// A conversation past the bound arrives with no messages at all rather than with the leading ones. That is what makes

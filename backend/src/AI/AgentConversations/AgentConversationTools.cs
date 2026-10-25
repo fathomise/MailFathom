@@ -247,21 +247,32 @@ internal sealed class AgentConversationTools
             return "No message with that id is readable here.";
         }
 
-        var shown = messages.Take(MaximumThreadMessages).ToArray();
+        var readings = await this.GuardedReadingsOfAsync(messages.Take(MaximumThreadMessages).ToArray(), cancellationToken);
+
+        return AgentConversationReadings.Thread(readings);
+    }
+
+    /// <summary>Reads where each shown message came from and guards the ones it answers for.</summary>
+    /// <remarks>
+    /// A message whose provenance is gone was removed after the conversation was read, and is not shown at all rather
+    /// than shown without saying where it came from.
+    /// </remarks>
+    internal async Task<IReadOnlyList<GuardedThreadReading>> GuardedReadingsOfAsync(
+        IReadOnlyList<ReadEmailContent> shown,
+        CancellationToken cancellationToken)
+    {
         var provenance = await this.readers.ProvenanceReader.ReadAsync(
             [.. shown.Select(static message => message.StoredEmailId)],
             cancellationToken);
 
         List<GuardedThreadReading> readings = [];
 
-        // A message whose provenance is gone was removed after the conversation was read, and is not shown at all
-        // rather than shown without saying where it came from.
         foreach (var message in shown.Where(message => provenance.ContainsKey(message.StoredEmailId)))
         {
             readings.Add(await this.GuardedReadingOfAsync(message, provenance[message.StoredEmailId], cancellationToken));
         }
 
-        return AgentConversationReadings.Thread(readings);
+        return readings;
     }
 
     /// <summary>Guards each value one message's author wrote, before the reading is written around it.</summary>

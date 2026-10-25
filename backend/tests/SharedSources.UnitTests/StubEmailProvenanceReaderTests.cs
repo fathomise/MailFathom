@@ -50,9 +50,10 @@ public sealed class StubEmailProvenanceReaderTests
         Assert.Same(StubEmailProvenanceReader.KnownCorrespondent, answered[First]);
     }
 
-    /// <summary>The two stated provenances differ in every part, so a test choosing one of them proves which reached it.</summary>
+    /// <summary>The two stated provenances differ in the author verdict, the junk folder, and first contact, so a test choosing one of them proves which reached it.</summary>
+    /// <remarks>Neither is trusted by the deployment, so a test about trust states a provenance of its own.</remarks>
     [Fact]
-    public void KnownCorrespondent_AgainstUnverifiedStranger_DiffersInEveryPart()
+    public void KnownCorrespondent_AgainstUnverifiedStranger_DiffersInVerdictFolderAndFirstContact()
     {
         // Arrange, Act
         var known = StubEmailProvenanceReader.KnownCorrespondent;

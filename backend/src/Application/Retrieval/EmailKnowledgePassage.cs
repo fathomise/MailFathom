@@ -59,9 +59,8 @@ public sealed record EmailKnowledgePassage
 
     /// <summary>Gets how much the message's own text read as machine written.</summary>
     /// <remarks>
-    /// It travels with the passage for the reason the sender verdict does, and is put to the same use: a citation states
-    /// it without a second read of the message, and nothing in the retrieval path acts on it or puts it in front of a
-    /// model.
+    /// It travels with the passage for one reader only: a citation states it to the caller without a second read of the
+    /// message. Nothing in the retrieval path acts on it or puts it in front of a model.
     /// </remarks>
     public required MachineAuthorshipAssessment MachineAuthorship { get; init; }
 

@@ -4,6 +4,7 @@
 
 using System.Xml.Linq;
 using MailFathom.AI.AgentConversations;
+using MailFathom.AI.Orchestration;
 using MailFathom.AI.Retrieval;
 using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.Access;
@@ -14,6 +15,7 @@ using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Retrieval.AskMail;
@@ -657,6 +659,39 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         Assert.Same(StubEmailProvenanceReader.UnverifiedStranger, reading.Provenance);
     }
 
+    /// <summary>
+    /// A thread shows each message with the provenance recorded for it, and a message the store no longer answers for is
+    /// left out rather than shown without saying where it came from.
+    /// </summary>
+    [Fact]
+    public async Task GuardedReadingsOf_TwoMessagesOnlyOneOfThemAnsweredFor_ShowsThatOneWithItsOwnProvenance()
+    {
+        // Arrange
+        var stranger = MessageReading("mallory@example.org", "New bank details", "Our account has changed.");
+        var removed = MessageReading("ada@example.org", "Minutes", "The minutes are attached.");
+        this.tools = this.Tools(
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            SensitiveContentEgressGuards.Inactive(),
+            provenanceReader: StubEmailProvenanceReader.Answering(
+                new Dictionary<StoredEmailId, EmailProvenance>
+                {
+                    [stranger.StoredEmailId] = StubEmailProvenanceReader.UnverifiedStranger,
+                }));
+
+        // Act
+        var readings = await this.tools.GuardedReadingsOfAsync([stranger, removed], TestContext.Current.CancellationToken);
+
+        // Assert
+        var message = Assert.Single(
+            XElement.Parse(AgentConversationReadings.Thread(readings)).Elements(AgentConversationReadings.MessageElementName));
+        Assert.Equal(
+            ("mallory@example.org", AgentTurnDocument.NotEstablishedSender, "true", "true"),
+            (message.Attribute(AgentConversationReadings.FromAttributeName)?.Value,
+                message.Attribute(AgentTurnDocument.SenderAuthenticationAttributeName)?.Value,
+                message.Attribute(AgentTurnDocument.JunkAttributeName)?.Value,
+                message.Attribute(AgentTurnDocument.FirstContactAttributeName)?.Value));
+    }
+
     /// <summary>The scan ceiling drops what lies beyond it without failing, so a body it shortened is marked as cut rather than shown as whole.</summary>
     [Theory]
     [InlineData(40, true)]
@@ -820,7 +855,8 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         AccessAuthorization authorization,
         SensitiveContentEgressGuard egressGuard,
         OwnCalendar? calendar = null,
-        OwnTasks? tasks = null)
+        OwnTasks? tasks = null,
+        IEmailProvenanceReader? provenanceReader = null)
     {
         var retrieval = new ScopedMailKnowledgeRetrieval(
             this.knowledgeSearch,
@@ -832,7 +868,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
             ScopeResolver: null!,
             KnowledgeSearch: null!,
             ContentReader: null!,
-            ProvenanceReader: StubEmailProvenanceReader.AllKnownCorrespondents,
+            ProvenanceReader: provenanceReader ?? StubEmailProvenanceReader.AllKnownCorrespondents,
             StateBrowser: null!,
             calendar!,
             tasks!,

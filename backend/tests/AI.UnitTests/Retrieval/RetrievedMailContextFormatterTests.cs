@@ -105,11 +105,10 @@ public sealed class RetrievedMailContextFormatterTests
         Assert.Null(message.Attribute(AgentTurnDocument.FirstContactAttributeName));
     }
 
-    /// <summary>The authorship reading travels the same way, so the envelope must not carry it either.</summary>
+    /// <summary>The authorship reading is published to the caller and never to a model, so the envelope does not carry it.</summary>
     /// <remarks>
-    /// The same direction and the same reason as the verdict above, with one of its own: a number describing how a
-    /// message was written is exactly the sort of thing an injected extract would argue about if a model could see it,
-    /// and this deployment publishes it to a caller rather than reasoning from it.
+    /// A number describing how a message was written is exactly the sort of thing an injected extract would argue about if
+    /// a model could see it, and this deployment publishes it to a caller rather than reasoning from it.
     /// </remarks>
     [Fact]
     public void Format_APassageCarryingAnAuthorshipReading_LeavesItOutOfWhatTheModelIsHanded()
