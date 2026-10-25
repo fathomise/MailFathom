@@ -117,9 +117,9 @@ records what the floor is for.
 `repository` and `tag`, a Quadlet unit source, an AppHost call — and two of them are digests rather than tags. The survey
 prints every file carrying each reference so the extent is visible before the first edit. Moving one also obliges the
 manifests under `deploy/helm/mailfathom/ci/golden/`, which are written by `scripts/render-helm-manifests.sh --update` and
-by nothing else. Two of the pins additionally decide what the software *concludes* rather than only what it runs — the
-Presidio analyzer image and the SpamAssassin digest — so a finding produced under one is not a finding produced under
-another, and the deployment pages say so.
+by nothing else. One of the pins additionally decides what the software *concludes* rather than only what it runs — the
+Presidio analyzer image — so a finding produced under one version is not a finding produced under another, and the
+deployment pages say so.
 
 ## What this never does
 

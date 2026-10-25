@@ -21,7 +21,6 @@ internal sealed record SpamClassificationPage(
 /// <param name="DecidedBy">Which stage reached the verdict.</param>
 /// <param name="Score">The score reached, absent when no stage produced a number.</param>
 /// <param name="Threshold">The score it was judged against, absent exactly when <paramref name="Score" /> is.</param>
-/// <param name="CorpusRevision">The scanner rule corpus the deciding stage ran under, absent when it has none.</param>
 /// <param name="Profile">The settings the verdict was reached under, absent on a record written before it named one.</param>
 /// <param name="Signals">The names of the facts the verdict rests on.</param>
 /// <param name="EvaluatedAt">When the classification was evaluated.</param>
@@ -33,7 +32,6 @@ internal sealed record SpamClassificationReading(
     [property: JsonPropertyName("decidedBy")] string? DecidedBy,
     [property: JsonPropertyName("score")] double? Score,
     [property: JsonPropertyName("threshold")] double? Threshold,
-    [property: JsonPropertyName("corpusRevision")] string? CorpusRevision,
     [property: JsonPropertyName("profile")] string? Profile,
     [property: JsonPropertyName("signals")] IReadOnlyList<string> Signals,
     [property: JsonPropertyName("evaluatedAt")] DateTimeOffset EvaluatedAt,

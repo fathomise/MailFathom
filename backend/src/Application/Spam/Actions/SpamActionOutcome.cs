@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace MailFathom.Application.Spam.Actions;
 
 /// <summary>How one attempt to act on a spam verdict ended.</summary>
@@ -10,8 +12,10 @@ namespace MailFathom.Application.Spam.Actions;
 /// of them is a failure. They
 /// are separate members rather than one negative because a caller reporting what a run did — above all a run an operator
 /// asked for over a whole mailbox — has to say why a message was left alone, and <em>nothing to change</em> and <em>the
-/// user has already moved this back</em> are different answers to that question.
+/// user has already moved this back</em> are different answers to that question. <c>3</c> is absent because the reason
+/// that held it went with the score it compared, and the number is not reissued.
 /// </remarks>
+[SuppressMessage("Design", "CA1027:Mark enums with FlagsAttribute", Justification = "The members are alternatives; the analyzer reads the gap a retired value left as a set of flags.")]
 public enum SpamActionOutcome
 {
     /// <summary>At least one change was written down for the account's convergence pass to carry out.</summary>
@@ -22,9 +26,6 @@ public enum SpamActionOutcome
 
     /// <summary>The verdict is not spam, which includes a classification that concluded nothing either way.</summary>
     NotSpam = 2,
-
-    /// <summary>A scanner decided the verdict and its score is below the score the operator acts at.</summary>
-    BelowThreshold = 3,
 
     /// <summary>
     /// There is no occurrence to issue a change against: nothing is stored under that identifier, which is what an

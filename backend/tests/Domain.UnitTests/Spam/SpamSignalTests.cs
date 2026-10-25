@@ -63,7 +63,7 @@ public sealed class SpamSignalTests
 
         // Act, Assert
         var failure = Assert.Throws<ArgumentException>(() =>
-            SpamSignal.Create(SpamSignalKind.ScannerRule, written, observation: null, Header));
+            SpamSignal.Create(SpamSignalKind.ProviderSpamVerdict, written, observation: null, Header));
 
         Assert.Equal("name", failure.ParamName);
     }
@@ -76,7 +76,7 @@ public sealed class SpamSignalTests
     {
         // Arrange, Act, Assert
         Assert.ThrowsAny<ArgumentException>(() =>
-            SpamSignal.Create(SpamSignalKind.ScannerRule, name!, observation: null, Header));
+            SpamSignal.Create(SpamSignalKind.ProviderSpamVerdict, name!, observation: null, Header));
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public sealed class SpamSignalTests
     {
         // Arrange, Act, Assert
         var failure = Assert.Throws<ArgumentException>(() =>
-            SpamSignal.Create(SpamSignalKind.ScannerRule, "RULE\u0007NAME", observation: null, Header));
+            SpamSignal.Create(SpamSignalKind.ProviderSpamVerdict, "X-Spam\u0007Flag", observation: null, Header));
 
         Assert.Equal("name", failure.ParamName);
     }

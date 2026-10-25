@@ -49,8 +49,8 @@ namespace MailFathom.Host.UnitTests;
 /// </para>
 /// <para>
 /// Which registrations exist at all follows from configuration, so one composition proves one deployment. The shapes
-/// below are the switches that decide it — an embedding chain, a chat endpoint, its relevance filter, each scanner, the
-/// spam daemon, and which surfaces are served — because a section nobody turned on in a test is a section whose
+/// below are the switches that decide it — an embedding chain, a chat endpoint, its relevance filter, each scanner, and
+/// which surfaces are served — because a section nobody turned on in a test is a section whose
 /// registrations are first composed on somebody's server.
 /// </para>
 /// <para>
@@ -309,12 +309,6 @@ public sealed class HostCompositionTests
                 new("SensitiveContent:Pii:Enabled", "true"),
                 new("SensitiveContent:PersonalDataAnalyzer:Endpoint", "http://analyzer.example.test:5001"),
             ],
-            ["spam classified by a scanner"] =
-            [
-                new("SpamClassification:Enabled", "true"),
-                new("SpamClassification:UseScanner", "true"),
-                new("SpamClassification:Scanner:Host", "spamd.example.test"),
-            ],
             ["every capability at once"] =
             [
                 new("McpEndpoint:Enabled", "true"),
@@ -338,8 +332,6 @@ public sealed class HostCompositionTests
                 new("SensitiveContent:Pii:Enabled", "true"),
                 new("SensitiveContent:PersonalDataAnalyzer:Endpoint", "http://analyzer.example.test:5001"),
                 new("SpamClassification:Enabled", "true"),
-                new("SpamClassification:UseScanner", "true"),
-                new("SpamClassification:Scanner:Host", "spamd.example.test"),
                 .. ObjectStorageBackend,
             ],
         };

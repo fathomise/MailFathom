@@ -168,10 +168,10 @@ public sealed class EmailSpamClassificationHandlerTests
     }
 
     private static SpamActionSettings MarksJunkRead =>
-        SpamActionSettings.Create(filesJunk: false, marksJunkRead: true, threshold: null);
+        SpamActionSettings.Create(filesJunk: false, marksJunkRead: true);
 
     private static SpamClassificationSettings SettingsCovering(params MailFolderAlias[] aliases) =>
-        SpamClassificationSettings.Create(isEnabled: true, usesScanner: false, aliases);
+        SpamClassificationSettings.Create(isEnabled: true, aliases);
 
     /// <summary>A record an earlier attempt would have left, under the terms this test's settings name.</summary>
     private static SpamClassification ClassificationOf(StoredEmailId emailId) => SpamClassification.Create(
@@ -179,7 +179,6 @@ public sealed class EmailSpamClassificationHandlerTests
         SpamVerdict.Spam,
         SpamClassificationStage.Deterministic,
         assessment: null,
-        corpusRevision: null,
         SettingsCovering(Inbox).Profile,
         [],
         EvaluatedAt.AddMinutes(-1));

@@ -23,8 +23,8 @@ namespace MailFathom.Infrastructure.Persistence.Entities;
 [RequiresIntegrationCoverage]
 internal sealed class EmailSpamClassificationEntity
 {
-    /// <summary>The greatest length a stored corpus revision has, which the domain value already refuses to exceed.</summary>
-    internal const int MaximumCorpusRevisionLength = SpamClassification.MaximumCorpusRevisionLength;
+    /// <summary>The greatest length the retired corpus revision column has.</summary>
+    internal const int MaximumCorpusRevisionLength = 128;
 
     /// <summary>The length a stored classification profile has, which is the derived identity's own fixed width.</summary>
     internal const int ProfileLength = SpamClassificationProfile.LengthInCharacters;
@@ -56,7 +56,11 @@ internal sealed class EmailSpamClassificationEntity
     /// <summary>Gets or sets the threshold the score was judged against, absent exactly when <see cref="Score" /> is.</summary>
     public double? Threshold { get; set; }
 
-    /// <summary>Gets or sets the rule corpus the deciding stage ran under, absent when it has none.</summary>
+    /// <summary>Gets or sets a column no stage writes any more, which every write clears.</summary>
+    /// <remarks>
+    /// It stays mapped because an older build reads it during a rolling upgrade, and a column dropped under a running
+    /// replica fails every read that replica makes of this table. A later release removes it.
+    /// </remarks>
     public string? CorpusRevision { get; set; }
 
     /// <summary>Gets or sets the settings the verdict was reached under, absent on a record written before it named one.</summary>

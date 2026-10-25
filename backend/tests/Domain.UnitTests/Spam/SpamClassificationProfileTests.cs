@@ -11,66 +11,33 @@ namespace MailFathom.Domain.UnitTests.Spam;
 public sealed class SpamClassificationProfileTests
 {
     [Fact]
-    public void Create_TheSameSettings_DerivesTheSameIdentity()
+    public void Create_DerivedTwice_IsTheSameIdentity()
     {
         // Arrange, Act
-        var first = SpamClassificationProfile.Create(usesScanner: true, scannerThreshold: 5);
-        var second = SpamClassificationProfile.Create(usesScanner: true, scannerThreshold: 5);
+        var first = SpamClassificationProfile.Create();
+        var second = SpamClassificationProfile.Create();
 
         // Assert
         Assert.Equal(first, second);
         Assert.Equal(SpamClassificationProfile.LengthInCharacters, first.Value.Length);
     }
 
+    /// <summary>The identity is pinned, because a record compares against it and a silent change rescores every mailbox.</summary>
     [Fact]
-    public void Create_TheScannerSwitchedOn_DerivesAnotherIdentity()
+    public void Create_TheDeterministicTerms_DeriveTheirPinnedIdentity()
     {
-        // Arrange, Act
-        var deterministic = SpamClassificationProfile.Create(usesScanner: false, scannerThreshold: null);
-        var scanned = SpamClassificationProfile.Create(usesScanner: true, scannerThreshold: null);
+        // Act
+        var profile = SpamClassificationProfile.Create();
 
         // Assert
-        Assert.NotEqual(deterministic, scanned);
-    }
-
-    [Fact]
-    public void Create_AThresholdMoved_DerivesAnotherIdentity()
-    {
-        // Arrange, Act
-        var lenient = SpamClassificationProfile.Create(usesScanner: true, scannerThreshold: 8);
-        var strict = SpamClassificationProfile.Create(usesScanner: true, scannerThreshold: 5);
-
-        // Assert
-        Assert.NotEqual(lenient, strict);
-    }
-
-    /// <summary>What a scanner's own threshold is, is not known before it is asked, so the two cannot be claimed equal.</summary>
-    [Fact]
-    public void Create_TheScannersOwnThresholdAndOneConfiguredToTheSameNumber_AreDifferentTerms()
-    {
-        // Arrange, Act
-        var scannersOwn = SpamClassificationProfile.Create(usesScanner: true, scannerThreshold: null);
-        var configured = SpamClassificationProfile.Create(usesScanner: true, scannerThreshold: 5);
-
-        // Assert
-        Assert.NotEqual(scannersOwn, configured);
-    }
-
-    [Fact]
-    public void Create_AThresholdThatIsNotAFiniteNumber_IsRefused()
-    {
-        // Arrange, Act, Assert
-        var failure = Assert.Throws<ArgumentOutOfRangeException>(
-            () => SpamClassificationProfile.Create(usesScanner: true, scannerThreshold: double.NaN));
-
-        Assert.Equal("scannerThreshold", failure.ParamName);
+        Assert.Equal("0badac3c6df4", profile.Value);
     }
 
     [Fact]
     public void Restore_AnIdentityThisTypeDerived_ComparesEqualToIt()
     {
         // Arrange
-        var derived = SpamClassificationProfile.Create(usesScanner: true, scannerThreshold: 5);
+        var derived = SpamClassificationProfile.Create();
 
         // Act
         var restored = SpamClassificationProfile.Restore(derived.Value);

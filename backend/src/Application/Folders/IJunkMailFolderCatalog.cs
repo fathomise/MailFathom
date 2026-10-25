@@ -11,7 +11,7 @@ namespace MailFathom.Application.Folders;
 /// <remarks>
 /// <para>
 /// This is a fact about the mailbox rather than an opinion MailFathom formed, which is why it is read here and not
-/// derived from a classification. It is true with no scanner deployed and with nothing ever classified: mail the
+/// derived from a classification. It is true with nothing ever classified: mail the
 /// provider filed as junk is in the junk folder because the provider put it there.
 /// </para>
 /// <para>

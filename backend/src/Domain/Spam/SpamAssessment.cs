@@ -27,8 +27,8 @@ public sealed record SpamAssessment
 
     /// <summary>Gets whether the score cleared the threshold.</summary>
     /// <remarks>
-    /// Inclusive at the threshold, which is how SpamAssassin's own <c>Spam: True ; 15.0 / 5.0</c> answer reads and what
-    /// keeps a configured threshold meaning "spam from here up" rather than "spam above here".
+    /// Inclusive at the threshold, which is how a provider's <c>X-Spam-Status: Yes, score=5.0 required=5.0</c> reads and
+    /// what keeps a threshold meaning "spam from here up" rather than "spam above here".
     /// </remarks>
     public bool ClearsThreshold => this.Score >= this.Threshold;
 
@@ -38,9 +38,8 @@ public sealed record SpamAssessment
     /// <returns>The assessment.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when either value is not a finite number.</exception>
     /// <remarks>
-    /// Both are refused unless finite. A scanner answering with a NaN would otherwise produce a record whose comparison
-    /// against the threshold is false whichever way it is written, which reads as clean mail rather than as a scanner
-    /// that failed.
+    /// Both are refused unless finite. A NaN would otherwise produce a record whose comparison against the threshold is
+    /// false whichever way it is written, which reads as clean mail rather than as a reading that failed.
     /// </remarks>
     public static SpamAssessment Create(double score, double threshold)
     {

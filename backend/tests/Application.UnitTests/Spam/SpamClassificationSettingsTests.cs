@@ -21,9 +21,7 @@ public sealed class SpamClassificationSettingsTests
 
         // Assert
         Assert.False(settings.IsEnabled);
-        Assert.False(settings.UsesScanner);
         Assert.Empty(settings.ScannedFolderAliases);
-        Assert.Null(settings.ScannerThreshold);
         Assert.False(settings.Covers(MailFolderAlias.Create("INBOX")));
     }
 
@@ -35,7 +33,7 @@ public sealed class SpamClassificationSettingsTests
         var aliases = RepeatedAliases.Select(MailFolderAlias.Create);
 
         // Act
-        var settings = SpamClassificationSettings.Create(isEnabled: true, usesScanner: false, aliases);
+        var settings = SpamClassificationSettings.Create(isEnabled: true, aliases);
 
         // Assert
         Assert.Equal(["INBOX", "JUNK"], settings.ScannedFolderAliases.Select(alias => alias.Value));
@@ -47,26 +45,11 @@ public sealed class SpamClassificationSettingsTests
         // Arrange
         var settings = SpamClassificationSettings.Create(
             isEnabled: true,
-            usesScanner: false,
             [MailFolderAlias.Create("INBOX")]);
 
         // Act, Assert
         Assert.True(settings.Covers(MailFolderAlias.Create("INBOX")));
         Assert.False(settings.Covers(MailFolderAlias.Create("ARCHIVE")));
-    }
-
-    [Theory]
-    [InlineData(double.NaN)]
-    [InlineData(double.PositiveInfinity)]
-    [InlineData(double.NegativeInfinity)]
-    public void Create_AThresholdThatIsNotFinite_IsRefused(double threshold)
-    {
-        // Arrange, Act, Assert
-        Assert.Throws<ArgumentOutOfRangeException>(() => SpamClassificationSettings.Create(
-            isEnabled: true,
-            usesScanner: true,
-            [MailFolderAlias.Create("INBOX")],
-            threshold));
     }
 
     [Fact]
@@ -75,7 +58,6 @@ public sealed class SpamClassificationSettingsTests
         // Arrange, Act, Assert
         Assert.Throws<ArgumentNullException>(() => SpamClassificationSettings.Create(
             isEnabled: true,
-            usesScanner: false,
             scannedFolderAliases: null!));
     }
 }

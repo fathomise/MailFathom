@@ -9,7 +9,6 @@ using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Scheduling;
 using MailFathom.Host.Configuration;
 using MailFathom.Host.Configuration.SensitiveContent;
-using MailFathom.Host.Configuration.Spam;
 using MailFathom.Host.Configuration.UserSettings;
 using MailFathom.Host.Observability.ClientTelemetry;
 using MailFathom.Host.UnitTests.TestDoubles;
@@ -721,10 +720,8 @@ public sealed class UserAccountDocumentBinderTests
                 ],
                 "SpamClassification": {
                   "Enabled": true,
-                  "UseScanner": true,
                   "ScannedFolders": [ "inbox" ],
-                  "ScannerThreshold": 6.5,
-                  "Actions": { "MoveToJunkFolder": true, "JunkFolder": "quarantine", "Threshold": 8 }
+                  "Actions": { "MoveToJunkFolder": true, "JunkFolder": "quarantine" }
                 }
                 """),
             UserRecordArrival.BeingWritten);
@@ -735,11 +732,8 @@ public sealed class UserAccountDocumentBinderTests
         var classification = binding.User!.MailAccounts.Single().SpamClassification;
 
         Assert.True(classification.Enabled);
-        Assert.True(classification.UseScanner);
         Assert.Equal(["inbox"], classification.ScannedFolders!);
-        Assert.Equal(6.5, classification.ScannerThreshold);
         Assert.True(classification.Actions.MoveToJunkFolder);
-        Assert.Equal(8, classification.Actions.Threshold);
     }
 
     /// <summary>What the engine costs is the deployment's, so a record reaching for one of its settings is refused.</summary>
@@ -764,29 +758,6 @@ public sealed class UserAccountDocumentBinderTests
         // Assert
         Assert.False(binding.IsBound);
         Assert.Contains(binding.Refusals, refusal => refusal.Contains("ClassificationWait", StringComparison.Ordinal));
-    }
-
-    /// <summary>An account writing outside the range the deployment permits is refused at the write, naming the range.</summary>
-    [Fact]
-    public void Bind_ADocumentStatingAThresholdOutsideTheDeploymentsRange_IsRefusedNamingTheRange()
-    {
-        // Arrange
-        var binder = CreateBinder();
-
-        // Act
-        var binding = binder.Bind(
-            DocumentDeclaringAccountCarrying("""
-                "SpamClassification": { "Enabled": true, "ScannerThreshold": 5000 }
-                """),
-            UserRecordArrival.BeingWritten);
-
-        // Assert
-        Assert.False(binding.IsBound);
-        Assert.Contains(
-            binding.Refusals,
-            refusal => refusal.Contains(
-                SpamClassificationOptions.LargestThreshold.ToString(CultureInfo.InvariantCulture),
-                StringComparison.Ordinal));
     }
 
     /// <summary>The ceiling is applied before the parse, so a payload never costs the expansion it is refused for.</summary>

@@ -10,7 +10,7 @@ namespace MailFathom.Application.Emails.Mailboxes;
 /// Excluding it is the default because of what the folder holds rather than because of what MailFathom concluded: mail
 /// in it is there because the provider or the user put it there, and it is disproportionately content written to
 /// deceive whoever reads it — which now includes an agent answering questions about the mailbox. It is true of the
-/// mailbox with no scanner deployed and with nothing ever classified, which is why the exclusion is a property of a
+/// mailbox with nothing ever classified, which is why the exclusion is a property of a
 /// mailbox read rather than of the classification feature.
 /// </para>
 /// <para>

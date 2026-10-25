@@ -32,17 +32,6 @@ public sealed class SpamSignalProvenanceTests
     }
 
     [Fact]
-    public void FromScannerCorpus_ARevision_RecordsItAgainstTheCorpusSource()
-    {
-        // Arrange, Act
-        var provenance = SpamSignalProvenance.FromScannerCorpus("4.0.2");
-
-        // Assert
-        Assert.Equal(SpamSignalSource.ScannerCorpus, provenance.Source);
-        Assert.Equal("4.0.2", provenance.Origin);
-    }
-
-    [Fact]
     public void Restore_ARecordedPair_ComparesEqualToTheOneItWasBuiltFrom()
     {
         // Arrange
@@ -73,15 +62,5 @@ public sealed class SpamSignalProvenanceTests
         var failure = Assert.Throws<ArgumentException>(() => SpamSignalProvenance.FromMessageHeader(written));
 
         Assert.Equal("headerFieldName", failure.ParamName);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void FromScannerCorpus_ARevisionHoldingNothing_IsRefused(string? revision)
-    {
-        // Arrange, Act, Assert
-        Assert.ThrowsAny<ArgumentException>(() => SpamSignalProvenance.FromScannerCorpus(revision!));
     }
 }

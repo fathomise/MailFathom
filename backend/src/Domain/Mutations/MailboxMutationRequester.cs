@@ -4,6 +4,7 @@
 
 using System.Buffers;
 using System.Globalization;
+using MailFathom.Domain.Spam;
 
 namespace MailFathom.Domain.Mutations;
 
@@ -73,20 +74,20 @@ public sealed record MailboxMutationRequester
         return new MailboxMutationRequester(MailboxMutationOrigin.Rule, ValidIdentity(identity, nameof(ruleName)));
     }
 
-    /// <summary>Names the profile a spam classification was decided under, which is what asked for the mutation.</summary>
-    /// <param name="decidedUnder">What the deciding stage ran under — a scanner's rule corpus, or the stage's own name where it has none.</param>
-    /// <param name="actingThreshold">The score MailFathom itself requires before it touches mail, or <see langword="null" /> when the operator configured none.</param>
-    /// <returns>A requester naming that profile.</returns>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="decidedUnder" /> is blank, carries a control character, carries the <c>@</c> character the identity is composed with, or is long enough that the composed identity exceeds <see cref="MaximumIdentityLength" />.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="actingThreshold" /> is not a finite number.</exception>
+    /// <summary>Names the stage a spam classification was decided by, which is what asked for the mutation.</summary>
+    /// <param name="decidedBy">The stage that reached the verdict.</param>
+    /// <returns>A requester naming that stage.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="decidedBy" /> is not a defined member.</exception>
     /// <remarks>
     /// <para>
     /// A classification asks the way a rule does — on its own, repeatedly, about mail nobody is looking at — so it needs
-    /// the same kind of identity: one that does not move when the same decision is reached again, and does move when the
-    /// terms of the decision change. What a rule answers with its name and revision, a classification answers with the
-    /// corpus its verdict was reached against and the threshold MailFathom would act at. Rescanning the same message
-    /// against the same corpus therefore asks for nothing new, and a corpus update or a threshold an operator moved asks
-    /// afresh.
+    /// the same kind of identity: one that does not move when the same decision is reached again, so reclassifying the
+    /// same message asks for nothing new.
+    /// </para>
+    /// <para>
+    /// The identity is the stage's name followed by <c>@none</c>. The second half is where the score MailFathom would act
+    /// at was written, which no stage now produces; it stays, because the mutation records already written carry it and
+    /// an identity that dropped it would read every verdict reached again as a new request.
     /// </para>
     /// <para>
     /// The occurrence is deliberately not part of this text. It is already the first third of the record's own
@@ -94,27 +95,17 @@ public sealed record MailboxMutationRequester
     /// compares.
     /// </para>
     /// </remarks>
-    public static MailboxMutationRequester Classification(string decidedUnder, double? actingThreshold)
+    public static MailboxMutationRequester Classification(SpamClassificationStage decidedBy)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(decidedUnder);
-
-        if (actingThreshold is { } threshold && !double.IsFinite(threshold))
+        if (!Enum.IsDefined(decidedBy))
         {
             throw new ArgumentOutOfRangeException(
-                nameof(actingThreshold),
-                threshold,
-                "An acting threshold is a finite number.");
+                nameof(decidedBy),
+                decidedBy,
+                "A classification is reached by one of the stages this system runs.");
         }
 
-        var identity = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{ValidComposedPart(decidedUnder, nameof(decidedUnder))}@{DescribeThreshold(actingThreshold)}");
-
-        // Reported against the corpus rather than against the composed identity, for the reason the rule factory gives:
-        // it is the part the caller supplied and the only part they can shorten.
-        return new MailboxMutationRequester(
-            MailboxMutationOrigin.Classification,
-            ValidIdentity(identity, nameof(decidedUnder)));
+        return new MailboxMutationRequester(MailboxMutationOrigin.Classification, $"{decidedBy}@none");
     }
 
     /// <summary>Names one invocation somebody made.</summary>
@@ -144,23 +135,13 @@ public sealed record MailboxMutationRequester
         return new MailboxMutationRequester(origin, ValidIdentity(identity, nameof(identity)));
     }
 
-    /// <summary>Writes the acting threshold into the identity, with a name of its own for the absent case.</summary>
-    /// <remarks>
-    /// An unconfigured threshold is written rather than left out, so that configuring one changes the identity instead of
-    /// producing text that could also be read as a corpus nobody judged. The invariant culture is what keeps two
-    /// instances of one deployment agreeing on the identity whatever locale each process starts under.
-    /// </remarks>
-    private static string DescribeThreshold(double? actingThreshold) => actingThreshold is { } threshold
-        ? threshold.ToString(CultureInfo.InvariantCulture)
-        : "none";
-
     /// <summary>Validates one part of a composed identity, including that it cannot be mistaken for another split of it.</summary>
     /// <remarks>
     /// The separator is refused rather than escaped, because what a composed identity has to guarantee is that two
     /// distinct pairs cannot write the same string: a rule named <c>a</c> at revision <c>b@c</c> and a rule named
     /// <c>a@b</c> at revision <c>c</c> would otherwise compose one identity, and the unique index would read the second
-    /// rule's genuine request as a repeat of the first one's and perform nothing. Neither a rule name an operator wrote
-    /// nor a scanner corpus name carries an at-sign, so refusing it costs nothing a caller can legitimately want.
+    /// rule's genuine request as a repeat of the first one's and perform nothing. A rule name an operator wrote carries
+    /// no at-sign, so refusing it costs nothing a caller can legitimately want.
     /// </remarks>
     private static string ValidComposedPart(string identityPart, string parameterName)
     {

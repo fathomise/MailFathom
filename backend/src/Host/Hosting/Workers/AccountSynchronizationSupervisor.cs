@@ -884,9 +884,8 @@ internal sealed partial class AccountSynchronizationSupervisor
     /// can reach was committed by a folder that has already finished, in a scope and a transaction of its own.
     /// </para>
     /// <para>
-    /// A failure never fails the run. What the pass reads about the mail is already stored, and the two things it can
-    /// reach the network for — a scanner sidecar and, where the run acts, the folder a filing names — are both bounded by
-    /// their own callers. An unreachable mail server has already put the account into backoff by the time this step
+    /// A failure never fails the run. What the pass reads about the mail is already stored, and the one thing it can
+    /// reach the network for — where the run acts, the folder a filing names — is bounded by its own caller. An unreachable mail server has already put the account into backoff by the time this step
     /// begins wherever the run synchronized or converged anything, so backing it off again here would slow the remote
     /// work over a local problem or over the same remote one twice. What a pass did not finish, the next run resumes from
     /// the batches this one committed.

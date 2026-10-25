@@ -17,7 +17,7 @@ namespace MailFathom.Application.Spam.Gating;
 /// never embedded, and never offered to a rule — the work was not cancelled, it was never started.
 /// </para>
 /// <para>
-/// The one failure mode it must not have is turning a wedged scanner into a silently dead index. A message that cannot
+/// The one failure mode it must not have is turning a stalled classification into a silently dead index. A message that cannot
 /// be classified, and one that has waited longer than a verdict is allowed to take, are both released to derived work
 /// and counted as released; only a message genuinely still waiting is held, and only for as long as the wait permits.
 /// </para>

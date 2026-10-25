@@ -66,7 +66,6 @@ using MailFathom.Infrastructure.Resilience;
 using MailFathom.Infrastructure.Secrets.Discovery;
 using MailFathom.Infrastructure.Secrets.References;
 using MailFathom.Infrastructure.Secrets.Resolution;
-using MailFathom.Infrastructure.Spam;
 using MailFathom.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
@@ -211,11 +210,6 @@ internal sealed class OrchestratedMailFathomServices : IAsyncDisposable
     /// classifying nothing. Stated only by the class that classifies, because the switch decides whether the use case
     /// does anything at all.
     /// </param>
-    /// <param name="spamScanner">
-    /// The daemon a scanned classification is scored against, or <see langword="null" /> for a deployment that deployed
-    /// no scanner. Absent everywhere but the class that scores, exactly as a deployment which never switched the scanner
-    /// on registers no implementation of the port.
-    /// </param>
     /// <param name="contactCollection">
     /// What this deployment decided about collecting contacts from arriving mail, or <see langword="null" /> for the
     /// shipped default of collecting nobody. Stated only by the class that collects, because every other class stores
@@ -250,7 +244,6 @@ internal sealed class OrchestratedMailFathomServices : IAsyncDisposable
         IReadOnlyList<MailFolderIdentity>? foldersHiddenFromTools = null,
         IReadOnlyList<MailFolderIdentity>? foldersNotMirrored = null,
         SpamClassificationSettings? spamClassification = null,
-        SpamAssassinScannerProfile? spamScanner = null,
         ContactCollectionSettings? contactCollection = null,
         bool filesSentCopies = false,
         bool keepsDrafts = false,
@@ -600,15 +593,6 @@ internal sealed class OrchestratedMailFathomServices : IAsyncDisposable
         // nobody — which is the deployment every test here composes unless it says otherwise.
         builder.Services.AddSingleton<IContactCollectionSettingsReader>(
             new FixedContactCollectionSettingsReader(contactCollection ?? ContactCollectionSettings.CollectingNothing));
-
-        // Registered exactly as the composition root registers it, and only where a scanner was named — so a test that
-        // states none composes the deployment that deployed no sidecar, where the classifier resolves no scanner and the
-        // deterministic stage is the whole feature.
-        if (spamScanner is not null)
-        {
-            builder.Services.AddSingleton(spamScanner);
-            builder.Services.AddSpamAssassinScanning();
-        }
 
         var host = builder.Build();
         await host.StartAsync(cancellationToken);

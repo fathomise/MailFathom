@@ -24,9 +24,8 @@ namespace MailFathom.Application.Spam.Runs;
 /// <para>
 /// It reaches no mail server for the mail it reads. Every message it scores was committed by an earlier run and is read
 /// through the local content store, so the MCP-reads-are-local invariant and the remote <c>\Seen</c> flag are both
-/// untouched however long a walk takes. What it can reach the network for is a scanner sidecar, which is a call the
-/// adapter bounds, and — where the run acts and a filing has to find its folder — the destination resolution every
-/// author of a mutation goes through.
+/// untouched however long a walk takes. What it can reach the network for is — where the run acts and a filing has to
+/// find its folder — the destination resolution every author of a mutation goes through.
 /// </para>
 /// <para>
 /// The run's terms are read from the run rather than from configuration. A walk that spans hours must mean the same
@@ -228,9 +227,9 @@ public sealed class SpamClassificationPass
     /// <summary>Reaches a verdict about one occurrence, or reuses the one it already carries, and applies the posture.</summary>
     /// <remarks>
     /// The existing record is read first and only where the run does not rescore, which is what makes a run over a
-    /// mailbox that has already been scored cost one lookup per message instead of one scanner call. It is reused only
+    /// mailbox that has already been scored cost one lookup per message instead of a read of each message. It is reused only
     /// where it names the profile the run is bound to: a record from before the profile was part of one, or from before
-    /// the operator moved a threshold, was decided under terms the run cannot compare and is therefore reached again.
+    /// the terms it names last changed, was decided under terms the run cannot compare and is therefore reached again.
     /// <para>
     /// A reused verdict is still put to the recorder. Skipping the scoring is a saving; skipping the action would make
     /// switching filing on a run that files nothing, which is one of the two reasons this run exists.

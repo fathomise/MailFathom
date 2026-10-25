@@ -15,13 +15,13 @@ namespace MailFathom.Host.Configuration.Spam;
 /// <summary>Reads each account's classification settings from its own record.</summary>
 /// <remarks>
 /// <para>
-/// One source and no layer over it. Whether an account's mail is classified, which of its folders are scanned, and at
-/// what threshold are the block that account's record carries and nothing else, so switching classification off in a
+/// One source and no layer over it. Whether an account's mail is classified and which of its folders are scanned are
+/// the block that account's record carries and nothing else, so switching classification off in a
 /// record switches it off — there is no deployment section behind it to revert to.
 /// </para>
 /// <para>
 /// The wait comes from the deployment's section for every account, because it bounds how long the index may be held
-/// back by a scanner that has stopped answering — a cost the process bears rather than a decision about a mailbox.
+/// back by a verdict that has not arrived — a cost the process bears rather than a decision about a mailbox.
 /// </para>
 /// <para>
 /// The default scope is resolved here rather than stated in a record because it is not a constant: it is whichever
@@ -82,11 +82,7 @@ internal sealed class ConfiguredSpamClassificationSettingsReader(
     {
         var record = account.SpamClassification ?? new MailAccountSpamClassificationOptions();
 
-        return SpamClassificationSettings.Create(
-            record.Enabled,
-            record.UseScanner,
-            ScannedAliasesOf(record.ScannedFolders, account),
-            record.ScannerThreshold);
+        return SpamClassificationSettings.Create(record.Enabled, ScannedAliasesOf(record.ScannedFolders, account));
     }
 
     /// <summary>Reads the aliases a posture names, or the account's own inbox aliases where it names none.</summary>

@@ -24,7 +24,4 @@ public enum SpamSignalKind
 
     /// <summary>The message being stored in the folder the account advertises as its junk folder.</summary>
     JunkFolderPlacement = 3,
-
-    /// <summary>One rule of a scanner's corpus that fired on the message.</summary>
-    ScannerRule = 4,
 }

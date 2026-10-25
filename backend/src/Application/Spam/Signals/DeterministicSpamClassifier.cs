@@ -127,8 +127,8 @@ public sealed class DeterministicSpamClassifier
     /// <para>
     /// An assessment is recorded only when <see cref="ProviderSpamHeaderFields.SpamStatus" /> carries the score and the
     /// threshold together. A score without a threshold is a number in an unknown scale — a value of 6 is ordinary mail
-    /// under one server's configuration and spam under another's — and pairing it with a threshold configured here for
-    /// a different scanner would produce a comparison that reads as a measurement and is not one. The score is still
+    /// under one server's configuration and spam under another's — and pairing it with a threshold from anywhere else
+    /// would produce a comparison that reads as a measurement and is not one. The score is still
     /// recorded, as the signal the header itself is.
     /// </para>
     /// </remarks>

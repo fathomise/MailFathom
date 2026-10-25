@@ -9,7 +9,6 @@ using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam;
-using MailFathom.Application.Spam.Scanning;
 using MailFathom.Application.Spam.Signals;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
@@ -160,7 +159,6 @@ public sealed class EmailSpamClassifierTests
         Assert.Equal(SpamVerdict.Spam, saved.Verdict);
         Assert.Equal(SpamClassificationStage.Deterministic, saved.DecidedBy);
         Assert.Equal(EvaluatedAt, saved.EvaluatedAt);
-        Assert.Null(saved.CorpusRevision);
     }
 
     /// <summary>
@@ -296,156 +294,6 @@ public sealed class EmailSpamClassifierTests
         Assert.Equal(SpamSignalKind.JunkFolderPlacement, signal.Kind);
     }
 
-    /// <summary>A scanner is the operator's added scrutiny, so it decides where the deterministic stage reached nothing.</summary>
-    [Fact]
-    public async Task ClassifyAsync_AScannerScoringAnUndeterminedMessage_DecidesTheVerdict()
-    {
-        // Arrange
-        var classifier = this.Classifier(
-            SettingsCovering(Inbox, usesScanner: true),
-            SpamHeaderFacts.None,
-            scanner: ScannerReturning(SpamScanResult.Scored(
-                SpamAssessment.Create(9.5, 5.0),
-                ["BAYES_99", "HTML_IMAGE_ONLY_28"],
-                "4.0.2")));
-
-        // Act
-        var result = await classifier.ClassifyAsync(
-            Account,
-            Occurrence,
-            SpamClassificationMode.FirstTimeOnly,
-            TestContext.Current.CancellationToken);
-
-        // Assert
-        var saved = Assert.Single(this.store.Saved);
-
-        Assert.Equal(SpamClassificationOutcome.Classified, result.Outcome);
-        Assert.Equal(SpamVerdict.Spam, saved.Verdict);
-        Assert.Equal(SpamClassificationStage.Scanner, saved.DecidedBy);
-        Assert.Equal("4.0.2", saved.CorpusRevision);
-        Assert.Equal(
-            ["BAYES_99", "HTML_IMAGE_ONLY_28"],
-            saved.Signals.Where(signal => signal.Kind is SpamSignalKind.ScannerRule).Select(signal => signal.Name));
-    }
-
-    /// <summary>A post-delivery re-read has none of the network context the receiving server had.</summary>
-    [Fact]
-    public async Task ClassifyAsync_AScannerBelowThresholdOnMailAProviderCalledSpam_LeavesTheDeterministicVerdictStanding()
-    {
-        // Arrange
-        var classifier = this.Classifier(
-            SettingsCovering(Inbox, usesScanner: true),
-            FactsSaying("X-Spam-Flag", "YES"),
-            scanner: ScannerReturning(SpamScanResult.Scored(SpamAssessment.Create(0.1, 5.0), [], "4.0.2")));
-
-        // Act
-        await classifier.ClassifyAsync(
-            Account,
-            Occurrence,
-            SpamClassificationMode.FirstTimeOnly,
-            TestContext.Current.CancellationToken);
-
-        // Assert
-        var saved = Assert.Single(this.store.Saved);
-
-        Assert.Equal(SpamVerdict.Spam, saved.Verdict);
-        Assert.Equal(SpamClassificationStage.Deterministic, saved.DecidedBy);
-        Assert.Null(saved.CorpusRevision);
-    }
-
-    [Fact]
-    public async Task ClassifyAsync_AScannerThatCouldNotBeReached_RecordsTheDeterministicVerdictInstead()
-    {
-        // Arrange
-        var classifier = this.Classifier(
-            SettingsCovering(Inbox, usesScanner: true),
-            FactsSaying("X-Spam-Flag", "NO"),
-            scanner: ScannerReturning(SpamScanResult.Unavailable()));
-
-        // Act
-        var result = await classifier.ClassifyAsync(
-            Account,
-            Occurrence,
-            SpamClassificationMode.FirstTimeOnly,
-            TestContext.Current.CancellationToken);
-
-        // Assert
-        var saved = Assert.Single(this.store.Saved);
-
-        Assert.Equal(SpamClassificationOutcome.Classified, result.Outcome);
-        Assert.Equal(SpamVerdict.NotSpam, saved.Verdict);
-        Assert.Equal(SpamClassificationStage.Deterministic, saved.DecidedBy);
-        Assert.DoesNotContain(saved.Signals, signal => signal.Kind is SpamSignalKind.ScannerRule);
-    }
-
-    /// <summary>A deployment that registered no scanner still classifies, which is the whole point of the first stage.</summary>
-    [Fact]
-    public async Task ClassifyAsync_TheScannerSwitchedOnWithNoImplementationRegistered_StillRecordsAVerdict()
-    {
-        // Arrange
-        var classifier = this.Classifier(
-            SettingsCovering(Inbox, usesScanner: true),
-            FactsSaying("X-Spam-Flag", "YES"),
-            scanner: null);
-
-        // Act
-        var result = await classifier.ClassifyAsync(
-            Account,
-            Occurrence,
-            SpamClassificationMode.FirstTimeOnly,
-            TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(SpamClassificationOutcome.Classified, result.Outcome);
-        Assert.Equal(SpamClassificationStage.Deterministic, Assert.Single(this.store.Saved).DecidedBy);
-    }
-
-    /// <summary>A scanner nobody switched on is not consulted, whatever a deployment registered.</summary>
-    [Fact]
-    public async Task ClassifyAsync_AScannerRegisteredButNotConfigured_IsNotConsulted()
-    {
-        // Arrange
-        var scanner = ScannerReturning(SpamScanResult.Scored(SpamAssessment.Create(9.5, 5.0), [], "4.0.2"));
-        var classifier = this.Classifier(SettingsCovering(Inbox), SpamHeaderFacts.None, scanner: scanner);
-
-        // Act
-        await classifier.ClassifyAsync(
-            Account,
-            Occurrence,
-            SpamClassificationMode.FirstTimeOnly,
-            TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(SpamVerdict.Undetermined, Assert.Single(this.store.Saved).Verdict);
-        await scanner.DidNotReceive().ScanAsync(Arg.Any<StoredEmailContent>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task ClassifyAsync_AConfiguredThreshold_ReplacesTheOneTheScannerAnsweredWith()
-    {
-        // Arrange
-        var classifier = this.Classifier(
-            SettingsCovering(Inbox, usesScanner: true, scannerThreshold: 12.0),
-            SpamHeaderFacts.None,
-            scanner: ScannerReturning(SpamScanResult.Scored(SpamAssessment.Create(9.5, 5.0), [], "4.0.2")));
-
-        // Act
-        await classifier.ClassifyAsync(
-            Account,
-            Occurrence,
-            SpamClassificationMode.FirstTimeOnly,
-            TestContext.Current.CancellationToken);
-
-        // Assert
-        var saved = Assert.Single(this.store.Saved);
-
-        Assert.NotNull(saved.Assessment);
-
-        Assert.Equal(12.0, saved.Assessment.Threshold);
-        Assert.Equal(9.5, saved.Assessment.Score);
-        Assert.Equal(SpamVerdict.NotSpam, saved.Verdict);
-    }
-
     [Fact]
     public async Task ClassifyAsync_AModeOutsideTheDeclaredSet_IsRefused()
     {
@@ -460,19 +308,8 @@ public sealed class EmailSpamClassifierTests
             TestContext.Current.CancellationToken));
     }
 
-    private static SpamClassificationSettings SettingsCovering(
-        MailFolderAlias alias,
-        bool usesScanner = false,
-        double? scannerThreshold = null) =>
-        SpamClassificationSettings.Create(isEnabled: true, usesScanner, [alias], scannerThreshold);
-
-    private static ISpamScanner ScannerReturning(SpamScanResult result)
-    {
-        var scanner = Substitute.For<ISpamScanner>();
-        scanner.ScanAsync(Arg.Any<StoredEmailContent>(), Arg.Any<CancellationToken>()).Returns(result);
-
-        return scanner;
-    }
+    private static SpamClassificationSettings SettingsCovering(MailFolderAlias alias) =>
+        SpamClassificationSettings.Create(isEnabled: true, [alias]);
 
     /// <summary>
     /// Two mailboxes of one user, one of them classified and one not. The settings are read for the mailbox the
@@ -533,8 +370,7 @@ public sealed class EmailSpamClassifierTests
         verdict,
         SpamClassificationStage.Deterministic,
         assessment: null,
-        corpusRevision: null,
-        SpamClassificationProfile.Create(usesScanner: false, scannerThreshold: null),
+        SpamClassificationProfile.Create(),
         [],
         EvaluatedAt.AddDays(-1));
 
@@ -543,7 +379,6 @@ public sealed class EmailSpamClassifierTests
     /// <param name="facts">What the header reader answers with.</param>
     /// <param name="email">The message the reader resolves, which carries the mailbox it is in.</param>
     /// <param name="junkFolders">Which folder each account files junk into.</param>
-    /// <param name="scanner">The content scanner, where the deployment runs one.</param>
     /// <param name="withEmail">Whether the reader resolves the message at all.</param>
     /// <param name="withContent">Whether the content store holds its mail.</param>
     /// <param name="classifying">Whose mailbox <paramref name="settings" /> belong to, defaulting to the one the message is in.</param>
@@ -558,7 +393,6 @@ public sealed class EmailSpamClassifierTests
         SpamHeaderFacts facts,
         ClassifiableEmail? email = null,
         StubJunkMailFolderCatalog? junkFolders = null,
-        ISpamScanner? scanner = null,
         bool withEmail = true,
         bool withContent = true,
         MailAccountId? classifying = null)
@@ -599,8 +433,7 @@ public sealed class EmailSpamClassifierTests
                 sessionFactory,
                 new PersistenceConcurrencyOptions(),
                 timeProvider),
-            timeProvider,
-            scanner);
+            timeProvider);
     }
 
     private sealed class CommittingSession : IPersistenceSession

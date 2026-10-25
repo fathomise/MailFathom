@@ -38,7 +38,7 @@ public sealed class ConfiguredSpamActionSettingsReaderTests
     }
 
     [Fact]
-    public void ActionsFor_BothSwitchesOn_CarriesTheDestinationAndTheThreshold()
+    public void ActionsFor_BothSwitchesOn_CarriesTheDestination()
     {
         // Arrange
         var reader = ReaderFor(Account(
@@ -51,7 +51,6 @@ public sealed class ConfiguredSpamActionSettingsReaderTests
                     MoveToJunkFolder = true,
                     MarkAsRead = true,
                     JunkFolder = "quarantine",
-                    Threshold = 9,
                 },
             }));
 
@@ -62,7 +61,6 @@ public sealed class ConfiguredSpamActionSettingsReaderTests
         Assert.True(settings.FilesJunk);
         Assert.True(settings.MarksJunkRead);
         Assert.Equal(MailFolderAlias.Create("quarantine"), settings.JunkFolder.Alias);
-        Assert.Equal(9, settings.Threshold);
     }
 
     /// <summary>Classification switched off in a record answers for its actions too, whatever the switches beside it say.</summary>

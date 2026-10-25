@@ -15,7 +15,7 @@ public sealed class SpamClassificationTests
     private static readonly DateTimeOffset EvaluatedAt = new(2026, 8, 12, 9, 30, 0, TimeSpan.Zero);
 
     private static readonly SpamClassificationProfile Profile =
-        SpamClassificationProfile.Create(usesScanner: true, scannerThreshold: 5);
+        SpamClassificationProfile.Create();
 
     [Fact]
     public void Create_MoreSignalsThanTheBoundAdmits_KeepsTheOnesTheStagesProducedFirst()
@@ -23,7 +23,7 @@ public sealed class SpamClassificationTests
         // Arrange
         var written = Enumerable
             .Range(0, SpamClassification.MaximumSignals + 20)
-            .Select(index => Signal($"rule-{index}"))
+            .Select(index => Signal($"field-{index}"))
             .ToArray();
 
         // Act
@@ -50,38 +50,6 @@ public sealed class SpamClassificationTests
     }
 
     [Fact]
-    public void Create_ACorpusRevisionLongerThanTheBound_IsRefused()
-    {
-        // Arrange
-        var written = new string('a', SpamClassification.MaximumCorpusRevisionLength + 1);
-
-        // Act, Assert
-        var failure = Assert.Throws<ArgumentException>(() => Classification(corpusRevision: written));
-
-        Assert.Equal("corpusRevision", failure.ParamName);
-    }
-
-    [Fact]
-    public void Create_ACorpusRevisionCarryingAControlCharacter_IsRefused()
-    {
-        // Arrange, Act, Assert
-        var failure = Assert.Throws<ArgumentException>(() => Classification(corpusRevision: "3.4\u00071"));
-
-        Assert.Equal("corpusRevision", failure.ParamName);
-    }
-
-    /// <summary>The deterministic stage has no corpus, so absence is a supported record rather than a missing value.</summary>
-    [Fact]
-    public void Create_NoCorpusRevision_RecordsNone()
-    {
-        // Arrange, Act
-        var classification = Classification();
-
-        // Assert
-        Assert.Null(classification.CorpusRevision);
-    }
-
-    [Fact]
     public void Create_AVerdictOutsideTheDeclaredSet_IsRefused()
     {
         // Arrange, Act, Assert
@@ -104,7 +72,6 @@ public sealed class SpamClassificationTests
             SpamVerdict.Undetermined,
             SpamClassificationStage.Deterministic,
             assessment: null,
-            corpusRevision: null,
             Profile,
             signals: null!,
             EvaluatedAt));
@@ -134,7 +101,6 @@ public sealed class SpamClassificationTests
     private static SpamClassification Classification(
         SpamVerdict verdict = SpamVerdict.Spam,
         SpamClassificationStage decidedBy = SpamClassificationStage.Deterministic,
-        string? corpusRevision = null,
         SpamClassificationProfile? profile = null,
         IReadOnlyList<SpamSignal>? signals = null,
         DateTimeOffset? evaluatedAt = null) => SpamClassification.Create(
@@ -142,14 +108,13 @@ public sealed class SpamClassificationTests
         verdict,
         decidedBy,
         assessment: null,
-        corpusRevision,
         profile ?? Profile,
         signals ?? [],
         evaluatedAt ?? EvaluatedAt);
 
     private static SpamSignal Signal(string name) => SpamSignal.Create(
-        SpamSignalKind.ScannerRule,
+        SpamSignalKind.ProviderSpamVerdict,
         name,
         observation: null,
-        SpamSignalProvenance.FromScannerCorpus("4.0.2"));
+        SpamSignalProvenance.FromMessageHeader(name));
 }

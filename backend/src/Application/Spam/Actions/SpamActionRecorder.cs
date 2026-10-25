@@ -112,7 +112,7 @@ public sealed class SpamActionRecorder
     /// <remarks>
     /// The checks run in the order of what they cost and of what they settle. The verdict is already in hand and
     /// answers first, because it is free and refuses most messages; the occurrence is then read, because the switches
-    /// are the account's and the occurrence is what names it; the threshold and the mailbox follow. A message nothing
+    /// are the account's and the occurrence is what names it; the mailbox follows. A message nothing
     /// concluded junk about therefore costs no read at all, and one that is junk in a mailbox that asked for no action
     /// costs the occurrence row and nothing else.
     /// <para>
@@ -155,11 +155,6 @@ public sealed class SpamActionRecorder
             return SpamActionResult.NotActedOn(SpamActionOutcome.NoActionConfigured);
         }
 
-        if (!ClearsActingThreshold(classification, settings.Threshold))
-        {
-            return SpamActionResult.NotActedOn(SpamActionOutcome.BelowThreshold);
-        }
-
         var filing = await this.DecideFilingAsync(occurrence, settings, cancellationToken);
 
         if (filing.Refusal is { } refusal)
@@ -181,32 +176,11 @@ public sealed class SpamActionRecorder
 
         return await this.OpenRecordsAsync(
             occurrence,
-            MailboxMutationRequester.Classification(DecidedUnder(classification), settings.Threshold),
+            MailboxMutationRequester.Classification(classification.DecidedBy),
             marksRead,
             filing.Plan,
             cancellationToken);
     }
-
-    /// <summary>Re-judges a scanner's score by the score the operator is willing to touch mail at.</summary>
-    /// <remarks>
-    /// Only a scanner's score is judged. A deterministic verdict rests on what the receiving server concluded or on where
-    /// somebody already filed the message, and neither carries a number in a scale this threshold is written in — a
-    /// provider's own score least of all, since two providers scoring the same message agree on nothing but the sign.
-    /// </remarks>
-    private static bool ClearsActingThreshold(SpamClassification classification, double? threshold) =>
-        threshold is not { } acting
-        || classification.DecidedBy is not SpamClassificationStage.Scanner
-        || classification.Assessment is not { } assessment
-        || assessment.Score >= acting;
-
-    /// <summary>Names what the deciding stage ran under, which is half of the requester identity.</summary>
-    /// <remarks>
-    /// A scanner names its rule corpus, so a corpus update asks afresh and a rescan against the same one does not. The
-    /// deterministic stage has no corpus and its inputs are the message's own headers, so what it ran under is the stage
-    /// itself: the same headers reach the same verdict however often they are read.
-    /// </remarks>
-    private static string DecidedUnder(SpamClassification classification) =>
-        classification.CorpusRevision ?? classification.DecidedBy.ToString();
 
     /// <summary>Decides whether a filing is owed, already satisfied, refused, or switched off.</summary>
     private async Task<FilingDecision> DecideFilingAsync(

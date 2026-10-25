@@ -10,7 +10,7 @@ namespace MailFathom.Domain.Mutations;
 /// survive the run it was evaluated in and change when the rule itself changes; an invocation asks once, so its identity
 /// is the invocation; a classification asks on its own and repeatedly like a rule, but nobody authored it, so what stands
 /// in for the rule's name is the profile the verdict was decided under. Keeping the kind beside the identity is what lets
-/// an operator read a stuck mutation and know whether to look at a rule, at a scanner, or at something they did.
+/// an operator read a stuck mutation and know whether to look at a rule, at a spam verdict, or at something they did.
 /// </remarks>
 public enum MailboxMutationOrigin
 {

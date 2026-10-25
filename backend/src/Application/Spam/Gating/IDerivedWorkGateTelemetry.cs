@@ -10,8 +10,8 @@ namespace MailFathom.Application.Spam.Gating;
 /// Withholding is invisible by construction: the work is never started, so without an instrument a gate that withheld
 /// everything and a mailbox that produced nothing look the same. What an operator has to be able to tell apart is a
 /// message held because a verdict called it junk, a message held because no verdict has arrived yet, and a message let
-/// through without one — the last of which is the deployment saying its scanner is not answering rather than quietly
-/// indexing spam.
+/// through without one — the last of which is the deployment saying its classification is not keeping up rather than
+/// quietly indexing spam.
 /// </para>
 /// <para>
 /// <b>Nothing recorded here is mail or derived from it.</b> The one tag is an admission, which is MailFathom's own

@@ -44,7 +44,7 @@ var runsIntegrationTests = OrchestrationContract.RunsIntegrationTests(args);
 var runsEndToEndClient = OrchestrationContract.RunsEndToEndClient(args);
 
 // Refused rather than resolved, because the two switches name incompatible shapes and this file would silently pick
-// one: the end-to-end branch returns before the integration topology's analyzer, spam daemon, silo, migrations and
+// one: the end-to-end branch returns before the integration topology's analyzer, silo, migrations and
 // MailFathom are ever declared, so a caller passing both would get a run that looks like it started and is missing
 // everything it asked for.
 if (runsIntegrationTests && runsEndToEndClient)
@@ -261,20 +261,7 @@ if (runsIntegrationTests)
             name: OrchestrationContract.PersonalDataAnalyzerEndpointName)
         .WithHttpHealthCheck("/health", endpointName: OrchestrationContract.PersonalDataAnalyzerEndpointName);
 
-    // A real Apache SpamAssassin daemon, for the reason the analyzer above is real: what the suite exists to prove
-    // about the spam scanner is that the image an operator pulls answers the request MailFathom builds in the shape
-    // MailFathom parses, and a scripted daemon proves the parser handles the payload somebody hand-wrote. An ordinary
-    // container resource under the ephemeral prefix rather than a fixture of its own.
-    //
-    // The image is the one the deployment assets name, at the same digest, so what the suite exercises is what an
-    // operator gets — including the switch that keeps it from resolving blocklists, which is the deployment's posture
-    // rather than the image's default in every shape but this one's.
-    //
-    // No health check is declared, unlike every other resource here, and it is the protocol that decides that: the
-    // daemon speaks its own line protocol on a TCP port, so there is no route to probe and no command Aspire could
-    // compose. The suite waits for the daemon's own readiness command instead, which it can issue because it speaks
-    // that protocol.
-    // An S3-compatible endpoint, for the reason the two above are real servers: what the suite exists to prove about
+    // An S3-compatible endpoint, for the reason the analyzer above is a real server: what the suite exists to prove about
     // the object backend is that a payload written under a minted key comes back byte for byte over the protocol, and
     // a substituted client proves only that MailFathom composed the request it meant to. An ordinary container
     // resource under the ephemeral prefix rather than a fixture of its own.
@@ -319,18 +306,6 @@ if (runsIntegrationTests)
         .WithHttpHealthCheck(
             "/minio/health/live",
             endpointName: OrchestrationContract.ObjectStorageEndpointName);
-
-    builder
-        .AddContainer(
-            OrchestrationContract.SpamScannerResourceName,
-            "docker.io/axllent/spamassassin")
-        .WithImageSHA256("9bea393891c92a3531cb7081e9b2c478a654a048c9a6fa6f9d1df4300bf3ab8b")
-        .WithContainerName($"{ephemeralResourceNamePrefix}-spamassassin")
-        .WithEnvironment("DNS_CHECKS", "0")
-        .WithEndpoint(
-            targetPort: OrchestrationContract.SpamScannerContainerPort,
-            scheme: "tcp",
-            name: OrchestrationContract.SpamScannerEndpointName);
 
     // The RESP server the client signal backplane crosses, real for the reason every other server in this topology is:
     // what the suite exists to prove about the backplane is that a statement raised in one process reaches a connection

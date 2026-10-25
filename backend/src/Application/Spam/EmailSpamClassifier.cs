@@ -8,7 +8,6 @@ using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam.Gating;
-using MailFathom.Application.Spam.Scanning;
 using MailFathom.Application.Spam.Signals;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
@@ -56,7 +55,6 @@ public sealed class EmailSpamClassifier
     private readonly IDerivedWorkGateTelemetry gateTelemetry;
     private readonly OptimisticConcurrencyRetryPolicy retryPolicy;
     private readonly TimeProvider timeProvider;
-    private readonly ISpamScanner? scanner;
 
     /// <summary>Initializes the use case.</summary>
     /// <param name="emailReader">Finds the folder of the email, within the account that holds it.</param>
@@ -71,13 +69,7 @@ public sealed class EmailSpamClassifier
     /// <param name="gateTelemetry">Counts what a junk verdict had to remove, without describing any of it.</param>
     /// <param name="retryPolicy">Commits the record from a fresh read when a concurrent write conflicts.</param>
     /// <param name="timeProvider">Stamps the evaluation time.</param>
-    /// <param name="scanner">Scores the whole message, or <see langword="null" /> when no scanner is registered.</param>
-    /// <exception cref="ArgumentNullException">Thrown when any argument but <paramref name="scanner" /> is <see langword="null" />.</exception>
-    /// <remarks>
-    /// The scanner is the one optional dependency, because a deployment with no sidecar registers no implementation of
-    /// the port and the deterministic stage is the whole working feature without one. An absent scanner is therefore a
-    /// supported deployment rather than a misconfiguration, which is why it is a nullable dependency instead of a guard.
-    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public EmailSpamClassifier(
         IClassifiableEmailReader emailReader,
         IEmailContentStore contentStore,
@@ -90,8 +82,7 @@ public sealed class EmailSpamClassifier
         IStoredEmailAttachmentTextStore attachmentTextStore,
         IDerivedWorkGateTelemetry gateTelemetry,
         OptimisticConcurrencyRetryPolicy retryPolicy,
-        TimeProvider timeProvider,
-        ISpamScanner? scanner = null)
+        TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(emailReader);
         ArgumentNullException.ThrowIfNull(contentStore);
@@ -118,7 +109,6 @@ public sealed class EmailSpamClassifier
         this.gateTelemetry = gateTelemetry;
         this.retryPolicy = retryPolicy;
         this.timeProvider = timeProvider;
-        this.scanner = scanner;
     }
 
     /// <summary>Classifies one occurrence, on the terms decided for the mailbox it belongs to.</summary>
@@ -223,7 +213,7 @@ public sealed class EmailSpamClassifier
         return SpamClassificationResult.Classified(classification);
     }
 
-    /// <summary>Runs both stages over one occurrence and composes the record they produce.</summary>
+    /// <summary>Reads one occurrence and composes the record its verdict is kept as.</summary>
     private async Task<SpamClassification> EvaluateAsync(
         ClassifiableEmail email,
         SpamClassificationSettings settings,
@@ -236,78 +226,13 @@ public sealed class EmailSpamClassifier
             email.FolderAlias,
             this.junkFolders.IsJunkFolder(email.AccountId, email.FolderAlias));
 
-        var scan = settings.UsesScanner && this.scanner is not null
-            ? await this.scanner.ScanAsync(content, cancellationToken)
-            : null;
-
-        var decision = Decide(reading, JudgedBy(scan, settings.ScannerThreshold));
-
         return SpamClassification.Create(
             email.Id,
-            decision.Verdict,
-            decision.DecidedBy,
-            decision.Assessment,
-            decision.CorpusRevision,
+            reading.Verdict,
+            SpamClassificationStage.Deterministic,
+            reading.Assessment,
             settings.Profile,
-            [.. reading.Signals, .. ScannerSignals(scan)],
+            reading.Signals,
             this.timeProvider.GetUtcNow());
     }
-
-    /// <summary>Re-judges a scanner's score by the threshold the operator configured, where they configured one.</summary>
-    /// <remarks>
-    /// The threshold is replaced rather than compared beside the scanner's own, so the record states one pair of numbers
-    /// in one scale and a reader is never left deciding which of two thresholds a verdict was reached under. A scanner
-    /// that answered with anything but a score is returned unchanged: there is nothing to re-judge.
-    /// </remarks>
-    private static SpamScanResult? JudgedBy(SpamScanResult? scan, double? configuredThreshold)
-    {
-        if (configuredThreshold is not { } threshold
-            || scan is not { Assessment: { } assessment, CorpusRevision: { } corpusRevision })
-        {
-            return scan;
-        }
-
-        return SpamScanResult.Scored(
-            SpamAssessment.Create(assessment.Score, threshold),
-            scan.FiredRules,
-            corpusRevision);
-    }
-
-    /// <summary>Decides which stage's verdict the record carries.</summary>
-    /// <remarks>
-    /// A deterministic verdict of spam stands whatever the scanner says. It rests on the provider's own decision or on
-    /// where the mailbox filed the message, both taken with context nothing after delivery has, and a scanner that
-    /// disagreed would be re-reading the message from a mailbox without the network view the receiving server had.
-    /// Otherwise the scanner decides when it scored, which is what an operator who deployed one asked for; a scanner
-    /// that did not answer leaves the deterministic verdict exactly as it was, including undetermined.
-    /// </remarks>
-    private static (SpamVerdict Verdict, SpamClassificationStage DecidedBy, SpamAssessment? Assessment, string? CorpusRevision) Decide(
-        DeterministicSpamReading reading,
-        SpamScanResult? scan)
-    {
-        if (reading.Verdict is SpamVerdict.Spam)
-        {
-            return (SpamVerdict.Spam, SpamClassificationStage.Deterministic, reading.Assessment, null);
-        }
-
-        if (scan is { Outcome: SpamScanOutcome.Scored, Assessment: { } assessment, CorpusRevision: { } corpusRevision })
-        {
-            return (
-                assessment.ClearsThreshold ? SpamVerdict.Spam : SpamVerdict.NotSpam,
-                SpamClassificationStage.Scanner,
-                assessment,
-                corpusRevision);
-        }
-
-        return (reading.Verdict, SpamClassificationStage.Deterministic, reading.Assessment, null);
-    }
-
-    private static IEnumerable<SpamSignal> ScannerSignals(SpamScanResult? scan) =>
-        scan is { CorpusRevision: { } corpusRevision }
-            ? scan.FiredRules.Select(rule => SpamSignal.Create(
-                SpamSignalKind.ScannerRule,
-                rule,
-                observation: null,
-                SpamSignalProvenance.FromScannerCorpus(corpusRevision)))
-            : [];
 }

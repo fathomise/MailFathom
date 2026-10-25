@@ -10683,12 +10683,6 @@
       },
       "SpamClassificationResponse": {
         "properties": {
-          "corpusRevision": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
           "decidedBy": {
             "type": "string"
           },
@@ -10750,7 +10744,6 @@
           "decidedBy",
           "score",
           "threshold",
-          "corpusRevision",
           "profile",
           "signals",
           "evaluatedAt",
