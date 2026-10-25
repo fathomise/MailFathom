@@ -259,7 +259,7 @@ public sealed class EmbeddingGenerationUpkeepTests
         var world = CreateWorld();
         var serving = world.GenerationStore.Add(CreateIdentity("a-model"), EmbeddingProfileLifecycleState.Active);
         world.AddMail(messageCount: 1);
-        world.BackfillStore.AddEmailJustCutForTheLivePath(StoredEmailId.Create(Guid.CreateVersion7()), passageCount: 2);
+        world.BackfillStore.CutPassagesForTheLivePath(StoredEmailId.Create(Guid.CreateVersion7()), passageCount: 2);
 
         // Act
         var result = await world.Upkeep.RunAsync(TestContext.Current.CancellationToken);
@@ -281,6 +281,34 @@ public sealed class EmbeddingGenerationUpkeepTests
     }
 
     /// <summary>
+    /// The window is about passages still lacking a vector: a message whose fresh passages the live path has already
+    /// embedded, and which still lacks one for an older passage, is walked for that passage at once.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_NothingBeingBuilt_WalksAMessageWhosePassagesJustCutAlreadyHaveVectors()
+    {
+        // Arrange
+        var world = CreateWorld();
+        var serving = world.GenerationStore.Add(CreateIdentity("a-model"), EmbeddingProfileLifecycleState.Active);
+        var message = StoredEmailId.Create(Guid.CreateVersion7());
+        world.BackfillStore.AddEmailAwaitingEmbedding(message, passageCount: 1);
+        var justCut = world.BackfillStore.CutPassagesForTheLivePath(message, passageCount: 1);
+        await world.EmbeddingStore.SaveEmbeddingsAsync(
+            Substitute.For<IPersistenceSession>(),
+            serving,
+            [new GeneratedChunkEmbedding(justCut[0].Id, EmbeddingVector.Create(new float[8]))],
+            TestContext.Current.CancellationToken);
+
+        // Act
+        var result = await world.Upkeep.RunAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(1, result.Sweep.EmbeddedEmailCount);
+        Assert.Equal(1, result.Sweep.EmbeddedChunkCount);
+        Assert.Equal(2, world.EmbeddingStore.CountVectors(serving.Id));
+    }
+
+    /// <summary>
     /// No live turn writes the generation a reindex is building, so mail just cut is walked into it at once — holding it
     /// back would keep the switch waiting for as long as mail kept arriving.
     /// </summary>
@@ -293,7 +321,7 @@ public sealed class EmbeddingGenerationUpkeepTests
         var building = world.GenerationStore.Add(
             CreateIdentity("a-model"),
             EmbeddingProfileLifecycleState.Building);
-        world.BackfillStore.AddEmailJustCutForTheLivePath(StoredEmailId.Create(Guid.CreateVersion7()), passageCount: 2);
+        world.BackfillStore.CutPassagesForTheLivePath(StoredEmailId.Create(Guid.CreateVersion7()), passageCount: 2);
 
         // Act
         var result = await world.Upkeep.RunAsync(TestContext.Current.CancellationToken);

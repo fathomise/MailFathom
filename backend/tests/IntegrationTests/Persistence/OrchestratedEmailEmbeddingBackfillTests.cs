@@ -37,6 +37,9 @@ public sealed class OrchestratedEmailEmbeddingBackfillTests(MailFathomOrchestrat
 {
     private const string FolderAlias = "embedding-backfill";
 
+    /// <summary>A window long enough that a passage cut by this run is inside it and one dated to the synthetic send is not.</summary>
+    private static readonly TimeSpan LiveEmbeddingWindow = TimeSpan.FromMinutes(10);
+
     /// <summary>Bounds the sweep loop. A run that has not finished by then is a defect rather than a slow database.</summary>
     private const int MaximumRunsPerSweep = 200;
 
@@ -216,6 +219,51 @@ public sealed class OrchestratedEmailEmbeddingBackfillTests(MailFathomOrchestrat
         Assert.True(await CountVectorsAsync(services, settled, profileId, cancellationToken) > 0);
     }
 
+    /// <summary>
+    /// The window that leaves freshly cut mail to the live path is a predicate over the passages still lacking a vector,
+    /// read against the instant PostgreSQL holds for each cut. A message whose only outstanding passages were cut inside
+    /// it is left; one whose outstanding passages were cut before it is walked, and so is one whose fresh passage the
+    /// live path has already embedded while an older passage still lacks a vector. The unwindowed read is the control
+    /// that would report the first message all the same.
+    /// </summary>
+    [Fact]
+    public async Task SelectingWithALiveEmbeddingWindow_LeavesOnlyMailWithAnUnembeddedPassageCutInsideIt()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var justCut = await StoreOneMessageAsync(services, uid: 9351, cancellationToken);
+        var cutEarlier = await StoreOneMessageAsync(services, uid: 9352, cancellationToken);
+        var justCutAndEmbedded = await StoreOneMessageAsync(services, uid: 9353, cancellationToken);
+        var profileId = await OrchestratedEmbeddingProfile.EnsureActiveDeterministicAsync(services, cancellationToken);
+
+        // A loop rather than a projection, because each cut is a commit of its own.
+        foreach (var message in (StoredEmailId[])[justCut, cutEarlier, justCutAndEmbedded])
+        {
+            await OrchestratedPassages.CutAsync(services, message, cancellationToken);
+        }
+
+        Assert.True(await CountPassagesAsync(services, justCutAndEmbedded, cancellationToken) > 1);
+
+        await DatePassagesBeforeTheWindowAsync(services, cutEarlier, fromOrdinal: 0, cancellationToken);
+
+        // The live path embeds the whole message; its later passages are then dated before the window and lose their
+        // vectors, which leaves the first passage fresh and embedded and the rest older and outstanding.
+        await EmbedIntoTheServingGenerationAsync(services, justCutAndEmbedded, cancellationToken);
+        await DatePassagesBeforeTheWindowAsync(services, justCutAndEmbedded, fromOrdinal: 1, cancellationToken);
+        await RemoveVectorsFromOrdinalAsync(services, justCutAndEmbedded, fromOrdinal: 1, cancellationToken);
+
+        // Act
+        var windowed = await SelectAwaitingEmbeddingAsync(services, profileId, LiveEmbeddingWindow, cancellationToken);
+        var unwindowed = await SelectAwaitingEmbeddingAsync(services, profileId, TimeSpan.Zero, cancellationToken);
+
+        // Assert
+        Assert.DoesNotContain(justCut, windowed);
+        Assert.Contains(cutEarlier, windowed);
+        Assert.Contains(justCutAndEmbedded, windowed);
+        Assert.Contains(justCut, unwindowed);
+    }
+
     /// <summary>Writes down a relocation nothing has carried to the mail server yet.</summary>
     /// <remarks>
     /// Opened through the port the rule pass writes through rather than by inserting a row, so the record carries the
@@ -379,5 +427,74 @@ public sealed class OrchestratedEmailEmbeddingBackfillTests(MailFathomOrchestrat
                     embedding => embedding.EmbeddingProfileId == profileId.Value
                         && embedding.EmailChunk!.StoredEmailId == storedEmailId.Value,
                     token),
+            cancellationToken);
+
+    private static Task<IReadOnlyList<StoredEmailId>> SelectAwaitingEmbeddingAsync(
+        OrchestratedMailFathomServices services,
+        EmbeddingProfileId profileId,
+        TimeSpan liveEmbeddingWindow,
+        CancellationToken cancellationToken) => services.InScopeAsync<IReadOnlyList<StoredEmailId>>(
+            async (scope, token) =>
+            {
+                var batch = await scope.GetRequiredService<IStoredEmailEmbeddingBackfillStore>()
+                    .GetEmailsAwaitingEmbeddingAsync(
+                        resumeAfter: null,
+                        profileId,
+                        liveEmbeddingWindow,
+                        batchSize: 10_000,
+                        token);
+
+                return [.. batch.Select(email => email.StoredEmailId)];
+            },
+            cancellationToken);
+
+    private static Task<StoredEmailEmbeddingRun> EmbedIntoTheServingGenerationAsync(
+        OrchestratedMailFathomServices services,
+        StoredEmailId storedEmailId,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            async (scope, token) =>
+            {
+                var generations = await scope.GetRequiredService<IEmbeddingGenerationStore>()
+                    .ReadGenerationsAsync(token);
+                var run = await scope.GetRequiredService<StoredEmailEmbeddingGenerator>().EmbedAsync(
+                    storedEmailId,
+                    Assert.IsType<RegisteredEmbeddingProfile>(generations.Serving),
+                    token);
+
+                Assert.Equal(StoredEmailEmbeddingOutcome.Embedded, run.Outcome);
+
+                return run;
+            },
+            cancellationToken);
+
+    /// <summary>Moves the instant a message's passages were cut back to the synthetic send, long before any window.</summary>
+    private static Task<int> DatePassagesBeforeTheWindowAsync(
+        OrchestratedMailFathomServices services,
+        StoredEmailId storedEmailId,
+        int fromOrdinal,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<MailFathomDbContext>().EmailChunks
+                .Where(chunk => chunk.StoredEmailId == storedEmailId.Value && chunk.Ordinal >= fromOrdinal)
+                .ExecuteUpdateAsync(chunk => chunk.SetProperty(row => row.DerivedAt, SyntheticEmail.SentAt), token),
+            cancellationToken);
+
+    private static Task<int> RemoveVectorsFromOrdinalAsync(
+        OrchestratedMailFathomServices services,
+        StoredEmailId storedEmailId,
+        int fromOrdinal,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            async (scope, token) =>
+            {
+                var context = scope.GetRequiredService<MailFathomDbContext>();
+                var chunkIds = await context.EmailChunks
+                    .AsNoTracking()
+                    .Where(chunk => chunk.StoredEmailId == storedEmailId.Value && chunk.Ordinal >= fromOrdinal)
+                    .Select(chunk => chunk.Id)
+                    .ToArrayAsync(token);
+
+                return await context.EmailEmbeddings
+                    .Where(embedding => chunkIds.Contains(embedding.EmailChunkId))
+                    .ExecuteDeleteAsync(token);
+            },
             cancellationToken);
 }
