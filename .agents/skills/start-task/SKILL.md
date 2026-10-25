@@ -162,7 +162,9 @@ them if that access were ever removed.
    repository, so they belong to the owner's checkout; the board fields need write access to the
    board, which the board probe established. It carries one issue type — `gh issue create --type`, or
    `gh issue edit --type` on an issue that already exists — a `backend` or `frontend` label where the work
-   lands in one of the two stacks and neither where it lands in neither, an `Area` and a `Queue`
+   lands in one of the two stacks and neither where it lands in neither, the `design` label where it
+   changes `design/` — alone, or beside `frontend` where a client change has to draw its design half in
+   the same pull request — an `Area` and a `Queue`
    value on the board, a milestone when the milestone rule assigns one, and the `Size` placeholder
    that page's one rule produces — a placeholder rather than an estimate, because the value the board
    keeps is the one `$finish-change` measures off the diff. Decide each from the rules on that page rather than asking. `Queue: Next` is never
@@ -231,7 +233,7 @@ Protected paths: <none reached, or which — and whether the pull request waits 
 Issue: <number and title, or created with reason>
 Baseline: <the main commit the body was written against, what landed since that touches it and what that changed, or none recorded>
 Blocked by: <the open blockers refusing the work, or none — and any relation written>
-Placement: <issue type, stack label or neither, Area, Queue, Size placeholder, milestone or none — or what the board probe left to triage>
+Placement: <issue type, stack label or neither, design label or not, Area, Queue, Size placeholder, milestone or none — or what the board probe left to triage>
 Scale: <no split warning, or what makes this look XL, which surfaces it reaches, and where a seam between two issues would fall>
 Claim: <agent:claude or agent:codex applied, already present, or not applicable in the fork role>
 Required context: <files read>
