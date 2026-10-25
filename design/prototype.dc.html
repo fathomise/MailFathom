@@ -599,6 +599,49 @@ Project repository: https://github.com/fathomise/MailFathom
         </div>
       </div>
     </sc-if>
+    <sc-if value="{{ spamAskOpen }}" hint-placeholder-val="{{ false }}">
+      <div data-motion="scrim" data-phase="{{ mo.spamAsk }}" onClick="{{ closeSpamAsk }}" style="{{ ovZ96 }}">
+        <div data-motion="{{ moDialog }}" data-phase="{{ mo.spamAsk }}" role="dialog" aria-label="{{ spamAskTitle }}" onClick="{{ stopProp }}" style="{{ spamAskStyle }}">
+          <sc-if value="{{ sheetGrabber }}" hint-placeholder-val="{{ false }}"><div style="{{ grabberStyle }}"></div></sc-if>
+          <div style="display:flex;align-items:center;gap:9px">
+            <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--muted)">report</span>
+            <span style="flex:1;min-width:0;font-size:16px;font-weight:600">{{ spamAskTitle }}</span>
+            <div role="button" tabindex="0" onClick="{{ closeSpamAsk }}" title="Close" aria-label="Close" style="{{ spamCloseStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">close</div>
+          </div>
+          <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">{{ spamAskText }}</div>
+          <div role="radiogroup" aria-label="Kind of spam" style="display:flex;flex-direction:column;gap:2px">
+            <sc-for list="{{ spamKinds }}" as="sk" hint-placeholder-count="6">
+              <div role="radio" tabindex="0" aria-checked="{{ sk.checked }}" onClick="{{ sk.pick }}" style="{{ sk.style }}" style-hover="cursor:pointer;background:var(--hover)">
+                <span aria-hidden="true" style="{{ sk.dotStyle }}"></span>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                  <div style="{{ sk.labelStyle }}"><sc-if value="{{ sk.danger }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="{{ spamGlyphInline }}">warning</span></sc-if>{{ sk.label }}</div>
+                  <div style="{{ spamHintStyle }}">{{ sk.hint }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:2px">
+            <div role="button" tabindex="0" onClick="{{ closeSpamAsk }}" style="{{ spamCancelStyle }}" style-hover="cursor:pointer;background:var(--hover)">{{ spamCancelLabel }}</div>
+            <div role="button" tabindex="0" aria-disabled="{{ spamConfirmOff }}" title="{{ spamConfirmTitle }}" onClick="{{ confirmSpam }}" style="{{ spamConfirmStyle }}" style-hover="cursor:pointer;opacity:0.9">{{ spamConfirmLabel }}</div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ notSpamAskOpen }}" hint-placeholder-val="{{ false }}">
+      <div data-motion="scrim" data-phase="{{ mo.notSpamAsk }}" onClick="{{ closeNotSpamAsk }}" style="{{ ovAsk95 }}">
+        <div data-motion="pop" data-phase="{{ mo.notSpamAsk }}" role="dialog" aria-label="{{ notSpamAskTitle }}" onClick="{{ stopProp }}" style="{{ dlgAsk }}">
+          <div style="display:flex;align-items:flex-start;gap:11px">
+            <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;color:var(--muted);padding-top:1px">report_off</span>
+            <div style="flex:1;min-width:0;font-size:16px;font-weight:600;text-wrap:pretty">{{ notSpamAskTitle }}</div>
+          </div>
+          <div style="font-size:13px;color:var(--muted);line-height:1.5;text-wrap:pretty">{{ notSpamAskText }}</div>
+          <div style="display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap;margin-top:2px">
+            <div role="button" tabindex="0" onClick="{{ closeNotSpamAsk }}" style="{{ notSpamCancelStyle }}" style-hover="cursor:pointer;background:var(--hover)">Cancel</div>
+            <div role="button" tabindex="0" onClick="{{ confirmNotSpam }}" style="{{ notSpamBtnStyle }}" style-hover="cursor:pointer;opacity:0.9">{{ notSpamConfirmLabel }}</div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
     <sc-if value="{{ deleteConvAskOpen }}" hint-placeholder-val="{{ false }}">
       <div data-motion="scrim" data-phase="{{ mo.deleteConvAsk }}" style="{{ ovAsk95 }}">
         <div data-motion="pop" data-phase="{{ mo.deleteConvAsk }}" style="{{ dlgAsk }}">
@@ -795,16 +838,31 @@ Project repository: https://github.com/fathomise/MailFathom
               <sc-if value="{{ t.swiping }}" hint-placeholder-val="{{ false }}">
                 <div style="{{ t.swipeBgStyle }}"><span style="{{ t.swipeIconStyle }}">{{ t.swipeIcon }}</span><span style="{{ t.swipeTextStyle }}">{{ t.swipeLabel }}</span></div>
               </sc-if>
+              <sc-if value="{{ t.folded }}" hint-placeholder-val="{{ false }}">
+              <div onClick="{{ t.select }}" draggable="{{ true }}" onDragStart="{{ t.dragStart }}" onDragEnd="{{ t.dragEnd }}" onContextMenu="{{ t.longPress }}" onTouchStart="{{ t.touchStart }}" onTouchEnd="{{ t.touchEnd }}" onTouchMove="{{ t.touchMove }}" style="{{ t.foldedStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+                <sc-if value="{{ t.foldCheckShown }}" hint-placeholder-val="{{ false }}"><span style="width:17px;height:17px;flex:0 0 17px;border-radius:50%;background:var(--accent);color:var(--onaccent);display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">check</span></sc-if>
+                <span aria-hidden="true" style="{{ t.foldGlyphStyle }}">report</span>
+                <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">{{ t.spamName }}</span>
+                <span style="{{ t.foldFromStyle }}">{{ t.from }}</span>
+                <span style="{{ t.foldSubjStyle }}">{{ t.subject }}</span>
+                <span style="{{ t.foldTimeStyle }}">{{ t.time }}</span>
+              </div>
+              </sc-if>
+              <sc-if value="{{ t.unfolded }}" hint-placeholder-val="{{ true }}">
               <div onClick="{{ t.select }}" draggable="{{ true }}" onDragStart="{{ t.dragStart }}" onDragEnd="{{ t.dragEnd }}" onContextMenu="{{ t.longPress }}" onTouchStart="{{ t.touchStart }}" onTouchEnd="{{ t.touchEnd }}" onTouchMove="{{ t.touchMove }}" style="{{ t.rowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
-                <div style="display:flex;align-items:center;gap:9px;min-width:0"><sc-if value="{{ t.selected }}" hint-placeholder-val="{{ false }}"><span style="align-self:center;width:17px;height:17px;flex:0 0 17px;border-radius:50%;background:var(--accent);color:var(--onaccent);display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">check</span></sc-if><sc-if value="{{ t.hasAvatar }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="{{ t.from }}" style="{{ t.avatarImgStyle }}"></span></sc-if><sc-if value="{{ t.noAvatar }}" hint-placeholder-val="{{ true }}"><span data-tip-hover title="{{ t.from }}" style="{{ t.avatarStyle }}">{{ t.initials }}</span></sc-if><span style="{{ t.fromStyle }}">{{ t.from }}</span><span style="{{ t.orgStyle }}">{{ t.org }}</span><span style="margin-left:auto;flex:0 0 auto;display:flex;align-items:center;gap:7px"><sc-if value="{{ t.flagged }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="Flagged" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1;color:var(--warn)">flag</span></sc-if><sc-if value="{{ t.multi }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--text2);background:var(--rail);border:1px solid var(--line2);border-radius:8px;padding:1px 6px">{{ t.count }}</span></sc-if><span onClick="{{ t.openAiSum }}" title="AI summary" style="{{ t.aiBtnStyle }}" style-hover="cursor:pointer;background:var(--accent-soft);color:var(--accent-d)">auto_awesome</span><span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint)">{{ t.time }}</span></span></div>
+                <div style="display:flex;align-items:center;gap:9px;min-width:0"><sc-if value="{{ t.selected }}" hint-placeholder-val="{{ false }}"><span style="align-self:center;width:17px;height:17px;flex:0 0 17px;border-radius:50%;background:var(--accent);color:var(--onaccent);display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">check</span></sc-if><sc-if value="{{ t.hasAvatar }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="{{ t.from }}" style="{{ t.avatarImgStyle }}"></span></sc-if><sc-if value="{{ t.noAvatar }}" hint-placeholder-val="{{ true }}"><span data-tip-hover title="{{ t.from }}" style="{{ t.avatarStyle }}">{{ t.initials }}</span></sc-if><span style="{{ t.fromStyle }}">{{ t.from }}</span><span style="{{ t.orgStyle }}">{{ t.org }}</span><span style="margin-left:auto;flex:0 0 auto;display:flex;align-items:center;gap:7px"><sc-if value="{{ t.flagged }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="Flagged" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1;color:var(--warn)">flag</span></sc-if><sc-if value="{{ t.multi }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--text2);background:var(--rail);border:1px solid var(--line2);border-radius:8px;padding:1px 6px">{{ t.count }}</span></sc-if><sc-if value="{{ t.aiBtnShown }}" hint-placeholder-val="{{ true }}"><span onClick="{{ t.openAiSum }}" title="AI summary" style="{{ t.aiBtnStyle }}" style-hover="cursor:pointer;background:var(--accent-soft);color:var(--accent-d)">auto_awesome</span></sc-if><span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint)">{{ t.time }}</span></span></div>
                 <div style="{{ t.subjStyle }}">{{ t.subject }}</div>
                 <sc-if value="{{ t.showMoved }}" hint-placeholder-val="{{ false }}">
                   <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">folder</span>{{ t.movedTo }}</div>
+                </sc-if>
+                <sc-if value="{{ t.spamBadge }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ t.aiStyle }}"><span style="{{ t.spamBadgeStyle }}"><sc-if value="{{ t.spamBadgeDanger }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="{{ t.spamGlyphStyle }}">warning</span></sc-if>{{ t.spamBadgeLabel }}</span></div>
                 </sc-if>
                 <sc-if value="{{ t.showAi }}" hint-placeholder-val="{{ false }}">
                   <div style="{{ t.aiStyle }}"><span style="flex:0 0 auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);border:1px solid var(--border2);border-radius:4px;padding:1px 5px">AI</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.ai }}</span></div>
                 </sc-if>
               </div>
+              </sc-if>
               </div>
             </sc-for>
             </div>
@@ -1065,6 +1123,17 @@ Project repository: https://github.com/fathomise/MailFathom
                   </div>
                   <sc-if value="{{ m.open }}" hint-placeholder-val="{{ true }}">
                     <div style="{{ m.bodyPadStyle }}">
+                      <sc-if value="{{ m.spamWarn }}" hint-placeholder-val="{{ false }}">
+                        <div style="{{ m.spamBoxStyle }}">
+                          <span aria-hidden="true" style="{{ m.spamGlyphStyle }}">{{ m.spamGlyph }}</span>
+                          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+                            <div style="{{ m.spamTitleStyle }}">{{ m.spamTitle }}</div>
+                            <sc-for list="{{ m.spamLines }}" as="sl" hint-placeholder-count="2">
+                              <div style="{{ sl.style }}">{{ sl.text }}</div>
+                            </sc-for>
+                          </div>
+                        </div>
+                      </sc-if>
                       <sc-if value="{{ m.remoteBlocked }}" hint-placeholder-val="{{ false }}">
                         <div style="{{ m.remoteBoxStyle }}">
                           <div style="font-size:14px;line-height:1.5;color:var(--text);text-wrap:pretty">This message asked to fetch content from another server. That was removed, so opening it told the sender nothing.</div>

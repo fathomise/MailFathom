@@ -59,6 +59,78 @@
         }
       ]
     },
+    "mail-spam": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Folders and filters",
+            "exact": true
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "text": "Spam"
+          }
+        },
+        {
+          "expect": {
+            "text": "Your mailbox password expires today"
+          }
+        }
+      ]
+    },
+    "mail-spam-phishing": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Folders and filters",
+            "exact": true
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "text": "Spam"
+          }
+        },
+        {
+          "expect": {
+            "text": "Your mailbox password expires today"
+          }
+        },
+        {
+          "click": {
+            "text": "Your mailbox password expires today"
+          }
+        },
+        {
+          "expect": {
+            "text": "Phishing. This message is spam and a security risk."
+          }
+        }
+      ]
+    },
     "mail-thread": {
       "file": "prototype.dc.html",
       "properties": {

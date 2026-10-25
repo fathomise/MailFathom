@@ -44,6 +44,11 @@ h2 { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0; }
    reserves it, so a row with something to say is the same row, not a taller one. */
 .why { height: 16px; overflow: hidden; font-size: 12px; color: var(--faint); }
 .why mark { background: none; color: var(--accent-d); font-weight: 600; }
+/* A spam row folds to one muted line, as the folder list draws it outside the Spam folder. */
+.row.fold { height: 34px; flex-direction: row; align-items: center; gap: 8px; position: relative; }
+.row.fold .who { flex: 0 0 auto; font-size: 13px; font-weight: 400; color: var(--muted); }
+.row.fold .subject { flex: 1 1 auto; max-width: none; font-size: 13px; color: var(--muted); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .foot { padding: 8px 12px; font-size: 13px; color: var(--faint); }
 .banner { margin: 10px 12px; padding: 9px 11px; border-radius: 8px; font-size: 13px;
           background: var(--warn-soft); color: var(--warn-text); text-wrap: pretty; }
