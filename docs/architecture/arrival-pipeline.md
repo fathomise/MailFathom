@@ -6,10 +6,10 @@ Nine features decide what happens to a message between the moment synchronizatio
 everything derived from it exists. Each of them documents its own half, and none of them can state the order, because
 the order is what they have between them. This page is that order, drawn once.
 
-It is a graph rather than a list. A message branches at its classification verdict, two of the stages are calls into
-sidecars, and one of them — redaction — is a guard on the way into a derived store rather than a stage every message
-walks through. The reason to draw it is that prose describing a graph is reconstructed wrongly, and the wrong
-reconstruction has one shape: a new derived step placed on the wrong side of a gate.
+It is a graph rather than a list. A message branches at its classification verdict, and one stage — redaction — is a
+call into a sidecar and a guard on the way into a derived store rather than a stage every message walks through. The
+reason to draw it is that prose describing a graph is reconstructed wrongly, and the wrong reconstruction has one
+shape: a new derived step placed on the wrong side of a gate.
 
 ## The order
 
@@ -32,10 +32,9 @@ flowchart TD
         enrich["Derive the marks — only where the deployment turned it on"]
     end
 
-    subgraph sidecars["Sidecars, each optional and each declared apart"]
+    subgraph sidecars["Sidecar, optional"]
         direction TB
         presidio["Personal-data analyzer — shown the extracted body text"]
-        spamd["Spam scanner — shown the raw MIME, deliberately unredacted"]
     end
 
     subgraph remote["Remote providers, reached over the network"]
@@ -58,8 +57,6 @@ flowchart TD
     commit --> collect
     ask -. "one job per stored email; a full queue refuses rather than waits" .-> job
     ask --> classify
-    job -. "one scan per message" .-> spamd
-    classify -. "one scan per message" .-> spamd
     job -. "records the verdict" .-> gate
     classify --> gate{"What does classification say?"}
     gate -- "junk" --> withheld["Nothing further runs, and passages already cut are removed"]
@@ -91,13 +88,13 @@ Classification happens in two places and the drawing separates them deliberately
 arrived**: the run asks for one as soon as it has committed the message and its content, and the work runs as an
 execution of the durable queue — leased to one worker, retried per message with a jittered backoff, and dead-lettered
 when it cannot succeed. That per-message backoff is the whole reason it is a job rather than another pass of the run: a
-scan reaches a sidecar that can be unreachable, saturated, or restarting, and a run whose only recovery is deferring the
-whole account cannot express one message out of three hundred deserving another attempt.
+classification reads the message out of the content store, which can be unreachable or slow, and a run whose only
+recovery is deferring the whole account cannot express one message out of three hundred deserving another attempt.
 
 The pass inside the run is the second place, and it is the operator's:
 [classifying the mail you already have](../features/spam-classification.md#classifying-the-mail-you-already-have) walks
-a mailbox that was stored before any of this, or stored while the feature was off. Both reach the same use case, record
-the same record, and consult the same sidecar; what differs is which mail they cover.
+a mailbox that was stored before any of this, or stored while the feature was off. Both reach the same use case and
+record the same record; what differs is which mail they cover.
 
 Four things can become of one classification, and the gate below reads what was recorded rather than what happened to
 the job. A verdict of junk withholds the message; a verdict of anything else admits it; a scan that could not answer
@@ -154,32 +151,29 @@ a stronger reason — a run whose whole point was to fetch mail must not be fail
 [What a run tells the person whose mailbox it is](../features/imap-synchronization.md#what-a-run-tells-the-person-whose-mailbox-it-is)
 describes it; nothing else on this page concerns it either.
 
-Nothing else about the pipeline crosses a process boundary while a transaction is open. The two sidecar calls happen
-outside the commit that follows them, so does the chat provider a picture is described by, and the embedding provider is
-reached only by the worker, which consumes committed state. The chat provider is drawn apart from the sidecars because
-it is one: a sidecar is a process a deployment runs beside MailFathom, and this is a remote endpoint configured under
+Nothing else about the pipeline crosses a process boundary while a transaction is open. The sidecar call happens
+outside the commit that follows it, so does the chat provider a picture is described by, and the embedding provider is
+reached only by the worker, which consumes committed state. The chat provider is drawn apart from the sidecar because
+it is not one: a sidecar is a process a deployment runs beside MailFathom, and this is a remote endpoint configured under
 `Chat:` that mail content leaves the deployment to reach.
 
-## The two sidecars, and why one of them sees unredacted mail
+## The sidecar fails closed, and classification fails open
 
-Both are optional, both are declared apart from each other, and a deployment that configures neither runs the whole
-pipeline unchanged.
+The personal-data analyzer is optional, and a deployment that configures none runs the whole pipeline unchanged.
 
-| Sidecar | What it is shown | What its silence does |
+| Stage | What it reads | What its silence does |
 | --- | --- | --- |
-| Personal-data analyzer | The extracted body text of one message | **Fails closed.** The derivation is refused, nothing derived is written, and the run retries the message later |
-| Spam scanner | The raw MIME of one message | **Fails open.** The classification keeps the verdict the message's own headers reached, which may be that nothing was found either way, and the message is admitted or withheld on that |
+| Personal-data analyzer | The extracted body text of one message, shown to the sidecar | **Fails closed.** The derivation is refused, nothing derived is written, and the run retries the message later |
+| Spam classification | The stored header block of one message, read locally | **Fails open.** A message no verdict has reached is held only as long as `SpamClassification:ClassificationWait` allows, and then admitted on the same terms as one nothing has looked at |
 
 The asymmetry is deliberate and it is the single most important thing on this page. Redaction is an egress guard: text
 that reached a derived store unscanned is text a retrieval hit can hand back months later, and putting it back costs a
-re-derivation from raw MIME. Classification is an opinion about a message: a scanner that cannot answer must not be able
-to stop a mailbox from being indexed, which is why every path releases mail that has waited too long.
+re-derivation from raw MIME. Classification is an opinion about a message: a classification that stalled or fell behind
+must not be able to stop a mailbox from being indexed, which is why every path releases mail that has waited too long.
 
-The spam scanner is shown the message as it arrived, placeholders and all absent, because a classifier scoring redacted
-text would be scoring a different message from the one the sender wrote —
-[spam classification](../features/spam-classification.md) records that decision. Redaction covers the body and only the
-body; a subject, an address, and a thread identifier are routing metadata, and what protects those on the way out is the
-[egress guard](../features/sensitive-content-scanning.md) rather than the derived store.
+Redaction covers the body and only the body; a subject, an address, and a thread identifier are routing metadata, and
+what protects those on the way out is the [egress guard](../features/sensitive-content-scanning.md) rather than the
+derived store. Classification reads none of the body, so redaction has nothing to hide from it.
 
 ## What each classification outcome permits
 

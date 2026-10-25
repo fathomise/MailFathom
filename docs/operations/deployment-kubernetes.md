@@ -10,7 +10,7 @@ operates the cluster, and the chart is written so that it cannot pretend otherwi
 | --- | --- |
 | Deployment, Service, ConfigMap, ServiceAccount | Any `Secret` |
 | A PostgreSQL StatefulSet, its Service, and its initialization script, unless `database.deploy.enabled` is false | Any certificate material |
-| A personal-data analyzer Deployment and Service, and a SpamAssassin Deployment and Service, only when the section that owns each is enabled and left to deploy its own | Any schema step |
+| A personal-data analyzer Deployment and Service, only when `personalDataScanning` is enabled and left to deploy its own | Any schema step |
 | A Silo object-store StatefulSet, a claim per pod, its Service, and a headless Service of its own where it runs as a pool, only when `contentStorage.objectStorage.deploy.enabled` is true | Any bucket, or any access key inside one |
 | A Valkey StatefulSet and two Services for the signal backplane, only when `signalBackplane.enabled` and `.valkey.deploy` are both true | |
 | A PodDisruptionBudget for the application pods, at any replica count, unless `podDisruptionBudget.enabled` is false | Any HorizontalPodAutoscaler, or any metric-driven scaling |
@@ -767,7 +767,7 @@ with nothing to authenticate to and one more thing to steal.
 
 | Probe | Path | Consults |
 | --- | --- | --- |
-| Startup | `/started` | The host's own startup gates: every secret reference resolved, the database schema verified, and — only with `spamScanning.enabled` — the daemon naming the corpus it scores under. Its budget is what a slow first start is allowed, and it holds liveness off until it succeeds. |
+| Startup | `/started` | The host's own startup gates: every secret reference resolved, the database schema verified, every served user reconciled, and the default administrator recorded. Its budget is what a slow first start is allowed, and it holds liveness off until it succeeds. |
 | Readiness | `/health` | The dependencies a request needs: the database, and — only with `personalDataScanning.enabled` — the analyzer answering for every configured category. A pod that cannot serve leaves the Service's endpoints. |
 | Liveness | `/alive` | The process alone, so a database outage never becomes a restart loop that cannot fix it. |
 
@@ -852,56 +852,6 @@ Its startup probe allows five minutes of that. MailFathom itself comes up regard
 analyzer answers, so on a first install the application pod is started, stays out of the Service, and joins it when the
 analyzer is ready — no restart, and no ordering for the operator to arrange. `resources`, `nodeSelector`, `tolerations`,
 `affinity`, and both security contexts are values under `personalDataScanning.analyzer`.
-
-## Spam scanning
-
-`spamScanning.enabled` is off, and off means the chart renders nothing for it: no Deployment, no Service, and no
-`SpamClassification__*` key in the application's environment. It follows `personalDataScanning`'s shape exactly, because
-it is the same decision — one value decides whether the chart runs the dependency, and the address is either derived
-from the release or stated, never both. [Spam classification](../features/spam-classification.md) records what a
-classification holds and what the scanner adds to it.
-
-```yaml
-spamScanning:
-  enabled: true
-  # scanner.deploy defaults to true: the chart runs Apache SpamAssassin and points MailFathom at its own Service.
-```
-
-That renders a single-replica Deployment and a ClusterIP Service, and writes `SpamClassification__Enabled`,
-`SpamClassification__UseScanner`, the derived host and port, and the three bounds into the application's environment.
-To use a daemon you already operate:
-
-```yaml
-spamScanning:
-  enabled: true
-  scanner:
-    deploy: false
-    host: spamassassin.mailfathom.svc.cluster.local
-```
-
-The chart refuses `deploy: true` together with a `host`, `deploy: false` without one, and a host set while spam scanning
-is off. Keep the address **inside the cluster**: the daemon is sent whole messages unredacted, and the feature page
-states what pointing it outside gives up.
-
-The scanner's Service is ClusterIP with no ingress rule and its pod mounts no service-account token. It is the second
-pod in the release that reads mail content in the clear.
-
-> [!IMPORTANT]
-> **The scanner pod needs a `baseline` namespace.** It starts as root to bind its port and drops to an unprivileged
-> account for every scan, which is what parses the mail, so it needs `SETUID` and `SETGID` back after dropping all
-> capabilities and cannot run under `restricted` Pod Security Standards. MailFathom's own pod is unaffected and stays
-> `restricted`-compatible; if your namespace enforces `restricted`, the scanner belongs in a namespace of its own with
-> `deploy: false` pointing at it.
-
-**Rule updates and DNS.** `DNS_CHECKS` is off, so the daemon runs local rules and sends nothing derived from the
-user's mail to a third-party blocklist. Whether it can fetch rule updates is your cluster's egress policy rather than a
-chart value; a corpus frozen at the image's build scores today's mail worse than a fresh one, and the feature page states
-that trade.
-
-**Resources and readiness.** The daemon compiles its rule corpus before it listens, so its startup probe allows time for
-that and MailFathom's own startup gate refuses to come up while the daemon is not answering — on a first install the
-application pod may restart a few times before the scanner is ready. `resources`, `nodeSelector`, `tolerations`,
-`affinity`, both security contexts, and the digest-pinned image are values under `spamScanning.scanner`.
 
 ## Storing message content in a bucket
 
@@ -1079,7 +1029,7 @@ still not published: the chart renders no ingress for it, so reaching it is a de
 authenticate. What it authenticates with is the root credential above, which is the whole server rather than the one
 bucket.
 
-**The pod meets the restricted Pod Security Standard**, unlike the spam scanner: `runAsNonRoot`, `readOnlyRootFilesystem`,
+**The pod meets the restricted Pod Security Standard**: `runAsNonRoot`, `readOnlyRootFilesystem`,
 `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]` with nothing added, and `seccompProfile: RuntimeDefault`,
 with the schema keeping the load-bearing ones from being switched off. The image declares no account of its own, so the
 chart states one — uid and gid `1000`, with `fsGroup` making the claim writable by it. No service-account token is
@@ -1324,9 +1274,9 @@ anything. A rendering is normalized before it is compared — trailing whitespac
 documents go — so the Helm version a machine happens to carry does not decide the verdict.
 
 Nine values documents are what the chart is held against, and each renders a shape the others do not.
-`release-values.yaml` names an external database, an external analyzer, and an external spam scanner, and turns the
-ingress on. `nightly-values.yaml` selects the unsupported channel with its acknowledgement and renders the analyzer and
-the scanner the chart deploys itself. Three do the content backend. `content-storage-values.yaml` selects it against an
+`release-values.yaml` names an external database and an external analyzer, and turns the ingress on.
+`nightly-values.yaml` selects the unsupported channel with its acknowledgement and renders the analyzer the chart
+deploys itself. Three do the content backend. `content-storage-values.yaml` selects it against an
 endpoint somebody else operates, `object-store-values.yaml` against the one node the chart runs itself — between them
 both branches of `contentStorage.objectStorage.deploy.enabled`, with the console off in the second, which is what makes
 the committed manifest the record that no console listener is produced by default — and `object-store-pool-values.yaml`

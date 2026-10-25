@@ -80,7 +80,7 @@ Kestrel's own default address.
 
 | Probe | Path | Consults | A failure means |
 |---|---|---|---|
-| Startup | `/started` | The host's own startup gates: every secret reference the deployment's own sections carry resolved, the database schema verified, every user the deployment serves reconciled against the rows it holds and their own mailboxes' secrets resolved with them, and — only where its own switch is on — the spam scanner naming the corpus it scores under | The process has not finished coming up; the grace period continues |
+| Startup | `/started` | The host's own startup gates: every secret reference the deployment's own sections carry resolved, the database schema verified, every user the deployment serves reconciled against the rows it holds and their own mailboxes' secrets resolved with them, and the default administrator recorded, or known to have been removed, with its password setting applied | The process has not finished coming up; the grace period continues |
 | Readiness | `/health` | The dependencies a request needs: the database, each declared AI provider, and — only where something actually runs against it — the personal-data analyzer and the object-storage bucket, or, where no endpoint is configured, whether stored content points into one anyway | The instance stops receiving traffic; it is not restarted |
 | Liveness | `/alive` | Process-local state only | The container is restarted |
 
@@ -216,8 +216,8 @@ opens no connection and costs nothing, and once it turns healthy it stays health
 
 Only the secret-reference gate runs before the listener opens, because it is the one registered as a hosted *lifecycle*
 service and the host runs that stage ahead of every hosted service's start. The schema gate, the user gate, and the
-spam-scanner gate are ordinary hosted services, and the web host registers its own while the builder runs, so it starts
-first and the port is already accepting connections while those three run. That window is exactly what the probe is
+default-administrator gate are ordinary hosted services, and the web host registers its own while the builder runs, so
+it starts first and the port is already accepting connections while those three run. That window is exactly what the probe is
 for: hold traffic off an instance until `/started` succeeds rather than inferring readiness from the port answering.
 A gate that refuses still aborts startup, so the process exits rather than serving with a gate unmet.
 

@@ -408,7 +408,7 @@ The verdicts are recorded either way — what `--apply` adds is the mail server 
 
 A second run while one is going does not start a second walk; you are told the first is still under way, on the terms
 it was started with. None of these three writes a setting, and none ever will: they apply the settings your deployment
-already holds. Whether mail is classified, what a scanner is judged by, and what happens to junk are configuration, so
+already holds. Whether mail is classified, over which folders, and what happens to junk are configuration, so
 what changes them is [changing a setting without a restart](#changing-a-setting-without-a-restart) or an edit to the
 file your deployment reads.
 [Classifying the mail you already have, and reading what was

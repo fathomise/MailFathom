@@ -639,41 +639,6 @@ carries a commented `__1` line beside it to uncomment. The numbering starts at z
 the bound list at it and everything after is dropped. One scan then asks the analyzer once per language, one call after
 the other, inside the single `SensitiveContent:ScanTimeout` budget rather than one budget each.
 
-## Spam scanning
-
-The stack has a fourth service, `spamassassin`, and it is not started either. It sits behind its own Compose profile, so
-`docker compose up` pulls no image for it and holds none of its memory. [Spam
-classification](../features/spam-classification.md) records what a classification holds and what the scanner adds.
-
-Switching it on is two settings, for exactly the reason the analyzer's are two — the profile decides whether the
-container exists, the switch decides whether MailFathom asks it, and either one alone is a deployment that does not
-work:
-
-```dotenv
-COMPOSE_PROFILES=spam-scanning
-MAILFATHOM_SPAM_SCANNING=true
-```
-
-`COMPOSE_PROFILES` takes a list, so several at once are
-`COMPOSE_PROFILES=personal-data-scanning,spam-scanning,object-storage` — the third being
-[the object store](#running-an-object-store-beside-mailfathom), which this file can also start.
-
-The first start is slow here too: the daemon compiles its rule corpus before it listens, and MailFathom refuses to serve
-while no daemon answers, so `restart: unless-stopped` carries that refusal into a retry exactly as it does for the
-analyzer. `docker compose ps` shows the daemon's own health check while that is happening.
-
-To use a daemon you already operate, set `MAILFATHOM_SPAM_SCANNER_HOST` to its address and leave `COMPOSE_PROFILES`
-alone — nothing is then started for it. Keep that address **inside your own network**: the daemon is sent whole messages
-unredacted, and the feature page states what pointing it outside gives up.
-
-The daemon publishes no port and it accepts a connection from any address it can be reached from, so what limits who may
-ask it is the network it is on. It is attached to `frontend` as well as `backend`, and that is the one deliberate
-difference from the analyzer: the daemon fetches its rule updates on start and daily afterwards, and a corpus frozen at
-the image's build scores today's mail worse than a fresh one. Nothing derived from the user's mail goes out that route
-— `MAILFATHOM_SPAM_SCANNER_DNS_CHECKS` is `0`, which keeps the blocklist rules that would send sending addresses and URI
-host names to third parties switched off, and the image bundles no plugin that reports anything anywhere. Remove
-`frontend` from the service to take the egress away and keep the corpus the image shipped with.
-
 ## Storing message content in a bucket
 
 The raw MIME of every message lives in PostgreSQL beside the metadata unless `MAILFATHOM_CONTENT_STORAGE` says
@@ -851,7 +816,7 @@ above — is yours; MailFathom manages none of it.
 
 ## The signal backplane
 
-The stack has a sixth service, `valkey`, and it is not started either. It sits behind its own Compose profile, so
+The stack has a fifth service, `valkey`, and it is not started either. It sits behind its own Compose profile, so
 `docker compose up` pulls no image for it and holds none of its memory.
 
 **On one host it does nothing, and that is the expected state rather than a misconfiguration to fix.** A backplane
@@ -892,7 +857,7 @@ one, which is why `compose.yaml` carries those two lines commented out instead o
    ```
 
 `COMPOSE_PROFILES` takes a list, so several at once are
-`COMPOSE_PROFILES=personal-data-scanning,spam-scanning,object-storage,signal-backplane`.
+`COMPOSE_PROFILES=personal-data-scanning,object-storage,signal-backplane`.
 
 **The contract is the protocol rather than the product.** MailFathom asks the endpoint for `PUBLISH`, `SUBSCRIBE`, and
 `PSUBSCRIBE` and nothing else, so any RESP endpoint serves — Redis, Garnet, Valkey, or a managed equivalent. Valkey is
@@ -931,16 +896,15 @@ together with the base image it is built on.
 
 ## Bounds
 
-`.env.example` documents every knob: log rotation, CPU and memory limits for all six services, the published bind
-address and port, the database and role names, both volume names, the four personal-data settings, the seven spam
-settings, the six content-storage settings, the four the object store adds, and the backplane's image and its two
+`.env.example` documents every knob: log rotation, CPU and memory limits for all five services, the published bind
+address and port, the database and role names, both volume names, the four personal-data settings, the six
+content-storage settings, the four the object store adds, and the backplane's image and its two
 limits. Each is the value the Compose file already applies, so an unset variable and the documented value mean the same
 thing.
 
 The analyzer's memory limit is the one worth reading before it is lowered: it defaults to two gigabytes because the model
 is held for the life of the container, and below roughly one it is killed while loading — which reaches MailFathom as an
-analyzer that never became ready. The spam daemon's is modest by comparison and defaults to 512 megabytes, which holds
-the compiled corpus and a child per scan. The object store's is modest for a different reason — it holds no index in
+analyzer that never became ready. The object store's is modest for a different reason — it holds no index in
 memory and streams what it serves, so what it wants is disk, and that is the volume rather than a limit. The backplane
 server's covers its hash index and the .NET runtime around it and nothing else: it allocates that index while it starts
 and grows its log only as records are written, and this one is never written to.

@@ -130,9 +130,7 @@ it changes nothing for an account whose server does write the header, which goes
 **It is the one path in MailFathom that makes an outbound DNS query, and what it sends is
 `<selector>._domainkey.<signing-domain>`**: a low-cardinality name the signing domain published in order to be asked
 for, shared by every message that domain signs, carrying nothing about the message, the mailbox, or the recipient, and
-resolved when a message is stored rather than when one is read. That is a different transaction from the spam scanner's
-DNS checks, which every deployment asset here leaves off: those would send the sending address and the URI hosts taken
-out of the body. The lookups are bounded by an explicit deadline, after which the verdict is simply not established,
+resolved when a message is stored rather than when one is read. The lookups are bounded by an explicit deadline, after which the verdict is simply not established,
 and cached per selector and signing domain for as long as the record's own time-to-live allows. **An operator who wants
 no egress from the extraction path at all sets this to `false`**, which gives exactly the behaviour of a deployment
 that never had it. [Sender authentication](../features/sender-authentication.md#where-no-server-said-anything-the-signature-still-does)
@@ -420,8 +418,8 @@ and nothing at all for the rest.
 ### Classifying this account's mail — `SpamClassification`
 
 `…:SpamClassification` is where a mailbox's own classification posture is written, and it is the only source of
-one: the deployment's [`SpamClassification`](configuration-ai.md#spamclassification) section registers the scanner and
-bounds what the process spends on it, and reaches no mailbox's scope at all. The two are never unioned, which is what
+one: the deployment's [`SpamClassification`](configuration-ai.md#spamclassification) section bounds what the
+process spends, and reaches no mailbox's scope at all. The two are never unioned, which is what
 makes switching classification off here actually switch it off. Every switch is off when the block is absent, so an
 account whose record states none of it is classified as nothing.
 
@@ -434,10 +432,8 @@ verdict may do.
 {
   "SpamClassification": {
     "Enabled": true,
-    "UseScanner": true,
     "ScannedFolders": [ "inbox" ],
-    "ScannerThreshold": 6.5,
-    "Actions": { "MoveToJunkFolder": true, "MarkAsRead": false, "JunkFolder": "role:Junk", "Threshold": 8 }
+    "Actions": { "MoveToJunkFolder": true, "MarkAsRead": false, "JunkFolder": "role:Junk" }
   }
 }
 ```
@@ -445,22 +441,19 @@ verdict may do.
 | Key | Type | Default | Constraint | Change |
 | --- | --- | --- | --- | --- |
 | `…:SpamClassification:Enabled` | bool | `false` | Whether the mail in this account is classified at all | reload; the next classification reads it |
-| `…:SpamClassification:UseScanner` | bool | `false` | Whether the deployment's scanner is consulted after the deterministic stage. Asking for it while `Enabled` is false is refused; asking for it where the deployment registered no scanner is accepted and answered by the deterministic stage alone | reload; the same |
 | `…:SpamClassification:ScannedFolders:<n>` | string | unset (this account's inbox) | A folder alias, resolved within this account's own `Folders` — one only another account maps reaches no mail. Writing no key takes whichever alias this account maps to the `Inbox` role, and writing an empty list asks for no folder at all | reload; the same |
-| `…:SpamClassification:ScannerThreshold` | double | unset (the scanner's own) | `0.1` – `1000`, the range the deployment states; outside it a value either files every message or can never be reached | reload; the same |
 | `…:SpamClassification:Actions:MoveToJunkFolder` | bool | `false` | Whether junk is filed into this account's junk destination. Asking for an action while `Enabled` is false is refused, there being no verdict to act on | reload; governs verdicts from then on |
 | `…:SpamClassification:Actions:MarkAsRead` | bool | `false` | Whether junk has this account's remote `\Seen` flag set; the same refusal | reload; the same |
 | `…:SpamClassification:Actions:JunkFolder` | string | `role:Junk` | A folder alias, or one of the special uses written as `role:<name>`. Once filing is switched on, **this account** has to map it, because MailFathom creates a folder on nobody's server; the syntax is judged whatever the switches say | reload; the same |
-| `…:SpamClassification:Actions:Threshold` | double | unset (every spam verdict) | The score a scanner has to reach before the mail is touched, judged against the same `0.1` – `1000` range | reload; the same |
 
 **A junk destination is judged against this account alone.** Junk is filed into the mailbox it was found in, so a
 destination this account does not map is refused exactly as one nobody maps — from inside the record the two are the
 same thing. That is what the block being the account's buys over one held on the person: an account no longer has to
 map a folder some other mailbox of the same user wanted junk filed into.
 
-**A record may hold only what is this mailbox's.** The daemon's address, the per-scan bounds, the scan concurrency, the
-classification wait, and the run batch sizes are what the process holds open or spends rather than a judgement about
-anybody's mailbox, so an account naming one of them is refused at the write, naming the key.
+**A record may hold only what is this mailbox's.** The classification wait and the run batch sizes are what the
+process spends rather than a judgement about anybody's mailbox, so an account naming one of them is refused at the
+write, naming the key, and so is one naming a key the block does not declare.
 
 ### Scanning this account's mail — `SensitiveContent`
 

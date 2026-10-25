@@ -123,7 +123,7 @@ port is asked from the host instead.
 The three answer different questions and are wired to different probes on purpose:
 
 - **`/started`** reports whether the host's startup gates have completed: every secret reference resolved, the database
-  schema verified, and — only where its own switch is on — the spam scanner naming the corpus it scores under. It is what
+  schema verified, every served user reconciled, and the default administrator recorded. It is what
   an orchestrator's startup probe reads, so a slow first start extends the grace period rather than counting as a failure.
 - **`/health`** consults the dependencies a request needs: the database, and — only where its switch is on — the
   personal-data analyzer answering for every configured category. It is readiness: a process that cannot reach either

@@ -1151,11 +1151,11 @@ to name and the rule's own words are what an operator has to correct.
 ### Classifying the mail you already have, and reading what was concluded
 
 Three commands, and none of *them* writes a setting: they apply the account's own classification settings to the mail
-this deployment already holds for it, and read what was decided. Whether that mail is classified at all, what a scanner
-is judged by, and what happens to junk are the account's to state, in the
+this deployment already holds for it, and read what was decided. Whether that mail is classified at all, over which
+folders, and what happens to junk are the account's to state, in the
 [`SpamClassification`](configuration-mail.md#classifying-this-accounts-mail--spamclassification) block of its record;
-the deployment's [`SpamClassification`](configuration-ai.md#spamclassification) section registers the scanner and bounds
-what the process spends on it and reaches no mailbox's scope. The first is changed through [the mail account
+the deployment's [`SpamClassification`](configuration-ai.md#spamclassification) section bounds what the process
+spends and reaches no mailbox's scope. The first is changed through [the mail account
 routes](#mail-accounts-and-who-they-are-assigned-to) and the second, without a restart, through [reading and changing
 the configuration](#reading-and-changing-the-deployments-own-configuration); neither is reached through these three.
 [Spam classification](../features/spam-classification.md) is what the feature does.
@@ -1174,8 +1174,8 @@ The run is carried by the account's synchronization runs. Watch it with 'mfctl s
 ```
 
 `--folder` narrows the walk and is repeatable; it narrows *within* that user's own scope, and a folder outside it is
-refused, because a run over a folder nobody classifies would read the whole of it and record nothing. `--rescore` scores mail again even where its verdict was already reached under the settings now in force,
-which is the one form of the run that costs a scanner call per message however recently it was decided.
+refused, because a run over a folder nobody classifies would read the whole of it and record nothing. `--rescore` classifies mail again even where its verdict was already reached under the terms now in force,
+which is the one form of the run that reads every message's content however recently it was decided.
 
 Asking twice is asking once, and the command says which of the two happened — including that the terms the second
 request carried were not applied to the walk under way.
@@ -1206,8 +1206,8 @@ answers "why is this in junk"; narrowing with `--verdict` answers "what would th
 
 ```console
 $ mfctl spam classifications --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10 --verdict Spam
-Evaluated             Verdict                Message                               Folder  Under                                                     Signals                  Asked
-2026-08-12 11:04:11Z  Spam (Scanner 15.2/5)  0199c3d0-0000-7000-8000-000000000002  INBOX   a1b2c3d4e5f6, scanner corpus spamassassin.4.0.2+20260801  X-Spam-Status, BAYES_99  relocate (0199c3d0-0000-7000-8000-000000000009)
+Evaluated             Verdict                      Message                               Folder  Under         Signals        Asked
+2026-08-12 11:04:11Z  Spam (Deterministic 15.2/5)  0199c3d0-0000-7000-8000-000000000002  INBOX   a1b2c3d4e5f6  X-Spam-Status  relocate (0199c3d0-0000-7000-8000-000000000009)
 ```
 
 **The signals are names and never values.** `X-Spam-Status` says the verdict rests on that header; what the header said
