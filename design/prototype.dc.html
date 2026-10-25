@@ -2031,7 +2031,7 @@ Project repository: https://github.com/fathomise/MailFathom
             </sc-for>
           </div>
         </sc-if>
-        <div style="{{ agentBoxStyle }}">
+        <div data-agent-box="1" style="{{ agentBoxStyle }}">
           <input ref="{{ agentInputRef }}" value="{{ agentInput }}" onChange="{{ onAgentInput }}" onKeyDown="{{ onAgentKey }}" placeholder="{{ agentPlaceholder }}" style="flex:1;min-width:0;border:none;outline:none;font-family:inherit;font-size:15px;color:var(--text);background:transparent;text-overflow:ellipsis" />
           <div onClick="{{ agentSend }}" title="Send" style="{{ agentSendStyle }}" style-hover="cursor:pointer;opacity:0.88"><sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}"><span style="{{ agentBtnIconStyle }}">send</span></sc-if><sc-if value="{{ notMobile }}" hint-placeholder-val="{{ true }}">{{ agentSendLabel }}</sc-if></div>
           <div role="button" tabIndex="{{ agentCancelTab }}" aria-disabled="{{ agentCancelDisabled }}" aria-label="{{ agentCancelAria }}" onClick="{{ agentCancel }}" onKeyDown="{{ agentCancelKey }}" style="{{ agentCancelStyle }}" style-hover="{{ agentCancelHover }}" style-focus="outline:2px solid var(--accent);outline-offset:2px"><sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}"><span style="{{ agentBtnIconStyle }}">cancel</span></sc-if><sc-if value="{{ notMobile }}" hint-placeholder-val="{{ true }}">Cancel</sc-if></div>

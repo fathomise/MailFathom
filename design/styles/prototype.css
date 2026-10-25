@@ -33,30 +33,22 @@ input { font-family: inherit; }
 /* The catch-up's progress: one segment fills while its card stands, and a pause holds it. */
 @keyframes mfstory { from { width: 0 } to { width: 100% } }
 
-/* Fathom's button: a disc running from the accent's blue into green, with a gloss across its top and a band of light
-   that crosses it now and then. Reduced motion stops the band where it is drawn off the disc. */
+/* Fathom's button: a disc in the accent's blues, lighter at its top left, with a soft gloss across its upper half and a
+   blue glow beneath it. Its glyph is a pale blue rather than white, so the corner does not outshine the page. */
 [data-fathom-fab] {
-  overflow: hidden;
-  background: linear-gradient(145deg, oklch(0.63 0.19 266) 0%, oklch(0.59 0.15 218) 50%, oklch(0.63 0.16 158) 100%);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.55), inset 0 -4px 10px oklch(0.30 0.08 175 / 0.45),
-    0 12px 26px -8px oklch(0.55 0.15 185 / 0.75), 0 2px 6px var(--sh-2);
-  transition: transform 160ms ease, box-shadow 160ms ease;
+  background: linear-gradient(150deg, oklch(0.64 0.16 256) 0%, oklch(0.53 0.18 262) 55%, oklch(0.45 0.17 266) 100%);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35), inset 0 -4px 10px oklch(0.28 0.10 266 / 0.45),
+    0 10px 24px -8px oklch(0.50 0.17 262 / 0.7), 0 2px 6px var(--sh-2);
+  transition: transform 160ms ease, box-shadow 160ms ease, bottom 120ms ease;
 }
 [data-fathom-fab]::before {
-  content: ""; position: absolute; left: 16%; right: 16%; top: 5%; height: 44%; border-radius: 50%; pointer-events: none;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0));
+  content: ""; position: absolute; left: 18%; right: 18%; top: 6%; height: 40%; border-radius: 50%; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0));
 }
-[data-fathom-fab]::after {
-  content: ""; position: absolute; inset: -30%; pointer-events: none; transform: translateX(-130%);
-  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.5) 50%, transparent 62%);
-  animation: mffathomsheen 6s ease-in-out 1.5s infinite;
-}
-[data-fathom-fab]:hover { transform: translateY(-1px) scale(1.05); box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.6),
-  inset 0 -4px 10px oklch(0.30 0.08 175 / 0.45), 0 16px 32px -8px oklch(0.58 0.16 175 / 0.85), 0 3px 8px var(--sh-2); }
+[data-fathom-fab]:hover { transform: translateY(-1px) scale(1.04); box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4),
+  inset 0 -4px 10px oklch(0.28 0.10 266 / 0.45), 0 14px 30px -8px oklch(0.52 0.17 262 / 0.8), 0 3px 8px var(--sh-2); }
 [data-fathom-fab]:active { transform: scale(0.95); }
 [data-fathom-fab]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-/* Smart is on: a green ring stands off the disc, so the button reads as the way out. */
-[data-fathom-fab][data-smart-on="1"] { box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.55), 0 0 0 3px var(--panel),
-  0 0 0 6px oklch(0.68 0.16 158), 0 12px 26px -8px oklch(0.55 0.15 185 / 0.75); overflow: visible; }
-[data-fathom-fab][data-smart-on="1"]::after { display: none; }
-@keyframes mffathomsheen { 0%, 72% { transform: translateX(-130%) } 100% { transform: translateX(130%) } }
+/* Smart is on: a ring in the accent stands off the disc, so the button reads as the way out. */
+[data-fathom-fab][data-smart-on="1"] { box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35), 0 0 0 3px var(--panel),
+  0 0 0 6px var(--accent), 0 10px 24px -8px oklch(0.50 0.17 262 / 0.7); }

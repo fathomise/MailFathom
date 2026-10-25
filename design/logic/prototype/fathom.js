@@ -163,7 +163,16 @@ MailFathomDesign.fathomUi = (() => {
       }
       if (st.catchupOpen && !st.ctxMenu && (e.key === "ArrowRight" || e.key === "ArrowLeft")) self.stepCatchup(e.key === "ArrowRight" ? 1 : -1);
     };
+    /* In the Agent, Fathom stands level with the field it sits beside: its centre on the field's centre, kept in step
+       as the field moves (a context chip, a quote, the suggestions folding away). */
+    self.syncFathomDock = () => {
+      const box = self.state.screen === "agent" ? document.querySelector("[data-agent-box]") : null;
+      const fab = document.querySelector("[data-fathom-fab]");
+      const dock = box && fab ? Math.round(window.innerHeight - box.getBoundingClientRect().top - box.offsetHeight / 2 - fab.offsetHeight / 2) : null;
+      if (dock !== (self.state.fathomDock ?? null)) self.setState({ fathomDock: dock });
+    };
     if (typeof window !== "undefined") {
+      setInterval(self.syncFathomDock, 150);
       ["pointerdown", "mousedown", "pointerup", "click"].forEach(t => window.addEventListener(t, self.onSmartPress, true));
       window.addEventListener("pointermove", self.onSmartMove, true);
       window.addEventListener("scroll", () => self.onSmartMove(null), true);
@@ -186,7 +195,9 @@ MailFathomDesign.fathomUi = (() => {
     const space = { start: "Start", mail: "Mail", cal: "Calendar", tasks: "Tasks", people: "People", agent: "Agent" }[st.screen] || "Start";
     const fabShown = !st.catchupOpen && !st.compose && !st.doc && !st.htmlDoc && !st.settings;
     const fabSize = touch ? 56 : 52;
-    const fabBottom = 16 + barH;
+    /* 24 px from both edges, 20 on a phone; in the Agent it stands level with the field it sits beside (`fathomDock`). */
+    const fabEdge = isMobile ? 20 : 24;
+    const fabBottom = st.screen === "agent" && st.fathomDock != null ? st.fathomDock : fabEdge + barH;
     const smartOn = !!st.fathomSmart;
     const menuRun = (a) => () => {
       if (a.do === "agent") { self.setState({ fathomMenu: false }); self.goAgentWith(a.ctx || (st.screen === "mail" ? "thread “" + thread.subject + "”" : where)); return; }
@@ -205,15 +216,15 @@ MailFathomDesign.fathomUi = (() => {
       },
       fathomFabSmart: smartOn ? "1" : "0",
       /* A disc whose glyph alone names it; its gradient, gloss and sheen live in prototype.css. */
-      fathomFabStyle: "position:fixed;z-index:88;right:16px;bottom:" + fabBottom + "px;width:" + fabSize + "px;height:" + fabSize + "px;box-sizing:border-box;" +
-        "display:flex;align-items:center;justify-content:center;border-radius:50%;color:#fff",
-      fathomFabGlyph: GLYPH + "position:relative;z-index:1;font-size:" + (touch ? 27 : 25) + "px;font-variation-settings:'FILL' 1,'wght' 500;text-shadow:0 1px 2px rgba(0,0,0,0.22)",
+      fathomFabStyle: "position:fixed;z-index:88;right:" + fabEdge + "px;bottom:" + fabBottom + "px;width:" + fabSize + "px;height:" + fabSize + "px;box-sizing:border-box;" +
+        "display:flex;align-items:center;justify-content:center;border-radius:50%;color:oklch(0.86 0.07 250)",
+      fathomFabGlyph: GLYPH + "position:relative;z-index:1;font-size:" + (touch ? 26 : 24) + "px;font-variation-settings:'FILL' 1,'wght' 400",
       fathomMenuOpen: !!st.fathomMenu,
       closeFathomMenu: () => self.setState({ fathomMenu: false }),
       fathomMenuWhere: space + " · " + where,
       fathomMenuItems: (F.menu[menuKey] || []).map(a => ({ icon: a.icon, label: a.do === "agent" && menuKey === "people" && peopleOpen ? "Ask about " + person.name : a.label, run: menuRun(a), style: rowStyle })),
       fathomRowStyle: rowStyle,
-      fathomMenuStyle: "position:fixed;z-index:89;right:16px;bottom:" + (fabBottom + fabSize + 12) + "px;width:" + (isMobile ? "min(320px,calc(100% - 32px))" : "296px") + ";box-sizing:border-box;" +
+      fathomMenuStyle: "position:fixed;z-index:89;right:" + fabEdge + "px;bottom:" + (fabBottom + fabSize + 12) + "px;width:" + (isMobile ? "min(320px,calc(100% - 32px))" : "296px") + ";box-sizing:border-box;" +
         "display:flex;flex-direction:column;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px 6px;box-shadow:0 20px 46px var(--sh-3),0 2px 6px var(--sh-2)",
       startSmart: () => self.setState({ fathomMenu: false, fathomSmart: true, smartHover: null }),
       openAgentFromFathom: () => { self.setState({ fathomMenu: false }); self.goScreen("agent"); },
@@ -258,7 +269,7 @@ MailFathomDesign.fathomUi = (() => {
       fathomAnswerStyle: "position:fixed;z-index:97;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--accent-line);border-radius:16px;" +
         "box-shadow:0 22px 50px var(--sh-3),0 2px 6px var(--sh-2);padding:14px 16px 14px 16px;" +
         (isMobile ? "left:12px;right:12px;bottom:" + (st.catchupOpen ? 16 : fabBottom + fabSize + 12) + "px;"
-          : st.catchupOpen ? "left:50%;transform:translateX(-50%);bottom:28px;width:420px;" : "right:16px;bottom:" + (fabBottom + fabSize + 12) + "px;width:380px;"),
+          : st.catchupOpen ? "left:50%;transform:translateX(-50%);bottom:28px;width:420px;" : "right:" + fabEdge + "px;bottom:" + (fabBottom + fabSize + 12) + "px;width:380px;"),
       fathomAnswerBtnStyle: "display:inline-flex;align-items:center;gap:7px;border-radius:9px;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);box-sizing:border-box;" + (touch ? "min-height:44px;padding:0 15px;" : "min-height:34px;padding:0 13px;"),
       fathomAnswerCloseStyle: "margin-left:auto;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:var(--faint);" + GLYPH + (touch ? "width:44px;height:44px;font-size:20px;margin-right:-10px;" : "width:28px;height:28px;font-size:18px;margin-right:-6px;"),
     });
