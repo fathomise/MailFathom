@@ -1236,14 +1236,16 @@ removes a request with the email it is about.
 ## What classification concluded about a message
 
 `email_spam_classifications` is one-to-one with `stored_emails` and holds what spam classification concluded: the
-`Verdict`, the stage that `DecidedBy`, the `Score` and the `Threshold` it was judged against, the `CorpusRevision` the
-deciding stage ran under, the `Profile` it was reached under, and when it was `EvaluatedAt`. [Spam
+`Verdict`, the stage that `DecidedBy`, the `Score` and the `Threshold` it was judged against, the `Profile` it was
+reached under, and when it was `EvaluatedAt`. [Spam
 classification](../features/spam-classification.md#what-a-classification-records) describes what produces each value.
+`CorpusRevision` is a nullable column no stage writes, and every write clears it; it stays mapped because a replica of
+the previous build reads it during a rolling upgrade.
 
-`Profile` is a twelve-character digest of the settings the verdict rests on — whether a scanner was consulted and the
-threshold its score was judged by — and it is nullable because a row written before the column existed names terms
-nothing can compare. That is what it is for: a run over a whole mailbox reads it to decide whether a message has
-already been decided under the settings now in force, and a row carrying none is scored again rather than skipped.
+`Profile` is a twelve-character digest of the terms the verdict was reached under, and it is nullable because a row
+written before the column existed names terms nothing can compare. That is what it is for: a run over a whole mailbox
+reads it to decide whether a message has already been decided under the terms now in force, and a row carrying none,
+or one other than the current profile, is classified again rather than skipped.
 
 Keyed by the email rather than carrying an identity of its own, which is what makes one classification per message a
 property of the schema instead of a rule somebody has to remember: classifying the same message twice reaches the same

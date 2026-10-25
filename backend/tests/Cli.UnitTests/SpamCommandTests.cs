@@ -34,7 +34,7 @@ public sealed class SpamCommandTests : IDisposable
     public async Task Run_NoApplyAsked_AsksForADryRunAndSaysHowToCarryItOut()
     {
         // Arrange
-        using var deployment = FakeSpamDeployment.Answering(
+        using var deployment = FakeSpamRoutes.Answering(
             runStart: (HttpStatusCode.OK, RunStart(started: true, acting: false)));
 
         // Act
@@ -54,7 +54,7 @@ public sealed class SpamCommandTests : IDisposable
     public async Task Run_ApplyAndFoldersNamed_SendsThemAsTheTermsOfTheRun()
     {
         // Arrange
-        using var deployment = FakeSpamDeployment.Answering(
+        using var deployment = FakeSpamRoutes.Answering(
             runStart: (HttpStatusCode.OK, RunStart(started: true, acting: true)));
 
         // Act
@@ -92,7 +92,7 @@ public sealed class SpamCommandTests : IDisposable
     public async Task Run_ARunAlreadyUnderWay_SaysNothingWasStartedAndThatItsOwnTermsStand()
     {
         // Arrange
-        using var deployment = FakeSpamDeployment.Answering(
+        using var deployment = FakeSpamRoutes.Answering(
             runStart: (HttpStatusCode.OK, RunStart(started: false, acting: false)));
 
         // Act
@@ -116,7 +116,7 @@ public sealed class SpamCommandTests : IDisposable
     public async Task Run_NoAccountNamed_IsRefusedWithoutAskingTheDeploymentForAnything()
     {
         // Arrange
-        using var deployment = FakeSpamDeployment.Answering(
+        using var deployment = FakeSpamRoutes.Answering(
             runStart: (HttpStatusCode.OK, RunStart(started: true, acting: false)));
 
         // Act
@@ -132,7 +132,7 @@ public sealed class SpamCommandTests : IDisposable
     public async Task RunStatus_ARunUnderWay_ReportsItsProgressWithoutStartingAnything()
     {
         // Arrange
-        using var deployment = FakeSpamDeployment.Answering(runState: $$"""
+        using var deployment = FakeSpamRoutes.Answering(runState: $$"""
             {"account":"{{Account}}","run":{{Run(ended: false, acting: false)}}}
             """);
 
@@ -158,7 +158,7 @@ public sealed class SpamCommandTests : IDisposable
     public async Task RunStatus_ADryRunThatFoundJunk_SaysNothingChangedAndHowToCarryItOut()
     {
         // Arrange
-        using var deployment = FakeSpamDeployment.Answering(runState: $$"""
+        using var deployment = FakeSpamRoutes.Answering(runState: $$"""
             {"account":"{{Account}}","run":{{Run(ended: true, acting: false)}}}
             """);
 
@@ -187,7 +187,7 @@ public sealed class SpamCommandTests : IDisposable
     public async Task RunStatus_AnAccountNobodyHasAskedForARun_SaysSoAndNamesTheCommandThatStartsOne()
     {
         // Arrange
-        using var deployment = FakeSpamDeployment.Answering(runState: $$"""
+        using var deployment = FakeSpamRoutes.Answering(runState: $$"""
             {"account":"{{Account}}","run":null}
             """);
 
@@ -211,19 +211,18 @@ public sealed class SpamCommandTests : IDisposable
     public async Task Classifications_ARecordedVerdict_PrintsItsSignalNamesAndWhatItAskedFor()
     {
         // Arrange
-        using var deployment = FakeSpamDeployment.Answering(classifications: (HttpStatusCode.OK, """
+        using var deployment = FakeSpamRoutes.Answering(classifications: (HttpStatusCode.OK, """
             {
               "classifications": [
                 {
                   "email": "0199a0c0-0000-7000-8000-0000000090a0",
                   "folder": "INBOX",
                   "verdict": "Spam",
-                  "decidedBy": "Scanner",
+                  "decidedBy": "Deterministic",
                   "score": 15.2,
                   "threshold": 5.0,
-                  "corpusRevision": "4.0.2",
                   "profile": "a1b2c3d4e5f6",
-                  "signals": ["X-Spam-Flag", "BAYES_99"],
+                  "signals": ["X-Spam-Flag", "X-Spam-Status"],
                   "evaluatedAt": "2026-08-12T11:00:00+00:00",
                   "requestedMutations": [
                     {"record": "0199a0c0-0000-7000-8000-0000000090b0", "mutation": "relocate"}
@@ -246,8 +245,8 @@ public sealed class SpamCommandTests : IDisposable
 
         // Assert
         Assert.Equal(CliExitCode.Success, exitCode);
-        Assert.Contains(this.harness.Console.Lines, line => line.Contains("Spam (Scanner 15.2/5)", StringComparison.Ordinal));
-        Assert.Contains(this.harness.Console.Lines, line => line.Contains("X-Spam-Flag, BAYES_99", StringComparison.Ordinal));
+        Assert.Contains(this.harness.Console.Lines, line => line.Contains("Spam (Deterministic 15.2/5)", StringComparison.Ordinal));
+        Assert.Contains(this.harness.Console.Lines, line => line.Contains("X-Spam-Flag, X-Spam-Status", StringComparison.Ordinal));
         Assert.Contains(this.harness.Console.Lines, line => line.Contains("relocate", StringComparison.Ordinal));
     }
 
@@ -255,7 +254,7 @@ public sealed class SpamCommandTests : IDisposable
     public async Task Classifications_TheFiltersAnOperatorNamed_ReachTheDeploymentAsAQuery()
     {
         // Arrange
-        using var deployment = FakeSpamDeployment.Answering(classifications: (HttpStatusCode.OK, EmptyPage));
+        using var deployment = FakeSpamRoutes.Answering(classifications: (HttpStatusCode.OK, EmptyPage));
 
         // Act
         await this.RunAsync(
@@ -284,7 +283,7 @@ public sealed class SpamCommandTests : IDisposable
     public async Task Classifications_APageThatContinues_PrintsTheCursorTheNextOneIsAskedWith()
     {
         // Arrange
-        using var deployment = FakeSpamDeployment.Answering(classifications: (HttpStatusCode.OK, """
+        using var deployment = FakeSpamRoutes.Answering(classifications: (HttpStatusCode.OK, """
             {
               "classifications": [
                 {
@@ -294,7 +293,6 @@ public sealed class SpamCommandTests : IDisposable
                   "decidedBy": "Deterministic",
                   "score": null,
                   "threshold": null,
-                  "corpusRevision": null,
                   "profile": null,
                   "signals": [],
                   "evaluatedAt": "2026-08-12T11:00:00+00:00",
@@ -327,7 +325,7 @@ public sealed class SpamCommandTests : IDisposable
     public async Task Classifications_ADeploymentThatHasClassifiedNothing_SaysWhatWouldProduceARecord()
     {
         // Arrange
-        using var deployment = FakeSpamDeployment.Answering(classifications: (HttpStatusCode.OK, EmptyPage));
+        using var deployment = FakeSpamRoutes.Answering(classifications: (HttpStatusCode.OK, EmptyPage));
 
         // Act
         var exitCode = await this.RunAsync(
@@ -348,7 +346,7 @@ public sealed class SpamCommandTests : IDisposable
     public async Task Classifications_ADeploymentThatRefusedTheFilters_ReportsAFailure()
     {
         // Arrange
-        using var deployment = FakeSpamDeployment.Answering(classifications: (
+        using var deployment = FakeSpamRoutes.Answering(classifications: (
             HttpStatusCode.BadRequest,
             """{"title":"Bad Request","detail":"A page of classifications holds between 1 and 200 records."}"""));
 
@@ -369,7 +367,7 @@ public sealed class SpamCommandTests : IDisposable
     }
 
     /// <summary>
-    /// The absent operations, asserted rather than assumed. Whether mail is classified, what a scanner is judged by, and
+    /// The absent operations, asserted rather than assumed. Whether mail is classified, which folders it is read in, and
     /// what happens to junk are configuration, so a command that wrote one would be the path around a reviewable diff.
     /// </summary>
     [Theory]
@@ -380,7 +378,7 @@ public sealed class SpamCommandTests : IDisposable
     public async Task Spam_ACommandThatWouldWriteASetting_DoesNotExist(string verb)
     {
         // Arrange
-        using var deployment = FakeSpamDeployment.Answering(classifications: (HttpStatusCode.OK, EmptyPage));
+        using var deployment = FakeSpamRoutes.Answering(classifications: (HttpStatusCode.OK, EmptyPage));
 
         // Act
         var exitCode = await this.RunAsync(deployment, "spam", verb, "--endpoint", Endpoint);

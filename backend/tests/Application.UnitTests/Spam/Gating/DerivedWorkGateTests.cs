@@ -59,10 +59,10 @@ public sealed class DerivedWorkGateTests
         Assert.False(admission.PermitsDerivedWork());
     }
 
-    /// <summary>Placement outranks the record, so a message somebody's filter took is withheld whatever a scan concluded.</summary>
+    /// <summary>Placement outranks the record, so a message somebody's filter took is withheld whatever a later verdict concluded.</summary>
     /// <remarks>
     /// The order of the two questions is what this asserts and the only thing that can prove it: with the questions
-    /// swapped, every other test here still passes and a message the mail server filed as junk that a scanner scored as
+    /// swapped, every other test here still passes and a message the mail server filed as junk that a later verdict called
     /// ordinary mail would quietly be chunked, embedded, and offered to the rules.
     /// </remarks>
     [Theory]
@@ -161,7 +161,7 @@ public sealed class DerivedWorkGateTests
         Assert.False(admission.PermitsDerivedWork());
     }
 
-    /// <summary>The failure mode the gate must not have: a wedged scanner delays the index rather than stopping it.</summary>
+    /// <summary>The failure mode the gate must not have: a stalled classification delays the index rather than stopping it.</summary>
     [Fact]
     public async Task Admit_AnOccurrenceThatHasWaitedLongerThanTheBound_IsReleased()
     {
@@ -309,11 +309,7 @@ public sealed class DerivedWorkGateTests
     }
 
     private static SpamClassificationSettings Enabled(params MailFolderAlias[] scope) =>
-        SpamClassificationSettings.Create(
-            isEnabled: true,
-            usesScanner: false,
-            scope,
-            scannerThreshold: null);
+        SpamClassificationSettings.Create(isEnabled: true, scope);
 
     private static DerivedWorkCandidate Occurrence(
         MailFolderAlias folderAlias,

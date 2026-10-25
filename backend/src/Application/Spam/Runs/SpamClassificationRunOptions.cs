@@ -14,8 +14,8 @@ namespace MailFathom.Application.Spam.Runs;
 /// </para>
 /// <para>
 /// Both defaults are smaller than the rule pass's, because the work per message is not comparable. A rule evaluates an
-/// expression over state that is already in memory; a classification reads the stored message and, where a scanner is
-/// configured, sends the whole of it across a socket and waits for a score.
+/// expression over state that is already in memory; a classification reads the stored message out of the content store
+/// and parses its headers.
 /// </para>
 /// </remarks>
 public sealed class SpamClassificationRunOptions

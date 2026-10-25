@@ -205,11 +205,6 @@ about this message, this mailbox, or this recipient. What the signing domain can
 somebody here received mail they sent — which they already know, because they sent it. It happens when a message is
 stored rather than when one is read, so no lookup is ever correlated with somebody opening their mail.
 
-That is why this may default to **on** while [the spam scanner's DNS checks](spam-classification.md) stay off. What a
-blocklist query would send is high-entropy — the sending address and the URI hosts taken out of the body, where a URL
-may carry a token unique to this recipient and this message. The two are different transactions rather than the same
-one at different sizes.
-
 The lookups are bounded twice, because both how many of them a message asks for and which names they ask for are
 written by whoever sent it: an explicit deadline per name, and a budget over the whole of one message's verification,
 past which every signature still unchecked stays that way. Reaching either leaves the verdict not established, which is

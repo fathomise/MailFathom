@@ -392,7 +392,7 @@ reference for all five, including what the history records and what it deliberat
 [Spam classification](../features/spam-classification.md) reaches arriving mail on its own: a message is classified
 because it arrived, and you ask for nothing. What it does not reach is the mail that was already there — everything
 stored before you switched it on, and everything stored while it was off — so switching it on, switching filing on, or
-moving a threshold does nothing about the existing mailbox until you ask:
+widening the folders it covers does nothing about the existing mailbox until you ask:
 
 | What you want | Command |
 | --- | --- |
@@ -408,7 +408,7 @@ The verdicts are recorded either way — what `--apply` adds is the mail server 
 
 A second run while one is going does not start a second walk; you are told the first is still under way, on the terms
 it was started with. None of these three writes a setting, and none ever will: they apply the settings your deployment
-already holds. Whether mail is classified, what a scanner is judged by, and what happens to junk are configuration, so
+already holds. Whether mail is classified, over which folders, and what happens to junk are configuration, so
 what changes them is [changing a setting without a restart](#changing-a-setting-without-a-restart) or an edit to the
 file your deployment reads.
 [Classifying the mail you already have, and reading what was

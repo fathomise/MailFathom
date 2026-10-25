@@ -50,7 +50,6 @@ internal sealed class SpamClassificationHistoryReader(MailFathomDbContext dbCont
                 classification.DecidedBy,
                 classification.Score,
                 classification.Threshold,
-                classification.CorpusRevision,
                 classification.Profile,
                 classification.EvaluatedAt,
                 classification.Signals
@@ -71,7 +70,6 @@ internal sealed class SpamClassificationHistoryReader(MailFathomDbContext dbCont
                 row.Score is { } score && row.Threshold is { } threshold
                     ? SpamAssessment.Create(score, threshold)
                     : null,
-                row.CorpusRevision,
                 row.Profile is { } profile ? SpamClassificationProfile.Restore(profile) : default,
                 row.SignalNames,
                 row.EvaluatedAt,
@@ -181,7 +179,6 @@ internal sealed class SpamClassificationHistoryReader(MailFathomDbContext dbCont
         SpamClassificationStage DecidedBy,
         double? Score,
         double? Threshold,
-        string? CorpusRevision,
         string? Profile,
         DateTimeOffset EvaluatedAt,
         IReadOnlyList<string> SignalNames);

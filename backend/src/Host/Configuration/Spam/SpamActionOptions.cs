@@ -4,7 +4,6 @@
 
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using MailFathom.Application.Spam.Actions;
 using MailFathom.Domain.Folders;
 
@@ -52,14 +51,6 @@ internal sealed class SpamActionOptions
     /// </remarks>
     public string? JunkFolder { get; set; }
 
-    /// <summary>Gets or sets the score a scanner has to reach before mail is touched, or <see langword="null" /> to act on every spam verdict.</summary>
-    /// <remarks>
-    /// It is a second reading of a scanner's score rather than a replacement for the one the verdict was reached under,
-    /// so an operator can label at five and move at eight. Raising it is deliberately not the same edit as switching
-    /// classification off: the verdicts go on being recorded and only the acting stops.
-    /// </remarks>
-    public double? Threshold { get; set; }
-
     /// <summary>Gets whether either switch asks for anything.</summary>
     internal bool IsAnyActionEnabled => this.MoveToJunkFolder || this.MarkAsRead;
 
@@ -78,8 +69,7 @@ internal sealed class SpamActionOptions
     internal SpamActionSettings ToSettings() => SpamActionSettings.Create(
         this.MoveToJunkFolder,
         this.MarkAsRead,
-        this.Destination,
-        this.Threshold);
+        this.Destination);
 
     /// <summary>Finds everything about this block that would otherwise be discovered on somebody's mail.</summary>
     /// <param name="classificationEnabled">Whether the section switches classification on at all.</param>
@@ -98,28 +88,6 @@ internal sealed class SpamActionOptions
             yield return new ValidationResult(
                 $"{SpamClassificationOptions.SectionName} names junk folder '{this.JunkFolder}', which is neither a usable folder alias nor one of the roles {string.Join(", ", Enum.GetNames<MailFolderSpecialUse>())} written as '{MailFolderReference.RoleScheme}<name>'.",
                 [nameof(this.JunkFolder)]);
-        }
-
-        foreach (var result in this.FindThresholdErrors())
-        {
-            yield return result;
-        }
-    }
-
-    private IEnumerable<ValidationResult> FindThresholdErrors()
-    {
-        if (this.Threshold is not { } threshold)
-        {
-            yield break;
-        }
-
-        if (!double.IsFinite(threshold)
-            || threshold < SpamClassificationOptions.SmallestThreshold
-            || threshold > SpamClassificationOptions.LargestThreshold)
-        {
-            yield return new ValidationResult(
-                $"{SpamClassificationOptions.SectionName} declares an action {nameof(this.Threshold)} of {threshold.ToString(CultureInfo.InvariantCulture)}, and a threshold is between {SpamClassificationOptions.SmallestThreshold.ToString(CultureInfo.InvariantCulture)} and {SpamClassificationOptions.LargestThreshold.ToString(CultureInfo.InvariantCulture)}. A value outside that range either acts on every scored message or can never be reached.",
-                [nameof(this.Threshold)]);
         }
     }
 }

@@ -103,9 +103,7 @@ public sealed class ConfiguredSpamClassificationSettingsReaderTests
             new MailAccountSpamClassificationOptions
             {
                 Enabled = true,
-                UseScanner = true,
                 ScannedFolders = ["junk", "inbox"],
-                ScannerThreshold = 7.5,
             },
             AccountMapping("inbox", "Inbox"));
 
@@ -113,8 +111,6 @@ public sealed class ConfiguredSpamClassificationSettingsReaderTests
         var settings = reader.SettingsFor(PrimaryAccount);
 
         // Assert
-        Assert.True(settings.UsesScanner);
-        Assert.Equal(7.5, settings.ScannerThreshold);
         Assert.Equal(
             [MailFolderAlias.Create("INBOX"), MailFolderAlias.Create("JUNK")],
             settings.ScannedFolderAliases);
@@ -196,9 +192,7 @@ public sealed class ConfiguredSpamClassificationSettingsReaderTests
                 new MailAccountSpamClassificationOptions
                 {
                     Enabled = true,
-                    UseScanner = true,
                     ScannedFolders = ["archive"],
-                    ScannerThreshold = 3.5,
                 },
                 "second-account",
                 AccountMapping("archive", "Archive"))),
@@ -208,8 +202,6 @@ public sealed class ConfiguredSpamClassificationSettingsReaderTests
         var settings = reader.SettingsFor(SecondAccount);
 
         // Assert
-        Assert.True(settings.UsesScanner);
-        Assert.Equal(3.5, settings.ScannerThreshold);
         Assert.Equal([MailFolderAlias.Create("ARCHIVE")], settings.ScannedFolderAliases);
     }
 
@@ -301,7 +293,6 @@ public sealed class ConfiguredSpamClassificationSettingsReaderTests
         var shared = new MailAccountSpamClassificationOptions
         {
             Enabled = true,
-            UseScanner = true,
             ScannedFolders = ["inbox"],
         };
 
@@ -317,7 +308,6 @@ public sealed class ConfiguredSpamClassificationSettingsReaderTests
 
         // Assert
         Assert.True(settings.IsEnabled);
-        Assert.True(settings.UsesScanner);
         Assert.Equal([MailFolderAlias.Create("INBOX")], settings.ScannedFolderAliases);
     }
 

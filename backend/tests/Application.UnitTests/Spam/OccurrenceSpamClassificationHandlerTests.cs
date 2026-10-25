@@ -118,7 +118,7 @@ public sealed class OccurrenceSpamClassificationHandlerTests
     }
 
     private static SpamActionSettings MarksJunkRead =>
-        SpamActionSettings.Create(filesJunk: false, marksJunkRead: true, threshold: null);
+        SpamActionSettings.Create(filesJunk: false, marksJunkRead: true);
 
     private StoredEmailId StoreEmailAtTheOccurrence()
     {
@@ -136,7 +136,7 @@ public sealed class OccurrenceSpamClassificationHandlerTests
     {
         var settingsReader = Substitute.For<ISpamClassificationSettingsReader>();
         settingsReader.SettingsFor(Arg.Any<MailAccountId>())
-            .Returns(SpamClassificationSettings.Create(isEnabled: true, usesScanner: false, [Inbox]));
+            .Returns(SpamClassificationSettings.Create(isEnabled: true, [Inbox]));
 
         var sessionFactory = this.harness.CommittingSessions();
         var commitPolicy = this.harness.CommitPolicyOver(sessionFactory);

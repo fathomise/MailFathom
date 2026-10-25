@@ -81,16 +81,6 @@ personalDataScanning:
     deploy: false
     endpoint: http://presidio-analyzer.mailfathom.svc.cluster.local:3000
 
-# The external-scanner shape, matching the external-analyzer choice above: nothing of the scanner Deployment or its
-# Service is rendered, and the application is pointed at the daemon named here. An address inside the cluster, because
-# that is the only arrangement the documentation supports — a scan sends the whole message, unredacted, to whatever
-# answers there.
-spamScanning:
-  enabled: true
-  scanner:
-    deploy: false
-    host: spamassassin.mailfathom.svc.cluster.local
-
 # The client served as a page, which is the half of the choice the other two values documents do not render: with the
 # ingress below terminating TLS, the chart writes the switch and the clear-text permission together. Between this file
 # and the two beside it, both branches of `client.enabled` are rendered by the repository's own verification.

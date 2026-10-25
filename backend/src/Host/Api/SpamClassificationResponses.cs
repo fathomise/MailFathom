@@ -43,7 +43,7 @@ internal sealed record SpamClassificationRunStateResponse(string Account, SpamCl
 /// <param name="Folders">The folders the run walks.</param>
 /// <param name="Posture">Whether the run writes down what its verdicts ask of the mailbox, or only works it out.</param>
 /// <param name="Rescores">Whether the run scores mail already decided under its profile again.</param>
-/// <param name="Profile">The settings the run is bound to, absent until the first pass picks it up.</param>
+/// <param name="Profile">The classification profile the run is bound to, absent until the first pass picks it up.</param>
 /// <param name="ClassifiedEmailCount">How many occurrences the run recorded a verdict for.</param>
 /// <param name="SpamEmailCount">How many of the occurrences it reached carry a spam verdict.</param>
 /// <param name="UndeterminedEmailCount">How many of them carry a verdict that concluded nothing either way.</param>
@@ -125,8 +125,7 @@ internal sealed record SpamClassificationPageResponse(
 /// <param name="DecidedBy">Which stage reached the verdict.</param>
 /// <param name="Score">The score reached, absent when no stage produced a number.</param>
 /// <param name="Threshold">The score it was judged against, absent exactly when <paramref name="Score" /> is.</param>
-/// <param name="CorpusRevision">The scanner rule corpus the deciding stage ran under, absent when it has none.</param>
-/// <param name="Profile">The settings the verdict was reached under, absent on a record written before it named one.</param>
+/// <param name="Profile">The terms the verdict was reached under, absent on a record written before it named one.</param>
 /// <param name="Signals">The names of the facts the verdict rests on, in the order the stages produced them.</param>
 /// <param name="EvaluatedAt">When the classification was evaluated.</param>
 /// <param name="RequestedMutations">The changes the verdict asked the mailbox for, empty where it asked for none.</param>
@@ -142,7 +141,6 @@ internal sealed record SpamClassificationResponse(
     string DecidedBy,
     double? Score,
     double? Threshold,
-    string? CorpusRevision,
     string? Profile,
     IReadOnlyList<string> Signals,
     DateTimeOffset EvaluatedAt,
@@ -163,7 +161,6 @@ internal sealed record SpamClassificationResponse(
             entry.DecidedBy.ToString(),
             entry.Assessment?.Score,
             entry.Assessment?.Threshold,
-            entry.CorpusRevision,
             entry.Profile.IsSpecified ? entry.Profile.Value : null,
             entry.SignalNames,
             entry.EvaluatedAt,

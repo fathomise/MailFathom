@@ -2277,7 +2277,6 @@ public sealed class MailboxSynchronizerTests
 
     private static SpamClassificationSettings ClassifyingTheInbox() => SpamClassificationSettings.Create(
         isEnabled: true,
-        usesScanner: false,
         [InboxAlias]);
 
     private static EmailMimeExtractionResult CreateFailedExtraction(EmailMimeExtractionOutcome outcome) => outcome switch

@@ -16,8 +16,9 @@ namespace MailFathom.Host.Hosting.Startup;
 /// <para>
 /// <c>2</c> is absent because the gate that held it — the personal-data analyzer — became a readiness check instead: a
 /// sidecar that may come up after this process, and may stop answering long after it, is not a question a gate that
-/// runs once can answer. The number is not reissued, for the reason no enum value here is reused, so a member added
-/// later takes the next one after the highest rather than the gap.
+/// runs once can answer. <c>3</c> is absent because the service its gate proved is no longer deployed. Neither number is
+/// reissued, for the reason no enum value here is reused, so a member added later takes the next one after the highest
+/// rather than a gap.
 /// </para>
 /// </remarks>
 internal enum HostStartupGate
@@ -27,10 +28,6 @@ internal enum HostStartupGate
 
     /// <summary>The database carries every migration this build defines, and its lexical index matches the configured text search configuration.</summary>
     DatabaseSchema = 1,
-
-    /// <summary>The spam scanner answers and has named the corpus every classification will record.</summary>
-    /// <remarks>Expected only where the scanner switch is on, which is the only state in which anything asks a scanner for a score.</remarks>
-    SpamScanner = 3,
 
     /// <summary>This deployment knows whether it holds nobody, one user, or several, and serves no surface that could not tell several apart.</summary>
     /// <remarks>Expected on every deployment, because a caller a mail-reading surface admits without naming a user acts for the sole one.</remarks>

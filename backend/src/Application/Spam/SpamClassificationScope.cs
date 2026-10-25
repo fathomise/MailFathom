@@ -20,8 +20,8 @@ namespace MailFathom.Application.Spam;
 /// join onto the user.
 /// </para>
 /// <para>
-/// The wait is here rather than being one user's, because how long the index may be held back by a scanner that has
-/// stopped answering is a cost the process bears: a user who could raise it would be raising it for work that is not
+/// The wait is here rather than being one user's, because how long the index may be held back by a verdict that has
+/// not arrived is a cost the process bears: a user who could raise it would be raising it for work that is not
 /// theirs.
 /// </para>
 /// </remarks>
@@ -29,7 +29,7 @@ public sealed record SpamClassificationScope
 {
     /// <summary>The wait a verdict is allowed when an operator names none.</summary>
     /// <remarks>
-    /// Long enough that an ordinary classification backlog drains inside it and short enough that a wedged scanner
+    /// Long enough that an ordinary classification backlog drains inside it and short enough that a stalled classification
     /// delays the index by a visible amount rather than an unbounded one. Nothing is lost by the release: a message let
     /// through unclassified is chunked and embedded like any other, and a verdict that arrives afterwards is what a
     /// later reading of the gate acts on.
@@ -68,7 +68,7 @@ public sealed record SpamClassificationScope
     /// <summary>Gets how long a message may wait on a verdict before derived work runs for it unclassified.</summary>
     /// <remarks>
     /// The bound that keeps ordering classification ahead of chunking, embedding, and rule evaluation from turning a
-    /// wedged scanner into an index that quietly stops filling. A message still inside it is waiting rather than
+    /// stalled classification into an index that quietly stops filling. A message still inside it is waiting rather than
     /// failing, which is a distinction the gate has to make: a rule that released only what had failed would never
     /// release anything sitting in a backlog, and a backlog deep enough to matter is exactly where that decides whether
     /// the index stops.

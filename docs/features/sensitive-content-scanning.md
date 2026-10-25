@@ -421,8 +421,7 @@ Everything MailFathom derives from a message's body — the extracted text, the 
 built from those passages — is derived from redacted text while a scanner is on. The redaction happens once, where the
 body is read out of the stored MIME, so a placeholder is what is stored, what is embedded, and what a search or an
 answer later returns; nothing downstream scans a second time and nothing downstream sees the original.
-[The arrival pipeline](../architecture/arrival-pipeline.md) draws where that read sits among the stages around it, and
-why the spam scanner beside it is deliberately shown the message unredacted.
+[The arrival pipeline](../architecture/arrival-pipeline.md) draws where that read sits among the stages around it.
 
 **Words read out of an attachment go through it too**, where the deployment turned attachment reading on. A contract's
 extracted text and a model's description of a picture are both derived mail content — an invoice carries an account

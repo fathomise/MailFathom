@@ -23,28 +23,7 @@ public sealed class SpamClassificationOptionsTests
         // Assert
         Assert.Empty(errors);
         Assert.False(options.Enabled);
-        Assert.False(options.UseScanner);
         Assert.Null(options.ScannedFolders);
-        Assert.Null(options.ScannerThreshold);
-    }
-
-    /// <summary>An operator who switched the scanner on and left classification off is told, rather than given the quiet answer.</summary>
-    [Fact]
-    public void FindErrors_AScannerAskedForWhileClassificationIsOff_IsRefused()
-    {
-        // Arrange
-        var options = new SpamClassificationOptions
-        {
-            Enabled = false,
-            UseScanner = true,
-            Scanner = ReachableScanner(),
-        };
-
-        // Act
-        var error = Assert.Single(options.FindErrors());
-
-        // Assert
-        Assert.Equal([nameof(SpamClassificationOptions.UseScanner)], error.MemberNames);
     }
 
     [Theory]
@@ -90,67 +69,6 @@ public sealed class SpamClassificationOptionsTests
         Assert.Empty(options.FindErrors());
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    [InlineData(SpamClassificationOptions.LargestThreshold + 1)]
-    [InlineData(double.NaN)]
-    [InlineData(double.PositiveInfinity)]
-    public void FindErrors_AThresholdOutsideTheUsableRange_IsRefused(double threshold)
-    {
-        // Arrange
-        var options = new SpamClassificationOptions
-        {
-            Enabled = true,
-            UseScanner = true,
-            Scanner = ReachableScanner(),
-            ScannerThreshold = threshold,
-        };
-
-        // Act
-        var error = Assert.Single(options.FindErrors());
-
-        // Assert
-        Assert.Equal([nameof(SpamClassificationOptions.ScannerThreshold)], error.MemberNames);
-    }
-
-    [Theory]
-    [InlineData(SpamClassificationOptions.SmallestThreshold)]
-    [InlineData(5.0)]
-    [InlineData(SpamClassificationOptions.LargestThreshold)]
-    public void FindErrors_AThresholdInsideTheUsableRange_ReportsNoError(double threshold)
-    {
-        // Arrange
-        var options = new SpamClassificationOptions
-        {
-            Enabled = true,
-            UseScanner = true,
-            Scanner = ReachableScanner(),
-            ScannerThreshold = threshold,
-        };
-
-        // Act, Assert
-        Assert.Empty(options.FindErrors());
-    }
-
-    /// <summary>The scanner block below the section is validated with it rather than on its own.</summary>
-    /// <remarks>
-    /// A scanner switched on with nowhere to ask is the block's own rule, and it reaches an operator through this
-    /// section because that is the section a deployment writes.
-    /// </remarks>
-    [Fact]
-    public void FindErrors_AScannerSwitchedOnWithNoAddressBelowIt_ReportsTheBlocksOwnRefusal()
-    {
-        // Arrange
-        var options = new SpamClassificationOptions { Enabled = true, UseScanner = true };
-
-        // Act
-        var error = Assert.Single(options.FindErrors());
-
-        // Assert
-        Assert.Equal([nameof(SpamScannerOptions.Host)], error.MemberNames);
-    }
-
     /// <summary>Every rule is reported at once, so an operator repairs the section rather than one key per restart.</summary>
     [Fact]
     public void FindErrors_ASectionBreakingSeveralRules_ReportsAllOfThem()
@@ -159,18 +77,14 @@ public sealed class SpamClassificationOptionsTests
         var options = new SpamClassificationOptions
         {
             Enabled = false,
-            UseScanner = true,
-            Scanner = new SpamScannerOptions { Host = "mailfathom-spamassassin", Port = 0 },
             ScannedFolders = ["", "   "],
-            ScannerThreshold = 0,
+            Actions = new SpamActionOptions { MoveToJunkFolder = true, JunkFolder = "junk" + (char)7 },
         };
 
         // Act
         var errors = options.FindErrors().ToArray();
 
         // Assert
-        Assert.Equal(5, errors.Length);
+        Assert.Equal(4, errors.Length);
     }
-
-    private static SpamScannerOptions ReachableScanner() => new() { Host = "mailfathom-spamassassin" };
 }

@@ -315,7 +315,7 @@ public sealed class SpamClassificationEndpointsTests
             Account = AccountIdentity,
             RequestedAt = Now.AddHours(-1),
             Terms = SpamClassificationRunTerms.Create([Inbox], SpamActionPosture.Acting, rescores: false),
-            Profile = SpamClassificationProfile.Create(usesScanner: true, scannerThreshold: 5),
+            Profile = SpamClassificationProfile.Restore("a67d92672a05"),
             ClassifiedEmailCount = 400,
             SpamEmailCount = 12,
             SkippedEmailCount = 3,
@@ -368,11 +368,10 @@ public sealed class SpamClassificationEndpointsTests
             StoredEmailId.Create(Guid.CreateVersion7()),
             Inbox,
             SpamVerdict.Spam,
-            SpamClassificationStage.Scanner,
+            SpamClassificationStage.Deterministic,
             SpamAssessment.Create(15.2, 5.0),
-            "4.0.2",
-            SpamClassificationProfile.Create(usesScanner: true, scannerThreshold: 5),
-            ["X-Spam-Flag", "BAYES_99"],
+            SpamClassificationProfile.Restore("a67d92672a05"),
+            ["X-Spam-Flag", "X-Spam-Status"],
             Now,
             [new SpamClassificationRequestedMutation(recordId, MailboxMutation.Relocate)]));
 
@@ -383,7 +382,7 @@ public sealed class SpamClassificationEndpointsTests
         var served = Assert.Single(Assert.IsType<Ok<SpamClassificationPageResponse>>(result.Result)
             .Value!
             .Classifications);
-        Assert.Equal(["X-Spam-Flag", "BAYES_99"], served.Signals);
+        Assert.Equal(["X-Spam-Flag", "X-Spam-Status"], served.Signals);
         Assert.Equal(
             (recordId.Value, MailboxMutation.Relocate.Name),
             (served.RequestedMutations[0].Record, served.RequestedMutations[0].Mutation));
@@ -499,7 +498,6 @@ public sealed class SpamClassificationEndpointsTests
         using var scoped = AccountScopedRequest.Serving(
             services => services.AddSingleton(SettingsReading(settings ?? SpamClassificationSettings.Create(
                 isEnabled: true,
-                usesScanner: false,
                 [Inbox]))),
             Account);
 

@@ -3,8 +3,6 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Net.Http.Headers;
-using System.Net.Sockets;
-using System.Text;
 using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
@@ -48,9 +46,6 @@ public sealed class MailFathomOrchestrationFixture : IAsyncLifetime
     /// <summary>Bounds the composed host's own start, which builds and runs a project against an already-migrated database.</summary>
     private static readonly TimeSpan HostStartupTimeout = TimeSpan.FromMinutes(5);
 
-    /// <summary>Bounds one readiness exchange with the spam daemon, generously against a container that is still compiling its corpus.</summary>
-    private static readonly TimeSpan SpamScannerReadinessAttemptTimeout = TimeSpan.FromSeconds(10);
-
     private readonly SemaphoreSlim hostStartGate = new(1, 1);
 
     /// <summary>The host resources the suite has already started, so a second caller waits for one rather than starting it again.</summary>
@@ -82,9 +77,6 @@ public sealed class MailFathomOrchestrationFixture : IAsyncLifetime
     /// <summary>Gets or sets the analyzer address once the orchestration published it.</summary>
     private Uri? PublishedPersonalDataAnalyzerAddress { get; set; }
 
-    /// <summary>Gets or sets the spam daemon's address once the orchestration published it.</summary>
-    private Uri? PublishedSpamScannerAddress { get; set; }
-
     /// <summary>Gets or sets the object endpoint's address once the orchestration published it.</summary>
     private Uri? PublishedObjectStorageAddress { get; set; }
 
@@ -108,12 +100,6 @@ public sealed class MailFathomOrchestrationFixture : IAsyncLifetime
     public Uri PersonalDataAnalyzer => this.PublishedPersonalDataAnalyzerAddress
         ?? throw new InvalidOperationException(
             "The orchestrated personal-data analyzer address is requested before the suite started the application.");
-
-    /// <summary>Gets the host and port the orchestrated spam daemon answers its line protocol on.</summary>
-    /// <exception cref="InvalidOperationException">Thrown when the orchestration has not started yet.</exception>
-    public Uri SpamScanner => this.PublishedSpamScannerAddress
-        ?? throw new InvalidOperationException(
-            "The orchestrated spam daemon address is requested before the suite started the application.");
 
     /// <summary>Gets the connection string the orchestrated RESP server answers the signal backplane on.</summary>
     /// <exception cref="InvalidOperationException">Thrown when the orchestration has not started yet.</exception>
@@ -195,22 +181,6 @@ public sealed class MailFathomOrchestrationFixture : IAsyncLifetime
         this.PublishedPersonalDataAnalyzerAddress = this.application.GetEndpoint(
             OrchestrationContract.PersonalDataAnalyzerResourceName,
             OrchestrationContract.PersonalDataAnalyzerEndpointName);
-
-        this.PublishedSpamScannerAddress = this.application.GetEndpoint(
-            OrchestrationContract.SpamScannerResourceName,
-            OrchestrationContract.SpamScannerEndpointName);
-
-        // Running rather than healthy, and then the protocol's own readiness command, because the daemon declares no
-        // health check the app model could express: it speaks a line protocol on a TCP port, so there is no route to
-        // probe. Waiting matters here for the same reason it does for the analyzer — the container fetches its rule
-        // updates and compiles the corpus before it listens, and a test that asked a daemon which is not up yet would
-        // read the refused connection as a scanner that cannot be reached.
-        await this.application.ResourceNotifications.WaitForResourceAsync(
-            OrchestrationContract.SpamScannerResourceName,
-            KnownResourceStates.Running,
-            cancellationToken);
-
-        await WaitForSpamScannerAsync(this.PublishedSpamScannerAddress, cancellationToken);
 
         // Healthy rather than running, and for the analyzer's reason rather than the mail server's: the endpoint is a
         // Java process that binds its port after its framework has started, so the gap between a container that is up
@@ -448,65 +418,6 @@ public sealed class MailFathomOrchestrationFixture : IAsyncLifetime
     /// </remarks>
     private static Uri AsAddress(Uri publishedEndpoint, string scheme) =>
         new UriBuilder(publishedEndpoint) { Scheme = scheme }.Uri;
-
-    /// <summary>Waits until the spam daemon answers the one command its protocol defines for exactly this question.</summary>
-    /// <remarks>
-    /// <para>
-    /// Written here rather than expressed in the app model because no health check the app model can declare speaks this
-    /// protocol. It asks the daemon directly, in the fixture that already owns waiting for the topology, and it is
-    /// deliberately the readiness command rather than a scan: a daemon that answers it has compiled its corpus, and
-    /// scoring a message to find that out would spend the most expensive request the suite makes on a wait.
-    /// </para>
-    /// <para>
-    /// The request is written and the answer read on a connection whose write half stays open, exactly as
-    /// <c>SpamAssassinDaemon</c> conducts a scan and for the reason stated there. Every attempt is bounded on its own,
-    /// because a read that stalls inside an unbounded loop would spend the whole start-up budget and then report a
-    /// cancelled fixture rather than a daemon that went quiet.
-    /// </para>
-    /// </remarks>
-    private static async Task WaitForSpamScannerAsync(Uri published, CancellationToken cancellationToken)
-    {
-        var readiness = "PING SPAMC/1.5\r\n\r\n"u8.ToArray();
-
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            try
-            {
-                using var attempt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                attempt.CancelAfter(SpamScannerReadinessAttemptTimeout);
-
-                using var connection = new TcpClient();
-
-                await connection.ConnectAsync(published.Host, published.Port, attempt.Token);
-
-                var stream = connection.GetStream();
-
-                await stream.WriteAsync(readiness, attempt.Token);
-
-                using var answer = new MemoryStream();
-
-                await stream.CopyToAsync(answer, attempt.Token);
-
-                if (Encoding.ASCII.GetString(answer.ToArray()).Contains("PONG", StringComparison.Ordinal))
-                {
-                    return;
-                }
-            }
-            catch (Exception failure) when (failure is SocketException or IOException)
-            {
-                // The container is up and the daemon is not listening yet, which is the ordinary state for the first
-                // half-minute of a cold start.
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                // This attempt's own bound, which is another attempt rather than a failed start-up.
-            }
-
-            await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
-        }
-    }
 
     /// <summary>Hands the mutual-TLS host the material the app model deliberately does not carry.</summary>
     /// <remarks>

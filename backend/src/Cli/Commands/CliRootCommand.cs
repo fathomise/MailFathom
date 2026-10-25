@@ -90,8 +90,8 @@ internal static class CliRootCommand
             RuleHistoryCommand.Create(context),
         };
 
-        // Running and reading, and nothing that writes a setting. Whether mail is classified at all, what a scanner is
-        // judged by, and what happens to junk are configuration for the reason a rule is, so there is deliberately no
+        // Running and reading, and nothing that writes a setting. Whether mail is classified at all, over which
+        // folders, and what happens to junk are configuration for the reason a rule is, so there is deliberately no
         // command here that switches any of them — what an operator does from here is apply them to the mail they
         // already have, and find out what was decided.
         Command spamCommand = new("spam", "Classify the mail a deployment already holds, and read what it concluded.")

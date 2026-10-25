@@ -12,7 +12,7 @@ namespace MailFathom.Cli.Commands.Spam;
 /// <summary>Asks a deployment to classify every message it already holds for one account.</summary>
 /// <remarks>
 /// <para>
-/// The command an operator runs after switching classification on, moving a threshold, or switching filing on. Mail is
+/// The command an operator runs after switching classification on, widening its folders, or switching filing on. Mail is
 /// classified as it arrives, so none of those three reaches the inbox that is already there until somebody asks — and
 /// this is that asking.
 /// </para>

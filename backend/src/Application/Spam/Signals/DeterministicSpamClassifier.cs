@@ -8,15 +8,14 @@ using MailFathom.Domain.Spam;
 
 namespace MailFathom.Application.Spam.Signals;
 
-/// <summary>Reaches a verdict from what a message already carried, with no scanner, no network, and no model.</summary>
+/// <summary>Reaches a verdict from what a message already carried, with no network and no model.</summary>
 /// <remarks>
 /// <para>
-/// This is the whole of the working feature without a sidecar deployed. Mail that reaches an IMAP mailbox has usually
-/// been scored already: the receiving server recorded SPF, DKIM, and DMARC outcomes in <c>Authentication-Results</c>,
-/// ARC preserved them across the forwarding hops where the first two legitimately break, the provider wrote its own
-/// verdict into an <c>X-Spam-*</c> header, and where it decided the message was junk it filed it in the folder it
-/// advertises for that. Every one of those is a fact from the moment it mattered, with network context nothing after
-/// delivery has.
+/// This is the whole of the working feature. Mail that reaches an IMAP mailbox has usually been scored already: the
+/// receiving server recorded SPF, DKIM, and DMARC outcomes in <c>Authentication-Results</c>, ARC preserved them across
+/// the forwarding hops where the first two legitimately break, the provider wrote its own verdict into an
+/// <c>X-Spam-*</c> header, and where it decided the message was junk it filed it in the folder it advertises for that.
+/// Every one of those is a fact from the moment it mattered, with network context nothing after delivery has.
 /// </para>
 /// <para>
 /// What decides the verdict is deliberately narrower than what is recorded. A provider's own verdict decides, and a
@@ -127,8 +126,8 @@ public sealed class DeterministicSpamClassifier
     /// <para>
     /// An assessment is recorded only when <see cref="ProviderSpamHeaderFields.SpamStatus" /> carries the score and the
     /// threshold together. A score without a threshold is a number in an unknown scale — a value of 6 is ordinary mail
-    /// under one server's configuration and spam under another's — and pairing it with a threshold configured here for
-    /// a different scanner would produce a comparison that reads as a measurement and is not one. The score is still
+    /// under one server's configuration and spam under another's — and pairing it with a threshold from anywhere else
+    /// would produce a comparison that reads as a measurement and is not one. The score is still
     /// recorded, as the signal the header itself is.
     /// </para>
     /// </remarks>

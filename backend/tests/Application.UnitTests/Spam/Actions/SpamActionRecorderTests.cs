@@ -298,73 +298,6 @@ public sealed class SpamActionRecorderTests
     }
 
     [Fact]
-    public async Task RecordAsync_AChangedActingThreshold_AsksAfresh()
-    {
-        // Arrange
-        this.MapUnmirroredJunk("Spam");
-        var classification = ScannerVerdictOf(score: 12);
-        await this.Recorder(SpamActionSettings.Create(filesJunk: false, marksJunkRead: true, threshold: 5))
-            .RecordAsync(classification, SpamActionPosture.Acting, TestContext.Current.CancellationToken);
-
-        // Act
-        await this.Recorder(SpamActionSettings.Create(filesJunk: false, marksJunkRead: true, threshold: 8))
-            .RecordAsync(classification, SpamActionPosture.Acting, TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(2, this.records.OpenedRecordCount);
-    }
-
-    [Fact]
-    public async Task RecordAsync_AScannerScoreBelowTheActingThreshold_AsksForNothing()
-    {
-        // Arrange
-        this.MapUnmirroredJunk("Spam");
-        var recorder = this.Recorder(SpamActionSettings.Create(filesJunk: true, marksJunkRead: true, threshold: 8));
-
-        // Act
-        var result = await recorder.RecordAsync(
-            ScannerVerdictOf(score: 6),
-            SpamActionPosture.Acting,
-            TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(SpamActionOutcome.BelowThreshold, result.Outcome);
-        Assert.Equal(0, this.records.OpenedRecordCount);
-    }
-
-    [Fact]
-    public async Task RecordAsync_AScannerScoreAtTheActingThreshold_ActsBecauseTheThresholdIsInclusive()
-    {
-        // Arrange
-        this.MapUnmirroredJunk("Spam");
-        var recorder = this.Recorder(SpamActionSettings.Create(filesJunk: false, marksJunkRead: true, threshold: 8));
-
-        // Act
-        var result = await recorder.RecordAsync(
-            ScannerVerdictOf(score: 8),
-            SpamActionPosture.Acting,
-            TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(SpamActionOutcome.Requested, result.Outcome);
-    }
-
-    /// <summary>A verdict the receiving server reached carries no score in this threshold's scale, so the threshold does not judge it.</summary>
-    [Fact]
-    public async Task RecordAsync_ADeterministicVerdictWithAnActingThreshold_IsActedOnAnyway()
-    {
-        // Arrange
-        this.MapUnmirroredJunk("Spam");
-        var recorder = this.Recorder(SpamActionSettings.Create(filesJunk: false, marksJunkRead: true, threshold: 8));
-
-        // Act
-        var result = await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(SpamActionOutcome.Requested, result.Outcome);
-    }
-
-    [Fact]
     public async Task RecordAsync_AnOccurrenceNothingIsStoredFor_ReportsItGoneRatherThanFailing()
     {
         // Arrange
@@ -552,15 +485,18 @@ public sealed class SpamActionRecorderTests
     {
         // Arrange
         this.MapUnmirroredJunk("Spam");
-        var recorder = this.Recorder(SpamActionSettings.Create(filesJunk: true, marksJunkRead: false, threshold: 8));
+        var recorder = this.Recorder(SpamActionSettings.Create(filesJunk: true, marksJunkRead: false));
 
         // Act
-        await recorder.RecordAsync(ScannerVerdictOf(score: 12), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+        await recorder.RecordAsync(
+            SpamVerdictOf(SpamVerdict.Spam),
+            SpamActionPosture.Acting,
+            TestContext.Current.CancellationToken);
 
         // Assert
         var request = Assert.Single(this.records.OpenedRequests);
         Assert.Equal(MailboxMutationOrigin.Classification, request.Requester.Origin);
-        Assert.Equal("spamassassin.4.0.2+20260801@8", request.Requester.Identity);
+        Assert.Equal("Deterministic@none", request.Requester.Identity);
     }
 
     /// <summary>A dry run is a rehearsal of the decision an acting run would take, and it writes nothing down.</summary>
@@ -665,18 +601,7 @@ public sealed class SpamActionRecorderTests
         verdict,
         SpamClassificationStage.Deterministic,
         assessment: null,
-        corpusRevision: null,
-        SpamClassificationProfile.Create(usesScanner: false, scannerThreshold: null),
-        [],
-        EvaluatedAt);
-
-    private static SpamClassification ScannerVerdictOf(double score) => SpamClassification.Create(
-        Email,
-        SpamVerdict.Spam,
-        SpamClassificationStage.Scanner,
-        SpamAssessment.Create(score, threshold: 5),
-        "spamassassin.4.0.2+20260801",
-        SpamClassificationProfile.Create(usesScanner: true, scannerThreshold: 5),
+        SpamClassificationProfile.Create(),
         [],
         EvaluatedAt);
 

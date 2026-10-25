@@ -110,7 +110,6 @@ using MailFathom.Application.Spam.Actions;
 using MailFathom.Application.Spam.Gating;
 using MailFathom.Application.Spam.History;
 using MailFathom.Application.Spam.Runs;
-using MailFathom.Application.Spam.Scanning;
 using MailFathom.Application.Spam.Signals;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Application.Synchronization;
@@ -191,7 +190,6 @@ using MailFathom.Infrastructure.Security.OAuth;
 using MailFathom.Infrastructure.Security.Passwords;
 using MailFathom.Infrastructure.SensitiveContent.PersonalData;
 using MailFathom.Infrastructure.SensitiveContent.Secrets;
-using MailFathom.Infrastructure.Spam;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -1128,25 +1126,10 @@ public static class ServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     private static void AddSpamClassification(IServiceCollection services)
     {
-        // Both halves of classification, registered for every deployment rather than only where it is switched on: what
-        // the switch decides is whether the classifier does anything, and the classifier asks the settings reader that.
-        // The scanner is the one dependency a supported deployment may not have — this change ships no implementation of
-        // the port at all — so it is asked for rather than injected, exactly as the embedding generator is.
+        // Registered for every deployment rather than only where it is switched on: what the switch decides is whether the
+        // classifier does anything, and the classifier asks the settings reader that.
         services.AddScoped<DeterministicSpamClassifier>();
-        services.AddScoped(provider => new EmailSpamClassifier(
-            provider.GetRequiredService<IClassifiableEmailReader>(),
-            provider.GetRequiredService<IEmailContentStore>(),
-            provider.GetRequiredService<IEmailSpamHeaderReader>(),
-            provider.GetRequiredService<IJunkMailFolderCatalog>(),
-            provider.GetRequiredService<DeterministicSpamClassifier>(),
-            provider.GetRequiredService<ISpamClassificationSettingsReader>(),
-            provider.GetRequiredService<IEmailSpamClassificationStore>(),
-            provider.GetRequiredService<IEmailChunkStore>(),
-            provider.GetRequiredService<IStoredEmailAttachmentTextStore>(),
-            provider.GetRequiredService<IDerivedWorkGateTelemetry>(),
-            provider.GetRequiredService<OptimisticConcurrencyRetryPolicy>(),
-            provider.GetRequiredService<TimeProvider>(),
-            provider.GetService<ISpamScanner>()));
+        services.AddScoped<EmailSpamClassifier>();
         // The ordering that puts classification in front of chunking, embedding, and rule evaluation. Registered for
         // every deployment because the paths that obey it are unconditional: with classification off the gate admits
         // everything and every one of them behaves exactly as it did before the gate existed.
@@ -1789,45 +1772,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISensitiveContentScanner, PresidioContentScanner>();
         services.AddSingleton<IPersonalDataAnalyzerProbe, PresidioAnalyzerProbe>();
         AddPersonalDataAnalyzerClient(services);
-
-        return services;
-    }
-
-    /// <summary>Registers the spam scanner, which scores whole messages against a daemon deployed beside this service.</summary>
-    /// <param name="services">The service collection.</param>
-    /// <returns>The service collection, for chaining.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="services" /> is <see langword="null" />.</exception>
-    /// <remarks>
-    /// <para>
-    /// Called only where the scanner switch is on, which is what makes an opt-in nobody took cost nothing: with it off
-    /// none of these descriptors exists, no address is read, and <see cref="EmailSpamClassifier" />
-    /// resolves no scanner and classifies through the deterministic stage alone. The composed
-    /// <see cref="SpamAssassinScannerProfile" /> is the host's to register, because where the daemon is comes from
-    /// configuration this project does not bind.
-    /// </para>
-    /// <para>
-    /// The probe is registered beside the scanner rather than always, because startup refuses a switch that is on with
-    /// nothing behind it, and either one present without the other would turn that refusal into a deployment that scores
-    /// nothing and says so nowhere.
-    /// </para>
-    /// <para>
-    /// All three are singletons, and the conversation is the reason: it holds the concurrency permits that bound this
-    /// process against the daemon, and the corpus identity the startup probe establishes for every scan afterwards. Two
-    /// instances would be two of each, so the scanner and the probe are handed the same one.
-    /// </para>
-    /// <para>
-    /// No <c>IHttpClientFactory</c> registration appears here, unlike every other outbound dependency: the daemon speaks
-    /// its own line protocol on a TCP port rather than HTTP, so there is no handler chain to bound and the bounds live in
-    /// the profile the conversation reads.
-    /// </para>
-    /// </remarks>
-    public static IServiceCollection AddSpamAssassinScanning(this IServiceCollection services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        services.AddSingleton<SpamAssassinDaemon>();
-        services.AddSingleton<ISpamScanner, SpamAssassinScanner>();
-        services.AddSingleton<ISpamScannerProbe, SpamAssassinScannerProbe>();
 
         return services;
     }

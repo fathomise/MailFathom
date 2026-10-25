@@ -9,7 +9,7 @@ namespace MailFathom.Domain.UnitTests.Spam;
 
 public sealed class SpamAssessmentTests
 {
-    /// <summary>The comparison is inclusive, which is how a scanner's own "15.0 / 5.0" answer reads.</summary>
+    /// <summary>The comparison is inclusive, which is how a provider's "score=5.0 required=5.0" reads.</summary>
     [Theory]
     [InlineData(15.0, 5.0, true)]
     [InlineData(5.0, 5.0, true)]

@@ -379,14 +379,14 @@ public sealed class ServedUsersTests
     /// <remarks>
     /// The whole of what makes a document actually take over: an account still answering with no block reads as
     /// classification off for that mailbox, which is not what a record stating a posture says either — a commit
-    /// switching the scanner on would go on classifying nothing.
+    /// switching classification on would go on classifying nothing.
     /// </remarks>
     [Fact]
     public void UserDocumentPublished_ARecordCarryingAClassificationBlock_ServesThatAccountFromIt()
     {
         // Arrange
         var servedUsers = this.Cache();
-        var classification = new MailAccountSpamClassificationOptions { Enabled = true, UseScanner = true };
+        var classification = new MailAccountSpamClassificationOptions { Enabled = true, ScannedFolders = ["INBOX"] };
         var account = new MailSynchronizationAccountOptions { AccountId = "primary", SpamClassification = classification };
 
         // Act

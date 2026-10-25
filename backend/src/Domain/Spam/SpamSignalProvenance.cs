@@ -7,17 +7,17 @@ namespace MailFathom.Domain.Spam;
 /// <summary>Says where one signal came from, so the fact it states can be checked rather than only believed.</summary>
 /// <remarks>
 /// Provenance travels with every signal rather than with the classification as a whole, because one classification
-/// mixes facts of different standing: a header the receiving server wrote, the folder the mailbox filed the message in,
-/// and a rule corpus that re-read the message afterwards. A record that named only the deciding stage would leave a
-/// reader unable to tell which of them the verdict actually rested on.
+/// mixes facts of different standing: a header the receiving server wrote, and the folder the mailbox filed the message
+/// in. A record that named only the deciding stage would leave a reader unable to tell which of them the verdict
+/// actually rested on.
 /// </remarks>
 public sealed record SpamSignalProvenance
 {
     /// <summary>The greatest length an origin may carry, which every one MailFathom writes is far inside.</summary>
     /// <remarks>
-    /// Origins are header field names, folder aliases, and corpus revisions — all short, and all MailFathom's own or
-    /// the mail standard's rather than free text from a message body. The bound exists so a scanner that answered with
-    /// something unexpected cannot widen a stored column, and it refuses rather than truncates for that reason.
+    /// Origins are header field names and folder aliases — both short, and both MailFathom's own or the mail
+    /// standard's rather than free text from a message body. The bound exists so a source that yielded something
+    /// unexpected cannot widen a stored column, and it refuses rather than truncates for that reason.
     /// </remarks>
     public const int MaximumOriginLength = 128;
 
@@ -30,7 +30,7 @@ public sealed record SpamSignalProvenance
     /// <summary>Gets where the signal was read from.</summary>
     public SpamSignalSource Source { get; }
 
-    /// <summary>Gets what within that source named the signal: a header field name, a folder alias, or a corpus revision.</summary>
+    /// <summary>Gets what within that source named the signal: a header field name or a folder alias.</summary>
     public string Origin { get; }
 
     /// <summary>Records that a signal was read out of one of the message's own headers.</summary>
@@ -46,13 +46,6 @@ public sealed record SpamSignalProvenance
     /// <exception cref="ArgumentException">Thrown when the alias is blank, over-long, or carries a control character.</exception>
     public static SpamSignalProvenance FromFolderPlacement(string folderAlias) =>
         new(SpamSignalSource.FolderPlacement, Checked(folderAlias, nameof(folderAlias)));
-
-    /// <summary>Records that a signal came from a scanner's rule corpus.</summary>
-    /// <param name="corpusRevision">The revision the scanner ran the message under.</param>
-    /// <returns>The provenance.</returns>
-    /// <exception cref="ArgumentException">Thrown when the revision is blank, over-long, or carries a control character.</exception>
-    public static SpamSignalProvenance FromScannerCorpus(string corpusRevision) =>
-        new(SpamSignalSource.ScannerCorpus, Checked(corpusRevision, nameof(corpusRevision)));
 
     /// <summary>Reads back a provenance this system recorded earlier.</summary>
     /// <param name="source">Where the signal was read from.</param>

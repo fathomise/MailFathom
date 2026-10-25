@@ -12,7 +12,7 @@ namespace MailFathom.Domain.Spam;
 /// verdict can be re-derived from them under different settings without the message being read again.
 /// </para>
 /// <para>
-/// The observation is text a mail server or a scanner wrote, so it is treated as untrusted input and as personal data:
+/// The observation is text a mail server wrote, so it is treated as untrusted input and as personal data:
 /// it can name a sending domain, and it is never written to a log or to telemetry. Only the count of signals, their
 /// kinds, and their names are safe to report.
 /// </para>
@@ -21,8 +21,8 @@ public sealed record SpamSignal
 {
     /// <summary>The greatest length a signal name may carry.</summary>
     /// <remarks>
-    /// Names are method names from RFC 8601 (<c>spf</c>, <c>dkim</c>, <c>dmarc</c>), header field names, folder aliases,
-    /// and scanner rule names. All are short by construction, so an over-long one is a malformed source rather than a
+    /// Names are method names from RFC 8601 (<c>spf</c>, <c>dkim</c>, <c>dmarc</c>), header field names, and folder
+    /// aliases. All are short by construction, so an over-long one is a malformed source rather than a
     /// long name, and it is refused instead of shortened.
     /// </remarks>
     public const int MaximumNameLength = 128;
@@ -47,13 +47,12 @@ public sealed record SpamSignal
     /// <summary>Gets what kind of fact the signal states.</summary>
     public SpamSignalKind Kind { get; }
 
-    /// <summary>Gets the name of the observed property: an authentication method, a header field, a folder alias, or a rule.</summary>
+    /// <summary>Gets the name of the observed property: an authentication method, a header field, or a folder alias.</summary>
     public string Name { get; }
 
     /// <summary>Gets what was observed, or <see langword="null" /> when the signal is the observation.</summary>
     /// <remarks>
-    /// A junk-folder placement and a scanner rule that fired carry nothing here: that they were observed at all is the
-    /// whole fact. An authentication result and a provider header carry the value the source wrote.
+    /// A junk-folder placement carries nothing here: that it was observed at all is the whole fact. An authentication result and a provider header carry the value the source wrote.
     /// </remarks>
     public string? Observation { get; }
 

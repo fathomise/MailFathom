@@ -15,8 +15,7 @@ namespace MailFathom.Application.Spam.History;
 /// <param name="Verdict">What was concluded.</param>
 /// <param name="DecidedBy">Which stage reached the verdict.</param>
 /// <param name="Assessment">The score and the threshold it was judged against, or <see langword="null" /> when no stage produced a number.</param>
-/// <param name="CorpusRevision">The scanner rule corpus the deciding stage ran under, or <see langword="null" /> when it has none.</param>
-/// <param name="Profile">The settings the verdict was reached under, or the unspecified value for a record that names none.</param>
+/// <param name="Profile">The terms the verdict was reached under, or the unspecified value for a record that names none.</param>
 /// <param name="SignalNames">The names of the facts the verdict rests on, in the order the stages produced them.</param>
 /// <param name="EvaluatedAt">When the classification was evaluated.</param>
 /// <param name="RequestedMutations">The changes the verdict asked the mailbox for, which is empty where it asked for none.</param>
@@ -28,8 +27,8 @@ namespace MailFathom.Application.Spam.History;
 /// verdict in order to record it twice.
 /// </para>
 /// <para>
-/// The signals appear by name and never by value. A name is a method from RFC 8601, a header field, a folder alias, or a
-/// scanner rule; the observation beside it is text a mail server wrote and can carry a sending domain, which is exactly
+/// The signals appear by name and never by value. A name is a method from RFC 8601, a header field, or a folder alias; the
+/// observation beside it is text a mail server wrote and can carry a sending domain, which is exactly
 /// the second copy of the mailbox a record read back over an administrative endpoint must not become.
 /// </para>
 /// <para>
@@ -44,7 +43,6 @@ public sealed record SpamClassificationHistoryEntry(
     SpamVerdict Verdict,
     SpamClassificationStage DecidedBy,
     SpamAssessment? Assessment,
-    string? CorpusRevision,
     SpamClassificationProfile Profile,
     IReadOnlyList<string> SignalNames,
     DateTimeOffset EvaluatedAt,

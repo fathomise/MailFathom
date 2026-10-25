@@ -149,77 +149,45 @@ analyzed whole and only something pathological reaches it.
 
 ## `SpamClassification`
 
-Whether mail is classified as spam, and where. A root of its own rather than a per-account block, because what it
-switches on reaches the mailbox reads as well as the classification. [Spam classification](../features/spam-classification.md)
-records what a classification holds, which facts the deterministic stage reads, and why a scanner never overturns a
-provider's own verdict.
+How long derived work waits on a verdict, and how wide one pass of a classification run is.
+[Spam classification](../features/spam-classification.md) records what a classification holds, which facts the
+deterministic stage reads, and why it never overturns a provider's own verdict.
 
 **Nothing in this section decides which mail is classified.** Junk is a judgement about one mailbox, and the actions a
 verdict triggers write to that mailbox's mail server, so whether an account's mail is classified at all, over which of
-its folders, at what score, and what becomes of the result are what [that account's own
-record](configuration-mail.md#classifying-this-accounts-mail--spamclassification) states. What is left here is the
-scanner this deployment stands up and what the process may spend on it. The keys the two split into are named after the
-table.
+its folders, and what becomes of the result are what [that account's own
+record](configuration-mail.md#classifying-this-accounts-mail--spamclassification) states. What is left here is what the
+process may spend. The keys the two split into are named after the table.
 
-Every switch is off by default, and an absent section is that default rather than a startup failure. The deterministic
-stage works alone and is the whole of the feature without a sidecar; `UseScanner` adds the Apache SpamAssassin daemon
-described below.
+Every switch is off by default, and an absent section is that default rather than a startup failure. Classification is
+the deterministic stage alone: it reads what the message carried, and nothing here moves its answer.
 
 | Key | Type | Default | Constraint | Change |
 | --- | --- | --- | --- | --- |
-| `SpamClassification:Enabled` | bool | `false` | | reload |
-| `SpamClassification:UseScanner` | bool | `false` | Asking for a scanner while `Enabled` is false fails startup, because a scanner is only consulted where classification runs | restart |
+| `SpamClassification:Enabled` | bool | `false` | Read by no classification: whether mail is classified is each account's own, stated in that account's record. A switch under `Actions` turned on while this is false fails startup | — |
 | `SpamClassification:ScannedFolders:<n>` | string | unset | Read by no classification: the scope is each account's own, stated in that account's record | — |
-| `SpamClassification:ScannerThreshold` | double | unset | Read by no classification: the threshold is each account's own, stated in that account's record, and this range is what a record is judged against | — |
 | `SpamClassification:ClassificationWait` | TimeSpan | `00:15:00` | 1 s – 7 days; how long a stored message may wait for a verdict before it is derived from anyway | reload |
 | `SpamClassification:RunBatchSize` | int | `50` | 1 – 10 000 | reload |
 | `SpamClassification:MaxRunBatchesPerPass` | int | `4` | 1 – 1 000 | reload |
-| `SpamClassification:Scanner:Host` | string | unset | Required once `UseScanner` is on, and a host name or IP address rather than a URL or an address with the port on it | restart |
-| `SpamClassification:Scanner:Port` | int | `783` | 1 – 65535 | restart |
-| `SpamClassification:Scanner:ScanTimeoutSeconds` | int | `30` | 1 – 120 | restart |
-| `SpamClassification:Scanner:MaximumMessageBytes` | int | `512000` | 32 000 – 33 554 432 | restart |
-| `SpamClassification:Scanner:MaximumConcurrentScans` | int | `5` | 1 – 64 | restart |
 | `SpamClassification:Actions:MoveToJunkFolder` | bool | `false` | Read by no classification: what a verdict does is each account's own, stated in that account's record | — |
 | `SpamClassification:Actions:MarkAsRead` | bool | `false` | Read by no classification, for the reason above | — |
 | `SpamClassification:Actions:JunkFolder` | string | `role:Junk` | Read by no classification, for the reason above | — |
-| `SpamClassification:Actions:Threshold` | double | unset | Read by no classification: this range is what a record's own value is judged against | — |
 
-**Eight of those keys are one account's decision and the rest are the deployment's.** `Enabled`, `UseScanner`,
-`ScannedFolders`, `ScannerThreshold`, and the four settings under `Actions` are what an account decides about the mail
-in it, and are the whole of what its record may carry. `ClassificationWait`, `RunBatchSize`, `MaxRunBatchesPerPass`,
-and the `Scanner` block are the deployment's, because each of them is what the process holds open or spends rather than
-a judgement about anybody's mailbox — an account record naming one is refused. The bounds a threshold is judged
-against, `0.1` to `1000`, are the deployment's too and apply to an account's value unchanged.
+**Five of those keys are one account's decision and the rest are the deployment's.** `Enabled`, `ScannedFolders`, and
+the three settings under `Actions` are what an account decides about the mail in it, and are the whole of what its
+record may carry. `ClassificationWait`, `RunBatchSize`, and `MaxRunBatchesPerPass` are the deployment's, because each of
+them is what the process spends rather than a judgement about anybody's mailbox — an account record naming one is
+refused. The section is bound strictly, so a key it does not declare fails startup naming itself rather than being
+ignored.
 
-**An account's `UseScanner` asks for the deployment's scanner rather than deciding that one exists.** Whether any
-scanner is registered is read from this section alone, at startup, so an account switching the key on where the
-deployment registered none is neither refused nor a failed start: its mail is classified by the deterministic stage,
-exactly as it would be with the key off. Everything else in the eight means the same for an account as it does here.
-
-`UseScanner` and the `Scanner` block are read once, at startup: whether a scanner exists at all decides what is
-constructed and whether the host refuses to start without a daemon, which a reload cannot revisit. That is this
-section's key; the paragraph above is what an account's own copy of it can and cannot do. Everything else in
-this section is read per classification.
-
-`ClassificationWait` bounds the ordering rather than a scan. Wherever classification is on, a message it covers is not
-chunked, embedded, or offered to the rule set until a verdict exists — and this is how long that may hold before the
-message is derived from regardless, which is what stops a classifier nobody noticed was wedged from silently stopping
-the index. Lengthening it delays mail of a classified folder by that much longer in the worst case; shortening it
-narrows the window in which a verdict can arrive first. Zero is refused, because a wait of none releases every message
-before anything could have scored it.
+`ClassificationWait` bounds the ordering rather than a classification. Wherever classification is on, a message it
+covers is not chunked, embedded, or offered to the rule set until a verdict exists — and this is how long that may hold
+before the message is derived from regardless, which is what stops a classification that has stalled or fallen behind
+from silently stopping the index. Lengthening it delays mail of a classified folder by that much longer in the worst
+case; shortening it narrows the window in which a verdict can arrive first. Zero is refused, because a wait of none
+releases every message before anything could have classified it.
 [Junk is kept out of what a deployment derives from mail](../features/spam-classification.md#junk-is-kept-out-of-what-a-deployment-derives-from-mail)
 records what each answer means and what is counted.
-
-**A scanner switched on with no daemon answering fails startup**, with error code `81003` naming the key to repair
-rather than the address it tried. That is deliberate asymmetry with what one message gets, where a failed scan leaves
-the deterministic verdict standing: an instance whose sidecar never came up would classify everything from headers alone
-and look healthy doing it. The bounds are validated whether or not the scanner is switched on, so a value written wrong
-is reported before the run that first switches scanning on rather than during it.
-
-The daemon receives whole messages, so it belongs inside the deployment's own trust boundary; the feature page states
-what an address outside it gives up, and what the rule-update and DNS postures cost. The deployment assets carry the
-sidecar itself — [Kubernetes](deployment-kubernetes.md#spam-scanning),
-[Compose](deployment-compose.md#spam-scanning), and [Quadlet](deployment-quadlet.md#spam-scanning).
 
 The default scope follows the folder **role** rather than the text `INBOX`: it is whichever alias the account itself
 maps to `Inbox`, so a server presenting the inbox under another name is classified without the scope being restated
@@ -230,9 +198,7 @@ distinguishable — writing no key asks for that default, and writing an empty l
 work off without switching the section off.
 
 A folder alias that this system could never have issued **fails startup and names itself**, rather than being dropped by
-the binder and leaving the section reading as a scope that is covered. So does a threshold outside the range above: one
-at or below zero files every message whatever a scanner answered, and one beyond the ceiling can never be reached, so
-both are a typed digit rather than an intent.
+the binder and leaving the section reading as a scope that is covered.
 
 The section is read per classification rather than captured, so a reload takes effect on the next one. What a reload
 never does is revisit a message already classified: replacing a verdict is an explicit operation.
@@ -256,16 +222,10 @@ server the first time a filing needs it, exactly as a rule's destination is.
 `RunBatchSize` and `MaxRunBatchesPerPass` bound one pass of the [classification
 run](../features/spam-classification.md#classifying-the-mail-you-already-have) an operator asks for, and neither is a
 schedule: a pass is a step of the account's synchronization run, so how often one happens is that run's interval. What
-these decide is how much of a mailbox one pass takes in hand — raising them walks a mailbox nobody has scored in fewer
-account runs, and lowering them shortens the stretch an interrupted pass has to cover again and leaves more of each run
-for the folders it exists to fetch. Both defaults are smaller than the rule pass's, because a classification reads the
-stored message and, with a scanner configured, sends the whole of it across a socket and waits for a score.
-
-`Threshold` judges what a scanner scored, in the scanner's own scale, so an operator can label at `ScannerThreshold` and
-move mail only from a higher score. It reaches no other stage, exactly as `ScannerThreshold` does not: a verdict resting
-on a provider's header or on where the receiving server filed the message carries no score in this scale, and is acted
-on. Raising it is deliberately not the same edit as switching classification off — the verdicts go on being recorded.
-
+these decide is how much of a mailbox one pass takes in hand — raising them walks a mailbox nobody has classified in
+fewer account runs, and lowering them shortens the stretch an interrupted pass has to cover again and leaves more of
+each run for the folders it exists to fetch. Both defaults are smaller than the rule pass's, because a classification
+reads the stored message out of the content store and parses its headers.
 
 ## `Embeddings`
 

@@ -24,21 +24,17 @@ public sealed record SpamClassification
 {
     /// <summary>The greatest number of signals one classification records.</summary>
     /// <remarks>
-    /// A scanner corpus can fire dozens of rules on one message and a provider can write several headers, so the bound
-    /// is generous against both while keeping one message's derived data bounded. Whatever produces more signals than
-    /// this keeps the first of them, because a record that refused the message outright would lose the verdict as well.
+    /// A message can carry several authentication results and a provider can write several headers, so the bound is
+    /// generous against both while keeping one message's derived data bounded. Whatever produces more signals than this
+    /// keeps the first of them, because a record that refused the message outright would lose the verdict as well.
     /// </remarks>
     public const int MaximumSignals = 64;
-
-    /// <summary>The greatest length a corpus revision may carry.</summary>
-    public const int MaximumCorpusRevisionLength = 128;
 
     private SpamClassification(
         StoredEmailId emailId,
         SpamVerdict verdict,
         SpamClassificationStage decidedBy,
         SpamAssessment? assessment,
-        string? corpusRevision,
         SpamClassificationProfile profile,
         IReadOnlyList<SpamSignal> signals,
         DateTimeOffset evaluatedAt)
@@ -47,7 +43,6 @@ public sealed record SpamClassification
         this.Verdict = verdict;
         this.DecidedBy = decidedBy;
         this.Assessment = assessment;
-        this.CorpusRevision = corpusRevision;
         this.Profile = profile;
         this.Signals = signals;
         this.EvaluatedAt = evaluatedAt;
@@ -65,21 +60,11 @@ public sealed record SpamClassification
     /// <summary>Gets the score and the threshold it was judged against, or <see langword="null" /> when no stage produced a number.</summary>
     public SpamAssessment? Assessment { get; }
 
-    /// <summary>Gets the rule corpus the deciding stage ran under, or <see langword="null" /> when it has none.</summary>
+    /// <summary>Gets the terms the verdict was reached under, or the unspecified value for a record that names none.</summary>
     /// <remarks>
-    /// The deterministic stage has no corpus: it reads what the receiving server already wrote, so what identifies its
-    /// provenance is the header field name each of its signals names. A scanner has one, and it is what makes
-    /// reclassification under a newer corpus a question somebody can ask of an existing record.
-    /// </remarks>
-    public string? CorpusRevision { get; }
-
-    /// <summary>Gets the settings the verdict was reached under, or the unspecified value for a record that names none.</summary>
-    /// <remarks>
-    /// The other half of the provenance the corpus revision states. A corpus is the scanner's own identity for what it
-    /// scored with, and this is MailFathom's identity for the terms it asked under — whether a scanner was consulted at
-    /// all, and the threshold its answer was judged by. Together they are what makes "already decided under the terms in
-    /// force now" answerable from the record rather than guessed at from its age, which is what a run over a whole
-    /// mailbox skips mail on. A record written before the profile was part of one names none.
+    /// MailFathom's identity for the terms it decided under. It is what makes "already decided under the terms in force
+    /// now" answerable from the record rather than guessed at from its age, which is what a run over a whole mailbox
+    /// skips mail on. A record written before the profile was part of one names none.
     /// </remarks>
     public SpamClassificationProfile Profile { get; }
 
@@ -94,13 +79,11 @@ public sealed record SpamClassification
     /// <param name="verdict">What was concluded.</param>
     /// <param name="decidedBy">Which stage reached the verdict.</param>
     /// <param name="assessment">The score and threshold, or <see langword="null" /> when no number was produced.</param>
-    /// <param name="corpusRevision">The rule corpus the deciding stage ran under, or <see langword="null" /> when it has none.</param>
-    /// <param name="profile">The settings the verdict was reached under, or the unspecified value for a record that names none.</param>
+    /// <param name="profile">The terms the verdict was reached under, or the unspecified value for a record that names none.</param>
     /// <param name="signals">The facts the verdict rests on.</param>
     /// <param name="evaluatedAt">When the classification was evaluated.</param>
     /// <returns>The classification, holding no more than <see cref="MaximumSignals" /> signals.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="signals" /> is <see langword="null" />.</exception>
-    /// <exception cref="ArgumentException">Thrown when the corpus revision is blank, over-long, or carries a control character.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the verdict or the stage is not a defined member.</exception>
     /// <remarks>
     /// An unspecified profile is accepted rather than refused, because a record written before the profile was part of
@@ -112,7 +95,6 @@ public sealed record SpamClassification
         SpamVerdict verdict,
         SpamClassificationStage decidedBy,
         SpamAssessment? assessment,
-        string? corpusRevision,
         SpamClassificationProfile profile,
         IReadOnlyList<SpamSignal> signals,
         DateTimeOffset evaluatedAt)
@@ -140,37 +122,8 @@ public sealed record SpamClassification
             verdict,
             decidedBy,
             assessment,
-            CheckedCorpusRevision(corpusRevision),
             profile,
             [.. signals.Take(MaximumSignals)],
             evaluatedAt.ToUniversalTime());
-    }
-
-    private static string? CheckedCorpusRevision(string? corpusRevision)
-    {
-        if (corpusRevision is null)
-        {
-            return null;
-        }
-
-        ArgumentException.ThrowIfNullOrWhiteSpace(corpusRevision);
-
-        var trimmed = corpusRevision.Trim();
-
-        if (trimmed.Length > MaximumCorpusRevisionLength)
-        {
-            throw new ArgumentException(
-                $"A corpus revision carries at most {MaximumCorpusRevisionLength} characters.",
-                nameof(corpusRevision));
-        }
-
-        if (trimmed.Any(char.IsControl))
-        {
-            throw new ArgumentException(
-                "A corpus revision cannot contain control characters.",
-                nameof(corpusRevision));
-        }
-
-        return trimmed;
     }
 }

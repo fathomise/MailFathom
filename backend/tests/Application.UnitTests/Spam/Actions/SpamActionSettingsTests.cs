@@ -20,7 +20,6 @@ public sealed class SpamActionSettingsTests
         Assert.False(settings.FilesJunk);
         Assert.False(settings.MarksJunkRead);
         Assert.False(settings.IsAnyActionEnabled);
-        Assert.Null(settings.Threshold);
     }
 
     [Fact]
@@ -58,18 +57,6 @@ public sealed class SpamActionSettingsTests
 
         // Assert
         Assert.Throws<ArgumentException>(refusal);
-    }
-
-    [Theory]
-    [InlineData(double.NaN)]
-    [InlineData(double.PositiveInfinity)]
-    public void Create_AThresholdThatIsNotFinite_IsRefused(double threshold)
-    {
-        // Act
-        var refusal = () => SpamActionSettings.Create(filesJunk: true, marksJunkRead: false, threshold: threshold);
-
-        // Assert
-        Assert.Throws<ArgumentOutOfRangeException>(refusal);
     }
 
     /// <summary>The default destination is written the way an operator would have written it themselves.</summary>

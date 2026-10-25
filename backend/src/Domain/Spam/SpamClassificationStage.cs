@@ -6,16 +6,12 @@ namespace MailFathom.Domain.Spam;
 
 /// <summary>Names which stage of classification reached a verdict.</summary>
 /// <remarks>
-/// The stages are ordered by how much they cost and how much context they had. The deterministic stage reads what the
-/// receiving server already concluded and needs no scanner, no network, and no model; a scanner re-reads the message
-/// after delivery, without the network context the receiving server had, and therefore never overrules a fact the
-/// deterministic stage established.
+/// The deterministic stage reads what the receiving server already concluded and needs no network and no model. <c>1</c>
+/// is absent because the stage that held it is gone, and the number is not reissued, so a stage added later takes
+/// <c>2</c>.
 /// </remarks>
 public enum SpamClassificationStage
 {
     /// <summary>What the message itself carried: sender authentication, a provider's own spam headers, and where the mailbox filed it.</summary>
     Deterministic = 0,
-
-    /// <summary>An external scanner's score over the whole message, reached under a named rule corpus.</summary>
-    Scanner = 1,
 }

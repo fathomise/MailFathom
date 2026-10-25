@@ -88,7 +88,7 @@ public sealed class SpamClassificationPassTests
         Assert.Equal(2, this.harness.Classifications.Saved.Count);
     }
 
-    /// <summary>The run binds what it is decided under, so a later pass can tell a moved threshold from an unchanged one.</summary>
+    /// <summary>The run binds what it is decided under, so a later pass can tell terms that moved from terms that did not.</summary>
     [Fact]
     public async Task RunAsync_APassPickingTheRunUp_BindsTheProfileItStartedUnder()
     {
@@ -116,8 +116,7 @@ public sealed class SpamClassificationPassTests
         // Act
         var report = await this.CreatePass(SpamActionSettings.Create(
             filesJunk: false,
-            marksJunkRead: true,
-            threshold: null)).RunAsync(Account, TestContext.Current.CancellationToken);
+            marksJunkRead: true)).RunAsync(Account, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(1, report.Walk?.SkippedEmailCount);
@@ -145,7 +144,7 @@ public sealed class SpamClassificationPassTests
         Assert.Single(this.harness.Classifications.Saved);
     }
 
-    /// <summary>A record from before the profile was part of one names terms the run cannot compare, so it is reached again.</summary>
+    /// <summary>A record from before the profile was part of one names no profile the run can compare, so it is reached again.</summary>
     [Fact]
     public async Task RunAsync_ARecordNamingNoProfile_IsScoredAgainRatherThanSkipped()
     {
@@ -168,7 +167,7 @@ public sealed class SpamClassificationPassTests
         // Arrange
         var stored = this.StoreEmail();
         this.harness.Classifications.Hold(
-            ClassificationOf(stored, SpamClassificationProfile.Create(usesScanner: true, scannerThreshold: 3)));
+            ClassificationOf(stored, SpamClassificationProfile.Restore("a67d92672a05")));
         this.runs.Arrange(this.RequestedRun());
 
         // Act
@@ -187,7 +186,7 @@ public sealed class SpamClassificationPassTests
         this.StoreEmail();
         this.runs.Arrange(this.RequestedRun() with
         {
-            Profile = SpamClassificationProfile.Create(usesScanner: true, scannerThreshold: 3),
+            Profile = SpamClassificationProfile.Restore("a67d92672a05"),
         });
 
         // Act
@@ -270,8 +269,7 @@ public sealed class SpamClassificationPassTests
         // Act
         var report = await this.CreatePass(SpamActionSettings.Create(
             filesJunk: false,
-            marksJunkRead: true,
-            threshold: null)).RunAsync(Account, TestContext.Current.CancellationToken);
+            marksJunkRead: true)).RunAsync(Account, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(1, report.Walk?.ActedEmailCount);
@@ -314,7 +312,7 @@ public sealed class SpamClassificationPassTests
     }
 
     private static SpamClassificationSettings SettingsCovering(params MailFolderAlias[] aliases) =>
-        SpamClassificationSettings.Create(isEnabled: true, usesScanner: false, aliases);
+        SpamClassificationSettings.Create(isEnabled: true, aliases);
 
     /// <summary>A record an earlier pass would have left, under the terms the test names.</summary>
     private static SpamClassification ClassificationOf(StoredEmailId emailId, SpamClassificationProfile profile) =>
@@ -323,7 +321,6 @@ public sealed class SpamClassificationPassTests
             SpamVerdict.Spam,
             SpamClassificationStage.Deterministic,
             assessment: null,
-            corpusRevision: null,
             profile,
             [],
             EvaluatedAt.AddDays(-1));

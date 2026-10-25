@@ -103,7 +103,7 @@ internal static class ClassificationsCommand
                 classification.DescribeVerdict(),
                 $"{classification.Email}",
                 classification.Folder ?? "an unnamed folder",
-                $"{classification.Profile ?? "no profile"}{DescribeCorpus(classification)}",
+                classification.Profile ?? "no profile",
                 DescribeSignals(classification),
                 classification.DescribeRequestedMutations());
         }
@@ -118,9 +118,6 @@ internal static class ClassificationsCommand
 
         return CliExitCode.Success;
     }
-
-    private static string DescribeCorpus(SpamClassificationReading classification) =>
-        classification.CorpusRevision is { Length: > 0 } corpus ? $", scanner corpus {corpus}" : string.Empty;
 
     private static string DescribeSignals(SpamClassificationReading classification) =>
         classification.Signals is { Count: > 0 } signals ? string.Join(", ", signals) : "none";

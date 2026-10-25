@@ -529,8 +529,8 @@ internal sealed class MailSynchronizationOptions : IValidatableObject
     /// <para>
     /// What it costs is a bounded, cached DNS lookup of <c>&lt;selector&gt;._domainkey.&lt;domain&gt;</c> when a message
     /// is stored. That is a low-cardinality name the signing domain published in order to be asked for, and it discloses
-    /// to that domain only that somebody here received mail they sent — which is why this may default on while the spam
-    /// scanner's DNS checks stay off, where what would be sent is the sending address and the URI hosts out of the body.
+    /// to that domain only that somebody here received mail they sent, which is why this may default on: a lookup of the
+    /// sending address or of the URI hosts out of the body would disclose far more, and nothing here makes one.
     /// An operator who wants no egress from this path at all sets it to <see langword="false" /> and gets exactly the
     /// behaviour of a deployment that never had it.
     /// </para>

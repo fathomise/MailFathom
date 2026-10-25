@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Mutations;
+using MailFathom.Domain.Spam;
 using Xunit;
 
 namespace MailFathom.Domain.UnitTests.Mutations;
@@ -24,61 +25,27 @@ public sealed class MailboxMutationRequesterTests
         Assert.Equal(MailboxMutationRequester.Rule("file-newsletters", "3"), third);
     }
 
-    /// <summary>Rescanning under the same corpus asks for nothing new; a corpus update is a fresh reason to act.</summary>
+    /// <summary>The same verdict reached again asks for nothing new, under the identity the records already written carry.</summary>
     [Fact]
-    public void Classification_TwoCorpusRevisions_AreDifferentRequesters()
+    public void Classification_TheDeterministicStage_IsNamedByTheIdentityEarlierRecordsCarry()
     {
-        // Arrange
-        var august = MailboxMutationRequester.Classification("spamassassin.4.0.2+20260801", actingThreshold: 8);
-
         // Act
-        var september = MailboxMutationRequester.Classification("spamassassin.4.0.2+20260901", actingThreshold: 8);
+        var requester = MailboxMutationRequester.Classification(SpamClassificationStage.Deterministic);
 
         // Assert
-        Assert.NotEqual(august, september);
-        Assert.Equal(
-            MailboxMutationRequester.Classification("spamassassin.4.0.2+20260801", actingThreshold: 8),
-            august);
+        Assert.Equal(MailboxMutationOrigin.Classification, requester.Origin);
+        Assert.Equal("Deterministic@none", requester.Identity);
+        Assert.Equal(MailboxMutationRequester.Classification(SpamClassificationStage.Deterministic), requester);
     }
 
-    /// <summary>An operator moving the score they act at is a decision taken afresh, not a repeat of the previous one.</summary>
     [Fact]
-    public void Classification_TwoActingThresholds_AreDifferentRequesters()
-    {
-        // Arrange
-        var strict = MailboxMutationRequester.Classification("Deterministic", actingThreshold: 8);
-
-        // Act
-        var unbounded = MailboxMutationRequester.Classification("Deterministic", actingThreshold: null);
-
-        // Assert
-        Assert.NotEqual(strict, unbounded);
-        Assert.Equal(MailboxMutationOrigin.Classification, unbounded.Origin);
-        Assert.Equal("Deterministic@none", unbounded.Identity);
-    }
-
-    [Theory]
-    [InlineData(double.NaN)]
-    [InlineData(double.NegativeInfinity)]
-    public void Classification_AnActingThresholdThatIsNotFinite_IsRefused(double actingThreshold)
+    public void Classification_AStageThisSystemDoesNotRun_IsRefused()
     {
         // Act
-        var refusal = () => MailboxMutationRequester.Classification("Deterministic", actingThreshold);
+        var refusal = () => MailboxMutationRequester.Classification((SpamClassificationStage)1);
 
         // Assert
         Assert.Throws<ArgumentOutOfRangeException>(refusal);
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void Classification_NothingNamingWhatDecided_IsRefused(string decidedUnder)
-    {
-        // Act
-        var refusal = () => MailboxMutationRequester.Classification(decidedUnder, actingThreshold: 8);
-
-        // Assert
-        Assert.Throws<ArgumentException>(refusal);
     }
 
     /// <summary>Two requesters that differ only in kind are different, so an invocation named like a rule is never the same request.</summary>
@@ -152,18 +119,6 @@ public sealed class MailboxMutationRequesterTests
 
         // Assert
         Assert.Equal(expectedParameter, refusal.ParamName);
-    }
-
-    /// <summary>A corpus name carrying the separator would write the identity another corpus at another threshold writes.</summary>
-    [Fact]
-    public void Classification_CorpusNameCarryingTheCharacterTheIdentityIsComposedWith_IsRefused()
-    {
-        // Act
-        var refusal = Assert.Throws<ArgumentException>(
-            () => MailboxMutationRequester.Classification("spamassassin@4.0.2", actingThreshold: 8));
-
-        // Assert
-        Assert.Equal("decidedUnder", refusal.ParamName);
     }
 
     /// <summary>A stored identity carries the separator, so restoring one is not held to the rule its parts are held to.</summary>

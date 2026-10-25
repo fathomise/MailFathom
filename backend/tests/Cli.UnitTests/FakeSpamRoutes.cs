@@ -14,7 +14,7 @@ namespace MailFathom.Cli.UnitTests;
 /// resource read with a get and asked for with a post, and what is worth asserting about <c>spam run-status</c> is that
 /// it sent no post at all.
 /// </remarks>
-internal static class FakeSpamDeployment
+internal static class FakeSpamRoutes
 {
     /// <summary>Builds a deployment that answers each spam route with a body the caller supplies.</summary>
     /// <param name="runStart">The body the run route answers a post with, or a refusal.</param>
