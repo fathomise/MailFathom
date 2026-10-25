@@ -2982,6 +2982,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       };
       const firstAddressee = (x) => {
         const lead = x.rcpt.find(r => r.hdr === "To") || x.rcpt.find(r => r.hdr === "Cc") || x.rcpt[0];
+        if (!lead) return "No recipient";
         return lead.mail + (x.rcpt.length > 1 ? " +" + (x.rcpt.length - 1) : "");
       };
       const outboxMarkFor = (accKey) => {
