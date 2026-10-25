@@ -9,7 +9,8 @@ namespace MailFathom.Application.Emails.ThreadStates;
 /// The two outcomes are unequal on purpose, and the whole of what a caller does with one follows from which it holds.
 /// A settled answer — including a settled answer of no statements at all — is written down and takes the conversation
 /// out of the queue. A withheld one is not written down and stops the pass, because every reason a derivation is
-/// withheld is a condition that outlives one conversation and would be met again by the next.
+/// withheld is a fault of the deployment or its provider rather than a fact about the conversation, and the next
+/// conversation would most likely meet it too.
 /// </remarks>
 public sealed record ThreadStateDerivation
 {

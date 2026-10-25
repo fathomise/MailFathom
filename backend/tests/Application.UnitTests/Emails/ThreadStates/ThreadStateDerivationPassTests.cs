@@ -133,6 +133,7 @@ public sealed class ThreadStateDerivationPassTests
     [InlineData(ThreadStateWithholding.NotActivated)]
     [InlineData(ThreadStateWithholding.AllowanceExhausted)]
     [InlineData(ThreadStateWithholding.ProviderUnavailable)]
+    [InlineData(ThreadStateWithholding.AnswerUnreadable)]
     public async Task RunAsync_ADerivationWithheld_WritesNothingAndEndsThePass(ThreadStateWithholding withholding)
     {
         // Arrange
@@ -261,6 +262,7 @@ public sealed class ThreadStateDerivationPassTests
     [Theory]
     [InlineData(ThreadStateWithholding.AllowanceExhausted)]
     [InlineData(ThreadStateWithholding.ProviderUnavailable)]
+    [InlineData(ThreadStateWithholding.AnswerUnreadable)]
     public async Task RunAsync_APassAWithholdingStopped_IsReportedRatherThanPassedOver(
         ThreadStateWithholding withholding)
     {
