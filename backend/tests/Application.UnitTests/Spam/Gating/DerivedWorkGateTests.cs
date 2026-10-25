@@ -59,7 +59,7 @@ public sealed class DerivedWorkGateTests
         Assert.False(admission.PermitsDerivedWork());
     }
 
-    /// <summary>Placement outranks the record, so a message somebody's filter took is withheld whatever a scan concluded.</summary>
+    /// <summary>Placement outranks the record, so a message somebody's filter took is withheld whatever a later verdict concluded.</summary>
     /// <remarks>
     /// The order of the two questions is what this asserts and the only thing that can prove it: with the questions
     /// swapped, every other test here still passes and a message the mail server filed as junk that a later verdict called

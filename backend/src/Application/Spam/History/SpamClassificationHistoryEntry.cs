@@ -15,7 +15,7 @@ namespace MailFathom.Application.Spam.History;
 /// <param name="Verdict">What was concluded.</param>
 /// <param name="DecidedBy">Which stage reached the verdict.</param>
 /// <param name="Assessment">The score and the threshold it was judged against, or <see langword="null" /> when no stage produced a number.</param>
-/// <param name="Profile">The settings the verdict was reached under, or the unspecified value for a record that names none.</param>
+/// <param name="Profile">The terms the verdict was reached under, or the unspecified value for a record that names none.</param>
 /// <param name="SignalNames">The names of the facts the verdict rests on, in the order the stages produced them.</param>
 /// <param name="EvaluatedAt">When the classification was evaluated.</param>
 /// <param name="RequestedMutations">The changes the verdict asked the mailbox for, which is empty where it asked for none.</param>

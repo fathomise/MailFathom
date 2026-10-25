@@ -41,7 +41,7 @@ internal sealed record SpamClassificationRunState(
 /// <param name="Folders">The folders the run walks.</param>
 /// <param name="Posture">Whether the run changes the mailbox or only works out what it would change.</param>
 /// <param name="Rescores">Whether it scores mail already decided under its profile again.</param>
-/// <param name="Profile">The settings the run is bound to, absent until the first pass picks it up.</param>
+/// <param name="Profile">The terms the run is bound to, absent until the first pass picks it up.</param>
 /// <param name="ClassifiedEmailCount">How many messages the run scored.</param>
 /// <param name="SpamEmailCount">How many of the messages it reached are junk.</param>
 /// <param name="UndeterminedEmailCount">How many of them nothing decided either way about.</param>

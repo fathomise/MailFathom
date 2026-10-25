@@ -392,7 +392,7 @@ reference for all five, including what the history records and what it deliberat
 [Spam classification](../features/spam-classification.md) reaches arriving mail on its own: a message is classified
 because it arrived, and you ask for nothing. What it does not reach is the mail that was already there — everything
 stored before you switched it on, and everything stored while it was off — so switching it on, switching filing on, or
-moving a threshold does nothing about the existing mailbox until you ask:
+widening the folders it covers does nothing about the existing mailbox until you ask:
 
 | What you want | Command |
 | --- | --- |

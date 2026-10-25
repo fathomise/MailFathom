@@ -9,7 +9,8 @@ namespace MailFathom.Domain.Spam;
 /// Each kind is recorded as itself rather than folded into one number, because the kinds are not comparable: an
 /// authentication result is what the receiving server established at the moment it mattered, a provider score is that
 /// provider's own opinion, and a folder placement is a decision somebody already acted on. A reader diagnosing a wrong
-/// classification needs to know which of the three it rested on.
+/// classification needs to know which of the three it rested on. <c>4</c> is absent because the kind that held it went
+/// with the stage that reported it, and the number is not reissued, so a kind added later takes <c>5</c>.
 /// </remarks>
 public enum SpamSignalKind
 {

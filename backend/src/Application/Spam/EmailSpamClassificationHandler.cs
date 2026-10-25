@@ -17,8 +17,8 @@ namespace MailFathom.Application.Spam;
 /// <para>
 /// The work is the use case that already exists, reached once per stored email: the queue supplies the lease, the bounded
 /// attempts, the jittered backoff between them, and the dead letter that ends a job nothing can finish. That is the
-/// whole reason classification is a job rather than a step of the account's synchronization run — a scan reaches a
-/// sidecar that can be unreachable, saturated, or restarting, and a run that deferred the whole account could not
+/// whole reason classification is a job rather than a step of the account's synchronization run — a message is read
+/// from the content store, which can be unreachable or slow, and a run that deferred the whole account could not
 /// express one message out of three hundred deserving another attempt.
 /// </para>
 /// <para>

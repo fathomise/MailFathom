@@ -79,7 +79,7 @@ public sealed record SpamClassification
     /// <param name="verdict">What was concluded.</param>
     /// <param name="decidedBy">Which stage reached the verdict.</param>
     /// <param name="assessment">The score and threshold, or <see langword="null" /> when no number was produced.</param>
-    /// <param name="profile">The settings the verdict was reached under, or the unspecified value for a record that names none.</param>
+    /// <param name="profile">The terms the verdict was reached under, or the unspecified value for a record that names none.</param>
     /// <param name="signals">The facts the verdict rests on.</param>
     /// <param name="evaluatedAt">When the classification was evaluated.</param>
     /// <returns>The classification, holding no more than <see cref="MaximumSignals" /> signals.</returns>

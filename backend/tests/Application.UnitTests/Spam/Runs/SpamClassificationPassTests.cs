@@ -88,7 +88,7 @@ public sealed class SpamClassificationPassTests
         Assert.Equal(2, this.harness.Classifications.Saved.Count);
     }
 
-    /// <summary>The run binds what it is decided under, so a later pass can tell a moved threshold from an unchanged one.</summary>
+    /// <summary>The run binds what it is decided under, so a later pass can tell terms that moved from terms that did not.</summary>
     [Fact]
     public async Task RunAsync_APassPickingTheRunUp_BindsTheProfileItStartedUnder()
     {

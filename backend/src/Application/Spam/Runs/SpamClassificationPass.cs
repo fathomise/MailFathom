@@ -30,8 +30,8 @@ namespace MailFathom.Application.Spam.Runs;
 /// <para>
 /// The run's terms are read from the run rather than from configuration. A walk that spans hours must mean the same
 /// thing at its end as at its start, so the scope, the posture, and whether it rescores are what the operator asked for
-/// and not what the file says now. What configuration is still read for is the profile, and a profile that has moved
-/// ends the run rather than being applied to the half of the mailbox that is left.
+/// and not what the file says now. The profile is not configuration either: the release fixes it, so a run bound to an
+/// earlier release's profile ends as superseded rather than being applied to the half of the mailbox that is left.
 /// </para>
 /// <para>
 /// Each batch commits the position it reached, so a restart resumes at the message nobody scored. The classification of

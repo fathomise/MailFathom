@@ -7,12 +7,12 @@ using System.Text;
 
 namespace MailFathom.Domain.Spam;
 
-/// <summary>Identifies the terms a verdict was reached under, as a digest of the operator's own classification settings.</summary>
+/// <summary>Identifies the terms a verdict was reached under, as a digest of the deciding stage's terms.</summary>
 /// <remarks>
 /// <para>
 /// Derived rather than declared, for the reason a rule set's revision is: an authored version key can be forgotten, and
-/// an edit that moves a threshold while leaving the key alone is exactly the case a record has to be able to tell apart.
-/// It is what makes "this message was already decided under the terms in force now" a question somebody can ask of an
+/// a change to the terms that leaves the key alone is exactly the case a record has to be able to tell apart. It is what
+/// makes "this message was already decided under the terms in force now" a question somebody can ask of an
 /// existing record, which is what a run over a whole mailbox skips mail on.
 /// </para>
 /// <para>
@@ -53,8 +53,8 @@ public readonly record struct SpamClassificationProfile
     public string Value => this.value
         ?? throw new InvalidOperationException("The value is the default of the struct and does not name a profile.");
 
-    /// <summary>Derives the identity of the settings a classification is reached under.</summary>
-    /// <returns>The profile those settings are known by.</returns>
+    /// <summary>Derives the identity of the terms a classification is reached under, which this release fixes.</summary>
+    /// <returns>The profile every verdict this release reaches is recorded under.</returns>
     public static SpamClassificationProfile Create()
     {
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes("deterministic"));
@@ -64,7 +64,7 @@ public readonly record struct SpamClassificationProfile
 
     /// <summary>Reads back a profile this system derived earlier and recorded.</summary>
     /// <param name="value">The recorded identity.</param>
-    /// <returns>The profile, which compares equal to a freshly derived one of the same settings.</returns>
+    /// <returns>The profile, which compares equal to a freshly derived one of the same terms.</returns>
     /// <exception cref="ArgumentException">Thrown when the value is not an identity this type could have produced.</exception>
     /// <remarks>
     /// The shape is checked rather than trusted, because a value that is not one this type produces would compare unequal
