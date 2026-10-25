@@ -268,21 +268,21 @@ describe('the Outbox in place of the list', () => {
     });
 
     // A change worked out from the workspace it lands on is how an answer arriving late asks only if nothing moved
-    // meanwhile: *Show in Outbox* puts the Sent folder behind the Outbox only while that send is still what is shown.
+    // meanwhile: *Show in Outbox* puts the Sent folder behind the Outbox only while that account's Outbox is open.
     describe('a change worked out from the workspace it lands on', () => {
         const opened = { account: 'work', entry: 'a-send' };
-        const behindTheSend = ({ outbox: shown }: Workspace): Partial<Workspace> =>
-            shown?.entry === 'a-send' ? { scope: sent, outbox: shown } : {};
+        const behindTheOutbox = ({ outbox: shown }: Workspace): Partial<Workspace> =>
+            shown?.account === 'work' ? { scope: sent, outbox: shown } : {};
 
-        it('lands where the workspace still shows what it was worked out for', () => {
-            applying([{ outbox: opened }, behindTheSend]);
+        it('lands where the workspace still shows what it was worked out for, whichever send is open in it', () => {
+            applying([{ outbox: opened }, { outbox: { account: 'work', entry: null } }, behindTheOutbox]);
 
             expect(carried().scope).toEqual(sent);
-            expect(carried().outbox).toEqual(opened);
+            expect(carried().outbox).toEqual({ account: 'work', entry: null });
         });
 
         it('asks nothing of a reader who opened something else meanwhile', () => {
-            applying([{ outbox: opened }, { selection: 'a-message' }, behindTheSend]);
+            applying([{ outbox: opened }, { selection: 'a-message' }, behindTheOutbox]);
 
             expect(carried().scope).toEqual(emptyWorkspace.scope);
             expect(carried().outbox).toBeNull();

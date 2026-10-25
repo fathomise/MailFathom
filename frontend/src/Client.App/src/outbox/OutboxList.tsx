@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+import { useState } from 'react';
 import type { ClientFailureReason } from '@mailfathom/client-backend';
 import { Control } from '../controls/Control';
 import { Icon } from '../controls/Icon';
@@ -33,8 +34,9 @@ const failureLabels: Readonly<Record<ClientFailureReason, MessageKey>> = {
 
 export function OutboxList({ outbox }: { readonly outbox: OpenOutbox }) {
     const { translate } = useLocalization();
-    const { workspace, revise } = useWorkspace();
-    const { page, readAgain } = useMailOutbox();
+    const { revise } = useWorkspace();
+    const { page, readAgain, goToSent } = useMailOutbox();
+    const [leaving, setLeaving] = useState(false);
     const openMailboxes = useMailboxesDrawer();
     const accountName = useAccountName(outbox.account);
 
@@ -86,10 +88,12 @@ export function OutboxList({ outbox }: { readonly outbox: OpenOutbox }) {
                         <Control
                             label={translate('outbox.goToSent')}
                             shape="primary"
+                            held={leaving}
                             onPress={() => {
-                                // The Outbox was opened on this account's Sent folder, so naming the scope again is
-                                // going there.
-                                revise({ scope: workspace.scope });
+                                setLeaving(true);
+                                void goToSent().finally(() => {
+                                    setLeaving(false);
+                                });
                             }}
                         />
                     </div>

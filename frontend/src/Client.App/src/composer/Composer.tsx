@@ -582,9 +582,9 @@ export function Composer({
 
     // Opened at once, so the list's place says it is reading, and then on that account's Sent folder, as the mark on
     // its Sent row opens it, so that whatever closes the Outbox leaves the reader where the send went. The folder lands
-    // only while that send is still what the workspace shows: a reader who picked a folder or a message meanwhile has
-    // moved on, and a late directory answer must not take them back. One that does not answer leaves the Outbox open
-    // over whatever was listed.
+    // only while that account's Outbox is still open: a reader who picked a folder or a message meanwhile has closed
+    // it, and a late directory answer must not take them back. One that does not answer leaves the Outbox open over
+    // whatever was listed, and *Go to Sent* asks for the folder again rather than trusting what is behind it.
     function showInOutbox(account: string, outgoingEmailId: string): void {
         window.location.hash = addressOf('mail');
 
@@ -600,9 +600,7 @@ export function Composer({
                 return;
             }
 
-            reviseWorkspace(({ outbox }) =>
-                outbox?.account === account && outbox.entry === outgoingEmailId ? { scope: sent, outbox } : {},
-            );
+            reviseWorkspace(({ outbox }) => (outbox?.account === account ? { scope: sent, outbox } : {}));
         });
     }
 

@@ -5,7 +5,7 @@
 import type { ClientRequest, ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { workAccount } from '../../../../tests/fixtures/deployment';
+import { mailFolders, workAccount } from '../../../../tests/fixtures/deployment';
 import * as outbox from '../../../../tests/fixtures/outbox';
 import { LocalizationProvider } from '../localization/Localization';
 import { SignalledChangesContext, type SignalListener } from '../signals/signalledChanges';
@@ -23,12 +23,14 @@ import { OutboxPane } from './OutboxPane';
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
 
 const sent = { kind: 'folder', accountId: workAccount.id, folderId: 'SENT' } as const;
+const inbox = { kind: 'folder', accountId: workAccount.id, folderId: 'INBOX' } as const;
 const personalAccountId = 'personal';
 const anotherOutboxName = 'Open another account’s Outbox';
 const workOutboxName = 'Open the work account’s Outbox';
 
 // What stands in for the Sent folder's list and the mark on its row, which the test names rather than the client.
 const sentFolderName = 'The Sent folder';
+const anotherFolderName = 'Another folder';
 const openingName = 'Open the Outbox';
 
 type Send = (typeof outbox.outboxPage.sends)[number];
@@ -73,6 +75,10 @@ function deployment(sends: readonly Send[] = outbox.outboxPage.sends, refusing =
                           resolve(decide());
                       });
                   });
+        }
+
+        if (path === '/folders') {
+            return answering(mailFolders);
         }
 
         if (path === '/outbox') {
@@ -136,17 +142,27 @@ function answering(body: unknown) {
  * The two surfaces while an Outbox is open, and the Sent folder it is opened on — by the press its mark answers — while
  * it is not.
  */
-function Surfaces({ transport, entry }: { readonly transport: MailFathomTransport; readonly entry: string | null }) {
+function Surfaces({
+    transport,
+    entry,
+    openedOn,
+}: {
+    readonly transport: MailFathomTransport;
+    readonly entry: string | null;
+    readonly openedOn: typeof sent | typeof inbox;
+}) {
     const { workspace, revise } = useWorkspace();
 
     if (workspace.outbox === null) {
+        const onSent = workspace.scope.kind === 'folder' && workspace.scope.folderId === sent.folderId;
+
         return (
-            <section aria-label={sentFolderName}>
+            <section aria-label={onSent ? sentFolderName : anotherFolderName}>
                 <button
                     type="button"
                     aria-label={openingName}
                     onClick={() => {
-                        revise({ scope: sent, outbox: { account: workAccount.id, entry } });
+                        revise({ scope: openedOn, outbox: { account: workAccount.id, entry } });
                     }}
                 />
             </section>
@@ -177,7 +193,11 @@ function Surfaces({ transport, entry }: { readonly transport: MailFathomTranspor
 
 function drawing(
     transport: MailFathomTransport,
-    { entry = null, online = true }: { entry?: string | null; online?: boolean } = {},
+    {
+        entry = null,
+        online = true,
+        openedOn = sent,
+    }: { entry?: string | null; online?: boolean; openedOn?: typeof sent | typeof inbox } = {},
 ) {
     const listeners: SignalListener[] = [];
 
@@ -198,7 +218,7 @@ function drawing(
                 >
                     <WorkspaceProvider>
                         <MailOutboxProvider session={session} transport={transport} online={online}>
-                            <Surfaces transport={transport} entry={entry} />
+                            <Surfaces transport={transport} entry={entry} openedOn={openedOn} />
                         </MailOutboxProvider>
                     </WorkspaceProvider>
                 </SignalledChangesContext>
@@ -260,6 +280,16 @@ describe('the Outbox list', () => {
         ).toBeDefined();
 
         fireEvent.click(screen.getByRole('button', { name: 'Go to Sent' }));
+
+        expect(await screen.findByRole('region', { name: sentFolderName })).toBeDefined();
+    });
+
+    // An Outbox opened from a send toast stands over whatever was listed until its Sent folder is known, so what is
+    // behind it is no answer to where *Go to Sent* goes.
+    it('leads to the account’s Sent folder although it was opened over another one', async () => {
+        drawing(deployment([]).transport, { openedOn: inbox });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Go to Sent' }));
 
         expect(await screen.findByRole('region', { name: sentFolderName })).toBeDefined();
     });

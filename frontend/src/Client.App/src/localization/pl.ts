@@ -1074,7 +1074,7 @@ export const pl: Catalogue = {
     'outbox.to': 'Do',
     'outbox.andOthers': '{first} +{count}',
     'outbox.emptyTitle': 'Nadawcza jest pusta',
-    'outbox.emptyText': 'Z {account} nic już nie czeka na wysłanie. To, co wyszło, jest w Wysłanych.',
+    'outbox.emptyText': 'Z konta {account} nic już nie czeka na wysłanie. To, co wyszło, jest w Wysłanych.',
     'outbox.emptyTextUnnamed': 'Z tego konta nic już nie czeka na wysłanie. To, co wyszło, jest w Wysłanych.',
     'outbox.goToSent': 'Przejdź do Wysłanych',
     'outbox.nothingOpen': 'Nic nie jest otwarte',

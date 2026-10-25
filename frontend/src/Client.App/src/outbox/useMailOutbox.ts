@@ -32,6 +32,13 @@ export interface MailOutbox {
     /** Reads the page again, which is the way out of a read the deployment did not answer. */
     readonly readAgain: () => void;
 
+    /**
+     * Leaves the Outbox for its account's Sent folder, asked of the deployment rather than read off what is behind it:
+     * an Outbox opened from a send toast stands over whatever was listed until that folder is known. Where the
+     * deployment names none it closes the Outbox onto whatever is behind it, which is the one way out left.
+     */
+    readonly goToSent: () => Promise<void>;
+
     /** Withdraws a send that has not begun transmitting. */
     readonly cancel: (send: OutgoingMail) => void;
 

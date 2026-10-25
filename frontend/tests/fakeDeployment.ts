@@ -485,6 +485,7 @@ export class FakeDeployment {
     /** Lets a send leave the Outbox, as a delivery the mail server took does, and says the account's Outbox moved. */
     sendLeaves(outgoingEmail: string): void {
         this.outboxLeaves(outgoingEmail, 'Sent');
+        this.sendsQueued.delete(outgoingEmail);
         this.signal({ kind: 'outbox.changed', account: deployment.workAccount.id });
     }
 
@@ -1243,9 +1244,10 @@ export class FakeDeployment {
             ...outbox.waitingSend,
             outgoingEmail,
             subject: typeof held?.record['subject'] === 'string' ? held.record['subject'] : null,
-            recipients: (Array.isArray(held?.record['recipients']) ? (held.record['recipients'] as Held[]) : []).map(
-                (recipient) => ({ address: String(recipient['address']), role: String(recipient['role']) }),
-            ),
+            recipients: listIn(held?.record, 'recipients').map((recipient) => ({
+                address: String(recipient['address']),
+                role: String(recipient['role']),
+            })),
         };
     }
 

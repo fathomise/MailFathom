@@ -23,6 +23,7 @@ import { useSignalledChanges } from '../signals/signalledChanges';
 import { useToasts, type Toast } from '../toasts/useToasts';
 import { useWorkspace } from '../workspace/useWorkspace';
 import { addresseeOf, standingOf, type OutboxWording } from './outboxStanding';
+import { readSentFolder } from './sentFolder';
 import { MailOutboxContext, type MailOutbox, type OutboxDecisionUnderWay, type OutboxPage } from './useMailOutbox';
 
 // The one reader of the open account's Outbox. It reads the newest page while an Outbox is open and nothing while none
@@ -158,6 +159,19 @@ export function MailOutboxProvider({
 
     function readAgain(): void {
         setAsked((token) => token + 1);
+    }
+
+    async function goToSent(): Promise<void> {
+        if (session === null || account === null) {
+            return;
+        }
+
+        const leaving = account;
+        const sent = await readSentFolder(session, transport, leaving);
+
+        revise(({ outbox: shown }) =>
+            shown?.account !== leaving ? {} : sent === null ? { outbox: null } : { scope: sent },
+        );
     }
 
     function decided(result: ClientResult<MailOutboxDecision>, taken: Toast): void {
@@ -305,7 +319,7 @@ export function MailOutboxProvider({
                   ),
               };
 
-    const outbox: MailOutbox = { page, underWay, readAgain, cancel, sendAgain, dismiss };
+    const outbox: MailOutbox = { page, underWay, readAgain, goToSent, cancel, sendAgain, dismiss };
 
     return <MailOutboxContext value={outbox}>{children}</MailOutboxContext>;
 }

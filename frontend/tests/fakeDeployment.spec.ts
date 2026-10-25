@@ -440,6 +440,26 @@ test('answers the preview of a send that left at the stage it ended at, out of t
     expect(ask(deployment, 'GET', '/outbox/never-made')).toBe(404);
 });
 
+test('lets a send it queued leave the Outbox as one the corpus held does, out of the list, the count and the preview', () => {
+    const deployment = sendingDeployment();
+    const written = ask(deployment, 'POST', '/drafts', { account: fixtures.workAccount.id, subject: 'The yard' }) as {
+        draft: { draftId: string };
+    };
+    const queued = ask(deployment, 'POST', `/drafts/${written.draft.draftId}/send`) as { outgoingEmail: string };
+
+    deployment.sendLeaves(queued.outgoingEmail);
+
+    expect(inTheOutbox(deployment)).toStrictEqual({
+        sends: outbox.outboxPage.sends.map(({ outgoingEmail }) => outgoingEmail),
+        counted: fixtures.waitingOutbox,
+    });
+    expect(ask(deployment, 'GET', `/outbox/${queued.outgoingEmail}`)).toMatchObject({
+        subject: 'The yard',
+        stage: 'Sent',
+        inOutbox: false,
+    });
+});
+
 test('withdraws a waiting send and refuses to withdraw one an attempt holds or the server refused', () => {
     const deployment = sendingDeployment();
     const cancelled = (send: { outgoingEmail: string }) =>
