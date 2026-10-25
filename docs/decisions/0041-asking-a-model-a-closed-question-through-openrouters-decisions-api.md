@@ -78,7 +78,7 @@ OpenRouter's contract offers four question types. `noul` is yes or no, and answe
 | For phishing, what is being asked for | **One `choice`** over `credentials`, `payment_details`, `one_time_code`, `other`, and `nothing_stated` | It is the closed value issue 2670 records. It is asked in the same request and read only when the kind is phishing, because questions in one request are answered independently and in parallel |
 | For phishing and business email compromise, who is impersonated | **One `choice`** over the *kind* of party, not its name. Issue 2672 owns the option list | See below |
 
-The spam probability is read off the first question as **1 − P(`not_spam`)**. One distribution decides both the verdict and the kind, so they cannot disagree. Code compares that probability against the account's threshold, and the kind is the most probable of the six. This is what `SpamAssessment` records as score and threshold. The `probabilities` member is optional in OpenRouter's schema, but this function cannot be read without it. An answer that lacks it is unreadable, and is never treated as a default.
+The spam probability is read off the first question as **1 − P(`not_spam`)**. One distribution decides both the verdict and the kind, so they cannot disagree. Code compares that probability against the account's threshold, and the kind is the most probable of the six. This is what `SpamAssessment` records as score and threshold. The `probabilities` member is optional in OpenRouter's schema, but this function cannot be read without it. **An answer is unreadable unless its probabilities name exactly the options offered, each a finite number within [0, 1].** A missing `probabilities` member, a missing `not_spam`, an option that was never offered, and a value outside that range are all unreadable. None of them is read with a default, because a missing `not_spam` read as zero would make every such answer a spam verdict.
 
 **A decision model writes no text, so the impersonated party's name is out of reach.** OpenRouter's limits page puts it plainly: decision models are *not trained to produce text or values*. Issue 2670 proposes the name as bounded text, and that text cannot come from this API. Two other ways to get it were rejected:
 
@@ -146,7 +146,7 @@ So **switching the model stage on sends each classified message's minimised inpu
 
 The input crosses a new egress point, **`spam_classification_input`**, which joins the closed register in [sensitive-content scanning](../features/sensitive-content-scanning.md#the-guarded-egress-points). It is a point of its own, not a reuse of `chat_prompt`. What crosses it is chosen by a classifier about a message nobody asked a question about, and an operator reading redaction rates needs to see the two apart.
 
-It is guarded like every other point. **The account's scanning posture applies in full, and there is no exemption for this point.** What is sent unredacted is therefore exactly what that posture leaves unredacted. With both scanners off, which is the default, everything in the table below is sent as written:
+It is guarded like every other point. **The account's scanning posture applies in full, and there is no exemption for this point.** What is sent unredacted is therefore what that posture leaves unredacted, together with the two addresses named below the table. With both scanners off, which is the default, everything in the table below is sent as written:
 
 | Sent | Not sent |
 |---|---|
@@ -155,6 +155,8 @@ It is guarded like every other point. **The account's scanning posture applies i
 | For each link: the host of its target, the host its visible text names when it names one, and whether the two differ, as `MailLinkReader` computes | The link target's path and query, which often carry a token identifying the recipient |
 | For each attachment: its declared content type and file name | Its content and its extracted text |
 | The facts the deterministic stage established: each sender-authentication outcome, and whether the sender is one this deployment trusts | The deterministic stage's own verdict, which the second job does not ask the model to judge |
+
+**The sender's address and the `Reply-To` address cross unredacted under every posture.** The guard never sits above an address. The sensitive-content page draws its line between a routing identity and free text, so the display name in front of an address is guarded and the address is not. That page justifies the line by who may reach the deployment, and that reasoning does not hold for a third-party destination. The addresses are still sent, because a lookalike sender and a `Reply-To` that differs from it are among the strongest signs of phishing and business email compromise. Whether that is acceptable is the operator's to weigh when switching the stage on, and the configuration reference says so beside the switch.
 
 Minimisation costs some detection power, and that is the trade the issue asks to be stated. A phishing page's path, a pixel's query string, or the recipient list of a business email compromise would each tell the model something. What the table keeps is what a person deciding the same question would read first. **Redaction costs more**: with the personal-data scanner on, a callback scam's phone number, a business email compromise's named executive, and a lookalike sender's display name are replaced before the model sees them. Detection of those kinds will be measurably worse. That is the operator's trade to make, through a posture they already control. It is documented beside the stage's switch, not overridden for this point. Issue 2672's evaluation reports per-kind figures, and that is where the cost becomes a number.
 
@@ -197,7 +199,7 @@ The decision client is composed like a chat client: a `DelegatingDecisionClient`
 | Concern | How it reaches a decision |
 |---|---|
 | The budget | A budget middleware over the same two ledgers `BudgetedChatClient` writes. It is composed outside resilience, so a call the deployment's own ceiling refused never touches the provider's health or circuit |
-| Retries and failure classification | A resilience middleware running under the same `IOutboundOperationRunner` provider budget, keyed by the decision model's alias. It classifies through the existing `ProviderCallFailureClassification`. A decision has no side effect, so retrying a transient failure is safe. A failure that falls back for a chat capability falls back to the function's `Fallback` alias here |
+| Retries and failure classification | A resilience middleware running under the same `IOutboundOperationRunner` provider budget, keyed by the decision model's alias. It classifies through the existing `ProviderCallFailureClassification`. A decision has no side effect, so retrying a transient failure is safe. **There is no fallback model.** A threshold is calibrated against one build, so a second model's probability judged against it would be a score nobody calibrated. A failure the retries do not cure leaves the deterministic result where it was |
 | Health | Recorded per decision model alias through the same health recorder |
 | Cost reporting | Section 6 |
 | Telemetry | A span and metrics naming the alias, the build that answered, the provider, the token counts, the latency, and the outcome. No input, no question text, and no probability |
@@ -205,14 +207,16 @@ The decision client is composed like a chat client: a `DelegatingDecisionClient`
 
 ### What an operator configures, and what happens when they configure nothing
 
-- **To reach OpenRouter's Decisions API**, the operator declares a `Decisions:Models:<n>` block. It has the same keys and the same validation as a `Chat:Models` block:
+- **To reach OpenRouter's Decisions API**, the operator declares a `Decisions:Models:<n>` block. It takes the endpoint keys of a `Chat:Models` block, with the same validation:
   - an alias;
   - the dated model identifier;
   - the address `https://openrouter.ai`, or a regional host, under which the adapter calls `/api/alpha/decisions`;
-  - an OpenRouter key as `ApiKey`;
-  - a request timeout and request bounds.
+  - exactly one of `ApiKey`, holding an OpenRouter key, and `Unauthenticated`;
+  - a request timeout and the request-character bound.
 
-  The operator also states `Decisions:DefaultModel` and, optionally, `Decisions:SpamClassification:Model`. An alias that names a chat model is refused at startup, and so is a model value beginning with `~`.
+  It takes none of the chat block's other keys. A decision has no generation parameters, so `Api`, `MaxOutputTokens`, `Temperature`, `TopP`, and `ReasoningEffort` do not apply. `StickySessions` and `ExtraHeaders` are refused, because a session or a static header would link requests at the router. `AdditionalProperties` is refused as well, because the adapter owns every request member: `provider`, `session_id`, `user`, and `trace` included. That is what keeps section 5's routing block impossible to loosen from configuration.
+
+  The operator also states `Decisions:DefaultModel` and, optionally, `Decisions:SpamClassification:Model`. Each is an `Alias` alone, with no `Fallback`, for the reason the resilience row above gives. An alias that names a chat model is refused at startup, and so is a model value beginning with `~`.
 - **With no decision model declared**, nothing calls the API. An account record switching the model stage on is **refused at the write**, and the refusal names `Decisions:Models`. That is how an account asking for a personal-data scanner the deployment cannot reach is refused today. A record that asked for the stage before its model was removed classifies through the deterministic stage alone, and startup logs a warning naming the key. The stage never fails closed: a missing model, an unreachable provider, an exhausted balance, and an unreadable answer all leave the deterministic result exactly where it was.
 
 ### The exception to ADR 0011, and its exit
@@ -230,18 +234,19 @@ On 2026-10-25 the first half had arrived and the second had not. OpenAI's own gu
 ### Consequences
 
 - Good, because the stage gets a closed answer and a probability per option. Injected text can move a number, but it cannot write a verdict outside the set.
-- Good, because the request carries only what the questions read. Two third parties then hold less of a message than the scanner had in hand, and nothing is retained by either.
+- Good, because the request carries only what the questions read. Two third parties then hold less of a message than the scanner had in hand. Neither retains a prompt or a response, and OpenRouter keeps request metadata, as section 5 states.
 - Good, because the budget, resilience, classification, health, telemetry, and evaluation cache are each written once and composed. When an official abstraction arrives, it replaces one adapter.
 - Good, because the vocabulary was chosen against both contracts that exist. When issue 2675 moves to OpenAI's shape, the unanswered-question case and the question identifiers are already in the abstraction.
 - Neutral, because the European in-region host serves no decision model today. A Europe-bound deployment keeps the stage off until it does, and loses nothing it had.
 - Bad, because an alpha contract with no stability commitment now sits under a feature. A change at OpenRouter breaks classification of the second job and of undetermined mail until the adapter follows. The deterministic stage carries on meanwhile, and nothing else does.
 - Bad, because enabling the stage is a third-party transfer of mail. No configuration makes it otherwise, and this record cannot make that decision for an operator.
+- Bad, because the sender's address and the `Reply-To` address reach both third parties under every posture, the personal-data scanner included.
 - Bad, because the minimised input and any redaction both cost detection power. Phishing that hides in a link path, and business email compromise whose tell is a recipient list, are the cases most exposed.
 - Bad, because the impersonated party's name is not recorded. A person sees the kind of party a message pretends to be, and the name only as the message itself presents it.
 
 ## Validation
 
-- Issue 2671's adapter tests drive the contract recorded in section 2 against a fake handler. They cover a well-formed answer, a missing key, an unexpected `type`, a missing `probabilities` member, and each failure status in the classification above. A test asserts that every request carries the routing block of section 5, and that it carries no `session_id`, `user`, or `trace`.
+- Issue 2671's adapter tests drive the contract recorded in section 2 against a fake handler. They cover a well-formed answer, a missing key, an unexpected `type`, a missing `probabilities` member, a distribution missing an offered option or naming one never offered, a probability outside [0, 1], and each failure status in the classification above. A test asserts that every request carries the routing block of section 5, and that it carries no `session_id`, `user`, or `trace`.
 - Startup refuses a decision model whose value begins with `~`, and a decision alias naming a chat model. Unit tests cover both.
 - `spam_classification_input` is in the closed egress register, in code and on the sensitive-content page. A test proves the guard runs on it under each posture.
 - Issue 2672's evaluation reports precision and recall per kind, and the false-positive rate on legitimate mail. That is the measured cost of the minimisation in section 4, and the evidence a threshold is set from.
