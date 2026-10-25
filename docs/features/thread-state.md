@@ -89,8 +89,9 @@ whether more remains. There is no sweep of its own, because there is no mail the
 
 A **settled** derivation is written down and takes the conversation out of the queue until its shape changes — including
 a settled answer of no statements, and including `ThreadTooLarge`. A **withheld** one is not written down, and it ends
-the pass rather than moving to the next conversation, because every reason a derivation is withheld outlives one
-conversation:
+the pass rather than moving to the next conversation, because every reason a derivation is withheld is a fault of the
+deployment or its provider rather than a fact about the conversation, and the next conversation would most likely meet
+it too:
 
 | Withheld because | What it means |
 |---|---|
