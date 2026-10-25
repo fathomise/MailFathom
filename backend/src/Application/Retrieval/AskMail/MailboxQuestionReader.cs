@@ -380,7 +380,7 @@ public sealed class MailboxQuestionReader
                     passage.Subject,
                     cancellationToken),
                 passage.ReceivedAt,
-                passage.SenderVerification,
+                passage.Provenance,
                 passage.MachineAuthorship,
                 await this.CitedAttachmentsAsync(passage.AttachmentExtracts, cancellationToken)));
         }

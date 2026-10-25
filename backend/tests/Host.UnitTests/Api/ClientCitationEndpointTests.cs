@@ -19,6 +19,7 @@ using MailFathom.Application.Observability;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Folders;
 using MailFathom.Host.Api;
 using MailFathom.TestSupport;
@@ -116,6 +117,50 @@ public sealed class ClientCitationEndpointTests
         Assert.Null(citation.Message);
         Assert.Null(citation.Fragment);
         Assert.Null(citation.Attachment);
+    }
+
+    /// <summary>A cited message reaches the client with where it came from, so the client can qualify a claim drawn on it.</summary>
+    /// <remarks>The message is a first contact outside junk, so a mapping that swapped the two flags fails.</remarks>
+    [Fact]
+    public void For_AResolvedMessage_PublishesTheProvenanceTheDeploymentRecorded()
+    {
+        // Act
+        var response = ClientCitationResolutionResponse.For(
+            [ResolvedCitation.Resolved(CitedMessageOf() with
+            {
+                Provenance = StubEmailProvenanceReader.UnverifiedStranger with { IsInJunkFolder = false },
+            })]);
+
+        // Assert
+        var provenance = Assert.Single(response.Citations).Message!.Provenance;
+        Assert.Equal(
+            ("NotEstablished", "Unknown", false, true),
+            (provenance.AuthorAuthentication, provenance.DeploymentTrust, provenance.InJunkFolder, provenance.FirstContact));
+    }
+
+    /// <summary>A trusted, authenticated correspondent reaches the client as such, so the verdict is the one recorded rather than a default.</summary>
+    [Fact]
+    public void For_AMessageFromATrustedCorrespondent_PublishesThatVerdictAndNoQualification()
+    {
+        // Arrange
+        var trusted = StubEmailProvenanceReader.KnownCorrespondent with
+        {
+            Sender = new SenderVerification
+            {
+                AuthorAuthentication = AuthorAuthenticationOutcome.Authenticated,
+                DeploymentTrust = SenderTrustLevel.Trusted,
+            },
+        };
+
+        // Act
+        var response = ClientCitationResolutionResponse.For(
+            [ResolvedCitation.Resolved(CitedMessageOf() with { Provenance = trusted })]);
+
+        // Assert
+        var provenance = Assert.Single(response.Citations).Message!.Provenance;
+        Assert.Equal(
+            ("Authenticated", "Trusted", false, false),
+            (provenance.AuthorAuthentication, provenance.DeploymentTrust, provenance.InJunkFolder, provenance.FirstContact));
     }
 
     /// <summary>A resolved passage reaches the client with the text and the offsets that make the reference checkable.</summary>
@@ -299,6 +344,7 @@ public sealed class ClientCitationEndpointTests
         return new CitationResolver(
             content,
             Substitute.For<ICitedFragmentReader>(),
+            StubEmailProvenanceReader.AllKnownCorrespondents,
             scopeResolver,
             SensitiveContentEgressGuards.Inactive());
     }
@@ -309,5 +355,6 @@ public sealed class ClientCitationEndpointTests
         new StoredEmailFolder(MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-000000000004")), "INBOX", MailFolderAlias.Create("INBOX")),
         "Quarterly invoice",
         new DateTimeOffset(2026, 3, 4, 9, 0, 0, TimeSpan.Zero),
-        new DateTimeOffset(2026, 3, 4, 9, 1, 0, TimeSpan.Zero));
+        new DateTimeOffset(2026, 3, 4, 9, 1, 0, TimeSpan.Zero),
+        StubEmailProvenanceReader.KnownCorrespondent);
 }

@@ -1929,8 +1929,8 @@ recognise, has no entry, and the client draws such a link as the least trusted i
 holds the rule, which Discover and the Agent apply to their answers too.
 
 Each citation carries the `storedEmailId` a content read is performed by, the account identifier and the display name it
-is published under, the folder's identity and path, the subject, the received time, `senderVerification`, `machineAuthorship`, and
-`attachments`. It deliberately carries
+is published under, the folder's identity and path, the subject, the received time, `senderVerification`, `inJunkFolder`,
+`firstContact`, `machineAuthorship`, and `attachments`. It deliberately carries
 no extract: the passage the run retrieved has already reached a model, and returning it here would put mail content into
 a response whose purpose is an answer. The subject and the received time
 are what let a reader recognize a message before fetching it.
@@ -1948,6 +1948,11 @@ what was established about the author of each message it was drawn from. It is w
 answer is worth what the mail behind it is worth, and a claim traced to a message whose displayed author failed
 authentication is worth reading differently from one traced to a correspondent this deployment recognizes. The evidence
 behind the verdict stays with the single-email read the citation points at.
+
+`inJunkFolder` and `firstContact` travel beside the verdict and finish what the model was told about the message:
+whether it sits in the folder its account maps as junk, and whether nothing the mailbox held before it was written by or
+to its sender. The answer was asked to qualify a claim resting on such a message, so a caller reading the citations can
+see why it did; [mail answering](mail-answering.md#where-a-message-came-from) holds the rule.
 
 `machineAuthorship` travels beside it on the same terms and answers a different question: how the text of the cited
 message reads rather than who sent it. It is informational and is not a reason to discount a citation — mail drafted

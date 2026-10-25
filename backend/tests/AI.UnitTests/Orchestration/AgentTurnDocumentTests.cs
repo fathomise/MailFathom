@@ -5,6 +5,9 @@
 using System.Globalization;
 using System.Xml.Linq;
 using MailFathom.AI.Orchestration;
+using MailFathom.Application.Emails.Provenance;
+using MailFathom.Application.Emails.Summaries;
+using MailFathom.Domain.Emails.Authentication;
 using Xunit;
 
 namespace MailFathom.AI.UnitTests.Orchestration;
@@ -255,6 +258,59 @@ public sealed class AgentTurnDocumentTests
     {
         // Assert
         Assert.Contains($"<{AgentTurnDocument.AskElementName}>", AgentTurnDocument.DataClause, StringComparison.Ordinal);
+    }
+
+    /// <summary>Each part of a message's provenance is written from the service's own value, and a flag that does not hold is left out.</summary>
+    [Theory]
+    [InlineData(AuthorAuthenticationOutcome.Authenticated, SenderTrustLevel.Trusted, false, false, "authenticated", true, false, false)]
+    [InlineData(AuthorAuthenticationOutcome.NotEstablished, SenderTrustLevel.Unknown, true, true, "not-established", false, true, true)]
+    [InlineData(AuthorAuthenticationOutcome.Failed, SenderTrustLevel.Unknown, false, true, "failed", false, false, true)]
+    public void WriteProvenance_AMessagesRecordedProvenance_WritesEachPartThatHolds(
+        AuthorAuthenticationOutcome authentication,
+        SenderTrustLevel trust,
+        bool inJunk,
+        bool firstContact,
+        string writtenVerdict,
+        bool writesTrusted,
+        bool writesJunk,
+        bool writesFirstContact)
+    {
+        // Arrange
+        using var document = new AgentTurnDocument();
+        var provenance = new EmailProvenance
+        {
+            Sender = new SenderVerification { AuthorAuthentication = authentication, DeploymentTrust = trust },
+            IsInJunkFolder = inJunk,
+            IsFirstContact = firstContact,
+        };
+
+        // Act
+        document.StartElement("message");
+        document.WriteProvenance(provenance);
+        var message = Parsed(document.Complete()).Element("message")!;
+
+        // Assert
+        Assert.Equal(
+            (writtenVerdict, writesTrusted, writesJunk, writesFirstContact),
+            ((string?)message.Attribute(AgentTurnDocument.SenderAuthenticationAttributeName),
+                (string?)message.Attribute(AgentTurnDocument.SenderTrustedAttributeName) == "true",
+                (string?)message.Attribute(AgentTurnDocument.JunkAttributeName) == "true",
+                (string?)message.Attribute(AgentTurnDocument.FirstContactAttributeName) == "true"));
+    }
+
+    /// <summary>The clause names every attribute it explains, so the rule a model reads and the markup it meets cannot drift apart.</summary>
+    [Fact]
+    public void DataClause_TheProvenanceRule_NamesEveryAttributeTheWriterPublishes()
+    {
+        // Assert
+        Assert.All(
+            [
+                AgentTurnDocument.SenderAuthenticationAttributeName,
+                AgentTurnDocument.SenderTrustedAttributeName,
+                AgentTurnDocument.JunkAttributeName,
+                AgentTurnDocument.FirstContactAttributeName,
+            ],
+            name => Assert.Contains(name, AgentTurnDocument.DataClause, StringComparison.Ordinal));
     }
 
     private static XElement Parsed(string document) => XElement.Parse($"<turn>{document}</turn>");

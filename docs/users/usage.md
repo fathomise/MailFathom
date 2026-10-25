@@ -532,9 +532,10 @@ neither can the model.
 Five parts of the result are worth reading before an agent presents it:
 
 - **`citations` is what makes the answer checkable.** Each entry carries the `storedEmailId` you pass straight to
-  `get_email_content`, plus the account, folder, subject, received time, and the same `senderVerification` pair a
-  listing carries — so a claim drawn from a message whose sender failed authentication reads differently from one drawn
-  from a correspondent you recognize. An answer without the messages behind it is something to believe; with them it is
+  `get_email_content`, plus the account, folder, subject, received time, the same `senderVerification` pair a listing
+  carries, and `inJunkFolder` and `firstContact` — so a claim drawn from a message whose sender failed authentication,
+  that sat in junk, or that came from somebody who never wrote to you before reads differently from one drawn from a
+  correspondent you recognize. The answer itself was asked to say so, and these fields are why it did. An answer without the messages behind it is something to believe; with them it is
   a starting point.
 - **They are what the run *retrieved*, not what the model provably used.** Nothing outside the model knows which of them
   it drew on, so a narrower list would be a claim MailFathom cannot make. An empty list is an ordinary answer: the

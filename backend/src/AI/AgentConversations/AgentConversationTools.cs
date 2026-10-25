@@ -12,6 +12,7 @@ using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
 using MailFathom.Application.Discovery.Presentation.Citations;
 using MailFathom.Application.Emails.GetEmailContent;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Application.Mail.Delivery.Addressing;
 using MailFathom.Application.Mail.Delivery.Authoring;
@@ -246,14 +247,32 @@ internal sealed class AgentConversationTools
             return "No message with that id is readable here.";
         }
 
-        List<GuardedThreadReading> readings = [];
-
-        foreach (var message in messages.Take(MaximumThreadMessages))
-        {
-            readings.Add(await this.GuardedReadingOfAsync(message, cancellationToken));
-        }
+        var readings = await this.GuardedReadingsOfAsync(messages.Take(MaximumThreadMessages).ToArray(), cancellationToken);
 
         return AgentConversationReadings.Thread(readings);
+    }
+
+    /// <summary>Reads where each shown message came from and guards the ones it answers for.</summary>
+    /// <remarks>
+    /// A message whose provenance is gone was removed after the conversation was read, and is not shown at all rather
+    /// than shown without saying where it came from.
+    /// </remarks>
+    internal async Task<IReadOnlyList<GuardedThreadReading>> GuardedReadingsOfAsync(
+        IReadOnlyList<ReadEmailContent> shown,
+        CancellationToken cancellationToken)
+    {
+        var provenance = await this.readers.ProvenanceReader.ReadAsync(
+            [.. shown.Select(static message => message.StoredEmailId)],
+            cancellationToken);
+
+        List<GuardedThreadReading> readings = [];
+
+        foreach (var message in shown.Where(message => provenance.ContainsKey(message.StoredEmailId)))
+        {
+            readings.Add(await this.GuardedReadingOfAsync(message, provenance[message.StoredEmailId], cancellationToken));
+        }
+
+        return readings;
     }
 
     /// <summary>Guards each value one message's author wrote, before the reading is written around it.</summary>
@@ -264,6 +283,7 @@ internal sealed class AgentConversationTools
     /// </remarks>
     internal async Task<GuardedThreadReading> GuardedReadingOfAsync(
         ReadEmailContent message,
+        EmailProvenance provenance,
         CancellationToken cancellationToken)
     {
         var body = message.Body.PlainText.Text;
@@ -281,6 +301,7 @@ internal sealed class AgentConversationTools
             citation.Id,
             sender,
             message.Headers.SentAt,
+            provenance,
             subject,
             guardedBody.Text,
             bounded.Length < body.Length || guardedBody.WasCutAtAnalyzedCeiling);

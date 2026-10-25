@@ -168,7 +168,8 @@ public sealed class EmailEnrichmentAgentTests
             StoredEmailId.Create(Guid.CreateVersion7()),
             "The racking quotation",
             new DateTimeOffset(2026, 9, 5, 12, 0, 0, TimeSpan.Zero),
-            []);
+            [],
+            StubEmailProvenanceReader.KnownCorrespondent);
 
         // Act
         var derivation = await agent.DeriveAsync(withoutPassages, MailAccountLanguage.English, TestContext.Current.CancellationToken);
@@ -196,7 +197,8 @@ public sealed class EmailEnrichmentAgentTests
                     EmailChunkId.Create(Guid.CreateVersion7()),
                     0,
                     $"a colleague pasted {Marker} into this thread"),
-            ]);
+            ],
+            StubEmailProvenanceReader.KnownCorrespondent);
 
         // Act
         await agent.DeriveAsync(carryingASecret, MailAccountLanguage.English, TestContext.Current.CancellationToken);
@@ -225,7 +227,8 @@ public sealed class EmailEnrichmentAgentTests
             StoredEmailId.Create(Guid.CreateVersion7()),
             "The racking quotation",
             new DateTimeOffset(2026, 9, 5, 12, 0, 0, TimeSpan.Zero),
-            [new EnrichablePassage(EmailChunkId.Create(Guid.CreateVersion7()), 0, "the quotation is attached")]);
+            [new EnrichablePassage(EmailChunkId.Create(Guid.CreateVersion7()), 0, "the quotation is attached")],
+            StubEmailProvenanceReader.KnownCorrespondent);
 
     /// <summary>Builds the chat-completion payload a provider answers with.</summary>
     private static string Completion(string content, int? inputTokens = null, int? outputTokens = null) =>

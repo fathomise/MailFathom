@@ -59,7 +59,10 @@ internal static class CorpusReaders
     private static readonly OutgoingEmailBounds DeploymentBounds = new MailDeliveryOptions().ToOutgoingEmailBounds();
 
     private static readonly Lazy<IReadOnlyList<IReadOnlyList<CorpusMessage>>> Exchanges = new(static () =>
-        [.. CorpusMessage.Exchanges, .. HostileMail.Exchanges, .. PolishCorpus.Exchanges]);
+        [.. CorpusMessage.Exchanges, .. HostileMail.Exchanges, .. FalseClaimMail.Exchanges, .. PolishCorpus.Exchanges]);
+
+    private static readonly Lazy<StubEmailProvenanceReader> Provenance = new(static () => StubEmailProvenanceReader.Answering(
+        Exchanges.Value.SelectMany(static exchange => exchange).ToDictionary(static message => message.Id, static message => message.Provenance)));
 
     private static readonly Lazy<IReadOnlyDictionary<StoredEmailId, EmailSummary>> Summaries = new(static () =>
         Exchanges.Value
@@ -94,6 +97,7 @@ internal static class CorpusReaders
             scope,
             search,
             ContentReaderOver(scope, authorization),
+            Provenance.Value,
             new MailThreadStateBrowser(PersonalAgenda.ThreadStateReader(), scope, SensitiveContentEgressGuards.Inactive(), authorization),
             new OwnCalendar(
                 authorization,
@@ -139,7 +143,7 @@ internal static class CorpusReaders
             SenderDisplayName = message.SenderName,
             SenderAddress = message.Sender,
             ToAddresses = message.Recipients,
-            SenderVerification = SenderVerification.NotEstablished,
+            SenderVerification = message.Provenance.Sender,
             SenderAuthenticationEvidence = SenderAuthenticationEvidence.None,
             MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
             Attachments = StoredEmailAttachmentSummary.None,

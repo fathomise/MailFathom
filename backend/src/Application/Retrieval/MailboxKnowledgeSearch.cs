@@ -3,9 +3,11 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.Search.Attachments;
 using MailFathom.Application.Emails.SearchEmails;
+using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Retrieval;
 
@@ -45,18 +47,25 @@ public sealed class MailboxKnowledgeSearch : IEmailKnowledgeSearch
     private const char SnippetSeparator = '\n';
 
     private readonly MailboxSearchReader searchReader;
+    private readonly IEmailProvenanceReader provenanceReader;
     private readonly EmailKnowledgeBounds bounds;
 
     /// <summary>Initializes the retrieval over the mailbox search and the bounds it hands its results over under.</summary>
     /// <param name="searchReader">Ranks and cuts the mail a query matched.</param>
+    /// <param name="provenanceReader">Reads where each matched message came from, which every passage carries.</param>
     /// <param name="bounds">How much of what it found may be handed over.</param>
-    /// <exception cref="ArgumentNullException">Thrown when either argument is <see langword="null" />.</exception>
-    public MailboxKnowledgeSearch(MailboxSearchReader searchReader, EmailKnowledgeBounds bounds)
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    public MailboxKnowledgeSearch(
+        MailboxSearchReader searchReader,
+        IEmailProvenanceReader provenanceReader,
+        EmailKnowledgeBounds bounds)
     {
         ArgumentNullException.ThrowIfNull(searchReader);
+        ArgumentNullException.ThrowIfNull(provenanceReader);
         ArgumentNullException.ThrowIfNull(bounds);
 
         this.searchReader = searchReader;
+        this.provenanceReader = provenanceReader;
         this.bounds = bounds;
     }
 
@@ -94,20 +103,32 @@ public sealed class MailboxKnowledgeSearch : IEmailKnowledgeSearch
         // Deliberately the unguarded window: an extract reaches a model rather than an MCP caller, and the retrieval
         // that sends it guards it there, under the egress point it actually crosses.
         var result = await this.searchReader.SearchWindowAsync(request, cancellationToken);
+        var provenance = await this.provenanceReader.ReadAsync(
+            [.. result.Matches.Select(static match => match.Summary.StoredEmailId)],
+            cancellationToken);
 
-        return EmailKnowledgeLookup.Unfiltered(PassagesOf(result.Matches, this.bounds), result.RetrievalMode);
+        return EmailKnowledgeLookup.Unfiltered(
+            PassagesOf(result.Matches, provenance, this.bounds),
+            result.RetrievalMode);
     }
 
     /// <summary>Reads the matches a search returned into the passages a model receives, dropping every one that yielded no text.</summary>
     /// <param name="matches">The matches, in the order the search ranked them.</param>
+    /// <param name="provenance">Where each matched message came from, keyed by its identity.</param>
     /// <param name="bounds">What one passage may carry.</param>
     /// <returns>The passages, in the same order.</returns>
+    /// <remarks>
+    /// A match whose provenance was not read is dropped with the ones that yielded no text: it is a message removed
+    /// between the search and the read, and a passage that could not say where it came from is not handed to a model.
+    /// </remarks>
     internal static IReadOnlyList<EmailKnowledgePassage> PassagesOf(
         IEnumerable<EmailSearchMatch> matches,
+        IReadOnlyDictionary<StoredEmailId, EmailProvenance> provenance,
         EmailKnowledgeBounds bounds) =>
     [
         .. matches
-            .Select(match => ToPassage(match, bounds))
+            .Where(match => provenance.ContainsKey(match.Summary.StoredEmailId))
+            .Select(match => ToPassage(match, provenance[match.Summary.StoredEmailId], bounds))
             .Where(static passage =>
                 passage.Text.Length is not 0 || passage.AttachmentExtracts.Count is not 0),
     ];
@@ -120,7 +141,10 @@ public sealed class MailboxKnowledgeSearch : IEmailKnowledgeSearch
     /// the model cannot read a word of. A message whose words live only in a file is the opposite case and is kept: its
     /// body extract is empty and its attachment extracts are the answer.
     /// </remarks>
-    private static EmailKnowledgePassage ToPassage(EmailSearchMatch match, EmailKnowledgeBounds bounds)
+    private static EmailKnowledgePassage ToPassage(
+        EmailSearchMatch match,
+        EmailProvenance provenance,
+        EmailKnowledgeBounds bounds)
     {
         var summary = match.Summary;
 
@@ -131,7 +155,7 @@ public sealed class MailboxKnowledgeSearch : IEmailKnowledgeSearch
             Folder = summary.Folder,
             Subject = summary.Subject,
             ReceivedAt = summary.ReceivedAt,
-            SenderVerification = summary.SenderVerification,
+            Provenance = provenance,
             MachineAuthorship = summary.MachineAuthorship,
             Text = Bounded(string.Join(SnippetSeparator, match.Snippets), bounds),
             AttachmentExtracts = [.. match.AttachmentMatches.Select(attachment => ToAttachmentExtract(attachment, bounds))],

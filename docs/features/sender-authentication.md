@@ -344,7 +344,7 @@ is described.
 | `list_emails` | The pair, on each listed email's summary |
 | `search_emails` | The same pair, by republishing that summary rather than reshaping it |
 | `get_email_content` | The pair, and beside it the evidence: the domain that authenticated, the domain the `From` header displayed, which check established the first, the DMARC result, and which of the two readings reached the verdict |
-| `ask_mail` | The pair, on each citation, without the evidence |
+| `ask_mail` | The pair, on each citation, without the evidence, beside whether the message sat in junk and whether its sender was a first contact |
 
 **The listing carries the verdict and the single-email read carries the evidence.** A listing exists to let a reader
 recognize a message and already narrows `Cc` and `Reply-To` away, and the two outcomes are what a caller branches on;
@@ -378,6 +378,18 @@ deployment's own classification and not an authentication result, that *unknown*
 mail from a new correspondent, and that the sender address beside them is a claim the message wrote about itself. None
 of them characterizes the message or the sender's intent. A failed authentication is stated as a failed authentication.
 [MCP tools](mcp-tools.md#list_emails) holds the published shape of each result.
+
+## What an AI operation is told
+
+The AI operations that carry provenance — answering, the Agent's `search_mail` and `read_thread`, enrichment, a
+conversation's state, and Discover — write the conclusion beside each message they quote as the service's own
+`sender-authentication` attribute, with
+`sender-trusted="true"` where this deployment recognizes the author, and asks the model to qualify a claim resting on
+an author nobody established. Reply drafting, contact relationships, calendar-event extraction, and body cleanup quote
+mail without it so far. The evidence never travels there. [Mail
+answering](mail-answering.md#where-a-message-came-from) holds the attributes, the two qualifications written beside
+them, and the rule a model is given. A citation a client resolves carries the same values back, so the person sees
+why a claim was qualified.
 
 ## What MailFathom does not do
 

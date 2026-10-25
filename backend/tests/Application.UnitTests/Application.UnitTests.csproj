@@ -37,6 +37,7 @@
     <Compile Include="..\shared\StubMailFolderParticipation.cs" Link="StubMailFolderParticipation.cs" />
     <Compile Include="..\shared\StubDeploymentMailFolders.cs" Link="StubDeploymentMailFolders.cs" />
     <Compile Include="..\shared\StubJunkMailFolderCatalog.cs" Link="StubJunkMailFolderCatalog.cs" />
+    <Compile Include="..\shared\StubEmailProvenanceReader.cs" Link="StubEmailProvenanceReader.cs" />
     <!-- The classification gate reaches synchronization, the classifier, and both persistence walks, so the settings a
          gate is built from and the instrument that reports what it decided are linked wherever one is constructed. -->
     <Compile Include="..\shared\StubSpamClassificationSettingsReader.cs" Link="StubSpamClassificationSettingsReader.cs" />

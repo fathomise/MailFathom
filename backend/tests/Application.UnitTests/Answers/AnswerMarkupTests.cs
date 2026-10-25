@@ -5,12 +5,12 @@
 using MailFathom.Application.Answers;
 using MailFathom.Application.EmailContent.Rendering.Document;
 using MailFathom.Application.Emails.AttachmentText;
-using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authorship;
+using MailFathom.TestSupport;
 using Xunit;
 
 namespace MailFathom.Application.UnitTests.Answers;
@@ -256,7 +256,7 @@ public sealed class AnswerMarkupTests
             StoredEmailId = StoredEmailId.Create(Guid.CreateVersion7()),
             AccountId = MailAccountId.Create("work"),
             Folder = SyntheticEmailSummaries.FolderOf("work", "inbox"),
-            SenderVerification = SenderVerification.NotEstablished,
+            Provenance = StubEmailProvenanceReader.KnownCorrespondent,
             MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
             Text = "The covering note.",
             AttachmentExtracts = [new EmailKnowledgeAttachmentExtract(0, "terms.pdf", AttachmentTextKind.Document, null, "The terms.")],

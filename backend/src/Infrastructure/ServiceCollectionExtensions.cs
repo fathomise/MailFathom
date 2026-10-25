@@ -52,6 +52,7 @@ using MailFathom.Application.Emails.Extraction.Images;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.ListEmails;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.ReplyDrafts;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.Search.Attachments;
@@ -877,6 +878,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IStoredEmailTimelineReader, StoredEmailTimelineReader>();
         services.AddScoped<IStoredEmailSummaryReader, StoredEmailSummaryReader>();
         services.AddScoped<IStoredEmailPreviewReader, StoredEmailPreviewReader>();
+        services.AddScoped<IEmailProvenanceReader, StoredEmailProvenanceReader>();
         services.AddScoped<IEmailThreadReader, StoredEmailThreadReader>();
         services.AddScoped<IStoredThreadStateReader, StoredThreadStateReader>();
         // Registered whatever the deployment decided about drafting, because it reads stored mail and nothing else:

@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
@@ -15,6 +16,7 @@ namespace MailFathom.Application.Discovery.Citations;
 /// <param name="Subject">The subject it carried, or <see langword="null" /> when it carried none.</param>
 /// <param name="SentAt">When the sender says it was sent, or <see langword="null" /> when it wrote no usable date.</param>
 /// <param name="ReceivedAt">When the last receiving hop recorded it, or <see langword="null" /> when no header carried a usable date.</param>
+/// <param name="Provenance">Where it came from as this deployment recorded it, which a client shows beside the claim the citation supports.</param>
 /// <remarks>
 /// <para>
 /// It travels with every resolution the caller may read, including one whose place inside the message is gone, so a
@@ -34,4 +36,5 @@ public sealed record CitedMessage(
     StoredEmailFolder Folder,
     string? Subject,
     DateTimeOffset? SentAt,
-    DateTimeOffset? ReceivedAt);
+    DateTimeOffset? ReceivedAt,
+    EmailProvenance Provenance);

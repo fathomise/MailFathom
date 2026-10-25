@@ -6,6 +6,7 @@ using System.Xml.Linq;
 using MailFathom.AI.Enrichment;
 using MailFathom.AI.Orchestration;
 using MailFathom.Domain.Accounts;
+using MailFathom.TestSupport;
 using Xunit;
 
 namespace MailFathom.AI.UnitTests.Enrichment;
@@ -138,6 +139,7 @@ public sealed class EmailEnrichmentInstructionsTests
         var turn = EmailEnrichmentInstructions.ComposeEnrichmentTurn(
             "The racking quotation",
             ReceivedAt,
+            StubEmailProvenanceReader.KnownCorrespondent,
             ["the quotation is attached", "we need your answer by Friday"]);
 
         // Assert
@@ -155,7 +157,7 @@ public sealed class EmailEnrichmentInstructionsTests
     public void ComposeEnrichmentTurn_AMessageThatArrived_StatesTheArrivalInstant()
     {
         // Act
-        var turn = EmailEnrichmentInstructions.ComposeEnrichmentTurn("The racking quotation", ReceivedAt, []);
+        var turn = EmailEnrichmentInstructions.ComposeEnrichmentTurn("The racking quotation", ReceivedAt, StubEmailProvenanceReader.KnownCorrespondent, []);
 
         // Assert
         Assert.Equal(
@@ -163,12 +165,33 @@ public sealed class EmailEnrichmentInstructionsTests
             (string?)Parsed(turn).Element(MessagePassages.MessageElementName)?.Attribute(MessagePassages.ArrivedAttributeName));
     }
 
+    /// <summary>Where the message came from is written by the service, so a request from an unverifiable sender is not taken as the person's work.</summary>
+    [Fact]
+    public void ComposeEnrichmentTurn_AMessageFromAFirstContactInJunk_WritesItsProvenanceOnTheMessage()
+    {
+        // Act
+        var turn = EmailEnrichmentInstructions.ComposeEnrichmentTurn(
+            "New bank details",
+            ReceivedAt,
+            StubEmailProvenanceReader.UnverifiedStranger,
+            ["our account has changed"]);
+
+        // Assert
+        var message = Parsed(turn).Element(MessagePassages.MessageElementName);
+        Assert.Equal(
+            (AgentTurnDocument.NotEstablishedSender, "true", "true"),
+            (
+                (string?)message?.Attribute(AgentTurnDocument.SenderAuthenticationAttributeName),
+                (string?)message?.Attribute(AgentTurnDocument.JunkAttributeName),
+                (string?)message?.Attribute(AgentTurnDocument.FirstContactAttributeName)));
+    }
+
     /// <summary>Absent rather than empty, so the model reads what the message carried instead of a blank it has to tell apart from an empty subject.</summary>
     [Fact]
     public void ComposeEnrichmentTurn_AMessageWithNoSubjectAndNoArrival_WritesNeither()
     {
         // Act
-        var message = Parsed(EmailEnrichmentInstructions.ComposeEnrichmentTurn(subject: null, receivedAt: null, []))
+        var message = Parsed(EmailEnrichmentInstructions.ComposeEnrichmentTurn(subject: null, receivedAt: null, StubEmailProvenanceReader.KnownCorrespondent, []))
             .Element(MessagePassages.MessageElementName);
 
         // Assert
@@ -186,7 +209,7 @@ public sealed class EmailEnrichmentInstructionsTests
         var passages = Enumerable.Range(0, 5).Select(static ordinal => new string((char)('a' + ordinal), 200)).ToArray();
 
         // Act
-        var turn = EmailEnrichmentInstructions.ComposeEnrichmentTurn("The racking quotation", ReceivedAt, passages, Bound);
+        var turn = EmailEnrichmentInstructions.ComposeEnrichmentTurn("The racking quotation", ReceivedAt, StubEmailProvenanceReader.KnownCorrespondent, passages, Bound);
 
         // Assert
         Assert.True(turn.Length <= Bound, $"The turn holds {turn.Length} characters.");

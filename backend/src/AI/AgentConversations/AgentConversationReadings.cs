@@ -5,6 +5,7 @@
 using System.Globalization;
 using MailFathom.AI.Orchestration;
 using MailFathom.Application.Discovery.Presentation.Citations;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Tasks;
 
@@ -112,6 +113,7 @@ internal static class AgentConversationReadings
             document.WriteAttribute(SourceAttributeName, message.Source.Value);
             WriteOptional(document, FromAttributeName, message.SenderAddress);
             WriteOptional(document, SentAttributeName, Instant(message.SentAt));
+            document.WriteProvenance(message.Provenance);
 
             if (message.Subject is { } subject)
             {
@@ -201,6 +203,7 @@ internal static class AgentConversationReadings
 /// <param name="Source">The source this run declared it as, which an answer cites.</param>
 /// <param name="SenderAddress">The guarded address it was sent from, or <see langword="null" /> where it named none.</param>
 /// <param name="SentAt">When it was sent, where it said.</param>
+/// <param name="Provenance">Where it came from as this deployment recorded it, which the reading states as attributes the message cannot write.</param>
 /// <param name="Subject">The guarded subject, or <see langword="null" /> where it carried none.</param>
 /// <param name="Body">The guarded body, already cut to what a reading shows.</param>
 /// <param name="BodyCut">Whether the body was cut, which the reading states.</param>
@@ -209,6 +212,7 @@ internal sealed record GuardedThreadReading(
     PresentationCitationId Source,
     string? SenderAddress,
     DateTimeOffset? SentAt,
+    EmailProvenance Provenance,
     string? Subject,
     string Body,
     bool BodyCut);

@@ -289,7 +289,8 @@ public sealed class ThreadStateDerivationPassTests
                     0,
                     "Karolina",
                     new DateTimeOffset(2026, 9, 7, 15, 0, 0, TimeSpan.Zero),
-                    "we can hold the two-hour response time"),
+                    "we can hold the two-hour response time",
+                    StubEmailProvenanceReader.KnownCorrespondent),
             ],
             ExceedsBound: false);
 

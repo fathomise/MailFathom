@@ -203,6 +203,11 @@ own mail going back to the user, and redacting it there would hide from somebody
 of each extract exist for the length of one call — the guarded one the provider is shown, and the user's own one the
 evidence list quotes.
 
+Each source carries where its message came from, written by the service on its `<source>` element as the attributes [answering writes](mail-answering.md#where-a-message-came-from), and the instruction asks for a
+finding resting only on a source that is not authenticated, or is junk or a first contact, to be stated with that
+qualification. The same values reach the client again on [the citation route](../operations/client-endpoint.md#the-citation-route),
+so a person reading the plan can see why a claim was qualified.
+
 One call leaves per composition, with no tools, so a question costs two turns however much mail it read. Both of them
 are charged to the run's own ledger and to the deployment's period ledger before they are sent, which is what makes the
 ceilings in [what bounds a run](#what-bounds-a-run) real rather than nominal.

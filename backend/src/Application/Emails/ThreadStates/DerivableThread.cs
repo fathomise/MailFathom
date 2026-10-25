@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Emails.ThreadStates;
@@ -15,9 +16,11 @@ namespace MailFathom.Application.Emails.ThreadStates;
 /// <remarks>
 /// <para>
 /// Deliberately narrow, exactly as one message's derivation is. A reading is shown the subject, who wrote each message,
-/// when they wrote it, and what they said; it is shown no folder, no account, no addressee list, and no mailbox. None
-/// of those is what *where did we leave this* is derived from, and every one of them is somebody this deployment would
-/// then be sending to a provider for no reading it buys.
+/// when they wrote it, and what they said; it is shown no folder's identity, no account, no addressee list, and no other
+/// mail. None of those is what *where did we leave this* is derived from, and every one of them is somebody this
+/// deployment would then be sending to a provider for no reading it buys. What it is shown about the mailbox is each
+/// message's provenance — whether it sits in junk, and whether the mailbox had corresponded with its sender before —
+/// which is what lets a request from a sender nobody verified be recorded as a claim rather than as something owed.
 /// </para>
 /// <para>
 /// A conversation past the bound arrives with no messages at all rather than with the leading ones. That is what makes
@@ -38,14 +41,22 @@ public sealed record DerivableThread(
 /// <param name="AuthorDisplayName">The name the message was written under, or <see langword="null" /> where it carried none.</param>
 /// <param name="SentAt">When the message was written, which is what a date its text states relatively is read against.</param>
 /// <param name="Text">What the message added, with the history it quoted already trimmed off, bounded by what one turn may carry.</param>
+/// <param name="Provenance">Where the message came from as this deployment recorded it, which a statement drawn from it is qualified by.</param>
 /// <remarks>
+/// <para>
 /// The author is a display name rather than an address, because what a statement needs to say is *who* undertook
 /// something and a name is what a reader recognizes. An address would add a second identifier to every turn for a
 /// reading that would not change, and addresses are the part of a header worth not sending where a name will do.
+/// </para>
+/// <para>
+/// The name is whatever the message wrote, so it is the provenance rather than the name that says whether the author
+/// is who they claim: a message signing as a colleague from an address nobody verified is recorded as such.
+/// </para>
 /// </remarks>
 public sealed record DerivableThreadMessage(
     StoredEmailId StoredEmailId,
     int Position,
     string? AuthorDisplayName,
     DateTimeOffset? SentAt,
-    string Text);
+    string Text,
+    EmailProvenance Provenance);

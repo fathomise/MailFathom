@@ -11,6 +11,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Calendar;
 using MailFathom.Domain.Emails;
+using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Xunit;
@@ -229,5 +230,6 @@ public sealed class MailCalendarProposalsTests
             StoredEmailId.Create(Guid.CreateVersion7()),
             "The racking survey",
             new DateTimeOffset(2026, 9, 21, 9, 30, 0, TimeSpan.Zero),
-            []);
+            [],
+            StubEmailProvenanceReader.KnownCorrespondent);
 }

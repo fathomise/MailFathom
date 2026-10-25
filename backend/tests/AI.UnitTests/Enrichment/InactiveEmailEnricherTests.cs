@@ -7,6 +7,7 @@ using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.TestSupport;
 using Xunit;
 
 namespace MailFathom.AI.UnitTests.Enrichment;
@@ -50,7 +51,8 @@ public sealed class InactiveEmailEnricherTests
             StoredEmailId.Create(Guid.CreateVersion7()),
             Subject: null,
             ReceivedAt: null,
-            []);
+            [],
+            StubEmailProvenanceReader.KnownCorrespondent);
 
         // Act
         var derivation = await InactiveEmailEnricher.Instance.DeriveAsync(
@@ -79,5 +81,6 @@ public sealed class InactiveEmailEnricherTests
             StoredEmailId.Create(Guid.CreateVersion7()),
             "The racking quotation",
             new DateTimeOffset(2026, 9, 5, 12, 0, 0, TimeSpan.Zero),
-            [new EnrichablePassage(EmailChunkId.Create(Guid.CreateVersion7()), 0, "the quotation is attached")]);
+            [new EnrichablePassage(EmailChunkId.Create(Guid.CreateVersion7()), 0, "the quotation is attached")],
+            StubEmailProvenanceReader.KnownCorrespondent);
 }

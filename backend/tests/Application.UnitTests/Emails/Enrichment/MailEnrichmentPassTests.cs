@@ -294,7 +294,8 @@ public sealed class MailEnrichmentPassTests
             StoredEmailId.Create(Guid.CreateVersion7()),
             "The racking quotation",
             new DateTimeOffset(2026, 9, 5, 12, 0, 0, TimeSpan.Zero),
-            [new EnrichablePassage(EmailChunkId.Create(Guid.CreateVersion7()), 0, "the quotation is attached")]);
+            [new EnrichablePassage(EmailChunkId.Create(Guid.CreateVersion7()), 0, "the quotation is attached")],
+            StubEmailProvenanceReader.KnownCorrespondent);
 
     private static EmailEnrichmentMark Sense() =>
         EmailEnrichmentMark.Create(

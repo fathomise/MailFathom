@@ -54,6 +54,14 @@ internal sealed record CitedEmail
     /// </remarks>
     public required ReportedSenderVerification SenderVerification { get; init; }
 
+    /// <summary>Gets whether the cited email sits in its account's junk folder.</summary>
+    [Description("Whether the email sits in the folder its account maps as junk. A claim resting on such an email is worth qualifying when reporting it.")]
+    public required bool InJunkFolder { get; init; }
+
+    /// <summary>Gets whether the cited email's sender had not corresponded with this mailbox before it.</summary>
+    [Description("Whether nothing this mailbox held before the email was written by its sender or addressed to them, counting no mail in the junk, trash, or drafts folders. A request from a first contact to change payment details or credentials, or to act urgently, is worth flagging as unverified rather than restating.")]
+    public required bool FirstContact { get; init; }
+
     /// <summary>Gets how much the cited email's own text read as machine written.</summary>
     /// <remarks>
     /// The same shape a listing publishes, so a reader weighs a cited message exactly as they would a listed one. The
@@ -84,7 +92,9 @@ internal sealed record CitedEmail
             FolderPath = citation.Folder.Path,
             Subject = citation.Subject,
             ReceivedAt = citation.ReceivedAt,
-            SenderVerification = ReportedSenderVerification.From(citation.SenderVerification),
+            SenderVerification = ReportedSenderVerification.From(citation.Provenance.Sender),
+            InJunkFolder = citation.Provenance.IsInJunkFolder,
+            FirstContact = citation.Provenance.IsFirstContact,
             MachineAuthorship = ReportedMachineAuthorship.From(citation.MachineAuthorship),
             Attachments = [.. citation.Attachments.Select(CitedEmailAttachment.From)],
         };

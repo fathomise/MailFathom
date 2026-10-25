@@ -22,8 +22,10 @@ namespace MailFathom.AI.ThreadStates;
 /// <remarks>
 /// <para>
 /// One call, no tools, and one conversation. What leaves this deployment is the subject, and for each message the name
-/// it was written under, when it was written, and what it added — every one of them guarded first. No address, no
-/// folder, and no account travels with it.
+/// it was written under, when it was written, and what it added — every one of them guarded first — beside its
+/// provenance: the sender verdict, whether the deployment trusts the author, whether the message sits in junk, and
+/// whether the mailbox had corresponded with its sender before. No address, no folder name, and no account travels with
+/// it.
 /// </para>
 /// <para>
 /// It opens no chat call of its own. The agent is composed by <see cref="AgentComposition" /> like every other
@@ -228,7 +230,8 @@ internal sealed class ThreadStateAgent : IThreadStateDeriver
                 await egressGuard.GuardAsync(
                     SensitiveContentEgressPoint.ChatPrompt,
                     message.Text,
-                    cancellationToken)));
+                    cancellationToken),
+                message.Provenance));
         }
 
         return guarded;

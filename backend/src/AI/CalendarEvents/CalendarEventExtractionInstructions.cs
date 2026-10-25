@@ -90,9 +90,9 @@ internal static class CalendarEventExtractionInstructions
     /// The arrival instant is the message's own metadata rather than the current time, which is what makes the same
     /// message read again next month resolve <em>Friday</em> to the same day. It is stated by the anchor alone, as the wall
     /// clock without its offset, and never as an attribute of the message, which would hand the model the offset to copy
-    /// back. Otherwise the message is written as the enrichment turn writes it, although nothing here cites a passage: a
-    /// reading that is shown the message in the shape the other reading sees it is a reading two evaluations can be
-    /// compared across.
+    /// back. Otherwise the message is written as the enrichment turn writes it, apart from the provenance attributes this
+    /// reading does not carry yet, although nothing here cites a passage: a reading that is shown the message in the shape
+    /// the other reading sees it is a reading two evaluations can be compared across.
     /// </para>
     /// <para>
     /// A bound rather than a refusal, on the reading the enrichment beside it takes: a message composed longer than the
@@ -112,7 +112,7 @@ internal static class CalendarEventExtractionInstructions
         return AgentTurnDocument.Compose(maximumCharacters, document =>
         {
             document.WriteStatement($"{AgentTimeAnchor.Stated(receivedAt)}\n\nA message from this mailbox.\n\n");
-            MessagePassages.Write(document, subject, arrivedAt: null, passages);
+            MessagePassages.Write(document, subject, arrivedAt: null, provenance: null, passages);
         });
     }
 

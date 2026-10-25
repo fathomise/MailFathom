@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Globalization;
+using MailFathom.Application.Emails.Provenance;
 
 namespace MailFathom.AI.Orchestration;
 
@@ -33,11 +34,13 @@ internal static class MessagePassages
     /// <param name="document">The document the message is written into.</param>
     /// <param name="subject">The guarded subject, or <see langword="null" /> where the message carried none.</param>
     /// <param name="arrivedAt">When the message arrived, or <see langword="null" /> where that is unknown.</param>
+    /// <param name="provenance">Where the message came from, written on its element, or <see langword="null" /> for a derivation whose turn does not carry it yet.</param>
     /// <param name="passages">The guarded passages, positioned from zero in the order given.</param>
     internal static void Write(
         AgentTurnDocument document,
         string? subject,
         DateTimeOffset? arrivedAt,
+        EmailProvenance? provenance,
         IReadOnlyList<string> passages)
     {
         ArgumentNullException.ThrowIfNull(document);
@@ -48,6 +51,11 @@ internal static class MessagePassages
         if (arrivedAt is { } arrived)
         {
             document.WriteAttribute(ArrivedAttributeName, arrived.ToString("O", CultureInfo.InvariantCulture));
+        }
+
+        if (provenance is not null)
+        {
+            document.WriteProvenance(provenance);
         }
 
         if (subject is not null)

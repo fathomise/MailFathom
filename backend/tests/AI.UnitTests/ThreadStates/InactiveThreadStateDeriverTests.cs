@@ -6,6 +6,7 @@ using MailFathom.AI.ThreadStates;
 using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.TestSupport;
 using Xunit;
 
 namespace MailFathom.AI.UnitTests.ThreadStates;
@@ -85,7 +86,8 @@ public sealed class InactiveThreadStateDeriverTests
                     0,
                     "Karolina",
                     new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero),
-                    "the price holds"),
+                    "the price holds",
+                    StubEmailProvenanceReader.KnownCorrespondent),
             ],
             ExceedsBound: false);
 }

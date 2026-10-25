@@ -119,8 +119,8 @@ of its own.
 agent in the turn, so an agent that could look something up would be an agent able to reach mail beyond the
 correspondence it was asked about.
 
-What leaves the deployment is the subject, each message's author, arrival instant and text — nothing else, and every
-one of them scanned first by whatever [sensitive-content scanning](sensitive-content-scanning.md) the deployment
+What leaves the deployment is the subject, each message's author, arrival instant, provenance, and text — nothing else,
+and every quoted one of them scanned first by whatever [sensitive-content scanning](sensitive-content-scanning.md) the deployment
 switched on. The messages are **numbered in the turn and cited by number**, and the model is shown no identifier at
 all, so a citation is a position in a list this deployment composed: an answer naming a message it was not given names
 nothing, and its statement is dropped.
@@ -129,6 +129,11 @@ The correspondence is data rather than an instruction, and the instruction says 
 this system reads: a message that asks to be recorded as an agreement is a sender writing on a block somebody else's
 decisions depend on. The instruction describes no action either — replying, filing and reminding are acts this
 deployment takes elsewhere, so a model cannot propose one.
+
+Each message carries where it came from, written by the service on its `<message>` element as the attributes [answering writes](mail-answering.md#where-a-message-came-from). The instruction asks the model to read what
+a message from a sender nobody authenticated, or from junk or a first contact, asks of the person as that sender's
+claim: such a request is not recorded as something the person agreed to or owes. A message whose provenance can no
+longer be read was erased since the conversation was selected, and is left out of it.
 
 ## What it costs, and turning it on
 

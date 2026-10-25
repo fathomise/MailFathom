@@ -152,7 +152,8 @@ public sealed class CalendarEventExtractionAgentTests
             StoredEmailId.Create(Guid.CreateVersion7()),
             "The racking survey",
             ReceivedAt,
-            []);
+            [],
+            StubEmailProvenanceReader.KnownCorrespondent);
 
         // Act
         var extraction = await agent.ProposeFromEmailAsync(withoutPassages, TestContext.Current.CancellationToken);
@@ -173,7 +174,8 @@ public sealed class CalendarEventExtractionAgentTests
             StoredEmailId.Create(Guid.CreateVersion7()),
             "The racking survey",
             ReceivedAt: null,
-            [new EnrichablePassage(EmailChunkId.Create(Guid.CreateVersion7()), 0, "shall we say Thursday at ten")]);
+            [new EnrichablePassage(EmailChunkId.Create(Guid.CreateVersion7()), 0, "shall we say Thursday at ten")],
+            StubEmailProvenanceReader.KnownCorrespondent);
 
         // Act
         var extraction = await agent.ProposeFromEmailAsync(undated, TestContext.Current.CancellationToken);
@@ -202,7 +204,8 @@ public sealed class CalendarEventExtractionAgentTests
                     EmailChunkId.Create(Guid.CreateVersion7()),
                     0,
                     $"a colleague pasted {Marker} into this thread"),
-            ]);
+            ],
+            StubEmailProvenanceReader.KnownCorrespondent);
 
         // Act
         await agent.ProposeFromEmailAsync(carryingASecret, TestContext.Current.CancellationToken);
@@ -231,7 +234,8 @@ public sealed class CalendarEventExtractionAgentTests
                     EmailChunkId.Create(Guid.CreateVersion7()),
                     ordinal,
                     new string('a', 400))),
-            ]);
+            ],
+            StubEmailProvenanceReader.KnownCorrespondent);
 
         // Act
         var extraction = await agent.ProposeFromEmailAsync(longMessage, TestContext.Current.CancellationToken);
@@ -366,7 +370,8 @@ public sealed class CalendarEventExtractionAgentTests
             StoredEmailId.Create(Guid.CreateVersion7()),
             "The racking survey",
             ReceivedAt,
-            [new EnrichablePassage(EmailChunkId.Create(Guid.CreateVersion7()), 0, "shall we say Thursday at ten")]);
+            [new EnrichablePassage(EmailChunkId.Create(Guid.CreateVersion7()), 0, "shall we say Thursday at ten")],
+            StubEmailProvenanceReader.KnownCorrespondent);
 
     private static CalendarEventDescription Description(
         string text = "racking survey on Thursday at ten")

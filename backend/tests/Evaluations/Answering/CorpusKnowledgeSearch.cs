@@ -88,10 +88,13 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
             .OrderByDescending(static candidate => candidate.Score)
             .ThenByDescending(static candidate => candidate.Message.ReceivedAt)
             .Take(EmailKnowledgeBounds.Default.MaximumPassages)
-            .Select(candidate => MatchOf(candidate.Message, candidate.Score, wanted));
+            .ToArray();
 
         return Task.FromResult(EmailKnowledgeLookup.Unfiltered(
-            MailboxKnowledgeSearch.PassagesOf(found, EmailKnowledgeBounds.Default),
+            MailboxKnowledgeSearch.PassagesOf(
+                [.. found.Select(candidate => MatchOf(candidate.Message, candidate.Score, wanted))],
+                found.ToDictionary(static candidate => candidate.Message.Id, static candidate => candidate.Message.Provenance),
+                EmailKnowledgeBounds.Default),
             EmailSearchRetrievalMode.Lexical));
     }
 

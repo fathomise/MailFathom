@@ -1215,6 +1215,9 @@
           "folder": {
             "type": "string"
           },
+          "provenance": {
+            "$ref": "#/components/schemas/ClientCitedProvenanceResponse"
+          },
           "receivedAt": {
             "format": "date-time",
             "type": [
@@ -1246,7 +1249,31 @@
           "folder",
           "subject",
           "sentAt",
-          "receivedAt"
+          "receivedAt",
+          "provenance"
+        ],
+        "type": "object"
+      },
+      "ClientCitedProvenanceResponse": {
+        "properties": {
+          "authorAuthentication": {
+            "type": "string"
+          },
+          "deploymentTrust": {
+            "type": "string"
+          },
+          "firstContact": {
+            "type": "boolean"
+          },
+          "inJunkFolder": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "authorAuthentication",
+          "deploymentTrust",
+          "inJunkFolder",
+          "firstContact"
         ],
         "type": "object"
       },

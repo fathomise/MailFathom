@@ -9,6 +9,7 @@ using MailFathom.AI.Orchestration;
 using MailFathom.Application.Discovery.Presentation.Citations;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Tasks;
+using MailFathom.TestSupport;
 using Xunit;
 
 namespace MailFathom.AI.UnitTests.AgentConversations;
@@ -26,7 +27,7 @@ public sealed class AgentConversationReadingsTests
 
         // Act
         var message = Parsed(AgentConversationReadings.Thread(
-            [new GuardedThreadReading(id, PresentationCitationId.Create("m1"), "ilse@example.test", Sent, "Visitor parking", "Park on Quay Street.", BodyCut: false)]))
+            [new GuardedThreadReading(id, PresentationCitationId.Create("m1"), "ilse@example.test", Sent, StubEmailProvenanceReader.KnownCorrespondent, "Visitor parking", "Park on Quay Street.", BodyCut: false)]))
             .Element(AgentConversationReadings.MessageElementName)!;
 
         // Assert
@@ -45,7 +46,7 @@ public sealed class AgentConversationReadingsTests
     {
         // Act
         var body = Parsed(AgentConversationReadings.Thread(
-            [new GuardedThreadReading(StoredEmailId.Create(Guid.CreateVersion7()), PresentationCitationId.Create("m1"), SenderAddress: null, SentAt: null, Subject: null, "The first part", BodyCut: true)]))
+            [new GuardedThreadReading(StoredEmailId.Create(Guid.CreateVersion7()), PresentationCitationId.Create("m1"), SenderAddress: null, SentAt: null, StubEmailProvenanceReader.KnownCorrespondent, Subject: null, "The first part", BodyCut: true)]))
             .Descendants(AgentConversationReadings.BodyElementName)
             .Single();
 
@@ -59,7 +60,7 @@ public sealed class AgentConversationReadingsTests
     {
         // Act
         var message = Parsed(AgentConversationReadings.Thread(
-            [new GuardedThreadReading(StoredEmailId.Create(Guid.CreateVersion7()), PresentationCitationId.Create("m1"), SenderAddress: null, SentAt: null, Subject: null, "text", BodyCut: false)]))
+            [new GuardedThreadReading(StoredEmailId.Create(Guid.CreateVersion7()), PresentationCitationId.Create("m1"), SenderAddress: null, SentAt: null, StubEmailProvenanceReader.KnownCorrespondent, Subject: null, "text", BodyCut: false)]))
             .Element(AgentConversationReadings.MessageElementName)!;
 
         // Assert

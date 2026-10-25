@@ -244,7 +244,8 @@ public sealed class ThreadStateAgentTests
                     0,
                     Marker,
                     new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero),
-                    $"a colleague pasted {Marker} into this thread"),
+                    $"a colleague pasted {Marker} into this thread",
+                    StubEmailProvenanceReader.KnownCorrespondent),
             ],
         };
 
@@ -281,7 +282,8 @@ public sealed class ThreadStateAgentTests
                     0,
                     "Karolina",
                     new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero),
-                    "we can hold the two-hour response time"),
+                    "we can hold the two-hour response time",
+                    StubEmailProvenanceReader.KnownCorrespondent),
             ],
             ExceedsBound: false);
 
