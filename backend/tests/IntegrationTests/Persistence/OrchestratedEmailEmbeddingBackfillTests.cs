@@ -298,6 +298,7 @@ public sealed class OrchestratedEmailEmbeddingBackfillTests(MailFathomOrchestrat
                 var generations = await scope.GetRequiredService<IEmbeddingGenerationStore>()
                     .ReadGenerationsAsync(token);
 
+                // No live path runs beside this harness, so nothing is left to one: mail it has just cut is walked at once.
                 return await new StoredEmailEmbeddingBackfill(
                     scope.GetRequiredService<IStoredEmailEmbeddingBackfillStore>(),
                     scope.GetRequiredService<StoredEmailEmbeddingGenerator>(),
@@ -308,7 +309,7 @@ public sealed class OrchestratedEmailEmbeddingBackfillTests(MailFathomOrchestrat
                         BatchSize = batchSize,
                         MaxBatchesPerRun = maxBatchesPerRun,
                     })
-                    .RunAsync(Assert.IsType<RegisteredEmbeddingProfile>(generations.Target), token);
+                    .RunAsync(Assert.IsType<RegisteredEmbeddingProfile>(generations.Target), serving: null, token);
             },
             cancellationToken);
 

@@ -67,6 +67,17 @@ Each call's vectors are committed together, so a crash leaves a whole page of pa
 message that looks finished and is not. Nothing about the message is remembered between turns, which is what makes
 offering one twice free: a message already current reads no passages, calls no provider, and writes nothing.
 
+**This path and the [backfill](embedding-backfill.md) can reach one passage at once**, and neither can see the other
+coming: each reads that the passage has no vector inside its own transaction. The vectors are therefore written by one
+statement that replaces a passage's existing vector under the same generation rather than inserting beside it, so the
+writer that commits second updates the winner's row with an equivalent vector instead of violating its key. Nothing
+collides, nothing is retried, and nothing reaches the log at `Error`; a write that genuinely fails — a vector the
+declared width does not describe, a generation that does not exist — still fails and is still logged. What the losing
+writer cannot get back is the provider call it already made, which is why the backfill leaves mail whose passages were
+cut a moment ago to this path —
+[mail the live path was just offered](embedding-backfill.md#mail-the-live-path-was-just-offered) holds how long, and
+what overlap is left.
+
 **While a model change is under way, this path keeps writing into the generation that is serving** rather than into the
 one being built, so mail arriving during a reindex is searchable the moment it is stored. The reindex reaches the same
 message for the new generation before the count that completes it can read zero, so nothing is lost by leaving that to

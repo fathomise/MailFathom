@@ -52,6 +52,32 @@ namespace MailFathom.Application.Emails.Embeddings.Backfill;
 /// </remarks>
 public sealed class StoredEmailEmbeddingBackfill
 {
+    /// <summary>How long after its passages are cut a message is left to the live path rather than walked here.</summary>
+    /// <remarks>
+    /// <para>
+    /// Cutting a message's passages is what offers it to the live path, and the live path embeds it into the generation
+    /// serving searches — which is the generation this walk fills whenever no reindex is running. Without a window the
+    /// two reach the same passages together whenever the walk passes freshly cut mail, most of all right after a host
+    /// starts, when the account runs and the first sweep both begin at once: each reads that a passage has no vector,
+    /// each pays a provider for one, and one of the two vectors is thrown away.
+    /// </para>
+    /// <para>
+    /// The window bounds that overlap rather than closing it, and deliberately. Which messages the live path holds is
+    /// known only to the replica holding its backlog, so nothing a sweep on another replica could read says whether a
+    /// message is still waiting there. A message the live path has not reached by the time the window ends is walked
+    /// here like any other — which is where a message the backlog turned away was going to be reached anyway, a sweep
+    /// later than it would have been — and only a live turn still running at that moment can pay for the same passage
+    /// twice. A constant rather than a setting, because it is the time the service's own two paths give each other
+    /// rather than anything a deployment describes.
+    /// </para>
+    /// <para>
+    /// It applies only to the generation the live path writes. A reindex fills the generation being built, which no
+    /// live turn ever writes, and holding freshly cut mail back from it would keep the switch to it waiting for as long
+    /// as mail kept arriving.
+    /// </para>
+    /// </remarks>
+    internal static readonly TimeSpan LiveEmbeddingWindow = TimeSpan.FromMinutes(10);
+
     private readonly IStoredEmailEmbeddingBackfillStore backfillStore;
     private readonly StoredEmailEmbeddingGenerator embeddingGenerator;
     private readonly OptimisticConcurrencyRetryPolicy concurrencyRetryPolicy;
@@ -87,6 +113,11 @@ public sealed class StoredEmailEmbeddingBackfill
 
     /// <summary>Runs one bounded pass of the backfill towards one generation.</summary>
     /// <param name="target">The generation whose missing vectors this run produces.</param>
+    /// <param name="serving">
+    /// The generation the live path embeds arriving mail into, or <see langword="null" /> when none serves searches.
+    /// Where it is the target, mail whose passages were cut inside <see cref="LiveEmbeddingWindow" /> is left to the
+    /// live path.
+    /// </param>
     /// <param name="cancellationToken">Cancels the run between messages, between batches, and inside a message's turn.</param>
     /// <returns>What this run produced, and why it ended.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="target" /> is <see langword="null" />.</exception>
@@ -102,9 +133,12 @@ public sealed class StoredEmailEmbeddingBackfill
     /// </remarks>
     public async Task<StoredEmailEmbeddingBackfillResult> RunAsync(
         RegisteredEmbeddingProfile target,
+        RegisteredEmbeddingProfile? serving,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(target);
+
+        var liveEmbeddingWindow = target.Id == serving?.Id ? LiveEmbeddingWindow : TimeSpan.Zero;
 
         var position = await this.backfillStore.FindResumePositionAsync(cancellationToken);
         var outstandingAtSweepStart = position is null
@@ -118,6 +152,7 @@ public sealed class StoredEmailEmbeddingBackfill
             var batch = await this.backfillStore.GetEmailsAwaitingEmbeddingAsync(
                 position,
                 target.Id,
+                liveEmbeddingWindow,
                 this.options.BatchSize,
                 cancellationToken);
 

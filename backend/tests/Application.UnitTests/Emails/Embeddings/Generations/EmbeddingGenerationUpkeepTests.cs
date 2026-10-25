@@ -247,6 +247,66 @@ public sealed class EmbeddingGenerationUpkeepTests
         Assert.Equal(2, world.EmbeddingStore.CountVectors(serving.Id));
     }
 
+    /// <summary>
+    /// Mail whose passages were cut a moment ago was offered to the live path by that cut, and the live path embeds it
+    /// into the serving generation — so a sweep towards that same generation leaves it there rather than paying a
+    /// provider for the passages a second time.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_NothingBeingBuilt_LeavesMailJustCutToTheLivePath()
+    {
+        // Arrange
+        var world = CreateWorld();
+        var serving = world.GenerationStore.Add(CreateIdentity("a-model"), EmbeddingProfileLifecycleState.Active);
+        world.AddMail(messageCount: 1);
+        world.BackfillStore.AddEmailJustCutForTheLivePath(StoredEmailId.Create(Guid.CreateVersion7()), passageCount: 2);
+
+        // Act
+        var result = await world.Upkeep.RunAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StoredEmailEmbeddingBackfillOutcome.SweepCompleted, result.Sweep.Outcome);
+        Assert.Equal(1, result.Sweep.EmbeddedEmailCount);
+        Assert.Equal(1, world.EmbeddingStore.CountVectors(serving.Id));
+        Assert.All(
+            world.BackfillStore.RequestedLiveEmbeddingWindows,
+            window => Assert.Equal(StoredEmailEmbeddingBackfill.LiveEmbeddingWindow, window));
+
+        // Left to the live path rather than dropped: the message is still what a later sweep would select.
+        Assert.Equal(
+            1,
+            await world.BackfillStore.CountEmailsAwaitingEmbeddingAsync(
+                serving.Id,
+                TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
+    /// No live turn writes the generation a reindex is building, so mail just cut is walked into it at once — holding it
+    /// back would keep the switch waiting for as long as mail kept arriving.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_AGenerationBeingBuilt_WalksMailJustCutIntoItAtOnce()
+    {
+        // Arrange
+        var world = CreateWorld();
+        world.GenerationStore.Add(CreateIdentity("a-model"), EmbeddingProfileLifecycleState.Active);
+        var building = world.GenerationStore.Add(
+            CreateIdentity("a-model"),
+            EmbeddingProfileLifecycleState.Building);
+        world.BackfillStore.AddEmailJustCutForTheLivePath(StoredEmailId.Create(Guid.CreateVersion7()), passageCount: 2);
+
+        // Act
+        var result = await world.Upkeep.RunAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(1, result.Sweep.EmbeddedEmailCount);
+        Assert.Equal(EmbeddingGenerationTransition.Switched, result.Transition);
+        Assert.Equal(2, world.EmbeddingStore.CountVectors(building.Id));
+        Assert.All(
+            world.BackfillStore.RequestedLiveEmbeddingWindows,
+            window => Assert.Equal(TimeSpan.Zero, window));
+    }
+
     private static EmbeddingProfileIdentity CreateIdentity(string modelIdentifier) =>
         EmbeddingProfileIdentity.Create(
             "a-provider",

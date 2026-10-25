@@ -25,6 +25,7 @@ internal sealed class InMemoryStoredEmailEmbeddingBackfillStore : IStoredEmailEm
     private readonly List<WalkedEmail> mail = [];
     private readonly List<StoredEmailId?> savedPositions = [];
     private readonly List<StoredEmailId?> requestedResumePositions = [];
+    private readonly List<TimeSpan> requestedLiveEmbeddingWindows = [];
     private StoredEmailId? resumePosition;
 
     /// <summary>Initializes a walk over mail whose vectors live in the given store.</summary>
@@ -36,6 +37,9 @@ internal sealed class InMemoryStoredEmailEmbeddingBackfillStore : IStoredEmailEm
 
     /// <summary>Gets the position each batch was asked to continue past, in order.</summary>
     public IReadOnlyList<StoredEmailId?> RequestedResumePositions => this.requestedResumePositions;
+
+    /// <summary>Gets the window each batch was asked to leave freshly cut mail to the live path for, in order.</summary>
+    public IReadOnlyList<TimeSpan> RequestedLiveEmbeddingWindows => this.requestedLiveEmbeddingWindows;
 
     /// <summary>Gets the messages this walk was asked to cut into passages, in order.</summary>
     public List<StoredEmailId> ChunkedEmails { get; } = [];
@@ -57,6 +61,13 @@ internal sealed class InMemoryStoredEmailEmbeddingBackfillStore : IStoredEmailEm
     public void AddEmailAwaitingEmbedding(StoredEmailId storedEmailId, int passageCount)
     {
         this.mail.Add(new WalkedEmail(storedEmailId, passageCount) { IsChunked = true });
+        this.embeddingStore.AddPassages(storedEmailId, CreatePassages(storedEmailId, passageCount));
+    }
+
+    /// <summary>Adds a message whose passages were cut a moment ago, which is what offered it to the live path.</summary>
+    public void AddEmailJustCutForTheLivePath(StoredEmailId storedEmailId, int passageCount)
+    {
+        this.mail.Add(new WalkedEmail(storedEmailId, passageCount) { IsChunked = true, WasJustCut = true });
         this.embeddingStore.AddPassages(storedEmailId, CreatePassages(storedEmailId, passageCount));
     }
 
@@ -90,13 +101,16 @@ internal sealed class InMemoryStoredEmailEmbeddingBackfillStore : IStoredEmailEm
     public async Task<IReadOnlyList<StoredEmailAwaitingEmbedding>> GetEmailsAwaitingEmbeddingAsync(
         StoredEmailId? resumeAfter,
         EmbeddingProfileId profileId,
+        TimeSpan liveEmbeddingWindow,
         int batchSize,
         CancellationToken cancellationToken)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(liveEmbeddingWindow, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
         cancellationToken.ThrowIfCancellationRequested();
 
         this.requestedResumePositions.Add(resumeAfter);
+        this.requestedLiveEmbeddingWindows.Add(liveEmbeddingWindow);
 
         var batch = new List<StoredEmailAwaitingEmbedding>(batchSize);
 
@@ -107,6 +121,12 @@ internal sealed class InMemoryStoredEmailEmbeddingBackfillStore : IStoredEmailEm
             if (batch.Count == batchSize)
             {
                 break;
+            }
+
+            // Every passage of a message just cut is inside any window, so a window leaves it to the live path whole.
+            if (email.WasJustCut && liveEmbeddingWindow > TimeSpan.Zero)
+            {
+                continue;
             }
 
             if (await this.IsOutstandingAsync(email, profileId, cancellationToken))
@@ -196,6 +216,8 @@ internal sealed class InMemoryStoredEmailEmbeddingBackfillStore : IStoredEmailEm
     private sealed record WalkedEmail(StoredEmailId StoredEmailId, int PassageCount)
     {
         public bool IsChunked { get; set; }
+
+        public bool WasJustCut { get; init; }
 
         public DerivedWorkAdmission Admission { get; init; }
     }

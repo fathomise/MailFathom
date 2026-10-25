@@ -37,7 +37,7 @@ public sealed class StoredEmailEmbeddingBackfillTests
         var backfill = world.CreateBackfill();
 
         // Act
-        var result = await backfill.RunAsync(world.Target, TestContext.Current.CancellationToken);
+        var result = await backfill.RunAsync(world.Target, serving: world.Target, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(StoredEmailEmbeddingBackfillOutcome.SweepCompleted, result.Outcome);
@@ -69,7 +69,7 @@ public sealed class StoredEmailEmbeddingBackfillTests
         var backfill = world.CreateBackfill();
 
         // Act
-        await backfill.RunAsync(world.Target, TestContext.Current.CancellationToken);
+        await backfill.RunAsync(world.Target, serving: world.Target, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal([admission], world.GateTelemetry.Admissions);
@@ -85,7 +85,7 @@ public sealed class StoredEmailEmbeddingBackfillTests
         var backfill = world.CreateBackfill();
 
         // Act
-        await backfill.RunAsync(world.Target, TestContext.Current.CancellationToken);
+        await backfill.RunAsync(world.Target, serving: world.Target, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Empty(world.GateTelemetry.Admissions);
@@ -101,7 +101,7 @@ public sealed class StoredEmailEmbeddingBackfillTests
         var backfill = world.CreateBackfill();
 
         // Act
-        var result = await backfill.RunAsync(world.Target, TestContext.Current.CancellationToken);
+        var result = await backfill.RunAsync(world.Target, serving: world.Target, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(0, result.ChunkedEmailCount);
@@ -120,7 +120,7 @@ public sealed class StoredEmailEmbeddingBackfillTests
         var backfill = world.CreateBackfill(batchSize: 3, maxBatchesPerRun: 2);
 
         // Act
-        var result = await backfill.RunAsync(world.Target, TestContext.Current.CancellationToken);
+        var result = await backfill.RunAsync(world.Target, serving: world.Target, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(StoredEmailEmbeddingBackfillOutcome.BatchBudgetSpent, result.Outcome);
@@ -139,9 +139,9 @@ public sealed class StoredEmailEmbeddingBackfillTests
         var backfill = world.CreateBackfill(batchSize: 3, maxBatchesPerRun: 1);
 
         // Act
-        var firstRun = await backfill.RunAsync(world.Target, TestContext.Current.CancellationToken);
+        var firstRun = await backfill.RunAsync(world.Target, serving: world.Target, TestContext.Current.CancellationToken);
         var positionAfterFirstRun = world.BackfillStore.SavedPositions[^1];
-        var secondRun = await backfill.RunAsync(world.Target, TestContext.Current.CancellationToken);
+        var secondRun = await backfill.RunAsync(world.Target, serving: world.Target, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(firstRun.MoreWorkIsWorthTryingSoon);
@@ -161,9 +161,9 @@ public sealed class StoredEmailEmbeddingBackfillTests
         var backfill = world.CreateBackfill();
 
         // Act
-        var firstRun = await backfill.RunAsync(world.Target, TestContext.Current.CancellationToken);
+        var firstRun = await backfill.RunAsync(world.Target, serving: world.Target, TestContext.Current.CancellationToken);
         var callsAfterFirstRun = world.TextEmbeddingGenerator.RequestedBatches.Count;
-        var secondRun = await backfill.RunAsync(world.Target, TestContext.Current.CancellationToken);
+        var secondRun = await backfill.RunAsync(world.Target, serving: world.Target, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(8, firstRun.EmbeddedChunkCount);
@@ -182,7 +182,7 @@ public sealed class StoredEmailEmbeddingBackfillTests
         var backfill = world.CreateBackfill();
 
         // Act
-        var result = await backfill.RunAsync(world.Target, TestContext.Current.CancellationToken);
+        var result = await backfill.RunAsync(world.Target, serving: world.Target, TestContext.Current.CancellationToken);
         var resumePosition = await world.BackfillStore.FindResumePositionAsync(TestContext.Current.CancellationToken);
 
         // Assert
@@ -205,7 +205,7 @@ public sealed class StoredEmailEmbeddingBackfillTests
         var backfill = world.CreateBackfill();
 
         // Act
-        var result = await backfill.RunAsync(world.Target, TestContext.Current.CancellationToken);
+        var result = await backfill.RunAsync(world.Target, serving: world.Target, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(StoredEmailEmbeddingBackfillOutcome.GeneratorDisagreesWithProfile, result.Outcome);
@@ -230,7 +230,7 @@ public sealed class StoredEmailEmbeddingBackfillTests
         var backfill = world.CreateBackfill();
 
         // Act
-        var result = await backfill.RunAsync(world.Target, TestContext.Current.CancellationToken);
+        var result = await backfill.RunAsync(world.Target, serving: world.Target, TestContext.Current.CancellationToken);
 
         // Assert
         // The first message is paid for whole and the ceiling binds on the second, so the run stops having embedded one.
@@ -269,7 +269,7 @@ public sealed class StoredEmailEmbeddingBackfillTests
         var backfill = world.CreateBackfill();
 
         // Act
-        var result = await backfill.RunAsync(world.Target, TestContext.Current.CancellationToken);
+        var result = await backfill.RunAsync(world.Target, serving: world.Target, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(StoredEmailEmbeddingBackfillOutcome.ProviderFailed, result.Outcome);
@@ -299,7 +299,7 @@ public sealed class StoredEmailEmbeddingBackfillTests
         var backfill = world.CreateBackfill();
 
         // Act
-        var result = await backfill.RunAsync(world.Target, TestContext.Current.CancellationToken);
+        var result = await backfill.RunAsync(world.Target, serving: world.Target, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(1, result.CallBudgetExhaustedEmailCount);
@@ -323,7 +323,7 @@ public sealed class StoredEmailEmbeddingBackfillTests
 
         // Act
         var cancelled = await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => backfill.RunAsync(world.Target, cancellation.Token));
+            () => backfill.RunAsync(world.Target, serving: world.Target, cancellation.Token));
 
         // Assert
         Assert.Equal(cancellation.Token, cancelled.CancellationToken);
@@ -344,8 +344,8 @@ public sealed class StoredEmailEmbeddingBackfillTests
         var backfill = world.CreateBackfill(batchSize: 2, maxBatchesPerRun: 1);
 
         // Act
-        var firstRun = await backfill.RunAsync(world.Target, TestContext.Current.CancellationToken);
-        var secondRun = await backfill.RunAsync(world.Target, TestContext.Current.CancellationToken);
+        var firstRun = await backfill.RunAsync(world.Target, serving: world.Target, TestContext.Current.CancellationToken);
+        var secondRun = await backfill.RunAsync(world.Target, serving: world.Target, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(5, firstRun.OutstandingEmailCountAtSweepStart);
@@ -388,7 +388,7 @@ public sealed class StoredEmailEmbeddingBackfillTests
         var backfill = world.CreateBackfill();
 
         // Act
-        var result = await backfill.RunAsync(world.Target, TestContext.Current.CancellationToken);
+        var result = await backfill.RunAsync(world.Target, serving: world.Target, TestContext.Current.CancellationToken);
 
         // Assert
         // The spent user's two messages are stepped past and the other user's two are embedded between them, so the
