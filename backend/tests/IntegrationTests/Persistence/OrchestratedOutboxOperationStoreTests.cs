@@ -314,6 +314,19 @@ public sealed class OrchestratedOutboxOperationStoreTests(MailFathomOrchestratio
             OutboxDecisionOutcome.Accepted,
             await DismissAsync(services, refusedDismissed.Id, UserId.Create(Guid.CreateVersion7()), cancellationToken));
 
+        // Put back to wait for a later attempt, so the instant it may next be tried differs from when it was written down.
+        var backedOff = await services.CommitAsync(
+            (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>().DeferAsync(
+                session,
+                leases[second.Id],
+                second.Id,
+                second.RecordedAt.AddMinutes(37),
+                failure: null,
+                token),
+            cancellationToken);
+        Assert.Equal(PersistenceCommitResult.Committed, backedOff);
+        var secondRecord = await FindAsync(services, second.Id, cancellationToken);
+
         // Act
         var walked = new List<AccountOutboxEntry>();
         OutboxCursor? cursor = null;
@@ -350,6 +363,10 @@ public sealed class OrchestratedOutboxOperationStoreTests(MailFathomOrchestratio
         var firstEntry = Assert.Single(walked, entry => entry.OutgoingEmailId == first.Id);
         Assert.Equal("anna@example.test", Assert.Single(firstEntry.NamedRecipients).Address.Address);
         Assert.Equal(0, firstEntry.OtherRecipientCount);
+
+        var secondEntry = Assert.Single(walked, entry => entry.OutgoingEmailId == second.Id);
+        Assert.NotEqual(secondRecord.RecordedAt, secondRecord.AvailableAt);
+        Assert.Equal(secondRecord.AvailableAt, secondEntry.AvailableAt);
 
         // Every class in this collection writes under one account, so the count is held against the walk rather than
         // against a total of its own: another class's waiting send is a row both legitimately report.

@@ -22,6 +22,7 @@ import * as drafts from '../../../../tests/fixtures/drafts';
 import * as mail from '../../../../tests/fixtures/mail';
 import * as messages from '../../../../tests/fixtures/messages';
 import * as notifications from '../../../../tests/fixtures/notifications';
+import * as outbox from '../../../../tests/fixtures/outbox';
 import * as tasks from '../../../../tests/fixtures/tasks';
 import type { DeploymentTransport } from '../deployment/sendToDeployment';
 
@@ -377,6 +378,7 @@ function answerFor(
         calendarAnswer(route, asked, request, options) ??
         notificationAnswer(route, options) ??
         changeAnswer(route, options) ??
+        outboxAnswer(route, options) ??
         contactAnswer(route, asked, request, options) ??
         draftAnswer(route, request) ??
         taskAnswer(route, request, options) ??
@@ -681,11 +683,27 @@ function changeAnswer(route: string, options: Readonly<FixtureDeploymentOptions>
         return answering(changes.signalTicket);
     }
 
-    if (route === '/outbox/cancellation') {
-        return answering({ outcome: 'Accepted' });
+    return null;
+}
+
+/** What the corpus mailbox's Outbox answers: its sends, one send's preview, and each decision taken. */
+function outboxAnswer(route: string, options: Readonly<FixtureDeploymentOptions>): ClientResponse | null {
+    if (!route.startsWith('/outbox')) {
+        return null;
     }
 
-    return null;
+    if (route === '/outbox') {
+        return answering(options.emptyCollections ? outbox.emptyOutboxPage : outbox.outboxPage);
+    }
+
+    if (route === '/outbox/cancellation' || route === '/outbox/requeue' || route === '/outbox/dismissal') {
+        return answering(outbox.outboxDecisionTaken);
+    }
+
+    const named = decodeURIComponent(route.slice('/outbox/'.length));
+    const send = outbox.outboxPage.sends.find(({ outgoingEmail }) => outgoingEmail === named);
+
+    return send === undefined ? { status: 404, body: '', headers: {} } : answering(outbox.outgoingMailPreview(send));
 }
 
 /** What the drafts routes answer: the record itself for a write, the queued send, and nothing for a discard. */

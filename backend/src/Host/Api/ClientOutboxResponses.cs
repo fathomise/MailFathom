@@ -39,6 +39,7 @@ internal sealed record ClientOutboxPageResponse(IReadOnlyList<ClientOutboxEntryR
 /// <param name="RecordedAt">When the send was written down.</param>
 /// <param name="DueAt">When it was written to leave at, or <see langword="null" /> where it was written to leave at once.</param>
 /// <param name="DueTimeZone">The IANA zone that time was named in, present exactly when <paramref name="DueAt" /> is.</param>
+/// <param name="AvailableAt">The earliest a delivery pass may take it, which for a send left to try again is when it is tried again.</param>
 /// <param name="AttemptCount">How many attempts it has taken.</param>
 /// <param name="LastFailureCode">The code of the failure it stopped on, or <see langword="null" /> while none is recorded.</param>
 /// <param name="LastReplyCode">The reply code the server last answered the message with, or <see langword="null" />.</param>
@@ -54,6 +55,7 @@ internal sealed record ClientOutboxEntryResponse(
     DateTimeOffset RecordedAt,
     DateTimeOffset? DueAt,
     string? DueTimeZone,
+    DateTimeOffset AvailableAt,
     int AttemptCount,
     int? LastFailureCode,
     int? LastReplyCode,
@@ -78,6 +80,7 @@ internal sealed record ClientOutboxEntryResponse(
             entry.RecordedAt,
             entry.DueAt?.Instant,
             entry.DueAt?.ZoneId,
+            entry.AvailableAt,
             entry.AttemptCount,
             entry.LastFailure?.Value,
             entry.LastReplyCode,
@@ -111,6 +114,7 @@ internal sealed record ClientOutboxRecipientResponse(string Address, string Role
 /// <param name="RecordedAt">When the send was written down.</param>
 /// <param name="DueAt">When it was written to leave at, or <see langword="null" /> where it was written to leave at once.</param>
 /// <param name="DueTimeZone">The IANA zone that time was named in, present exactly when <paramref name="DueAt" /> is.</param>
+/// <param name="AvailableAt">The earliest a delivery pass may take it, which for a send left to try again is when it is tried again.</param>
 /// <param name="AttemptCount">How many attempts it has taken.</param>
 /// <param name="LastFailureCode">The code of the failure it stopped on, or <see langword="null" /> while none is recorded.</param>
 /// <param name="LastReplyCode">The reply code the server last answered the message with, or <see langword="null" />.</param>
@@ -135,6 +139,7 @@ internal sealed record ClientOutboxPreviewResponse(
     DateTimeOffset RecordedAt,
     DateTimeOffset? DueAt,
     string? DueTimeZone,
+    DateTimeOffset AvailableAt,
     int AttemptCount,
     int? LastFailureCode,
     int? LastReplyCode,
@@ -165,6 +170,7 @@ internal sealed record ClientOutboxPreviewResponse(
             send.RecordedAt,
             send.DueAt?.Instant,
             send.DueAt?.ZoneId,
+            send.AvailableAt,
             send.AttemptCount,
             send.LastFailure?.Value,
             send.LastReplyCode,

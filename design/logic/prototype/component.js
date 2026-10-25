@@ -500,10 +500,21 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.timers.push(t);
     };
     pickOutboxEntry = (id) => this.setState({ outboxSel: id, mailPane: "thread" });
-    cancelOutboxEntry = (acc, id) => {
+    /* Cancelling and sending again are each a request the server answers a moment later. While it has not, the entry's
+       controls are held and say what is under way, so a second press cannot ask twice. */
+    decideOutboxEntry = (id, decision, apply) => {
+      if (this.state.outboxDeciding) return;
+      this.setState({ outboxDeciding: { id, decision } });
+      this.timers.push(setTimeout(() => {
+        this.setState({ outboxDeciding: null });
+        apply();
+      }, 900));
+    };
+    cancelOutboxEntry = (acc, id) => this.decideOutboxEntry(id, "cancel", () => this.cancelOutboxEntryNow(acc, id));
+    cancelOutboxEntryNow = (acc, id) => {
       const entry = this.outboxOf(acc).find(x => x.id === id);
       this.setOutbox(acc, this.outboxOf(acc).filter(x => x.id !== id));
-      if (entry) this.notify("Nothing was sent to " + entry.rcpt.map(r => r.name).join(", ") + ".", { kind: "success", title: "Sending cancelled" });
+      if (entry) this.notify("Nothing was sent to " + entry.rcpt.map(r => r.mail).join(", ") + ".", { kind: "success", title: "Sending cancelled" });
     };
     /* Dismissing takes a refused send, or one nobody knows the fate of, out of the Outbox and changes nothing else.
        The person cannot offer a dismissed send again, so the toast holds an Undo for as long as it stands. */
@@ -523,7 +534,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         },
       });
     };
-    sendOutboxEntryAgain = (acc, id) => {
+    sendOutboxEntryAgain = (acc, id) => this.decideOutboxEntry(id, "again", () => this.sendOutboxEntryAgainNow(acc, id));
+    sendOutboxEntryAgainNow = (acc, id) => {
       this.setOutbox(acc, this.outboxOf(acc).map(x => (x.id === id ? Object.assign({}, x, { stage: "sending" }) : x)));
       this.notify("It goes out again now.", { title: "Sending again" });
       this.outboxLeaveSoon(acc);
@@ -676,7 +688,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this._tasks = this._tasks || {};
       this._tasks[id] = setTimeout(() => {
         delete this._tasks[id];
-        this.setState(s => ({ toasts: (s.toasts || []).map(x => (x.id === id ? Object.assign({}, x, { kind: "success", title: o.doneTitle, body: o.doneBody || "", sticky: false }) : x)) }));
+        this.setState(s => ({ toasts: (s.toasts || []).map(x => (x.id === id ? Object.assign({}, x, { kind: "success", title: o.doneTitle, body: o.doneBody || "", sticky: false, actionLabel: o.doneActionLabel || "", onAction: o.doneAction ? () => { this.dismissToast(id); o.doneAction(); } : null }) : x)) }));
         this.armToast(id, 5000);
       }, o.ms || 2200);
       return id;
@@ -2970,7 +2982,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       };
       const firstAddressee = (x) => {
         const lead = x.rcpt.find(r => r.hdr === "To") || x.rcpt.find(r => r.hdr === "Cc") || x.rcpt[0];
-        return lead.name + (x.rcpt.length > 1 ? " +" + (x.rcpt.length - 1) : "");
+        if (!lead) return "No recipient";
+        return lead.mail + (x.rcpt.length > 1 ? " +" + (x.rcpt.length - 1) : "");
       };
       const outboxMarkFor = (accKey) => {
         const entries = outboxAll[accKey] || [];
@@ -2998,6 +3011,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const outboxEntry = outboxEntries.find(x => x.id === st.outboxSel) || null;
       const obStage = outboxEntry ? OB_STAGE[outboxEntry.stage] : OB_STAGE.waiting;
       const obTone = OB_TONE[obStage.tone];
+      const outboxDecidingHere = !!outboxEntry && !!st.outboxDeciding && st.outboxDeciding.id === outboxEntry.id;
+      const obHeld = outboxDecidingHere ? ";opacity:0.6;cursor:default" : "";
       const obBtn = "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:" + (touch ? 44 : 32) + "px;padding:0 14px;border-radius:8px;font-size:13px;";
       const outboxView = {
         outboxListShown: outboxOn,
@@ -3044,11 +3059,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         outboxCanDecide: !!outboxEntry && obStage.act === "decide",
         outboxCancel: () => outboxEntry && this.cancelOutboxEntry(outboxAcc, outboxEntry.id),
         outboxResend: () => outboxEntry && this.sendOutboxEntryAgain(outboxAcc, outboxEntry.id),
-        outboxDismiss: () => outboxEntry && this.dismissOutboxEntry(outboxAcc, outboxEntry.id),
-        outboxResendStyle: obBtn + "font-weight:600;color:var(--onaccent);background:var(--accent)",
-        outboxQuietBtnStyle: obBtn + "color:var(--text2);background:var(--panel);border:1px solid var(--border2)",
+        outboxDismiss: () => outboxEntry && !outboxDecidingHere && this.dismissOutboxEntry(outboxAcc, outboxEntry.id),
+        outboxHeld: outboxDecidingHere,
+        outboxDecidingShown: outboxDecidingHere,
+        outboxDecidingSaid: outboxDecidingHere ? (st.outboxDeciding.decision === "cancel" ? "Cancelling sending…" : "Sending it again…") : "",
+        outboxResendStyle: obBtn + "font-weight:600;color:var(--onaccent);background:var(--accent)" + obHeld,
+        outboxQuietBtnStyle: obBtn + "color:var(--text2);background:var(--panel);border:1px solid var(--border2)" + obHeld,
         outboxFacts: !outboxEntry ? [] : [{ k: "From", v: outboxAccount.address }]
-          .concat(outboxEntry.rcpt.map(r => ({ k: r.hdr, v: r.name + " <" + r.mail + ">", said: r.said || "" })))
+          .concat(outboxEntry.rcpt.map(r => ({ k: r.hdr, v: r.mail, said: r.said || "" })))
           .concat([{ k: "Handed", v: "today, " + outboxEntry.at }])
           .concat(outboxEntry.leaveAt ? [{ k: "Leaves", v: outboxEntry.leaveAt }] : [])
           .concat(outboxEntry.attempts ? [{ k: "Tried", v: attemptsSaid(outboxEntry) }] : [])
@@ -5078,15 +5096,26 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         sendConfirmLabel: st.sendAsk && st.sendAsk.warnings.length ? "Send anyway" : "Send",
         sendSummaryTo: composeTo.length ? composeTo.join(", ") : "- no recipient -",
         sendSummarySubj: curSubj.trim() || "- no subject -",
+        /* A send is handed to the account's Outbox, so the toast saying it was sent leads to its entry there, which is
+           where withdrawing it is offered for as long as it can be. */
         confirmSend: () => {
           const to = composeTo.length ? composeTo.join(", ") : "no recipient";
+          const entry = { id: "ob" + Date.now(), stage: "waiting", at: "10:47", attempts: 0,
+            rcpt: composeTo.map(n => ({ hdr: "To", name: n, mail: (CONTACTS.find(c => c.name === n) || { mail: n }).mail })), subject: curSubj.trim() || "(no subject)", body: [bodyTxt()] };
           finishCompose();
+          this.setOutbox("acc1", [entry].concat(this.outboxOf("acc1")));
           this.notifyTask({
             title: "Sending message…",
             body: "Do: " + to,
             cancelText: "The message is being sent. Aborting stops delivery and saves it as a draft.",
             doneTitle: "Message sent",
             doneBody: "Do: " + to,
+            doneActionLabel: "Show in Outbox",
+            doneAction: () => {
+              this.goScreen("mail", { mailPane: "list" });
+              this.openOutbox("acc1");
+              this.pickOutboxEntry(entry.id);
+            },
             ms: 2400,
           });
         },

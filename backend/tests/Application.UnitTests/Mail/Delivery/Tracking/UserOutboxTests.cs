@@ -607,6 +607,7 @@ public sealed class UserOutboxTests
         Subject = subject,
         RecordedAt = DateTimeOffset.UnixEpoch,
         DueAt = null,
+        AvailableAt = DateTimeOffset.UnixEpoch,
         AttemptCount = 0,
         LastFailure = null,
         LastReplyCode = null,

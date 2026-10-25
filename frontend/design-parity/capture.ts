@@ -34,10 +34,15 @@ interface Composition {
  * does — and by its text where it does not, which is how the design's own artboards are reached. A name matches as a
  * substring unless `exact` says otherwise, which is what a name that is also the tail of another control's name needs:
  * *Ustawienia* is a menu item, and also the end of the control that opens the menu it is in.
+ *
+ * A press marked `optional` is made only where the composition draws what it names, which is what a control that lives
+ * in a drawer at some widths and beside the list at others needs: the drawer is opened where there is one, and the
+ * steps after it are the same at every size.
  */
 interface Step {
     click?: Target;
     expect?: Target;
+    optional?: boolean;
 }
 
 interface Target {
@@ -311,7 +316,13 @@ async function walk(page: Page, steps: Step[]): Promise<void> {
         }
 
         if (step.click !== undefined) {
-            await locate(page, step.click).click();
+            const pressed = locate(page, step.click);
+
+            if (step.optional === true && !(await pressed.isVisible())) {
+                continue;
+            }
+
+            await pressed.click();
         }
     }
 }
@@ -523,6 +534,14 @@ function readSteps(value: unknown, at: string): Step[] {
 
         if (step.click === undefined && step.expect === undefined) {
             throw new Error(`${at}[${String(index)}] is neither a click nor an expect.`);
+        }
+
+        if (given['optional'] !== undefined) {
+            if (given['optional'] !== true || step.click === undefined) {
+                throw new Error(`${at}[${String(index)}].optional marks a click, and only as true.`);
+            }
+
+            step.optional = true;
         }
 
         return step;

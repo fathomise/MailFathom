@@ -13,6 +13,7 @@ const kept: Workspace = {
     foldsToggled: ['account:personal'],
     mailboxesFolded: true,
     panelsHidden: true,
+    outbox: null,
     selection: 'AAMkAD-42',
     conversation: { threadId: '9b2a1c74-4a4e-4c93-9a2e-3f6f0a1b2c3d', openAt: 'AAMkAD-42' },
     fullHtml: null,

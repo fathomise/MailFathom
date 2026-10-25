@@ -65,7 +65,7 @@ export interface SignalledFlags {
 /**
  * One statement that something changed.
  *
- * Seven closed shapes rather than one record of optional fields, because what a reader does with a signal is decided
+ * Eight closed shapes rather than one record of optional fields, because what a reader does with a signal is decided
  * entirely by which of them arrived: a folder set that moved and a message that changed are read again from different
  * routes, and a shape carrying both would leave every reader checking which fields happened to be present.
  */
@@ -89,6 +89,7 @@ export type ClientSignal =
           readonly flags: readonly SignalledFlags[];
       }
     | { readonly kind: 'folders.changed'; readonly account: string }
+    | { readonly kind: 'outbox.changed'; readonly account: string }
     | {
           readonly kind: 'notification.raised';
           readonly notificationKind: SignalNotificationKind;
@@ -189,7 +190,7 @@ export function readSignalTicket(
 }
 
 /**
- * Reads one payload the deployment sent, refusing anything that is not one of the seven statements.
+ * Reads one payload the deployment sent, refusing anything that is not one of the eight statements.
  *
  * @returns The signal, or `null` where the payload is not one this client acts on.
  */
@@ -209,6 +210,8 @@ export function parseClientSignal(payload: unknown): ClientSignal | null {
             return parseFlagChange(record);
         case 'folders.changed':
             return isIdentity(record['account']) ? { kind: 'folders.changed', account: record['account'] } : null;
+        case 'outbox.changed':
+            return isIdentity(record['account']) ? { kind: 'outbox.changed', account: record['account'] } : null;
         case 'notification.raised':
             return parseRaisedNotification(record);
         case 'account.state':
@@ -236,7 +239,7 @@ export function parseClientSignal(payload: unknown): ClientSignal | null {
  * the level a deployment keeps by default; that is where a proxy silently refusing every upgrade becomes visible as
  * something other than a client that feels slow.
  *
- * @param told Called once per statement, after the payload has been read as one of the seven.
+ * @param told Called once per statement, after the payload has been read as one of the eight.
  * @param opened Called each time a connection has opened and stands. Whatever was said while none stood was said to
  * nobody, so this is the moment a caller reads again what it draws — except after the first opening, which only the
  * caller can tell apart, since only it knows whether anything was drawn before it.

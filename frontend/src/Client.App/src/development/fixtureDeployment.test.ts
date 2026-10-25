@@ -14,6 +14,7 @@ import * as drafts from '../../../../tests/fixtures/drafts';
 import * as mail from '../../../../tests/fixtures/mail';
 import * as messages from '../../../../tests/fixtures/messages';
 import * as notifications from '../../../../tests/fixtures/notifications';
+import * as outbox from '../../../../tests/fixtures/outbox';
 import * as tasks from '../../../../tests/fixtures/tasks';
 import {
     fixtureAnswer,
@@ -78,6 +79,8 @@ const readRoutes: readonly (readonly [string, unknown])[] = [
     ['/contacts/collected', contacts.collectedContactPage],
     [`/contacts/${contacts.assertedContact.id}/correspondence`, contacts.contactCorrespondence],
     ['/tasks/today/layout', tasks.daysArranged],
+    [`/outbox?account=${deployment.workAccount.id}&pageSize=200`, outbox.outboxPage],
+    [`/outbox/${outbox.refusedOutgoingSend.outgoingEmail}`, outbox.outgoingMailPreview(outbox.refusedOutgoingSend)],
 ];
 
 const writtenRoutes: readonly (readonly [string, unknown])[] = [
@@ -99,6 +102,9 @@ const writtenRoutes: readonly (readonly [string, unknown])[] = [
     ['/tasks', tasks.taskWritten],
     ['/tasks/task-tender/completion', tasks.taskCompleted],
     ['/tasks/task-signatures/acceptance', tasks.taskAccepted],
+    ['/outbox/cancellation', outbox.outboxDecisionTaken],
+    ['/outbox/requeue', outbox.outboxDecisionTaken],
+    ['/outbox/dismissal', outbox.outboxDecisionTaken],
 ];
 
 afterEach(() => {
@@ -314,6 +320,14 @@ describe('fixtureAnswer', () => {
 
     it('answers erasing a task with what was removed rather than with the task', () => {
         expect(stated(answered('/tasks/task-racking', {}, 1, 'DELETE'))).toStrictEqual(tasks.taskErased);
+    });
+
+    it('answers an empty Outbox where the deployment is set to hold nothing', () => {
+        expect(stated(answered('/outbox', { emptyCollections: true }))).toStrictEqual(outbox.emptyOutboxPage);
+    });
+
+    it('answers the preview of a send its Outbox does not hold as nothing being there', () => {
+        expect(answered('/outbox/00000000-0000-4000-8000-00000000ffff').status).toBe(404);
     });
 
     it('answers a route the corpus states nothing for as nothing being there', () => {

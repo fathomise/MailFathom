@@ -711,6 +711,14 @@ describe('MailSpace, in the four compositions', () => {
         expect(screen.getByText(handedToMail)).toBeDefined();
     });
 
+    // An Outbox draws no control to bring panels back, so a send picked in one would otherwise leave its list gone with
+    // nothing on the screen to restore it.
+    it('keeps the Outbox list at a tablet width while the panels are hidden', () => {
+        renderSpace(tablet, { outbox: { account: 'work', entry: 'o1' }, panelsHidden: true });
+
+        expect(listStandsAside()).toBe(false);
+    });
+
     it('keeps the list at a tablet width while nothing is open, the correspondence having nothing to stand alone with', () => {
         renderSpace(tablet, { panelsHidden: true });
 

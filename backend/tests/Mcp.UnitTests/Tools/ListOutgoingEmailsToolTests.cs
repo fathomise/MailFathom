@@ -257,6 +257,7 @@ public sealed class ListOutgoingEmailsToolTests
             Subject = "Quarterly figures",
             RecordedAt = Recorded,
             DueAt = ZonedInstant.At(LeavesAt),
+            AvailableAt = LeavesAt,
             AttemptCount = 3,
             LastFailure = MailFathomErrorCode.OutgoingEmailRefused,
             LastReplyCode = 550,

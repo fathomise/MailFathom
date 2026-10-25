@@ -179,6 +179,10 @@ function answerFor(request: ClientRequest, answers: Answers): { status: number; 
         return answers.send ?? { status: 200, body: JSON.stringify({ outgoingEmail: 'o1' }) };
     }
 
+    if (request.path.endsWith('/folders')) {
+        return { status: 200, body: JSON.stringify(sentDirectory) };
+    }
+
     if (request.path.endsWith('/outbox/cancellation')) {
         return answers.withdrawal ?? { status: 200, body: JSON.stringify({ outcome: 'Accepted' }) };
     }
@@ -189,6 +193,29 @@ function answerFor(request: ClientRequest, answers: Answers): { status: number; 
 
     return answers.save ?? { status: 200, body: draftBody() };
 }
+
+/** What the folders route answers: the work account's Sent folder, which is where its Outbox is opened. */
+const sentDirectory = {
+    synchronizationEnabled: true,
+    accounts: [
+        {
+            account: work,
+            folders: [
+                {
+                    id: 'SENT',
+                    role: 'Sent',
+                    path: ['Sent'],
+                    storedEmailCount: 3,
+                    unreadEmailCount: 0,
+                    synchronizationState: 'Synchronized',
+                    lastSynchronizedAt: null,
+                    behind: false,
+                },
+            ],
+            outbox: { waiting: 1, refused: 0 },
+        },
+    ],
+};
 
 /** One file as the deployment records it, which is both what an upload answers and what a save lists back. */
 const stagedFile = {
@@ -235,6 +262,7 @@ function drawComposer(
     drafts = false,
     telemetry: ClientTelemetry = noTelemetry,
     exchange: AttachmentExchange = takesNothing,
+    showsOutbox = false,
 ): {
     closed: ReturnType<typeof vi.fn>;
     asked: ClientRequest[];
@@ -247,7 +275,9 @@ function drawComposer(
 
     // What the list beside the composer points at, moved the way a click on a row moves it.
     function Pointing() {
-        revise = useWorkspace().revise;
+        const revision = useWorkspace();
+
+        revise = revision.revise;
 
         return null;
     }
@@ -283,6 +313,7 @@ function drawComposer(
                                             opening={opening}
                                             online={online}
                                             drafts={drafts}
+                                            showsOutbox={showsOutbox}
                                             onClosed={onClosed}
                                         />
                                     )}
@@ -716,6 +747,30 @@ describe('Composer, a message of its own', () => {
         expect(closed).toHaveBeenCalledExactlyOnceWith(false);
 
         elsewhere.remove();
+    });
+
+    // The corner leads to where the message now waits, in the Mail space. Which Outbox opens and which send in it is
+    // a journey across the list and the pane, and `client.outbox.spec.ts` is where it is held.
+    it('leads from the queued message to the Mail space', async () => {
+        drawComposer({ kind: 'new' }, {}, [work], true, uploadsOneFile, false, noTelemetry, takesNothing, true);
+
+        address('ada@example.invalid');
+        confirmSend();
+        fireEvent.click(await screen.findByRole('button', { name: 'Show in Outbox' }));
+
+        expect(window.location.hash).toBe('#/mail');
+    });
+
+    // An Outbox is read under the grant that reads mail, so a credential that only sends is led to no send it could not
+    // open.
+    it('leads nowhere from a queued message where the session does not read mail', async () => {
+        drawComposer();
+
+        address('ada@example.invalid');
+        confirmSend();
+
+        expect(await screen.findByText('Queued to go out.')).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Show in Outbox' })).toBeNull();
     });
 
     // A queued message offers no way back, because there is none: the deployment has taken it and the composer the act

@@ -465,7 +465,7 @@ Project repository: https://github.com/fathomise/MailFathom
             <div onClick="{{ toggleSide }}" title="{{ sideToggleTitle }}" aria-label="{{ sideToggleTitle }}" style="{{ sideToggleBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">{{ sideToggleIcon }}</div>
           </sc-if>
           <sc-if value="{{ drawerOpenerShown }}" hint-placeholder-val="{{ false }}">
-            <div onClick="{{ openFolders }}" title="Folders and filters" aria-label="Folders and filters" style="{{ sideToggleBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">menu</div>
+            <div role="button" tabindex="0" onClick="{{ openFolders }}" title="Folders and filters" aria-label="Folders and filters" style="{{ sideToggleBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">menu</div>
           </sc-if>
           <div style="width:1px;align-self:stretch;background:var(--line);margin:0 8px 0 6px"></div>
         </sc-if>
@@ -728,7 +728,7 @@ Project repository: https://github.com/fathomise/MailFathom
           </sc-if>
           <div style="{{ listHeadStyle }}">
             <sc-if value="{{ showFolderBtn }}" hint-placeholder-val="{{ false }}">
-              <div onClick="{{ openFolders }}" title="Folders and filters" style="{{ folderBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">menu</span></div>
+              <div role="button" tabindex="0" onClick="{{ openFolders }}" title="Folders and filters" aria-label="Folders and filters" style="{{ folderBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">menu</span></div>
             </sc-if>
             <sc-if value="{{ listSearchActive }}" hint-placeholder-val="{{ false }}">
               <div style="{{ searchFieldStyle }}"><input ref="{{ listSearchRef }}" value="{{ listSearchValue }}" onChange="{{ onListSearch }}" placeholder="{{ listSearchPlaceholder }}" style="flex:1;min-width:0;border:none;outline:none;font-family:inherit;font-size:13px;color:var(--text);background:transparent" /></div>
@@ -823,7 +823,7 @@ Project repository: https://github.com/fathomise/MailFathom
           </sc-if>
           <div style="{{ outboxHeadStyle }}">
             <sc-if value="{{ showFolderBtn }}" hint-placeholder-val="{{ false }}">
-              <div onClick="{{ openFolders }}" title="Folders and filters" style="{{ folderBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">menu</span></div>
+              <div role="button" tabindex="0" onClick="{{ openFolders }}" title="Folders and filters" aria-label="Folders and filters" style="{{ folderBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">menu</span></div>
             </sc-if>
             <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
               <div style="{{ outboxTitleStyle }}">Outbox</div>
@@ -900,10 +900,13 @@ Project repository: https://github.com/fathomise/MailFathom
                   <div style="{{ outboxStageTitleStyle }}">{{ outboxStageTitle }}</div>
                   <div style="font-size:13px;line-height:1.55;color:var(--text2);text-wrap:pretty">{{ outboxStageText }}</div>
                   <sc-if value="{{ outboxCanDecide }}" hint-placeholder-val="{{ false }}">
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:6px"><div role="button" tabindex="0" onClick="{{ outboxResend }}" style="{{ outboxResendStyle }}" style-hover="cursor:pointer;opacity:0.9">Send again</div><div role="button" tabindex="0" onClick="{{ outboxDismiss }}" style="{{ outboxQuietBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Dismiss</div></div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:6px"><div role="button" tabindex="0" aria-disabled="{{ outboxHeld }}" onClick="{{ outboxResend }}" style="{{ outboxResendStyle }}" style-hover="cursor:pointer;opacity:0.9">Send again</div><div role="button" tabindex="0" aria-disabled="{{ outboxHeld }}" onClick="{{ outboxDismiss }}" style="{{ outboxQuietBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Dismiss</div></div>
                   </sc-if>
                   <sc-if value="{{ outboxCanCancel }}" hint-placeholder-val="{{ false }}">
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:6px"><div role="button" tabindex="0" onClick="{{ outboxCancel }}" style="{{ outboxQuietBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Cancel sending</div></div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:6px"><div role="button" tabindex="0" aria-disabled="{{ outboxHeld }}" onClick="{{ outboxCancel }}" style="{{ outboxQuietBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Cancel sending</div></div>
+                  </sc-if>
+                  <sc-if value="{{ outboxDecidingShown }}" hint-placeholder-val="{{ false }}">
+                    <div role="status" style="font-size:13px;color:var(--muted)">{{ outboxDecidingSaid }}</div>
                   </sc-if>
                 </div>
               </div>

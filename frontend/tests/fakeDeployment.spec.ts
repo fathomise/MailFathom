@@ -10,6 +10,7 @@ import * as fixtures from './fixtures/deployment';
 import * as discovery from './fixtures/discovery';
 import * as mail from './fixtures/mail';
 import * as notifications from './fixtures/notifications';
+import * as outbox from './fixtures/outbox';
 
 // The fake deployment every browser check signs in to, asked directly rather than through a page: what a journey
 // relies on is that a read after a write answers what the write left behind, and a check that got that wrong would
@@ -128,10 +129,11 @@ test('takes a deleted folder out of both folder routes, the mail filed in it out
     const folders = ask(deployment, 'GET', '/folders') as { accounts: { folders: { id: string }[] }[] };
     const searchedAgain = ask(deployment, 'GET', '/emails/search?query=renewal') as { results: { id: string }[] };
 
-    expect(managed.folders.map(({ id }) => id)).toStrictEqual(['INBOX', 'DRAFTS', 'ARCHIVE', 'FILED', 'TRASH']);
+    expect(managed.folders.map(({ id }) => id)).toStrictEqual(['INBOX', 'DRAFTS', 'SENT', 'ARCHIVE', 'FILED', 'TRASH']);
     expect(folders.accounts.flatMap((account) => account.folders.map(({ id }) => id))).toStrictEqual([
         'INBOX',
         'DRAFTS',
+        'SENT',
         'FILED',
         'TRASH',
     ]);
@@ -347,6 +349,177 @@ test('puts a send taken back into the drafts folder as it was sent, and knows no
     expect(ask(deployment, 'GET', `/messages/${filed}/body`)).toMatchObject({ plainText: { text: 'Tuesday?' } });
     expect(ask(deployment, 'POST', '/outbox/cancellation', { outgoingEmail: queued.outgoingEmail })).toMatchObject({
         outcome: 'RecordUnknown',
+    });
+});
+
+/** A deployment whose session may send, which is the session the folders route counts an Outbox for. */
+function sendingDeployment(): FakeDeployment {
+    const deployment = new FakeDeployment('0.0.0');
+
+    deployment.grant('mailfathom.mail.send');
+
+    return deployment;
+}
+
+/** The identities the Outbox lists, newest first, and what the folders route counts in it. */
+function inTheOutbox(deployment: FakeDeployment): { sends: string[]; counted: unknown } {
+    const page = ask(deployment, 'GET', `/outbox?account=${fixtures.workAccount.id}&pageSize=200`) as {
+        sends: { outgoingEmail: string }[];
+    };
+    const folders = ask(deployment, 'GET', '/folders') as { accounts: { outbox: unknown }[] };
+
+    return { sends: page.sends.map(({ outgoingEmail }) => outgoingEmail), counted: folders.accounts[0]?.outbox };
+}
+
+test('counts no Outbox for a session that reads mail and cannot send it, as the service answers', () => {
+    const folders = ask(new FakeDeployment('0.0.0'), 'GET', '/folders') as { accounts: { outbox: unknown }[] };
+
+    expect(folders.accounts.map(({ outbox: counted }) => counted)).toStrictEqual(folders.accounts.map(() => null));
+});
+
+test('lists a queued send in the Outbox and counts it until it is taken back', () => {
+    const deployment = sendingDeployment();
+    const written = ask(deployment, 'POST', '/drafts', { account: fixtures.workAccount.id, subject: 'The yard' }) as {
+        draft: { draftId: string };
+    };
+    const queued = ask(deployment, 'POST', `/drafts/${written.draft.draftId}/send`) as { outgoingEmail: string };
+
+    expect(inTheOutbox(deployment)).toStrictEqual({
+        sends: [queued.outgoingEmail, ...outbox.outboxPage.sends.map(({ outgoingEmail }) => outgoingEmail)],
+        counted: { waiting: 5, refused: 1 },
+    });
+    expect(ask(deployment, 'GET', `/outbox/${queued.outgoingEmail}`)).toMatchObject({ subject: 'The yard' });
+
+    ask(deployment, 'POST', '/outbox/cancellation', { outgoingEmail: queued.outgoingEmail });
+
+    expect(inTheOutbox(deployment).counted).toStrictEqual(fixtures.waitingOutbox);
+    expect(ask(deployment, 'GET', `/outbox/${queued.outgoingEmail}`)).toMatchObject({
+        stage: 'Cancelled',
+        inOutbox: false,
+    });
+});
+
+test('names a queued send’s first three recipients on its row and counts the rest, as the service does', () => {
+    const deployment = new FakeDeployment('0.0.0');
+    const to = ['a', 'b', 'c', 'd'].map((name) => `${name}@example.invalid`);
+    const recipients = to.map((address) => ({ address, role: 'To' }));
+    const written = ask(deployment, 'POST', '/drafts', {
+        account: fixtures.workAccount.id,
+        subject: 'Four of them',
+        to,
+        cc: ['e@example.invalid'],
+    }) as { draft: { draftId: string } };
+    const queued = ask(deployment, 'POST', `/drafts/${written.draft.draftId}/send`) as { outgoingEmail: string };
+    const page = ask(deployment, 'GET', `/outbox?account=${fixtures.workAccount.id}&pageSize=200`) as {
+        sends: { outgoingEmail: string; recipients: unknown[]; otherRecipientCount: number }[];
+    };
+    const row = page.sends.find(({ outgoingEmail }) => outgoingEmail === queued.outgoingEmail);
+
+    expect(row).toMatchObject({ recipients: recipients.slice(0, 3), otherRecipientCount: 2 });
+    expect(
+        (ask(deployment, 'GET', `/outbox/${queued.outgoingEmail}`) as { recipients: unknown[] }).recipients,
+    ).toHaveLength(5);
+});
+
+test('answers the preview of a send that left at the stage it ended at, out of the Outbox', () => {
+    const deployment = new FakeDeployment('0.0.0');
+
+    deployment.sendLeaves(outbox.waitingSend.outgoingEmail);
+    ask(deployment, 'POST', '/outbox/dismissal', { outgoingEmail: outbox.refusedOutgoingSend.outgoingEmail });
+
+    expect(ask(deployment, 'GET', `/outbox/${outbox.waitingSend.outgoingEmail}`)).toMatchObject({
+        stage: 'Sent',
+        inOutbox: false,
+        dismissedAt: null,
+    });
+    expect(ask(deployment, 'GET', `/outbox/${outbox.refusedOutgoingSend.outgoingEmail}`)).toMatchObject({
+        stage: 'Refused',
+        inOutbox: false,
+        dismissedAt: outbox.refusedOutgoingSend.recordedAt,
+    });
+    expect(ask(deployment, 'GET', '/outbox/never-made')).toBe(404);
+});
+
+test('lets a send it queued leave the Outbox as one the corpus held does, out of the list, the count and the preview', () => {
+    const deployment = sendingDeployment();
+    const written = ask(deployment, 'POST', '/drafts', { account: fixtures.workAccount.id, subject: 'The yard' }) as {
+        draft: { draftId: string };
+    };
+    const queued = ask(deployment, 'POST', `/drafts/${written.draft.draftId}/send`) as { outgoingEmail: string };
+
+    deployment.sendLeaves(queued.outgoingEmail);
+
+    expect(inTheOutbox(deployment)).toStrictEqual({
+        sends: outbox.outboxPage.sends.map(({ outgoingEmail }) => outgoingEmail),
+        counted: fixtures.waitingOutbox,
+    });
+    expect(ask(deployment, 'GET', `/outbox/${queued.outgoingEmail}`)).toMatchObject({
+        subject: 'The yard',
+        stage: 'Sent',
+        inOutbox: false,
+    });
+});
+
+test('withdraws a waiting send and refuses to withdraw one an attempt holds or the server refused', () => {
+    const deployment = sendingDeployment();
+    const cancelled = (send: { outgoingEmail: string }) =>
+        ask(deployment, 'POST', '/outbox/cancellation', { outgoingEmail: send.outgoingEmail });
+
+    expect(cancelled(outbox.sendingSend)).toMatchObject({ outcome: 'AttemptUnderWay' });
+    expect(cancelled(outbox.refusedOutgoingSend)).toMatchObject({ outcome: 'StageDoesNotAllowIt' });
+    expect(cancelled(outbox.waitingSend)).toMatchObject({ outcome: 'Accepted' });
+    expect(inTheOutbox(deployment)).toStrictEqual({
+        sends: [
+            outbox.sendingSend.outgoingEmail,
+            outbox.retryingSend.outgoingEmail,
+            outbox.unknownSend.outgoingEmail,
+            outbox.refusedOutgoingSend.outgoingEmail,
+        ],
+        counted: { waiting: 3, refused: 1 },
+    });
+});
+
+test('offers a refused send again only once its refusal was restated, as one no attempt has reached', () => {
+    const deployment = sendingDeployment();
+    const { outgoingEmail } = outbox.refusedOutgoingSend;
+
+    expect(ask(deployment, 'POST', '/outbox/requeue', { outgoingEmail, refusalRestated: false })).toMatchObject({
+        outcome: 'RefusalNotRestated',
+    });
+    expect(ask(deployment, 'POST', '/outbox/requeue', { outgoingEmail, refusalRestated: true })).toMatchObject({
+        outcome: 'Accepted',
+    });
+    expect(ask(deployment, 'GET', `/outbox/${outgoingEmail}`)).toMatchObject({ stage: 'Recorded', failure: null });
+    expect(inTheOutbox(deployment).counted).toStrictEqual({ waiting: 5, refused: 0 });
+});
+
+test('dismisses a send nobody knows the fate of and lets a delivered one leave, each out of the Outbox', () => {
+    const deployment = sendingDeployment();
+
+    expect(
+        ask(deployment, 'POST', '/outbox/dismissal', { outgoingEmail: outbox.unknownSend.outgoingEmail }),
+    ).toMatchObject({ outcome: 'Accepted' });
+    expect(
+        ask(deployment, 'POST', '/outbox/dismissal', { outgoingEmail: outbox.waitingSend.outgoingEmail }),
+    ).toMatchObject({ outcome: 'StageDoesNotAllowIt' });
+
+    deployment.sendLeaves(outbox.sendingSend.outgoingEmail);
+
+    expect(inTheOutbox(deployment)).toStrictEqual({
+        sends: [
+            outbox.waitingSend.outgoingEmail,
+            outbox.retryingSend.outgoingEmail,
+            outbox.refusedOutgoingSend.outgoingEmail,
+        ],
+        counted: { waiting: 2, refused: 1 },
+    });
+    expect(ask(deployment, 'GET', `/outbox/${outbox.unknownSend.outgoingEmail}`)).toMatchObject({
+        stage: 'TransmissionBegun',
+        inOutbox: false,
+    });
+    expect(ask(deployment, 'GET', `/outbox/${outbox.sendingSend.outgoingEmail}`)).toMatchObject({
+        stage: 'Sent',
+        inOutbox: false,
     });
 });
 

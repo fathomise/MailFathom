@@ -110,6 +110,7 @@ export const iconNames = [
     'reply_all',
     'report',
     'schedule',
+    'schedule_send',
     'send',
     'settings',
     'sync',
@@ -123,6 +124,7 @@ export const iconNames = [
     'tune',
     'unarchive',
     'undo',
+    'update',
     'visibility',
     'warning',
 ] as const;

@@ -2,10 +2,10 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WorkspaceProvider } from './Workspace';
-import { emptyWorkspace, useWorkspace, type Workspace } from './useWorkspace';
+import { emptyWorkspace, useWorkspace, type Workspace, type WorkspaceChange } from './useWorkspace';
 
 // A space writes what it owns and reads what the others left, so what is proven here is that one part of the workspace
 // can be revised without any other part of it being lost, and that what it holds survives the reload a single-page
@@ -104,7 +104,7 @@ describe('WorkspaceProvider', () => {
 
 // A conversation stands in front of the message it was opened from, so the two are revised together whatever a screen
 // asked for. Two revisions in sequence is what proves it, which the single-change probe above cannot express.
-function Revisions({ changes }: { readonly changes: readonly Partial<Workspace>[] }) {
+function Revisions({ changes }: { readonly changes: readonly WorkspaceChange[] }) {
     const { workspace, revise } = useWorkspace();
 
     return (
@@ -125,7 +125,7 @@ function Revisions({ changes }: { readonly changes: readonly Partial<Workspace>[
     );
 }
 
-function applying(changes: readonly Partial<Workspace>[]): void {
+function applying(changes: readonly WorkspaceChange[]): void {
     render(
         <WorkspaceProvider>
             <Revisions changes={changes} />
@@ -233,6 +233,74 @@ describe('the file beside the selection', () => {
 
         expect(carried().attachment).toEqual(attachment);
         expect(carried().selection).toBe('another-message');
+    });
+});
+
+// An Outbox stands in place of the list and the pane, so whatever names something to list or read is what closes it.
+describe('the Outbox in place of the list', () => {
+    const outbox = { account: 'work', entry: null };
+    const sent = { kind: 'folder', accountId: 'work', folderId: 'sent' } as const;
+
+    it('closes the Outbox when a folder is picked, the Sent folder it was opened from included', () => {
+        applying([{ scope: sent, outbox }, { scope: sent }]);
+
+        expect(carried().outbox).toBeNull();
+        expect(carried().scope).toEqual(sent);
+    });
+
+    it('closes the Outbox when a message is opened anywhere', () => {
+        applying([{ outbox }, { selection: 'a-message' }]);
+
+        expect(carried().outbox).toBeNull();
+        expect(carried().selection).toBe('a-message');
+    });
+
+    it('leaves it open where the change is something else, such as a fold or a question', () => {
+        applying([{ outbox }, { foldsToggled: ['work'], question: 'who wrote' }, { selection: null }]);
+
+        expect(carried().outbox).toEqual(outbox);
+    });
+
+    it('leaves a revision naming the Outbox alone, because that is one being opened or moved within', () => {
+        applying([{ outbox }, { scope: sent, outbox: { account: 'work', entry: 'a-send' } }]);
+
+        expect(carried().outbox).toEqual({ account: 'work', entry: 'a-send' });
+    });
+
+    // A change worked out from the workspace it lands on is how an answer arriving late asks only if nothing moved
+    // meanwhile: *Show in Outbox* puts the Sent folder behind the Outbox only while that account's Outbox is open.
+    describe('a change worked out from the workspace it lands on', () => {
+        const opened = { account: 'work', entry: 'a-send' };
+        const behindTheOutbox = ({ outbox: shown }: Workspace): Partial<Workspace> =>
+            shown?.account === 'work' ? { scope: sent, outbox: shown } : {};
+
+        it('lands where the workspace still shows what it was worked out for, whichever send is open in it', () => {
+            applying([{ outbox: opened }, { outbox: { account: 'work', entry: null } }, behindTheOutbox]);
+
+            expect(carried().scope).toEqual(sent);
+            expect(carried().outbox).toEqual({ account: 'work', entry: null });
+        });
+
+        it('asks nothing of a reader who opened something else meanwhile', () => {
+            applying([{ outbox: opened }, { selection: 'a-message' }, behindTheOutbox]);
+
+            expect(carried().scope).toEqual(emptyWorkspace.scope);
+            expect(carried().outbox).toBeNull();
+            expect(carried().selection).toBe('a-message');
+        });
+    });
+
+    it('is not carried across a reload, which returns to the Sent folder it was opened from', () => {
+        applying([{ scope: sent, outbox }]);
+        cleanup();
+        render(
+            <WorkspaceProvider>
+                <Revisions changes={[]} />
+            </WorkspaceProvider>,
+        );
+
+        expect(carried().outbox).toBeNull();
+        expect(carried().scope).toEqual(sent);
     });
 });
 

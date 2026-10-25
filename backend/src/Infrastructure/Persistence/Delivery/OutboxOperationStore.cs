@@ -196,6 +196,7 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
                 message.RecordedAt,
                 message.DueAt,
                 message.DueZoneId,
+                message.AvailableAt,
                 message.AttemptCount,
                 message.LastFailureCode,
                 message.LastReplyCode))
@@ -443,6 +444,7 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
             DueAt = row is { DueAt: { } dueAt, DueZoneId: { Length: > 0 } zoneId }
                 ? ZonedInstant.Restore(dueAt, zoneId)
                 : null,
+            AvailableAt = row.AvailableAt,
             AttemptCount = row.AttemptCount,
             LastFailure = StoredFailureCode.ToErrorCode(row.LastFailureCode),
             LastReplyCode = row.LastReplyCode,
@@ -474,6 +476,7 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
         DateTimeOffset RecordedAt,
         DateTimeOffset? DueAt,
         string? DueZoneId,
+        DateTimeOffset AvailableAt,
         int AttemptCount,
         int? LastFailureCode,
         int? LastReplyCode);
