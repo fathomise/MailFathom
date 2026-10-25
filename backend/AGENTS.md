@@ -127,7 +127,7 @@ The root file states which stack owns which build contract and how the two meet.
 - `AI` owns retrieval, chunking, embeddings, and agent-framework composition without leaking provider-specific types into `Application` or `Domain`.
 - `Mcp` maps protocol inputs and outputs to application use cases. It contains no persistence or email-protocol logic.
 - `Host` is a composition root only: configuration, dependency injection, middleware, endpoints, workers, and process lifetime.
-- Keep email retrieval read-only. Synchronization and content retrieval must never set the remote IMAP `\Seen` flag. A change the mailbox's user authored may move it, and reaches the server only through the write session ADR 0007 defines, which no read path can obtain — a rule, the spam verdict, an MCP caller, or the user themselves opening a message in the client, which is [ADR 0026](../docs/decisions/0026-marking-a-message-read-when-a-person-opens-it-in-the-client.md).
+- Keep email retrieval read-only. Synchronization and content retrieval must never set the remote IMAP `\Seen` flag. A change the mailbox's user authored may move it, and reaches the server only through the write session ADR 0007 defines, which no read path can obtain — a rule, the spam verdict, an MCP caller, or the user themselves opening a message in the client, which is [ADR 0026](../docs/decisions/0026-marking-a-message-read-when-a-person-opens-it-in-the-client.md). That route to the server is the one a mirrored account's change takes, and a restoring account's on a message the source still holds; on a held account the same change commits to stored state and never reaches the source, as § *Custody phases* states.
 
 ## Reliability and performance
 
@@ -140,9 +140,27 @@ The root file holds what both stacks owe on timeouts, retries, untrusted input, 
 ## Cross-boundary email invariants
 
 - Treat a stored email's row identifier as its identity, assigned once when it is first stored and never changed; key every read, derived row, and erasure on it.
-- Treat `(account, folder, UIDVALIDITY, UID)` as the stable remote occurrence identity, which a stored email carries as an optional attribute: only the paths that talk to the server, and the spam classification an earlier build queued by occurrence, select on it, and none of them may assume it is present.
+- Treat `(account, folder, UIDVALIDITY, UID)` as the stable remote occurrence identity, which a stored email carries as an optional attribute: only the paths that talk to the server, and the spam classification an earlier build queued by occurrence, select on it, and none of them may assume it is present. It is absent on a held account's message once the drain's expunge is observed complete, and on a message no source ever held.
 - Keep MCP reads local; an MCP request must not trigger a synchronous IMAP fetch.
 - Make synchronization, object writes, indexing, and SMTP outbox processing idempotent.
+
+## Custody phases
+
+Every mail account is in one of three custody phases, `MailAccountCustodyPhase`, and every behaviour that reads, changes, files, or synchronizes an account's mail has an answer in each of them. [ADR 0034](../docs/decisions/0034-holding-a-mailbox-mailfathom-alone-keeps.md) decides what the phases are and what holding a mailbox means, and [ADR 0039](../docs/decisions/0039-one-folder-model-and-one-implementation-per-custody-phase.md) decides the shape every read and every act takes across them; neither is restated here.
+
+| Phase | Where the truth is | What an act the mailbox's user authored does |
+|---|---|---|
+| `Mirrored` | The source server, of which MailFathom keeps a copy | Opens a mutation record the converger carries to the server under ADR 0007 |
+| `Held` | MailFathom, while the source is drained of what MailFathom holds | Commits to stored state in one transaction with its audit entry, and never reaches the source on the request |
+| `Restoring` | MailFathom, while the mailbox is appended back to the source | Commits locally as a held act does and, where the message holds a source occurrence, opens the mutation record that carries it there; a folder act is refused |
+
+`Mirrored` is the default: the phase a development deployment and most tests run in, and the only one an account is in until somebody switches it. That is exactly why a change built and tested against it alone compiles, passes, and does the wrong thing — or nothing — on a held or restoring account. The structure below catches part of that omission, and only part.
+
+- **Decide the behaviour in all three phases before writing it**, and state it phase by phase in the issue and in the pull request. "Refused while restoring" is an answer, and so is "not applicable while held" with its reason; silence is not. A change that touches no account's mail says so once rather than three times.
+- **Carry an act a caller requests through `IMailboxCustodian`**, which `MailboxCustodianResolver` chooses for the account, and implement it in `MirroredMailboxCustodian`, `HeldMailboxCustodian`, and `RestoringMailboxCustodian` alike. A new member on the port is a compiler error until all three implement it; what the compiler cannot see is an implementation that throws, returns nothing, or forwards to the mirrored path to make the error go away. Each of those is a decision the bullet above asks to be stated, and it is written as a refusal the caller can report, never as a stub. An act written beside the port — a use case calling one phase's collaborator directly, such as the mutation records, the local state store, or the local filer — is the same omission with no compiler error at all.
+- **Read the phase nowhere else.** The resolver decides acts from it and the mode-specific background work — synchronization, the drain, the restore, and the converger — decides its own passes from it; the custody domain types, their store, the custody switch and its endpoint, and the persistence of the account and its folders hold or report it and decide nothing. `MailboxCustodyBoundaryTests` fails on any other type depending on `MailAccountCustodyPhase`, and on any type outside `Application.Accounts.Custody` and the registration naming a concrete custodian, so a `switch` on the phase or a test of which custodian came back is refused rather than reviewed. A background pass that exists for one mode joins that set in the same change, and states what it does while the account is in each of the other two.
+- **Filter a read on the folder a stored message is in** (`StoredEmailEntity.FolderId`), never on a source binding, its alias, or the remote occurrence. That reference is right in every phase, so a query written against it needs to know nothing about custody; one written against the binding shows a held account's message where it was synchronized rather than where the person put it, and never shows a folder the account created.
+- **Cover each phase whose behaviour differs with a test.** A new act tests each custodian, and a change to a behaviour that differs by phase tests every phase it reaches. A test against the mirrored path alone proves the mirrored path.
 
 ## Dependency and implementation discipline
 
