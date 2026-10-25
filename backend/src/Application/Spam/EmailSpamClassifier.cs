@@ -20,8 +20,9 @@ namespace MailFathom.Application.Spam;
 /// <para>
 /// The operation is keyed to the occurrence and is idempotent: repeating it either leaves an existing record alone or
 /// replaces it with the same verdict the same inputs produce, so it is safe for a caller to retry and safe for two
-/// callers to ask together. It carries no scheduler, no retry policy of its own, and no execution identity — whatever
-/// asks for a classification owns those.
+/// callers to ask together. The person's own verdict is never replaced, whatever the mode or the terms in force: it is
+/// returned as it stands, for the caller to act on. It carries no scheduler, no retry policy of its own, and no
+/// execution identity — whatever asks for a classification owns those.
 /// </para>
 /// <para>
 /// It reaches no mail server. Content comes from the local store, which already holds it, so classification never
@@ -162,8 +163,16 @@ public sealed class EmailSpamClassifier
             return SpamClassificationResult.NotClassified(SpamClassificationOutcome.OutsideConfiguredScope);
         }
 
-        if (mode is SpamClassificationMode.FirstTimeOnly
-            && await this.classificationStore.FindAsync(emailId, cancellationToken) is not null)
+        var existing = await this.classificationStore.FindAsync(emailId, cancellationToken);
+
+        // The person's verdict is read here rather than inside the commit, so one recorded between this read and the write
+        // below would be replaced. Nothing records one yet; the act that does has to close that window where it writes.
+        if (existing is { DecidedBy: SpamClassificationStage.Person })
+        {
+            return SpamClassificationResult.PersonsVerdictKept(existing);
+        }
+
+        if (mode is SpamClassificationMode.FirstTimeOnly && existing is not null)
         {
             return SpamClassificationResult.NotClassified(SpamClassificationOutcome.AlreadyClassified);
         }

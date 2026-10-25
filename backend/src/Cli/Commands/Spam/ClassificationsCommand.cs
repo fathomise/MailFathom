@@ -94,13 +94,14 @@ internal static class ClassificationsCommand
             return CliExitCode.Success;
         }
 
-        CliTable listing = new("Evaluated", "Verdict", "Message", "Folder", "Under", "Signals", "Asked");
+        CliTable listing = new("Evaluated", "Verdict", "Spam subcategory", "Message", "Folder", "Under", "Signals", "Asked");
 
         foreach (var classification in classifications)
         {
             listing.AddRow(
                 $"{classification.EvaluatedAt:u}",
                 classification.DescribeVerdict(),
+                classification.DescribeSpamSubcategory(),
                 $"{classification.Email}",
                 classification.Folder ?? "an unnamed folder",
                 classification.Profile ?? "no profile",

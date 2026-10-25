@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -16,9 +17,11 @@ namespace MailFathom.Domain.Spam;
 /// existing record, which is what a run over a whole mailbox skips mail on.
 /// </para>
 /// <para>
-/// The digest covers only what changes a verdict. Today that is the stage that decides, because the deterministic stage
-/// reads what a message carried and nothing an operator configures moves its answer; a setting that does move one joins
-/// the canonical form, and every record decided before it then reads as decided under other terms. The scanned folder
+/// The digest covers only what changes a verdict or a subcategory. The deterministic stage reads what a message carried
+/// and nothing an operator configures moves its answer, so its terms are its name alone. The model stage's are whether it
+/// is consulted, whether it names subcategories of deterministic spam, and its threshold; a setting that moves an answer
+/// joins the canonical form, and every record decided before it then reads as decided under other terms. Leaving the
+/// model unconsulted keeps the deterministic identity, so mail already decided without it is not decided again. The scanned folder
 /// scope is deliberately outside it — adding a folder changes which mail is classified and not what any classification
 /// would have concluded, so including it would force a rescan of mail nothing about the decision has moved for.
 /// </para>
@@ -53,13 +56,33 @@ public readonly record struct SpamClassificationProfile
     public string Value => this.value
         ?? throw new InvalidOperationException("The value is the default of the struct and does not name a profile.");
 
-    /// <summary>Derives the identity of the terms a classification is reached under, which this release fixes.</summary>
-    /// <returns>The profile every verdict this release reaches is recorded under.</returns>
-    public static SpamClassificationProfile Create()
-    {
-        var digest = SHA256.HashData(Encoding.UTF8.GetBytes("deterministic"));
+    /// <summary>Derives the identity of the terms a classification is reached under when no model is consulted.</summary>
+    /// <returns>The profile of the deterministic stage alone.</returns>
+    public static SpamClassificationProfile Create() => FromCanonicalForm("deterministic");
 
-        return new SpamClassificationProfile(Convert.ToHexStringLower(digest)[..LengthInCharacters]);
+    /// <summary>Derives the identity of the terms a classification is reached under when the model stage is consulted.</summary>
+    /// <param name="namesSubcategoriesOfDeterministicSpam">Whether the model also names the subcategory of a verdict the deterministic stage reached.</param>
+    /// <param name="threshold">The probability at or above which the model's judgement counts as spam.</param>
+    /// <returns>The profile, which differs from the deterministic one and from every other combination of these terms.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="threshold" /> is not a probability above zero.</exception>
+    /// <remarks>
+    /// Each term moves an answer: consulting the model decides mail the deterministic stage could not, naming
+    /// subcategories reaches mail it already called spam, and the threshold moves where the model's probability turns into
+    /// a verdict. The threshold is written in its round-trip form, so two thresholds that differ at all are two profiles.
+    /// </remarks>
+    public static SpamClassificationProfile Create(bool namesSubcategoriesOfDeterministicSpam, double threshold)
+    {
+        if (!double.IsFinite(threshold) || threshold is <= 0 or > 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(threshold),
+                threshold,
+                "A model threshold is a probability above zero and at most one.");
+        }
+
+        return FromCanonicalForm(string.Create(
+            CultureInfo.InvariantCulture,
+            $"deterministic;model;subcategories-of-deterministic-spam={(namesSubcategoriesOfDeterministicSpam ? "yes" : "no")};threshold={threshold:R}"));
     }
 
     /// <summary>Reads back a profile this system derived earlier and recorded.</summary>
@@ -88,4 +111,7 @@ public readonly record struct SpamClassificationProfile
 
     /// <inheritdoc />
     public override string ToString() => this.value ?? "(unspecified)";
+
+    private static SpamClassificationProfile FromCanonicalForm(string canonicalForm) => new(
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(canonicalForm)))[..LengthInCharacters]);
 }

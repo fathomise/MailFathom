@@ -268,6 +268,41 @@ public sealed class EmailSpamClassifierTests
         Assert.Equal(SpamVerdict.Spam, saved.Verdict);
     }
 
+    /// <summary>The person's verdict outranks every stage, so even an explicit reclassification leaves it where it is.</summary>
+    [Theory]
+    [InlineData(SpamClassificationMode.Reclassify)]
+    [InlineData(SpamClassificationMode.FirstTimeOnly)]
+    public async Task ClassifyAsync_TheOccurrenceCarriesThePersonsVerdict_KeepsItAndRecordsNothing(SpamClassificationMode mode)
+    {
+        // Arrange
+        var personsVerdict = SpamClassification.Create(
+            Occurrence,
+            SpamVerdict.NotSpam,
+            SpamClassificationStage.Person,
+            assessment: null,
+            SpamClassificationProfile.Create(),
+            [],
+            EvaluatedAt.AddDays(-1));
+
+        this.store.Hold(personsVerdict);
+
+        var classifier = this.Classifier(SettingsCovering(Inbox), FactsSaying("X-Spam-Flag", "YES"));
+
+        // Act
+        var result = await classifier.ClassifyAsync(
+            Account,
+            Occurrence,
+            mode,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamClassificationOutcome.PersonsVerdictKept, result.Outcome);
+        Assert.Same(personsVerdict, result.Classification);
+        Assert.Empty(this.store.Saved);
+        await this.contentStore.DidNotReceive()
+            .FindStoredContentAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task ClassifyAsync_AnOccurrenceInTheJunkFolder_RecordsThePlacementAsTheReason()
     {

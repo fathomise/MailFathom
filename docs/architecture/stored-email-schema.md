@@ -1242,6 +1242,14 @@ classification](../features/spam-classification.md#what-a-classification-records
 `CorpusRevision` is a nullable column no stage writes, and every write clears it; it stays mapped because a replica of
 the previous build reads it during a rolling upgrade.
 
+`SpamSubcategory` names what kind of spam a `Spam` verdict is — `Phishing`, `BusinessEmailCompromise`, `MalwareLure`,
+`Scam`, `Extortion`, or `Marketing` — and is null where no stage named one, which includes every row written before the
+column existed. `PhishingRequest` names what a phishing message asks for and `ImpersonatedParty` the kind of party a
+phishing or business-email-compromise message pretends to come from; both are null wherever the model named nothing.
+All three are member names stored as text, like `Verdict` and `DecidedBy`. Which stage named the subcategory is not a
+column: the person names the one on their own verdict, and the model every other. **The spam subcategory is not a mail
+category** — it says what kind of spam a spam message is, and nothing about mail that is not spam.
+
 `Profile` is a twelve-character digest of the terms the verdict was reached under, and it is nullable because a row
 written before the column existed names terms nothing can compare. That is what it is for: a run over a whole mailbox
 reads it to decide whether a message has already been decided under the terms now in force, and a row carrying none,

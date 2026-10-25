@@ -33,6 +33,49 @@ public sealed class SpamClassificationProfileTests
         Assert.Equal("0badac3c6df4", profile.Value);
     }
 
+    /// <summary>Each model term is pinned on its own, so a change to how one is written fails here rather than rescoring silently.</summary>
+    [Theory]
+    [InlineData(false, 0.5, "38440031d93c")]
+    [InlineData(true, 0.5, "247252e79840")]
+    [InlineData(false, 0.75, "6ef692a4562f")]
+    public void Create_TheModelTerms_DeriveTheirPinnedIdentity(
+        bool namesSubcategoriesOfDeterministicSpam,
+        double threshold,
+        string expected)
+    {
+        // Act
+        var profile = SpamClassificationProfile.Create(namesSubcategoriesOfDeterministicSpam, threshold);
+
+        // Assert
+        Assert.Equal(expected, profile.Value);
+    }
+
+    /// <summary>Consulting the model re-decides mail, which is what a profile differing from the deterministic one does.</summary>
+    [Fact]
+    public void Create_TheModelConsulted_DiffersFromTheDeterministicTerms()
+    {
+        // Act
+        var withModel = SpamClassificationProfile.Create(namesSubcategoriesOfDeterministicSpam: false, threshold: 0.5);
+
+        // Assert
+        Assert.NotEqual(SpamClassificationProfile.Create(), withModel);
+    }
+
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(-0.1)]
+    [InlineData(1.01)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void Create_AThresholdThatIsNoProbability_IsRefused(double threshold)
+    {
+        // Arrange, Act, Assert
+        var failure = Assert.Throws<ArgumentOutOfRangeException>(
+            () => SpamClassificationProfile.Create(namesSubcategoriesOfDeterministicSpam: true, threshold));
+
+        Assert.Equal("threshold", failure.ParamName);
+    }
+
     [Fact]
     public void Restore_AnIdentityThisTypeDerived_ComparesEqualToIt()
     {

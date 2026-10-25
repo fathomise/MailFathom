@@ -19,6 +19,10 @@ internal sealed record SpamClassificationPage(
 /// <param name="Folder">The deployment's own name for the folder the message is in.</param>
 /// <param name="Verdict">What was concluded.</param>
 /// <param name="DecidedBy">Which stage reached the verdict.</param>
+/// <param name="SpamSubcategory">What kind of spam the message is, absent where no stage named one.</param>
+/// <param name="SpamSubcategoryNamedBy">Which stage named the subcategory, absent exactly when <paramref name="SpamSubcategory" /> is.</param>
+/// <param name="PhishingRequest">What a phishing message asks for, absent where the model named nothing.</param>
+/// <param name="ImpersonatedParty">The kind of party the message pretends to come from, absent where the model named nothing.</param>
 /// <param name="Score">The score reached, absent when no stage produced a number.</param>
 /// <param name="Threshold">The score it was judged against, absent exactly when <paramref name="Score" /> is.</param>
 /// <param name="Profile">The terms the verdict was reached under, absent on a record written before it named one.</param>
@@ -30,6 +34,10 @@ internal sealed record SpamClassificationReading(
     [property: JsonPropertyName("folder")] string? Folder,
     [property: JsonPropertyName("verdict")] string? Verdict,
     [property: JsonPropertyName("decidedBy")] string? DecidedBy,
+    [property: JsonPropertyName("spamSubcategory")] string? SpamSubcategory,
+    [property: JsonPropertyName("spamSubcategoryNamedBy")] string? SpamSubcategoryNamedBy,
+    [property: JsonPropertyName("phishingRequest")] string? PhishingRequest,
+    [property: JsonPropertyName("impersonatedParty")] string? ImpersonatedParty,
     [property: JsonPropertyName("score")] double? Score,
     [property: JsonPropertyName("threshold")] double? Threshold,
     [property: JsonPropertyName("profile")] string? Profile,
@@ -42,6 +50,25 @@ internal sealed record SpamClassificationReading(
     internal string DescribeVerdict() => this.Score is { } score && this.Threshold is { } threshold
         ? string.Create(CultureInfo.InvariantCulture, $"{this.Verdict} ({this.DecidedBy} {score:0.##}/{threshold:0.##})")
         : $"{this.Verdict} ({this.DecidedBy})";
+
+    /// <summary>Describes what kind of spam the message is, which stage named it, and the phishing detail the model named.</summary>
+    /// <returns>The subcategory, the stage that named it, and its detail, or that none was named.</returns>
+    internal string DescribeSpamSubcategory()
+    {
+        if (this.SpamSubcategory is null)
+        {
+            return "none";
+        }
+
+        string[] detail =
+        [
+            .. this.PhishingRequest is { } request ? [$"asks for {request}"] : Array.Empty<string>(),
+            .. this.ImpersonatedParty is { } party ? [$"impersonates {party}"] : Array.Empty<string>(),
+        ];
+        var named = $"{this.SpamSubcategory} (named by {this.SpamSubcategoryNamedBy})";
+
+        return detail.Length == 0 ? named : $"{named}: {string.Join(", ", detail)}";
+    }
 
     /// <summary>Describes what the verdict asked the mailbox for, naming each change and the record carrying it.</summary>
     /// <returns>The changes, or that it asked for none.</returns>

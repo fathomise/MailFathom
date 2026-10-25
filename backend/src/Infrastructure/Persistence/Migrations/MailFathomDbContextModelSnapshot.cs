@@ -1009,6 +1009,14 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("EvaluatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ImpersonatedParty")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("PhishingRequest")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("Profile")
                         .HasMaxLength(12)
                         .HasColumnType("character(12)")
@@ -1016,6 +1024,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.Property<double?>("Score")
                         .HasColumnType("double precision");
+
+                    b.Property<string>("SpamSubcategory")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<double?>("Threshold")
                         .HasColumnType("double precision");

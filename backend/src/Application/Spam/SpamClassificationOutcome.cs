@@ -35,4 +35,12 @@ public enum SpamClassificationOutcome
     /// classifiable later without the message being re-fetched for classification's sake.
     /// </remarks>
     ContentUnavailable = 5,
+
+    /// <summary>The occurrence carries the person's own verdict, which no stage replaces, so it was returned as it stands.</summary>
+    /// <remarks>
+    /// Nothing was recorded, and the result still carries a classification — the person's — because whoever asked is going
+    /// to act on a verdict and the person's is the one in force. Neither a reclassification nor a run under another
+    /// profile changes it; only the person does.
+    /// </remarks>
+    PersonsVerdictKept = 6,
 }

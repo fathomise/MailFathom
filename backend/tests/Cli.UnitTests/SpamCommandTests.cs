@@ -206,7 +206,7 @@ public sealed class SpamCommandTests : IDisposable
         Assert.Contains(this.harness.Console.Lines, line => line.Contains("spam run --account work", StringComparison.Ordinal));
     }
 
-    /// <summary>The signals print by name, which is how they are recorded and the whole reason the record is safe to read.</summary>
+    /// <summary>The signals print by name, which is how they are recorded and the whole reason the record is safe to read, and the spam subcategory beside them names who named it.</summary>
     [Fact]
     public async Task Classifications_ARecordedVerdict_PrintsItsSignalNamesAndWhatItAskedFor()
     {
@@ -219,6 +219,10 @@ public sealed class SpamCommandTests : IDisposable
                   "folder": "INBOX",
                   "verdict": "Spam",
                   "decidedBy": "Deterministic",
+                  "spamSubcategory": "Phishing",
+                  "spamSubcategoryNamedBy": "Model",
+                  "phishingRequest": "Credentials",
+                  "impersonatedParty": "Bank",
                   "score": 15.2,
                   "threshold": 5.0,
                   "profile": "a1b2c3d4e5f6",
@@ -246,6 +250,9 @@ public sealed class SpamCommandTests : IDisposable
         // Assert
         Assert.Equal(CliExitCode.Success, exitCode);
         Assert.Contains(this.harness.Console.Lines, line => line.Contains("Spam (Deterministic 15.2/5)", StringComparison.Ordinal));
+        Assert.Contains(
+            this.harness.Console.Lines,
+            line => line.Contains("Phishing (named by Model): asks for Credentials, impersonates Bank", StringComparison.Ordinal));
         Assert.Contains(this.harness.Console.Lines, line => line.Contains("X-Spam-Flag, X-Spam-Status", StringComparison.Ordinal));
         Assert.Contains(this.harness.Console.Lines, line => line.Contains("relocate", StringComparison.Ordinal));
     }

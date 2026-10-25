@@ -37,7 +37,10 @@ internal static class EmailSpamClassificationMapping
                     signal.Observation,
                     SpamSignalProvenance.Restore(signal.Source, signal.Origin))),
         ],
-        entity.EvaluatedAt);
+        entity.EvaluatedAt,
+        entity.SpamSubcategory,
+        entity.PhishingRequest,
+        entity.ImpersonatedParty);
 
     /// <summary>Writes a record onto the row that holds it, leaving the signals to the caller that stages them.</summary>
     /// <param name="entity">The row to write.</param>
@@ -51,6 +54,9 @@ internal static class EmailSpamClassificationMapping
         entity.CorpusRevision = null;
         entity.Profile = classification.Profile.IsSpecified ? classification.Profile.Value : null;
         entity.EvaluatedAt = classification.EvaluatedAt;
+        entity.SpamSubcategory = classification.Subcategory;
+        entity.PhishingRequest = classification.PhishingRequest;
+        entity.ImpersonatedParty = classification.ImpersonatedParty;
     }
 
     /// <summary>Builds the rows one classification's signals are stored as.</summary>

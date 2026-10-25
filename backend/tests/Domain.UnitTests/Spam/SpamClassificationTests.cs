@@ -98,19 +98,229 @@ public sealed class SpamClassificationTests
         Assert.Equal(Profile, classification.Profile);
     }
 
+    /// <summary>A spam verdict the deterministic stage reached alone is whole without a subcategory.</summary>
+    [Fact]
+    public void Create_DeterministicSpamWithoutASubcategory_IsWhole()
+    {
+        // Arrange, Act
+        var classification = Classification();
+
+        // Assert
+        Assert.Null(classification.Subcategory);
+        Assert.Null(classification.SubcategoryNamedBy);
+    }
+
+    [Theory]
+    [InlineData(SpamVerdict.NotSpam, SpamClassificationStage.Model)]
+    [InlineData(SpamVerdict.Undetermined, SpamClassificationStage.Model)]
+    [InlineData(SpamVerdict.NotSpam, SpamClassificationStage.Person)]
+    public void Create_ASubcategoryOnAVerdictOtherThanSpam_IsRefused(SpamVerdict verdict, SpamClassificationStage decidedBy)
+    {
+        // Arrange, Act, Assert
+        var failure = Assert.Throws<ArgumentException>(() => Classification(
+            verdict,
+            decidedBy,
+            signals: [ModelJudgement()],
+            subcategory: SpamSubcategory.Marketing));
+
+        Assert.Equal("subcategory", failure.ParamName);
+    }
+
+    /// <summary>The deterministic stage names no subcategory, so one with no model judgement behind it has nobody who named it.</summary>
+    [Fact]
+    public void Create_ASubcategoryNoStageCouldHaveNamed_IsRefused()
+    {
+        // Arrange, Act, Assert
+        var failure = Assert.Throws<ArgumentException>(() => Classification(
+            signals: [Signal("X-Spam-Flag")],
+            subcategory: SpamSubcategory.Scam));
+
+        Assert.Equal("subcategory", failure.ParamName);
+    }
+
+    /// <summary>The model only naming the subcategory of a deterministic verdict leaves the verdict the deterministic stage's.</summary>
+    [Fact]
+    public void Create_TheModelNamingTheSubcategoryOfDeterministicSpam_KeepsTheVerdictDeterministic()
+    {
+        // Arrange, Act
+        var classification = Classification(
+            signals: [Signal("X-Spam-Flag"), ModelJudgement()],
+            subcategory: SpamSubcategory.Phishing,
+            phishingRequest: SpamPhishingRequest.Credentials,
+            impersonatedParty: SpamImpersonatedParty.Bank);
+
+        // Assert
+        Assert.Equal(SpamClassificationStage.Deterministic, classification.DecidedBy);
+        Assert.Equal(SpamClassificationStage.Model, classification.SubcategoryNamedBy);
+        Assert.Equal(SpamSubcategory.Phishing, classification.Subcategory);
+        Assert.Equal(SpamPhishingRequest.Credentials, classification.PhishingRequest);
+        Assert.Equal(SpamImpersonatedParty.Bank, classification.ImpersonatedParty);
+    }
+
+    [Fact]
+    public void Create_TheModelDecidingTheVerdict_NamesTheModelForBoth()
+    {
+        // Arrange, Act
+        var classification = Classification(
+            decidedBy: SpamClassificationStage.Model,
+            signals: [ModelJudgement()],
+            subcategory: SpamSubcategory.BusinessEmailCompromise,
+            impersonatedParty: SpamImpersonatedParty.Executive);
+
+        // Assert
+        Assert.Equal(SpamClassificationStage.Model, classification.DecidedBy);
+        Assert.Equal(SpamClassificationStage.Model, classification.SubcategoryNamedBy);
+    }
+
+    [Fact]
+    public void Create_AVerdictTheModelDecidedWithNoJudgementBehindIt_IsRefused()
+    {
+        // Arrange, Act, Assert
+        var failure = Assert.Throws<ArgumentException>(() => Classification(
+            verdict: SpamVerdict.NotSpam,
+            decidedBy: SpamClassificationStage.Model));
+
+        Assert.Equal("decidedBy", failure.ParamName);
+    }
+
+    /// <summary>A judgement past the signal bound is not kept, so it cannot vouch for the subcategory either.</summary>
+    [Fact]
+    public void Create_AModelJudgementPastTheSignalBound_DoesNotVouchForTheSubcategory()
+    {
+        // Arrange
+        SpamSignal[] written =
+        [
+            .. Enumerable.Range(0, SpamClassification.MaximumSignals).Select(index => Signal($"field-{index}")),
+            ModelJudgement(),
+        ];
+
+        // Act, Assert
+        Assert.Throws<ArgumentException>(() => Classification(signals: written, subcategory: SpamSubcategory.Scam));
+    }
+
+    [Theory]
+    [InlineData(SpamVerdict.Spam, null)]
+    [InlineData(SpamVerdict.Spam, SpamSubcategory.Extortion)]
+    [InlineData(SpamVerdict.NotSpam, null)]
+    public void Create_ThePersonsOwnVerdict_NamesThePersonForBoth(SpamVerdict verdict, SpamSubcategory? subcategory)
+    {
+        // Arrange, Act
+        var classification = Classification(verdict, SpamClassificationStage.Person, subcategory: subcategory);
+
+        // Assert
+        Assert.Equal(SpamClassificationStage.Person, classification.DecidedBy);
+        Assert.Equal(subcategory, classification.Subcategory);
+        Assert.Equal(subcategory is null ? null : SpamClassificationStage.Person, classification.SubcategoryNamedBy);
+    }
+
+    [Fact]
+    public void Create_ThePersonConcludingNothing_IsRefused()
+    {
+        // Arrange, Act, Assert
+        var failure = Assert.Throws<ArgumentException>(() => Classification(
+            SpamVerdict.Undetermined,
+            SpamClassificationStage.Person));
+
+        Assert.Equal("verdict", failure.ParamName);
+    }
+
+    /// <summary>Only the model names phishing detail, so the person's subcategory carries none.</summary>
+    [Fact]
+    public void Create_PhishingDetailOnThePersonsSubcategory_IsRefused()
+    {
+        // Arrange, Act, Assert
+        var failure = Assert.Throws<ArgumentException>(() => Classification(
+            decidedBy: SpamClassificationStage.Person,
+            subcategory: SpamSubcategory.Phishing,
+            phishingRequest: SpamPhishingRequest.OneTimeCode));
+
+        Assert.Equal("phishingRequest", failure.ParamName);
+    }
+
+    [Fact]
+    public void Create_PhishingDetailWithoutASubcategory_IsRefused()
+    {
+        // Arrange, Act, Assert
+        var failure = Assert.Throws<ArgumentException>(() => Classification(
+            signals: [ModelJudgement()],
+            impersonatedParty: SpamImpersonatedParty.Courier));
+
+        Assert.Equal("impersonatedParty", failure.ParamName);
+    }
+
+    [Theory]
+    [InlineData(SpamSubcategory.BusinessEmailCompromise)]
+    [InlineData(SpamSubcategory.Scam)]
+    [InlineData(SpamSubcategory.Marketing)]
+    public void Create_ARequestOnAnythingButPhishing_IsRefused(SpamSubcategory subcategory)
+    {
+        // Arrange, Act, Assert
+        var failure = Assert.Throws<ArgumentException>(() => Classification(
+            signals: [ModelJudgement()],
+            subcategory: subcategory,
+            phishingRequest: SpamPhishingRequest.PaymentDetails));
+
+        Assert.Equal("phishingRequest", failure.ParamName);
+    }
+
+    [Theory]
+    [InlineData(SpamSubcategory.MalwareLure)]
+    [InlineData(SpamSubcategory.Scam)]
+    [InlineData(SpamSubcategory.Extortion)]
+    [InlineData(SpamSubcategory.Marketing)]
+    public void Create_AnImpersonatedPartyOnASubcategoryThatImpersonatesNobody_IsRefused(SpamSubcategory subcategory)
+    {
+        // Arrange, Act, Assert
+        var failure = Assert.Throws<ArgumentException>(() => Classification(
+            signals: [ModelJudgement()],
+            subcategory: subcategory,
+            impersonatedParty: SpamImpersonatedParty.Supplier));
+
+        Assert.Equal("impersonatedParty", failure.ParamName);
+    }
+
+    [Fact]
+    public void Create_ANamedValueOutsideTheDeclaredSet_IsRefused()
+    {
+        // Arrange, Act, Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => Classification(
+            signals: [ModelJudgement()],
+            subcategory: (SpamSubcategory)42));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Classification(
+            signals: [ModelJudgement()],
+            subcategory: SpamSubcategory.Phishing,
+            phishingRequest: (SpamPhishingRequest)42));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Classification(
+            signals: [ModelJudgement()],
+            subcategory: SpamSubcategory.Phishing,
+            impersonatedParty: (SpamImpersonatedParty)42));
+    }
+
     private static SpamClassification Classification(
         SpamVerdict verdict = SpamVerdict.Spam,
         SpamClassificationStage decidedBy = SpamClassificationStage.Deterministic,
         SpamClassificationProfile? profile = null,
         IReadOnlyList<SpamSignal>? signals = null,
-        DateTimeOffset? evaluatedAt = null) => SpamClassification.Create(
+        DateTimeOffset? evaluatedAt = null,
+        SpamSubcategory? subcategory = null,
+        SpamPhishingRequest? phishingRequest = null,
+        SpamImpersonatedParty? impersonatedParty = null) => SpamClassification.Create(
         Occurrence,
         verdict,
         decidedBy,
         assessment: null,
         profile ?? Profile,
         signals ?? [],
-        evaluatedAt ?? EvaluatedAt);
+        evaluatedAt ?? EvaluatedAt,
+        subcategory,
+        phishingRequest,
+        impersonatedParty);
+
+    private static SpamSignal ModelJudgement() => SpamSignal.Create(
+        SpamSignalKind.ModelJudgement,
+        "spam_kind",
+        observation: "phishing",
+        SpamSignalProvenance.FromModel("example/decider-2026-09-01", "3f9a1c"));
 
     private static SpamSignal Signal(string name) => SpamSignal.Create(
         SpamSignalKind.ProviderSpamVerdict,
