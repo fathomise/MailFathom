@@ -9,7 +9,7 @@
 //
 // A row names its recipients as the service does: those of the first role that names anybody — `To`, else `Cc`, else
 // `Bcc` — and a count of the rest. Everyone a send is for is the preview's to name, so the recipients a row leaves to
-// that count are kept beside the rows rather than on them.
+// that count are kept with the preview rather than on them.
 
 import { workAccount } from './deployment';
 
@@ -86,12 +86,6 @@ export const refusedOutgoingSend = {
     failure: 'The mail server would not take it: this account has sent as much mail as it may today.',
 };
 
-/** The recipients each send's row counts rather than names, which only its preview names. */
-const countedOnTheRow: Readonly<Record<string, readonly { readonly address: string; readonly role: string }[]>> = {
-    [retryingSend.outgoingEmail]: [{ address: 'j.wrona@company.example', role: 'Cc' }],
-    [refusedOutgoingSend.outgoingEmail]: [{ address: 'm.nowak@company.example', role: 'Cc' }],
-};
-
 /** What the Outbox route answers for the corpus mailbox, newest first. */
 export const outboxPage = {
     sends: [waitingSend, sendingSend, retryingSend, unknownSend, refusedOutgoingSend],
@@ -125,6 +119,13 @@ export function outgoingMailPreview(send: {
     readonly failure: string | null;
 }) {
     const refused = send.stage === 'Refused';
+
+    // The recipients a row counts rather than names, which only the preview names. They live in here rather than
+    // beside the rows because a declaration of the corpus's own is checked as a route's answer, and this is no answer.
+    const countedOnTheRow: Readonly<Record<string, readonly { readonly address: string; readonly role: string }[]>> = {
+        [retryingSend.outgoingEmail]: [{ address: 'j.wrona@company.example', role: 'Cc' }],
+        [refusedOutgoingSend.outgoingEmail]: [{ address: 'm.nowak@company.example', role: 'Cc' }],
+    };
 
     return {
         outgoingEmail: send.outgoingEmail,
