@@ -86,6 +86,20 @@ public sealed class AnswerMarkupTests
         Assert.Equal(MailLinkDeception.DisplayedHostDiffers, Assert.Single(links).Link.Deception);
     }
 
+    /// <summary>A link's words may run onto a second line, as a renderer draws them, and are judged as one link.</summary>
+    [Theory]
+    [InlineData("Pay at [bank.example.test\n](https://evil.example.test/pay).")]
+    [InlineData("Pay at [bank.example.test\r\n](https://evil.example.test/pay).")]
+    [InlineData("Pay at [\nbank.example.test](https://evil.example.test/pay).")]
+    public void LinksIn_WordsRunningOntoASecondLine_AreJudgedAsTheOneLinkARendererDraws(string answer)
+    {
+        // Act
+        var links = AnswerMarkup.LinksIn(answer, []);
+
+        // Assert
+        Assert.Equal(MailLinkDeception.DisplayedHostDiffers, Assert.Single(links).Link.Deception);
+    }
+
     /// <summary>A reference link is paired with its definition as a renderer pairs it, so the label's spacing or the destination's line hides nothing.</summary>
     [Theory]
     [InlineData("Pay at [bank.example.test][ref  x].\n\n[ref x]: https://evil.example.test/pay")]

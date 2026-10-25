@@ -25,7 +25,9 @@ namespace MailFathom.Application.Answers;
 /// <para>
 /// The reading is by pattern rather than by a Markdown parser, and it is one-sided on purpose. Neutralising a picture
 /// needs no parse at all, because <c>![</c> opens every picture form Markdown has and nothing else; and a link the
-/// patterns below do not find is one a client finds no judgement for, which it draws as the least trusted link it can.
+/// patterns below do not find is one a client finds no judgement for, which it draws as appearing in no cited mail but
+/// without the judgement of its words — so a pattern reads a link wherever a renderer draws one, its words included when
+/// they run onto a second line.
 /// </para>
 /// </remarks>
 public static partial class AnswerMarkup
@@ -196,7 +198,7 @@ public static partial class AnswerMarkup
     private static partial Regex HtmlTagOpening();
 
     // An inline link with its destination bare or in angle brackets, one level of parentheses inside it, and a title.
-    [GeneratedRegex(@"\[(?<words>[^\[\]\n]*)\]\(\s*(?:<(?<reference>[^<>\n]*)>|(?<reference>(?:[^\s()]|\([^\s()]*\))+))(?:\s+(?:""[^""\n]*""|'[^'\n]*'|\([^()\n]*\)))?\s*\)")]
+    [GeneratedRegex(@"\[(?<words>(?:[^\[\]\n]|\n(?![ \t]*\r?\n))*)\]\(\s*(?:<(?<reference>[^<>\n]*)>|(?<reference>(?:[^\s()]|\([^\s()]*\))+))(?:\s+(?:""[^""\n]*""|'[^'\n]*'|\([^()\n]*\)))?\s*\)")]
     private static partial Regex InlineLink();
 
     // An autolink to an absolute address, or to a mailbox.
