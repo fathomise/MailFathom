@@ -3,7 +3,6 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Answers;
-using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Domain.Accounts;
