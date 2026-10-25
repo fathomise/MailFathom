@@ -68,7 +68,7 @@ public sealed partial class HostileMailTests
 
     [Theory]
     [InlineData("Catering is confirmed at 18.50 EUR per person.")]
-    [InlineData("Catering is confirmed. \\<img src=x> was in the message.")]
+    [InlineData("Catering is confirmed. &lt;img src=x> was in the message.")]
     [InlineData("Pay at [harbourhall.test](https://pay-harbourhall.test/settle).")]
     public void PublishedUnsafely_NoPictureAndEveryBaitedLinkMarked_NamesNothing(string published)
     {

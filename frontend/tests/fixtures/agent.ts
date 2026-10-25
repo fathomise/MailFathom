@@ -69,8 +69,8 @@ const current = { staleness: 'Current', observedAt: '2026-08-31T09:42:00+00:00' 
 export const answerMarkupHost = 'pixel.example';
 
 /**
- * The raw HTML the answer repeats out of the mail it read, as a reader sees it: the service escapes the tag's opening,
- * so the client draws it as the text it is.
+ * The raw HTML the answer repeats out of the mail it read, as a reader sees it: the service writes the tag's opening
+ * bracket as a character reference, so the client draws it as the text it is.
  *
  * Its address carries no scheme, as a tag's is free not to, so what stays text is the tag whole: an address with one
  * would be drawn as a warned link the way one in the prose is, which is a different thing from a tag becoming an element.
@@ -134,7 +134,7 @@ const answeredEntries = [
                 text: [
                     'Four bays were confirmed, held to the end of the week.',
                     answerListed.map((place) => `- **${place}**`).join('\n'),
-                    `The confirmation closes with \\${answerRawMarkup} and a plan: [The bays](${answerPictureTarget})`,
+                    `The confirmation closes with &lt;img src="//${answerMarkupHost}/bays.gif" alt=""> and a plan: [The bays](${answerPictureTarget})`,
                     `The bay plan is at [bays.example/plan](${tracedAnswerLink}), and the confirmation asks you to pay at [bays.example](${untracedAnswerLink}).`,
                 ].join('\n\n'),
                 confidence: 'High',

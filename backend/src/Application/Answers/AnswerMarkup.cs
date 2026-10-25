@@ -26,8 +26,9 @@ namespace MailFathom.Application.Answers;
 /// The reading is by pattern rather than by a Markdown parser, and it is one-sided on purpose. Neutralising a picture
 /// needs no parse at all, because <c>![</c> opens every picture form Markdown has and nothing else; and a link the
 /// patterns below do not find is one a client finds no judgement for, which it draws as appearing in no cited mail but
-/// without the judgement of its words — so a pattern reads a link wherever a renderer draws one, its words included when
-/// they run onto a second line.
+/// without the judgement of its words — so a pattern reads a link wherever a renderer draws one: words running onto a
+/// second line, a destination holding escaped or nested parentheses, and a reference defined inside a block quote or a
+/// list item included.
 /// </para>
 /// </remarks>
 public static partial class AnswerMarkup
@@ -40,7 +41,7 @@ public static partial class AnswerMarkup
 
     /// <summary>Turns every picture an answer's Markdown would draw into something no renderer fetches.</summary>
     /// <param name="answer">The answer as the model wrote it.</param>
-    /// <returns>The answer with each Markdown picture turned into a link and each raw HTML tag, comment, declaration and processing instruction escaped into text.</returns>
+    /// <returns>The answer with each Markdown picture turned into a link and the opening bracket of each raw HTML tag, comment, declaration and processing instruction written as the character reference <c>&amp;lt;</c>.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="answer" /> is <see langword="null" />.</exception>
     /// <remarks>
     /// <para>
@@ -50,11 +51,14 @@ public static partial class AnswerMarkup
     /// is no list of the tags that fetch, because which tags a renderer fetches for is the renderer's choice.
     /// </para>
     /// <para>
-    /// Neither change looks inside code. An HTML tag inside a code span therefore reads with a backslash before it, which
-    /// is a blemish in an answer about mail rather than a hole in the rule.
+    /// The escape is a character reference rather than a backslash because a reference opens no tag anywhere — in prose,
+    /// in a code span where a backslash is literal, and in a renderer that never read <c>\&lt;</c> as an escape — so the
+    /// rule does not depend on the renderer it reaches. A backslash the model already wrote in front of the bracket is
+    /// taken with it, so an escaped tag still reads as the tag outside code. Inside code the reference shows as written,
+    /// which is a blemish in an answer about mail rather than a hole in the rule.
     /// </para>
     /// <para>
-    /// Escaping a tag adds a character, so a caller applies this before it cuts an answer to what it publishes rather
+    /// Escaping a tag adds characters, so a caller applies this before it cuts an answer to what it publishes rather
     /// than after.
     /// </para>
     /// </remarks>
@@ -62,7 +66,7 @@ public static partial class AnswerMarkup
     {
         ArgumentNullException.ThrowIfNull(answer);
 
-        return HtmlTagOpening().Replace(PictureOpening().Replace(answer, "["), @"\<");
+        return HtmlTagOpening().Replace(PictureOpening().Replace(answer, "["), "&lt;");
     }
 
     /// <summary>Judges every link an answer's Markdown carries and says whether the cited mail carries it too.</summary>
@@ -121,7 +125,7 @@ public static partial class AnswerMarkup
     {
         foreach (Match inline in InlineLink().Matches(answer))
         {
-            yield return (inline.Index, inline.Groups["reference"].Value, Shown(inline.Groups["words"].Value));
+            yield return (inline.Index, Destination(inline.Groups["reference"].Value), Shown(inline.Groups["words"].Value));
         }
 
         var definitions = ReferenceDefinition().Matches(answer).ToArray();
@@ -145,7 +149,7 @@ public static partial class AnswerMarkup
         foreach (var definition in definitions)
         {
             var label = definition.Groups["label"].Value;
-            var reference = definition.Groups["reference"].Value;
+            var reference = Destination(definition.Groups["reference"].Value);
 
             // The collapsed and shortcut forms show the label itself; the full form shows its own words.
             yield return (definition.Index, reference, Shown(label));
@@ -160,6 +164,10 @@ public static partial class AnswerMarkup
     /// <summary>Reads a link's words as a renderer shows them: without inline marks, with every escape read as what it stands for, and on one line.</summary>
     private static string Shown(string words) =>
         WhitespaceRun().Replace(WebUtility.HtmlDecode(InlineMarkOrEscape().Replace(words, static found => found.Groups["escaped"].Value)), " ").Trim();
+
+    /// <summary>Reads a link's destination as a renderer follows it: with every backslash escape and character reference read as what it stands for.</summary>
+    private static string Destination(string written) =>
+        WebUtility.HtmlDecode(BackslashEscape().Replace(written, static found => found.Groups["escaped"].Value));
 
     /// <summary>Normalises a reference label as a renderer matches one: trimmed, and with each run of whitespace read as one space.</summary>
     private static string Label(string label) => WhitespaceRun().Replace(label.Trim(), " ");
@@ -191,14 +199,15 @@ public static partial class AnswerMarkup
     private static partial Regex PictureOpening();
 
     // The opening bracket of a tag, and of a comment, a declaration, a CDATA section or a processing instruction — each of
-    // which opens an HTML block a renderer passes through raw, escapes and all — unless a backslash already escapes it: an
-    // odd run of backslashes before it is an escape, an even one is backslashes written as text. Autolinks are left
-    // alone, because a scheme is followed by a colon.
-    [GeneratedRegex(@"(?<=(?:^|[^\\])(?:\\\\)*)<(?=/?[A-Za-z][A-Za-z0-9-]*(?:[\s/>]|$)|[!?])")]
+    // which opens an HTML block a renderer passes through raw, escapes and all — with the backslash that escapes it, where
+    // an odd run of them does; an even run is backslashes written as text, and stays. Autolinks are left alone, because a
+    // scheme is followed by a colon.
+    [GeneratedRegex(@"(?<=(?:^|[^\\])(?:\\\\)*)\\?<(?=/?[A-Za-z][A-Za-z0-9-]*(?:[\s/>]|$)|[!?])")]
     private static partial Regex HtmlTagOpening();
 
-    // An inline link with its destination bare or in angle brackets, one level of parentheses inside it, and a title.
-    [GeneratedRegex(@"\[(?<words>(?:[^\[\]\n]|\n(?![ \t]*\r?\n))*)\]\(\s*(?:<(?<reference>[^<>\n]*)>|(?<reference>(?:[^\s()]|\([^\s()]*\))+))(?:\s+(?:""[^""\n]*""|'[^'\n]*'|\([^()\n]*\)))?\s*\)")]
+    // An inline link with its destination bare or in angle brackets, and a title. A bare destination holds escaped
+    // parentheses and balanced ones to any depth, as a renderer reads it.
+    [GeneratedRegex(@"\[(?<words>(?:[^\[\]\n]|\n(?![ \t]*\r?\n))*)\]\(\s*(?:<(?<reference>[^<>\n]*)>|(?<reference>(?:\\[()]|[^\s()\\]|\\(?![()])|(?<open>\()|(?<-open>\)))+(?(open)(?!))))(?:\s+(?:""[^""\n]*""|'[^'\n]*'|\([^()\n]*\)))?\s*\)")]
     private static partial Regex InlineLink();
 
     // An autolink to an absolute address, or to a mailbox.
@@ -209,12 +218,17 @@ public static partial class AnswerMarkup
     [GeneratedRegex(@"(?<![\w<\[""'/=@])(?<!\]\(\s*)(?:https?://|www\.)[^\s<]*[^\s<?!.,:;*_~'""\])]", RegexOptions.IgnoreCase)]
     private static partial Regex BareAddress();
 
+    // A backslash escape of any ASCII punctuation, which shows the character escaped.
+    [GeneratedRegex(@"\\(?<escaped>[!-/:-@\[-`{-~])")]
+    private static partial Regex BackslashEscape();
+
     // A backslash escape of any ASCII punctuation, which shows the character escaped, or an inline mark, which shows nothing.
     [GeneratedRegex(@"\\(?<escaped>[!-/:-@\[-`{-~])|[*_~`]")]
     private static partial Regex InlineMarkOrEscape();
 
-    // A label may run over lines, and the destination may sit on the line after it.
-    [GeneratedRegex(@"^ {0,3}\[(?<label>[^\[\]]+)\]:[ \t]*(?:\r?\n[ \t]*)?<?(?<reference>[^\s<>]+)>?", RegexOptions.Multiline)]
+    // A label may run over lines, and the destination may sit on the line after it. A definition inside a block quote or
+    // a list item applies to the whole answer, so the markers of either may stand in front of it.
+    [GeneratedRegex(@"^ {0,3}(?:(?:>|(?:[-+*]|\d{1,9}[.)])(?=[ \t]))[ \t]*)*\[(?<label>[^\[\]]+)\]:[ \t]*(?:\r?\n[ \t]*)?<?(?<reference>[^\s<>]+)>?", RegexOptions.Multiline)]
     private static partial Regex ReferenceDefinition();
 
     [GeneratedRegex(@"\[(?<words>[^\[\]]+)\]\[(?<label>[^\[\]]+)\]")]

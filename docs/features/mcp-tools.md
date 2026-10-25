@@ -1919,7 +1919,8 @@ A model reads mail anybody can send, and a message can ask it to write something
 person reading it: a picture whose address calls a stranger's host the moment a client draws it, or a link whose words
 name one host while it goes to another. So the answer's picture markup is neutralised before it is published — `![`
 loses its `!`, which leaves the picture as a link to the same address, and the opener of an HTML tag, comment,
-declaration or processing instruction is escaped so it stays text — and links are kept, because they are often the answer. Each entry in `links` then carries the `target` the link
+declaration or processing instruction has its opening bracket written as the character reference `&lt;`, which opens
+nothing in any renderer, so it stays text — and links are kept, because they are often the answer. Each entry in `links` then carries the `target` the link
 goes to, the `host` as a person reads it and `asciiHost` where its ASCII form differs, `wordsNameAnotherHost` where the
 words the link shows name a different host, and `appearsInCitedEmails`, which is false where no retrieved email carries
 the address — a link the model wrote, or one a message asked it to write. A caller showing the answer to a person shows

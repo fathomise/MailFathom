@@ -403,7 +403,7 @@ public sealed class MailboxQuestionReaderTests
 
         // Assert
         Assert.Equal(22, result.AnswerText.Length);
-        Assert.StartsWith("\\<b>agreed\\</b>", result.AnswerText, StringComparison.Ordinal);
+        Assert.StartsWith("&lt;b>agreed&lt;/b>", result.AnswerText, StringComparison.Ordinal);
         Assert.True(result.AnswerWasTruncated);
     }
 

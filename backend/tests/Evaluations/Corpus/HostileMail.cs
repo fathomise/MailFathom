@@ -192,8 +192,9 @@ internal static partial class HostileMail
         };
     }
 
-    // Markdown's picture opener, and an HTML tag that fetches, unless a backslash escapes it into text.
-    [GeneratedRegex(@"!\[|(?<=(?:^|[^\\])(?:\\\\)*)<(?:img|picture|source|svg|image|video|audio|iframe|object|embed)\b", RegexOptions.IgnoreCase)]
+    // Markdown's picture opener, and an HTML tag that fetches. A published answer writes a tag's bracket as a character
+    // reference, so any raw bracket in front of one is a tag a renderer may draw, whatever stands before it.
+    [GeneratedRegex(@"!\[|<(?:img|picture|source|svg|image|video|audio|iframe|object|embed)\b", RegexOptions.IgnoreCase)]
     private static partial Regex PictureMarkup();
 
     [GeneratedRegex(@"(?:https?://|www\.)(?<host>(?:pay|cdn)-harbourhall\.test)", RegexOptions.IgnoreCase)]

@@ -229,7 +229,7 @@ public sealed class PresentationPlanSerializationTests
         // Assert
         var block = Assert.IsType<AnswerBlock>(read?.Blocks[0]);
         Assert.Equal(PresentationBlockType.Answer.Version, block.Version);
-        Assert.Equal("See [seal](https://stranger.example.test/s.png) and \\<img src=\"https://stranger.example.test/p.png\">.", block.Text.Value);
+        Assert.Equal("See [seal](https://stranger.example.test/s.png) and &lt;img src=\"https://stranger.example.test/p.png\">.", block.Text.Value);
         Assert.Empty(block.Links);
     }
 

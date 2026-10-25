@@ -102,8 +102,8 @@ Five of them are worth a note.
 model wrote after reading mail anybody can send, so a message can ask it to write a picture that would call a stranger's
 host the moment a client drew it, or a link whose words name one host and whose address goes to another. Before an
 answer is published its picture markup is neutralised — `![` loses its `!`, so the picture is left as a link to the
-same address, and the opener of an HTML tag, comment, declaration or processing instruction is
-escaped so it stays text — and links are kept, because they are often the
+same address, and the opening bracket of an HTML tag, comment, declaration or processing instruction is written as the
+character reference `&lt;`, which opens nothing in any renderer or inside a code span, so it stays text — and links are kept, because they are often the
 answer. Each link the published text writes is then read with the same `MailLinkReader` a link in a message body is,
 and the block carries the result beside the text: where it goes, its host in the form a person reads and the ASCII form
 where the two differ, whether its own words name another host — read as a renderer shows them, so emphasis, code-span
