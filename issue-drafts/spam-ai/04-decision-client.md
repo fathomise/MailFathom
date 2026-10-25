@@ -9,6 +9,8 @@ The abstraction is shaped so that it plugs into Microsoft.Extensions.AI and the 
 - everything this deployment wraps around a model call can wrap a decision the same way: the budget, resilience and failure classification, cost reporting under ADR 0022, telemetry, and the evaluation cache;
 - when Microsoft.Extensions.AI or openai-dotnet ships an official abstraction, the OpenRouter adapter is what gets replaced or wrapped, and the model stage in #{{MODEL}} does not move.
 
+**This adapter is the exception to ADR 0011** that #{{DECISION}}'s ADR records: a second wire protocol, for decisions only, until OpenAI publishes a standard Decisions contract and OpenRouter implements it. Everything OpenRouter-specific therefore stays inside the one adapter, so that #{{STANDARD}}, the parked rewrite onto the standard, replaces that adapter and touches nothing above it.
+
 This issue knows nothing about spam. It delivers a general way to ask a model a closed question; #{{MODEL}} is its first caller.
 
 Proposed shape, for the implementer to refine against what #{{DECISION}} verified:
@@ -55,6 +57,7 @@ Proposed shape, for the implementer to refine against what #{{DECISION}} verifie
   - its outbound HTTP client is registered with the lifetime and bounds `backend/src/AGENTS.md` requires;
   - it has explicit request and response size limits;
   - it maps every failure to the existing classification.
+- No OpenRouter request or response type, route, or field name appears outside the adapter, so #{{STANDARD}} can replace the adapter alone. The adapter's own documentation comment names the ADR 0011 exception and #{{STANDARD}}.
 - Unit tests drive the adapter against a fake HTTP handler, and cover a well-formed answer, an unknown option, a missing probability, and each failure class.
 - One provider-contract test under `backend/tests/IntegrationTests/ProviderAdapters` reaches OpenRouter only when the existing provider-contract switch is on, following `backend/tests/AGENTS.md`.
 - `Decisions:Models`, `Decisions:DefaultModel`, and the per-function reference resolution exist and are validated at startup. Unit tests cover:

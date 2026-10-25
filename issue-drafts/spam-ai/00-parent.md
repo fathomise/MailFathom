@@ -63,6 +63,7 @@ After #{{RECORD}} lands, the display path #{{SURFACES}} → #{{CLIENT}} has no o
 - Mail categories (finance, work, and the like) for all mail. They are a separate future feature, described above.
 - Moving or deleting mail by subcategory. The existing actions keep acting on the verdict alone.
 - Scanning attachments for malware. *Malware lure* judges the pretext, not the file.
+- Moving the decision client onto a standard OpenAI Decisions contract once one exists: #{{STANDARD}}, outside this parent, parked and blocked until OpenAI publishes the standard and OpenRouter implements it.
 - Learning from a person's "not spam" correction. That is a feedback loop with its own privacy design.
 
 ## Dependencies

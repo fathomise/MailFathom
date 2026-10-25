@@ -26,6 +26,11 @@ Settled before the ADR, so the ADR records it rather than re-opening it:
 - **OpenRouter only, for now.** The stage reaches the Decisions API through OpenRouter alone. OpenAI's own endpoint is not integrated until there is a reason to, and the chat-completion fallback is not built.
 - **MailFathom writes its own decision-client abstraction**, because none exists. It is shaped so that it plugs into Microsoft.Extensions.AI and the Agent Framework the way `IChatClient` does: a provider-neutral interface, delegating middleware, a builder, and dependency-injection registration. The budget, retries, failure classification, cost reporting, telemetry, and evaluation cache can then wrap it as they wrap a chat client today. When Microsoft.Extensions.AI or openai-dotnet ships an official abstraction, the OpenRouter adapter is what gets replaced, and nothing above it moves.
 
+- **This is a deliberate, bounded departure from ADR 0011.** ADR 0011 makes one OpenAI-compatible client construction the whole of MailFathom's provider reach and refuses a second wire protocol, and ADR 0030 relies on that refusal. The OpenRouter Decisions adapter is a second wire protocol, taken on knowingly:
+  - for decisions only;
+  - only until OpenAI publishes a standard Decisions contract and OpenRouter implements it.
+
+  #{{STANDARD}} is the exit, parked and blocked until then. ADR 0011 is not superseded: the exception is narrower than its decision, and it ends.
 - **Decision models are configured apart from chat models.** A decision model is a different kind of model, so the default is not `Chat:MainModel`. A `Decisions` section declares decision models, a `Decisions:DefaultModel`, and a model reference per function, mirroring how `Chat` routes each capability. Spam classification is the first function.
 
 #{{ABSTRACTION}} builds that abstraction, the `Decisions` configuration, and the OpenRouter adapter beneath them.
@@ -58,6 +63,14 @@ The questions that need an answer before #{{ABSTRACTION}} and #{{MODEL}} are wri
   - MailFathom's own decision-client abstraction, shaped for Microsoft.Extensions.AI and the Agent Framework;
   - no chat-completion fallback;
   - decision models configured in their own section, with a default model and a per-function reference.
+- The ADR records the exception to ADR 0011, stating:
+  - what it is: a second wire protocol;
+  - its scope: decision calls only;
+  - its exit condition: OpenAI publishes a standard Decisions contract and OpenRouter implements it;
+  - its exit issue: #{{STANDARD}};
+  - that ADR 0011 and ADR 0030 otherwise stand unchanged.
+
+  ADR 0011 is not edited if it has been accepted by then. If it is still `proposed`, whether it gains a pointer to the exception is the owner's call.
 - The ADR states what an operator configures to reach OpenRouter's Decisions API, and what the stage does in a deployment that configures none.
 - The ADR states how the budget, the retry and failure classification, the cost report, and the evaluation cache reach a decision call through that abstraction.
 - The SDK table above is re-checked against the versions pinned when the ADR is written.
