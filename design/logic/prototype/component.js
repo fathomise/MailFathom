@@ -2805,7 +2805,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const inSpamBox = this.inSpamFolder();
       const spamBoxAcc = (st.folderKey || "").split("·")[0];
       const listedThreads = THREADS.filter(t => (st.archived || []).indexOf(t.id) < 0 && (st.deleted || []).indexOf(t.id) < 0 &&
-        this.sitsInSpam(t.id) === inSpamBox && (!inSpamBox || spamBoxAcc === "all" || this.accountOf(t.id) === spamBoxAcc));
+        this.sitsInSpam(t.id) === inSpamBox && (!inSpamBox || this.accountOf(t.id) === spamBoxAcc));
       const threadSpam = this.spamOf(thread.id);
       /* The opened message's warning. Every spam message says it is spam and a security risk, and who judged it; a
          dangerous kind takes the strong form and says, from the record, what it asks for and whom it is written to
@@ -3008,11 +3008,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           whenStyle: "color:var(--faint);font-size:" + (touch ? 13 : 11) + "px",
           htmlBtnStyle: "display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--faint);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;" +
             (touch ? "width:44px;height:44px;font-size:20px;border:1px solid var(--line);" : "width:28px;height:28px;font-size:18px;"),
-          showHtmlBtn: !htmlViewMode,
-          simpleView: !htmlViewMode,
-          htmlView: htmlViewMode,
+          /* Spam never renders its original, even with the HTML view chosen: it keeps the simple view and the
+             button that refuses. */
+          showHtmlBtn: !htmlViewMode || threadSpam.spam,
+          simpleView: !htmlViewMode || threadSpam.spam,
+          htmlView: htmlViewMode && !threadSpam.spam,
           htmlFrameId: "fit:" + thread.id + ":" + i,
-          htmlEmbedSrc: htmlViewMode ? embedHtml(m.html || htmlFallback(m, thread.subject), "fit:" + thread.id + ":" + i) : "",
+          htmlEmbedSrc: htmlViewMode && !threadSpam.spam ? embedHtml(m.html || htmlFallback(m, thread.subject), "fit:" + thread.id + ":" + i) : "",
           htmlFrameRef: this.htmlFrameRef,
           htmlRich: !!m.html,
           htmlTitle: m.html ? "Show the original message (rich content)" : "Show the original message",
@@ -4745,7 +4747,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           { icon: "reply", label: "Reply", title: "Reply", run: () => this.startReply("reply", [thread.id]) },
           { icon: "forward", label: "Forward", title: "Forward", run: () => this.startReply("fwd", [thread.id]) },
           { icon: "flag", label: flagOn ? "Unflag" : "Flag", title: flagOn ? "Remove flag" : "Flag", run: () => this.toggleFlagThreads([thread.id]) },
-          { icon: "report", label: "Mark spam", title: "Mark as spam", run: () => this.toggleSpam([thread.id]) },
+          { icon: "report", label: "Mark spam", title: "Mark spam", run: () => this.toggleSpam([thread.id]) },
         /* Two panes under a finger carry these in the toolbar above already, so the header keeps *Ask* alone and
            the subject keeps the width a second copy would take from it. */
         ]).filter(() => singlePane || !touch).map(a => ({
@@ -5269,8 +5271,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           if (!t2 || !singlePane) return;
           const dx = t2.clientX - this._sx, dy = t2.clientY - this._sy;
           if (Math.abs(dx) < 72 || Math.abs(dy) > 56) return;
-          const i = THREADS.findIndex(x => x.id === thread.id);
-          const next = THREADS[dx < 0 ? i + 1 : i - 1];
+          const i = listedThreads.findIndex(x => x.id === thread.id);
+          const next = i < 0 ? null : listedThreads[dx < 0 ? i + 1 : i - 1];
           if (next) this.setState({ threadId: next.id, thScroll: false, stateOpen: false });
         },
         threadStateStyle: singlePane
