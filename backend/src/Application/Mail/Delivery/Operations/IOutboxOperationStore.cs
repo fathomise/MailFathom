@@ -6,6 +6,7 @@ using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Drafts;
 
 namespace MailFathom.Application.Mail.Delivery.Operations;
 
@@ -149,12 +150,41 @@ public interface IOutboxOperationStore
         OutgoingEmailId outgoingEmailId,
         UserId dismissedBy,
         CancellationToken cancellationToken);
+
+    /// <summary>Takes one refused send back to the draft it was sent from, so the person can edit it, and takes it out of the outbox.</summary>
+    /// <param name="outgoingEmailId">The send to take back.</param>
+    /// <param name="reopenedBy">The user deciding, whose draft it has to have been.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>What happened to the send, with the draft it was taken back into where it was.</returns>
+    /// <remarks>
+    /// <para>
+    /// The draft is given back and the send dismissed in one write, so the message is in exactly one of the two places
+    /// ADR 0040 allows it to be: an editable draft beside a send still standing in the outbox could be sent twice. The
+    /// dismissal is the ordinary one — the stage stays <see cref="OutgoingEmailStage.Refused" /> and the recipients keep
+    /// what each server said — and the draft is the one the send was promoted from, unchanged, so its words, its
+    /// attachments, and its copy in the drafts folder are what they were when it was sent.
+    /// </para>
+    /// <para>
+    /// Only a refused send nobody dismissed is reached, and only where it was written from a draft the deciding user
+    /// holds; any other send answers <see cref="OutboxDecisionOutcome.NoDraftToReopen" />, and a send no longer refused
+    /// answers as every other decision does.
+    /// </para>
+    /// </remarks>
+    Task<OutboxReopening> ReopenAsDraftAsync(
+        OutgoingEmailId outgoingEmailId,
+        UserId reopenedBy,
+        CancellationToken cancellationToken);
 }
+
+/// <summary>What became of a refused send somebody asked to take back to its draft.</summary>
+/// <param name="Outcome">What happened to the send.</param>
+/// <param name="Draft">The draft the send was taken back into, which is present exactly when the outcome is <see cref="OutboxDecisionOutcome.Accepted" />.</param>
+public sealed record OutboxReopening(OutboxDecisionOutcome Outcome, MailDraftId? Draft);
 
 /// <summary>States what became of a send an operator or an account's user decided about.</summary>
 /// <remarks>
-/// One set for all three decisions, because what the refusals say is the same in each: a send this deployment does not
-/// hold, a send that has moved past the point the decision applies at, and a send an attempt is holding right now. Which
+/// One set for every decision, because what the refusals say is the same in each: a send this deployment does not hold,
+/// a send that has moved past the point the decision applies at, and a send an attempt is holding right now. Which
 /// decision was asked for is already the method that was called.
 /// </remarks>
 public enum OutboxDecisionOutcome
@@ -181,4 +211,8 @@ public enum OutboxDecisionOutcome
     /// <summary>The send was permanently refused and the caller did not restate that refusal.</summary>
     /// <remarks>It is a re-queue's refusal alone. What the record says is that a server will not take this message, and offering it again is a decision to disbelieve that rather than a retry.</remarks>
     RefusalNotRestated = 4,
+
+    /// <summary>The send was not written from a draft the caller holds, so there is no draft to take it back into.</summary>
+    /// <remarks>It is the answer to taking back a send a rule or an agent wrote, or one another user wrote from their own draft.</remarks>
+    NoDraftToReopen = 5,
 }

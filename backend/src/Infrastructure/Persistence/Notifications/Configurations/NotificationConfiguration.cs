@@ -88,6 +88,24 @@ internal sealed class NotificationConfiguration : IEntityTypeConfiguration<Notif
             .HasForeignKey(notification => notification.TargetPersonalTaskId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // The send, the change, and the draft a failure is reported about, each cascading for the same reason: once the
+        // record is no longer kept there is nothing left to decide about, and a row offering to open it would lead
+        // nowhere. A draft somebody sent or discarded takes the statement about its copy with it this way.
+        entity.HasOne(notification => notification.TargetOutgoingEmail)
+            .WithMany()
+            .HasForeignKey(notification => notification.TargetOutgoingEmailId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        entity.HasOne(notification => notification.TargetMailboxMutation)
+            .WithMany()
+            .HasForeignKey(notification => notification.TargetMailboxMutationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        entity.HasOne(notification => notification.TargetMailDraft)
+            .WithMany()
+            .HasForeignKey(notification => notification.TargetMailDraftId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         // The deduplication rule, in the database rather than before the insert: a raise repeated while the first is
         // still unread passes any application check, and only the constraint closes that window. It is partial so that
         // reading the notification frees the condition to be said again when it recurs — and being partial is what

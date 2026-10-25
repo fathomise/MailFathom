@@ -3,6 +3,8 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Text;
+using MailFathom.Application.EmailContent;
+using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Drafts;
@@ -407,7 +409,22 @@ public sealed class ClientDraftEndpointTests
             drafts,
             contents ?? new InMemoryMailDraftContentStore(),
             new HeaderReadingOutgoingMailText(),
+            UnreadableRenderer(),
+            new EmailContentReadOptions(),
             authorization);
+    }
+
+    /// <summary>A renderer yielding no document, so a draft's reading carries its words alone.</summary>
+    private static IEmailContentRenderer UnreadableRenderer()
+    {
+        var renderer = Substitute.For<IEmailContentRenderer>();
+        renderer.RenderAsync(
+                Arg.Any<StoredEmailContent>(),
+                Arg.Any<EmailContentRenderingBounds>(),
+                Arg.Any<CancellationToken>())
+            .Returns(EmailContentRenderingResult.Unreadable());
+
+        return renderer;
     }
 
     /// <summary>Builds the staging the upload route reaches, under bounds small enough for a test to exceed.</summary>

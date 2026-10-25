@@ -4,6 +4,9 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.EmailContent;
+using MailFathom.Application.EmailContent.Rendering;
+using MailFathom.Application.EmailContent.Rendering.Document;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Mail.Delivery.Screening;
 using MailFathom.Domain.Access;
@@ -42,12 +45,16 @@ namespace MailFathom.Application.Mail.Delivery.Drafts;
 /// <param name="drafts">Holds the durable account of every draft.</param>
 /// <param name="contentStore">Holds the composed MIME each revision is.</param>
 /// <param name="text">Reads back what a composed message says, so an author gets their own words to go on editing.</param>
+/// <param name="renderer">Reduces the composed message to the document tree a composer reads the author's formatting back from.</param>
+/// <param name="readOptions">Bounds how much of the message one reading renders.</param>
 /// <param name="authorization">Answers whether the caller that reached this holds the grant that lets it draft.</param>
 public sealed class MailDraftDirectory(
     ICallerMailAccountCatalog accountCatalog,
     IMailDraftStore drafts,
     IEmailContentStore contentStore,
     IOutgoingMailTextReader text,
+    IEmailContentRenderer renderer,
+    EmailContentReadOptions readOptions,
     AccessAuthorization authorization)
 {
     /// <summary>The greatest number of drafts one reading answers with.</summary>
@@ -134,6 +141,21 @@ public sealed class MailDraftDirectory(
             return null;
         }
 
-        return new MailDraftReading(draft, await text.ReadWordsAsync(content.RawMime, cancellationToken));
+        var rendered = await renderer.RenderAsync(
+            content,
+            new EmailContentRenderingBounds(
+                IncludeSanitizedHtml: false,
+                readOptions.MaxBodyCharacters,
+                readOptions.MaxCharactersPerRead)
+            {
+                IncludeMailDocument = true,
+                RemainingInlineImageOctetsForRead = MailDocumentBounds.Default.MaximumInlineImageOctetsPerDocument,
+            },
+            cancellationToken);
+
+        return new MailDraftReading(
+            draft,
+            await text.ReadWordsAsync(content.RawMime, cancellationToken),
+            rendered.Rendering?.Document);
     }
 }

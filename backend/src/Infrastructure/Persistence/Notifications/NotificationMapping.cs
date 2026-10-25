@@ -4,7 +4,10 @@
 
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Calendar;
+using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Mutations;
 using MailFathom.Domain.Notifications;
 using MailFathom.Domain.Tasks;
 using MailFathom.Infrastructure.Persistence.Entities;
@@ -60,6 +63,12 @@ internal static class NotificationMapping
             NotificationTarget.ToCalendarEvent(CalendarEventId.Create(calendarEvent)),
         NotificationTargetKind.PersonalTask when entity.TargetPersonalTaskId is { } task =>
             NotificationTarget.ToPersonalTask(PersonalTaskId.Create(task)),
+        NotificationTargetKind.OutgoingEmail when entity.TargetOutgoingEmailId is { } send =>
+            NotificationTarget.ToOutgoingEmail(OutgoingEmailId.Create(send)),
+        NotificationTargetKind.MailboxChange when entity is { TargetMailboxMutationId: { } change, TargetStoredEmailId: { } changed } =>
+            NotificationTarget.ToMailboxChange(MailboxMutationRecordId.Create(change), StoredEmailId.Create(changed)),
+        NotificationTargetKind.MailDraft when entity.TargetMailDraftId is { } draft =>
+            NotificationTarget.ToMailDraft(MailDraftId.Create(draft)),
         _ => throw new ArgumentOutOfRangeException(
             nameof(entity),
             entity.TargetKind,
@@ -90,6 +99,9 @@ internal static class NotificationMapping
             TargetScreen = notification.Target.Screen,
             TargetCalendarEventId = notification.Target.CalendarEvent?.Value,
             TargetPersonalTaskId = notification.Target.PersonalTask?.Value,
+            TargetOutgoingEmailId = notification.Target.OutgoingEmail?.Value,
+            TargetMailboxMutationId = notification.Target.MailboxChange?.Value,
+            TargetMailDraftId = notification.Target.MailDraft?.Value,
             DeduplicationKey = notification.DeduplicationKey.Value,
             OccurredAt = notification.OccurredAt,
             IsRead = notification.IsRead,

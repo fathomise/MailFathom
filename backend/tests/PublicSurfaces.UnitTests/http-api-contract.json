@@ -1761,6 +1761,16 @@
       },
       "ClientDraftReadingResponse": {
         "properties": {
+          "document": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MailDocument"
+              }
+            ]
+          },
           "draft": {
             "$ref": "#/components/schemas/ClientDraftResponse"
           },
@@ -1777,7 +1787,8 @@
         "required": [
           "draft",
           "plainTextBody",
-          "htmlBody"
+          "htmlBody",
+          "document"
         ],
         "type": "object"
       },
@@ -4174,10 +4185,31 @@
               "string"
             ]
           },
+          "changeRecordId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "draftId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "kind": {
             "type": "string"
           },
           "messageId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "outgoingEmailId": {
             "format": "uuid",
             "type": [
               "null",
@@ -4203,7 +4235,10 @@
           "messageId",
           "screen",
           "calendarEventId",
-          "taskId"
+          "taskId",
+          "outgoingEmailId",
+          "changeRecordId",
+          "draftId"
         ],
         "type": "object"
       },
@@ -9466,6 +9501,45 @@
           "status",
           "lastReplyCode",
           "answeredAt"
+        ],
+        "type": "object"
+      },
+      "OutboxReopeningRequest": {
+        "properties": {
+          "outgoingEmail": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "outgoingEmail"
+        ],
+        "type": "object"
+      },
+      "OutboxReopeningResponse": {
+        "properties": {
+          "draftId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "outgoingEmail": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outgoingEmail",
+          "outcome",
+          "draftId"
         ],
         "type": "object"
       },
@@ -19479,6 +19553,46 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OutboxDecisionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/outbox/reopening": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/OutboxReopeningRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboxReopeningResponse"
                 }
               }
             },

@@ -5,10 +5,12 @@
 using System.Text;
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.EmailContent;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Delivery.Screening;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
@@ -149,6 +151,7 @@ public sealed class MailDraftDirectoryTests
         Assert.Equal(draft.Id, reading.Draft.Id);
         Assert.Equal("a draft", reading.Text.Subject);
         Assert.Equal("Hello.", reading.Text.PlainTextBody);
+        Assert.NotNull(reading.Document);
     }
 
     /// <summary>A draft whose stored message has gone answers as one this user does not hold.</summary>
@@ -185,6 +188,8 @@ public sealed class MailDraftDirectoryTests
             drafts,
             contents ?? new InMemoryMailDraftContentStore(),
             new HeaderReadingOutgoingMailText(),
+            new BoundedBodyEmailContentRenderer("Hello."),
+            new EmailContentReadOptions(),
             callerAuthorization);
     }
 

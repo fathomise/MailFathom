@@ -6,7 +6,10 @@ using System.Text.Json;
 using MailFathom.Application.Notifications;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Calendar;
+using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Mutations;
 using MailFathom.Domain.Notifications;
 using MailFathom.Domain.Tasks;
 using MailFathom.Host.Api;
@@ -134,6 +137,39 @@ public sealed class ClientNotificationEndpointsTests
         Assert.Null(row.Target.MessageId);
         Assert.Null(row.Target.Screen);
         Assert.Equal("TaskReminderDue", row.Statement?.Cause);
+    }
+
+    /// <summary>Each failure target reaches the wire under its own field, and a change carries its message beside it for opening.</summary>
+    [Fact]
+    public void TargetFor_ASendAChangeAndADraft_FillTheirOwnFields()
+    {
+        // Arrange
+        var send = OutgoingEmailId.Create(Guid.NewGuid());
+        var change = MailboxMutationRecordId.Create(Guid.NewGuid());
+        var message = StoredEmailId.Create(Guid.NewGuid());
+        var draft = MailDraftId.Create(Guid.NewGuid());
+
+        // Act
+        var targets = new[]
+        {
+            ClientNotificationTargetResponse.For(NotificationTarget.ToOutgoingEmail(send)),
+            ClientNotificationTargetResponse.For(NotificationTarget.ToMailboxChange(change, message)),
+            ClientNotificationTargetResponse.For(NotificationTarget.ToMailDraft(draft)),
+        };
+
+        // Assert
+        Assert.Equal(
+            [
+                ("OutgoingEmail", (Guid?)send.Value, (Guid?)null, (Guid?)null, (Guid?)null),
+                ("MailboxChange", null, change.Value, message.Value, null),
+                ("MailDraft", null, null, null, draft.Value),
+            ],
+            targets.Select(target => (
+                target.Kind,
+                target.OutgoingEmailId,
+                target.ChangeRecordId,
+                target.MessageId,
+                target.DraftId)));
     }
 
     /// <summary>A row written before conditions were kept names none, and the answer says so rather than inventing one.</summary>

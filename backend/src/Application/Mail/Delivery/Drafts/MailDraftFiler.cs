@@ -7,6 +7,7 @@ using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Destinations;
+using MailFathom.Application.Notifications;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization.Sessions;
 using MailFathom.Domain.Accounts;
@@ -68,6 +69,7 @@ public sealed class MailDraftFiler
     private readonly IMailTransportSecurityPolicyReader transportSecurityPolicies;
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
     private readonly TimeProvider timeProvider;
+    private readonly MailFailureNotifications failures;
 
     /// <summary>Initializes the filer from the append it files through and the record it writes each copy onto.</summary>
     /// <param name="appends">Puts each revision into the drafts folder, in the order that keeps it one copy.</param>
@@ -79,6 +81,7 @@ public sealed class MailDraftFiler
     /// <param name="transportSecurityPolicies">Supplies the connection and authentication policy the commands obey.</param>
     /// <param name="commitPolicy">Commits each movement of the draft.</param>
     /// <param name="timeProvider">Stamps everything the record notes.</param>
+    /// <param name="failures">Tells the draft's writer that its copy on the server stopped following it.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
     public MailDraftFiler(
         MailboxCopyAppender appends,
@@ -89,7 +92,8 @@ public sealed class MailDraftFiler
         IMailDraftStore drafts,
         IMailTransportSecurityPolicyReader transportSecurityPolicies,
         OptimisticConcurrencyRetryPolicy commitPolicy,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        MailFailureNotifications failures)
     {
         ArgumentNullException.ThrowIfNull(appends);
         ArgumentNullException.ThrowIfNull(localFiler);
@@ -100,6 +104,7 @@ public sealed class MailDraftFiler
         ArgumentNullException.ThrowIfNull(transportSecurityPolicies);
         ArgumentNullException.ThrowIfNull(commitPolicy);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(failures);
 
         this.appends = appends;
         this.localFiler = localFiler;
@@ -110,6 +115,7 @@ public sealed class MailDraftFiler
         this.transportSecurityPolicies = transportSecurityPolicies;
         this.commitPolicy = commitPolicy;
         this.timeProvider = timeProvider;
+        this.failures = failures;
     }
 
     /// <summary>Does whatever one draft's recorded stage says the mailbox is owed, and records what happened.</summary>
@@ -289,11 +295,14 @@ public sealed class MailDraftFiler
         MailDraftRecord draft,
         CancellationToken cancellationToken)
     {
-        var divergence = await this.WithdrawAsync(draft, draft.SupersededCopies, cancellationToken);
+        if (await this.WithdrawAsync(draft, draft.SupersededCopies, cancellationToken) is not { } reason)
+        {
+            return Result(draft, MailDraftFilingOutcome.Replaced);
+        }
 
-        return divergence is { } reason
-            ? Result(draft, MailDraftFilingOutcome.Diverged, divergence: reason)
-            : Result(draft, MailDraftFilingOutcome.Replaced);
+        await this.ReportDivergenceAsync(draft);
+
+        return Result(draft, MailDraftFilingOutcome.Diverged, divergence: reason);
     }
 
     /// <summary>Takes every standing copy of a given-up draft out of the folder, then removes the record.</summary>
@@ -445,12 +454,35 @@ public sealed class MailDraftFiler
                 MailDraftDivergenceReason.AppendOutcomeUnknown,
                 this.timeProvider.GetUtcNow(),
                 CancellationToken.None);
+
+            await this.ReportDivergenceAsync(draft);
         }
 
         return Result(
             draft,
             MailDraftFilingOutcome.OutcomeUnknown,
             divergence: MailDraftDivergenceReason.AppendOutcomeUnknown);
+    }
+
+    /// <summary>Tells the draft's writer that its copy on the server stopped following it, and never lets that fail the filing.</summary>
+    /// <remarks>
+    /// Reached once per divergence rather than once per pass: the unanswered append is reported only when it is first
+    /// written onto the draft, and a superseded copy only when it is abandoned, which happens to a copy once. A draft
+    /// being discarded is not reported at all, because the person has just thrown it away and the notification would go
+    /// with its record. The draft's writer is told rather than the account's users, because the draft is theirs alone.
+    /// </remarks>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "The divergence is already written onto the draft; a notification that could not be written must not turn the filing into a failure recorded against a draft that is unharmed.")]
+    [SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception", Justification = "There is no second action to take: the draft already records the divergence.")]
+    private async Task ReportDivergenceAsync(MailDraftRecord draft)
+    {
+        try
+        {
+            await this.failures.ReportDraftCopyNotKeptAsync(draft, CancellationToken.None);
+        }
+        catch (Exception)
+        {
+            // Nothing to restore: the draft records the divergence whatever became of telling its writer.
+        }
     }
 
     private Task SettleCopyAsync(MailDraftId draftId, int revision, MailDraftCopyStage stage) =>

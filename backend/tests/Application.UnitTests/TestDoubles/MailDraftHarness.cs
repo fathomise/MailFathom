@@ -174,6 +174,9 @@ internal sealed class MailDraftHarness
     /// <summary>Gets what has been written down about every draft and every copy of one.</summary>
     internal InMemoryMailDraftStore Drafts { get; } = new();
 
+    /// <summary>Gets what a draft's writer was told about a copy on the server that stopped following the draft.</summary>
+    internal InMemoryNotificationStore Notifications { get; } = new();
+
     /// <summary>Gets the messages the drafts are held as, which is what an append is issued from.</summary>
     internal InMemoryMailDraftContentStore Contents { get; } = new();
 
@@ -245,6 +248,7 @@ internal sealed class MailDraftHarness
             Contents = this.Contents,
             Drafts = this.Drafts,
             CommitPolicy = this.commitPolicy,
+            Notifications = this.Notifications,
         };
 
         this.Filer = composition.DraftFiler;

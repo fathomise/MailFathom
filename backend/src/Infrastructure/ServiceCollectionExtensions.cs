@@ -1522,6 +1522,7 @@ public static class ServiceCollectionExtensions
         // so a row nobody announced and an announcement of a row nobody kept are both unreachable.
         services.AddScoped<NotificationRaiser>();
         services.AddScoped<SynchronizationNotifications>();
+        services.AddScoped<MailFailureNotifications>();
         services.AddScoped<NotificationRetention>();
         services.AddScoped<OwnNotifications>();
         // What a person owes, native to this deployment. Scoped like every other store: a write that has a read to

@@ -15,6 +15,7 @@ using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Delivery.Filing;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Mutations;
+using MailFathom.Domain.Notifications;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -204,6 +205,46 @@ public sealed class MailDraftFilerTests
         Assert.Equal(MailDraftDivergenceReason.AppendOutcomeUnknown, result.Divergence);
         Assert.Equal(1, harness.AppendCount);
         Assert.Equal(MailDraftStage.AppendIssued, harness.Drafts.Peek(draft.Id)!.Stage);
+    }
+
+    /// <summary>An append nobody answered is put in front of the draft's writer once, however many passes meet it again.</summary>
+    [Fact]
+    public async Task SettleAsync_AppendTheServerNeverAnswered_TellsTheWriterOnceLeadingToTheDraft()
+    {
+        // Arrange
+        var harness = Harness();
+        harness.MapDraftsFolder(Account);
+        harness.Append = _ => Task.FromException<AppendedMailCopy>(
+            new MailboxUnavailableException(Account, new InvalidOperationException("unreachable")));
+        var draft = await OpenAsync(harness, "first version");
+
+        // Act
+        await harness.Filer.SettleAsync(draft, CancellationToken.None);
+        await harness.Filer.SettleAsync(harness.Drafts.Peek(draft.Id)!, CancellationToken.None);
+
+        // Assert
+        var notification = Assert.Single(harness.Notifications.Recorded);
+        Assert.Equal(draft.User, notification.User);
+        Assert.Equal(NotificationCause.DraftCopyNotKept, notification.Statement?.Cause);
+        Assert.Equal(draft.Id, notification.Target.MailDraft);
+    }
+
+    /// <summary>A copy that followed the draft says nothing went wrong, so nobody is told anything.</summary>
+    [Fact]
+    public async Task SettleAsync_DraftAppendedAndRevisedCleanly_TellsNobody()
+    {
+        // Arrange
+        var harness = Harness();
+        harness.MapDraftsFolder(Account);
+        var draft = await OpenAsync(harness, "first version");
+        await harness.Filer.SettleAsync(draft, CancellationToken.None);
+        var revised = await ReviseAsync(harness, draft.Id, "second version");
+
+        // Act
+        await harness.Filer.SettleAsync(revised, CancellationToken.None);
+
+        // Assert
+        Assert.Empty(harness.Notifications.Recorded);
     }
 
     /// <summary>A given-up draft has its copy taken out of the folder and its record removed with it.</summary>

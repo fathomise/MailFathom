@@ -92,6 +92,28 @@ public sealed class NotificationModelTests
     }
 
     /// <summary>
+    /// A failure notice cannot outlive what failed: a purged send, a removed change record, and a draft sent or given up
+    /// each take the row that announced them, so nothing is left offering to act on a record that is gone.
+    /// </summary>
+    [Theory]
+    [InlineData(nameof(NotificationEntity.TargetOutgoingEmailId), nameof(OutgoingEmailEntity))]
+    [InlineData(nameof(NotificationEntity.TargetMailboxMutationId), nameof(MailboxMutationEntity))]
+    [InlineData(nameof(NotificationEntity.TargetMailDraftId), nameof(MailDraftEntity))]
+    public void Model_TheRecordAFailureNoticeLeadsTo_TakesTheNotificationWithItWhenItGoes(string column, string principal)
+    {
+        // Arrange
+        using var context = CreateContext();
+
+        // Act
+        var foreignKey = ForeignKeyOn(context, column);
+
+        // Assert
+        Assert.Equal(principal, foreignKey.PrincipalEntityType.ClrType.Name);
+        Assert.Equal(DeleteBehavior.Cascade, foreignKey.DeleteBehavior);
+        Assert.True(EntityType(context).FindProperty(column)!.IsNullable);
+    }
+
+    /// <summary>
     /// This table names no mail account, so the erasure walk that enumerates the tables that do would never reach it.
     /// The cascade from the user row is what discharges an erasure request over it instead.
     /// </summary>

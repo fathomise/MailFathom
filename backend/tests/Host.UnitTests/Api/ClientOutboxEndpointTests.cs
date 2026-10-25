@@ -14,6 +14,7 @@ using MailFathom.Application.Persistence;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
 using MailFathom.Host.Api;
 using MailFathom.TestSupport;
@@ -56,6 +57,7 @@ public sealed class ClientOutboxEndpointTests
         Assert.Equal("/outbox/cancellation", ClientOutboxEndpoints.OutboxCancellationRoute);
         Assert.Equal("/outbox/requeue", ClientOutboxEndpoints.OutboxRequeueRoute);
         Assert.Equal("/outbox/dismissal", ClientOutboxEndpoints.OutboxDismissalRoute);
+        Assert.Equal("/outbox/reopening", ClientOutboxEndpoints.OutboxReopeningRoute);
     }
 
     /// <summary>The regression this exists for: a page that narrowed to nothing would answer every user's outgoing mail.</summary>
@@ -436,6 +438,52 @@ public sealed class ClientOutboxEndpointTests
         Assert.Equal(nameof(OutboxDecisionOutcome.RecordUnknown), decided.Value!.Outcome);
         Assert.Empty(operations.ReceivedCalls());
     }
+
+    /// <summary>Taking a send back to edit names one send, and a request naming none is refused.</summary>
+    [Fact]
+    public async Task ReopenAsync_ARequestNamingNoSend_IsRefused()
+    {
+        // Arrange
+        var operations = Substitute.For<IOutboxOperationStore>();
+
+        // Act
+        var result = await ClientOutboxEndpoints.ReopenAsync(
+            new OutboxReopeningRequest(OutgoingEmail: null),
+            OutboxOver(new InMemoryOutgoingEmailStore(), operations, Drafting),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var refusal = Assert.IsType<ProblemHttpResult>(result.Result);
+        Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
+        Assert.Empty(operations.ReceivedCalls());
+    }
+
+    /// <summary>An accepted reopening names the draft the send went back into, which is what the client opens.</summary>
+    [Fact]
+    public async Task ReopenAsync_ARefusedSendOfTheCallers_AnswersWithTheDraftItWentBackInto()
+    {
+        // Arrange
+        var outgoingEmails = new InMemoryOutgoingEmailStore();
+        var operations = Substitute.For<IOutboxOperationStore>();
+        var mine = await QueueAsync(outgoingEmails, Work);
+        var draft = MailDraftId.Create(Guid.CreateVersion7());
+        operations
+            .ReopenAsDraftAsync(mine, Arg.Any<UserId>(), Arg.Any<CancellationToken>())
+            .Returns(new OutboxReopening(OutboxDecisionOutcome.Accepted, draft));
+
+        // Act
+        var result = await ClientOutboxEndpoints.ReopenAsync(
+            new OutboxReopeningRequest(mine.Value),
+            OutboxOver(outgoingEmails, operations, Drafting),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var reopened = Assert.IsType<Ok<OutboxReopeningResponse>>(result.Result);
+        Assert.Equal(new OutboxReopeningResponse(mine.Value, nameof(OutboxDecisionOutcome.Accepted), draft.Value), reopened.Value);
+    }
+
+    private static MailFathomPermission[] Drafting =>
+        [MailFathomPermission.MailRead, MailFathomPermission.MailSend, MailFathomPermission.MailDraftsWrite];
 
     /// <summary>Builds the user-facing outbox the routes reach, for a caller acting for the deployment's user.</summary>
     /// <remarks>

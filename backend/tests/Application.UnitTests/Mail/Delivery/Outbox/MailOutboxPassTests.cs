@@ -11,6 +11,7 @@ using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Delivery.Transmission;
+using MailFathom.Application.Notifications;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
@@ -18,6 +19,7 @@ using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
+using MailFathom.Domain.Notifications;
 using MailFathom.Domain.Transport;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
@@ -323,6 +325,43 @@ public sealed class MailOutboxPassTests
         Assert.True(report.AccountDeferred);
     }
 
+    /// <summary>A send the server refused for good is put in front of the account's users once, leading to the send itself.</summary>
+    [Fact]
+    public async Task RunAsync_ServerRefusesForGood_TellsTheAccountsUsersOnceAboutThatSend()
+    {
+        // Arrange
+        var context = new PassContext();
+        var refused = context.Enqueue();
+        context.Transmit = (_, _, _) =>
+            Task.FromResult(new MailTransmission(MailTransmissionOutcome.RefusedPermanently, 550));
+
+        // Act
+        await context.RunAsync();
+
+        // Assert
+        var notification = Assert.Single(context.Notifications.Recorded);
+        Assert.Equal(SyntheticUser.Deployment, notification.User);
+        Assert.Equal(NotificationCause.SendRefused, notification.Statement?.Cause);
+        Assert.Equal(refused, notification.Target.OutgoingEmail);
+    }
+
+    /// <summary>A refusal for now is the ordinary weather of delivery and is retried, so nobody is told about it.</summary>
+    [Fact]
+    public async Task RunAsync_ServerRefusesForNow_TellsNobody()
+    {
+        // Arrange
+        var context = new PassContext();
+        context.Enqueue();
+        context.Transmit = (_, _, _) =>
+            Task.FromResult(new MailTransmission(MailTransmissionOutcome.RefusedTemporarily, 451));
+
+        // Act
+        await context.RunAsync();
+
+        // Assert
+        Assert.Empty(context.Notifications.Recorded);
+    }
+
     /// <summary>
     /// The drafts are reached before anything is claimed, so a draft whose folder was unreachable when it was written
     /// is in front of its user by the time this pass has delivered anything.
@@ -459,6 +498,9 @@ public sealed class MailOutboxPassTests
 
         internal InMemoryOutgoingEmailStore Store { get; }
 
+        /// <summary>Gets what the pass told the account's one user about.</summary>
+        internal InMemoryNotificationStore Notifications { get; } = new();
+
         /// <summary>Gets the filing side of the pass, which files nothing until a test asks it to.</summary>
         internal OutgoingMailFilingHarness Filing { get; }
 
@@ -548,7 +590,11 @@ public sealed class MailOutboxPassTests
                     this.Filing.Pass,
                     this.DraftSide.Pass,
                     this.policyReader,
-                    this.settings)
+                    this.settings,
+                    new MailFailureNotifications(
+                        new NotificationRaiser(this.Notifications, ClientSignalPublishers.ReachingNobody),
+                        new StubMailAccountAssignments().Assigning(SyntheticUser.Deployment, Account),
+                        this.clock))
                 .RunAsync(Account, stoppingToken ?? TestContext.Current.CancellationToken);
 
         /// <summary>Writes one draft of this account, which the pass is then expected to reach on its own.</summary>

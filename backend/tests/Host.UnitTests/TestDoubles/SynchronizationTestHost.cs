@@ -30,6 +30,7 @@ using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Convergence;
 using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Mail.Mutations.Local;
+using MailFathom.Application.Notifications;
 using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Rules;
@@ -232,6 +233,12 @@ internal static class SynchronizationTestHost
             provider.GetRequiredService<MailSynchronizationTelemetry>());
         services.AddScoped<IMailboxMutationPerformer, MailboxMutationPerformer>();
         services.AddScoped<MailboxMutationConverger>();
+
+        // A change given up is told to the account's users, and nothing here keeps what they are told: a supervisor's
+        // tests are about when changes converge, and the notice has tests of its own.
+        services.AddSingleton(Substitute.For<INotificationStore>());
+        services.AddScoped<NotificationRaiser>();
+        services.AddScoped<MailFailureNotifications>();
 
         // Every account run ends by emptying the source of a held account, so a supervisor resolves the pass from its
         // scope exactly as it resolves the converger. No account these tests configure is held: the custody store

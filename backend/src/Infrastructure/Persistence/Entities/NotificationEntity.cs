@@ -75,6 +75,27 @@ internal sealed class NotificationEntity
     /// <summary>Gets or sets the task the notification leads to.</summary>
     public PersonalTaskEntity? TargetPersonalTask { get; set; }
 
+    /// <summary>Gets or sets the send the notification leads to, which is the association the row is erased through.</summary>
+    /// <remarks>A key for the reason the event above is one: a statement about a send that is no longer kept is not a row to keep.</remarks>
+    public Guid? TargetOutgoingEmailId { get; set; }
+
+    /// <summary>Gets or sets the send the notification leads to.</summary>
+    public OutgoingEmailEntity? TargetOutgoingEmail { get; set; }
+
+    /// <summary>Gets or sets the change the notification reports, which is erased with the record it names.</summary>
+    /// <remarks>The message the change was asked of is <see cref="TargetStoredEmailId" />, which a change target carries beside it.</remarks>
+    public Guid? TargetMailboxMutationId { get; set; }
+
+    /// <summary>Gets or sets the change the notification reports.</summary>
+    public MailboxMutationEntity? TargetMailboxMutation { get; set; }
+
+    /// <summary>Gets or sets the draft the notification leads to, which is the association the row is erased through.</summary>
+    /// <remarks>A key, so a draft somebody discarded or sent takes the statement about its copy with it.</remarks>
+    public Guid? TargetMailDraftId { get; set; }
+
+    /// <summary>Gets or sets the draft the notification leads to.</summary>
+    public MailDraftEntity? TargetMailDraft { get; set; }
+
     /// <summary>Gets or sets the condition this notification was raised for.</summary>
     /// <remarks>
     /// Unique among one user's unread rows, which is what makes a repeated raise idempotent: a condition already

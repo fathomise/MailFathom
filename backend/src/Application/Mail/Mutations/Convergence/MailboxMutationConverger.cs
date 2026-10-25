@@ -5,6 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Mail.Mutations.Audit;
+using MailFathom.Application.Notifications;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Failures;
@@ -47,6 +48,7 @@ public sealed class MailboxMutationConverger
     private readonly IMailTransportSecurityPolicyReader transportSecurityPolicyReader;
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
     private readonly IMailboxMutationAuditTrail auditTrail;
+    private readonly MailFailureNotifications failures;
     private readonly MailboxConvergenceOptions options;
     private readonly TimeProvider timeProvider;
     private readonly IMailAccountCustodyStore custody;
@@ -58,6 +60,7 @@ public sealed class MailboxMutationConverger
     /// <param name="transportSecurityPolicyReader">Supplies the connection and authentication policy every attempt obeys.</param>
     /// <param name="commitPolicy">Commits the record movements this class makes without the performer.</param>
     /// <param name="auditTrail">Keeps the history a finished mutation leaves behind, where the account asked for one.</param>
+    /// <param name="failures">Tells the account's users about a change this class gives up on itself.</param>
     /// <param name="options">Bounds one pass and carries the unknown-outcome grace period.</param>
     /// <param name="timeProvider">Measures how long an unresolved outcome has been unresolved.</param>
     /// <param name="custody">Answers whether the account is held, where no change is carried to a server.</param>
@@ -70,6 +73,7 @@ public sealed class MailboxMutationConverger
         IMailTransportSecurityPolicyReader transportSecurityPolicyReader,
         OptimisticConcurrencyRetryPolicy commitPolicy,
         IMailboxMutationAuditTrail auditTrail,
+        MailFailureNotifications failures,
         MailboxConvergenceOptions options,
         TimeProvider timeProvider,
         IMailAccountCustodyStore custody,
@@ -80,6 +84,7 @@ public sealed class MailboxMutationConverger
         ArgumentNullException.ThrowIfNull(transportSecurityPolicyReader);
         ArgumentNullException.ThrowIfNull(commitPolicy);
         ArgumentNullException.ThrowIfNull(auditTrail);
+        ArgumentNullException.ThrowIfNull(failures);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(custody);
@@ -92,6 +97,7 @@ public sealed class MailboxMutationConverger
         this.transportSecurityPolicyReader = transportSecurityPolicyReader;
         this.commitPolicy = commitPolicy;
         this.auditTrail = auditTrail;
+        this.failures = failures;
         this.options = options;
         this.timeProvider = timeProvider;
         this.custody = custody;
@@ -204,7 +210,13 @@ public sealed class MailboxMutationConverger
             {
                 // The cascade removes the record with the message, so only a message that was already gone leaves the
                 // record behind, and completing it is what stops every later pass reading it as outstanding again.
-                await new MailboxMutationJournal(this.store, this.commitPolicy, this.auditTrail, candidate.Record, candidate.Folder)
+                await new MailboxMutationJournal(
+                        this.store,
+                        this.commitPolicy,
+                        this.auditTrail,
+                        this.failures,
+                        candidate.Record,
+                        candidate.Folder)
                     .CompleteAsync(candidate.Record.Placement, cancellationToken);
             }
 
@@ -301,6 +313,7 @@ public sealed class MailboxMutationConverger
             this.store,
             this.commitPolicy,
             this.auditTrail,
+            this.failures,
             record,
             candidate.Folder);
 

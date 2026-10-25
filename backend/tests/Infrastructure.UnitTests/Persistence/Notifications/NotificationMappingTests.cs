@@ -4,7 +4,10 @@
 
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Calendar;
+using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Mutations;
 using MailFathom.Domain.Notifications;
 using MailFathom.Domain.Tasks;
 using MailFathom.Infrastructure.Persistence.Notifications;
@@ -223,6 +226,82 @@ public sealed class NotificationMappingTests
         Assert.Equal(calendarEvent, target.CalendarEvent);
         Assert.Null(target.Message);
         Assert.Null(target.Screen);
+    }
+
+    /// <summary>Each of the three failure targets fills its own column, so the cascade that ends its subject ends the row.</summary>
+    [Fact]
+    public void ToEntity_ANotificationLeadingToASendAChangeOrADraft_FillsItsOwnColumn()
+    {
+        // Arrange
+        var send = OutgoingEmailId.Create(Guid.NewGuid());
+        var change = MailboxMutationRecordId.Create(Guid.NewGuid());
+        var message = StoredEmailId.Create(Guid.NewGuid());
+        var draft = MailDraftId.Create(Guid.NewGuid());
+
+        // Act
+        var entities = new[]
+        {
+            NotificationMapping.ToEntity(Compose(NotificationTarget.ToOutgoingEmail(send))),
+            NotificationMapping.ToEntity(Compose(NotificationTarget.ToMailboxChange(change, message))),
+            NotificationMapping.ToEntity(Compose(NotificationTarget.ToMailDraft(draft))),
+        };
+
+        // Assert
+        Assert.Equal(
+            [
+                (NotificationTargetKind.OutgoingEmail, (Guid?)send.Value, (Guid?)null, (Guid?)null, (Guid?)null),
+                (NotificationTargetKind.MailboxChange, null, change.Value, message.Value, null),
+                (NotificationTargetKind.MailDraft, null, null, null, draft.Value),
+            ],
+            entities.Select(entity => (
+                entity.TargetKind,
+                entity.TargetOutgoingEmailId,
+                entity.TargetMailboxMutationId,
+                entity.TargetStoredEmailId,
+                entity.TargetMailDraftId)));
+    }
+
+    /// <summary>Each of the three failure targets reads back as the target it was written from.</summary>
+    [Fact]
+    public void ToNotification_ARowLeadingToASendAChangeOrADraft_ReadsTheTargetBack()
+    {
+        // Arrange
+        NotificationTarget[] targets =
+        [
+            NotificationTarget.ToOutgoingEmail(OutgoingEmailId.Create(Guid.NewGuid())),
+            NotificationTarget.ToMailboxChange(
+                MailboxMutationRecordId.Create(Guid.NewGuid()),
+                StoredEmailId.Create(Guid.NewGuid())),
+            NotificationTarget.ToMailDraft(MailDraftId.Create(Guid.NewGuid())),
+        ];
+
+        // Act
+        var readBack = targets
+            .Select(target => NotificationMapping.ToNotification(NotificationMapping.ToEntity(Compose(target))).Target)
+            .ToArray();
+
+        // Assert
+        Assert.Equal(targets, readBack);
+    }
+
+    /// <summary>A row naming a failure target without its column is refused, as every other shape is.</summary>
+    [Fact]
+    public void ToNotification_ARowNamingAFailureShapeWithoutItsColumn_IsRefused()
+    {
+        // Arrange
+        var send = NotificationMapping.ToEntity(Compose(NotificationTarget.ToOutgoingEmail(OutgoingEmailId.Create(Guid.NewGuid()))));
+        send.TargetOutgoingEmailId = null;
+        var change = NotificationMapping.ToEntity(Compose(NotificationTarget.ToMailboxChange(
+            MailboxMutationRecordId.Create(Guid.NewGuid()),
+            StoredEmailId.Create(Guid.NewGuid()))));
+        change.TargetMailboxMutationId = null;
+        var draft = NotificationMapping.ToEntity(Compose(NotificationTarget.ToMailDraft(MailDraftId.Create(Guid.NewGuid()))));
+        draft.TargetMailDraftId = null;
+
+        // Act and assert
+        Assert.All(
+            [send, change, draft],
+            entity => Assert.Throws<ArgumentOutOfRangeException>(() => NotificationMapping.ToNotification(entity)));
     }
 
     /// <summary>A row naming a shape without the column that shape is carried in is refused rather than read as a target leading nowhere.</summary>

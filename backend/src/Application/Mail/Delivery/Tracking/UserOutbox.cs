@@ -301,6 +301,37 @@ public sealed class UserOutbox(
             : OutboxDecisionOutcome.RecordUnknown;
     }
 
+    /// <summary>Takes one of this user's refused sends back to the draft they wrote it in, so they can edit it, and out of the outbox.</summary>
+    /// <param name="outgoingEmailId">The record to take back.</param>
+    /// <param name="cancellationToken">Cancels the read and the write.</param>
+    /// <returns>What became of the send, with the draft it was taken back into where it was.</returns>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller holds neither <see cref="MailFathomPermission.MailSend" /> nor <see cref="MailFathomPermission.MailDraftsWrite" />, or is acting for no user.</exception>
+    /// <remarks>
+    /// It needs both grants, because it is two acts made one: deciding about a send, and taking a draft back into the
+    /// hands that edit it. The draft has to be the caller's own, since a draft is its writer's alone, so a send another
+    /// user wrote is refused as one there is no draft to reopen rather than handed to somebody else to edit.
+    /// </remarks>
+    public async Task<OutboxReopening> ReopenAsDraftAsync(
+        OutgoingEmailId outgoingEmailId,
+        CancellationToken cancellationToken)
+    {
+        authorization.RequirePermission(MailFathomPermission.MailSend);
+        authorization.RequirePermission(MailFathomPermission.MailDraftsWrite);
+
+        var user = authorization.RequireUser();
+
+        if (await this.FindAssignedAsync(outgoingEmailId, cancellationToken) is not { } record)
+        {
+            return new OutboxReopening(OutboxDecisionOutcome.RecordUnknown, Draft: null);
+        }
+
+        var reopening = await outbox.ReopenAsDraftAsync(outgoingEmailId, user, cancellationToken);
+
+        _ = this.Signalled(record, reopening.Outcome);
+
+        return reopening;
+    }
+
     private static EmailContentBody BodyOf(EmailContentRendering rendering) => rendering.BodyIsEncrypted
         ? EmailContentBody.EncryptedNotReadableLocally
         : EmailContentBody.Readable(

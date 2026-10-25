@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
@@ -18,6 +19,7 @@ using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Mail.Mutations.Local;
+using MailFathom.Application.Notifications;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Synchronization;
@@ -54,6 +56,18 @@ internal sealed class MailboxCustodianComposition
 
     /// <summary>Gets the clock every part mints and measures with.</summary>
     internal TimeProvider Clock { get; }
+
+    /// <summary>Gets where a failure reported after its request answered is kept, which keeps nothing unless a test hands it a store.</summary>
+    internal INotificationStore Notifications { get; init; } = Substitute.For<INotificationStore>();
+
+    /// <summary>Gets who is told about a failure, which is nobody unless a test assigns somebody.</summary>
+    internal IMailAccountAssignments Assignments { get; init; } = new StubMailAccountAssignments();
+
+    /// <summary>Gets what tells a person that a send, a change, or a draft's server copy failed after the request answered.</summary>
+    internal MailFailureNotifications Failures => field ??= new(
+        new NotificationRaiser(this.Notifications, ClientSignalPublishers.ReachingNobody),
+        this.Assignments,
+        this.Clock);
 
     /// <summary>Gets the store the resolver reads each account's custody phase from.</summary>
     internal IMailAccountCustodyStore Custody { get; init; } = Substitute.For<IMailAccountCustodyStore>();
@@ -277,7 +291,8 @@ internal sealed class MailboxCustodianComposition
         this.Drafts,
         this.TransportPolicies,
         this.CommitPolicy,
-        this.Clock);
+        this.Clock,
+        this.Failures);
 
     /// <summary>Gets what appends a copy to the source.</summary>
     internal MailboxCopyAppender Appender => field ??= new(

@@ -30,4 +30,13 @@ public enum NotificationCause
 
     /// <summary>One message arrived for the person, and the notification names its sender and its subject.</summary>
     MessageArrived = 5,
+
+    /// <summary>The mail server refused a message handed to an account's outbox, so it waits there for somebody to decide about it.</summary>
+    SendRefused = 6,
+
+    /// <summary>A change somebody asked of their mailbox never reached the mail server, and MailFathom stopped trying to make it.</summary>
+    MailboxChangeAbandoned = 7,
+
+    /// <summary>A draft's copy in the mail server's drafts folder could not be kept there, or nobody knows whether it was.</summary>
+    DraftCopyNotKept = 8,
 }

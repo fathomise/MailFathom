@@ -8,6 +8,7 @@ using MailFathom.CodeCoverage;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Scheduling;
 using MailFathom.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -286,6 +287,63 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
             : await this.ExplainRefusalAsync(recordId, DismissibleStages, refusalRestated: true, dismissedAt, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<OutboxReopening> ReopenAsDraftAsync(
+        OutgoingEmailId outgoingEmailId,
+        UserId reopenedBy,
+        CancellationToken cancellationToken)
+    {
+        var reopenedAt = timeProvider.GetUtcNow();
+        var recordId = outgoingEmailId.Value;
+        var userId = reopenedBy.Value;
+        var refused = nameof(OutgoingEmailStage.Refused);
+
+        // One statement, so the draft is given back and the send dismissed together or not at all: a message editable
+        // again while its refused send still stood in the outbox could be sent twice. The send's row is locked first, so
+        // an offer to send it again committed in between is seen and nothing is reopened, and the dismissal is written
+        // only where a draft of this user's was actually given back.
+        var reopened = await dbContext.Database.SqlQuery<Guid>(
+            $"""
+             WITH send AS (
+                 SELECT "Id"
+                 FROM outgoing_emails
+                 WHERE "Id" = {recordId}
+                   AND "Stage" = {refused}
+                   AND "DismissedAt" IS NULL
+                 FOR UPDATE
+             ),
+             reopened AS (
+                 UPDATE mail_drafts
+                 SET "PromotedToOutgoingEmailId" = NULL
+                 WHERE "PromotedToOutgoingEmailId" IN (SELECT "Id" FROM send)
+                   AND "UserId" = {userId}
+                   AND "DiscardedAt" IS NULL
+                 RETURNING "Id"
+             ),
+             dismissed AS (
+                 UPDATE outgoing_emails
+                 SET "DismissedAt" = {reopenedAt},
+                     "DismissedByUserId" = {userId}
+                 WHERE "Id" IN (SELECT "Id" FROM send)
+                   AND EXISTS (SELECT 1 FROM reopened)
+                 RETURNING "Id"
+             )
+             SELECT reopened."Id" AS "Value"
+             FROM reopened
+             WHERE EXISTS (SELECT 1 FROM dismissed)
+             """)
+            .ToListAsync(cancellationToken);
+
+        if (reopened.Count == 1)
+        {
+            return new OutboxReopening(OutboxDecisionOutcome.Accepted, MailDraftId.Create(reopened[0]));
+        }
+
+        return new OutboxReopening(
+            await this.ExplainReopeningRefusalAsync(recordId, reopenedAt, cancellationToken),
+            Draft: null);
+    }
+
     /// <summary>The stages a withdrawal may be written from.</summary>
     private static OutgoingEmailStage[] CancellableStages => [OutgoingEmailStage.Recorded];
 
@@ -374,6 +432,34 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
         return row.LeaseExpiresAt is { } expiresAt && expiresAt > decidedAt
             ? OutboxDecisionOutcome.AttemptUnderWay
             : OutboxDecisionOutcome.StageDoesNotAllowIt;
+    }
+
+    /// <summary>Says why a send was not reopened as a draft, which is the ordinary refusal unless the send could have been.</summary>
+    /// <remarks>
+    /// A refused send nobody dismissed that still was not reopened is one written from no draft of the caller's — a
+    /// rule's reply, an agent's message, or a draft another user wrote — so there is nothing to take it back into.
+    /// </remarks>
+    private async Task<OutboxDecisionOutcome> ExplainReopeningRefusalAsync(
+        Guid recordId,
+        DateTimeOffset decidedAt,
+        CancellationToken cancellationToken)
+    {
+        var standsRefused = await dbContext.OutgoingEmails
+            .AsNoTracking()
+            .AnyAsync(
+                message => message.Id == recordId
+                    && message.Stage == OutgoingEmailStage.Refused
+                    && message.DismissedAt == null,
+                cancellationToken);
+
+        return standsRefused
+            ? OutboxDecisionOutcome.NoDraftToReopen
+            : await this.ExplainRefusalAsync(
+                recordId,
+                [OutgoingEmailStage.Refused],
+                refusalRestated: true,
+                decidedAt,
+                cancellationToken);
     }
 
     /// <summary>Reads the recipients of the sends one page names, in the order each message names them.</summary>

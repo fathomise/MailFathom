@@ -19,6 +19,7 @@ using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
 using MailFathom.TestSupport;
@@ -570,6 +571,61 @@ public sealed class UserOutboxTests
         Assert.Equal(Work, signal.Account);
     }
 
+    /// <summary>Taking a send back to edit is writing a draft as well as deciding about a send, so it needs both grants.</summary>
+    [Fact]
+    public async Task ReopenAsDraftAsync_CallerWithoutTheDraftingGrant_IsRefusedBeforeAnythingIsRead()
+    {
+        // Arrange
+        await using var context = new OutboxContext();
+        var mine = await context.QueueAsync(Work);
+
+        // Act, Assert
+        await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(
+            () => context.Outbox.ReopenAsDraftAsync(mine, TestContext.Current.CancellationToken));
+        Assert.Empty(context.Operations.ReceivedCalls());
+    }
+
+    /// <summary>An unassigned mailbox's send is unknown here, so it is never taken back into anybody's drafts.</summary>
+    [Fact]
+    public async Task ReopenAsDraftAsync_ASendFromAMailboxThisUserIsNotAssigned_ReportsItUnknownWithoutDeciding()
+    {
+        // Arrange
+        await using var context = new OutboxContext(Drafting());
+        var theirs = await context.QueueAsync(Unassigned);
+
+        // Act
+        var reopening = await context.Outbox.ReopenAsDraftAsync(theirs, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(new OutboxReopening(OutboxDecisionOutcome.RecordUnknown, Draft: null), reopening);
+        Assert.Empty(context.Operations.ReceivedCalls());
+    }
+
+    /// <summary>The send is taken back for this user, and the draft it lands in is what the answer names.</summary>
+    [Fact]
+    public async Task ReopenAsDraftAsync_ASendFromAMailboxThisUserIsAssigned_TakesItBackForThisUserAndNamesTheDraft()
+    {
+        // Arrange
+        await using var context = new OutboxContext(Drafting());
+        var mine = await context.QueueAsync(Work);
+        var draft = MailDraftId.Create(Guid.CreateVersion7());
+        context.Operations
+            .ReopenAsDraftAsync(mine, Arg.Any<UserId>(), Arg.Any<CancellationToken>())
+            .Returns(new OutboxReopening(OutboxDecisionOutcome.Accepted, draft));
+
+        // Act
+        var reopening = await context.Outbox.ReopenAsDraftAsync(mine, TestContext.Current.CancellationToken);
+        var published = await context.PublishedSignalsAsync();
+
+        // Assert
+        Assert.Equal(new OutboxReopening(OutboxDecisionOutcome.Accepted, draft), reopening);
+        await context.Operations.Received(1).ReopenAsDraftAsync(
+            mine,
+            context.Authorization.RequireUser(),
+            Arg.Any<CancellationToken>());
+        Assert.Equal(ClientSignalKind.OutboxChanged, Assert.Single(published).Kind);
+    }
+
     /// <summary>A decision the store refused moved nothing, so no client is told anything changed.</summary>
     [Fact]
     public async Task CancelAsync_ADecisionTheStoreRefused_TellsNoClientAnything()
@@ -588,6 +644,11 @@ public sealed class UserOutboxTests
         // Assert
         Assert.Empty(published);
     }
+
+    private static AccessAuthorization Drafting() => AccessAuthorizations.ForCallerGranted(
+        MailFathomPermission.MailRead,
+        MailFathomPermission.MailSend,
+        MailFathomPermission.MailDraftsWrite);
 
     private static AccessAuthorization Granting(bool reading, bool sending) =>
         AccessAuthorizations.ForCallerGranted(
