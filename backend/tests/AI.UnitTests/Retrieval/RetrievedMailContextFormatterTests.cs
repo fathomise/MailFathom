@@ -4,6 +4,7 @@
 
 using System.Globalization;
 using System.Xml.Linq;
+using MailFathom.AI.Orchestration;
 using MailFathom.AI.Retrieval;
 using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.Emails.AttachmentText;
@@ -49,33 +50,59 @@ public sealed class RetrievedMailContextFormatterTests
         Assert.Equal("the invoice is attached", Element(message, RetrievedMailContextFormatter.ExtractElementName));
     }
 
-    /// <summary>The sender verdict travels to a citation and never to a provider, so the envelope must not carry it.</summary>
+    /// <summary>Where a message came from is written by the service on the message element, so a model can qualify what it says.</summary>
     /// <remarks>
-    /// A passage holds the verdict because the citation cut from it publishes one. The envelope is the other direction —
-    /// what a model is handed — and a verdict there would put this deployment's own judgement of a correspondent into a
-    /// prompt, where it becomes something a model reasons from and an injected extract can argue with.
+    /// The attributes are the provenance the deployment recorded, written from its own values: a passage from a stranger
+    /// nothing authenticated, sitting in junk, says all three, which is what lets an answer qualify a claim resting on it.
     /// </remarks>
     [Fact]
-    public void Format_APassageCarryingAVerdict_LeavesItOutOfWhatTheModelIsHanded()
+    public void Format_APassageFromAnUnverifiedStranger_SaysSoOnTheMessageElement()
+    {
+        // Arrange
+        var passage = KnowledgePassages.Create(
+            "our bank account has changed",
+            subject: "New payment details",
+            provenance: KnowledgePassages.UnverifiedStranger);
+
+        // Act
+        var envelope = RetrievedMailContextFormatter.Format([passage], EmailSearchRetrievalMode.Hybrid, retrievalLimitReached: false);
+
+        // Assert
+        var message = Assert.Single(MessagesIn(envelope));
+
+        Assert.Equal(AgentTurnDocument.NotEstablishedSender, Attribute(message, AgentTurnDocument.SenderAuthenticationAttributeName));
+        Assert.Equal("true", Attribute(message, AgentTurnDocument.JunkAttributeName));
+        Assert.Equal("true", Attribute(message, AgentTurnDocument.FirstContactAttributeName));
+        Assert.Null(message.Attribute(AgentTurnDocument.SenderTrustedAttributeName));
+    }
+
+    /// <summary>A known, authenticated correspondent carries the verdict alone, so the common case asks a model to parse no negation.</summary>
+    [Fact]
+    public void Format_APassageFromAKnownTrustedCorrespondent_WritesTheVerdictAndNoFlagThatDoesNotHold()
     {
         // Arrange
         var passage = KnowledgePassages.Create(
             "the invoice is attached",
             subject: "Invoice 41",
-            senderVerification: new SenderVerification
+            provenance: KnowledgePassages.KnownCorrespondent with
             {
-                AuthorAuthentication = AuthorAuthenticationOutcome.Authenticated,
-                DeploymentTrust = SenderTrustLevel.Trusted,
+                Sender = new SenderVerification
+                {
+                    AuthorAuthentication = AuthorAuthenticationOutcome.Authenticated,
+                    DeploymentTrust = SenderTrustLevel.Trusted,
+                },
             });
 
         // Act
         var envelope = RetrievedMailContextFormatter.Format([passage], EmailSearchRetrievalMode.Hybrid, retrievalLimitReached: false);
 
         // Assert
-        Assert.DoesNotContain("Authenticated", envelope, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Trusted", envelope, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("verification", envelope, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("the invoice is attached", envelope, StringComparison.Ordinal);
+        var message = Assert.Single(MessagesIn(envelope));
+
+        Assert.Equal(AgentTurnDocument.AuthenticatedSender, Attribute(message, AgentTurnDocument.SenderAuthenticationAttributeName));
+        Assert.Equal("true", Attribute(message, AgentTurnDocument.SenderTrustedAttributeName));
+        Assert.Null(message.Attribute(AgentTurnDocument.JunkAttributeName));
+        Assert.Null(message.Attribute(AgentTurnDocument.FirstContactAttributeName));
     }
 
     /// <summary>The authorship reading travels the same way, so the envelope must not carry it either.</summary>

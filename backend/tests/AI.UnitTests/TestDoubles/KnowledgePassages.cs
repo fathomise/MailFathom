@@ -2,33 +2,39 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-using MailFathom.Application.Emails.Summaries;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Retrieval;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Folders;
+using MailFathom.TestSupport;
 
 namespace MailFathom.AI.UnitTests.TestDoubles;
 
 /// <summary>Builds the passages a retrieval hands over, so a test states only what it is about.</summary>
 internal static class KnowledgePassages
 {
+    /// <summary>Gets the provenance of an authenticated author the mailbox has corresponded with before.</summary>
+    public static EmailProvenance KnownCorrespondent => StubEmailProvenanceReader.KnownCorrespondent;
+
+    /// <summary>Gets the provenance of a first-time sender nothing authenticated, sitting in the junk folder.</summary>
+    public static EmailProvenance UnverifiedStranger => StubEmailProvenanceReader.UnverifiedStranger;
+
     /// <summary>Builds one passage.</summary>
     /// <param name="text">The extract itself.</param>
     /// <param name="storedEmailId">The stable identity, or <see langword="null" /> to generate one.</param>
     /// <param name="accountId">The account the message belongs to.</param>
     /// <param name="folderPath">The place in its account's hierarchy of the folder the message is in.</param>
     /// <param name="subject">The subject, or <see langword="null" /> for a message that carried none.</param>
-    /// <param name="senderVerification">
-    /// What was established about the message's author, or <see langword="null" /> for the stored default. A test about
-    /// what reaches a model states it, because the guarantee there is that the verdict reaches no provider — which a
-    /// passage carrying the default could not tell apart from one whose verdict was dropped.
+    /// <param name="provenance">
+    /// Where the message came from, or <see langword="null" /> for an authenticated correspondent the mailbox already
+    /// knows, which is the provenance that asks a model to qualify nothing.
     /// </param>
     /// <param name="machineAuthorship">
     /// How much the message's own text read as machine written, or <see langword="null" /> for the stored default. It is
-    /// stated for the reason the verdict above is: the reading reaches no provider either, and a passage carrying the
-    /// default could not tell that guarantee from a reading that was dropped.
+    /// stated because the reading reaches no provider, and a passage carrying the default could not tell that guarantee
+    /// from a reading that was dropped.
     /// </param>
     /// <param name="attachmentExtracts">What the message's files contributed, which is nothing for most passages.</param>
     /// <returns>The passage.</returns>
@@ -38,7 +44,7 @@ internal static class KnowledgePassages
         string accountId = "primary",
         string folderPath = "INBOX",
         string? subject = null,
-        SenderVerification? senderVerification = null,
+        EmailProvenance? provenance = null,
         MachineAuthorshipAssessment? machineAuthorship = null,
         params EmailKnowledgeAttachmentExtract[] attachmentExtracts) => new()
         {
@@ -48,7 +54,7 @@ internal static class KnowledgePassages
             Folder = new StoredEmailFolder(MailFolderId.Create(Guid.CreateVersion7()), folderPath, Alias: null),
             Subject = subject,
             ReceivedAt = null,
-            SenderVerification = senderVerification ?? SenderVerification.NotEstablished,
+            Provenance = provenance ?? KnownCorrespondent,
             MachineAuthorship = machineAuthorship ?? MachineAuthorshipAssessment.NotAssessed,
             Text = text,
         };

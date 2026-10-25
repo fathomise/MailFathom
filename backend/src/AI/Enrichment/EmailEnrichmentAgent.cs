@@ -205,6 +205,7 @@ internal sealed class EmailEnrichmentAgent : IEmailEnricher
         return EmailEnrichmentInstructions.ComposeEnrichmentTurn(
             subject,
             email.ReceivedAt,
+            email.Provenance,
             passages,
             plan.MaximumRequestCharacters);
     }

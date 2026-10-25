@@ -609,6 +609,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         // Act
         var reading = await this.tools.GuardedReadingOfAsync(
             MessageReading("ada@example.org", $"Key {Marker}", $"Use {Marker} today"),
+            StubEmailProvenanceReader.KnownCorrespondent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -625,6 +626,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         this.tools = this.Tools(MailFathomPermission.MailRead);
         await this.tools.GuardedReadingOfAsync(
             MessageReading("ada@example.org", "Bays", "Book the bays at https://bays.example.test/book today."),
+            StubEmailProvenanceReader.KnownCorrespondent,
             TestContext.Current.CancellationToken);
 
         // Act
@@ -636,6 +638,23 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         Assert.Equal(
             [("https://bays.example.test/book", true), ("https://other.example.test/", false)],
             links.Select(static link => (link.Link.Target, link.AppearsInCitedSources)));
+    }
+
+    /// <summary>A thread's message carries where it came from into the reading, so the model reads it beside what the author wrote.</summary>
+    [Fact]
+    public async Task GuardedReadingOf_AMessageFromAFirstContactInJunk_CarriesThatProvenanceIntoTheReading()
+    {
+        // Arrange
+        this.tools = this.Tools(MailFathomPermission.MailRead);
+
+        // Act
+        var reading = await this.tools.GuardedReadingOfAsync(
+            MessageReading("ada@example.org", "New bank details", "Our account has changed."),
+            StubEmailProvenanceReader.UnverifiedStranger,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Same(StubEmailProvenanceReader.UnverifiedStranger, reading.Provenance);
     }
 
     /// <summary>The scan ceiling drops what lies beyond it without failing, so a body it shortened is marked as cut rather than shown as whole.</summary>
@@ -655,6 +674,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         // Act
         var reading = await this.tools.GuardedReadingOfAsync(
             MessageReading("ada@example.org", "Minutes", string.Concat(Enumerable.Repeat("The minutes are attached. ", 8))),
+            StubEmailProvenanceReader.KnownCorrespondent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -677,6 +697,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         // Act
         var reading = await this.tools.GuardedReadingOfAsync(
             MessageReading("ada@example.org", "Minutes", body),
+            StubEmailProvenanceReader.KnownCorrespondent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -811,6 +832,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
             ScopeResolver: null!,
             KnowledgeSearch: null!,
             ContentReader: null!,
+            ProvenanceReader: StubEmailProvenanceReader.AllKnownCorrespondents,
             StateBrowser: null!,
             calendar!,
             tasks!,

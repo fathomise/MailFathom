@@ -1788,7 +1788,13 @@ It answers with one resolution per citation, in the order the request named them
         "folder": "0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7a10",
         "subject": "Renewal terms",
         "sentAt": "2026-03-04T09:00:00+00:00",
-        "receivedAt": "2026-03-04T09:01:12+00:00"
+        "receivedAt": "2026-03-04T09:01:12+00:00",
+        "provenance": {
+          "authorAuthentication": "Authenticated",
+          "deploymentTrust": "Unknown",
+          "inJunkFolder": false,
+          "firstContact": false
+        }
       },
       "fragment": {
         "fragmentId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a91",
@@ -1825,9 +1831,18 @@ whether somebody else's message exists. A local copy that is stored and damaged 
 message, which is this deployment's own defect rather than a statement about anyone's mail.
 
 **A resolution carries enough to draw the source in place and no more**: the passage with the offsets it was cut from,
-the message it belongs to, and its dates. Reading the rest of the message is [the message route](#the-message-route),
+the message it belongs to, its dates, and where it came from. Reading the rest of the message is [the message route](#the-message-route),
 which is a request the reader chose to make, and no octet of a cited file is here — the file is described exactly as the
 message route describes it.
+
+**`provenance` is what the model was told about the message**, read from what the deployment recorded rather than
+from the message: `authorAuthentication` is `Authenticated`, `NotEstablished`, or `Failed`, `deploymentTrust` is
+`Trusted` or `Unknown`, and `inJunkFolder` and `firstContact` say whether the message sits in its account's junk folder
+and whether nothing the mailbox held before it was written by or to its sender. A run qualifies a claim resting on a
+message that is not authenticated, is junk, or is a first contact, and these four values are what let a client show the
+person why. [Mail answering](../features/mail-answering.md#where-a-message-came-from) holds what each one means. A
+message whose provenance can no longer be read was erased between the read and the lookup and resolves as
+`PrivateSource`.
 
 **One request follows at most ten citations**, which is also what bounds the messages read, and a passage is bounded
 before it is ever cited because chunking cuts it to a fixed length. A larger batch is answered `400`, a body over 16 KiB

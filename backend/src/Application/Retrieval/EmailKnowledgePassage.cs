@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-using MailFathom.Application.Emails.Summaries;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authorship;
@@ -49,13 +49,13 @@ public sealed record EmailKnowledgePassage
     /// <summary>Gets when the last receiving hop recorded the message, or <see langword="null" /> when no header carried a usable date.</summary>
     public DateTimeOffset? ReceivedAt { get; init; }
 
-    /// <summary>Gets what was established about the author of the message the extract came from.</summary>
+    /// <summary>Gets where the message the extract came from came from, as this deployment recorded it.</summary>
     /// <remarks>
-    /// It travels with the passage so that a citation can state it without a second read of the message. Nothing in the
-    /// retrieval path acts on it and nothing puts it in front of a model: what a provider receives is the extract, and
-    /// this reaches the caller instead, as part of saying where a claim came from.
+    /// It travels with the passage for two readers. A model is shown it beside the extract, written by the service, so a
+    /// claim resting on a message from an unverified or first-time sender can be qualified rather than restated; and a
+    /// citation states it to the caller without a second read of the message. Nothing in the retrieval path acts on it.
     /// </remarks>
-    public required SenderVerification SenderVerification { get; init; }
+    public required EmailProvenance Provenance { get; init; }
 
     /// <summary>Gets how much the message's own text read as machine written.</summary>
     /// <remarks>

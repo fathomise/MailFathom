@@ -32,6 +32,11 @@ namespace MailFathom.AI.Retrieval;
 /// checked, and the identity is what survives formatting to make that possible.
 /// </para>
 /// <para>
+/// Each message element also says where the message came from — the sender verdict, the junk folder, a first contact —
+/// as the attributes <see cref="AgentTurnDocument.WriteProvenance" /> writes from what this deployment recorded, so a
+/// claim resting on a message that only claims a name can be qualified, and no extract can claim a status of its own.
+/// </para>
+/// <para>
 /// A file the message carried is written in an element of its own, carrying the file and the page it was read from, and
 /// a model's account of a picture is written in a third element again. The three are separated because they were
 /// written by three different parties — the person who typed the message, the person who wrote the file, and nobody at
@@ -248,6 +253,8 @@ internal static class RetrievedMailContextFormatter
                 ReceivedAttributeName,
                 receivedAt.ToString("O", CultureInfo.InvariantCulture));
         }
+
+        document.WriteProvenance(passage.Provenance);
 
         // Absent rather than empty where the message carried none, so the model is not left reading a blank subject as
         // one somebody wrote.

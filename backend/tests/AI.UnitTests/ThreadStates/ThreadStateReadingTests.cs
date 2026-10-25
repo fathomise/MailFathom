@@ -5,6 +5,7 @@
 using MailFathom.AI.ThreadStates;
 using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Domain.Emails;
+using MailFathom.TestSupport;
 using Xunit;
 
 namespace MailFathom.AI.UnitTests.ThreadStates;
@@ -224,7 +225,7 @@ public sealed class ThreadStateReadingTests
 
     private static IReadOnlyList<DerivableThreadMessage> Messages() =>
     [
-        new(First, 0, "Karolina", new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero), "the price holds"),
-        new(Second, 1, "Piotr", new DateTimeOffset(2026, 9, 7, 15, 0, 0, TimeSpan.Zero), "what about the limit"),
+        new(First, 0, "Karolina", new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero), "the price holds", StubEmailProvenanceReader.KnownCorrespondent),
+        new(Second, 1, "Piotr", new DateTimeOffset(2026, 9, 7, 15, 0, 0, TimeSpan.Zero), "what about the limit", StubEmailProvenanceReader.KnownCorrespondent),
     ];
 }

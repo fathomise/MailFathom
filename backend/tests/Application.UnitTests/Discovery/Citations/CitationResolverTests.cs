@@ -14,6 +14,7 @@ using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.UnitTests.TestDoubles;
@@ -220,6 +221,47 @@ public sealed class CitationResolverTests
         Assert.Null(citation.Attachment);
     }
 
+    /// <summary>A citation keeps the qualification its answer carried, so a client can say where the cited message came from.</summary>
+    [Fact]
+    public async Task ResolveAsync_CitationOfAMessage_CarriesTheProvenanceTheDeploymentRecordedForIt()
+    {
+        // Arrange
+        var summary = SyntheticEmailSummaries.Create();
+        var resolver = ResolverOver(
+            [summary],
+            provenance: StubEmailProvenanceReader.Answering(
+                new Dictionary<StoredEmailId, EmailProvenance> { [summary.StoredEmailId] = StubEmailProvenanceReader.UnverifiedStranger }));
+
+        // Act
+        var resolved = await resolver.ResolveAsync(
+            [new EmailCitationTarget(summary.StoredEmailId)],
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Same(StubEmailProvenanceReader.UnverifiedStranger, Assert.Single(resolved).Message!.Provenance);
+    }
+
+    /// <summary>A message whose provenance is gone was erased between the read and the lookup, so it resolves to nothing.</summary>
+    [Fact]
+    public async Task ResolveAsync_MessageWhoseProvenanceIsNoLongerStored_ReportsAPrivateSource()
+    {
+        // Arrange
+        var summary = SyntheticEmailSummaries.Create();
+        var resolver = ResolverOver(
+            [summary],
+            provenance: StubEmailProvenanceReader.Answering(new Dictionary<StoredEmailId, EmailProvenance>()));
+
+        // Act
+        var resolved = await resolver.ResolveAsync(
+            [new EmailCitationTarget(summary.StoredEmailId)],
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var citation = Assert.Single(resolved);
+        Assert.Equal(CitationResolutionOutcome.PrivateSource, citation.Outcome);
+        Assert.Null(citation.Message);
+    }
+
     [Fact]
     public async Task ResolveAsync_MessageThisCallerMayNotRead_ReportsAPrivateSourceCarryingNothingElse()
     {
@@ -397,7 +439,8 @@ public sealed class CitationResolverTests
         ICitedFragmentReader? fragments = null,
         SensitiveContentEgressGuard? egressGuard = null,
         IEmailContentStore? contentStore = null,
-        IEmailContentRenderer? renderer = null)
+        IEmailContentRenderer? renderer = null,
+        IEmailProvenanceReader? provenance = null)
     {
         var accountCatalog = CatalogServing(MailAccountId.Create(SyntheticEmailSummaries.DefaultAccountId));
 
@@ -415,6 +458,7 @@ public sealed class CitationResolverTests
                 new RecordingMailboxReadTelemetry(),
                 AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead)),
             fragments ?? Substitute.For<ICitedFragmentReader>(),
+            provenance ?? StubEmailProvenanceReader.AllKnownCorrespondents,
             ScopeResolverOver(accountCatalog, summaries),
             egressGuard ?? SensitiveContentEgressGuards.Inactive());
     }

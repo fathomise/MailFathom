@@ -126,6 +126,10 @@
                 },
                 "type": "array"
               },
+              "firstContact": {
+                "description": "Whether nothing this mailbox held before the email was written by its sender or addressed to them, counting no mail in the junk, trash, or drafts folders. A request from a first contact to change payment details or credentials, or to act urgently, is worth flagging as unverified rather than restating.",
+                "type": "boolean"
+              },
               "folderId": {
                 "description": "The identity of the folder the email is in, which is what the folders argument of a mailbox tool names it by. It stays the same when the folder is renamed or moved.",
                 "type": "string"
@@ -133,6 +137,10 @@
               "folderPath": {
                 "description": "The folder's place in its account's hierarchy, as the folder names from the top down to it joined by '/', such as INBOX or Projects/2026. It is for reading and changes when the folder is renamed or moved; name the folder by folderId.",
                 "type": "string"
+              },
+              "inJunkFolder": {
+                "description": "Whether the email sits in the folder its account maps as junk. A claim resting on such an email is worth qualifying when reporting it.",
+                "type": "boolean"
               },
               "machineAuthorship": {
                 "description": "How much this email's own text reads as machine written — generated or drafted with an AI text model rather than typed. A heuristic estimate from the email's own characters, not a measurement and not a probability. It is informational only: it is not a spam verdict, not a risk score, and not a statement that the email is unwanted or unsafe.",
@@ -212,6 +220,8 @@
               "folderId",
               "folderPath",
               "senderVerification",
+              "inJunkFolder",
+              "firstContact",
               "machineAuthorship",
               "attachments"
             ],

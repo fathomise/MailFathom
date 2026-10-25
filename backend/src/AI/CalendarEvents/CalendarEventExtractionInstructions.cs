@@ -112,7 +112,7 @@ internal static class CalendarEventExtractionInstructions
         return AgentTurnDocument.Compose(maximumCharacters, document =>
         {
             document.WriteStatement($"{AgentTimeAnchor.Stated(receivedAt)}\n\nA message from this mailbox.\n\n");
-            MessagePassages.Write(document, subject, arrivedAt: null, passages);
+            MessagePassages.Write(document, subject, arrivedAt: null, provenance: null, passages);
         });
     }
 

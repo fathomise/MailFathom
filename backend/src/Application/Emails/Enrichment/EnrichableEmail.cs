@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Emails.Enrichment;
@@ -11,11 +12,17 @@ namespace MailFathom.Application.Emails.Enrichment;
 /// <param name="Subject">The subject, or <see langword="null" /> where the message carried none.</param>
 /// <param name="ReceivedAt">When the last receiving hop recorded the message, which is what a date in the text is read against.</param>
 /// <param name="Passages">The message's own passages, in reading order and bounded by what one derivation may read.</param>
+/// <param name="Provenance">Where the message came from as this deployment recorded it, which the derivation qualifies its reading by.</param>
 /// <remarks>
 /// <para>
 /// Deliberately narrow. A derivation is shown the subject, the arrival instant, and the text — never the sender, the
 /// addressees, the folder, or the account — because none of those is what a sentence about the message is derived from,
 /// and every one of them is a participant this deployment would then be sending to a provider for no reading it buys.
+/// </para>
+/// <para>
+/// The provenance is the one thing about the sender it is shown, and it names nobody: three facts the deployment recorded
+/// — whether the author was authenticated, whether the message sits in junk, whether its sender is a first contact —
+/// which are what lets a derivation describe a request to change payment details as a claim rather than as a task.
 /// </para>
 /// <para>
 /// The arrival instant is here so that a relative date the text states can be resolved into one a row can show. It is
@@ -27,4 +34,5 @@ public sealed record EnrichableEmail(
     StoredEmailId StoredEmailId,
     string? Subject,
     DateTimeOffset? ReceivedAt,
-    IReadOnlyList<EnrichablePassage> Passages);
+    IReadOnlyList<EnrichablePassage> Passages,
+    EmailProvenance Provenance);

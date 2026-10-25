@@ -9,13 +9,13 @@ using MailFathom.Application.Discovery.Presentation.Blocks;
 using MailFathom.Application.Discovery.Presentation.Citations;
 using MailFathom.Application.Discovery.Runs;
 using MailFathom.Application.Emails.Search;
-using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Retrieval;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Folders;
+using MailFathom.TestSupport;
 using Xunit;
 
 namespace MailFathom.AI.UnitTests.Discovery;
@@ -618,7 +618,8 @@ public sealed class DiscoveryCompositionReadingTests
                 Work,
                 $"extract {index}",
                 Relevance: 0.5,
-                ReceivedAt: null))
+                ReceivedAt: null,
+                StubEmailProvenanceReader.KnownCorrespondent))
             .ToArray();
 
         // Act
@@ -781,7 +782,7 @@ public sealed class DiscoveryCompositionReadingTests
         Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
         Subject = null,
         ReceivedAt = null,
-        SenderVerification = SenderVerification.NotEstablished,
+        Provenance = StubEmailProvenanceReader.KnownCorrespondent,
         MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
         Text = text,
     };

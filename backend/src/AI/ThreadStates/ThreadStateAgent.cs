@@ -228,7 +228,8 @@ internal sealed class ThreadStateAgent : IThreadStateDeriver
                 await egressGuard.GuardAsync(
                     SensitiveContentEgressPoint.ChatPrompt,
                     message.Text,
-                    cancellationToken)));
+                    cancellationToken),
+                message.Provenance));
         }
 
         return guarded;

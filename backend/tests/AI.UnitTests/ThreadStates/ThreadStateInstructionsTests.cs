@@ -6,6 +6,7 @@ using System.Xml.Linq;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.ThreadStates;
 using MailFathom.Domain.Accounts;
+using MailFathom.TestSupport;
 using Xunit;
 
 namespace MailFathom.AI.UnitTests.ThreadStates;
@@ -74,8 +75,8 @@ public sealed class ThreadStateInstructionsTests
         var turn = ThreadStateInstructions.ComposeThreadTurn(
             "The racking quotation",
             [
-                new GuardedThreadMessage(0, "Karolina", Instant(9), "the price holds"),
-                new GuardedThreadMessage(1, "Piotr", Instant(15), "what about the limit"),
+                new GuardedThreadMessage(0, "Karolina", Instant(9), "the price holds", StubEmailProvenanceReader.KnownCorrespondent),
+                new GuardedThreadMessage(1, "Piotr", Instant(15), "what about the limit", StubEmailProvenanceReader.KnownCorrespondent),
             ]);
 
         // Assert
@@ -97,12 +98,33 @@ public sealed class ThreadStateInstructionsTests
         // Act
         var turn = ThreadStateInstructions.ComposeThreadTurn(
             "The racking quotation",
-            [new GuardedThreadMessage(0, "Karolina", Instant(9), "the price holds")]);
+            [new GuardedThreadMessage(0, "Karolina", Instant(9), "the price holds", StubEmailProvenanceReader.KnownCorrespondent)]);
 
         // Assert
         Assert.Equal(
             "2026-09-07T09:00:00.0000000+00:00",
             (string?)Assert.Single(Messages(turn)).Attribute(ThreadStateInstructions.WrittenAttributeName));
+    }
+
+    /// <summary>Each message carries where it came from, so a commitment asked for by an unverifiable sender is read as a claim.</summary>
+    [Fact]
+    public void ComposeThreadTurn_AMessageFromAFirstContactInJunk_WritesItsProvenanceOnThatMessageAlone()
+    {
+        // Act
+        var turn = ThreadStateInstructions.ComposeThreadTurn(
+            "New bank details",
+            [
+                new GuardedThreadMessage(0, "Karolina", Instant(9), "the price holds", StubEmailProvenanceReader.KnownCorrespondent),
+                new GuardedThreadMessage(1, "Treasury", Instant(15), "pay the new account today", StubEmailProvenanceReader.UnverifiedStranger),
+            ]);
+
+        // Assert
+        Assert.Equal(
+            new (string?, string?, string?)[] { (AgentTurnDocument.AuthenticatedSender, null, null), (AgentTurnDocument.NotEstablishedSender, "true", "true") },
+            Messages(turn).Select(static message => (
+                (string?)message.Attribute(AgentTurnDocument.SenderAuthenticationAttributeName),
+                (string?)message.Attribute(AgentTurnDocument.JunkAttributeName),
+                (string?)message.Attribute(AgentTurnDocument.FirstContactAttributeName))));
     }
 
     /// <summary>Absent rather than empty, so the model reads what the conversation carried instead of blanks it has to tell apart from empty values.</summary>
@@ -112,7 +134,7 @@ public sealed class ThreadStateInstructionsTests
         // Act
         var turn = ThreadStateInstructions.ComposeThreadTurn(
             subject: null,
-            [new GuardedThreadMessage(0, null, null, "the price holds")]);
+            [new GuardedThreadMessage(0, null, null, "the price holds", StubEmailProvenanceReader.KnownCorrespondent)]);
 
         // Assert
         var message = Assert.Single(Messages(turn));
@@ -129,7 +151,7 @@ public sealed class ThreadStateInstructionsTests
         const int Bound = 500;
         GuardedThreadMessage[] messages =
         [
-            .. Enumerable.Range(0, 5).Select(static position => new GuardedThreadMessage(position, "Karolina", Instant(9), new string('x', 200))),
+            .. Enumerable.Range(0, 5).Select(static position => new GuardedThreadMessage(position, "Karolina", Instant(9), new string('x', 200), StubEmailProvenanceReader.KnownCorrespondent)),
         ];
 
         // Act

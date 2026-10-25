@@ -118,6 +118,21 @@ public sealed class ClientCitationEndpointTests
         Assert.Null(citation.Attachment);
     }
 
+    /// <summary>A cited message reaches the client with where it came from, so the client can qualify a claim drawn on it.</summary>
+    [Fact]
+    public void For_AResolvedMessage_PublishesTheProvenanceTheDeploymentRecorded()
+    {
+        // Act
+        var response = ClientCitationResolutionResponse.For(
+            [ResolvedCitation.Resolved(CitedMessageOf() with { Provenance = StubEmailProvenanceReader.UnverifiedStranger })]);
+
+        // Assert
+        var provenance = Assert.Single(response.Citations).Message!.Provenance;
+        Assert.Equal(
+            ("NotEstablished", "Unknown", true, true),
+            (provenance.AuthorAuthentication, provenance.DeploymentTrust, provenance.InJunkFolder, provenance.FirstContact));
+    }
+
     /// <summary>A resolved passage reaches the client with the text and the offsets that make the reference checkable.</summary>
     [Fact]
     public void For_AResolvedFragment_PublishesThePassageWithTheOffsetsItWasCutFrom()
@@ -299,6 +314,7 @@ public sealed class ClientCitationEndpointTests
         return new CitationResolver(
             content,
             Substitute.For<ICitedFragmentReader>(),
+            StubEmailProvenanceReader.AllKnownCorrespondents,
             scopeResolver,
             SensitiveContentEgressGuards.Inactive());
     }
@@ -309,5 +325,6 @@ public sealed class ClientCitationEndpointTests
         new StoredEmailFolder(MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-000000000004")), "INBOX", MailFolderAlias.Create("INBOX")),
         "Quarterly invoice",
         new DateTimeOffset(2026, 3, 4, 9, 0, 0, TimeSpan.Zero),
-        new DateTimeOffset(2026, 3, 4, 9, 1, 0, TimeSpan.Zero));
+        new DateTimeOffset(2026, 3, 4, 9, 1, 0, TimeSpan.Zero),
+        StubEmailProvenanceReader.KnownCorrespondent);
 }

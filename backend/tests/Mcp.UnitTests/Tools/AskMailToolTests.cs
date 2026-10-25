@@ -6,6 +6,7 @@ using MailFathom.Application.Accounts;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Extraction.Attachments;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
@@ -128,17 +129,23 @@ public sealed class AskMailToolTests
             "They agreed to pay 400.",
             PassageOf(
                 1,
-                new SenderVerification
+                StubEmailProvenanceReader.KnownCorrespondent with
                 {
-                    AuthorAuthentication = AuthorAuthenticationOutcome.Authenticated,
-                    DeploymentTrust = SenderTrustLevel.Trusted,
+                    Sender = new SenderVerification
+                    {
+                        AuthorAuthentication = AuthorAuthenticationOutcome.Authenticated,
+                        DeploymentTrust = SenderTrustLevel.Trusted,
+                    },
                 }),
             PassageOf(
                 2,
-                new SenderVerification
+                StubEmailProvenanceReader.KnownCorrespondent with
                 {
-                    AuthorAuthentication = AuthorAuthenticationOutcome.Failed,
-                    DeploymentTrust = SenderTrustLevel.Unknown,
+                    Sender = new SenderVerification
+                    {
+                        AuthorAuthentication = AuthorAuthenticationOutcome.Failed,
+                        DeploymentTrust = SenderTrustLevel.Unknown,
+                    },
                 }));
         var tool = ToolOver(answerer);
 
@@ -155,6 +162,30 @@ public sealed class AskMailToolTests
                 .. result.Citations.Select(static citation =>
                     (citation.SenderVerification.AuthorAuthentication, citation.SenderVerification.DeploymentTrust)),
             ]);
+    }
+
+    /// <summary>A citation says whether the message it names sat in junk and came from somebody the mailbox never corresponded with.</summary>
+    /// <remarks>
+    /// Those are the two qualifications beside the verdict that an answer is asked to carry, so a caller reading the
+    /// citations can see why a claim was qualified without asking the model to have said so.
+    /// </remarks>
+    [Fact]
+    public async Task AskMailAsync_ARunThatRetrievedMail_PublishesWhetherEachCitedEmailSatInJunkAndCameFromAFirstContact()
+    {
+        // Arrange
+        var answerer = new StubMailQuestionAnswerer().Answering(
+            "The supplier's account changed.",
+            PassageOf(1, StubEmailProvenanceReader.UnverifiedStranger),
+            PassageOf(2, StubEmailProvenanceReader.KnownCorrespondent));
+        var tool = ToolOver(answerer);
+
+        // Act
+        var result = await tool.AskMailAsync(Question, cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            [(true, true), (false, false)],
+            [.. result.Citations.Select(static citation => (citation.InJunkFolder, citation.FirstContact))]);
     }
 
     /// <summary>Each citation carries the authorship reading of the message it names, beside that message's verdict.</summary>
@@ -452,7 +483,7 @@ public sealed class AskMailToolTests
 
     private static EmailKnowledgePassage PassageOf(
         int position,
-        SenderVerification? senderVerification = null,
+        EmailProvenance? provenance = null,
         MachineAuthorshipAssessment? machineAuthorship = null) => new()
         {
             StoredEmailId = StoredEmailId.Create(EmailIdentityAt(position)),
@@ -460,7 +491,7 @@ public sealed class AskMailToolTests
             Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
             Subject = "Quarterly invoice",
             ReceivedAt = Now,
-            SenderVerification = senderVerification ?? SenderVerification.NotEstablished,
+            Provenance = provenance ?? StubEmailProvenanceReader.KnownCorrespondent,
             MachineAuthorship = machineAuthorship ?? MachineAuthorshipAssessment.NotAssessed,
             Text = "an extract",
         };

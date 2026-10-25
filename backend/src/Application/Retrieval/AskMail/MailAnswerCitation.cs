@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-using MailFathom.Application.Emails.Summaries;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authorship;
@@ -16,7 +16,7 @@ namespace MailFathom.Application.Retrieval.AskMail;
 /// <param name="Folder">The folder it is in.</param>
 /// <param name="Subject">The subject it carried, or <see langword="null" /> when it carried none.</param>
 /// <param name="ReceivedAt">When the last receiving hop recorded it, or <see langword="null" /> when no header carried a usable date.</param>
-/// <param name="SenderVerification">What was established about the author it displays, and what this deployment made of them.</param>
+/// <param name="Provenance">Where it came from as this deployment recorded it: the sender verdict, whether it sits in junk, and whether its sender is a first contact.</param>
 /// <param name="MachineAuthorship">How much the email's own text read as machine written.</param>
 /// <param name="Attachments">The files inside it the answer drew on, each naming the place inside the file, empty where the answer drew on the message alone.</param>
 /// <remarks>
@@ -51,6 +51,6 @@ public sealed record MailAnswerCitation(
     StoredEmailFolder Folder,
     string? Subject,
     DateTimeOffset? ReceivedAt,
-    SenderVerification SenderVerification,
+    EmailProvenance Provenance,
     MachineAuthorshipAssessment MachineAuthorship,
     IReadOnlyList<MailAnswerAttachmentCitation> Attachments);

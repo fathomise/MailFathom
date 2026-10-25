@@ -18,7 +18,6 @@ using MailFathom.Application.Discovery.Presentation.Blocks;
 using MailFathom.Application.Discovery.Runs;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
-using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
@@ -332,7 +331,7 @@ public sealed class DiscoveryCompositionAgentTests
         Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
         Subject = null,
         ReceivedAt = null,
-        SenderVerification = SenderVerification.NotEstablished,
+        Provenance = StubEmailProvenanceReader.KnownCorrespondent,
         MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
         Text = text,
     };

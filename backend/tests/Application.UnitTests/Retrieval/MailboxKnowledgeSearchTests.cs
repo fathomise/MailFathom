@@ -8,17 +8,17 @@ using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Embeddings;
 using MailFathom.Application.Emails.Extraction.Attachments;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.Search.Attachments;
 using MailFathom.Application.Emails.SearchEmails;
-using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
-using MailFathom.Domain.Emails.Authentication;
+using MailFathom.Domain.Emails;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -108,20 +108,17 @@ public sealed class MailboxKnowledgeSearchTests
         Assert.Equal("the invoice is attached", passage.Text);
     }
 
-    /// <summary>A citation says whether the message it quotes was verified, and this is the hop that carries the verdict to it.</summary>
+    /// <summary>An answer qualifies what it draws on by where each message came from, and this is the hop that carries it to the passage.</summary>
     [Fact]
-    public async Task FindPassagesAsync_AMatch_CarriesTheSenderVerdictItsSummaryWasStoredWith()
+    public async Task FindPassagesAsync_AMatch_CarriesTheProvenanceTheDeploymentRecordedForIt()
     {
         // Arrange
-        var matched = SyntheticEmailSummaries.Create(
-            FirstJuly,
-            senderVerification: new SenderVerification
-            {
-                AuthorAuthentication = AuthorAuthenticationOutcome.Authenticated,
-                DeploymentTrust = SenderTrustLevel.Trusted,
-            });
+        var matched = SyntheticEmailSummaries.Create(FirstJuly);
         var index = new InMemoryEmailSearchIndex().With(matched, snippets: "the invoice is attached");
-        var search = SearchOver(index);
+        var search = SearchOver(
+            index,
+            provenance: StubEmailProvenanceReader.Answering(
+                new Dictionary<StoredEmailId, EmailProvenance> { [matched.StoredEmailId] = StubEmailProvenanceReader.UnverifiedStranger }));
 
         // Act
         var passages = (await search.FindPassagesAsync(
@@ -130,10 +127,32 @@ public sealed class MailboxKnowledgeSearchTests
             TestContext.Current.CancellationToken)).Passages;
 
         // Assert
-        var passage = Assert.Single(passages);
+        Assert.Same(StubEmailProvenanceReader.UnverifiedStranger, Assert.Single(passages).Provenance);
+    }
 
-        Assert.Equal(AuthorAuthenticationOutcome.Authenticated, passage.SenderVerification.AuthorAuthentication);
-        Assert.Equal(SenderTrustLevel.Trusted, passage.SenderVerification.DeploymentTrust);
+    /// <summary>A passage nobody can say the origin of is not handed to a model, so a message erased mid-search drops out.</summary>
+    [Fact]
+    public async Task FindPassagesAsync_AMatchWhoseProvenanceIsNoLongerStored_IsLeftOut()
+    {
+        // Arrange
+        var kept = SyntheticEmailSummaries.Create(FirstJuly);
+        var erased = SyntheticEmailSummaries.Create(FirstJuly.AddHours(1));
+        var index = new InMemoryEmailSearchIndex()
+            .With(kept, snippets: "the invoice is attached")
+            .With(erased, snippets: "the invoice was paid");
+        var search = SearchOver(
+            index,
+            provenance: StubEmailProvenanceReader.Answering(
+                new Dictionary<StoredEmailId, EmailProvenance> { [kept.StoredEmailId] = StubEmailProvenanceReader.KnownCorrespondent }));
+
+        // Act
+        var passages = (await search.FindPassagesAsync(
+            EveryAccount,
+            EmailKnowledgeQuery.ForText("invoice"),
+            TestContext.Current.CancellationToken)).Passages;
+
+        // Assert
+        Assert.Equal([kept.StoredEmailId], passages.Select(passage => passage.StoredEmailId));
     }
 
     /// <summary>The count is the bound on how many messages one question can draw on, and it is asked of the search itself.</summary>
@@ -590,7 +609,8 @@ public sealed class MailboxKnowledgeSearchTests
         InMemoryEmailSearchIndex index,
         EmailKnowledgeBounds? bounds = null,
         SensitiveContentEgressGuard? egressGuard = null,
-        InMemoryEmailAttachmentMatchIndex? attachmentMatches = null) => new(
+        InMemoryEmailAttachmentMatchIndex? attachmentMatches = null,
+        IEmailProvenanceReader? provenance = null) => new(
         new MailboxSearchReader(
             index,
             attachmentMatches ?? new InMemoryEmailAttachmentMatchIndex(),
@@ -607,6 +627,7 @@ public sealed class MailboxKnowledgeSearchTests
             // The retrieval an answering run makes is reached under the grant that admitted the question, which is not
             // the mailbox-read grant: the window this walks is read through the internal method, which asks for none.
             AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse)),
+        provenance ?? StubEmailProvenanceReader.AllKnownCorrespondents,
         bounds ?? EmailKnowledgeBounds.Default);
 
     /// <summary>Builds the semantic half of a deployment that configured no embedding provider and activated nothing.</summary>

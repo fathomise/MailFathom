@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Emails.ThreadStates;
@@ -38,14 +39,22 @@ public sealed record DerivableThread(
 /// <param name="AuthorDisplayName">The name the message was written under, or <see langword="null" /> where it carried none.</param>
 /// <param name="SentAt">When the message was written, which is what a date its text states relatively is read against.</param>
 /// <param name="Text">What the message added, with the history it quoted already trimmed off, bounded by what one turn may carry.</param>
+/// <param name="Provenance">Where the message came from as this deployment recorded it, which a statement drawn from it is qualified by.</param>
 /// <remarks>
+/// <para>
 /// The author is a display name rather than an address, because what a statement needs to say is *who* undertook
 /// something and a name is what a reader recognizes. An address would add a second identifier to every turn for a
 /// reading that would not change, and addresses are the part of a header worth not sending where a name will do.
+/// </para>
+/// <para>
+/// The name is whatever the message wrote, so it is the provenance rather than the name that says whether the author
+/// is who they claim: a message signing as a colleague from an address nobody verified is recorded as such.
+/// </para>
 /// </remarks>
 public sealed record DerivableThreadMessage(
     StoredEmailId StoredEmailId,
     int Position,
     string? AuthorDisplayName,
     DateTimeOffset? SentAt,
-    string Text);
+    string Text,
+    EmailProvenance Provenance);

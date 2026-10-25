@@ -1,6 +1,6 @@
 # Mail answering
 
-<!-- describes: backend/src/AI/Orchestration/**, backend/src/AI/Retrieval/**, backend/src/AI/ProviderAdapters/ResilientChatClient.cs, backend/src/Application/Retrieval/**, backend/src/Domain/Answering/**, backend/src/Infrastructure/Persistence/Answering/**, backend/src/Host/Configuration/Mail/MailAnsweringAuditTrailOptions.cs, backend/src/Host/Configuration/Access/TransportRequestTimeoutOptions.cs -->
+<!-- describes: backend/src/AI/Orchestration/**, backend/src/AI/Retrieval/**, backend/src/AI/ProviderAdapters/ResilientChatClient.cs, backend/src/Application/Retrieval/**, backend/src/Application/Emails/Provenance/**, backend/src/Infrastructure/Persistence/Emails/StoredEmailProvenanceReader.cs, backend/src/Domain/Answering/**, backend/src/Infrastructure/Persistence/Answering/**, backend/src/Host/Configuration/Mail/MailAnsweringAuditTrailOptions.cs, backend/src/Host/Configuration/Access/TransportRequestTimeoutOptions.cs -->
 
 A question about the mailbox, answered from the mail the model looks up while answering. This page describes the
 composition that does it: what the model may reach, when it reaches it, how much of it leaves the process, and what an
@@ -437,7 +437,8 @@ Each passage is a bounded extract plus the identity an answer is traced through:
 - the stable local message identifier, which is the same one every other read names an email by;
 - the account and the folder it was read from, by the folder's identity and its place in the account's hierarchy;
 - the subject and the received time, where the message carried them;
-- what was established about the author the message displays, and what this deployment made of them;
+- where the message came from: what was established about the author the message displays and what this deployment
+  made of them, whether it sits in its account's junk folder, and whether the sender is a first contact;
 - how much the message's own text read as machine written;
 - the extract itself, already cut to the bound above;
 - what the message's own files contributed, where any of them matched: one extract per file, cut to the same bound
@@ -451,11 +452,16 @@ a picture reaches it under a different element name again — so a run can tell 
 nobody wrote, and say so when it reports a claim resting on one. The file name and the place ride with it, which is what
 lets a citation name them without a second read.
 
-The sender verdict rides with the passage so a citation can state it without reading the message a second time, and a
-provider never sees it: the envelope a passage is formatted into names the message, the account, the folder, the
-received time, and the subject, and carries the extract. The verdict reaches the caller instead, on the citation. The
-[machine-authorship reading](machine-authorship.md) travels on exactly those terms and is put to the same use — nothing
-in the retrieval path selects, ranks, or drops a passage by it, and no model is shown it.
+The provenance rides with the passage for two readers. The model is shown it, on the message element of the envelope
+below, so it can qualify a claim resting on a message nobody can vouch for; the caller is shown it on the citation, so a
+person deciding whether to act on that claim can see why it was qualified. [Where a message came
+from](#where-a-message-came-from) is what each part means and what an answer is asked to do with it. A passage whose
+provenance can no longer be read was erased between the search and the read, and is dropped rather than shown without
+one.
+
+The [machine-authorship reading](machine-authorship.md) rides with the passage too, and on narrower terms: it reaches
+the caller on the citation and no model is shown it, and nothing in the retrieval path selects, ranks, or drops a
+passage by it.
 
 A message that yielded neither a body extract nor an attachment one is dropped rather than sent as an identifier with
 nothing beside it — encrypted mail, or a message matched on its subject alone while nothing it carries could be read.
@@ -476,7 +482,7 @@ Inside that tool result, each extract sits in an element of its own:
 
 ```xml
 <retrieved-mail retrieval-mode="hybrid">
-  <message id="019fe12f-a4a1-7759-8d95-21d0bb6eec90" account="work" folder="ARCHIVE" received="2026-08-01T09:14:22.0000000+02:00">
+  <message id="019fe12f-a4a1-7759-8d95-21d0bb6eec90" account="work" folder="ARCHIVE" received="2026-08-01T09:14:22.0000000+02:00" sender-authentication="authenticated">
     <subject>Invoice 41</subject>
     <extract>the invoice is attached</extract>
   </message>
@@ -524,6 +530,44 @@ values rather than a sentence built around them. The turn a compaction reads wri
 element whose `author` attribute says whether the person or the Agent wrote it, each proposal the same way, and the
 summary it folds in as a `<conversation-summary>` of its own. Every value is scanned at `ChatPrompt` as the value it is
 before any of those documents is written around it.
+
+### Where a message came from
+
+A message does not need to give an order to do harm. It only has to state something false as fact — that a supplier's
+bank account changed, that a colleague needs a payment approved today — and an answer that restates it hands the claim to
+the person in the assistant's voice. So the operations that quote a message to a model write where the message came
+from as attributes of the element the writer wrote for it: `ask_mail`, the Agent's `search_mail` and `read_thread`,
+enrichment, a conversation's state, and Discover. Reply drafting, contact relationships, calendar-event extraction, and
+body cleanup quote mail too and carry no provenance yet; their turns carry the clause below, which applies only where a
+turn carries the attributes. The attributes are these:
+
+| Attribute | Written | What it says |
+| --- | --- | --- |
+| `sender-authentication` | Always | `authenticated`, `not-established`, or `failed`: what the receiving server [established about the displayed author](sender-authentication.md#whether-the-displayed-author-authenticated) |
+| `sender-trusted` | Only as `true` | This deployment [recognizes that author](sender-authentication.md#whether-the-author-is-one-this-deployment-recognizes) |
+| `junk` | Only as `true` | The message sits in the folder its account maps as junk |
+| `first-contact` | Only as `true` | Nothing the mailbox held from before the message was written by its sender or addressed to them |
+
+The flags are written only where they hold, so the common message asks a model to read no negation. Every value is read
+from what the deployment recorded — the verdict the message was stored with, the configured role of the folder it sits
+in, and the mail the same mailbox held earlier — and none is read from the message's text, so a message that calls itself
+verified, or writes these attributes into its own subject, changes nothing the service wrote: the writer escapes it like
+any other text. *First contact* reads earlier correspondence the way [contact collection](contacts.md) does — the
+sender wrote the earlier mail, or it was addressed to them in `To` or `Cc` — within the same account, received strictly
+before the message, and outside the junk, trash, and drafts folders; a message with no usable sender address is a first
+contact. A signature verification recorded as the sender verdict later reaches every operation listed above through
+`sender-authentication` without anything here changing.
+
+The data clause carries the rule a model is given about them: a claim resting only on a message whose sender is not
+authenticated, or that is junk or a first contact, is reported with that qualification rather than as settled fact; a
+request from such a message to change payment details, a bank account, or credentials, or to do something urgently, is
+flagged as coming from a sender the deployment could not verify instead of restated; and a claim from an authenticated
+sender is not doubted for where it came from alone. Like the rest of the clause it is the weaker mechanism — what is
+structural is that the attributes are the service's own, in a place no message can write to.
+
+The provenance is personal data: whether somebody has written to a mailbox before is a fact about who its owner
+corresponds with. It inherits the classification of the mail it describes, travels only with a message the run already
+read, and is read by identity from those messages alone, so it says nothing about mail the caller could not read.
 
 The identity is the other reason the envelope exists. Each extract carries the stable local identifier an answer cites
 and the account and folder it was read from, unchanged — an answer that cannot say which message a claim came from
@@ -640,10 +684,12 @@ than one of them; a reader given a list of sources wants the messages, not the n
 one carries an extract: the passage has already reached a provider, and returning it to the caller as well would publish
 mail content from a call whose result is an answer.
 
-Each citation does carry the sender verdict, in the shape a listing publishes it in and without the evidence behind it.
-An answer is worth what the mail behind it is worth, so a reader deciding whether to act on a claim is told whether the
-message it came from had an author anybody established and whether this deployment recognizes that author. What the
-verdict is reached from stays with the single-email read the citation resolves through.
+Each citation does carry the message's provenance: the sender verdict, in the shape a listing publishes it in and
+without the evidence behind it, and beside it `inJunkFolder` and `firstContact`. An answer is worth what the mail behind
+it is worth, so a reader deciding whether to act on a claim is told whether the message it came from had an author
+anybody established, whether this deployment recognizes that author, whether it sat in junk, and whether its sender had
+ever corresponded with the mailbox — the same facts the model was given to qualify the claim with. What the verdict is
+reached from stays with the single-email read the citation resolves through.
 
 It carries the [machine-authorship reading](machine-authorship.md) beside it, in the shape a listing publishes that in,
 and for a narrower reason: it is one more thing a reader may want to know about a message an answer rests on, and it

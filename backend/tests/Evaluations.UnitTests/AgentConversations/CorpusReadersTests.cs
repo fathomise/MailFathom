@@ -106,7 +106,7 @@ public sealed class CorpusReadersTests
     public void ThreadOf_EveryConversation_NamesAThreadNoOtherConversationOrMessageCarries()
     {
         // Arrange
-        IReadOnlyList<IReadOnlyList<CorpusMessage>> exchanges = [.. CorpusMessage.Exchanges, .. HostileMail.Exchanges, .. PolishCorpus.Exchanges];
+        IReadOnlyList<IReadOnlyList<CorpusMessage>> exchanges = [.. CorpusMessage.Exchanges, .. HostileMail.Exchanges, .. FalseClaimMail.Exchanges, .. PolishCorpus.Exchanges];
 
         // Act
         var threads = exchanges.Select(static exchange => CorpusReaders.ThreadOf(exchange).Value).ToHashSet();

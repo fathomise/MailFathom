@@ -239,9 +239,10 @@ rather than of that route:
   reported **unresolvable**, never the nearest remaining passage, which would be evidence for a fact it was not drawn
   from.
 - **A resolution carries enough to draw the source in place** — the passage with the offsets it was cut from, the
-  message it belongs to, and its dates — so checking a fact is reading a sentence rather than opening a document and
-  searching it. The offsets are what make the reference verifiable: the same span of the same extracted text returns
-  exactly that passage.
+  message it belongs to, its dates, and where it came from — so checking a fact is reading a sentence rather than opening
+  a document and searching it. The offsets are what make the reference verifiable: the same span of the same extracted
+  text returns exactly that passage, and the provenance is the one the composing model was shown, so a client can say
+  why a claim resting on an unverified, junk, or first-contact message was qualified.
 
 ## How a plan cannot become code
 

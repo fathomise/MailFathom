@@ -5,6 +5,7 @@
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Enrichment;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam.Gating;
@@ -34,7 +35,8 @@ internal sealed class StoredEmailEnrichmentStore(
     MailFathomDbContext dbContext,
     IDeploymentMailFolders deploymentFolders,
     EmailAttachmentTextBounds attachmentTextBounds,
-    DerivedWorkGate derivedWorkGate)
+    DerivedWorkGate derivedWorkGate,
+    IEmailProvenanceReader provenanceReader)
     : IStoredEmailEnrichmentStore
 {
     /// <inheritdoc />
@@ -85,18 +87,27 @@ internal sealed class StoredEmailEnrichmentStore(
                     .ToList()))
             .ToArrayAsync(cancellationToken);
 
+        var provenance = await provenanceReader.ReadAsync(
+            [.. rows.Select(static row => StoredEmailId.Create(row.Id))],
+            cancellationToken);
+
+        // A row whose provenance is gone was removed after the batch was selected, and has nothing left to derive from.
         return
         [
-            .. rows.Select(static row => new EnrichableEmail(
-                StoredEmailId.Create(row.Id),
-                row.Subject,
-                row.ReceivedAt,
-                [
-                    .. row.Passages.Select(static passage => new EnrichablePassage(
-                        EmailChunkId.Create(passage.Id),
-                        passage.Ordinal,
-                        passage.Text)),
-                ])),
+            .. rows
+                .Select(static row => (Row: row, Id: StoredEmailId.Create(row.Id)))
+                .Where(selected => provenance.ContainsKey(selected.Id))
+                .Select(selected => new EnrichableEmail(
+                    selected.Id,
+                    selected.Row.Subject,
+                    selected.Row.ReceivedAt,
+                    [
+                        .. selected.Row.Passages.Select(static passage => new EnrichablePassage(
+                            EmailChunkId.Create(passage.Id),
+                            passage.Ordinal,
+                            passage.Text)),
+                    ],
+                    provenance[selected.Id])),
         ];
     }
 

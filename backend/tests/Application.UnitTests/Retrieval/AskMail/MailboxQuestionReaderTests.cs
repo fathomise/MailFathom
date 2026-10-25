@@ -330,8 +330,8 @@ public sealed class MailboxQuestionReaderTests
         Assert.Equal(SyntheticEmailSummaries.FolderOf(ServedAccountId, "INBOX"), citation.Folder);
         Assert.Equal("Quarterly invoice", citation.Subject);
         Assert.Equal(Now, citation.ReceivedAt);
-        Assert.Equal(AuthorAuthenticationOutcome.Authenticated, citation.SenderVerification.AuthorAuthentication);
-        Assert.Equal(SenderTrustLevel.Trusted, citation.SenderVerification.DeploymentTrust);
+        Assert.Equal(AuthorAuthenticationOutcome.Authenticated, citation.Provenance.Sender.AuthorAuthentication);
+        Assert.Equal(SenderTrustLevel.Trusted, citation.Provenance.Sender.DeploymentTrust);
         Assert.Equal(MachineAuthorshipBand.Possible, citation.MachineAuthorship.Band);
         Assert.Equal(0.42, citation.MachineAuthorship.Likelihood);
         Assert.Equal(MachineAuthorshipSignals.HiddenCharacters, citation.MachineAuthorship.Signals);
@@ -835,7 +835,7 @@ public sealed class MailboxQuestionReaderTests
             Folder = SyntheticEmailSummaries.FolderOf(ServedAccountId, "INBOX"),
             Subject = "Quarterly invoice",
             ReceivedAt = Now,
-            SenderVerification = senderVerification ?? SenderVerification.NotEstablished,
+            Provenance = StubEmailProvenanceReader.KnownCorrespondent with { Sender = senderVerification ?? SenderVerification.NotEstablished },
             MachineAuthorship = machineAuthorship ?? MachineAuthorshipAssessment.NotAssessed,
             Text = text,
         };

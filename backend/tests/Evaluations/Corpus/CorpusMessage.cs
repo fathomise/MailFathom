@@ -7,10 +7,12 @@ using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Embeddings.Limits;
 using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Application.Emails.Extraction;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Domain.Emails;
 using MailFathom.Host.Configuration.Mail;
 using MailFathom.Infrastructure.Mail.Mime;
 using MailFathom.SyntheticMail.Corpus;
+using MailFathom.TestSupport;
 using MimeKit;
 
 namespace MailFathom.Evaluations.Corpus;
@@ -65,6 +67,14 @@ internal sealed record CorpusMessage(
     /// <summary>Gets every conversation of the corpus, in delivery order, each in the order its messages were written.</summary>
     public static IReadOnlyList<IReadOnlyList<CorpusMessage>> Exchanges => Delivered.Value;
 
+    /// <summary>Gets where the message came from, as a deployment would have recorded it when it arrived.</summary>
+    /// <remarks>
+    /// An authenticated author the mailbox has written with before unless the mail it belongs to states otherwise: the
+    /// corpus is one mailbox's ordinary correspondence, so a message in it asks a model to qualify nothing about where it
+    /// came from, and an answer about it is graded on what it says rather than on a doubt its sender never earned.
+    /// </remarks>
+    public EmailProvenance Provenance { get; init; } = StubEmailProvenanceReader.KnownCorrespondent;
+
     /// <summary>Gets whether it carries an attachment.</summary>
     public bool HasAttachments => this.Attachments.Count > 0;
 
@@ -74,7 +84,7 @@ internal sealed record CorpusMessage(
     /// them — body before attachment, then by ordinal — and what is left to apply is the pass's own count.
     /// </remarks>
     public EnrichableEmail Enrichable =>
-        new(this.Id, this.Subject, this.ReceivedAt, [.. this.Passages.Take(MailEnrichmentPass.MaximumPassagesPerEmail)]);
+        new(this.Id, this.Subject, this.ReceivedAt, [.. this.Passages.Take(MailEnrichmentPass.MaximumPassagesPerEmail)], this.Provenance);
 
     /// <summary>Reads what the message added as a store reads it out for a derivation: its leading characters, up to a bound.</summary>
     /// <param name="maximumCharacters">How many characters the store's query takes of one message.</param>
