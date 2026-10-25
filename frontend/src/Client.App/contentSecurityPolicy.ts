@@ -41,7 +41,10 @@ export const directivesBothHeadsShare: ContentSecurityPolicyDirectives = {
 
     // Any host, because a message's pictures and backgrounds come from whatever server its sender named: asking to load
     // them re-reads that one message with its remote addresses left in, so this cannot be narrowed to the page's own
-    // origin. `data:` is a picture the message carried inline and one an attachment is drawn as.
+    // origin. `data:` is a picture the message carried inline and one an attachment is drawn as. Keeping it this wide is
+    // a decision rather than an oversight: what keeps a picture out of an AI answer is the service, which neutralises
+    // picture markup in every answer before it is published, and the answer's renderer, which draws no image at all — so
+    // narrowing this directive would buy the answer nothing and cost the reading pane the remote pictures a reader asked for.
     'img-src': "'self' data: https: http:",
 
     // The same hosts for the same reason: the ask restores the sender's web font beside the pictures, and a framed

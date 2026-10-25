@@ -4,6 +4,7 @@
 
 using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
+using MailFathom.Application.Answers;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
 using MailFathom.Application.Discovery.Presentation.Citations;
@@ -67,6 +68,7 @@ internal static class PresentationPlanContractSurface
         ["textLength"] = PresentationText.MaxLength,
         ["citationIdentifierLength"] = PresentationCitationId.MaxLength,
         ["addressOctets"] = EmailAddressJsonConverter.MaxOctets,
+        ["answerLinks"] = AnswerMarkup.MaximumLinks,
         ["evidenceListEntries"] = EvidenceListBlock.MaxEntries,
         ["timelineEntries"] = TimelineBlock.MaxEntries,
         ["factTableColumns"] = FactTableBlock.MaxColumns,

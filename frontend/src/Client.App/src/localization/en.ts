@@ -189,6 +189,7 @@ export const en = {
     'answer.label': 'Answer',
     'answer.evidenceLabel': 'Evidence',
     'answer.tableRegion': 'A table in this answer, scrollable sideways',
+    'answer.linkNotInSources': 'This address is in none of the messages this answer cites.',
     'answer.preformattedRegion': 'Preformatted text in this answer, scrollable sideways',
     'answer.confidenceHigh': 'high confidence',
     'answer.confidenceModerate': 'moderate confidence',

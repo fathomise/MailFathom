@@ -217,11 +217,63 @@ describe('parseDeclaredSource', () => {
 });
 
 describe('parseSynthesizedAnswer', () => {
+    const judgedLink = {
+        link: {
+            target: 'https://northwind-billing.example/confirm',
+            host: 'northwind-billing.example',
+            asciiHost: null,
+            deception: 'DisplayedHostDiffers',
+            isWorthWarningAbout: true,
+        },
+        appearsInCitedSources: false,
+    };
+
     it('reads the words and the band they are worth', () => {
         expect(parseSynthesizedAnswer({ text: 'The rate was agreed.', confidence: 'Moderate' })).toEqual({
             text: 'The rate was agreed.',
             confidence: 'Moderate',
+            links: [],
         });
+    });
+
+    it('reads every link the service judged, and whether a cited source carries it', () => {
+        expect(parseSynthesizedAnswer({ text: 'Confirm it.', confidence: 'Low', links: [judgedLink] })?.links).toEqual([
+            {
+                link: {
+                    target: 'https://northwind-billing.example/confirm',
+                    host: 'northwind-billing.example',
+                    asciiHost: null,
+                    deception: 'DisplayedHostDiffers',
+                    worthWarningAbout: true,
+                },
+                appearsInCitedSources: false,
+            },
+        ]);
+    });
+
+    it('refuses an answer whose link this client may not follow rather than drawing it unjudged', () => {
+        const link = { ...judgedLink, link: { ...judgedLink.link, target: 'javascript:alert(1)' } };
+
+        expect(parseSynthesizedAnswer({ text: 'Confirm it.', confidence: 'Low', links: [link] })).toBeNull();
+    });
+
+    it('reads an answer written before links were judged, which carries none, as one with no links', () => {
+        expect(parseSynthesizedAnswer({ text: 'Confirm it.', confidence: 'Low', links: null })?.links).toEqual([]);
+    });
+
+    it('refuses an answer carrying more links than one answer may judge', () => {
+        const links = Array.from({ length: 33 }, (_, at) => ({
+            ...judgedLink,
+            link: { ...judgedLink.link, target: `https://northwind-billing.example/${String(at)}` },
+        }));
+
+        expect(parseSynthesizedAnswer({ text: 'Confirm it.', confidence: 'Low', links })).toBeNull();
+    });
+
+    it('refuses an answer whose link does not say whether a cited source carries it', () => {
+        expect(
+            parseSynthesizedAnswer({ text: 'Confirm it.', confidence: 'Low', links: [{ link: judgedLink.link }] }),
+        ).toBeNull();
     });
 
     it('refuses an answer with no words, which is not an answer', () => {

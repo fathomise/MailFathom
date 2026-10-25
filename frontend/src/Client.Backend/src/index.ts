@@ -147,6 +147,7 @@ export { reportingRefusedCredential } from './credentialRefusal';
 export { failureReasonForStatus, type ClientFailure, type ClientFailureReason, type ClientResult } from './failure';
 export type {
     AnswerConfidence,
+    AnswerLink,
     AttachmentAvailability,
     AttachmentEntry,
     BlockEvidence,

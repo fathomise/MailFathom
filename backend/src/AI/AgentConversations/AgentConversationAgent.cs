@@ -11,6 +11,7 @@ using MailFathom.AI.Retrieval;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.AiProviders;
+using MailFathom.Application.Answers;
 using MailFathom.Application.Chat;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
@@ -144,7 +145,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             tools.ReportedConfidence ?? PresentationConfidence.Moderate,
             evidence.Support);
 
-        await journal.ComposeAsync(new AnswerBlock(evidence, answer, confidence), cancellationToken);
+        await journal.ComposeAsync(new AnswerBlock(evidence, answer, confidence, LinksIn(answer, tools)), cancellationToken);
 
         AgentConversationEvents.LogAnswered(this.logger, this.plan.Endpoint.Alias, cited.Length);
 
@@ -154,6 +155,10 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     /// <summary>Turns an answer into the text a block may carry, or refuses it as no answer at all.</summary>
     /// <param name="text">The text the run's last turn carried.</param>
     /// <returns>The text a block carries, or <see langword="null" /> where none is left, which the run fails as an empty answer.</returns>
+    /// <remarks>
+    /// Its pictures go after its control characters, because dropping one between a mark and its bracket would rebuild a
+    /// picture the neutralising had already passed over, and before it is cut, so the cut bounds the text that is published.
+    /// </remarks>
     internal static PresentationText? Presentable(string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -161,13 +166,20 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             return null;
         }
 
-        var cleaned = new string([.. text.Where(static character => !char.IsControl(character) || character is '\n' or '\r' or '\t')]).Trim();
+        var cleaned = AnswerMarkup.WithoutPictures(new string([.. text.Where(static character => !char.IsControl(character) || character is '\n' or '\r' or '\t')])).Trim();
         var bounded = cleaned.Length <= PresentationText.MaxLength
             ? cleaned
             : MailTextBounds.TruncateAtTextElementBoundary(cleaned, PresentationText.MaxLength);
 
         return PresentationText.TryCreate(bounded, out var presentable) ? presentable : null;
     }
+
+    /// <summary>Judges every link an answer writes against the mail the run showed the model.</summary>
+    /// <param name="answer">The answer as its block carries it.</param>
+    /// <param name="tools">The run's tools, which hold every message it showed.</param>
+    /// <returns>The links, judged.</returns>
+    internal static IReadOnlyList<AnswerLink> LinksIn(PresentationText answer, AgentConversationTools tools) =>
+        AnswerMarkup.LinksIn(answer.Value, tools.ShownMail);
 
     /// <summary>Composes what the model is sent: every earlier turn of the conversation, then the question's own turn.</summary>
     /// <param name="brief">The question, the language it is answered in, and the conversation before it.</param>

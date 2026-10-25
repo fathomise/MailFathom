@@ -180,8 +180,8 @@ export function newsletterBody({ remoteImages = false, fullHtml = false } = {}) 
         storedEmailId: newsletterId,
         availability: 'Readable',
         plainText: {
-            text: 'A newsletter, as words.\n\nRead it at example.invalid.',
-            originalCharacterCount: 48,
+            text: 'A newsletter, as words.\n\nRead it at example.invalid. The bay plan is at https://bays.example/plan.',
+            originalCharacterCount: 98,
             truncation: 'None',
         },
         document: {

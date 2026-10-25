@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Text.Json;
+using MailFathom.Application.Answers;
 using MailFathom.Application.Discovery.Planning;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
@@ -126,7 +127,7 @@ internal static class DiscoveryCompositionReading
                 _ => null,
             };
 
-        return shaped ?? Answer(document, evidence, support, language);
+        return shaped ?? Answer(document, evidence, restedOn.Values, support, language);
     }
 
     /// <summary>Composes the synthesized answer, holding what a model claimed about it to what its sources support.</summary>
@@ -141,25 +142,30 @@ internal static class DiscoveryCompositionReading
     /// <see cref="DiscoveryPlanReading" /> applies to the same cut: a cut between the halves of an astral character
     /// leaves a lone surrogate that reaches a reader as a replacement character.
     /// </para>
+    /// <para>
+    /// The model's words lose their pictures before they are cut, so the cut bounds the text that is published, and its
+    /// links are judged against the extracts the answer rests on once it is.
+    /// </para>
     /// </remarks>
     private static AnswerBlock Answer(
         DiscoveryResultDocument? document,
         PresentationEvidence evidence,
+        IEnumerable<DiscoveryComposedSource> restedOn,
         PresentationSupport support,
         UserLanguage language)
     {
-        var answer = document?.Answer is { Length: > PresentationText.MaxLength } overlong
+        var written = document?.Answer is { } answered ? AnswerMarkup.WithoutPictures(answered) : null;
+        var answer = written is { Length: > PresentationText.MaxLength } overlong
             ? overlong[..(char.IsLowSurrogate(overlong[PresentationText.MaxLength])
                 ? PresentationText.MaxLength - 1
                 : PresentationText.MaxLength)]
-            : document?.Answer;
+            : written;
 
-        var text = support is not PresentationSupport.Unsupported
-            && PresentationText.TryCreate(answer, out var written)
-            ? written
-            : PresentationText.Create(ApplicationTexts.GetText(ApplicationText.DiscoveryMailDoesNotAnswer, language));
+        var confidence = PresentationConfidenceCeiling.Cap(document?.Confidence, support);
 
-        return new AnswerBlock(evidence, text, PresentationConfidenceCeiling.Cap(document?.Confidence, support));
+        return support is not PresentationSupport.Unsupported && PresentationText.TryCreate(answer, out var text)
+            ? new AnswerBlock(evidence, text, confidence, AnswerMarkup.LinksIn(text.Value, restedOn.Select(static source => source.Extract)))
+            : new AnswerBlock(evidence, PresentationText.Create(ApplicationTexts.GetText(ApplicationText.DiscoveryMailDoesNotAnswer, language)), confidence);
     }
 
     /// <summary>Composes the course of events, or nothing where the model named none this run can stand behind.</summary>

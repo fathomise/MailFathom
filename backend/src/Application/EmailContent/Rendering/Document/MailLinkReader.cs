@@ -3,16 +3,20 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Globalization;
-using MailFathom.Application.EmailContent.Rendering.Document;
 
-namespace MailFathom.Infrastructure.Mail.Mime.Rendering;
+namespace MailFathom.Application.EmailContent.Rendering.Document;
 
-/// <summary>Turns one of a message's links into where it goes and what its own text claimed about that.</summary>
+/// <summary>Turns one link into where it goes and what its own text claimed about that.</summary>
 /// <remarks>
 /// <para>
 /// The determination is made once, in the service, and travels beside the link. Two renderers deriving it for
 /// themselves would be two chances to derive it differently, and a second client could then be quieter about a
 /// deceptive link than the first — which is the failure this placement exists to rule out.
+/// </para>
+/// <para>
+/// A link in a message and a link in an AI answer are judged here alike. An answer is written by a model that read mail
+/// anybody can send, so a link in it can be a sender's link speaking through the model, and judging it less carefully
+/// than the same link in the message would be the gap a sender aims for.
 /// </para>
 /// <para>
 /// Three schemes survive and no others. A relative reference is dropped rather than completed, because there is no base
@@ -24,7 +28,7 @@ namespace MailFathom.Infrastructure.Mail.Mime.Rendering;
 /// so a reader can be shown where the link goes before following it.
 /// </para>
 /// </remarks>
-internal static class MailLinkReader
+public static class MailLinkReader
 {
     /// <summary>The longest target this carries, past which a link is a payload rather than a place.</summary>
     private const int MaximumTargetLength = 4096;
@@ -42,8 +46,11 @@ internal static class MailLinkReader
     /// <param name="href">The reference as the message wrote it.</param>
     /// <param name="displayText">The words the link shows, which is what its target is judged against.</param>
     /// <returns>The link, or <see langword="null" /> where the reference is not one a reader may follow.</returns>
-    internal static MailDocumentLink? Read(string? href, string displayText)
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="displayText" /> is <see langword="null" />.</exception>
+    public static MailDocumentLink? Read(string? href, string displayText)
     {
+        ArgumentNullException.ThrowIfNull(displayText);
+
         if (href is null)
         {
             return null;

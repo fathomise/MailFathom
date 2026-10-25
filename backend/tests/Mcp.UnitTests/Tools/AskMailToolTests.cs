@@ -237,6 +237,24 @@ public sealed class AskMailToolTests
         Assert.False(result.RetrievalTruncated);
     }
 
+    /// <summary>A caller relaying the answer gets no picture to fetch and every link with what the service established about it.</summary>
+    [Fact]
+    public async Task AskMailAsync_AnAnswerWritingAPictureAndADeceptiveLink_PublishesNoPictureAndTheLinksJudgement()
+    {
+        // Arrange
+        var tool = ToolOver(new StubMailQuestionAnswerer().Answering(
+            "Pay at [bank.example.test](https://evil.example.test/pay). ![seal](https://cdn.example.test/s.png)"));
+
+        // Act
+        var result = await tool.AskMailAsync(Question, cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.DoesNotContain("![", result.Answer, StringComparison.Ordinal);
+        Assert.Equal(
+            [("https://evil.example.test/pay", true, false), ("https://cdn.example.test/s.png", false, false)],
+            result.Links.Select(static link => (link.Target, link.WordsNameAnotherHost, link.AppearsInCitedEmails)));
+    }
+
     /// <summary>
     /// A run stopped from reading further answered a narrower reading of the mailbox, and the caller is the only party
     /// that can decide what to do about it — so the flag is published rather than kept as a diagnostic.

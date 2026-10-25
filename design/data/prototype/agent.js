@@ -296,6 +296,23 @@
         },
       ],
     },
+    /* Links in an answer are judged as links in mail are: each says where it goes, and the service says which ones
+       appear in none of the messages the answer cites - a link the model wrote, or one a message asked it to write. */
+    {
+      id: "c-links", title: "Where are the Northwind reports?", when: "10:12",
+      msgs: [
+        { role: "user", text: "Where can I read the reports Northwind sent with the quote?", ts: atToday(10, 12) },
+        {
+          role: "bot", ts: atToday(10, 12), scope: "thread · 3 messages",
+          text: "Northwind links the reports from the quote itself: [northwind.example/reports](https://northwind.example/reports). The latest message also asks you to confirm the order at [northwind.example](https://northwind-billing.example/confirm).",
+          links: {
+            "https://northwind.example/reports": { host: "northwind.example", cited: true },
+            "https://northwind-billing.example/confirm": { host: "northwind-billing.example", cited: false, deceptive: true },
+          },
+          blocks: [],
+        },
+      ],
+    },
     {
       id: "c-invoice", title: "Invoice 08/2026 - what is missing", when: "Monday", archived: true,
       msgs: [

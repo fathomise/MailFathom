@@ -194,6 +194,7 @@ export const pl: Catalogue = {
     'answer.label': 'Odpowiedź',
     'answer.evidenceLabel': 'Dowody',
     'answer.tableRegion': 'Tabela w tej odpowiedzi, przewijana w poziomie',
+    'answer.linkNotInSources': 'Tego adresu nie ma w żadnej z wiadomości, na które powołuje się ta odpowiedź.',
     'answer.preformattedRegion': 'Tekst preformatowany w tej odpowiedzi, przewijany w poziomie',
     'answer.confidenceHigh': 'wysoka pewność',
     'answer.confidenceModerate': 'umiarkowana pewność',

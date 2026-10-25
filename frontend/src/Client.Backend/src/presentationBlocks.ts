@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { asRecord } from './json';
+import { parseLink, type MailDocumentLink } from './mailBody';
 
 // What the blocks of a presentation plan carry, and the sources they rest on. It sits apart from `discoveryRun.ts`
 // because that module is the route — when a run is read, what a cursor means, how a tail is asked for — and this is
@@ -158,6 +159,15 @@ export interface DeclaredSource {
 export interface SynthesizedAnswer {
     readonly text: string;
     readonly confidence: AnswerConfidence;
+
+    /** Every link the text writes, judged as a link in mail is; empty where the text writes none or a deployment judged none. */
+    readonly links: readonly AnswerLink[];
+}
+
+/** One link an answer's text writes, as the service judged it, and whether its target appears in any source the answer cites. */
+export interface AnswerLink {
+    readonly link: MailDocumentLink;
+    readonly appearsInCitedSources: boolean;
 }
 
 /** One message an answer rests on, and the part of it worth reading. */
@@ -388,6 +398,7 @@ const mostPersonEntries = 30;
 const mostParticipants = 30;
 const mostStatements = 25;
 const mostRecipients = 20;
+const mostAnswerLinks = 32;
 const longestText = 4000;
 const longestCitationId = 32;
 const longestIdentity = 256;
@@ -491,8 +502,17 @@ export function parseSynthesizedAnswer(value: unknown): SynthesizedAnswer | null
 
     const text = parseText(record['text']);
     const confidence = oneOf(record['confidence'], confidences);
+    const links = record['links'] == null ? [] : parsedItems(record['links'], mostAnswerLinks, parseAnswerLink);
 
-    return text === null || confidence === null ? null : { text, confidence };
+    return text === null || confidence === null || links === null ? null : { text, confidence, links };
+}
+
+function parseAnswerLink(value: unknown): AnswerLink | null {
+    const record = asRecord(value);
+    const link = record === null ? undefined : parseLink(record['link']);
+    const appearsInCitedSources = record?.['appearsInCitedSources'];
+
+    return link == null || typeof appearsInCitedSources !== 'boolean' ? null : { link, appearsInCitedSources };
 }
 
 /**

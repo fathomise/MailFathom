@@ -85,26 +85,40 @@ MailFathomDesign.markdown = (() => {
     c: "font-family:'Geist Mono',ui-monospace,monospace;font-size:0.88em;background:var(--hover);border:1px solid var(--line);border-radius:6px;padding:1px 5px",
     a: "color:var(--accent-d);text-decoration:underline",
   };
-  const mdRuns = (text) => mdInline(text).map(r => ({
-    text: r.t, plain: !r.href, isLink: !!r.href, href: r.href || "",
-    style: r.href ? MDRUN.a : r.b ? MDRUN.b : r.i ? MDRUN.i : r.s ? MDRUN.s : r.c ? MDRUN.c : "",
-  }));
+  /* A link in an AI answer is drawn the way a link in mail is: where it goes beside it, and a warning wherever the
+     service's judgement asks for one. `judged` maps a target to { host, cited, deceptive }; a link it does not name
+     was judged by nobody, so it is warned about as appearing in no cited message. Mail bodies pass no map. */
+  const LINKNOTE = "font-size:13px;color:var(--muted)";
+  const LINKWARN = "font-size:13px;color:var(--warn-text)";
+  const linkWarnings = (j) => [
+    j.deceptive ? "This link does not go where its words say. It goes to " + j.host + "." : null,
+    j.cited ? null : "This address is in none of the messages this answer cites.",
+  ].filter(Boolean);
+  const mdRuns = (text, judged) => mdInline(text).map(r => {
+    const j = r.href && judged ? (judged[r.href] || { host: r.href, cited: false }) : null;
+    return {
+      text: r.t, plain: !r.href, isLink: !!r.href, href: r.href || "",
+      style: r.href ? MDRUN.a : r.b ? MDRUN.b : r.i ? MDRUN.i : r.s ? MDRUN.s : r.c ? MDRUN.c : "",
+      isJudged: !!j, goesTo: j ? " goes to " + j.host : "", noteStyle: LINKNOTE, warnStyle: LINKWARN,
+      warnings: j ? linkWarnings(j).map(w => ({ text: " " + w })) : [],
+    };
+  });
 
   const MDTXT = "font-size:15px;line-height:1.65;color:var(--text2);text-wrap:pretty";
-  const mdBlock = (b) => {
-    if (b.k === "h") return { isText: true, runs: mdRuns(b.text), style: b.lvl <= 1
+  const mdBlock = (b, judged) => {
+    if (b.k === "h") return { isText: true, runs: mdRuns(b.text, judged), style: b.lvl <= 1
       ? "font-size:20px;font-weight:600;letter-spacing:-0.015em;color:var(--text);text-wrap:pretty;margin-top:2px"
       : b.lvl === 2
       ? "font-size:16px;font-weight:600;color:var(--text);text-wrap:pretty;margin-top:2px"
       : "font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);margin-top:2px;font-weight:600" };
-    if (b.k === "quote") return { isText: true, runs: mdRuns(b.text),
+    if (b.k === "quote") return { isText: true, runs: mdRuns(b.text, judged),
       style: "font-size:15px;line-height:1.6;color:var(--text2);background:var(--hl);border-left:3px solid var(--hl-line);border-radius:0 8px 8px 0;padding:11px 15px;text-wrap:pretty" };
     if (b.k === "code") return { isCode: true, text: b.text,
       style: "font-family:'Geist Mono',ui-monospace,monospace;font-size:13px;line-height:1.6;white-space:pre-wrap;color:var(--text2);background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow:auto" };
     if (b.k === "hr") return { isHr: true, style: "height:1px;background:var(--line);margin:2px 0" };
     if (b.k === "ul" || b.k === "ol") return { isList: true, style: "display:flex;flex-direction:column;gap:6px",
       items: b.items.map((it, n) => ({
-        runs: mdRuns(it.text),
+        runs: mdRuns(it.text, judged),
         style: "display:flex;gap:9px;align-items:flex-start" + (it.depth ? ";padding-left:22px" : ""),
         marker: it.done === null ? (b.k === "ol" ? (it.num || (n + 1) + ".") : "•") : it.done ? "check_box" : "check_box_outline_blank",
         markerStyle: it.done === null
@@ -125,9 +139,9 @@ MailFathomDesign.markdown = (() => {
       return { isTable: true, style: "display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)",
         rows: [row(b.head, true, false)].concat(b.rows.map((r, ri) => row(r, false, ri === b.rows.length - 1))) };
     }
-    return { isText: true, runs: mdRuns(b.text), style: MDTXT };
+    return { isText: true, runs: mdRuns(b.text, judged), style: MDTXT };
   };
-  const mdView = (src) => mdParse(src).map(mdBlock);
+  const mdView = (src, judged) => mdParse(src).map(b => mdBlock(b, judged));
 
   return { mdInline, mdParse, mdPlain, MDRUN, mdRuns, MDTXT, mdBlock, mdView };
 })();

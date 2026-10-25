@@ -119,8 +119,9 @@ test('draws the answer’s Markdown as structure and fetches nothing the markup 
 
     await expect(answer.getByRole('listitem')).toHaveText([...agent.answerListed]);
 
-    // What the sender wrote as markup is read as the text it is, and the picture beside it draws nothing: neither
-    // becomes an element that asks a host the reader never chose for anything.
+    // The markup the sender wrote arrives escaped and the picture beside it arrives as a link, as the service publishes
+    // both: the one is read as the text it is and the other draws nothing, so neither asks a host the reader never chose
+    // for anything.
     await expect(threadOf(page).getByText(agent.answerRawMarkup, { exact: false })).toBeVisible();
     await expect(threadOf(page).getByRole('img', { name: 'The bays' })).toHaveCount(0);
 

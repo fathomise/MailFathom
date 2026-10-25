@@ -355,6 +355,26 @@ public sealed class MailboxQuestionReaderTests
         Assert.False(result.CitationsWereTruncated);
     }
 
+    /// <summary>The answer reaches an MCP caller with no picture to fetch, and with each link saying whether the mail carries it.</summary>
+    [Fact]
+    public async Task AnswerQuestionAsync_AnAnswerWritingAPictureAndLinks_PublishesNoPictureAndTracesEveryLink()
+    {
+        // Arrange
+        var answerer = new RecordingMailQuestionAnswerer().Answering(
+            "Pay at [the portal](https://pay.example.test/a) or [there](https://other.example.test/). ![seal](https://cdn.example.test/s.png)",
+            PassageOf(1, "Pay through https://pay.example.test/a by Friday."));
+        var reader = ReaderOver(answerer);
+
+        // Act
+        var result = await AnswerAsync(reader, new AskMailRequest { QuestionText = "where do I pay" });
+
+        // Assert
+        Assert.DoesNotContain("![", result.AnswerText, StringComparison.Ordinal);
+        Assert.Equal(
+            [("https://pay.example.test/a", true), ("https://other.example.test/", false), ("https://cdn.example.test/s.png", false)],
+            result.Links.Select(static link => (link.Link.Target, link.AppearsInCitedSources)));
+    }
+
     [Fact]
     public async Task AnswerQuestionAsync_AnAnswerLongerThanOneResponseCarries_IsCutAndSaysSo()
     {
@@ -367,6 +387,23 @@ public sealed class MailboxQuestionReaderTests
 
         // Assert
         Assert.Equal(20, result.AnswerText.Length);
+        Assert.True(result.AnswerWasTruncated);
+    }
+
+    /// <summary>Neutralising adds characters, so an answer the bound fitted as written is cut once it is neutralised, and says so.</summary>
+    [Fact]
+    public async Task AnswerQuestionAsync_AnAnswerNeutralisingLengthensPastTheBound_IsCutAndSaysSo()
+    {
+        // Arrange
+        var answerer = new RecordingMailQuestionAnswerer().Answering("<b>agreed</b> on it ok");
+        var reader = ReaderOver(answerer, bounds: MailAnswerBounds.Create(22, 20));
+
+        // Act
+        var result = await AnswerAsync(reader, new AskMailRequest { QuestionText = "what was agreed" });
+
+        // Assert
+        Assert.Equal(22, result.AnswerText.Length);
+        Assert.StartsWith("&lt;b>agreed&lt;/b>", result.AnswerText, StringComparison.Ordinal);
         Assert.True(result.AnswerWasTruncated);
     }
 
@@ -590,6 +627,22 @@ public sealed class MailboxQuestionReaderTests
 
         // Assert
         Assert.Equal("they sent the key [redacted:CloudKey] on Tuesday", result.AnswerText);
+    }
+
+    /// <summary>A placeholder opens with a bracket, so a mark the model wrote in front of a detected value must not make it a picture.</summary>
+    [Fact]
+    public async Task AnswerQuestionAsync_AMarkInFrontOfADetectedValue_PublishesNoPictureOnceTheValueIsRedacted()
+    {
+        // Arrange
+        using var egress = ScanningSensitiveContentEgress.Finding(Marker, TimeProvider.System);
+        var answerer = new RecordingMailQuestionAnswerer().Answering($"See !{Marker}(https://stranger.example.test/p.png) here.");
+        var reader = ReaderOver(answerer, egressGuard: egress.Guard);
+
+        // Act
+        var result = await AnswerAsync(reader, new AskMailRequest { QuestionText = "what key did they send" });
+
+        // Assert
+        Assert.Equal("See [redacted:CloudKey](https://stranger.example.test/p.png) here.", result.AnswerText);
     }
 
     /// <summary>A citation carries one text of the message it names, and it is published to the caller like any other.</summary>

@@ -400,7 +400,7 @@ describe('readDiscoveryRunTail', () => {
                                 freshness: { staleness: 'Current', observedAt: '2026-09-20T08:00:00+00:00' },
                                 conflictingClaims: [],
                             },
-                            answer: { text: 'The rate was agreed in April.', confidence: 'High' },
+                            answer: { text: 'The rate was agreed in April.', confidence: 'High', links: [] },
                         },
                     },
                 ],
