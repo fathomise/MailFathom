@@ -719,11 +719,11 @@ worded as *does not exist* and is read as neither. One call, and the answer a
 
 What differs is narrow and is listed in both skills at the step it applies to,
 and it splits along those two facts. The repository decides the branch name and
-the linked worktree, every label the issue carries and its milestone, and which
+the linked worktree, the issue's type, every label it carries, and its milestone, and which
 remote is pushed to; the board probe decides the `Area`, `Queue`, and `Size`
 fields and the `Queue: Next` write when the pull request opens. A contributor the
 owner granted board write therefore places an issue exactly as the owner's
-checkout does while still not labelling it, which is the point of separating
+checkout does while still neither typing nor labelling it, which is the point of separating
 them. What does not differ is everything else, including both verification
 scripts, every gate, the pull request, and the `Closes #<issue>` reference.
 
@@ -774,7 +774,7 @@ mirrors.
 
 Four sentences are enough, and what earns a place in one is what an agent would
 otherwise get wrong: which remote is which, that project `1` is unreachable and
-its label, milestone, and board fields belong to triage, that nothing is pushed
+its type, labels, milestone, and board fields belong to triage, that nothing is pushed
 to `fathomise/MailFathom`, and that the branch keeps the name it was given.
 The wording itself is written once, in
 `.agents/skills/get-started-contributors/SKILL.md`, and repeated once where a
@@ -928,8 +928,8 @@ issues nobody here opened, and one arrives with no issue type, no stack
 label, and no board fields because none of the rules reached its author. The
 same page holds that path too: the missing issue type is what marks an issue
 untriaged, triage either places it by the ordinary rules or closes it as `not
-planned` with a reason, a question moves to Discussions instead of being given a
-label so the board has somewhere to put it, and a contribution is read
+planned` with a reason, a question moves to Discussions instead of being given an
+issue type so the board has somewhere to put it, and a contribution is read
 cheapest-check-first — required checks, then `Protected paths`, then a
 maintainer's review. The `Triage` board view is where an arrival waits, and an
 item the project opened itself never reaches it.
