@@ -901,7 +901,8 @@ The canonical skills are:
 [Issue tracking and the roadmap board](issue-tracking.md) holds the issue rules
 themselves: which work needs an issue, what an issue body contains, the issue
 type it carries, the `backend` or `frontend` label saying which stack the work
-lands in and the case that takes neither, the `agent:claude` or `agent:codex` marker a session
+lands in and the case that takes neither, the `design` label on work that changes
+`design/` and how `finish-change` holds it against the diff, the `agent:claude` or `agent:codex` marker a session
 applies when it takes one, the `Area`, `Queue` and `Size` fields that place it on
 the board, the milestone that scopes it to a release, the dependency relation
 that records which issue has to land before which — distinct from both the

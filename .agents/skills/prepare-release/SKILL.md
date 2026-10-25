@@ -548,8 +548,7 @@ the tag and closes when the release is actually finished.
 **Then set `Queue: Next` on the tracking issue.** `docs/operations/issue-tracking.md` § *Linking a pull request to its
 issue* makes that write part of opening a pull request, and it is this skill's to perform: `$finish-change` is what
 writes it everywhere else, and no step here invokes it. Without the write the release is the one piece of work in
-flight that the board's `Now` view cannot see, for exactly the weeks it is being cut. It sits outside the owner's
-five-slot cap, as every write triggered by a pull request does.
+flight that the board's `Now` view cannot see, for exactly the weeks it is being cut.
 
 ```bash
 gh project field-list 1 --owner fathomise --format json   # field ids and option ids

@@ -82,7 +82,7 @@ Do not proceed while a gate fails.
    issue the pull request closes, whether it was opened for this task or already existed, and
    confirm the value landed. No project automation can
    write that field, so a value that did not land is an incomplete gate in the same way a missing
-   `Closes #<issue>` is. It sits outside the owner's five-slot cap and needs no clearing: the merge
+   `Closes #<issue>` is. It needs no clearing: the merge
    closes the issue out of every view that reads `Queue`. It is not written on an issue carrying the
    `parent` label, because a pull request closes the issue that does the work rather than the parent
    grouping it, and a `Closes` reference pointing at a parent is the defect to correct rather than an
@@ -114,10 +114,18 @@ Do not proceed while a gate fails.
 
 Confirm the issue is still placed, against `docs/operations/issue-tracking.md`, as far as this
 session's access reaches: its issue type, a `backend` or `frontend` label where the work
-landed in one of the two stacks, and a milestone if the release rule assigns one, all of which need
-write access to the repository, and an `Area` and a `Size` on the board, the `Size` being what step 8
-measured rather than the placeholder the issue was opened with. A change that grew past what the
-issue described may have outgrown its placement too.
+landed in one of the two stacks, the `design` label exactly when the diff changes `design/`, and a
+milestone if the release rule assigns one, all of which need write access to the repository, and an
+`Area` and a `Size` on the board, the `Size` being what step 8 measured rather than the placeholder
+the issue was opened with. A change that grew past what the issue described may have outgrown its
+placement too.
+
+The `design` label is the one placement the diff can prove, so hold it against
+`git diff --name-only <base>...HEAD -- design/`. Output with no label on the issue: add it. The label
+with no output: remove it when the design already showed what the change produces, and treat it as
+unfinished work instead when the client now shows something `design/` does not draw — the root
+`AGENTS.md` § *The design leads the client, never the other way round* puts that design half in this
+pull request.
 
 Leave the board's `Status` field to the project automation. Set a status by hand only for an issue
 created already closed, which the automation does not add.
@@ -138,7 +146,7 @@ Issue link: <Closes #N confirmed in the published body>
 Related pull requests: <the ones scripts/report-related-pull-requests.sh named and what each changed here, or none>
 Queue: <Next confirmed on the board after the pull request existed, or not applicable (no board write)>
 Size: <the band written from this pull request's own diff and confirmed, or not applicable (no board write, or a parent issue)>
-Placement: <issue type, stack label or neither, Area, milestone or none — or what this session's access left to triage>
+Placement: <issue type, stack label or neither, design label held against the diff under design/, Area, milestone or none — or what this session's access left to triage>
 ```
 
 Never claim completion without fresh evidence for every line.
