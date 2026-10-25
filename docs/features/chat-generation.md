@@ -659,8 +659,9 @@ reporting the old state until something calls.
 
 Three things make the states readable:
 
-- **A health check per declared provider**, named `ai-chat-provider` and `ai-embedding-provider`. Both reach the
-  readiness probe alone and **neither ever reports worse than degraded**. Neither provider serves a request path — an
+- **A health check per declared provider**, named `ai-chat-provider` and `ai-embedding-provider`, and
+  `ai-decision-provider` for a declared [decision model](../operations/configuration-ai.md#decisions). Each reaches the
+  readiness probe alone and **none ever reports worse than degraded**. Neither provider serves a request path — an
   instance with a failing embedding provider still answers every search lexically, and one with a failing chat provider
   still answers every search at all — so a failing provider must not take the instance out of traffic, and must never
   reach the liveness probe where it would restart a process that is working. A deployment that declared only one

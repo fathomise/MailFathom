@@ -5,6 +5,7 @@
 using MailFathom.Application.Rules.Conditions;
 using MailFathom.Host.Configuration.Answering;
 using MailFathom.Host.Configuration.Chat;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Embeddings;
 using MailFathom.Host.Configuration.Endpoints;
 using MailFathom.Host.Configuration.Rules;
@@ -167,6 +168,14 @@ internal static class ComposedSettings
         chatErrors.AddRange(
             SecretConfigurationValidator.FindSecretDeclarationErrors(ChatModelOptions.SectionName, chat));
 
+        // Bound strictly for the reason the chat section is, and judged only here: composition maps it into plans before
+        // the container exists, so no options validator would run ahead of that mapping.
+        var decisions = configuration.GetSection(DecisionModelOptions.SectionName)
+            .Get<DecisionModelOptions>(binderOptions => binderOptions.ErrorOnUnknownConfiguration = true);
+        List<string> decisionErrors = [.. DecisionModelOptions.FindDeclarationErrors(decisions, chat, embeddings)];
+        decisionErrors.AddRange(
+            SecretConfigurationValidator.FindSecretDeclarationErrors(DecisionModelOptions.SectionName, decisions));
+
         return
         [
             // Ahead of the chat rules because the ceiling it carries is what the filter's candidate count is judged
@@ -182,6 +191,9 @@ internal static class ComposedSettings
             // one AI endpoint across the whole deployment because a credential, a resilience circuit, and a log line are
             // all keyed by it, and the filter's candidate count against what a lookup actually hands over.
             .. Refusal<ChatModelOptions>(ChatModelOptions.SectionName, chatErrors),
+
+            // After the chat rules, because a decision alias is judged against the chat aliases those rules settle.
+            .. Refusal<DecisionModelOptions>(DecisionModelOptions.SectionName, decisionErrors),
         ];
     }
 

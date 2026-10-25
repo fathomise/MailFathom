@@ -60,6 +60,7 @@ internal static class TelemetryRedactionContract
         "mailfathom.mail.account",
         "mailfathom.mail.folder",
         "mailfathom.answering.endpoint",
+        "mailfathom.decision.endpoint",
         "mailfathom.work.scope",
     ];
 

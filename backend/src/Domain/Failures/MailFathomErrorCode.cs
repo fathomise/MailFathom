@@ -1092,6 +1092,26 @@ public readonly record struct MailFathomErrorCode
     /// </remarks>
     public static MailFathomErrorCode ChatAnswerEmpty { get; } = new(73001);
 
+    /// <summary>Gets subcategory 1, credentials: a decision model's provider refused the credential this deployment presented.</summary>
+    /// <remarks>
+    /// The second code in the subcategory rather than a reuse of the chat one, because a decision model is declared under
+    /// <c>Decisions</c> with a credential of its own, and an instance may hold a working chat key and a refused decision
+    /// one. Here rather than in a category of its own because a decision model is the same kind of remote party as a
+    /// chat model, reached for a closed question instead of for text.
+    /// </remarks>
+    public static MailFathomErrorCode DecisionProviderCredentialRejected { get; } = new(71002);
+
+    /// <summary>Gets subcategory 2, availability: a decision model did not answer within the budget configured for it.</summary>
+    /// <remarks>A rate limit, a timeout, an unreachable endpoint, an exhausted balance, and a request the provider rejected outright collapse into this one code, because each says the same thing to the work that asked: it keeps what it had without the model.</remarks>
+    public static MailFathomErrorCode DecisionProviderUnavailable { get; } = new(72002);
+
+    /// <summary>Gets subcategory 3, answer shape: a decision model answered with something other than one probability for every option offered.</summary>
+    /// <remarks>
+    /// Raised at the adapter rather than read with a default, because an option the answer left out read as a
+    /// probability of zero is a verdict nobody gave: a missing "not spam" would make every such answer a spam verdict.
+    /// </remarks>
+    public static MailFathomErrorCode DecisionAnswerUnreadable { get; } = new(73002);
+
     #endregion
 
     #region Category 8 — Sensitive-content scanning
@@ -1249,6 +1269,9 @@ public readonly record struct MailFathomErrorCode
         ChatProviderCredentialRejected,
         ChatProviderUnavailable,
         ChatAnswerEmpty,
+        DecisionProviderCredentialRejected,
+        DecisionProviderUnavailable,
+        DecisionAnswerUnreadable,
         SensitiveContentScannerUnavailable,
         PersonalDataAnalyzerUnavailable,
     ];

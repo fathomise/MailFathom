@@ -44,6 +44,7 @@ internal static class MailFathomConfigurationSections
         "ConnectionStrings",
         "ContentStorage",
         "DataEncryption",
+        "Decisions",
         "Deployment",
         "EmailContent",
         "EmbeddingBackfill",

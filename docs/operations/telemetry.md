@@ -1,6 +1,6 @@
 # Telemetry and the Aspire dashboard
 
-<!-- describes: backend/src/Application/Observability/**, backend/src/Common/Observability/**, backend/src/Host/Observability/**, backend/src/Host/Signals/SignalBackplaneTelemetry.cs, backend/src/Host/ServiceDefaultsExtensions.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Hosting/Workers/**, backend/src/Infrastructure/Observability/**, backend/src/Infrastructure/Mail/MailServerConnectionBudget.cs, backend/src/Infrastructure/Mail/MailKit/MailKitImapClientFactory.cs, backend/src/Infrastructure/HostApplicationBuilderExtensions.cs, backend/src/Mcp/Observability/**, backend/src/Cli/Diagnostics/**, backend/src/AppHost/**, backend/src/AI/ProviderAdapters/OpenAiCompatibleClientFactory.cs, deploy/helm/mailfathom/templates/valkey-*.yaml, deploy/compose/compose.yaml, deploy/quadlet/mailfathom-valkey.container, frontend/src/Client.App/src/containment/**, frontend/src/Client.App/src/telemetry/**, frontend/src/Client.App/src/App.tsx, frontend/src/Client.App/src/main.tsx, frontend/src/Client.Backend/src/telemetry.ts, frontend/src/Client.Backend/src/mailAttachment.ts, frontend/src/Client.Backend/src/ownDisplayName.ts, frontend/src/Client.Backend/src/ownPortrait.ts -->
+<!-- describes: backend/src/Application/Observability/**, backend/src/Common/Observability/**, backend/src/Host/Observability/**, backend/src/Host/Signals/SignalBackplaneTelemetry.cs, backend/src/Host/ServiceDefaultsExtensions.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Hosting/Workers/**, backend/src/Infrastructure/Observability/**, backend/src/Infrastructure/Mail/MailServerConnectionBudget.cs, backend/src/Infrastructure/Mail/MailKit/MailKitImapClientFactory.cs, backend/src/Infrastructure/HostApplicationBuilderExtensions.cs, backend/src/Mcp/Observability/**, backend/src/Cli/Diagnostics/**, backend/src/AppHost/**, backend/src/AI/ProviderAdapters/OpenAiCompatibleClientFactory.cs, backend/src/AI/Orchestration/DecisionTelemetry.cs, backend/src/AI/Orchestration/ObservedDecisionClient.cs, deploy/helm/mailfathom/templates/valkey-*.yaml, deploy/compose/compose.yaml, deploy/quadlet/mailfathom-valkey.container, frontend/src/Client.App/src/containment/**, frontend/src/Client.App/src/telemetry/**, frontend/src/Client.App/src/App.tsx, frontend/src/Client.App/src/main.tsx, frontend/src/Client.Backend/src/telemetry.ts, frontend/src/Client.Backend/src/mailAttachment.ts, frontend/src/Client.Backend/src/ownDisplayName.ts, frontend/src/Client.Backend/src/ownPortrait.ts -->
 
 The host instruments itself with OpenTelemetry throughout — logs, metrics, and traces — and exports none of it unless
 the environment names a destination. Today exactly one environment does that out of the box: a local run under the
@@ -103,6 +103,26 @@ is no configuration key for it either: a collector holding every question and an
 under a retention nobody chose and an access rule the mail store never granted, and this is not a trade an operator is
 offered. What remains is metadata — which operation ran, against which model and endpoint, how long it took, how many
 tokens it consumed, and whether it failed.
+
+### What a decision emits
+
+A decision model is reached through no provider library, so none of the decorators above wrap it, and what it emits is
+MailFathom's own. Each call opens one span, `decide`, on the host's own source, and records two instruments on its
+meter. The span sits outside the resilience pipeline, so it measures the call as the caller waited for it, retries
+included; the pipeline's own telemetry is what separates the attempts.
+
+| Signal | Unit | What it records | Across replicas |
+| --- | --- | --- | --- |
+| `mailfathom.decisions.duration` | `s` | How long one call took, by model and outcome | aggregated as a histogram, so the replicas' buckets add |
+| `mailfathom.decisions.tokens` | `{token}` | The tokens the provider reported for an answered call, by model and direction | summed |
+
+Both carry `mailfathom.decision.endpoint`, the declared alias; `mailfathom.decision.model`, the dated build that
+answered, or the one declared where none answered; and `mailfathom.decision.provider`. The duration and the span add
+`mailfathom.decision.outcome` — `answered`, `failed`, or `cancelled` — and, on a failure,
+`mailfathom.decision.failure`, which names the class the failure was classified as; the token counter adds
+`mailfathom.decision.direction`, `input` or `output`. A failed call sets the span's status to error. **Nothing about
+the mail reaches either**: no subject, body, address, question, criterion, answer, or probability, and not the money
+figure the provider sends beside the tokens.
 
 ## The build every record names
 
@@ -332,8 +352,8 @@ mail](../features/spam-classification.md#junk-is-kept-out-of-what-a-deployment-d
 means and what the wait is.
 
 Each outbound AI provider publishes what its last call established about it, as `mailfathom.ai.provider.health` tagged
-with `mailfathom.ai.provider.role` — `embedding` or `chat`. The two roles carry one measurement each rather than one
-combined figure, because an instance may hold a working embedding provider and a failing chat one and the two ask
+with `mailfathom.ai.provider.role` — `embedding`, `chat`, or `decision`. The roles carry one measurement each rather than
+one combined figure, because an instance may hold a working embedding provider and a failing chat one and the two ask
 different things of an operator. The value is the state's own number rather than its name, since an instrument's value
 has to be one: `0` nothing called yet, `1` serving, `2` unavailable and worth waiting out, `3` failing for a reason a
 credential or a declaration has to change. A role nothing has called publishes no measurement at all, so a flat line

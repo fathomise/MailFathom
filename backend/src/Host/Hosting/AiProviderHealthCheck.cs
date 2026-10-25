@@ -52,6 +52,7 @@ internal sealed class AiProviderHealthCheck : IHealthCheck
     {
         AiProviderRole.Embedding => "ai-embedding-provider",
         AiProviderRole.Chat => "ai-chat-provider",
+        AiProviderRole.Decision => "ai-decision-provider",
         _ => "ai-provider",
     };
 

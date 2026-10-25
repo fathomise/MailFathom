@@ -128,6 +128,7 @@ public sealed partial class AiProviderHealthTracker : IAiProviderHealthRecorder,
     {
         AiProviderRole.Embedding => "embedding",
         AiProviderRole.Chat => "chat",
+        AiProviderRole.Decision => "decision",
         _ => "unknown",
     };
 

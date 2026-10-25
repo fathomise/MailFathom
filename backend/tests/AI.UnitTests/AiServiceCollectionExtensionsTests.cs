@@ -2,10 +2,14 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using MailFathom.AI.BodyCleanup;
 using MailFathom.AI.CalendarEvents;
 using MailFathom.AI.Chat;
 using MailFathom.AI.DayLayout;
+using MailFathom.AI.DecisionModels;
+using MailFathom.AI.Decisions;
 using MailFathom.AI.Descriptions;
 using MailFathom.AI.Embeddings;
 using MailFathom.AI.Enrichment;
@@ -227,6 +231,46 @@ public sealed class AiServiceCollectionExtensionsTests
         // Against the transport the same declaration bounds with nothing routed, because the figure the main model
         // alone produces is what this widening replaced and the constants behind it belong to the registration.
         Assert.True(transport.MaxResponseContentBufferSize > MainModelResponseBuffer(main));
+    }
+
+    /// <summary>
+    /// A function's client is the whole pipeline over the adapter, keyed by the function, and its transport is bounded by
+    /// the slowest model any function asks, with the headroom the chat transport keeps.
+    /// </summary>
+    [Fact]
+    public async Task AddDecisionProviderAdapter_ResolvesEachFunctionsPipelineOverItsOwnTransport()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddHttpClient();
+        services.AddLogging();
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton(MailAnsweringRunBounds.Create(20_000, 8, 80_000));
+        services.AddSingleton(Substitute.For<IMailAnsweringSpendLedger>());
+        services.AddSingleton(Substitute.For<IProviderEndpointCredentialSource>());
+        services.AddSingleton(Substitute.For<IOutboundOperationRunner>());
+        services.AddSingleton(Substitute.For<IAiProviderHealthRecorder>());
+        using var activitySource = new ActivitySource("MailFathom.Tests.DecisionRegistration");
+        using var meter = new Meter("MailFathom.Tests.DecisionRegistration");
+        var plan = new DecisionModelPlan("decider", Address: null, "vendor/decider-2026-10-01", TimeSpan.FromSeconds(45), 32_000);
+
+        // Act
+        services.AddDecisionProviderAdapter(
+            new Dictionary<DecisionFunction, DecisionModelPlan> { [DecisionFunction.SpamClassification] = plan },
+            activitySource,
+            meter);
+
+        // Assert
+        await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
+        await using var scope = provider.CreateAsyncScope();
+        var client = scope.ServiceProvider.GetRequiredKeyedService<IDecisionClient>(DecisionFunction.SpamClassification);
+        using var transport = provider
+            .GetRequiredService<IHttpClientFactory>()
+            .CreateClient(OpenRouterDecisionClient.TransportName);
+
+        Assert.IsType<BudgetedDecisionClient>(client);
+        Assert.Equal("openrouter", client.GetService<DecisionClientMetadata>()?.ProviderName);
+        Assert.Equal(plan.RequestTimeout + TimeSpan.FromSeconds(30), transport.Timeout);
     }
 
     /// <summary>

@@ -5,6 +5,7 @@
 using MailFathom.Host.Configuration.Answering;
 using MailFathom.Host.Configuration.Chat;
 using MailFathom.Host.Configuration.DataEncryption;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Embeddings;
 using MailFathom.Host.Configuration.Jobs;
 using MailFathom.Host.Configuration.Mail;
@@ -141,6 +142,15 @@ internal static class BoundSettings
         services.AddOptions<ChatModelOptions>()
             .Bind(
                 configuration.GetSection(ChatModelOptions.SectionName),
+                binderOptions => binderOptions.ErrorOnUnknownConfiguration = true);
+        // A root of its own beside Chat, because a decision model answers a closed question through a contract a chat model
+        // does not speak. Bound without the framework's validator for a reason of its own: composition maps the section
+        // into plans before the container exists, so its rules are judged in ComposedSettings, ahead of that mapping,
+        // and a validator here would only repeat them. Strict, because the keys a chat block takes and this one refuses —
+        // a fallback, sampling parameters, extra headers, request members — must stop a start rather than be ignored.
+        services.AddOptions<DecisionModelOptions>()
+            .Bind(
+                configuration.GetSection(DecisionModelOptions.SectionName),
                 binderOptions => binderOptions.ErrorOnUnknownConfiguration = true);
         // A configuration root of its own beside Chat rather than a block inside it, because the two answer different
         // questions: Chat says which endpoint generates text and what one call to it may carry, while this says what

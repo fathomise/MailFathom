@@ -6,6 +6,8 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using MailFathom.AI.Chat;
+using MailFathom.AI.DecisionModels;
+using MailFathom.AI.Decisions;
 using MailFathom.AI.Providers;
 using MailFathom.Evaluations.Providers;
 using Microsoft.Extensions.AI;
@@ -196,6 +198,52 @@ internal static class EvaluationStore
                 plan,
                 model.GetService<ProviderChatClient>()?.ExtraHeaders ?? [],
                 provider.Repetitions),
+        };
+    }
+
+    /// <summary>Puts the run's response cache in front of a decision model under test, filed under the model and its address.</summary>
+    /// <param name="reporting">The run's store.</param>
+    /// <param name="model">The decision model's client, which stays the caller's.</param>
+    /// <param name="plan">The plan the model is measured with.</param>
+    /// <param name="scenarioName">The scenario the answers are filed under.</param>
+    /// <param name="iterationName">The iteration the result is filed under, which the answers are tallied against.</param>
+    /// <param name="repetition">Which repetition of the case this is, counted from one.</param>
+    /// <param name="cancellationToken">Withdraws the run.</param>
+    /// <returns>The cached client.</returns>
+    /// <remarks>
+    /// Filed exactly as <see cref="CacheOverAsync" /> files a chat answer, and for the same reasons; the key reads the
+    /// input, the questions, and the options itself, so a changed question is a new key and is asked again. Not disposed,
+    /// for the reason a chat wrapper is not: disposing it would dispose the caller's model client.
+    /// </remarks>
+    [SuppressMessage(
+        "Reliability",
+        "CA2000:Dispose objects before losing scope",
+        Justification = "Disposing the caching wrapper would dispose the caller's model client, which the scenario does not own.")]
+    public static async Task<IDecisionClient> CacheDecisionsOverAsync(
+        ReportingConfiguration reporting,
+        IDecisionClient model,
+        DecisionModelPlan plan,
+        string scenarioName,
+        string iterationName,
+        int repetition,
+        CancellationToken cancellationToken)
+    {
+        var provider = (TallyingResponseCacheProvider)reporting.ResponseCacheProvider!;
+        var cacheIterationName = IterationNameFor(plan.Model, repetition);
+        var cache = await provider.GetCacheAsync(scenarioName, cacheIterationName, cancellationToken);
+
+        return new TallyingCachingDecisionClient(
+            model,
+            cache,
+            provider.WrittenKeysFor(scenarioName, cacheIterationName),
+            provider.TallyFor(scenarioName, iterationName))
+        {
+            CacheKeyAdditionalValues =
+            [
+                plan.Model,
+                plan.Address?.AbsoluteUri ?? string.Empty,
+                .. provider.Repetitions is 1 ? Array.Empty<string>() : [string.Create(CultureInfo.InvariantCulture, $"repetitions={provider.Repetitions}")],
+            ],
         };
     }
 

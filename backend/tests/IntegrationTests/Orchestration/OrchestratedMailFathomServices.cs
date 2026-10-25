@@ -4,6 +4,9 @@
 
 using MailFathom.AI;
 using MailFathom.AI.Chat;
+using MailFathom.AI.DecisionModels;
+using MailFathom.AI.ProviderAdapters;
+using MailFathom.AI.Providers;
 using MailFathom.AppHost;
 using MailFathom.Application.Access;
 using MailFathom.Application.Access.Grants;
@@ -43,6 +46,7 @@ using MailFathom.Application.Spam.Actions;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Application.Synchronization.Reconciliation;
+using MailFathom.Common.Observability;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Delivery.Governance;
 using MailFathom.Domain.Emails;
@@ -193,6 +197,10 @@ internal sealed class OrchestratedMailFathomServices : IAsyncDisposable
     /// questions. Absent everywhere but the class that asks one, because a registered answerer is what makes the
     /// capability report that this instance answers at all.
     /// </param>
+    /// <param name="decisionEndpoint">
+    /// The decision model a closed question is asked of, answering from a script, or <see langword="null" /> for a
+    /// deployment that declared none. Absent everywhere but the class that asks one.
+    /// </param>
     /// <param name="foldersWithoutEmbeddings">
     /// The folders this account is configured to leave unembedded, empty everywhere but the class proving that a
     /// message stored in one is cut into no passages at all.
@@ -247,7 +255,8 @@ internal sealed class OrchestratedMailFathomServices : IAsyncDisposable
         ContactCollectionSettings? contactCollection = null,
         bool filesSentCopies = false,
         bool keepsDrafts = false,
-        bool storesContentInObjectStorage = false)
+        bool storesContentInObjectStorage = false,
+        ScriptedDecisionEndpoint? decisionEndpoint = null)
     {
         var builder = new HostApplicationBuilder();
         var account = new SyntheticMailAccount(
@@ -546,6 +555,21 @@ internal sealed class OrchestratedMailFathomServices : IAsyncDisposable
                 provider.GetRequiredService<MailAnsweringRunBounds>(),
                 AnsweringChatPlan,
                 chatClient));
+        }
+
+        // The decision half, registered only for a test that asks a closed question, and composed by the same call a
+        // composition root makes so the whole pipeline — ceilings, period charge, telemetry, resilience, adapter — is
+        // the deployment's. Only the transport's last hop is the test's: the endpoint answers from a script, which is what
+        // keeps a free run free while every layer above it reaches the real database and the real resilience pipelines.
+        if (decisionEndpoint is { } endpoint)
+        {
+            builder.Services.AddSingleton<IProviderEndpointCredentialSource>(new ScriptedDecisionEndpoint.NoCredential());
+            builder.Services.AddDecisionProviderAdapter(
+                new Dictionary<DecisionFunction, DecisionModelPlan> { [DecisionFunction.SpamClassification] = endpoint.Plan },
+                Telemetry.ActivitySource,
+                Telemetry.Meter);
+            builder.Services.AddHttpClient(OpenRouterDecisionClient.TransportName)
+                .ConfigurePrimaryHttpMessageHandler(endpoint.CreateHandler);
         }
 
         // The ring a composition root would build from the DataEncryption section. It is supplied here for the reason
