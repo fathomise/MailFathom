@@ -198,7 +198,7 @@ public sealed class MailFlagChangeRecorder
     /// <remarks>
     /// The idempotency identity is the occurrence, the requester, and the mutation, and none of the three carries the
     /// value asked for. That was enough while every requester encoded its terms in its own identity — a rule carries its
-    /// revision, a classification its corpus and threshold — but a caller-authored request is identified by text the
+    /// revision, a classification the stage that decided it — but a caller-authored request is identified by text the
     /// caller picked, so starring and then unstarring one message under one identity would be answered twice with the
     /// first record and the star would never come off. Comparing the terms is what turns that into a refusal the caller
     /// can act on rather than a success that changed nothing.
