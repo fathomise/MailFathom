@@ -43,7 +43,7 @@ internal sealed record SpamClassificationRunStateResponse(string Account, SpamCl
 /// <param name="Folders">The folders the run walks.</param>
 /// <param name="Posture">Whether the run writes down what its verdicts ask of the mailbox, or only works it out.</param>
 /// <param name="Rescores">Whether the run scores mail already decided under its profile again.</param>
-/// <param name="Profile">The terms the run is bound to, absent until the first pass picks it up.</param>
+/// <param name="Profile">The classification profile the run is bound to, absent until the first pass picks it up.</param>
 /// <param name="ClassifiedEmailCount">How many occurrences the run recorded a verdict for.</param>
 /// <param name="SpamEmailCount">How many of the occurrences it reached carry a spam verdict.</param>
 /// <param name="UndeterminedEmailCount">How many of them carry a verdict that concluded nothing either way.</param>

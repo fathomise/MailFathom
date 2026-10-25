@@ -15,11 +15,11 @@ public enum SpamClassificationRunEnding
     /// <summary>The run reached the end of the mail its scope names.</summary>
     Completed = 0,
 
-    /// <summary>The settings a verdict is reached under changed while the run was outstanding.</summary>
+    /// <summary>The classification profile changed while the run was outstanding.</summary>
     /// <remarks>
     /// A run that has scored half a mailbox under one profile cannot finish the other half under another: the two halves
-    /// would not be comparable and the record could not say which terms the run applied. Ending it is what leaves the
-    /// operator with an honest record and one thing to do, which is ask for the run again under the settings now in
+    /// would not be comparable and the record could not say which profile the run applied. Ending it is what leaves the
+    /// operator with an honest record and one thing to do, which is ask for the run again under the profile now in
     /// force.
     /// </remarks>
     Superseded = 1,

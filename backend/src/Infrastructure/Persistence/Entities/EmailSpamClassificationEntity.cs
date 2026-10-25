@@ -63,7 +63,7 @@ internal sealed class EmailSpamClassificationEntity
     /// </remarks>
     public string? CorpusRevision { get; set; }
 
-    /// <summary>Gets or sets the settings the verdict was reached under, absent on a record written before it named one.</summary>
+    /// <summary>Gets or sets the terms the verdict was reached under, absent on a record written before it named one.</summary>
     /// <remarks>
     /// Nullable rather than defaulted, because the two states mean different things to a run over a whole mailbox: a row
     /// naming the profile in force is mail to leave alone, and a row naming none was decided under terms nothing can

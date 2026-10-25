@@ -38,7 +38,7 @@ public sealed record SpamClassificationRun
     /// <summary>Gets what the operator asked the run to do, fixed when they asked.</summary>
     public required SpamClassificationRunTerms Terms { get; init; }
 
-    /// <summary>Gets the terms the run is bound to, which are unspecified until the first pass picks the run up.</summary>
+    /// <summary>Gets the classification profile the run is bound to, which is unspecified until the first pass picks the run up.</summary>
     /// <remarks>
     /// Bound when the run starts rather than when it is requested, because a request is answered on a thread that has no
     /// business deciding what the run will conclude: a replica of another release may be the one that picks it up, and

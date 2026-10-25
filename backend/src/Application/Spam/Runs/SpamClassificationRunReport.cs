@@ -7,7 +7,7 @@ using MailFathom.Domain.Spam;
 namespace MailFathom.Application.Spam.Runs;
 
 /// <summary>What one account run's share of a whole-mailbox classification run produced.</summary>
-/// <param name="Profile">The terms the run is bound to, unspecified when no run was carried.</param>
+/// <param name="Profile">The classification profile the run is bound to, unspecified when no run was carried.</param>
 /// <param name="Walk">What the pass did, or <see langword="null" /> when the account had no run outstanding.</param>
 /// <param name="Ending">How the run ended during this pass, or <see langword="null" /> when it is still outstanding.</param>
 /// <remarks>

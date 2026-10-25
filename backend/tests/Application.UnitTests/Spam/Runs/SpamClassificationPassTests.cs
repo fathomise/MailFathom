@@ -144,7 +144,7 @@ public sealed class SpamClassificationPassTests
         Assert.Single(this.harness.Classifications.Saved);
     }
 
-    /// <summary>A record from before the profile was part of one names terms the run cannot compare, so it is reached again.</summary>
+    /// <summary>A record from before the profile was part of one names no profile the run can compare, so it is reached again.</summary>
     [Fact]
     public async Task RunAsync_ARecordNamingNoProfile_IsScoredAgainRatherThanSkipped()
     {

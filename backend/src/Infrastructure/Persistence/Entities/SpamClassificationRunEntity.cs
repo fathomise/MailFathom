@@ -52,7 +52,7 @@ internal sealed class SpamClassificationRunEntity
     /// <summary>Gets or sets whether mail already decided under the run's profile is scored again rather than skipped.</summary>
     public bool Rescores { get; set; }
 
-    /// <summary>Gets or sets the settings the run is bound to, absent until the first pass picks the run up.</summary>
+    /// <summary>Gets or sets the classification profile the run is bound to, absent until the first pass picks the run up.</summary>
     public string? Profile { get; set; }
 
     /// <summary>Gets or sets the identity of the last occurrence a batch committed, absent while the run has committed none.</summary>

@@ -60,7 +60,7 @@ public sealed record SpamClassification
     /// <summary>Gets the score and the threshold it was judged against, or <see langword="null" /> when no stage produced a number.</summary>
     public SpamAssessment? Assessment { get; }
 
-    /// <summary>Gets the settings the verdict was reached under, or the unspecified value for a record that names none.</summary>
+    /// <summary>Gets the terms the verdict was reached under, or the unspecified value for a record that names none.</summary>
     /// <remarks>
     /// MailFathom's identity for the terms it decided under. It is what makes "already decided under the terms in force
     /// now" answerable from the record rather than guessed at from its age, which is what a run over a whole mailbox
