@@ -166,22 +166,22 @@ internal sealed class ThreadStateAgent : IThreadStateDeriver
             return this.Withhold(ThreadStateWithholding.ProviderUnavailable, answer?.Alias);
         }
 
-        var entries = ThreadStateReading.Read(answerText, thread.Messages);
+        var derivation = ThreadStateReading.Read(answerText, thread.Messages);
 
-        if (entries.Count is 0)
-        {
-            ThreadStateEvents.LogAnswerUnreadable(this.logger, answer.Alias);
-        }
-        else
+        if (derivation.IsSettled)
         {
             ThreadStateEvents.LogDerived(
                 this.logger,
                 answer.Alias,
-                entries.Count,
+                derivation.Entries.Count,
                 thread.Messages.Count);
         }
+        else
+        {
+            ThreadStateEvents.LogAnswerUnreadable(this.logger, answer.Alias);
+        }
 
-        return ThreadStateDerivation.Settled(entries);
+        return derivation;
     }
 
     /// <summary>Composes the turn one derivation sends: the conversation, guarded and cut to what one call may carry.</summary>

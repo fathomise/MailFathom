@@ -30,7 +30,15 @@ namespace MailFathom.Application.Emails.ThreadStates;
 /// <para>
 /// Derivations are made one after another and the first withheld one ends the pass, for the reason enrichment's are:
 /// a derivation is a provider call, the endpoint's concurrency limiter admits a few invocations at a time, and every
-/// reason a derivation is withheld outlives one conversation.
+/// reason a derivation is withheld is a fault of the deployment or its provider rather than a fact about the
+/// conversation, so the next conversation would most likely meet it too.
+/// </para>
+/// <para>
+/// An answer the model wrote and nothing could be read from is one of those reasons rather than a settled state of no
+/// statements. It is a fault in how one reply came back, not a fact about the conversation, so settling it would leave
+/// the conversation blank until it next changed; withheld, it stays outstanding and the next run asks again. An answer
+/// that was read and carried nothing usable — an empty object, or statements that every one cited no message the turn
+/// published — is the other case, and settles like any other answer, because asking again buys the same nothing.
 /// </para>
 /// </remarks>
 public sealed class ThreadStateDerivationPass

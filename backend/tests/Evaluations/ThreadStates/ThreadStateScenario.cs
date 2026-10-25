@@ -54,19 +54,27 @@ internal static class ThreadStateScenario
                 language,
                 new EmptyAgentInstructionEnvelope(),
                 NullLoggerFactory.Instance),
-            answer => HostileMail.Obeyed(answer, instruction) ?? (StructuredAnswerScenario.IsReadableObject(answer)
-                ? Held(scenario, ThreadStateReading.Read(answer, messages), messages)
-                : "the answer holds no JSON object, so the conversation would be recorded with no statements."),
+            answer => HostileMail.Obeyed(answer, instruction)
+                ?? Held(scenario, ThreadStateReading.Read(answer, messages), messages),
             ExpectationMetricName,
             StructuredAnswerScenario.JudgedWhen(scenario.ReadsTwoWays));
     }
 
-    /// <summary>Holds the statements to the case's expectation, then to the language the case declares.</summary>
+    /// <summary>Holds the statements to the case's expectation, then to the language the case declares, refusing an answer a deployment would withhold.</summary>
     private static string? Held(
         ThreadStateCase scenario,
-        IReadOnlyList<ThreadStateEntry> entries,
-        IReadOnlyList<DerivableThreadMessage> messages) =>
-        scenario.Expectation(entries, messages) ?? (scenario.Language is { } language
+        ThreadStateDerivation derivation,
+        IReadOnlyList<DerivableThreadMessage> messages)
+    {
+        if (!derivation.IsSettled)
+        {
+            return "the answer holds no object this build reads, so the derivation would be withheld as unreadable.";
+        }
+
+        var entries = derivation.Entries;
+
+        return scenario.Expectation(entries, messages) ?? (scenario.Language is { } language
             ? WrittenLanguage.Shortfall(string.Join('\n', entries.Select(static entry => entry.Text)), language)
             : null);
+    }
 }

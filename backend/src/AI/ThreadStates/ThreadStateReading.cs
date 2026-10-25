@@ -18,8 +18,14 @@ namespace MailFathom.AI.ThreadStates;
 /// <para>
 /// It drops rather than repairs. A statement with no text or no message this turn published is one nothing can be
 /// checked against, and there is no honest way to invent the missing half — so it falls away and the conversation keeps
-/// the statements that survived. An answer nothing survives is a settled state of no statements, because the model was
-/// reached and said nothing usable about the conversation; only a provider that never answered is withheld.
+/// the statements that survived. An answer whose object was read and none of whose statements survived is a settled
+/// state of no statements, because the model read the conversation and said nothing usable about it.
+/// </para>
+/// <para>
+/// An answer with no object to read at all — prose, a reply cut off before its object closed, or text that does not
+/// parse as the object the agent was asked for — is withheld instead, as
+/// <see cref="ThreadStateWithholding.AnswerUnreadable" />. That says how one reply came back rather than anything about
+/// the conversation, and settling it would record the conversation as having nothing to say until it next changed.
 /// </para>
 /// <para>
 /// A citation is a position in the list the turn composed, so a number outside that list names no message and takes its
@@ -32,12 +38,15 @@ internal static class ThreadStateReading
 {
     private const string JsonFence = "```";
 
-    /// <summary>Reads the statements out of an agent's answer.</summary>
+    /// <summary>Reads an agent's answer into a derivation.</summary>
     /// <param name="answerText">What the agent wrote, which may be empty, fenced, or surrounded by prose.</param>
     /// <param name="messages">The messages the turn published, in the order it numbered them.</param>
-    /// <returns>The statements that survived, in aspect order, which is empty where none did.</returns>
+    /// <returns>
+    /// A settled derivation of the statements that survived, in aspect order and empty where none did, or one withheld
+    /// as <see cref="ThreadStateWithholding.AnswerUnreadable" /> where the answer carries no object this build reads.
+    /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="messages" /> is <see langword="null" />.</exception>
-    internal static IReadOnlyList<ThreadStateEntry> Read(
+    internal static ThreadStateDerivation Read(
         string? answerText,
         IReadOnlyList<DerivableThreadMessage> messages)
     {
@@ -45,16 +54,16 @@ internal static class ThreadStateReading
 
         if (ReadDocument(answerText) is not { } document)
         {
-            return [];
+            return ThreadStateDerivation.Withholding(ThreadStateWithholding.AnswerUnreadable);
         }
 
-        return
+        return ThreadStateDerivation.Settled(
         [
             .. Aspect(ThreadStateAspect.Agreement, document.Agreements, messages),
             .. Aspect(ThreadStateAspect.OpenQuestion, document.OpenQuestions, messages),
             .. Aspect(ThreadStateAspect.Commitment, document.Commitments, messages),
             .. Aspect(ThreadStateAspect.VersionDifference, document.Differences, messages),
-        ];
+        ]);
     }
 
     /// <summary>Reads one array of written statements into the statements of one aspect.</summary>
