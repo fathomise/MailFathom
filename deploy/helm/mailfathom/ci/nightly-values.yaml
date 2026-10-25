@@ -32,9 +32,3 @@ secrets:
 # produced by the repository's verification.
 personalDataScanning:
   enabled: true
-
-# The spam scanner the chart runs itself, which is the branch that renders the scanner Deployment, its Service, and the
-# derived address the application is pointed at. The release values render the other branch and `defaults-values.yaml`
-# renders the default, so every shape of this block is produced by the repository's verification.
-spamScanning:
-  enabled: true

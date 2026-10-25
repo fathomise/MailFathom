@@ -15,13 +15,12 @@ MailFathom synchronizes your IMAP accounts into a PostgreSQL database you run, i
 | Deployment, Service, ConfigMap, ServiceAccount | Any `Secret` |
 | A PostgreSQL StatefulSet, its Service, and its initialization script, unless `database.deploy.enabled` is false | Any certificate material |
 | A personal-data analyzer Deployment and Service, only when `personalDataScanning.enabled` and `.analyzer.deploy` are both true | Any schema step |
-| A SpamAssassin Deployment and Service, only when `spamScanning.enabled` and `.scanner.deploy` are both true | |
 | A Silo object-store StatefulSet, a claim per pod, its Service, and a headless Service of its own where it runs as a pool, only when `contentStorage.objectStorage.deploy.enabled` is true | Any bucket, or any access key inside one |
 | A Valkey StatefulSet and two Services for the signal backplane, only when `signalBackplane.enabled` and `.valkey.deploy` are both true | |
 | A PodDisruptionBudget for the application pods, and the Deployment's rollout strategy, both from values | Any HorizontalPodAutoscaler, or any metric-driven scaling |
 | An optional Ingress | |
 
-Both scanners are off, and off means nothing is rendered for them: an opt-in nobody took pulls no image and holds no memory. Take either deliberately — they are the two pods in this release that receive mail content in the clear, and the spam scanner's container adds `SETUID` and `SETGID` back to the capabilities the application pod drops entirely. Neither is given a service-account token.
+The analyzer is off, and off means nothing is rendered for it: an opt-in nobody took pulls no image and holds no memory. Take it deliberately — it receives mail content in the clear. It is not given a service-account token.
 
 It installs no Secret deliberately: credentials belong to whoever operates the cluster, and the chart is written so that it cannot pretend otherwise. It carries **no subchart** either — the PostgreSQL templates are MailFathom's own, so nothing puts another project's values and release cadence between this chart and the store holding every synchronized message.
 

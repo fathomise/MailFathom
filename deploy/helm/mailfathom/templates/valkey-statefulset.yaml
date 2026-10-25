@@ -109,10 +109,10 @@ spec:
               containerPort: 6379
               protocol: TCP
           {{- /*
-            The probes open a TCP connection rather than speaking the protocol, for the reason the spam daemon's do:
-            what answers here is RESP, which no probe type composes, and a listener that has bound the port is a server
-            that has finished starting. A probe that could speak RESP would have to authenticate, which would put the
-            password into a second place.
+            The probes open a TCP connection rather than speaking the protocol, because what answers here is RESP,
+            which no probe type composes, and a listener that has bound the port is a server that has finished
+            starting. A probe that could speak RESP would have to authenticate, which would put the password into a
+            second place.
           */}}
           startupProbe:
             tcpSocket:

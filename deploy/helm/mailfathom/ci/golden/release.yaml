@@ -176,20 +176,6 @@ spec:
               value: "en"
             - name: SensitiveContent__PersonalDataAnalyzer__MinimumConfidence
               value: "0.4"
-            - name: SpamClassification__Enabled
-              value: "true"
-            - name: SpamClassification__UseScanner
-              value: "true"
-            - name: SpamClassification__Scanner__Host
-              value: "spamassassin.mailfathom.svc.cluster.local"
-            - name: SpamClassification__Scanner__Port
-              value: "783"
-            - name: SpamClassification__Scanner__ScanTimeoutSeconds
-              value: "30"
-            - name: SpamClassification__Scanner__MaximumMessageBytes
-              value: "512000"
-            - name: SpamClassification__Scanner__MaximumConcurrentScans
-              value: "5"
           volumeMounts:
             - name: config
               mountPath: /etc/mailfathom/config
