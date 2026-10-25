@@ -131,7 +131,7 @@ internal static class EmailEnrichmentInstructions
     /// <param name="passages">The passages, already guarded, in the order they are positioned.</param>
     /// <param name="maximumCharacters">The most characters the turn may hold, which is the request bound of the model it is sent to.</param>
     /// <returns>The turn text.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="passages" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="provenance" /> or <paramref name="passages" /> is <see langword="null" />.</exception>
     /// <remarks>
     /// <para>
     /// The positions are the turn's own and start at zero, so a reading cites a position rather than anything this

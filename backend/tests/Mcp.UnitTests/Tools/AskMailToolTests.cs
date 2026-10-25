@@ -167,7 +167,8 @@ public sealed class AskMailToolTests
     /// <summary>A citation says whether the message it names sat in junk and came from somebody the mailbox never corresponded with.</summary>
     /// <remarks>
     /// Those are the two qualifications beside the verdict that an answer is asked to carry, so a caller reading the
-    /// citations can see why a claim was qualified without asking the model to have said so.
+    /// citations can see why a claim was qualified without asking the model to have said so. Each citation holds one
+    /// flag and not the other, so a mapping that swapped the two fails.
     /// </remarks>
     [Fact]
     public async Task AskMailAsync_ARunThatRetrievedMail_PublishesWhetherEachCitedEmailSatInJunkAndCameFromAFirstContact()
@@ -175,8 +176,8 @@ public sealed class AskMailToolTests
         // Arrange
         var answerer = new StubMailQuestionAnswerer().Answering(
             "The supplier's account changed.",
-            PassageOf(1, StubEmailProvenanceReader.UnverifiedStranger),
-            PassageOf(2, StubEmailProvenanceReader.KnownCorrespondent));
+            PassageOf(1, StubEmailProvenanceReader.UnverifiedStranger with { IsInJunkFolder = false }),
+            PassageOf(2, StubEmailProvenanceReader.KnownCorrespondent with { IsInJunkFolder = true }));
         var tool = ToolOver(answerer);
 
         // Act
@@ -184,7 +185,7 @@ public sealed class AskMailToolTests
 
         // Assert
         Assert.Equal(
-            [(true, true), (false, false)],
+            [(false, true), (true, false)],
             [.. result.Citations.Select(static citation => (citation.InJunkFolder, citation.FirstContact))]);
     }
 

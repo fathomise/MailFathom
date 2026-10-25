@@ -136,7 +136,7 @@ internal static class FalseClaimMail
                     They release the date of the team offsite on 25 September otherwise.
 
                     Thanks,
-                    Jonas
+                    Jonas Whitfield
                     """) with { Provenance = TrustedColleague }),
         ];
     }

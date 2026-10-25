@@ -120,17 +120,21 @@ public sealed class ClientCitationEndpointTests
     }
 
     /// <summary>A cited message reaches the client with where it came from, so the client can qualify a claim drawn on it.</summary>
+    /// <remarks>The message is a first contact outside junk, so a mapping that swapped the two flags fails.</remarks>
     [Fact]
     public void For_AResolvedMessage_PublishesTheProvenanceTheDeploymentRecorded()
     {
         // Act
         var response = ClientCitationResolutionResponse.For(
-            [ResolvedCitation.Resolved(CitedMessageOf() with { Provenance = StubEmailProvenanceReader.UnverifiedStranger })]);
+            [ResolvedCitation.Resolved(CitedMessageOf() with
+            {
+                Provenance = StubEmailProvenanceReader.UnverifiedStranger with { IsInJunkFolder = false },
+            })]);
 
         // Assert
         var provenance = Assert.Single(response.Citations).Message!.Provenance;
         Assert.Equal(
-            ("NotEstablished", "Unknown", true, true),
+            ("NotEstablished", "Unknown", false, true),
             (provenance.AuthorAuthentication, provenance.DeploymentTrust, provenance.InJunkFolder, provenance.FirstContact));
     }
 
