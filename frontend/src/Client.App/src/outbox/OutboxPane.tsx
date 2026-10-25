@@ -400,9 +400,7 @@ function StateBox({
                     </div>
                 ) : null}
 
-                {asking === null ? null : (
-                    <p className="text-base text-muted">{translate(askingSaid[asking])}</p>
-                )}
+                {asking === null ? null : <p className="text-base text-muted">{translate(askingSaid[asking])}</p>}
             </div>
         </div>
     );

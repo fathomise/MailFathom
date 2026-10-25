@@ -188,7 +188,11 @@ export function MailOutboxProvider({
 
     // A second press while the first is unanswered would ask again, and the deployment would answer the repeat as a
     // decision it cannot take beside the first one's success.
-    function holdWhileAsking<T>(send: OutgoingMail, decision: OutboxDecisionUnderWay['decision'], asked: Promise<T>): Promise<T> {
+    function holdWhileAsking<T>(
+        send: OutgoingMail,
+        decision: OutboxDecisionUnderWay['decision'],
+        asked: Promise<T>,
+    ): Promise<T> {
         const outgoingEmailId = send.outgoingEmailId;
 
         setUnderWay((current) => [...current, { outgoingEmailId, decision }]);
@@ -203,20 +207,22 @@ export function MailOutboxProvider({
             return;
         }
 
-        void holdWhileAsking(send, 'cancel', withdrawOutgoingMail(session, transport, send.outgoingEmailId)).then((result) => {
-            decided(
-                result.outcome === 'failed'
-                    ? result
-                    : { outcome: 'read', value: result.value === 'withdrawn' ? 'accepted' : result.value },
-                {
-                    kind: 'success',
-                    title: translate('outbox.cancelledTitle'),
-                    body: translate('outbox.cancelled', {
-                        names: addresseeOf(send.recipients, send.otherRecipientCount, wording),
-                    }),
-                },
-            );
-        });
+        void holdWhileAsking(send, 'cancel', withdrawOutgoingMail(session, transport, send.outgoingEmailId)).then(
+            (result) => {
+                decided(
+                    result.outcome === 'failed'
+                        ? result
+                        : { outcome: 'read', value: result.value === 'withdrawn' ? 'accepted' : result.value },
+                    {
+                        kind: 'success',
+                        title: translate('outbox.cancelledTitle'),
+                        body: translate('outbox.cancelled', {
+                            names: addresseeOf(send.recipients, send.otherRecipientCount, wording),
+                        }),
+                    },
+                );
+            },
+        );
     }
 
     function sendAgain(send: OutgoingMail): void {
