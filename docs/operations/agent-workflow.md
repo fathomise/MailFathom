@@ -748,8 +748,8 @@ the inference has a direction: this contract writes the owner's steps down in
 more places than the fork's, because those are the steps that need writing down.
 
 What a wrong inference costs is a turn each time, and every one of them is
-visible only after it fails: a board write that returns a permission error, a
-`type:*` label assigned where nothing can assign one, a push refused by
+visible only after it fails: a board write that returns a permission error, an
+issue type GitHub silently drops, a push refused by
 `fathomise/MailFathom`, a branch renamed to `agent/<short-description>` for
 nothing. So a contributor settles it once, in a file their harness loads before
 the first message and this repository ignores.
@@ -899,8 +899,8 @@ The canonical skills are:
   without the skill.
 
 [Issue tracking and the roadmap board](issue-tracking.md) holds the issue rules
-themselves: which work needs an issue, what an issue body contains, the `type:*`
-label it carries, the `backend` or `frontend` label saying which stack the work
+themselves: which work needs an issue, what an issue body contains, the issue
+type it carries, the `backend` or `frontend` label saying which stack the work
 lands in and the case that takes neither, the `agent:claude` or `agent:codex` marker a session
 applies when it takes one, the `Area`, `Queue` and `Size` fields that place it on
 the board, the milestone that scopes it to a release, the dependency relation
@@ -924,9 +924,9 @@ made, and a pull request opened by neither
 `finish-change` nor `prepare-release` moves nothing.
 
 Those rules describe an issue an agent opened. A public repository also receives
-issues nobody here opened, and one arrives with no `type:*` label, no stack
+issues nobody here opened, and one arrives with no issue type, no stack
 label, and no board fields because none of the rules reached its author. The
-same page holds that path too: the missing `type:*` label is what marks an issue
+same page holds that path too: the missing issue type is what marks an issue
 untriaged, triage either places it by the ordinary rules or closes it as `not
 planned` with a reason, a question moves to Discussions instead of being given a
 label so the board has somewhere to put it, and a contribution is read

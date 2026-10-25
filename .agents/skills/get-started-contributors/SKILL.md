@@ -384,7 +384,7 @@ offer to go deeper on any one of them instead of expanding all six.
    `{"admin":true,"maintain":true,"pull":true,"push":true,"triage":true}` is the owner's own account. An outside
    contributor gets `push` and `triage` both `false` with `pull` alone `true`, which is the answer that decides three
    things `AGENTS.md` puts on the maintainer's side and this skill therefore never has a contributor attempt: **the
-   `type:*` and stack labels, the milestone, and pushing a branch to this repository**. A pull request still arrives
+   issue type and the stack labels, the milestone, and pushing a branch to this repository**. A pull request still arrives
    from the fork, so nothing about contributing is closed by it. A `null` — the key absent altogether — is an
    unauthenticated call rather than a refusal, because a public repository answers a read for anybody; that is `gh` to
    repair, and step 2 is where.
@@ -433,7 +433,7 @@ offer to go deeper on any one of them instead of expanding all six.
    | They want to | It is decided by | And it means |
    |---|---|---|
    | Open an issue, comment on one, open a pull request | Nothing — the repository is public | Always available, in either role. This is the whole of what contributing needs |
-   | Put a `type:*` label, a stack label, or a milestone on an issue | `permissions.push` | Without it, an issue arrives bare **by design** and triage supplies them; nothing failed and nothing is missing |
+   | Set an issue type, or put a stack label or a milestone on an issue | `permissions.push` | Without it, an issue arrives bare **by design** and triage supplies them; nothing failed and nothing is missing |
    | Claim an issue with `agent:claude` or `agent:codex` | `permissions.push` | It is a label like any other. Without it the step does not exist, rather than being skipped |
    | Push the branch | `permissions.push` | Without it the branch goes to their own fork and the pull request crosses from there, which is the ordinary shape rather than a workaround |
    | Read `Area`, `Queue`, and `Size` | The board probe | `true` or `false` both allow reading it for context |
@@ -496,7 +496,7 @@ offer to go deeper on any one of them instead of expanding all six.
 
    The roadmap board, project `1`, is private to the maintainer and I have no access to it.
    Do not read it, do not write it, and do not treat that as a step that failed: an issue I
-   open carries no `type:*` label, no stack label, no milestone, and no `Area`, `Queue`, or
+   open carries no issue type, no stack label, no milestone, and no `Area`, `Queue`, or
    `Size` value by design, and the maintainer's triage supplies them. `$start-task` opens the issue and stops
    there; `$finish-change` reports the board write as `not applicable (no board write)`.
 

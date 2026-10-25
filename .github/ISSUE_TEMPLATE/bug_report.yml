@@ -2,11 +2,11 @@
 # Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 # Project repository: https://github.com/fathomise/MailFathom
 
-# No `labels:` key, deliberately. A `type:*` label is what marks an issue as read, and it is applied
-# during triage rather than by whoever opened the issue. A form that applied one would make every
-# arrival look triaged and leave the `Triage` view permanently empty, which is the one thing the
-# board's four-mechanism split exists to prevent. What the reporter believes they found does not
-# decide the label either: a feature request describing incorrect behavior is triaged as a defect.
+# No `type:` key, deliberately. An issue type is what marks an issue as read, and it is set during
+# triage rather than by whoever opened the issue. A form that set one would make every arrival look
+# triaged, which is the one thing the board's split into five mechanisms exists to prevent. What the
+# reporter believes they found does not decide the type either: a feature request describing
+# incorrect behavior is triaged as a defect.
 name: Bug report
 description: Something already implemented behaves incorrectly.
 

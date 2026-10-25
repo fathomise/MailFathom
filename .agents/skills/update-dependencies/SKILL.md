@@ -40,7 +40,7 @@ own. Noticing one while doing something else is worth a sentence in the report, 
 2. **Decide what moves,** by the section below. This is the step with no command in it.
 
 3. **`$start-task`**, with the decision as the description. The issue names the pins being moved and, for each one that
-   is a major or a licence change, why the newer version is acceptable. `type:workflow`, `Area: Platform`.
+   is a major or a licence change, why the newer version is acceptable. Type `Workflow`, `Area: Platform`.
 
 4. **Apply**, on the branch `$start-task` left you on:
 
