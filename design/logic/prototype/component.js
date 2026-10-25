@@ -401,6 +401,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       document.addEventListener("pointerdown", this.onSelPointer, true);
       document.addEventListener("pointerup", this.onSelPointer, true);
       this.backSync();
+      MailFathomDesign.fathomUi.install(this);
       this.measure = () => {
         const el = this.rootRef.current;
         const w = (el && el.clientWidth) || (typeof window !== "undefined" ? window.innerWidth : 1440);
@@ -648,7 +649,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        `compose`) follows it 240 ms late; a per-surface snapshot is the upgrade if that ever shows. */
     static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "sideDrawer", "compose", "settings",
       "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyChooser",
-      "newTask", "newEvent", "newContact", "filtersOpen",
+      "newTask", "newEvent", "newContact", "filtersOpen", "catchupOpen", "fathomMenu", "fathomAnswer",
       "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk"];
     static MOTION_PANES = ["mailPane", "peoplePane"];
     static MOTION_EXIT_MS = 240;
@@ -697,7 +698,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        going back across one closes everything still standing, the way the client's change of destination does.
        ponytail: steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
     static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
-      "more", "aiSum", "moveFor", "newFolder", "remFor", "event", "ctxMenu", "replyChooser"];
+      "more", "aiSum", "moveFor", "newFolder", "remFor", "event", "ctxMenu", "replyChooser", "catchupOpen", "fathomMenu", "fathomSmart", "fathomAnswer"];
 
     backSteps = (state) => {
       const FR = FRAMES[this.props.layout ?? "auto"] || null;
@@ -5123,10 +5124,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           !(st.screen === "people" && (st.peoplePane || "list") === "detail"),
         tbPrimaryShown: tbPriInBar,
         showFab: !st.compose && !st.doc && !selectionOn && (singlePane ? mailPane === "list" : tbFabForced),
-        fabStyle: "position:absolute;right:16px;bottom:16px;z-index:30;width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--accent);color:var(--onaccent);box-shadow:0 6px 18px var(--sh-2)",
+        /* A space's own button stands above Fathom's, which keeps the corner on every space. */
+        fabStyle: "position:absolute;right:16px;bottom:" + (16 + (touch ? 56 : 48) + 12) + "px;z-index:30;width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--accent);color:var(--onaccent);box-shadow:0 6px 18px var(--sh-2)",
         /* In multi-panel layouts the circle sits over the thread list, not the reading panel —
            otherwise it would cover the reply composer. */
-        mailFabStyle: "position:absolute;right:16px;bottom:16px;z-index:30;" +
+        mailFabStyle: "position:absolute;right:16px;bottom:" + (singlePane ? 16 + (touch ? 56 : 48) + 12 : 16) + "px;z-index:30;" +
           "width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--accent);color:var(--onaccent);box-shadow:0 6px 18px var(--sh-2)",
         selectionCount: sel.length + " selected",
         clearSelection: () => this.setState({ sel: [] }),
@@ -6176,6 +6178,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       };
       /* What back calls for a surface whose own close does more than empty its key: asking before a draft is thrown
          away, and closing the tab the surface stands in. */
+      Object.assign(vals, MailFathomDesign.fathomUi.vals(this, { st, isMobile, touch, singlePane, thread, person }));
       this._ownClose = { compose: vals.closeCompose, doc: vals.closeDoc, htmlDoc: vals.closeHtml };
       return vals;
     }

@@ -110,3 +110,27 @@ MailFathomDesign.data.home.steps = [
   { type: "draft", phase: "pending", meta: "opens in the composer", to: "Anna Kowalska", subject: "Re: Proposed terms 2027",
     paras: ["Thank you for the proposal. We can accept the 2-hour response time, but not indexation without a cap.", "We propose CPI indexation capped at 5% a year, and would like to settle it before 28 August."] },
 ];
+
+// Since the reader last looked, read off the mail by rules and counted rather than written: what arrived, sorted into
+// what needs them (the items below), what they can read when they like, and what needs nothing and can go in one press.
+MailFathomDesign.data.home.sinceLast = {
+  at: "08:12",
+  arrived: 14,
+  groups: [
+    { key: "needs", icon: "person_alert", n: 3, label: "need you", note: "below, in Needs you today" },
+    { key: "fyi", icon: "visibility", n: 5, label: "to read when you like", note: "Marta, Piotr, HR" },
+    { key: "leave", icon: "inventory_2", n: 6, label: "need nothing", note: "newsletters and notifications" },
+  ],
+};
+
+// Heads up: what could hurt if it went unnoticed, raised by rules from the messages themselves. `level` is `danger`
+// (money, credentials, a sender pretending to be someone) or `warn` (a deadline about to pass). Each one says why it
+// was raised and what to check, and goes away when it is marked safe or dealt with.
+MailFathomDesign.data.home.headsUp = [
+  { id: "h-bank", level: "danger", icon: "gpp_maybe", title: "An invoice asks to pay a new bank account",
+    why: "It comes from fabrikam-billing.co, not fabrikam.com, and the account number differs from the last three invoices.",
+    check: "Confirm by phone with Tomasz Bąk before anything is paid.", tid: "fabrikam1", rule: "payment details changed" },
+  { id: "h-contoso", level: "warn", icon: "schedule", title: "The Contoso decision is due tomorrow",
+    why: "Anna Kowalska asked twice; without an answer the 2027 terms renew at Contoso's proposal.",
+    check: "The draft below proposes a 5% cap.", tid: "contoso", rule: "deadline without a reply" },
+];

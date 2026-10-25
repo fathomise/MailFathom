@@ -181,7 +181,7 @@ composition keeps its own sizes.
 | The phone's bar | Every space names itself at the left of its top bar at 20 px semibold (`screenTitleStyle`, `tbTitleStyle`, `agentTitleStyle`), the bar at least 56 px tall with 16 px before the title, and its actions stand at the far end. Mail is the exception: its search field is its bar |
 | A title in a bar | Holds one line at every size and ends in an ellipsis rather than wrapping: the Agent's conversation title is the long one. The Agent's strapline *works across your mail, calendar and cases* stands only on a fine pointer, where the bar has the width for it |
 | The bottom navigation | Five places, each a 56 × 32 px pill behind its glyph (`--nav-mark`) that marks the current one, and a 12 px label beneath — the tile around it is not filled. The bar pads its foot by `env(safe-area-inset-bottom)` |
-| Controls the bar has no place for | Stand in the *More* sheet, below the spaces and a rule: *Refresh*, then *Settings*. Each row of the sheet is 52 px. Nothing floats over the content of a screen except the one action that screen is for |
+| Controls the bar has no place for | Stand in the *More* sheet, below the spaces and a rule: *Refresh*, then *Settings*. Each row of the sheet is 52 px. Nothing floats over the content of a screen except Fathom, in the bottom-right corner of every space, and the one action that screen is for, which stands 12 px above it |
 | A prompt | Fits one line at the width it is drawn at, and ends in an ellipsis where it cannot: the phone and the narrow list panes take the short form (*Search mail…*, *Ask your mail…*, *Tell me what to do…*, *Write what this is about…*, *Refine this answer…*, *Ask about this…*, *Or say how…*, *Or say when…*) |
 | Keys | No control names a key under `touch` — *Send*, and the composer's foot without *Ctrl+Enter sends* — because the screen has no keyboard to press it on |
 | One choice among several | A segmented control — `--rail` track, the chosen segment raised on `--panel` — rather than loose bordered buttons: People's *Own* and *Collected*, the calendar's four views |
@@ -276,7 +276,7 @@ desktop composition steps back the same way a phone does, and what differs is on
 
 | Press | What it takes away |
 |---|---|
-| A surface stands over the screen | That surface: the drawer, a sheet, the composer, a dialog, Settings, a menu, the notification centre |
+| A surface stands over the screen | That surface: the drawer, a sheet, the composer, a dialog, Settings, a menu, the notification centre, the catch-up, Fathom's menu, its answer, and Smart |
 | A view stands where another was | That view, as its own *Back* does: the thread in front of the list (`singlePane`), a person in front of its list (`isMobile`) |
 | Nothing stands in the space | The space, back to the one before it — closing every surface still open, as switching space does |
 
@@ -294,6 +294,12 @@ A press closes a surface the way its own control would. The composer with anythi
 the day holds — what is next, what needs the reader, one step each, how the day runs, who is waiting — and every item
 opens where it lives. It is the first space, above the hairline with the Agent, because both look across everything
 rather than holding one kind of thing.
+
+**Start informs, proposes, points out what matters, and warns.** It says what happened (*Since you last looked*, and after
+an absence the catch-up), proposes what to do about it (*One step each*, *Up next*'s *Prepare me*), puts what needs the
+reader first (*Needs you today*, *Waiting on you*), and raises what could hurt (*Heads up*) before any of it. Every
+part of it is also a component Fathom's *Smart* can point at, so whatever Start shows can be asked about or acted on
+where it stands.
 
 **Rules read the day, and the model writes only on request.** Everything on Start by default is derived by rules from
 data the deployment already holds — counts, calendar facts, open questions in a thread, a question asked and not
@@ -318,8 +324,14 @@ identifier, plan, model or spend, and an evidence entry carries no relevance sco
 | The day | `showIdle` | `st.phase === "idle"` — the state the prototype opens in. Two columns from 1020 px (`dayMainStyle`, and `dayAsideStyle` 340 px wide, 300 below 1180); one column below, the aside's sections after the main ones |
 | Ask chips | `showAskChips`, `suggestions` | idle only — three questions as chips under the field, one row that scrolls sideways on a phone; a chip asks at once |
 | The day's counts | `dayCounts` | always, under the greeting — *new messages*, *meetings today*, *due today*, *waiting on you*. Each is a chip that opens what it counts: Mail, Calendar, Tasks, or Mail filtered to the threads waiting on the reader (`resultFilter.why`, *waiting on your reply*). Counts, not prose — nothing reads the mail to produce them |
+| The catch-up, on Start | `cuRingShown` | a catch-up exists (`st.catchup`) and is live — under 24 hours since it was first opened, or saved — and nothing is being asked. A row under the counts: a 46 px ring (a conic accent gradient until every card was seen, `--border2` after, `cuRingStyle`) around `flight_land` for an absence or `beach_access` for a Holiday, *While you were away*, and a line naming the absence, the eight cards and *reopen for N h* or *kept until you remove it* (`cuRingSub`); a saved one carries a *Saved* chip. Pressing it opens the catch-up at its first card (`openCatchup`) — § *The catch-up* |
 | Written briefing offered | `briefOffer` | `!briefOn && !briefOfferHidden` — a dashed card saying what the briefing reads and that it counts against the allowance, with *Turn on* and *Not now*. **It is off by default** |
 | Written briefing on | `briefOn` | *Turn on* — the model-written card with its counters, *Not useful* and *Turn off*; turning it off hides the offer too (Settings › Start turns it back on) |
+| Heads up | `hasHeadsUp`, `headsUp` | at least one risk not marked safe — `HOME.headsUp`, raised by rules from the messages themselves, above everything else in the main column. Each is a `--panel` card with an inset 3 px edge (`--err` for money, credentials or a sender pretending to be someone, `--warn` for a deadline about to pass), an icon tile in the same tone, the title, why it was raised, what to check in `--text` weight 500, *Open the message*, *It is safe* (or *Dismiss* for a deadline), and the rule as a chip. `role="alert"` |
+| A risk marked safe | `st.headsHidden` | *It is safe* or *Dismiss* — the card goes, and the toast carries *Undo* |
+| Nothing risky | `!hasHeadsUp` | every risk marked safe — the section is not drawn at all, so Start says nothing rather than *nothing to worry about* |
+| Since you last looked | `sinceGroups` | always — what arrived since the reader last opened Start (*at 08:12 · 14 arrived · sorted by rules*), counted into three cells: *need you* (`--accent-soft`, pointing at *Needs you today*), *to read when you like*, and *need nothing*, which carries *Archive the N*. Three columns on two panes, stacked on a phone |
+| Since: archived | `st.sinceArchived` | *Archive the N* — the cell dims and reads *archived*; the toast carries *Undo* |
 | Up next | `nextUp` | always — the next meeting on an accent-edged card: its title, time, place and the thread behind it, the attendees as initials, and up to three facts rules read off the thread (`nextFacts`, each with the `rule` glyph). *Prepare me*, *Open the thread*, *Open in Calendar*, and *Plan it with the agent*, which opens the Agent with the meeting as its context |
 | Being prepared | `prepBusy` | *Prepare me* — an `AI · preparing you for this meeting` well with three shimmer lines; *Prepare me* leaves the foot |
 | Prepared | `prepReady` | the prep arrives in the well: three sentences, headed `AI · what to know going in · from 6 messages and 1 attachment`, with an × that drops it (`dropPrep`) |
@@ -349,6 +361,39 @@ opens the rewrite bar with the presets and a field for saying how — no *Ask ab
 conversation to quote into — and the rewrite is struck and replaced in the letter until *Keep the change*, *Try
 again* or *Undo*; *Open in composer* carries the kept text. A focus block booked at a changed time reads *booked from
 Start for* that time on *Your day*.
+
+### The catch-up
+
+**Start is drawn for the reader who opens it every day, so a reader back from an absence gets the absence first.** The
+first time Start is opened after more than two days without MailFathom being opened, or after an all-day *Holiday* or
+*Out of office* on the reader's own calendar that has ended since, it opens the catch-up over everything: a run of cards
+stepped through like a story, saying what happened while they were away. Closing it lands on the ordinary day, which
+now carries the catch-up's ring; the ring reopens it for 24 hours from the first opening, and for good once it is
+saved. The sample absence is 11 to 26 August (`data/prototype/catchup.js`), and the cards are counted and sorted by
+rules from mail the deployment already holds; what the model writes is only what a quick action asks for.
+
+| State | Flag | Reveal |
+|---|---|---|
+| Open | `cuOpen` | the prototype control below, or the ring on Start. On two panes a 460 px card on a 24 px radius centred over a darkened window, with *Previous card* and *Next card* beside it; on a phone it fills the screen, the bottom bar included. `role="dialog"` |
+| Why it opened | `cuHeadSub` / the first card's lede | `st.catchup.reason` — `away` (*16 days away*; *You were last here on Monday 10 August, 16 days ago.*) or `holiday` (*Holiday, 11-26 August*; *Your calendar said Holiday from 11 to 26 August.*) |
+| Its cards | `cuSlideKey` | eight, in order: *Welcome back* (four counts), *Three things wait on you*, *Settled without you*, *Two things look risky*, *Who wrote most*, *What it was about*, *Safe to archive*, *You are caught up*. Each card has its own ground: the first and last fill with `--accent` and draw in `--onaccent`; the others take `--accent-soft`, `--ok-soft` (settled), `--warn-soft` (risky) or `--sub` (archive), with items on `--panel` |
+| Card layouts | `cuIsStats` / `cuIsList` / `cuIsBars` / `cuIsChips` / `cuIsEnd` | counts in a two-column grid at 40 px (34 on a phone); rows with an icon, a title, a line and a date badge; people with initials, a count and a bar with no track; topics as pills sized by how much mail they took; the closing card with *Back to your day*, *Save* and *Export* |
+| Progress | `cuBars` | one segment per card across the top; the standing one fills over 12 s (`mfstory`) and moves on by itself, except from the last card |
+| Paused | `cuPauseIcon` / `st.catchupPaused` | *Pause* in the head, and on its own whenever a quick-action menu or an answer is open — the segment holds where it is |
+| Reduced motion | — | the segment fills at once and nothing moves on by itself; the reader steps with the edges, the arrows or the keys |
+| Stepping | `cuTap` / `cuPrev` / `cuNext` | a press on the left third of a card goes back and anywhere else goes on, as a story does; ← and → do the same, and *Previous card* / *Next card* beside it on two panes. A press on an item, a control, or one that ends a text selection is not a step |
+| An item's quick actions | `ci.open` | pressing anything on a card — a count, a thread, a person, a risk, a topic — opens the context menu (`ctxMenu`) headed by that item, with what its kind offers (`fathom.itemActions`): a count *Summarize*, *Break it down*, *Show these*; a thread *Summarize*, *Give me more*, *Translate*, *Draft a reply*, *Open the thread*; a settled thread *How did it settle?*, *Open the thread*; a risk *Why is this a risk?*, *What should I check?*, *Mark as safe*, *Open the message*; a person *Context*, *Summarize their mail*, *Write to them*, *Open in People*; a topic *Summarize*, *What was decided?*, *Show the threads* |
+| Selected text | `cuSelect` | selecting any words on a card (a hold under a finger) opens the same menu headed *Selected text* with the selection quoted: *Explain*, *Summarize*, *Translate*, *Give me more*, *Ask the agent*, *Copy* |
+| An answer | `fathomAnswerOpen` | an action that answers writes into Fathom's answer card, centred low over the catch-up on two panes and across the bottom of a phone — § *Fathom* |
+| Archived from it | `st.catchupArchived` | *Archive all 221* on *Safe to archive* — it reads *Archived · Undo*, and the toast carries *Undo* |
+| Saved | `cuSaveIcon` / `st.catchup.saved` | the bookmark in the head, or *Save* on the last card — `bookmark_added`, the toast *Catch-up saved*, and the ring keeps it past 24 hours. Pressed again it is no longer saved |
+| Export | `cuExport` | the share glyph in the head, or *Export* on the last card — a menu headed *Written on this device. Nothing is sent.* offering a PDF with one page per card, one image per card, or text with links to the threads; the toast names the file |
+| Closed | `cuClose` | × in the head, *Back to your day*, Escape or back — Start's ordinary day with the ring |
+
+**The prototype's control.** A dashed `beach_access` button under *Prototype* in the rail (`tryCatchup`), and *Try the
+catch-up · prototype* in the phone's *More* sheet, open a menu: *Back after 16 days away* and *Back from a Holiday in
+the calendar* each start a fresh catch-up and open it on Start; once one exists, *Let 24 hours pass* expires it and
+*Forget the catch-up* removes it. Nothing in the client carries this control.
 
 ### Asking
 
@@ -527,9 +572,8 @@ what a finger reaches.
 | Composer expanded | `composeExpanded` | open and not minimised |
 | Minimise offered | `composeMinShown` | `!composeInPane && !isMobile` |
 | Composer chrome | `composeChromeShown` | the composer is not the active tab |
-| The AI button | `replyFabShown` | a thread is open and the panels are not hidden. The thread's one AI entry point, and the head carries none: a floating accent square holding the `auto_awesome` glyph alone, titled *Draft a reply or ask about this thread* (48 px on a 14 px radius, 22 px from the right and 20 from the bottom on two panes, 16 and 16 on one; 56 px on an 18 px radius on the phone); it arrives with `pop`. It hangs over the thread rather than in it, pinned to the pane's bottom-right corner, so it stays there however far the conversation scrolls. The thread keeps its last line clear of it with its bottom padding: 84 px on one pane and 86 px on two panes |
-| Its two choices | `replyChooserOpen` / `mo.replyChooser` | pressing the AI button — the glyph turns to `close` (`replyFabIcon`) and two choices unfold above it with `pop`, right-aligned, 8 px apart: *Draft a reply* (`edit_note`), which opens the reply composer at once and starts the AI draft in it (`draftReply`), and *Ask* (`forum`), which goes to the agent with the thread as its context. Each is a `--panel` pill on a 12 px radius with a `--line` border and the lifted shadow, 40 px tall under a mouse and 48 under a finger (`replyChoiceStyle`). A choice, the button again, a press anywhere else in the pane, back, or leaving the thread folds them |
-| Drafting a reply | `draftReply` | *Draft a reply* among the AI button's choices, or *Draft a reply for me* in the phone's thread sheet — no card and no waiting surface stand in front of the composer: it opens as *Reply* to the open conversation (recipients and `Re:` subject as *Reply* fills them) and its editor shows *AI drafting* at once, the draft streaming into the editor itself. When it finishes, *AI draft standing* is what remains |
+| The AI button | `replyFabShown` | **always false now: the thread's button is Fathom's** (*Chrome that stands over every screen*, *Fathom*), which keeps the bottom-right corner on every space. In a thread its menu carries the two choices this button had, *Draft a reply* (`draftReply`) and *Ask* (the agent with the thread as context), above *Smart*. `replyChooserOpen` and its styles stay in the source and nothing opens them. The thread still keeps its last line clear of the corner with its bottom padding: 84 px on one pane and 86 px on two panes |
+| Drafting a reply | `draftReply` | *Draft a reply* in Fathom's menu over a thread, or *Draft a reply for me* in the phone's thread sheet — no card and no waiting surface stand in front of the composer: it opens as *Reply* to the open conversation (recipients and `Re:` subject as *Reply* fills them) and its editor shows *AI drafting* at once, the draft streaming into the editor itself. When it finishes, *AI draft standing* is what remains |
 | The reply's conversation | `replyThreadId` | a reply, a reply to all or a forward — the conversation it answers is fixed when it opens, so its recipients and subject stay that conversation's whatever the list is pointed at afterwards |
 | Cc/Bcc | `ccOpen` | the Cc control |
 | Formatting bar | `fmtBarShown` | `!touch`, or the touch toggle was pressed |
@@ -850,8 +894,9 @@ to a folder and marking as read stay a one-line `Suggested action`.
 |---|---|---|
 | Phone composition | `isPhone` / `notMobile` | width alone |
 | Single pane | `isMobileState` | `singlePane` |
-| Screen FAB | `showScreenFab` | `isMobile` or the toolbar forced it, **and** no dialog is open |
-| Mail FAB | `showFab` | no composer, no document, no selection; on one pane it needs the list |
+| Screen FAB | `showScreenFab` | `isMobile` or the toolbar forced it, **and** no dialog is open. It stands above Fathom's button, 12 px clear of it (`fabStyle`) |
+| Mail FAB | `showFab` | no composer, no document, no selection; on one pane it needs the list, and stands above Fathom's button there; on two panes it keeps the list column's corner |
+| Fathom | `fathomFabShown` | every space, always in the same corner — § *Fathom* below |
 | User menu | `userMenuOpen` | the avatar |
 | Settings | `settingsOpen` | the settings control; closing it also drops the account draft. It clears `acctDel` too, which nothing sets any more — removing an account left the design and that one line stayed behind |
 | Settings: its five sections | `tabProfil` / `tabAccounts` / `tabAi` / `tabNotif` / `tabApp` | *Profile*, *Accounts*, *AI*, *Notifications*, *Application*, `tabProfil` being the default. On two panes a section navigation (`settingsNavShown`) groups them under *You*, *Mail*, *Assistant* and *This device* (`settingsNavGroups`), each row an icon and a label; on one pane they are a tab strip that scrolls sideways (`settingsStripShown`) |
@@ -878,6 +923,56 @@ to a folder and marking as read stay a one-line `Suggested action`.
 Every label in the prototype is English, among them the Settings tabs *Profile* and *Application*, the user menu's
 *Sign out*, and the single-pane state toggle beside the thread head, *Hide panels - correspondence only* against
 *Show thread panels* — and `design/parity.json` presses two of those under their English names.
+
+### Fathom
+
+**Fathom is the one button that stands in the same place on every space**, so a reader knows where to find it before
+they look: the bottom-right corner, 16 px from both edges, above the bottom bar on a phone. Under a mouse it is a 48 px
+accent pill reading `auto_awesome` *Fathom*; under a finger a 56 px accent square on an 18 px radius holding the glyph,
+titled *Fathom - ask or act on what is on screen*. A space's own floating button stands above it, and the thread's
+former AI button is this one. It is drawn on Start, Agent, Mail, Tasks, Calendar and People, and stands aside only for
+the composer, a document, Settings and the catch-up (`fathomFabShown`).
+
+| State | Flag | Reveal |
+|---|---|---|
+| Its menu | `fathomMenuOpen` / `mo.fathomMenu` | pressing it — the glyph turns to `close`, and a 296 px `--panel` menu (`min(320px, 100% - 32px)` on a phone) rises above it with `pop`, headed *Fathom* and where it is (`fathomMenuWhere`, *Mail · Re: rollout schedule*). The space's own actions come first (`fathom.menu`): Start *Ask about your day*, *Plan the rest of today*; Mail's list *Ask about this folder*, *Summarize what is unread*; a thread *Draft a reply*, *Ask*; Calendar *Ask about this week*, *Find a free slot*; Tasks *Ask about your tasks*, *What slipped this week?*; People *Ask about* the person open, *What do they wait for?*; Agent *New conversation*. Then *Smart*, and *Open the Agent*. A press outside, Escape or back folds it |
+| Smart | `smartOn` | *Smart* in the menu — the button reads `close` *Done* with an accent ring, and a pill at the top says *Smart · Point at anything to see what Fathom can do with it* (*Tap anything …* under a finger, *Tap anything for its actions* on a phone) with *Done*. The page still scrolls; a press no longer acts, it lands on a component |
+| A component under the pointer | `smartHoverShown` | a mouse over anything carrying `data-smart` — a 2 px accent outline 4 px outside it on a 12 px radius, tinted with 9% accent, and a tag above it naming the component and what it holds (*Message · Re: rollout schedule*). A finger has no hover: its tap draws the outline and opens the menu at once |
+| A component's actions | `ctxMenu` | pressing a component in Smart — the context menu headed by the component's name and what it holds, with that component's actions (`fathom.components`). Closing the menu leaves Smart on; choosing an action ends it |
+| An answer | `fathomAnswerOpen` / `mo.fathomAnswer` | an action that answers — a 380 px card above the button (across the phone, above the button and the bar): a *Fathom* tag, the action, what it was about, the answer at 15 px, and *Continue with the agent*, which carries it to the Agent as the conversation's context. × or Escape closes it |
+| Other actions | — | an action that drafts opens the composer as *Draft a reply* does; one that talks opens the Agent with the component as its context (`goAgentWith`); one that opens goes to the space that owns it; one that acts in place reports with a toast carrying *Undo* |
+
+**What Smart finds, and what each offers** (`data/prototype/fathom.js`, `components`):
+
+| Component | `data-smart` | Actions |
+|---|---|---|
+| Ask or find | `start.ask` | *Suggest a question*, *Show my recent questions* |
+| The day's counts | `start.counts` | *Summarize the new mail*, *Show only what needs me*, *Draft replies to the three*, *Archive what needs nothing* |
+| Catch-up ring | `start.catchup` | *Play it again*, *Only the decisions left*, *Save it*, *Export* |
+| Morning briefing | `start.briefing` | *Expand it*, *Make it shorter*, *Ask a follow-up*, *Why in this order?*, *Translate* |
+| Briefing offer | `start.briefingOffer` | *Show me today's, once*, *What does it cost?* |
+| Heads up | `start.headsUp` | *Why is this a risk?*, *Check the sender*, *Mark as safe*, *Open the message* |
+| Since you last looked | `start.since` | *Summarize what arrived*, *Which ones need me?*, *Archive the safe ones*, *How is this sorted?* |
+| Up next | `start.nextUp` | *Prepare me*, *What do they expect from me?*, *Draft an agenda*, *Tell them I am 5 minutes late*, *Find another time* |
+| Needs you today | `start.needs` | *Summarize the thread*, *Draft a reply*, *Remind me at 16:00*, *Hand it to someone*, *Why is it here?* |
+| One step | `start.step` | *Why this step?*, *Suggest another*, *Talk it through* |
+| Watching | `start.watch` | *What changed?*, *Refresh now* |
+| Your day | `start.day` | *Plan the gaps*, *Protect a focus block*, *Move a task to tomorrow* |
+| Waiting on you | `start.waiting` | *Draft a reply*, *What do they want?*, *Tell them when I will answer*, *Open in People* |
+| Folders | `mail.folders` | *Summarize unread here*, *Clean up what needs nothing*, *Make a rule from this* |
+| Message in the list | `mail.row` | *Summarize*, *Draft a reply*, *Translate*, *Make it a task*, *Remind me* |
+| Thread | `mail.thread` | *Summarize the thread*, *Draft a reply*, *Pull out dates and tasks*, *Translate*, *Ask about it* |
+| Message in the thread | `mail.message` | *Summarize it*, *Explain the terms*, *Translate*, *Reply to this one* |
+| Event | `cal.event` | *Prepare me*, *What is it about?*, *Draft an agenda*, *Find another time*, *Decline with a note* |
+| Calendar | `cal.grid` | *Find a slot for…*, *Plan my focus time*, *Summarize the week* |
+| Task | `tasks.row` | *Break it into steps*, *Find time for it*, *Draft what it needs*, *Why is it due?* |
+| Tasks | `tasks.list` | *Put them in order*, *What slipped?* |
+| Person | `people.row` | *Summarize our history*, *What do they wait for?*, *Write to them*, *When do we meet next?* |
+| Person's page | `people.page` | *Summarize our history*, *What did we exchange?*, *Write to them* |
+| Answer | `agent.message` | *Shorter*, *Show the sources*, *Translate*, *Make it a task* |
+
+The innermost component under the pointer wins, so an event is found before the week it stands in and a task before
+its list. A component with no `data-smart` is not offered; drawing it with one is how a part of a screen joins Smart.
 
 ### The settings panel
 
@@ -1160,6 +1255,13 @@ clicking a preview.
 - **Start with nothing left on it** (`todayEmpty`, `noWatched`). Reached only by dismissing every
   *Needs you today* item and stopping every watched question first. A watched question that **could not refresh**
   has no seeded row in the prototype; `d_watched` in the Client States file draws it.
+- **A catch-up** (`cuOpen`, `cuRingShown`). Nothing in the prototype's day is an absence, so it is reached only by the
+  dashed *Prototype* control in the rail or *Try the catch-up* in the phone's *More* sheet. Its expired state (no ring
+  on Start) needs *Let 24 hours pass* after that, and a saved one surviving it needs *Save* first.
+- **The catch-up under reduced motion.** Nothing moves on by itself; only `prefers-reduced-motion` reaches it.
+- **Start with no risk** (`!hasHeadsUp`). Reached only by marking both seeded risks safe.
+- **Smart's hover outline under a finger.** A finger has no hover, so on the touch frames the outline appears only with
+  the tap that opens the menu.
 - **The written briefing** (`briefOn`). Off by default, so the model-written card appears only after *Turn on*.
 - **A meeting's prep** (`prepBusy`, `prepReady`). Written only after *Prepare me* on *Up next*.
 - **A booked focus block** (*booked from Start* on *Your day*). Reached only by taking the first of Start's steps.

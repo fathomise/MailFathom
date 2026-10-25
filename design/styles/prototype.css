@@ -30,3 +30,5 @@ input { font-family: inherit; }
 @keyframes mfrowarc { 0% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 0 var(--warn-soft) } 28% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } 100% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } }
 @keyframes mfrowmoved { 0% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 0 var(--warn-soft) } 14% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } 62% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } 100% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 0 var(--warn-soft) } }
 @keyframes mfrowedit { 0% { box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 40px var(--accent-soft) } 55% { box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 40px var(--accent-soft) } 100% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 40px transparent } }
+/* The catch-up's progress: one segment fills while its card stands, and a pause holds it. */
+@keyframes mfstory { from { width: 0 } to { width: 100% } }
