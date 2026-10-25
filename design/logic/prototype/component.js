@@ -157,6 +157,34 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
   const DEFAULT_UNREAD = {};
   THREADS.slice(0, 5).forEach(t => { DEFAULT_UNREAD[t.id] = true; });
+  THREADS.filter(t => t.unread).forEach(t => { DEFAULT_UNREAD[t.id] = true; });
+
+  /* The six spam subcategories, in the order the chooser lists them. The three dangerous ones carry a glyph and the
+     error tone wherever they are named, so the danger is in the glyph and the word, never in the colour alone. */
+  const SPAM_KINDS = [
+    { key: "phishing", label: "Phishing", danger: true, hint: "Asks for a password, payment details or a code, usually posing as a bank, courier or service" },
+    { key: "bec", label: "Business email compromise", danger: true, hint: "Poses as a colleague, a manager or a supplier, usually to redirect a payment" },
+    { key: "malware", label: "Malware lure", danger: true, hint: "A pretext for opening an attachment or a download" },
+    { key: "scam", label: "Scam", danger: false, hint: "Inheritance, lottery, investment or callback schemes" },
+    { key: "extortion", label: "Extortion", danger: false, hint: "Threats demanding a payment" },
+    { key: "marketing", label: "Marketing", danger: false, hint: "Unsolicited advertising, unwanted but harmless" },
+  ];
+  const spamKind = (k) => SPAM_KINDS.find(x => x.key === k) || null;
+  const SPAM_JUDGE = { model: "judged by a model", server: "judged by your mail server", person: "marked by you" };
+  const SPAM_READ_ONLY = "While it is marked spam it is read-only: its images are not loaded, its links and attachments do not open, and it cannot be answered or forwarded.";
+  /* A link in spam is drawn as words, never as something to press, with where it would have gone said beside it. */
+  const hostOf = (href) => { try { return new URL(href).host; } catch (e) { return href; } };
+  const unlinkRuns = (runs) => runs.map(r => r.isLink ? Object.assign({}, r, {
+    isLink: false, plain: true, style: "color:var(--text2)", isJudged: true,
+    goesTo: " (a link to " + hostOf(r.href) + ", not opened)", warnings: [],
+  }) : r);
+  const unlinked = (blocks) => blocks.map(b => Object.assign({}, b,
+    b.runs ? { runs: unlinkRuns(b.runs) } : {},
+    b.items ? { items: b.items.map(it => Object.assign({}, it, { runs: unlinkRuns(it.runs) })) } : {}));
+  const spamVerdictLine = (sp) => {
+    const k = spamKind(sp.kind);
+    return "Spam" + (k ? ": " + k.label : "") + ", " + (SPAM_JUDGE[sp.judge] || "judged spam");
+  };
 
   const FRAMES = { tablet: { w: 1024, h: 768 }, fold: { w: 884, h: 832 }, phone: { w: 390, h: 844 } };
 
@@ -231,7 +259,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   const collectFromMail = (known) => {
     const map = {};
     THREADS.forEach(t => {
-      if (known.indexOf(t.from) >= 0) return;
+      if (known.indexOf(t.from) >= 0 || t.spam || t.box === "spam") return;
       const meta = t.meta || "";
       const mail = (meta.match(/[\w.+-]+@[\w.-]+/) || [""])[0];
       const when = meta.split(" · ")[1] || t.time;
@@ -596,7 +624,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       }
       this.suppressClick = true;
       setTimeout(() => { this.suppressClick = false; }, 400);
-      if (dx < 0) {
+      if (dx < 0 && this.refuseSpam(id, "Spam cannot be answered.")) {
+        this.setState({ swipeId: null, swipeDx: 0 });
+      } else if (dx < 0) {
         this.setState({ swipeId: null, swipeDx: 0, threadId: id, mailPane: "thread", threadOpen: true, compose: true, composeMin: false });
       } else {
         this.setState({ swipeId: null, swipeDx: 0 });
@@ -710,6 +740,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     startReply = (mode, ids) => {
       const id = this.opTargets(ids)[0];
+      if (this.refuseSpam(id, mode === "fwd" ? "Spam cannot be forwarded." : "Spam cannot be answered.")) return;
       const patch = { compose: true, composeMin: false, replyMode: mode, replyThreadId: id, composeCtx: [id], composeCtxBase: [id], threadId: id, mailPane: "thread", threadOpen: true, sel: [] };
       if (this.state.workMode === "tabs") this.openTab("compose", patch);
       else this.setState(patch);
@@ -742,7 +773,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "sideDrawer", "compose", "settings",
       "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock", "replyChooser",
       "newTask", "newEvent", "newContact", "filtersOpen",
-      "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk"];
+      "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk", "spamAsk", "notSpamAsk"];
     static MOTION_PANES = ["mailPane", "peoplePane"];
     static MOTION_EXIT_MS = 240;
 
@@ -790,7 +821,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        going back across one closes everything still standing, the way the client's change of destination does.
        Steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
     static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
-      "more", "aiSum", "moveFor", "newFolder", "remFor", "event", "ctxMenu", "replyDock", "replyChooser"];
+      "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "replyDock", "replyChooser"];
 
     backSteps = (state) => {
       const FR = FRAMES[this.props.layout ?? "auto"] || null;
@@ -1141,15 +1172,128 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     openMove = (ids) => this.setState({ moveFor: this.opTargets(ids) });
     closeMove = () => this.setState({ moveFor: null });
 
+    /* A move into Spam is the same act as pressing Spam: whatever was not spam already is marked spam by the person,
+       with no kind, and the chooser opens to name one. Closing it leaves the move and the mark as they are. A move
+       out of Spam changes no verdict: the message lands still spam and folds there, since *Not spam* is the one way
+       out of spam. A row whose move takes it into or out of Spam leaves the list it stood in; any other move keeps
+       the row where it is with the folder it went to, as every move in the prototype does. */
     moveThreads = (folder, account, ids) => {
       const t = ids || this.state.moveFor || [];
+      const intoSpam = folder === "Spam";
+      const marked = intoSpam ? t.filter(id => !this.spamOf(id).spam) : [];
+      const leaving = t.filter(id => this.sitsInSpam(id) !== intoSpam && (intoSpam || this.inSpamFolder()));
+      const op = { kind: "move", ids: t, verdicts: Object.assign({}, this.state.verdicts || {}) };
       this.setState(s => {
-        const moved = Object.assign({}, s.moved || {});
-        t.forEach(id => { moved[id] = folder; });
-        return { moved: moved, moveFor: null, sel: [], lastOp: { kind: "move", ids: t } };
+        const verdicts = Object.assign({}, s.verdicts || {});
+        marked.forEach(id => { verdicts[id] = { spam: true, judge: "person" }; });
+        return { verdicts: verdicts, moveFor: null, sel: [], lastOp: op,
+          spamAsk: marked.length ? { ids: marked, moved: true } : s.spamAsk, spamPick: marked.length ? null : s.spamPick };
       });
-      t.forEach(id => this.setRowAnim(id, "move", 900));
+      const commit = () => {
+        if (op.undone) return;
+        this.setState(s => {
+          const moved = Object.assign({}, s.moved || {});
+          t.forEach(id => { moved[id] = folder; });
+          return { moved: moved };
+        });
+      };
+      this.animateRowsOut(leaving, commit, "arc");
+      t.filter(id => leaving.indexOf(id) < 0).forEach(id => this.setRowAnim(id, "move", 900));
       this.notify("Moved to “" + folder + "”" + (account ? " in " + account : "") + " - " + this.countWord(t.length), true);
+    };
+
+    /* SPAM — the verdict a message carries. The person's own word, from this session, outranks what it arrived with. */
+    spamOf = (id) => {
+      const own = (this.state.verdicts || {})[id];
+      if (own) return own;
+      const t = THREADS.find(x => x.id === id) || {};
+      return t.spam ? Object.assign({ spam: true }, t.spam) : { spam: false };
+    };
+    sitsInSpam = (id) => {
+      const moved = (this.state.moved || {})[id];
+      if (moved) return moved === "Spam";
+      return (THREADS.find(x => x.id === id) || {}).box === "spam";
+    };
+    inSpamFolder = () => /·Spam$/.test(this.state.folderKey || "acc1·Inbox");
+    /* Whether *Spam* and *Not spam* also move a message is its account's own setting, off unless the account says so. */
+    accountOf = (id) => (THREADS.find(x => x.id === id) || {}).acc || "acc1";
+    movesSpam = (id) => !!(ACCOUNTS.find(a => a.key === this.accountOf(id)) || {}).movesSpam;
+    /* A message marked spam is read-only. A press on what it refuses still answers, with the one way back. */
+    refuseSpam = (id, what) => {
+      if (!this.spamOf(id).spam) return false;
+      this.notify(what + " Mark it not spam first.", { kind: "warning", title: "This message is marked spam" });
+      return true;
+    };
+
+    /* One toggle: *Spam* while nothing selected is spam, *Not spam* while all of it is, and a mix is refused. */
+    toggleSpam = (ids) => {
+      const t = this.opTargets(ids);
+      const spam = t.map(id => this.spamOf(id).spam);
+      if (spam.some(Boolean) && spam.some(x => !x)) {
+        this.setState({ ctxMenu: null });
+        this.notify("The selection mixes spam with other mail. Select only one of the two.", { kind: "error", title: "Nothing was marked" });
+        return;
+      }
+      if (spam[0] && t.some(id => this.sitsInSpam(id) && this.movesSpam(id))) this.setState({ notSpamAsk: { ids: t }, ctxMenu: null });
+      else if (spam[0]) { this.setState({ ctxMenu: null }); this.markNotSpam(t); }
+      else this.setState({ spamAsk: { ids: t, moved: false }, spamPick: null, ctxMenu: null });
+    };
+
+    /* Not spam is one act: the kind goes, the person's *not spam* is recorded, and whatever sits in Spam on an account
+       that moves spam goes to the Inbox, after a confirmation. Where nothing moves it applies at once, and a message in
+       Spam on an account that does not move spam stays there, unmarked, until the person moves it. */
+    closeNotSpamAsk = () => this.setState({ notSpamAsk: null });
+    confirmNotSpam = () => { if (this.state.notSpamAsk) this.markNotSpam(this.state.notSpamAsk.ids); };
+    markNotSpam = (t) => {
+      const inSpam = t.filter(id => this.sitsInSpam(id) && this.movesSpam(id));
+      const leftInSpam = t.filter(id => this.sitsInSpam(id) && !this.movesSpam(id));
+      this.setState(s => {
+        const verdicts = Object.assign({}, s.verdicts || {});
+        t.forEach(id => { verdicts[id] = { spam: false, judge: "person" }; });
+        return { verdicts: verdicts, notSpamAsk: null, sel: [], lastOp: null };
+      });
+      const commit = () => this.setState(s => {
+        const moved = Object.assign({}, s.moved || {});
+        inSpam.forEach(id => { moved[id] = "Inbox"; });
+        return { moved: moved };
+      });
+      this.animateRowsOut(this.inSpamFolder() ? inSpam : [], commit, "arc");
+      t.filter(id => inSpam.indexOf(id) < 0).forEach(id => this.setRowAnim(id, "edit", 1700));
+      const one = t.length === 1;
+      this.notify(!inSpam.length && leftInSpam.length
+          ? (one ? "It stays in Spam until you move it, because this account does not move spam." : "They stay where they are until you move them, because their accounts do not move spam.")
+        : !inSpam.length ? (one ? "It stays where it is and no longer folds away." : "They stay where they are and no longer fold away.")
+        : inSpam.length === t.length ? (one ? "It is in the Inbox now." : "They are in the Inbox now.")
+        : inSpam.length + " moved from Spam to the Inbox, and the rest stay where they are.",
+        { kind: "success", title: "Marked not spam - " + this.countWord(t.length) });
+    };
+
+    pickSpamKind = (k) => this.setState({ spamPick: k });
+    closeSpamAsk = () => this.setState({ spamAsk: null, spamPick: null });
+    confirmSpam = () => {
+      const ask = this.state.spamAsk;
+      const kind = spamKind(this.state.spamPick);
+      if (!ask || !kind) return;
+      const t = ask.ids;
+      const outside = t.filter(id => !this.sitsInSpam(id));
+      const movers = ask.moved ? [] : outside.filter(id => this.movesSpam(id));
+      this.setState(s => {
+        const verdicts = Object.assign({}, s.verdicts || {});
+        t.forEach(id => { verdicts[id] = { spam: true, judge: "person", kind: kind.key }; });
+        return { verdicts: verdicts, spamAsk: null, spamPick: null, sel: [] };
+      });
+      t.filter(id => movers.indexOf(id) < 0).forEach(id => this.setRowAnim(id, "edit", 1700));
+      this.animateRowsOut(movers, () => this.setState(s => {
+        const moved = Object.assign({}, s.moved || {});
+        movers.forEach(id => { moved[id] = "Spam"; });
+        return { moved: moved };
+      }), "arc");
+      const one = t.length === 1;
+      this.notify(kind.label + "." + (!outside.length ? ""
+        : movers.length === outside.length ? (one ? " It is in Spam now." : " They are in Spam now.")
+        : movers.length ? " " + movers.length + " moved to Spam, and the rest stay where they are, folded out of the way."
+        : one ? " It stays where it is, folded out of the way." : " They stay where they are, folded out of the way."),
+        { kind: "success", title: (ask.moved ? "Kind set - " : "Marked as spam - ") + this.countWord(t.length) });
     };
 
     /* Drag a thread (or the whole selection) from the list onto a folder in the sidebar. */
@@ -1188,7 +1332,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       else if (op.kind === "move") this.setState(s => {
         const moved = Object.assign({}, s.moved || {});
         op.ids.forEach(id => { delete moved[id]; });
-        return { moved: moved, lastOp: null };
+        return { moved: moved, verdicts: op.verdicts || s.verdicts, spamAsk: null, spamPick: null, lastOp: null };
       });
     };
 
@@ -1257,21 +1401,27 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const th = THREADS.find(t => t.id === id) || {};
       const flagged = !!(this.state.flags || {})[id];
       const p = this.localPt(cx || 0, cy || 0);
+      /* Nothing that reads mail for the person reads spam, so a spam message offers neither AI act. Its verdict joins
+         the header's detail, since a folded row draws no badge and a finger has no hover to ask with. */
+      const sp = this.spamOf(id);
+      const ai = !sp.spam;
       this.setState({
         ctxMenu: {
-          x: p.x, y: p.y, kind: "mail", id: id, title: th.subject || "Message", detail: th.from,
+          x: p.x, y: p.y, kind: "mail", id: id, title: th.subject || "Message",
+          detail: th.from + (sp.spam ? " - " + (spamKind(sp.kind) ? spamKind(sp.kind).label + " spam" : "Spam") : ""),
           items: [
-            { icon: "auto_awesome", label: "AI summary", run: () => this.openAiSum(id) },
+            ai && { icon: "auto_awesome", label: "AI summary", run: () => this.openAiSum(id) },
             { icon: "check_box", label: "Select messages", run: () => this.toggleSelect(id) },
-            { icon: "auto_awesome", label: "Ask the agent", run: () => this.goAgentWith("thread “" + (th.subject || "mail") + "”") },
+            ai && { icon: "auto_awesome", label: "Ask the agent", run: () => this.goAgentWith("thread “" + (th.subject || "mail") + "”") },
             { icon: "reply", label: "Reply", run: () => { this.setState({ threadId: id, mailPane: "thread", threadOpen: true }); this.startReply("reply"); } },
             { icon: "forward", label: "Forward", run: () => { this.setState({ threadId: id, mailPane: "thread", threadOpen: true }); this.startReply("fwd"); } },
             { icon: "archive", label: "Archive", run: () => this.archiveThreads([id]) },
             { icon: "flag", label: flagged ? "Remove flag" : "Flag", run: () => this.toggleFlagThreads([id]) },
             { icon: "mark_email_unread", label: "Mark as unread", run: () => this.markUnread([id]) },
+            { icon: sp.spam ? "report_off" : "report", label: sp.spam ? (this.sitsInSpam(id) && this.movesSpam(id) ? "Not spam\u2026" : "Not spam") : "Spam\u2026", run: () => this.toggleSpam([id]) },
             { icon: "drive_file_move", label: "Move\u2026", run: () => this.setState({ moveFor: [id] }) },
             { icon: "delete", label: "Delete", danger: true, run: () => this.deleteThreads([id]) },
-          ],
+          ].filter(Boolean),
         },
       });
     };
@@ -2650,11 +2800,90 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const evObj = plan && st.ev ? plan.evidence.find(x => x.n === st.ev) : null;
       const agentEvObj = st.agentEv && st.agentEv.conv === (st.convId || null) ? st.agentEv : null;
       const thread = THREADS.find(t => t.id === st.threadId) || THREADS[0];
+      /* An account's Spam folder lists what sits in it, badged by kind; every other list leaves it out and folds the
+         spam that sits elsewhere. The prototype's lists are otherwise one list under every folder. */
+      const inSpamBox = this.inSpamFolder();
+      const spamBoxAcc = (st.folderKey || "").split("·")[0];
+      const listedThreads = THREADS.filter(t => (st.archived || []).indexOf(t.id) < 0 && (st.deleted || []).indexOf(t.id) < 0 &&
+        this.sitsInSpam(t.id) === inSpamBox && (!inSpamBox || spamBoxAcc === "all" || this.accountOf(t.id) === spamBoxAcc));
+      const threadSpam = this.spamOf(thread.id);
+      /* The opened message's warning. Every spam message says it is spam and a security risk, and who judged it; a
+         dangerous kind takes the strong form and says, from the record, what it asks for and whom it is written to
+         look like, never repeating its own claims as fact. */
+      const spamWarning = (sp, t) => {
+        const k = spamKind(sp.kind);
+        const strong = !!(k && k.danger);
+        const judge = sp.judge === "person"
+          ? "You marked this message spam" + (k ? " and named it " + k.label.toLowerCase() + "." : ".")
+          : sp.judge === "server"
+            ? "Your mail server judged this message spam."
+            : "A model judged this message spam" + (k ? " and named it " + k.label.toLowerCase() + ". The kind is the model's judgement and can be wrong." : ".");
+        const lines = [];
+        if (strong && (t.asks || t.poses)) {
+          lines.push(t.asks && t.poses ? "It asks for " + t.asks + ", and it is written to look as if it came from " + t.poses + "."
+            : t.asks ? "It asks for " + t.asks + "." : "It is written to look as if it came from " + t.poses + ".");
+        }
+        lines.push(judge);
+        if (strong) lines.push("Do not give it anything it asks for.");
+        lines.push(SPAM_READ_ONLY);
+        return {
+          spamWarn: true,
+          spamTitle: strong ? k.label + ". This message is spam and a security risk."
+            : (k ? k.label + ". " : "") + "This message is spam and may be a security risk.",
+          spamGlyph: strong ? "gpp_bad" : "report",
+          spamBoxStyle: "display:flex;align-items:flex-start;gap:11px;border-radius:12px;padding:" + (touch ? "14px 15px" : "13px 16px") + ";" +
+            (strong ? "background:var(--err-soft);border:1px solid var(--err)" : "background:var(--sub);border:1px solid var(--line)"),
+          spamGlyphStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:22px;line-height:1;padding-top:1px;color:" +
+            (strong ? "var(--err-text)" : "var(--muted)"),
+          spamTitleStyle: "font-size:15px;font-weight:600;line-height:1.4;text-wrap:pretty;color:" + (strong ? "var(--err-text)" : "var(--text)"),
+          spamLines: lines.map((text, i) => ({
+            text, style: "font-size:14px;line-height:1.5;text-wrap:pretty;color:" + (i === lines.length - 1 ? "var(--muted)" : "var(--text)"),
+          })),
+        };
+      };
       const threadAddr = msgAddrRows(thread, (msgsFor(thread) || [])[0] || { from: thread.from, mine: false }, msgsFor(thread) || []);
       const flags = st.flags || {};
       /* The demo starts with the five newest threads unread — opening a thread clears it. */
       const unreadMap = st.unread || DEFAULT_UNREAD;
       const movedMap = st.moved || {};
+      /* What a row's verdict changes. In the Spam folder a row keeps its shape and names its kind in a square label
+         before the subject - the error tone and a glyph for the three dangerous kinds, the quiet tone for the rest,
+         nothing where no kind was named.
+         Everywhere else a spam row folds to one muted line: no preview, no AI line, no unread weight, its verdict in
+         its accessible name and in its menu's header rather than in a badge. No spam row offers the AI summary. */
+      const spamRowOf = (t, row) => {
+        const sp = this.spamOf(t.id);
+        const k = spamKind(sp.kind);
+        const folded = sp.spam && !inSpamBox;
+        const badged = inSpamBox && sp.spam && !!k;
+        const label = (tone) => "flex:0 0 auto;display:inline-flex;align-items:center;gap:3px;font-size:12px;line-height:16px;border-radius:4px;padding:0 5px;white-space:nowrap;" +
+          (tone === "danger" ? "color:var(--err-text);background:var(--err-soft);border:1px solid var(--err)" : "color:var(--muted);border:1px solid var(--border2)");
+        const selected = sel.indexOf(t.id) >= 0;
+        return Object.assign(row, {
+          folded, unfolded: !folded,
+          aiBtnShown: !sp.spam,
+          showAi: row.showAi && !sp.spam,
+          spamBadge: badged,
+          spamBadgeDanger: badged && k.danger,
+          spamBadgeLabel: badged ? k.label : "",
+          spamBadgeStyle: badged ? label(k.danger ? "danger" : "quiet") : "",
+          spamGlyphStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:14px;line-height:1",
+          spamName: sp.spam ? spamVerdictLine(sp) + "." : "",
+          ...(folded ? {
+            isUnread: false,
+            foldedStyle: row.rowStyle + "flex-direction:row;align-items:center;justify-content:flex-start;gap:9px;padding:" + (isMobile ? "0 16px" : "0 14px") +
+              ";min-height:" + (touch ? 44 : 34) + "px;box-sizing:border-box",
+            foldGlyphStyle: "flex:0 0 " + avSz + "px;width:" + avSz + "px;display:flex;justify-content:center;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--faint)",
+            foldFromStyle: "flex:0 0 auto;max-width:38%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--muted)",
+            foldSubjStyle: "flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--muted)",
+            foldTimeStyle: "flex:0 0 auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint)",
+            foldCheckShown: selected,
+            stripLabel: spamVerdictLine(sp) + ": " + t.from + " - " + t.subject,
+            stripInitials: "report",
+            stripAvatarStyle: "width:36px;height:36px;flex:0 0 36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--rail);color:var(--faint);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1",
+          } : {}),
+        });
+      };
       const rowAnim = st.rowAnim || {};
       const rowOut = (id) => rowAnim[id] === "out" || rowAnim[id] === "outdel" || rowAnim[id] === "outarc";
       /* the wash names the act: red for a deletion, orange for archive and move */
@@ -2704,6 +2933,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         flag: () => this.toggleFlagThreads(),
         mark_email_unread: () => this.markUnread(),
         drive_file_move: () => this.openMove(),
+        report: () => this.toggleSpam(),
+        report_off: () => this.toggleSpam(),
         fullscreen: () => this.setState({ stateBarOff: true }),
         fullscreen_exit: () => this.setState({ stateBarOff: false }),
       };
@@ -2750,10 +2981,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const folding = st.histFolding === thread.id;
         items.push({
           isMsg: true, isPill: false, key: k, isActive,
+          ...(threadSpam.spam && i === lastIdx ? spamWarning(threadSpam, thread.spam || {}) : { spamWarn: false }),
           unfoldMotion: i !== activeIdx && (folding || st.histUnfolded === thread.id) ? "unfold" : "none",
           unfoldPhase: folding && i !== activeIdx ? "out" : "in",
-          remoteBlocked: remoteRefs > 0 && !remoteOn,
-          remoteLoaded: remoteRefs > 0 && remoteOn,
+          remoteBlocked: remoteRefs > 0 && !remoteOn && !threadSpam.spam,
+          remoteLoaded: remoteRefs > 0 && remoteOn && !threadSpam.spam,
           remoteCountLabel: "Removed references: " + remoteRefs,
           loadRemote: () => this.setState(s2 => ({ remoteLoaded: Object.assign({}, s2.remoteLoaded, { [k]: true }) })),
           remoteBoxStyle: "display:flex;flex-direction:column;gap:9px;background:var(--sub);border:1px solid var(--line);border-radius:12px;padding:" + (touch ? "14px 15px" : "13px 16px"),
@@ -2765,11 +2997,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           num: (i + 1) + " / " + msgs.length,
           open, collapsed: !open,
           hasAtts: m.atts.length > 0,
-          atts: m.atts.map(x => ({ type: x.type, name: x.name, size: x.size, open: () => (this.tabsMode()
+          atts: m.atts.map(x => ({ type: x.type, name: x.name, size: x.size, open: () => this.refuseSpam(thread.id, "Its attachments do not open.") || (this.tabsMode()
             ? this.openTab("doc:" + x.name, { doc: x, docZoom: 1, docLoading: true }, { att: x })
-            : this.openDocLoad({ doc: x, docZoom: 1 })), download: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.notifyTask({ title: "Downloading file…", body: x.name, cancelText: "Downloading \u201C" + x.name + "\u201D is in progress. Aborting removes the incomplete file.", doneTitle: "File downloaded", doneBody: x.name, ms: 1800 }); } })),
+            : this.openDocLoad({ doc: x, docZoom: 1 })), download: (e) => { if (e && e.stopPropagation) e.stopPropagation(); if (this.refuseSpam(thread.id, "Its attachments are not downloaded.")) return; this.notifyTask({ title: "Downloading file…", body: x.name, cancelText: "Downloading \u201C" + x.name + "\u201D is in progress. Aborting removes the incomplete file.", doneTitle: "File downloaded", doneBody: x.name, ms: 1800 }); } })),
           showDownloadAll: m.atts.length > 1,
-          downloadAll: () => this.notifyTask({ title: "Packing attachments…", body: m.atts.length + " files → attachments.zip", cancelText: "The ZIP archive is being prepared. Aborting discards the partially packed file.", doneTitle: "Archive ready", doneBody: "attachments.zip - " + m.atts.length  + " files", ms: 2600 }),
+          downloadAll: () => this.refuseSpam(thread.id, "Its attachments are not downloaded.") || this.notifyTask({ title: "Packing attachments…", body: m.atts.length + " files → attachments.zip", cancelText: "The ZIP archive is being prepared. Aborting discards the partially packed file.", doneTitle: "Archive ready", doneBody: "attachments.zip - " + m.atts.length  + " files", ms: 2600 }),
           clipLabel: m.atts.length ? String(m.atts.length) : "",
           clipStyle: "display:flex;align-items:center;gap:3px;color:var(--faint);font-size:" + (touch ? 13 : 11) + "px",
           clipIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:" + (touch ? 18 : 14) + "px",
@@ -2785,6 +3017,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           htmlRich: !!m.html,
           htmlTitle: m.html ? "Show the original message (rich content)" : "Show the original message",
           openHtml: () => {
+            if (this.refuseSpam(thread.id, "Its original does not open.")) return;
             const doc = { title: thread.subject, from: m.from, when: m.when, rich: !!m.html, src: m.html || htmlFallback(m, thread.subject) };
             this.setState({ htmlAsk: { key: "html:" + thread.id + ":" + i, doc } });
           },
@@ -2805,7 +3038,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           avatarStyle:
             "width:30px;height:30px;flex:0 0 30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;letter-spacing:0.02em;" +
             (m.mine ? "background:var(--accent);color:var(--onaccent);" : "background:var(--border2);color:var(--text2);"),
-          paras: m.paras.reduce((acc, bb) => bb.md ? acc.concat(mdView(bb.md)) : acc.concat([{
+          paras: m.paras.reduce((acc, bb) => bb.md ? acc.concat(threadSpam.spam ? unlinked(mdView(bb.md)) : mdView(bb.md)) : acc.concat([{
             isText: true,
             runs: [{ text: bb.text, plain: true, isLink: false, href: "", style: "" }],
             style: bb.hl && st.cameFrom
@@ -4504,19 +4737,24 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         threadAddrTitle: st.threadAddrOpen ? "Collapse address details" : "Other people on this message",
         threadAddrRowsStyle: "display:flex;flex-direction:column;gap:3px;padding:2px 0 3px " + (singlePane ? "27px" : "22px"),
         toggleThreadAddr: () => this.setState(s2 => ({ threadAddrOpen: !s2.threadAddrOpen })),
-        threadActions: [
+        /* A message marked spam is read-only, so its header holds *Not spam* alone, the list's act with its
+           confirmation; any other message adds *Spam* after its acts, in the error tone beside its glyph and word. */
+        threadActions: (threadSpam.spam ? [
+          { icon: "report_off", label: "Not spam", title: "Not spam", run: () => this.toggleSpam([thread.id]) },
+        ] : [
           { icon: "reply", label: "Reply", title: "Reply", run: () => this.startReply("reply", [thread.id]) },
           { icon: "forward", label: "Forward", title: "Forward", run: () => this.startReply("fwd", [thread.id]) },
           { icon: "flag", label: flagOn ? "Unflag" : "Flag", title: flagOn ? "Remove flag" : "Flag", run: () => this.toggleFlagThreads([thread.id]) },
-        /* Two panes under a finger carry these three in the toolbar above already, so the header keeps *Ask* alone and
+          { icon: "report", label: "Mark spam", title: "Mark as spam", run: () => this.toggleSpam([thread.id]) },
+        /* Two panes under a finger carry these in the toolbar above already, so the header keeps *Ask* alone and
            the subject keeps the width a second copy would take from it. */
-        ].filter(() => singlePane || !touch).map(a => ({
+        ]).filter(() => singlePane || !touch).map(a => ({
           title: a.title,
           run: a.run,
           label: singlePane || paneNarrow ? a.icon : a.label,
           style: singlePane || paneNarrow
-            ? "width:" + (isMobile ? 48 : touch ? 44 : 34) + "px;height:" + (isMobile ? 48 : touch ? 44 : 34) + "px;display:flex;align-items:center;justify-content:center;border-radius:" + (touch ? 12 : 8) + "px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : "--text2") + ");font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1"
-            : "display:flex;align-items:center;padding:5px 8px;border-radius:8px;font-size:13px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : "--muted") + ")",
+            ? "width:" + (isMobile ? 48 : touch ? 44 : 34) + "px;height:" + (isMobile ? 48 : touch ? 44 : 34) + "px;display:flex;align-items:center;justify-content:center;border-radius:" + (touch ? 12 : 8) + "px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : a.icon === "report" ? "--err-text" : "--text2") + ");font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1"
+            : "display:flex;align-items:center;padding:5px 8px;border-radius:8px;font-size:13px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : a.icon === "report" ? "--err-text" : a.icon === "report_off" ? "--text2" : "--muted") + ")",
         })),
         backToList: () => this.setState({ mailPane: "list", replyDock: null, replyChooser: null }),
         threadListStyle: "position:relative;" + (singlePane
@@ -4565,7 +4803,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           "width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--accent);color:var(--onaccent);box-shadow:0 6px 18px var(--sh-2)",
         selectionCount: sel.length + " selected",
         clearSelection: () => this.setState({ sel: [] }),
-        selectAllThreads: () => this.setState({ sel: THREADS.map(t => t.id) }),
+        selectAllThreads: () => this.setState({ sel: listedThreads.map(t => t.id) }),
         tbRef: this.tbRef,
         toolbarStyle: "flex:0 0 auto;display:flex;align-items:center;gap:2px;overflow-x:auto;background:var(--panel);border-bottom:1px solid var(--line);box-shadow:0 1px 2px var(--sh-1);" +
           (isMobile ? "box-sizing:border-box;min-height:56px;padding:6px 8px 6px 16px" : "padding:8px 12px"),
@@ -4589,14 +4827,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "display:flex;align-items:center;gap:7px;flex:0 0 auto;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);padding:8px 13px;border-radius:8px;white-space:nowrap;box-shadow:0 1px 2px var(--sh-2)"
           : "display:flex;align-items:center;justify-content:center;border-radius:8px;background:var(--accent);color:var(--onaccent);flex:0 0 auto;" + (touch ? "width:44px;height:44px" : "width:34px;height:34px"),
         toolbarActions: [
-          { icon: "reply", label: "Reply", key: 1 },
-          { icon: "reply_all", label: "Reply all" },
-          { icon: "forward", label: "Forward" },
+          ...(threadSpam.spam ? [{ icon: "report_off", label: "Not spam" }] : [
+            { icon: "reply", label: "Reply", key: 1 },
+            { icon: "reply_all", label: "Reply all" },
+            { icon: "forward", label: "Forward" },
+          ]),
           { icon: "archive", label: "Archive", key: 1 },
           { icon: "delete", label: "Delete", key: 1 },
           { icon: "flag", label: flagOn ? "Remove flag" : "Flag", key: 1 },
           { icon: "mark_email_unread", label: "Unread" },
           { icon: "drive_file_move", label: "Move" },
+          ...(threadSpam.spam ? [] : [{ icon: "report", label: "Mark spam" }]),
           /* Condensed view: hides the agreed/questions bar under the thread header.
              The setting is global for mail, so it survives switching messages. */
           /* Glyph only — fullscreen/exit reads instantly, the label lives in the tooltip. */
@@ -4606,6 +4847,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
            icon: a.icon, title: a.label, label: (tbFull && !a.iconOnly) ? a.label : "", run: mailAct[a.icon],
            style: ((tbFull && !a.iconOnly) ? tbBtn : tbIcon + ";flex:0 0 auto") +
              (a.icon === "flag" && flagOn ? ";color:var(--warn);background:var(--warn-soft)" : "") +
+             (a.icon === "report" ? ";color:var(--err-text)" : "") +
              (a.icon === "fullscreen_exit" ? ";color:var(--accent-d);background:var(--accent-soft)" : "") +
              /* Focus mode is a view toggle, not a message action — kept separate, at the right edge. */
              (a.iconOnly ? ";margin-left:auto" : ""),
@@ -4616,6 +4858,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           { icon: "delete", label: "Delete" },
           { icon: "flag", label: "Flag" },
           { icon: "mark_email_unread", label: "Unread" },
+          /* *Not spam* only while every selected message is spam; a mix reads *Spam* and is refused when pressed. */
+          sel.length && sel.every(id => this.spamOf(id).spam) ? { icon: "report_off", label: "Not spam" } : { icon: "report", label: "Spam" },
           { icon: "drive_file_move", label: "Move" },
         ].map(a => ({ icon: a.icon, title: a.label, label: tbFull ? a.label : "", run: mailAct[a.icon], style: tbFull ? selBtn : tbIcon + ";flex:0 0 auto;color:var(--accent-d)" })),
         aiSumOpen: !!aiSumThread,
@@ -4650,6 +4894,77 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           };
         })(),
         closeAiSum: this.closeAiSum,
+        /* The spam chooser: six kinds, one choice for the whole selection, confirmed rather than applied on the press.
+           Closing it changes nothing - except after a move into Spam, which has already marked the move spam. */
+        ...(() => {
+          const ask = st.spamAsk;
+          const n = ask ? ask.ids.length : 0;
+          const words = n === 1 ? "1 message" : n + " messages";
+          const picked = spamKind(st.spamPick);
+          return {
+            spamAskOpen: !!ask,
+            spamAskTitle: !ask ? "" : ask.moved ? "Moved to Spam" : "Mark " + words + " as spam",
+            spamAskText: !ask ? "" : ask.moved
+              ? (n === 1 ? "It is in Spam now and marked spam. Pick what kind of spam it is, or close this to leave it with no kind."
+                : "They are in Spam now and marked spam. Pick what kind of spam they are, or close this to leave them with no kind.")
+              : (() => {
+                const out = ask.ids.filter(id => !this.sitsInSpam(id));
+                const go = out.filter(id => this.movesSpam(id)).length;
+                const pick = n === 1 ? "Pick what kind of spam it is." : "Pick what kind of spam they are. One kind applies to all " + n + ".";
+                return pick + (!out.length ? "" : go === out.length ? (n === 1 ? " It moves to Spam." : " They move to Spam.")
+                  : go ? " The " + go + " on an account that moves spam go to Spam, and the rest stay where they are."
+                  : n === 1 ? " It stays in the folder it is in." : " Each stays in the folder it is in.");
+              })(),
+            spamAskStyle: isMobile
+              ? "box-sizing:border-box;width:100%;height:100%;display:flex;flex-direction:column;gap:12px;background:var(--panel);padding:8px 16px 22px;overflow:auto"
+              : "width:440px;max-width:100%;max-height:" + dlgMaxH + ";overflow:auto;display:flex;flex-direction:column;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:0 22px 50px var(--sh-3)",
+            spamCloseStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;" +
+              (touch ? "width:44px;height:44px;font-size:22px" : "width:28px;height:28px;font-size:18px"),
+            spamKinds: SPAM_KINDS.map(k => {
+              const on = st.spamPick === k.key;
+              return {
+                label: k.label, hint: k.hint, danger: k.danger, checked: on ? "true" : "false",
+                pick: () => this.pickSpamKind(k.key),
+                style: "display:flex;align-items:flex-start;gap:11px;border-radius:8px;padding:" + (touch ? "11px 12px" : "8px 10px") + ";min-height:" + (touch ? 52 : 40) + "px;box-sizing:border-box;" +
+                  (on ? "background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line)" : ""),
+                dotStyle: "flex:0 0 18px;width:18px;height:18px;margin-top:1px;box-sizing:border-box;border-radius:50%;" +
+                  (on ? "border:5px solid var(--accent);background:var(--panel)" : "border:1.5px solid var(--border2)"),
+                labelStyle: "display:flex;align-items:center;gap:5px;font-size:14px;font-weight:600;color:" + (k.danger ? "var(--err-text)" : "var(--text)"),
+              };
+            }),
+            spamGlyphInline: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1",
+            spamHintStyle: "font-size:13px;line-height:1.4;color:var(--muted);text-wrap:pretty",
+            spamConfirmLabel: ask && ask.moved ? "Set the kind" : "Mark as spam",
+            spamConfirmOff: picked ? "false" : "true",
+            spamConfirmTitle: picked ? "" : "Pick a kind of spam first",
+            spamConfirmStyle: "display:flex;align-items:center;justify-content:center;font-size:" + (touch ? 14 : 13) + "px;font-weight:600;border-radius:8px;padding:0 16px;min-height:" + (touch ? 44 : 34) + "px;" +
+              (picked ? "color:var(--onaccent);background:var(--accent)" : "color:var(--faint);background:var(--rail)"),
+            spamCancelStyle: "display:flex;align-items:center;justify-content:center;font-size:" + (touch ? 14 : 13) + "px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:0 15px;min-height:" + (touch ? 44 : 34) + "px",
+            spamCancelLabel: ask && ask.moved ? "No kind" : "Cancel",
+            closeSpamAsk: this.closeSpamAsk,
+            confirmSpam: this.confirmSpam,
+          };
+        })(),
+        /* *Not spam* asks before it acts whenever it moves mail: how many, and what happens to each. */
+        ...(() => {
+          const ask = st.notSpamAsk;
+          const n = ask ? ask.ids.length : 0;
+          const inSpam = ask ? ask.ids.filter(id => this.sitsInSpam(id) && this.movesSpam(id)).length : 0;
+          const one = n === 1;
+          return {
+            notSpamAskOpen: !!ask,
+            notSpamAskTitle: !ask ? "" : one ? "Mark this message not spam?" : "Mark " + n + " messages not spam?",
+            notSpamAskText: !ask ? ""
+              : inSpam === n ? (one ? "It is marked not spam and moved to the Inbox." : n + " messages are marked not spam and moved to the Inbox.")
+              : !inSpam ? (one ? "It is marked not spam and stays where it is." : n + " messages are marked not spam and stay where they are.")
+              : n + " messages are marked not spam. " + inSpam + " move from Spam to the Inbox, and the rest stay where they are.",
+            notSpamConfirmLabel: inSpam ? "Not spam, move to Inbox" : "Not spam",
+            notSpamBtnStyle: "display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:0 16px;min-height:" + (touch ? 44 : 34) + "px",
+            notSpamCancelStyle: "display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:0 15px;min-height:" + (touch ? 44 : 34) + "px",
+            closeNotSpamAsk: this.closeNotSpamAsk,
+            confirmNotSpam: this.confirmNotSpam,
+          };
+        })(),
         moveOpen: !!(st.moveFor && st.moveFor.length),
         moveTitle: st.moveFor ? "Move " + this.countWord(st.moveFor.length) : "",
         closeMove: this.closeMove,
@@ -4854,13 +5169,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         threadHeadStyle: singlePane
           ? "flex:0 0 auto;display:flex;flex-direction:column;gap:2px;padding:" + (thCollapsed ? "3px 6px" : "6px 8px 8px 8px") + ";border-bottom:1px solid var(--line);background:var(--panel);transition:padding 140ms ease"
           : "display:flex;flex-direction:column;gap:" + (low ? 2 : 7) + "px;padding:" + (low ? 8 : 16) + "px 22px;border-bottom:1px solid var(--line)",
-        showThreadStateBar: (!singlePane || !thCollapsed) && !stateCards && !st.stateBarOff,
+        showThreadStateBar: (!singlePane || !thCollapsed) && !stateCards && !st.stateBarOff && !threadSpam.spam,
         /* Condensed view: only the correspondence remains. On a narrow screen the header stays —
            mieszka w nim przycisk powrotu do listy. */
         showThreadHead: !st.stateBarOff || singlePane,
         /* *Draft a reply* first asks what the reply should say: a card hanging over the bottom of the thread with a
            field and its press, and only that press opens the reply composer and starts the draft in it. */
-        replyFabShown: !st.stateBarOff && !st.replyDock,
+        replyFabShown: !st.stateBarOff && !st.replyDock && !threadSpam.spam,
         replyDockOpen: !st.stateBarOff && !!st.replyDock,
         closeReplyDock: () => this.setState({ replyDock: null }),
         draftReplyFromDock: this.draftReply,
@@ -4910,8 +5225,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
            the state was derived, so the reading is held back instead of being shown out of date. */
         stateStale: !!thread.stateStale,
         stateFresh: !thread.stateStale,
-        stateInBody: stateCards && !st.stateBarOff && !thread.stateStale,
-        staleInBody: stateCards && !st.stateBarOff && !!thread.stateStale,
+        stateInBody: stateCards && !st.stateBarOff && !thread.stateStale && !threadSpam.spam,
+        staleInBody: stateCards && !st.stateBarOff && !!thread.stateStale && !threadSpam.spam,
         threadAiLine: thread.ai || (thread.state[0] ? thread.state[0].value : ""),
         threadSheetOpen: !!st.threadSheet,
         agentJumpRowStyle: "flex:0 0 auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--line);background:var(--sub);padding:" + (paneCompact ? "9px 16px" : "10px 24px"),
@@ -4992,7 +5307,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         cameFromResult: st.cameFrom,
         fromCitation: st.fromCite || "",
         backToResult: () => this.setState({ screen: "discover", cameFrom: false }),
-        threads: THREADS.filter(t => (st.archived || []).indexOf(t.id) < 0 && (st.deleted || []).indexOf(t.id) < 0).map(t => ({
+        threads: listedThreads.map(t => spamRowOf(t, {
           flagged: !!flags[t.id],
           isUnread: !!unreadMap[t.id],
           movedTo: movedMap[t.id] || "",
