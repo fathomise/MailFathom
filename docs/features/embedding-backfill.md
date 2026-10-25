@@ -77,6 +77,28 @@ work, described under [embedding one message](automatic-embedding.md#embedding-o
 about it between runs, so what is outstanding is decided by asking the database rather than by trusting a record of
 what was done.
 
+## Mail the live path was just offered
+
+**A message whose outstanding passages were cut less than ten minutes ago is left to the live path** while the walk is
+filling the generation serving searches. Cutting those passages is what offered the message to
+[automatic embedding](automatic-embedding.md), which embeds into that same generation, and without the window the two
+reach the same passages together whenever the walk passes freshly cut mail — above all right after a host starts, when
+the account runs and the first sweep begin at once. Both would pay a provider for the same passage and one of the two
+vectors would be discarded. The window is measured against the passages that still lack a vector, so a message whose
+fresh passages are already embedded is reached for the older ones that are not.
+
+The window bounds that overlap rather than closing it. Which messages the live path holds is known only to the replica
+holding its backlog, so a sweep on another replica cannot ask. A message still unembedded when the window ends is walked
+like any other — which is where a message `Embeddings:MaxQueuedEmails` turned away was going to be reached anyway, at
+the cost of a sweep's delay — and only a live turn still running on that message at that moment can pay for the same
+passage twice. When it does, the [write it loses replaces the winner's vector](automatic-embedding.md#embedding-one-message)
+rather than colliding with it.
+
+The window does not apply while a reindex is under way. The walk then fills the generation being built, which no live
+turn writes, and holding freshly cut mail back from it would keep the switch waiting for as long as mail kept arriving.
+The count of what a sweep has in front of it applies no window either, so a message left to the live path is still
+counted as outstanding until it has its vectors.
+
 ## Why it sweeps rather than finishes
 
 The walk is ordered by the stored-message identifier and commits its position after each message, so an interrupted run

@@ -43,20 +43,36 @@ public interface IStoredEmailEmbeddingBackfillStore
     /// <summary>Reads the next bounded batch of messages that are not current for the given profile.</summary>
     /// <param name="resumeAfter">The position to continue past, or <see langword="null" /> to start at the beginning.</param>
     /// <param name="profileId">The profile whose vectors decide what is outstanding.</param>
+    /// <param name="liveEmbeddingWindow">
+    /// How long after a passage is cut its message is left to the live path, or <see cref="TimeSpan.Zero" /> to select a
+    /// message however recently its passages were cut.
+    /// </param>
     /// <param name="batchSize">The greatest number of messages to return.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>The messages to bring up to date, in the order the resume position is expressed in, and never more than <paramref name="batchSize" />.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="batchSize" /> is not positive.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="batchSize" /> is not positive or <paramref name="liveEmbeddingWindow" /> is negative.
+    /// </exception>
     /// <remarks>
+    /// <para>
     /// Two conditions select a message, and they are the two halves of what this backfill exists for: a message whose
     /// extraction produced text and which carries no passages at all was stored before chunking existed, and a message
     /// carrying a passage with no vector under this profile was stored before the profile existed or was turned away by
     /// the live backlog's bound. A message no one may search is not selected, because vectors nothing may retrieve are a
     /// provider bill with no reader.
+    /// </para>
+    /// <para>
+    /// A message carrying an outstanding passage cut inside <paramref name="liveEmbeddingWindow" /> is not selected
+    /// either, because cutting it is what offered it to the live path a moment ago: selecting it here as well would have
+    /// both writers pay a provider for the same passage, and only one of the two vectors survives. The window is measured
+    /// against the outstanding passages alone, so a message whose fresh passages already carry their vectors is selected
+    /// for the older ones that do not, and the counts above apply no window at all.
+    /// </para>
     /// </remarks>
     Task<IReadOnlyList<StoredEmailAwaitingEmbedding>> GetEmailsAwaitingEmbeddingAsync(
         StoredEmailId? resumeAfter,
         EmbeddingProfileId profileId,
+        TimeSpan liveEmbeddingWindow,
         int batchSize,
         CancellationToken cancellationToken);
 

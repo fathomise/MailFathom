@@ -25,6 +25,8 @@ internal sealed class InMemoryStoredEmailEmbeddingBackfillStore : IStoredEmailEm
     private readonly List<WalkedEmail> mail = [];
     private readonly List<StoredEmailId?> savedPositions = [];
     private readonly List<StoredEmailId?> requestedResumePositions = [];
+    private readonly List<TimeSpan> requestedLiveEmbeddingWindows = [];
+    private readonly HashSet<EmailChunkId> passagesJustCut = [];
     private StoredEmailId? resumePosition;
 
     /// <summary>Initializes a walk over mail whose vectors live in the given store.</summary>
@@ -36,6 +38,9 @@ internal sealed class InMemoryStoredEmailEmbeddingBackfillStore : IStoredEmailEm
 
     /// <summary>Gets the position each batch was asked to continue past, in order.</summary>
     public IReadOnlyList<StoredEmailId?> RequestedResumePositions => this.requestedResumePositions;
+
+    /// <summary>Gets the window each batch was asked to leave freshly cut mail to the live path for, in order.</summary>
+    public IReadOnlyList<TimeSpan> RequestedLiveEmbeddingWindows => this.requestedLiveEmbeddingWindows;
 
     /// <summary>Gets the messages this walk was asked to cut into passages, in order.</summary>
     public List<StoredEmailId> ChunkedEmails { get; } = [];
@@ -58,6 +63,26 @@ internal sealed class InMemoryStoredEmailEmbeddingBackfillStore : IStoredEmailEm
     {
         this.mail.Add(new WalkedEmail(storedEmailId, passageCount) { IsChunked = true });
         this.embeddingStore.AddPassages(storedEmailId, CreatePassages(storedEmailId, passageCount));
+    }
+
+    /// <summary>Cuts passages of a message a moment ago, which is what offered it to the live path.</summary>
+    /// <param name="storedEmailId">The message, which is added to the walk when it is not already in it.</param>
+    /// <param name="passageCount">How many passages the cut yields, beside any the message already has.</param>
+    /// <returns>The passages just cut, so a test can give one of them a vector as the live path would.</returns>
+    public IReadOnlyList<EmailChunkAwaitingEmbedding> CutPassagesForTheLivePath(
+        StoredEmailId storedEmailId,
+        int passageCount)
+    {
+        if (this.mail.TrueForAll(candidate => candidate.StoredEmailId != storedEmailId))
+        {
+            this.mail.Add(new WalkedEmail(storedEmailId, passageCount) { IsChunked = true });
+        }
+
+        var passages = CreatePassages(storedEmailId, passageCount);
+        this.embeddingStore.AddPassages(storedEmailId, passages);
+        this.passagesJustCut.UnionWith(passages.Select(passage => passage.Id));
+
+        return passages;
     }
 
     /// <inheritdoc />
@@ -90,13 +115,16 @@ internal sealed class InMemoryStoredEmailEmbeddingBackfillStore : IStoredEmailEm
     public async Task<IReadOnlyList<StoredEmailAwaitingEmbedding>> GetEmailsAwaitingEmbeddingAsync(
         StoredEmailId? resumeAfter,
         EmbeddingProfileId profileId,
+        TimeSpan liveEmbeddingWindow,
         int batchSize,
         CancellationToken cancellationToken)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(liveEmbeddingWindow, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
         cancellationToken.ThrowIfCancellationRequested();
 
         this.requestedResumePositions.Add(resumeAfter);
+        this.requestedLiveEmbeddingWindows.Add(liveEmbeddingWindow);
 
         var batch = new List<StoredEmailAwaitingEmbedding>(batchSize);
 
@@ -107,6 +135,12 @@ internal sealed class InMemoryStoredEmailEmbeddingBackfillStore : IStoredEmailEm
             if (batch.Count == batchSize)
             {
                 break;
+            }
+
+            if (liveEmbeddingWindow > TimeSpan.Zero
+                && await this.LacksAVectorForAPassageJustCutAsync(email, profileId, cancellationToken))
+            {
+                continue;
             }
 
             if (await this.IsOutstandingAsync(email, profileId, cancellationToken))
@@ -185,6 +219,21 @@ internal sealed class InMemoryStoredEmailEmbeddingBackfillStore : IStoredEmailEm
             cancellationToken);
 
         return outstanding.Count > 0;
+    }
+
+    /// <summary>Answers the window the real query applies: a passage cut inside any window that still has no vector.</summary>
+    private async Task<bool> LacksAVectorForAPassageJustCutAsync(
+        WalkedEmail email,
+        EmbeddingProfileId profileId,
+        CancellationToken cancellationToken)
+    {
+        var outstanding = await this.embeddingStore.GetChunksAwaitingEmbeddingAsync(
+            email.StoredEmailId,
+            profileId,
+            maxCount: int.MaxValue,
+            cancellationToken);
+
+        return outstanding.Any(passage => this.passagesJustCut.Contains(passage.Id));
     }
 
     /// <summary>Finds where a batch continues from, the walk being ordered by the order mail was added.</summary>

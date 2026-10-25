@@ -66,15 +66,16 @@ internal static class PersistenceConcurrencyConflicts
     /// rests on rather than a provider failure ending the pass that lost.
     /// </para>
     /// <para>
-    /// The next four are one message met by two writers, at the stages that write per attachment and per passage. The
+    /// The next three are one message met by two writers, at the stages that write per attachment and per passage. The
     /// passage ordinal is two cutters: the account run's cut and the embedding sweep select the same rows and walk
     /// them in the same order, and the sweep runs on its own interval while a run is still fetching, so on a first
     /// synchronization both can reach one message. The attachment ordinal is that same pair over the passages cut
-    /// from one attachment, which both writers reconcile through the same walk position. The embedding row is the
-    /// same pair one stage later, over the passages that cut produced. Each reads inside its own transaction, so the
-    /// one that commits second read nothing and writes a row the winner already wrote. The retry is exactly right
-    /// for all three: it re-reads the winner's rows in a fresh session, finds them identical to what it would have
-    /// written, and updates in place rather than inserting again.
+    /// from one attachment, which both writers reconcile through the same walk position. Each reads inside its own
+    /// transaction, so the one that commits second read nothing and writes a row the winner already wrote. The retry
+    /// is exactly right for both: it re-reads the winner's rows in a fresh session, finds them identical to what it
+    /// would have written, and updates in place rather than inserting again. The vector row one stage later is not
+    /// here although the same pair reaches it: it is written by one upsert whose conflict clause replaces the
+    /// winner's row, so its key is never violated and nothing has to recognize it.
     /// </para>
     /// <para>
     /// The attachment-text row is the reading itself rather than what was cut from it, and its key is the message
@@ -240,7 +241,6 @@ internal static class PersistenceConcurrencyConflicts
                 or PersistenceConstraintNames.EmailChunkOrdinalUniqueIndexName
                 or PersistenceConstraintNames.EmailChunkAttachmentOrdinalUniqueIndexName
                 or PersistenceConstraintNames.EmailAttachmentTextPrimaryKeyName
-                or PersistenceConstraintNames.EmailEmbeddingPrimaryKeyConstraintName
                 or PersistenceConstraintNames.EmailEnrichmentPrimaryKeyConstraintName
                 or PersistenceConstraintNames.EmailEnrichmentMarkAspectUniqueIndexName
                 or PersistenceConstraintNames.MailRederivationPositionPrimaryKeyConstraintName

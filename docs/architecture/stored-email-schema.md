@@ -2185,9 +2185,8 @@ than two records; a message waiting to leave is filed nowhere. The table exists 
 corrected by repeating it: every mutation elsewhere in this schema names a message the server already holds, while an append *creates* one, so a second attempt
 is a second copy in somebody's folder that nothing afterwards can tell from the first.
 
-That key is named `pk_outgoing_email_filings` for the reason `pk_email_embeddings` is: it is what two passes reaching
-one send at once collide on, and a lost race is only recognized as one where the constraint has a name to recognize it
-by. The loser retries from a fresh read, finds the row the winner issued, and appends nothing.
+That key is named `pk_outgoing_email_filings` because it is what two passes reaching one send at once collide on, and a
+lost race is only recognized as one where the constraint has a name to recognize it by. The loser retries from a fresh read, finds the row the winner issued, and appends nothing.
 
 | Column | What it records |
 |---|---|
