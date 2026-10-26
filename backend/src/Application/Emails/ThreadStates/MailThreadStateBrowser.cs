@@ -8,6 +8,7 @@ using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Emails.ThreadStates;
 
@@ -58,6 +59,7 @@ public sealed class MailThreadStateBrowser
 
     /// <summary>Reads where one of the acting user's conversations stands.</summary>
     /// <param name="threadId">The conversation, as a message row published it.</param>
+    /// <param name="reader">Who the state is read for: the person opening it in the client, or an agent placing it in a conversation.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>
     /// The state, holding only the leading statements of each aspect — see <see cref="EmailThreadState.Leading" /> — or
@@ -65,14 +67,17 @@ public sealed class MailThreadStateBrowser
     /// </returns>
     /// <exception cref="SensitiveContentScannerUnavailableException">Thrown when a switched-on scanner could not establish what the state carries, which refuses it rather than serving it unscanned.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the use case was reached by anything but a caller granted <see cref="MailFathomPermission.MailRead" />.</exception>
-    public async Task<EmailThreadState?> ReadStateAsync(EmailThreadId threadId, CancellationToken cancellationToken)
+    public async Task<EmailThreadState?> ReadStateAsync(
+        EmailThreadId threadId,
+        MailboxReaderKind reader,
+        CancellationToken cancellationToken)
     {
         this.authorization.RequirePermission(MailFathomPermission.MailRead);
 
         using var actingFor = this.egressGuard.ActingFor(
             await this.egressGuard.ReadPostureAcrossAccountsOfAsync(this.scopeResolver.User, cancellationToken));
 
-        var scope = await this.scopeResolver.ReadableScopeAsync([], [], JunkMailInclusion.Included, cancellationToken);
+        var scope = await this.scopeResolver.ReadableScopeAsync(reader, [], [], JunkMailInclusion.Included, cancellationToken);
 
         if (scope.AccountIds.Count is 0)
         {

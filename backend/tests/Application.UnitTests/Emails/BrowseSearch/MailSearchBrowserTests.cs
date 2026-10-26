@@ -19,6 +19,7 @@ using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -674,6 +675,26 @@ public sealed class MailSearchBrowserTests
     private static BrowseSearchRequest RequestFor(string? queryText, int? pageSize = null, string? cursor = null) =>
         new() { QueryText = queryText, PageSize = pageSize, Cursor = cursor };
 
+    /// <summary>The client's search is the person's own, so a folder withheld from AI is searched like any other.</summary>
+    [Fact]
+    public async Task BrowsePageAsync_AFolderWithheldFromAI_IsInTheScopeThePersonSearches()
+    {
+        // Arrange
+        var withheld = new MailFolderIdentity(
+            MailAccountId.Create(SyntheticEmailSummaries.DefaultAccountId),
+            MailFolderAlias.Create("Private"));
+        var index = new InMemoryEmailSearchIndex();
+        var browser = BrowserOver(
+            index,
+            folderParticipation: StubMailFolderParticipation.Mapping(withheld).Hiding(withheld));
+
+        // Act
+        await browser.SearchPageAsync(RequestFor(Query), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains(withheld, Assert.Single(index.RankedCandidatesCalls).Selection.Scope.ReadableFolders);
+    }
+
     private static MailSearchBrowser BrowserOver(
         InMemoryEmailSearchIndex index,
         SemanticEmailSearch? semanticSearch = null,
@@ -681,15 +702,16 @@ public sealed class MailSearchBrowserTests
         ICallerMailAccountCatalog? accountCatalog = null,
         SensitiveContentEgressGuard? egressGuard = null,
         AccessAuthorization? authorization = null,
-        IEmailAttachmentMatchReader? attachmentMatchReader = null) => new(
+        IEmailAttachmentMatchReader? attachmentMatchReader = null,
+        StubMailFolderParticipation? folderParticipation = null) => new(
         index,
         attachmentMatchReader ?? new InMemoryEmailAttachmentMatchIndex(),
         semanticSearch ?? LexicalOnlySemanticSearch(),
         previewReader ?? new InMemoryStoredEmailPreviews(),
         new MailboxScopeResolver(
             accountCatalog ?? CatalogServing(MailAccountId.Create(SyntheticEmailSummaries.DefaultAccountId)),
-            StubMailFolderParticipation.Nothing,
-            StubDeploymentMailFolders.None,
+            folderParticipation ?? StubMailFolderParticipation.Nothing,
+            StubDeploymentMailFolders.Of(folderParticipation ?? StubMailFolderParticipation.Nothing),
             StubMailFolderMappings.ResolvingNothing),
         EmailSearchSnippetBounds.Default,
         egressGuard ?? SensitiveContentEgressGuards.Inactive(),

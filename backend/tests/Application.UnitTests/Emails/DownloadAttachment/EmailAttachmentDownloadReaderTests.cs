@@ -183,11 +183,11 @@ public sealed class EmailAttachmentDownloadReaderTests
     }
 
     /// <summary>
-    /// A ticket outlives the configuration it was minted under, so a folder withheld from tools after the link was
+    /// A ticket outlives the configuration it was minted under, so a folder withheld from AI after the link was
     /// issued stops the download as well. It is refused exactly as an unserved account is, for the same reason.
     /// </summary>
     [Fact]
-    public async Task OpenAsync_EmailOfAFolderWithheldFromTools_Refuses()
+    public async Task OpenAsync_EmailOfAFolderWithheldFromAI_Refuses()
     {
         // Arrange
         var summary = SyntheticEmailSummaries.Create();
@@ -490,6 +490,30 @@ public sealed class EmailAttachmentDownloadReaderTests
         await contentStore.DidNotReceive().FindStoredContentAsync(
             Arg.Any<StoredEmailId>(),
             Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A folder withheld from AI is still the person's, so the client serves its files like any other.</summary>
+    [Fact]
+    public async Task OpenForReaderAsync_EmailOfAFolderWithheldFromAI_OpensTheAttachment()
+    {
+        // Arrange
+        var summary = SyntheticEmailSummaries.Create(attachmentCount: 1);
+        var reader = ReaderOver(
+            summary,
+            contentReader: ContentReaderOpening("invoice.pdf"),
+            folderParticipation: StubMailFolderParticipation
+                .Mapping(new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value))
+                .Hiding(new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value)),
+            authorization: AuthorizationOver(SignedInReader));
+
+        // Act
+        await using var attachment = (await reader.OpenForReaderAsync(
+            summary.StoredEmailId,
+            attachmentPosition: 0,
+            TestContext.Current.CancellationToken)).Attachment;
+
+        // Assert
+        Assert.Equal("invoice.pdf", attachment?.Description.FileName?.Value);
     }
 
     /// <summary>

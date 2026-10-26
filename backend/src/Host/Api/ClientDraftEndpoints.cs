@@ -15,6 +15,7 @@ using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
+using MailFathom.Domain.Folders;
 using MailFathom.Host.Configuration.Mail;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -530,6 +531,7 @@ internal static class ClientDraftEndpoints
         return new MailResponseDraftRequest
         {
             AnsweredEmailId = StoredEmailId.Create(answeredEmailId),
+            Reader = MailboxReaderKind.Person,
             Act = act,
             PlainTextBody = request.PlainTextBody ?? string.Empty,
             HtmlBody = request.HtmlBody,

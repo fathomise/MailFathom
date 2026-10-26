@@ -26,7 +26,7 @@ public sealed class StoredEmailProvenanceReaderCommandTests
         StoredEmailId.Create(new Guid("33333333-3333-3333-3333-333333333333")),
     ];
 
-    private static readonly MailFolderIdentity[] VisibleToTools =
+    private static readonly MailFolderIdentity[] VisibleToAI =
     [
         new(MailAccountId.Create("work"), MailFolderAlias.Create("INBOX")),
     ];
@@ -56,13 +56,13 @@ public sealed class StoredEmailProvenanceReaderCommandTests
         Assert.Contains(nameof(StoredEmailEntity.CcAddresses), command, StringComparison.Ordinal);
     }
 
-    /// <summary>Earlier correspondence is looked for only in mail still part of the mailbox and in folders a tool may read.</summary>
+    /// <summary>Earlier correspondence is looked for only in mail still part of the mailbox and in folders an agent may read.</summary>
     /// <remarks>
     /// Read from the existence test alone: the flag is published, so an expunged message or one in an unmapped folder
     /// deciding it would tell a caller that mail it cannot read exists.
     /// </remarks>
     [Fact]
-    public void ProvenanceOf_EarlierCorrespondence_IsNarrowedToLiveMailInFoldersVisibleToTools()
+    public void ProvenanceOf_EarlierCorrespondence_IsNarrowedToLiveMailInFoldersVisibleToAI()
     {
         // Arrange
         using var context = new MailFathomDbContextDesignTimeFactory().CreateDbContext([]);
@@ -99,7 +99,7 @@ public sealed class StoredEmailProvenanceReaderCommandTests
     {
         using var context = new MailFathomDbContextDesignTimeFactory().CreateDbContext([]);
 
-        return StoredEmailProvenanceReader.ProvenanceOf(context, emails, VisibleToTools).ToQueryString();
+        return StoredEmailProvenanceReader.ProvenanceOf(context, emails, VisibleToAI).ToQueryString();
     }
 
     /// <summary>Keeps the existence test, from its opening to the outermost <c>WHERE</c> that narrows by identity.</summary>

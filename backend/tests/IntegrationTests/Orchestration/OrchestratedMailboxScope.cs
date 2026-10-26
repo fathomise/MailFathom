@@ -48,6 +48,7 @@ internal static class OrchestratedMailboxScope
         IReadOnlyList<string> folderAliases,
         CancellationToken cancellationToken) =>
         scope.GetRequiredService<MailboxScopeResolver>().ReadableScopeAsync(
+            MailboxReaderKind.Agent,
             [],
             [.. folderAliases.Select(alias => MailFolderReference.ToAlias(MailFolderAlias.Create(alias)))],
             JunkMailInclusion.Excluded,

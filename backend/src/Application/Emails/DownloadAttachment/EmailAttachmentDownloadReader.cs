@@ -15,6 +15,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Emails.DownloadAttachment;
 
@@ -93,7 +94,7 @@ public sealed class EmailAttachmentDownloadReader
     /// <param name="repairRequestStore">Records durably that a local copy has to be fetched or read again.</param>
     /// <param name="attachmentText">Reads the attachment's text under its own ceilings, or says why it read none.</param>
     /// <param name="screen">Judges that text against what this deployment refuses to let leave.</param>
-    /// <param name="scopeResolver">Answers whether a tool may read the mailbox an email was stored from, and whose mail it is.</param>
+    /// <param name="scopeResolver">Answers whether the reader may reach the mailbox an email was stored from, and whose mail it is.</param>
     /// <param name="authorization">Answers which principal reached this use case.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public EmailAttachmentDownloadReader(
@@ -154,7 +155,11 @@ public sealed class EmailAttachmentDownloadReader
 
         this.authorization.RequireSignedCapability();
 
-        return await this.OpenPartAsync(ticket.StoredEmailId, ticket.AttachmentPosition, cancellationToken);
+        return await this.OpenPartAsync(
+            MailboxReaderKind.Agent,
+            ticket.StoredEmailId,
+            ticket.AttachmentPosition,
+            cancellationToken);
     }
 
     /// <summary>Opens one attachment for a caller that authenticated and holds the mailbox read grant.</summary>
@@ -183,16 +188,18 @@ public sealed class EmailAttachmentDownloadReader
     {
         this.authorization.RequirePermission(MailFathomPermission.MailRead);
 
-        return await this.OpenPartAsync(storedEmailId, attachmentPosition, cancellationToken);
+        return await this.OpenPartAsync(MailboxReaderKind.Person, storedEmailId, attachmentPosition, cancellationToken);
     }
 
     /// <summary>Opens the attachment both entrypoints resolved to, having each established its own caller.</summary>
     /// <remarks>
     /// Everything below this line is the same whoever asked, which is the reason it is one method: the checks are about
     /// the mail rather than about the request, and a second copy of them would be a second place for one of them to be
-    /// left out.
+    /// left out. The one fact about the request they take is who it answers for. A ticket is minted by an MCP read and
+    /// handed to an agent, so it is an agent's; a caller holding the grant is the person downloading from the client.
     /// </remarks>
     private async Task<AttachmentDownloadOutcome> OpenPartAsync(
+        MailboxReaderKind reader,
         StoredEmailId storedEmailId,
         int attachmentPosition,
         CancellationToken cancellationToken)
@@ -201,9 +208,10 @@ public sealed class EmailAttachmentDownloadReader
 
         // A ticket outlives the configuration it was minted under and a caller names an email it read at some earlier
         // moment, so what either of them reaches is re-decided here: an account the deployment stopped serving, one
-        // belonging to another user, and a folder an operator withheld from tools all answer with nothing, exactly as
-        // an email that is no longer stored does.
-        if (summary is null || !await this.scopeResolver.IsReadableByToolsAsync(
+        // belonging to another user, and — for a ticket an MCP read minted — a folder an operator withheld from AI all
+        // answer with nothing, exactly as an email that is no longer stored does.
+        if (summary is null || !await this.scopeResolver.IsReadableAsync(
+                reader,
                 summary.Account,
                 summary.Folder.Alias,
                 cancellationToken))

@@ -158,6 +158,7 @@ public sealed class AuthoredResponseDraftingTests
 
     private static MailResponseDraftRequest Request() => new()
     {
+        Reader = MailboxReaderKind.Agent,
         AnsweredEmailId = StoredEmailId.Create(Guid.CreateVersion7(Moment)),
         Act = AuthoredResponseAct.Reply,
         PlainTextBody = "Thank you.",

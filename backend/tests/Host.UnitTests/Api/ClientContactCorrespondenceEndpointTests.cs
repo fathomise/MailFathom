@@ -12,6 +12,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.Host.Api;
 using MailFathom.TestSupport;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -93,6 +94,37 @@ public sealed class ClientContactCorrespondenceEndpointTests
         Assert.Equal("application/pdf", document.MediaType);
     }
 
+    /// <summary>A folder withheld from AI is still the person's, so what an opened contact is drawn beside reaches into it like any other.</summary>
+    [Fact]
+    public async Task ReadCorrespondenceAsync_MailInAFolderWithheldFromAI_IsCorrelatedForThePerson()
+    {
+        // Arrange
+        this.Holds(ContactOf("anna@example.test"));
+        this.Correlates(
+            [
+                new CorrespondingThread(
+                    EmailThreadId.Create(TheConversation),
+                    StoredEmailId.Create(TheMessage),
+                    "the quarterly review",
+                    FirstJuly),
+            ],
+            []);
+        var withheld = new MailFolderIdentity(MailAccountId.Create("work"), MailFolderAlias.Create("private"));
+
+        // Act
+        var result = await this.ReadAsync(participation: StubMailFolderParticipation.Nothing.Hiding(withheld));
+
+        // Assert
+        var correspondence = Assert.IsType<Ok<ClientContactCorrespondenceResponse>>(result.Result).Value;
+
+        Assert.Equal(TheConversation, Assert.Single(correspondence!.Threads).ThreadId);
+        await this.index.Received(1).ReadRecentThreadsAsync(
+            Arg.Is<MailboxScope>(scope => scope != null && scope.ReadableFolders.Contains(withheld)),
+            Arg.Any<IReadOnlyList<string>>(),
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<CancellationToken>());
+    }
+
     /// <summary>A person in the book the window holds no mail of is an empty answer rather than a missing one.</summary>
     [Fact]
     public async Task ReadCorrespondenceAsync_AContactTheMailSaysNothingAbout_AnswersWithTwoEmptyLists()
@@ -142,11 +174,13 @@ public sealed class ClientContactCorrespondenceEndpointTests
         Assert.Empty(this.index.ReceivedCalls());
     }
 
-    private Task<Results<Ok<ClientContactCorrespondenceResponse>, NotFound>> ReadAsync(Guid? contactId = null) =>
+    private Task<Results<Ok<ClientContactCorrespondenceResponse>, NotFound>> ReadAsync(
+        Guid? contactId = null,
+        StubMailFolderParticipation? participation = null) =>
         ClientContactCorrespondenceEndpoint.ReadCorrespondenceAsync(
             contactId ?? TheContact,
             this.Contacts(),
-            this.Correspondence(),
+            this.Correspondence(participation),
             TestContext.Current.CancellationToken);
 
     /// <summary>States what the index answers the correlation with, which is what the wire shape is asserted against.</summary>
@@ -181,17 +215,23 @@ public sealed class ClientContactCorrespondenceEndpointTests
         Granted());
 
     /// <summary>Builds the correlation the route reads the mail from, over the in-memory index this class arranges.</summary>
-    private ContactCorrespondenceReader Correspondence() => new(
-        this.index,
-        new MailboxScopeResolver(
-            CatalogServing(MailAccountId.Create("work")),
-            StubMailFolderParticipation.Nothing,
-            StubDeploymentMailFolders.None,
-            StubMailFolderMappings.ResolvingNothing),
-        SensitiveContentEgressGuards.Inactive(),
-        ReadTelemetry(),
-        Granted(),
-        TimeProvider.System);
+    /// <param name="participation">What the caller's folders take part in, defaulting to a deployment that maps none.</param>
+    private ContactCorrespondenceReader Correspondence(StubMailFolderParticipation? participation = null)
+    {
+        var folders = participation ?? StubMailFolderParticipation.Nothing;
+
+        return new ContactCorrespondenceReader(
+            this.index,
+            new MailboxScopeResolver(
+                CatalogServing(MailAccountId.Create("work")),
+                folders,
+                StubDeploymentMailFolders.Of(folders),
+                StubMailFolderMappings.ResolvingNothing),
+            SensitiveContentEgressGuards.Inactive(),
+            ReadTelemetry(),
+            Granted(),
+            TimeProvider.System);
+    }
 
     /// <summary>A telemetry port that opens a scope and reports nothing, which is what a transport test needs of it.</summary>
     private static IMailboxReadTelemetry ReadTelemetry()

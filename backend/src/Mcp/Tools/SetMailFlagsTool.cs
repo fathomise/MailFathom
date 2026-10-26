@@ -10,6 +10,7 @@ using MailFathom.Application.Mail.Mutations.Authoring.Failures;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
+using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
 using MailFathom.Mcp.Tools.Categories;
 using MailFathom.Mcp.Tools.Results;
@@ -131,7 +132,7 @@ internal sealed class SetMailFlagsTool(MailFlagChangeRecorder flagChangeRecorder
             AuthoredDirection(keywordChange),
             NamedKeywords(keywords));
 
-        var result = await flagChangeRecorder.RecordAsync(change, Requester(requestId), cancellationToken);
+        var result = await flagChangeRecorder.RecordAsync(change, Requester(requestId), MailboxReaderKind.Agent, cancellationToken);
 
         return SetMailFlagsToolResult.From(result);
     }

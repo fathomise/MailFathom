@@ -55,6 +55,17 @@ public sealed class ClientMailMessageEndpointTests
         Assert.Equal([StoredEmailId.Create(Message)], request.StoredEmailIds);
     }
 
+    /// <summary>The pane reads for the person rather than for an agent, so a message in a folder withheld from AI is still served to them.</summary>
+    [Fact]
+    public void RequestFor_AnyRead_ReadsForThePersonSoAFolderWithheldFromAIIsServed()
+    {
+        // Act
+        var request = ClientMailMessageEndpoint.RequestFor(Message);
+
+        // Assert
+        Assert.Equal(MailboxReaderKind.Person, request.Reader);
+    }
+
     /// <summary>The header block a pane draws is what the message displayed, including what a list row deliberately narrows away.</summary>
     [Fact]
     public void For_AReadMessage_CarriesTheHeadersTheMessageDisplayed()

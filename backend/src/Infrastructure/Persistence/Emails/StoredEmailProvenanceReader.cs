@@ -30,8 +30,8 @@ internal sealed class StoredEmailProvenanceReader(
             return new Dictionary<StoredEmailId, EmailProvenance>();
         }
 
-        var visibleToTools = await deploymentFolders.ReadAsync(MailFolderSelection.VisibleToTools, cancellationToken);
-        var rows = await ProvenanceOf(dbContext, emails, visibleToTools).ToArrayAsync(cancellationToken);
+        var visibleToAI = await deploymentFolders.ReadAsync(MailFolderSelection.VisibleToAI, cancellationToken);
+        var rows = await ProvenanceOf(dbContext, emails, visibleToAI).ToArrayAsync(cancellationToken);
 
         return rows.ToDictionary(
             static row => StoredEmailId.Create(row.StoredEmailId),
@@ -50,7 +50,7 @@ internal sealed class StoredEmailProvenanceReader(
     /// <summary>Composes the one query the provenance of a set of emails is read from.</summary>
     /// <param name="context">The scoped context the read runs on.</param>
     /// <param name="emails">The emails whose provenance is wanted.</param>
-    /// <param name="visibleToTools">The folders a tool may read, which are the only ones earlier correspondence is looked for in.</param>
+    /// <param name="visibleToAI">The folders AI may reach, which are the only ones earlier correspondence is looked for in.</param>
     /// <returns>The query, which PostgreSQL evaluates in full.</returns>
     /// <remarks>
     /// <para>
@@ -68,7 +68,7 @@ internal sealed class StoredEmailProvenanceReader(
     /// </para>
     /// <para>
     /// The earlier mail is narrowed the way every read a caller is answered from is narrowed: to rows still part of the
-    /// mailbox and to the folders a mapping admits to tools. The flag is published to the model and to the caller, so mail
+    /// mailbox and to the folders a mapping admits to AI. The flag is published to the model and to the caller, so mail
     /// an operator unmapped or a server expunged must not decide it — a sender whose only earlier message is hidden is a
     /// first contact, rather than a hint that the hidden mail exists. The account is already the email's own, which
     /// the caller read.
@@ -77,13 +77,13 @@ internal sealed class StoredEmailProvenanceReader(
     internal static IQueryable<StoredEmailProvenanceRow> ProvenanceOf(
         MailFathomDbContext context,
         IReadOnlyCollection<StoredEmailId> emails,
-        IReadOnlyList<MailFolderIdentity> visibleToTools)
+        IReadOnlyList<MailFolderIdentity> visibleToAI)
     {
         var identities = emails.Select(static email => email.Value).ToArray();
         var stored = context.StoredEmails.AsNoTracking();
         var correspondence = AccountScopedMailFolders.Admitting(
             stored.Where(StoredEmailTombstone.IsNotTombstoned),
-            visibleToTools);
+            visibleToAI);
 
         return stored
             .Where(email => identities.Contains(email.Id))

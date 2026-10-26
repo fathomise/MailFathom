@@ -616,6 +616,7 @@ describe('Message and the cleaned rendering', () => {
         ['AllowanceExhausted', "This server's allowance for the period is spent, so the simplified version is shown."],
         ['ProviderUnavailable', 'The AI did not answer, so the simplified version is shown.'],
         ['AnswerRejected', 'The answer the model gave could not be used, so the simplified version is shown.'],
+        ['WithheldFromAI', 'This message is in a folder withheld from AI, so the simplified version is shown.'],
     ])('states %s over the reduced document rather than leaving the pane empty', async (cleaning, said) => {
         answeringCleaning(cleaning, null);
 

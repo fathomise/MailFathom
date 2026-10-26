@@ -21,7 +21,7 @@ namespace MailFathom.Application.Emails.Threads;
 /// </para>
 /// <para>
 /// The account and the folder are carried because they are what the read decides visibility on. A message in a folder an
-/// operator withheld from tools is outside every mailbox read, so it is outside the thread a tool publishes, and that
+/// operator withheld from AI is outside every mailbox read, so it is outside the thread a tool publishes, and that
 /// decision belongs to the use case rather than to the query that produced these rows.
 /// </para>
 /// <para>

@@ -104,6 +104,7 @@ public sealed class MailRelocationRecorderTests
             LocalEmail,
             IdOf(Archive),
             Requester,
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -127,7 +128,7 @@ public sealed class MailRelocationRecorderTests
         var recorder = this.Recorder(TargetIn(Inbox));
 
         // Act
-        await recorder.RecordAsync(LocalEmail, IdOf(Archive), Requester, TestContext.Current.CancellationToken);
+        await recorder.RecordAsync(LocalEmail, IdOf(Archive), Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Null(Assert.Single(this.records.OpenedRequests).LocalDisposition);
@@ -153,6 +154,7 @@ public sealed class MailRelocationRecorderTests
             LocalEmail,
             IdOf(Archive),
             Requester,
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -177,16 +179,16 @@ public sealed class MailRelocationRecorderTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            recorder.RecordAsync(LocalEmail, IdOf(Archive), Requester, TestContext.Current.CancellationToken));
+            recorder.RecordAsync(LocalEmail, IdOf(Archive), Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomPermission.MailMove, refusal.RequiredPermission);
         Assert.Equal(0, this.records.OpenedRecordCount);
     }
 
-    /// <summary>A folder no tool may read is a folder no tool may move mail out of, or the write surface would be the way round the withholding.</summary>
+    /// <summary>A folder no agent may read is a folder no agent may move mail out of, or the write surface would be the way round the withholding.</summary>
     [Fact]
-    public async Task RecordAsync_AnEmailInAFolderWithheldFromTools_ReportsTheMessageAsNotFound()
+    public async Task RecordAsync_AnEmailInAFolderWithheldFromAIAskedByAnAgent_ReportsTheMessageAsNotFound()
     {
         // Arrange
         this.MapMirrored(Archive, "Archive");
@@ -197,12 +199,34 @@ public sealed class MailRelocationRecorderTests
             LocalEmail,
             IdOf(Archive),
             Requester,
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(MailRelocationOutcome.MessageNotFound, result.Outcome);
         Assert.Null(result.RecordId);
         Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>A folder withheld from AI is still the person's, so moving its mail through the client is recorded like any other move.</summary>
+    [Fact]
+    public async Task RecordAsync_AnEmailInAFolderWithheldFromAIAskedByThePerson_OpensTheRecord()
+    {
+        // Arrange
+        this.MapMirrored(Archive, "Archive");
+        var recorder = this.Recorder(TargetIn(Withheld));
+
+        // Act
+        var result = await recorder.RecordAsync(
+            LocalEmail,
+            IdOf(Archive),
+            Requester,
+            MailboxReaderKind.Person,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(result.RecordId);
+        Assert.Equal(1, this.records.OpenedRecordCount);
     }
 
     /// <summary>An email no row carries answers exactly as a withheld one does, so asking cannot reveal which identifiers exist.</summary>
@@ -218,6 +242,7 @@ public sealed class MailRelocationRecorderTests
             LocalEmail,
             IdOf(Archive),
             Requester,
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -226,11 +251,11 @@ public sealed class MailRelocationRecorderTests
     }
 
     /// <summary>
-    /// A destination withheld from tools is refused as a destination that is not there, because filing mail into a
-    /// folder the caller cannot read would move it out of sight rather than be a capability of its own.
+    /// A destination withheld from AI is refused to an agent as a destination that is not there, because filing mail
+    /// into a folder the caller cannot read would move it out of sight rather than be a capability of its own.
     /// </summary>
     [Fact]
-    public async Task RecordAsync_ADestinationWithheldFromTools_ReportsTheDestinationAsNotFound()
+    public async Task RecordAsync_ADestinationWithheldFromAIAskedByAnAgent_ReportsTheDestinationAsNotFound()
     {
         // Arrange
         this.MapMirrored(Withheld, "Private");
@@ -241,11 +266,33 @@ public sealed class MailRelocationRecorderTests
             LocalEmail,
             IdOf(Withheld),
             Requester,
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(MailRelocationOutcome.DestinationNotFound, result.Outcome);
         Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>The person may file their mail into a folder withheld from AI, since it is a folder they read.</summary>
+    [Fact]
+    public async Task RecordAsync_ADestinationWithheldFromAIAskedByThePerson_OpensTheRecord()
+    {
+        // Arrange
+        this.MapMirrored(Withheld, "Private");
+        var recorder = this.Recorder(TargetIn(Inbox));
+
+        // Act
+        var result = await recorder.RecordAsync(
+            LocalEmail,
+            IdOf(Withheld),
+            Requester,
+            MailboxReaderKind.Person,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(result.RecordId);
+        Assert.Equal(1, this.records.OpenedRecordCount);
     }
 
     /// <summary>A name this deployment maps no folder to reaches the same refusal as one it withholds, and writes nothing either way.</summary>
@@ -260,6 +307,7 @@ public sealed class MailRelocationRecorderTests
             LocalEmail,
             IdOf(Archive),
             Requester,
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -280,6 +328,7 @@ public sealed class MailRelocationRecorderTests
             LocalEmail,
             IdOf(Inbox),
             Requester,
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -306,6 +355,7 @@ public sealed class MailRelocationRecorderTests
             LocalEmail,
             IdOf(Archive),
             Requester,
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -322,8 +372,8 @@ public sealed class MailRelocationRecorderTests
         var recorder = this.Recorder(TargetIn(Inbox));
 
         // Act
-        var first = await recorder.RecordAsync(LocalEmail, IdOf(Archive), Requester, TestContext.Current.CancellationToken);
-        var second = await recorder.RecordAsync(LocalEmail, IdOf(Archive), Requester, TestContext.Current.CancellationToken);
+        var first = await recorder.RecordAsync(LocalEmail, IdOf(Archive), Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
+        var second = await recorder.RecordAsync(LocalEmail, IdOf(Archive), Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(1, this.records.OpenedRecordCount);
@@ -343,6 +393,7 @@ public sealed class MailRelocationRecorderTests
             LocalEmail,
             MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-0000000000c9")),
             Requester,
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -365,7 +416,7 @@ public sealed class MailRelocationRecorderTests
         var recorder = this.Recorder(TargetIn(Inbox));
 
         // Act
-        var result = await recorder.RecordAsync(LocalEmail, made.Id, Requester, TestContext.Current.CancellationToken);
+        var result = await recorder.RecordAsync(LocalEmail, made.Id, Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(MailRelocationOutcome.DestinationNotFound, result.Outcome);
@@ -423,6 +474,7 @@ public sealed class MailRelocationRecorderTests
             LocalEmail,
             IdOf(bound[into].Alias),
             Requester,
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -451,10 +503,10 @@ public sealed class MailRelocationRecorderTests
         var recorder = this.Recorder(TargetIn(Inbox));
 
         // Act
-        var archived = await recorder.RecordAsync(LocalEmail, IdOf(Archive), Requester, TestContext.Current.CancellationToken);
+        var archived = await recorder.RecordAsync(LocalEmail, IdOf(Archive), Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
         var draftsAfterArchiving =
             await this.bindings.GetCurrentResolutionAsync(Account, Drafts, TestContext.Current.CancellationToken);
-        var intoDrafts = await recorder.RecordAsync(LocalEmail, IdOf(Drafts), Requester, TestContext.Current.CancellationToken);
+        var intoDrafts = await recorder.RecordAsync(LocalEmail, IdOf(Drafts), Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(MailRelocationOutcome.Recorded, archived.Outcome);
@@ -482,7 +534,7 @@ public sealed class MailRelocationRecorderTests
         var recorder = this.Recorder(TargetIn(Inbox), runSignal: runSignal);
 
         // Act
-        await recorder.RecordAsync(LocalEmail, IdOf(Archive), Requester, TestContext.Current.CancellationToken);
+        await recorder.RecordAsync(LocalEmail, IdOf(Archive), Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         using var waiting = runSignal.Register(Account, TestContext.Current.CancellationToken);

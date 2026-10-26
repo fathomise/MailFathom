@@ -80,9 +80,10 @@ together into one correspondence; with a single message that is exactly the one 
   what the reply should be about, and never carries an instruction itself into the body. A request carrying neither is
   the ordinary one — *reply to this*.
 
-The correspondence is read across every account this user holds, with no folder narrowing and junk included, which is
-the scope the conversation screen itself reads under: a reply is answered across an exchange rather than inside a
-folder. A message that scope does not admit is a message this deployment has none of, and the request is answered as
+The correspondence is read across every account this user holds, with no folder narrowing and junk included, as the
+conversation screen reads it: a reply is answered across an exchange rather than inside a folder. One thing differs,
+because a model reads what is gathered: the scope is an agent's, so a folder mapped `VisibleToAI: false` — which the
+conversation screen shows the person — takes no part. A message that scope does not admit is a message this deployment has none of, and the request is answered as
 one naming a message nobody holds — and so is a context naming several messages, one of which the scope does not
 admit, because drafting from the rest would report that the missing one exists somewhere else.
 

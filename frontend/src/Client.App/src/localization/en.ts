@@ -1363,6 +1363,7 @@ export const en = {
         "This server's allowance for the period is spent, so the simplified version is shown.",
     'body.cleaningProviderUnavailable': 'The AI did not answer, so the simplified version is shown.',
     'body.cleaningAnswerRejected': 'The answer the model gave could not be used, so the simplified version is shown.',
+    'body.cleaningWithheldFromAI': 'This message is in a folder withheld from AI, so the simplified version is shown.',
     'body.cleaningNotRead': 'This message could not be simplified by a model, so the simplified version is shown.',
 
     'body.markupAbsent':

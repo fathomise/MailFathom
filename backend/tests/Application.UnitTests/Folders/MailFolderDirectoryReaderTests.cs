@@ -322,6 +322,29 @@ public sealed class MailFolderDirectoryReaderTests
         Assert.Equal(MailFathomPermission.MailRead, refusal.RequiredPermission);
     }
 
+    /// <summary>The folder tree is the person's own, so a folder withheld from AI is among the folders it is drawn from.</summary>
+    [Fact]
+    public async Task ReadAsync_AFolderWithheldFromAI_IsInTheScopeTheTreeIsDrawnFrom()
+    {
+        // Arrange
+        var account = SyntheticServedAccount.Of("personal");
+        var withheld = new MailFolderIdentity(account.Id, MailFolderAlias.Create("Private"));
+        var storedFolders = StoredFolders();
+        var reader = ReaderOver(
+            Freshness(),
+            OwningAccounts(account),
+            storedFolders,
+            folderParticipation: StubMailFolderParticipation.Mapping(withheld).Hiding(withheld));
+
+        // Act
+        await reader.ReadAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        await storedFolders.Received().ReadAsync(
+            Arg.Is<MailboxScope>(scope => scope.ReadableFolders.Contains(withheld)),
+            Arg.Any<CancellationToken>());
+    }
+
     private static MailSynchronizationRunLedger Ledger() => new(new FakeTimeProvider(Now));
 
     /// <summary>Answers the accounts the caller's user owns, and whether the deployment refreshes them.</summary>
@@ -392,14 +415,16 @@ public sealed class MailFolderDirectoryReaderTests
         ICallerMailAccountCatalog catalog,
         IStoredMailFolderReader storedFolders,
         StubMailFolderMappings? mappings = null,
-        MailSynchronizationRunLedger? runLedger = null) =>
+        MailSynchronizationRunLedger? runLedger = null,
+        StubMailFolderParticipation? folderParticipation = null) =>
         ReaderOver(
             freshnessReader,
             catalog,
             storedFolders,
             mappings ?? StubMailFolderMappings.Nothing,
             runLedger ?? Ledger(),
-            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead));
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            folderParticipation: folderParticipation);
 
     private static MailFolderDirectoryReader ReaderOver(
         ISynchronizationFreshnessReader freshnessReader,
@@ -408,12 +433,14 @@ public sealed class MailFolderDirectoryReaderTests
         StubMailFolderMappings mappings,
         MailSynchronizationRunLedger runLedger,
         AccessAuthorization authorization,
-        IOutboxOperationStore? outboxOperations = null)
+        IOutboxOperationStore? outboxOperations = null,
+        StubMailFolderParticipation? folderParticipation = null)
     {
+        var participation = folderParticipation ?? StubMailFolderParticipation.Nothing;
         var scopeResolver = new MailboxScopeResolver(
             catalog,
-            StubMailFolderParticipation.Nothing,
-            StubDeploymentMailFolders.None,
+            participation,
+            StubDeploymentMailFolders.Of(participation),
             mappings.Resolver);
 
         return new MailFolderDirectoryReader(

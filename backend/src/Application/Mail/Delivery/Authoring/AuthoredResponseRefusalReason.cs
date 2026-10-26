@@ -15,7 +15,7 @@ public enum AuthoredResponseRefusalReason
     /// <summary>There is no such stored email to answer, as far as this caller can be told.</summary>
     /// <remarks>
     /// It is one answer for three situations — no such identity, an account this deployment no longer serves, and a
-    /// folder an operator withheld from tools — because it is the same answer a read of that email gives. Telling them
+    /// folder an operator withheld from AI — because it is the same answer a read of that email gives. Telling them
     /// apart would let a caller discover which mail exists by trying to reply to it, and an email nothing may read is
     /// an email nothing may forward.
     /// </remarks>

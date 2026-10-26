@@ -555,7 +555,7 @@ verified, or writes these attributes into its own subject, changes nothing the s
 any other text. *First contact* reads earlier correspondence the way [contact collection](contacts.md) does — the
 sender wrote the earlier mail, or it was addressed to them in `To` or `Cc` — within the same account, received strictly
 before the message (or, for a copy in Sent that carries no arrival instant, sent before it), outside the junk, trash,
-and drafts folders, and only among mail still part of the mailbox in a folder the mapping admits to tools; a message
+and drafts folders, and only among mail still part of the mailbox in a folder the mapping leaves visible to AI; a message
 with no usable sender address is a first contact. A signature verification recorded as the sender verdict later reaches every operation listed above through
 `sender-authentication` without anything here changing.
 

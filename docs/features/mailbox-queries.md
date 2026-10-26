@@ -11,7 +11,9 @@ The protocol adapter is not part of this: `MailboxTimelineReader` is an applicat
 tool that publishes it is described by [MCP tools](mcp-tools.md).
 
 `MailTimelineBrowser` is the same walk read for a screen rather than for a tool, and everything on this page about the
-scope, the filters, the order, the bound and the cursor holds for it unchanged. What it adds is stated in two places
+scope, the filters, the order, the bound and the cursor holds for it unchanged — except that it answers for the person
+rather than for an agent, so [a folder withheld from AI](#folders-withheld-from-ai) is one it reads. What it adds is
+stated in two places
 below: [a preview on every row](#the-preview-a-list-row-shows), and [a page that can be asked for in either
 direction](#reading-a-page-backwards). [`GET /api/client/emails`](../operations/client-endpoint.md#the-mail-list-route)
 is what publishes it.
@@ -36,7 +38,7 @@ divergence neither copy would look wrong for on its own.
 | Field | Meaning | Absent means |
 |---|---|---|
 | `Accounts` | The accounts to list from, each named by its identifier or by its display name | every account the caller is assigned |
-| `Folders` | The folders to list from, each named by its identity or by the role it plays | every folder of those accounts that tools may read |
+| `Folders` | The folders to list from, each named by its identity or by the role it plays | every folder of those accounts that is visible to AI |
 | `SenderAddress` | The address the sender must carry, in any case | any sender |
 | `RecipientAddress` | The address a `To` or `Cc` recipient must carry | any recipient |
 | `SubjectFragment` | Text the subject must contain, compared without regard to case | any subject |
@@ -66,7 +68,7 @@ leave a caller reading an empty page as an empty folder. `role:Outbox` is refuse
 with `51002`, its message naming `list_outgoing_emails`: an account's outbox is its not-yet-sent mail rather than a
 folder, so no folder plays the role and no mailbox query reads it.
 
-A listing that names no folder reads every folder the account maps and lets tools read, so a message that exists in two
+A listing that names no folder reads every folder the account maps and leaves visible to AI, so a message that exists in two
 of them — because it was copied, by
 the mailbox user or by MailFathom — is two entries, one per folder. Nothing collapses them, because a stored row is one
 stored email in one folder and no identity spans two;
@@ -173,24 +175,32 @@ Because the resolved accounts are what the query runs with, they are also what t
 issued while three accounts were served is therefore refused after one of them is removed, which is correct: the result
 set it named no longer exists.
 
-### Folders withheld from tools
+### Folders withheld from AI
 
-A folder mapped with `VisibleToTools: false` is outside every read a tool performs, whatever the request named. It is not
-listed, not searched, not answered from, and not readable by identifier: naming its identity in `Folders` narrows the
-listing to a folder that is then excluded, so the page is empty rather than refused, and asking for one of its emails by
-identifier reports the email as not found rather than as withheld. An attachment link minted before the switch was set
-stops serving for the same reason, because the question is asked where the download is served rather than where the link
-was issued. None of those answers says the folder exists, because a refusal naming it would publish exactly what the
-switch withholds.
+Every read states who it answers for: an **agent** — an MCP tool, the in-app agent conversation, a Discover run, reply
+drafting, a contact's relationship card — or the **person** reading their own mail in the client. A folder mapped with
+`VisibleToAI: false` is outside every read that answers for an agent, whatever the request named, and inside every read
+that answers for the person exactly as any other mirrored folder is. For an agent it is not listed, not searched, not
+answered from, and not readable by identifier: naming its identity in `Folders` narrows the listing to a folder that is
+then excluded, so the page is empty rather than refused, and asking for one of its emails by identifier reports the
+email as not found rather than as withheld. An attachment link an MCP read minted before the switch was set stops
+serving for the same reason, because the question is asked where the download is served rather than where the link was
+issued. None of those answers says the folder exists, because a refusal naming it would publish exactly what the switch
+withholds. The person's timeline, search, conversations, opened messages, and attachment downloads read the folder as
+they read any other.
 
-**The same list decides what a tool may write.** `set_mail_flags` resolves the email it was given through this scope
-before anything is recorded, so a folder the switch withholds is one no caller can mark, star, or label, and what it
-meets is the not-found answer above rather than one that says the folder exists. A write surface that reached what a
-read withholds would be a way round the switch rather than a second capability.
+**The same list decides what an agent may write.** `set_mail_flags`, `reply_to_email`, `forward_email`, a draft an agent
+or MCP caller saves, and every act an agent conversation performs resolve the email they were given through this scope
+before anything is recorded, so a folder the switch withholds is one no agent can mark, star, label, answer, or forward
+from, and what it meets is the not-found answer above rather than one that says the folder exists. A write surface that
+reached what a read withholds would be a way round the switch rather than a second capability. What the person does
+through the client — flags, moves, deletes, withdrawals, releases, and the drafts and replies they write — resolves
+through the person's scope and reaches the folder like any other.
 
-A folder **configuration stopped naming** gives the same answers, and for a stronger reason: the scope carries the
-folders a mapping names and leaves visible, so a read admits that list and nothing else among the folders an alias
-feeds. Mail stored under an alias whose mapping was later removed is therefore mail no page reaches, no search matches,
+A folder **configuration stopped naming** gives the same answers to both readers, and for a stronger reason: the scope
+carries the folders a mapping names — and, for an agent, also leaves visible to AI; for the person, also mirrors — so a
+read admits that list and nothing else among the folders an alias feeds. A folder nothing mirrors is withheld from the
+person as well, because what it keeps is an inert copy nothing refreshes. Mail stored under an alias whose mapping was later removed is therefore mail no page reaches, no search matches,
 and no identifier resolves — the rows stay in the table and stop being readable the moment configuration stops naming
 their folder, until the withdrawn folder's erasure removes them. A folder no alias feeds at all — one a person made, or a
 server folder no configuration names — is no folder configuration withheld, so it is read on any account the caller is
@@ -203,8 +213,8 @@ name — against the alias recorded on the folder row a message names.
 It deliberately takes no part in the cursor's fingerprint: a cursor stays valid across the change, and the pages after it
 simply stop admitting the folder, which is what an operator withholding it or removing its mapping meant.
 
-Freshness follows the same rule, so a folder a mapping withholds or does not name is absent from the entries a listing
-reports rather than present with a timestamp nothing may read behind it.
+Freshness follows the same rule, so a folder a mapping withholds from AI or does not name is absent from the entries an
+agent's listing reports rather than present with a timestamp nothing may read behind it.
 [What a mapping decides beyond where the folder is](imap-synchronization.md#what-a-mapping-decides-beyond-where-the-folder-is)
 states the switch beside the other two, what an unmapped folder is instead, and how to empty one.
 
@@ -216,8 +226,8 @@ and an agent reasoning over a timeline has no way to tell it from correspondence
 override, and the result reports which of the two answers it gave, so a reader is never left guessing whether an absent
 message was missing or withheld.
 
-This is not the switch above, and the difference is the point. `VisibleToTools: false` is an operator's decision that no
-tool may read a folder; the junk exclusion is a default a caller may lift. The two are held apart and a query is handed
+This is not the switch above, and the difference is the point. `VisibleToAI: false` is an operator's decision that no
+AI function may read a folder; the junk exclusion is a default a caller may lift. The two are held apart and a query is handed
 their union, so asking for junk can never reveal a folder the operator withheld — a folder that is both is still outside
 every read.
 
@@ -225,8 +235,8 @@ Both sets are read from the account records when a read resolves its scope, narr
 and the read keeps them for as long as it runs: a conversation assembled from several threads, or a page of a timeline,
 is judged by the one reading its scope was resolved with. They are held in the columns
 [every account is asked about at once](../architecture/stored-email-schema.md#what-every-account-is-asked-about-at-once),
-written with the account's settings, so a folder switched out of tool visibility leaves the next read rather than the
-next restart.
+written with the account's settings, so a folder withheld from AI leaves the next agent read rather than the next
+restart.
 
 The override is the caller's own filter rather than configuration, so it **does** take part in the cursor's fingerprint:
 including junk adds rows in the middle of an ordering, and a walk resumed under the other answer would skip or repeat.
@@ -324,8 +334,9 @@ at all asks nothing.
 **It counts under the same scope the conversation route reads under**, which is neither the account nor the folder the
 listing was narrowed to, with the junk folder included. A count narrowed to the folder somebody is listing would answer
 one for nearly every row in it, which is the opposite of what the number is drawn for. What the scope does narrow is
-unchanged: a folder [withheld from tools](#folders-withheld-from-tools) is counted nowhere, which is what keeps a
-withheld folder's size from being published one integer at a time.
+unchanged, and it is the person's: a folder [withheld from AI](#folders-withheld-from-ai) is counted like any other,
+and a folder nothing mirrors or no mapping names is counted nowhere, which is what keeps such a folder's size from
+being published one integer at a time.
 
 **What it does not share with that read is the assembly bound.** A conversation is assembled to at most
 `IEmailThreadReader.MaximumAssembledEmails` messages and says `MoreMessagesNotAssembled` when it ran further, so
@@ -511,7 +522,8 @@ question without the answer. `MailThreadBrowser` is that read —
 and it takes no account and no folder at all. What narrows it is ownership alone, which is the same
 `MailboxScopeResolver` every read on this page narrows through, and the junk folder takes part rather than being
 withheld: a reply that landed in junk is part of the exchange somebody is reading rather than mail they asked to be
-shown. A folder [withheld from tools](#folders-withheld-from-tools) stays withheld here as everywhere.
+shown. The read answers for the person, so a folder [withheld from AI](#folders-withheld-from-ai) takes part like any
+other, while a folder nothing mirrors stays out here as in every read.
 
 **Membership, order and count come from the thread reader the MCP content read already uses**, so a conversation is one
 thing however it is asked for. `IEmailThreadReader` assembles at most 500 messages the caller may see and reads one row
@@ -628,8 +640,8 @@ is drawn at the top of the hierarchy until the next pass places it beneath its p
 
 The freshness a folder carries is the one the composed reading reported for the alias its row stands for, and
 `NeverSynchronized` where that reading names none — a folder declared and not mirrored. A folder no alias feeds is one
-MailFathom keeps itself and carries no freshness at all. A folder an operator withheld from tools is the one that stays
-absent, for the same reason it is absent from every other read: the resolved scope left it out on purpose. That reading
+MailFathom keeps itself and carries no freshness at all. The tree answers for the person, so a folder an operator
+withheld from AI is drawn like any other: the switch withholds a folder from AI and from nothing else. That reading
 is what [`GET /api/client/folders`](../operations/client-endpoint.md#the-folders-route) publishes; the whole configured
 list, mirrored or not and withheld or not, is [the administrative status route](../operations/admin-endpoint.md).
 

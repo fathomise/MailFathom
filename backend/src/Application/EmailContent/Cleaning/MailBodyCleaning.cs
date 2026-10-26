@@ -10,6 +10,7 @@ using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.EmailContent.Cleaning;
 
@@ -108,7 +109,7 @@ public sealed class MailBodyCleaning
 
         if (read.Emails[0].Content is not { } message)
         {
-            return null;
+            return await this.WithheldFromAIAsync(request, cancellationToken);
         }
 
         var document = message.Body.Document;
@@ -132,6 +133,25 @@ public sealed class MailBodyCleaning
             await this.egressGuard.ReadPostureAcrossAccountsOfAsync(this.scopeResolver.User, cancellationToken));
 
         return await this.ProposedAsync(outline, document, cancellationToken);
+    }
+
+    /// <summary>Serves the person the reduced document of a message an agent's read cannot reach, where the person's can.</summary>
+    /// <remarks>
+    /// The first read is an agent's because what this pass sends leaves for a model. A message it cannot reach may still
+    /// be the person's own, in a folder withheld from AI, and the person is then shown the reduced body and told why
+    /// rather than an empty pane; nothing of it is put to the cleaner.
+    /// </remarks>
+    private async Task<CleanedMailBody?> WithheldFromAIAsync(
+        GetEmailContentRequest agentRequest,
+        CancellationToken cancellationToken)
+    {
+        var read = await this.content.ReadContentAsync(
+            agentRequest with { Reader = MailboxReaderKind.Person },
+            cancellationToken);
+
+        return read.Emails[0].Content is { } message
+            ? new CleanedMailBody(MailBodyCleaningOutcome.WithheldFromAI, message.Body.Document)
+            : null;
     }
 
     /// <summary>Names the envelope sender, which is what the rule about a pasted header block is decided against.</summary>

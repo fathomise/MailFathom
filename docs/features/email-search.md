@@ -16,8 +16,9 @@ This page documents the use case. `MailboxSearchReader` is where every rule belo
 cannot reach the query without them; the `search_emails` MCP tool maps protocol arguments onto it and publishes what it
 returns, and [MCP tools](mcp-tools.md#search_emails) documents that surface.
 
-**A screen searches the same mail through a second use case.** `MailSearchBrowser` composes the same scope, the same
-filters, both rankings, the same partition, the same body extracts, and the same attachment matches, and differs in the
+**A screen searches the same mail through a second use case.** `MailSearchBrowser` composes the same scope — read for
+the person rather than for an agent, so a folder [withheld from AI](mailbox-queries.md#folders-withheld-from-ai) takes
+part, reached by the lexical ranking alone since nothing of it is embedded — the same filters, both rankings, the same partition, the same body extracts, and the same attachment matches, and differs in the
 two things a screen needs and a tool does not: the results continue past the first window, and each one says which
 ranking found it. [Paging a ranking](#paging-a-ranking) is where the first of those is described and
 [What a result carries](#what-a-result-carries) the second; the route is
@@ -110,9 +111,9 @@ The structured filters are the ones `ListEmails` takes and they mean exactly the
 apply one validated `MailboxEmailSelection` and one SQL predicate.
 [Mailbox queries](mailbox-queries.md#what-each-filter-accepts-and-what-it-refuses) documents what each of them accepts
 and refuses, including the attachment-presence rule and the account-scope resolution; nothing about them changes here.
-A folder mapped with `VisibleToTools: false`, and a folder no mapping names at all, are outside a search for the same
-reason each is outside a listing, and by the same single decision —
-[folders withheld from tools](mailbox-queries.md#folders-withheld-from-tools).
+A folder mapped with `VisibleToAI: false`, and a folder no mapping names at all, are outside an agent's search for the
+same reason each is outside an agent's listing, and by the same single decision —
+[folders withheld from AI](mailbox-queries.md#folders-withheld-from-ai).
 The account's junk folder is left out by the same one decision and lifted by the same caller override, which the
 result reports back — [the junk folder, withheld by default](mailbox-queries.md#the-junk-folder-withheld-by-default-and-reachable-on-request).
 

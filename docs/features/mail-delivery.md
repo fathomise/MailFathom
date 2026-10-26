@@ -492,10 +492,12 @@ several times their own length once they are markup — and a bound measured bef
 correspondent's name decide whether somebody else's answer can be composed at all. The attribution line is bounded the
 same way in both bodies, so the sender's name is what gives way rather than the sentence saying whose message this is.
 
-**The stored email is a permission boundary as well as a source.** An email nothing may read is an email nothing may
-forward, so an account this deployment no longer serves and a folder mapped `VisibleToTools: false` are both refused with
-`28006` — the same not-found answer a read of that email gives, because telling them apart would let a caller learn which
-mail exists by trying to reply to it. An email whose content this deployment cannot read is refused with `28007` instead:
+**The stored email is a permission boundary as well as a source.** An email its author may not read is an email that
+author may not answer or forward, so an account this deployment no longer serves is refused with `28006` whoever asks,
+and so is a folder mapped `VisibleToAI: false` when an agent or an MCP caller asks — the same not-found answer a read of
+that email gives, because telling them apart would let a caller learn which mail exists by trying to reply to it. A
+reply or forward the person writes in the client reaches such a folder's mail like any other, because the switch
+withholds the folder from AI and from nothing else. An email whose content this deployment cannot read is refused with `28007` instead:
 content synchronization deliberately left unstored, a local copy that has gone missing or is damaged, bytes that no
 longer parse, and a body inside a cryptographic envelope all arrive there, because an answer quoting nothing reads to its
 recipient as an answer to an empty message. A damaged copy records a repair request on the way out, exactly as reading
@@ -1309,7 +1311,7 @@ Authoring a reply or a forward is settled in the unit suite for the same reason,
 the tests establish there is the threading of an answer to a message with and without a `References` header and to one
 carrying no identity of its own, a reply to all against a message naming the answering account in both `To` and `Cc`, the
 subject-prefix comparison across the spellings clients write, the forward of a message whose files exceed each of the
-three bounds in turn, the refusal of an email withheld from tools and of one whose content this deployment cannot read,
+three bounds in turn, the refusal of an email withheld from AI and of one whose content this deployment cannot read,
 and the repair request a damaged copy leaves behind on the way out.
 
 The integration suite opens a real session against the orchestrated GreenMail server and records what it advertises:

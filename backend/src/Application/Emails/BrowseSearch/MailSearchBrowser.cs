@@ -13,6 +13,7 @@ using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Emails.BrowseSearch;
 
@@ -318,6 +319,7 @@ public sealed class MailSearchBrowser
     /// <summary>Validates what the request asked for and restricts the search to the accounts its user owns.</summary>
     private async Task<RankedSearchList> RankedListAsync(BrowseSearchRequest request, CancellationToken cancellationToken) => RankedSearchList.Create(
         await this.scopeResolver.ReadableScopeAsync(
+            MailboxReaderKind.Person,
             request.Accounts,
             request.Folders,
             request.IncludeJunkMail ? JunkMailInclusion.Included : JunkMailInclusion.Excluded,

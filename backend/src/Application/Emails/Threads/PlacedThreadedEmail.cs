@@ -15,7 +15,7 @@ namespace MailFathom.Application.Emails.Threads;
 /// </param>
 /// <remarks>
 /// The answered email is the one the caller can see rather than the one the row records. An email whose parent sits in a
-/// folder withheld from tools is published as a root naming no ancestor, so the withheld email is not disclosed by the
+/// folder withheld from AI is published as a root naming no ancestor, so the withheld email is not disclosed by the
 /// gap it would otherwise leave.
 /// </remarks>
 public sealed record PlacedThreadedEmail(

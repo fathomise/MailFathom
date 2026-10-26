@@ -301,7 +301,7 @@ public sealed class AuthoredResponseSubmissionTests
     }
 
     /// <summary>
-    /// A folder an operator withheld from tools, an identity this deployment holds nothing for, and a local copy whose
+    /// A folder an operator withheld from AI, an identity this deployment holds nothing for, and a local copy whose
     /// content cannot be read are one answer, so nobody learns which mail exists by asking to reply to it.
     /// </summary>
     [Theory]
@@ -333,7 +333,7 @@ public sealed class AuthoredResponseSubmissionTests
     public static TheoryData<string, AnsweredEmailArrangement> EmailsThatCannotBeAnswered() => new()
     {
         {
-            "a folder withheld from tools",
+            "a folder withheld from AI",
             new AnsweredEmailArrangement { MapsNoFolder = true }
         },
         {
@@ -719,6 +719,7 @@ public sealed class AuthoredResponseSubmissionTests
     private static MailResponseSubmissionRequest Request(AuthoredResponseAct act = AuthoredResponseAct.Reply) =>
         new()
         {
+            Reader = MailboxReaderKind.Agent,
             AnsweredEmailId = StoredEmailId.Create(Guid.CreateVersion7()),
             Act = act,
             PlainTextBody = "Thank you.",

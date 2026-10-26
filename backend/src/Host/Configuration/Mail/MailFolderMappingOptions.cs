@@ -50,8 +50,13 @@ internal sealed class MailFolderMappingOptions : IValidatableObject
     /// <summary>Gets or sets whether the mirrored content is cut into passages and embedded.</summary>
     public bool? GenerateEmbeddings { get; set; }
 
-    /// <summary>Gets or sets whether MCP tools may list, search, read, or answer from the folder.</summary>
-    public bool? VisibleToTools { get; set; }
+    /// <summary>Gets or sets whether any AI function may reach the folder: an agent, an MCP tool, or a model or embedding provider.</summary>
+    /// <remarks>
+    /// Off, the folder is withheld from AI and from nothing else: the person still reads it in the client, and
+    /// synchronization, rules, and retention still reach it. Embeddings are a model's reading of the folder, so they go
+    /// with it, and asking for them beside it is refused rather than quietly ignored.
+    /// </remarks>
+    public bool? VisibleToAI { get; set; }
 
     /// <summary>Gets or sets whether MailFathom may create the folder when the server advertises none at <see cref="RemotePath" />.</summary>
     /// <remarks>
@@ -75,7 +80,7 @@ internal sealed class MailFolderMappingOptions : IValidatableObject
     internal MailFolderParticipation Participation => MailFolderParticipation.Create(
         this.Synchronize ?? true,
         this.GenerateEmbeddings ?? true,
-        this.VisibleToTools ?? true);
+        this.VisibleToAI ?? true);
 
     /// <summary>Builds the domain mapping this configured folder expresses.</summary>
     /// <returns>The mapping folder resolution reads.</returns>
@@ -187,32 +192,40 @@ internal sealed class MailFolderMappingOptions : IValidatableObject
         }
     }
 
-    /// <summary>Refuses a folder asked to do something an unmirrored folder cannot do.</summary>
+    /// <summary>Refuses a folder asked to do something an unmirrored folder, or a folder withheld from AI, cannot do.</summary>
     /// <remarks>
-    /// Nothing here is a safety rule — the participation value already withdraws both from an unsynchronized folder, so
-    /// the configuration would work. What it would not do is what it says, and a folder configured to embed mail nobody
-    /// stores is an operator expecting a bill and a search result they will never get. The unset case is deliberately
-    /// not refused: leaving a switch out is not asking for it.
+    /// Nothing here is a safety rule — the participation value already withdraws embeddings from an unsynchronized folder
+    /// and from one withheld from AI, so the configuration would work. What it would not do is what it says: a folder
+    /// configured to embed mail nobody stores is an operator expecting a bill and a search result they will never get, and
+    /// a folder withheld from AI and asked to be embedded is an operator who has not decided whether a model may read it.
+    /// The unset case is deliberately not refused: leaving a switch out is not asking for it.
     /// </remarks>
     private IEnumerable<ValidationResult> ValidateParticipation()
     {
-        if (this.Synchronize is not false)
+        if (this.Synchronize is false)
         {
+            if (this.GenerateEmbeddings is true)
+            {
+                yield return new ValidationResult(
+                    $"Folder alias '{this.Alias}' asks for embeddings while 'Synchronize' is false, and an unsynchronized folder stores no content to embed.",
+                    [nameof(this.GenerateEmbeddings)]);
+            }
+
+            if (this.VisibleToAI is true)
+            {
+                yield return new ValidationResult(
+                    $"Folder alias '{this.Alias}' asks to be visible to AI while 'Synchronize' is false, and an unsynchronized folder stores nothing AI could read.",
+                    [nameof(this.VisibleToAI)]);
+            }
+
             yield break;
         }
 
-        if (this.GenerateEmbeddings is true)
+        if (this.VisibleToAI is false && this.GenerateEmbeddings is true)
         {
             yield return new ValidationResult(
-                $"Folder alias '{this.Alias}' asks for embeddings while 'Synchronize' is false, and an unsynchronized folder stores no content to embed.",
-                [nameof(this.GenerateEmbeddings)]);
-        }
-
-        if (this.VisibleToTools is true)
-        {
-            yield return new ValidationResult(
-                $"Folder alias '{this.Alias}' asks to be visible to tools while 'Synchronize' is false, and an unsynchronized folder stores nothing a tool could read.",
-                [nameof(this.VisibleToTools)]);
+                $"Folder alias '{this.Alias}' asks for embeddings while 'VisibleToAI' is false, and an embedding is computed by a provider a folder withheld from AI never reaches. Set 'GenerateEmbeddings' to false or remove it.",
+                [nameof(this.GenerateEmbeddings), nameof(this.VisibleToAI)]);
         }
     }
 

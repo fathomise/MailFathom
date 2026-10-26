@@ -9,6 +9,7 @@ using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Emails.ReplyDrafts;
 
@@ -204,7 +205,7 @@ public sealed class MailReplyDrafting
         StoredEmailId[] context,
         CancellationToken cancellationToken)
     {
-        var scope = await this.scopeResolver.ReadableScopeAsync([], [], JunkMailInclusion.Included, cancellationToken);
+        var scope = await this.scopeResolver.ReadableScopeAsync(MailboxReaderKind.Agent, [], [], JunkMailInclusion.Included, cancellationToken);
 
         if (scope.AccountIds.Count is 0)
         {

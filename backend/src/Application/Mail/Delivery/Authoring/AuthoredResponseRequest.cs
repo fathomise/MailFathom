@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Mail.Delivery.Addressing;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Mail.Delivery.Authoring;
 
@@ -23,6 +24,10 @@ public sealed record AuthoredResponseRequest
 {
     /// <summary>Gets the stored email being answered.</summary>
     public required StoredEmailId AnsweredEmailId { get; init; }
+
+    /// <summary>Gets who the answer is authored for, which decides whether an email in a folder withheld from AI may be answered.</summary>
+    /// <remarks>An agent's answer to such an email is refused as an email that is not there; the person's, through the client, is not.</remarks>
+    public required MailboxReaderKind Reader { get; init; }
 
     /// <summary>Gets which answer is being authored.</summary>
     public required AuthoredResponseAct Act { get; init; }

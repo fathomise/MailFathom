@@ -26,6 +26,9 @@ public enum MailBodyCleaningOutcome
 
     /// <summary>What came back did not describe the document, and the second attempt did not either.</summary>
     AnswerRejected = 5,
+
+    /// <summary>The message is in a folder withheld from AI, so it is the person's to read and no model's to clean.</summary>
+    WithheldFromAI = 6,
 }
 
 /// <summary>One message's body as the third rendering, or the ordinary reduced one and why it is what arrived.</summary>

@@ -341,7 +341,7 @@ public readonly record struct MailFathomErrorCode
     /// <summary>Gets subcategory 8, message composition: there is no such stored email to answer, as far as the caller may be told.</summary>
     /// <remarks>
     /// It is the same answer a read of that email gives, and deliberately one code for three situations: no such
-    /// identity, an account this deployment stopped serving, and a folder an operator withheld from tools. Separating
+    /// identity, an account this deployment stopped serving, and a folder an operator withheld from AI. Separating
     /// them would let whoever holds an identifier learn which mail exists by trying to reply to it, and an email
     /// nothing may read is an email nothing may forward.
     /// </remarks>
@@ -750,7 +750,7 @@ public readonly record struct MailFathomErrorCode
     /// <summary>Gets subcategory 3, access: a request asked to answer an email this deployment will not answer.</summary>
     /// <remarks>
     /// One code covers four situations on purpose: an identifier naming nothing, an account this deployment stopped
-    /// serving, a folder an operator withheld from tools, and a local copy whose content cannot be read. A caller that
+    /// serving, a folder an operator withheld from AI, and a local copy whose content cannot be read. A caller that
     /// could tell them apart would learn which mail exists by asking to reply to it, and an email nothing may read is
     /// an email nothing may forward — so the answer is the same one a read of that email gives, whichever of the four
     /// it was. It is separate from <see cref="StoredEmailNotFound" /> and <see cref="EmailContentUnavailable" /> for

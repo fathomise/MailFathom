@@ -114,6 +114,32 @@ public sealed class ClientMailAttachmentEndpointTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>A folder withheld from AI is still the person's, so a file attached to its mail is served to them like any other.</summary>
+    [Fact]
+    public async Task DownloadAsync_AttachmentOfAMessageInAFolderWithheldFromAI_WritesTheFileForThePerson()
+    {
+        // Arrange
+        var context = new DefaultHttpContext();
+        using var body = new MemoryStream();
+        context.Response.Body = body;
+        var withheld = StubMailFolderParticipation.Nothing.Hiding(
+            new MailFolderIdentity(MailAccountId.Create("primary"), MailFolderAlias.Create("INBOX")));
+
+        // Act
+        var result = await ClientMailAttachmentEndpoint.DownloadAsync(
+            Message,
+            position: 0,
+            AttachmentOpening(
+                new StubOpenedEmailAttachment("invoice.pdf", "application/pdf", "%PDF-1.7"u8.ToArray()),
+                participation: withheld),
+            context,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<EmptyHttpResult>(result.Result);
+        Assert.Equal("%PDF-1.7"u8.ToArray(), body.ToArray());
+    }
+
     /// <summary>
     /// The octets are what a sender attached and they are served from the origin the client itself is served from, so a
     /// message carrying markup must arrive as a file to save rather than as a page the browser would run.
@@ -222,7 +248,8 @@ public sealed class ClientMailAttachmentEndpointTests
     private static EmailAttachmentDownloadReader AttachmentOpening(
         IOpenedEmailAttachment? attachment,
         IEmailContentStore? contentStore = null,
-        SensitiveContentEgressScreen? screen = null)
+        SensitiveContentEgressScreen? screen = null,
+        StubMailFolderParticipation? participation = null)
     {
         var summary = SummaryOf();
 
@@ -249,7 +276,7 @@ public sealed class ClientMailAttachmentEndpointTests
         var principals = Substitute.For<IAuthorizedPrincipalSource>();
         principals.Current.Returns(AuthorizedPrincipal.CallerActingFor(SyntheticUser.Deployment, "client-key", [MailFathomPermission.MailRead]));
 
-        var participation = StubMailFolderParticipation.Mapping(
+        var folders = participation ?? StubMailFolderParticipation.Mapping(
             new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value));
 
         return new EmailAttachmentDownloadReader(
@@ -261,8 +288,8 @@ public sealed class ClientMailAttachmentEndpointTests
             screen ?? ScreensNothing(),
             new MailboxScopeResolver(
                 accountCatalog,
-                participation,
-                StubDeploymentMailFolders.Of(participation),
+                folders,
+                StubDeploymentMailFolders.Of(folders),
                 StubMailFolderMappings.ResolvingNothing),
             new AccessAuthorization(principals));
     }

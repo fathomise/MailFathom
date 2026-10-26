@@ -49,6 +49,29 @@ public sealed class EmailThreadContextsTests
             thread.OtherEmails.Select(message => message.Email.StoredEmailId));
     }
 
+    /// <summary>The person opening a conversation in the client sees the reply filed in a folder withheld from AI, which an agent does not.</summary>
+    [Fact]
+    public async Task ContextForAsync_ConversationSpanningAWithheldFolderReadForThePerson_NamesEveryMessage()
+    {
+        // Arrange
+        var opening = Message(1, Inbox, "2026-08-16T09:00:00Z");
+        var withheldReply = Message(2, Withheld, "2026-08-16T10:00:00Z", answers: opening);
+        var contexts = ContextsOver([opening, withheldReply], MailboxReaderKind.Person);
+
+        // Act
+        var thread = await contexts.ContextForAsync(
+            Thread,
+            opening.StoredEmailId,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(thread);
+        Assert.Equal(2, thread.EmailCount);
+        Assert.Equal(
+            [withheldReply.StoredEmailId],
+            thread.OtherEmails.Select(message => message.Email.StoredEmailId));
+    }
+
     [Fact]
     public async Task ContextForAsync_MessageWhoseParentIsWithheld_PublishesItAsARootNamingNoAncestor()
     {
@@ -220,7 +243,7 @@ public sealed class EmailThreadContextsTests
 
         // Assert
         await deploymentFolders.Received(1).ReadAsync(
-            MailFolderSelection.VisibleToTools,
+            MailFolderSelection.VisibleToAI,
             Arg.Any<IReadOnlyCollection<MailAccountId>>(),
             Arg.Any<CancellationToken>());
         await postures.Received(1).AcrossAccountsOfAsync(Arg.Any<UserId>(), Arg.Any<CancellationToken>());
@@ -321,13 +344,16 @@ public sealed class EmailThreadContextsTests
             .Select(ordinal => Message(ordinal, Inbox, $"2026-08-16T{ordinal % 24:D2}:00:00Z")),
     ];
 
-    private static EmailThreadContexts ContextsOver(IReadOnlyList<ThreadedEmailSummary> messages) =>
-        ContextsOver(new StubEmailThreadReader([.. messages.Select(message => (Thread, message))]));
+    private static EmailThreadContexts ContextsOver(
+        IReadOnlyList<ThreadedEmailSummary> messages,
+        MailboxReaderKind reader = MailboxReaderKind.Agent) =>
+        ContextsOver(new StubEmailThreadReader([.. messages.Select(message => (Thread, message))]), reader: reader);
 
     private static EmailThreadContexts ContextsOver(
         StubEmailThreadReader threadReader,
         SensitiveContentEgressGuard? egressGuard = null,
-        IDeploymentMailFolders? deploymentFolders = null)
+        IDeploymentMailFolders? deploymentFolders = null,
+        MailboxReaderKind reader = MailboxReaderKind.Agent)
     {
         var accountCatalog = Substitute.For<ICallerMailAccountCatalog>();
         accountCatalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns([SyntheticServedAccount.Of(Account)]);
@@ -343,6 +369,7 @@ public sealed class EmailThreadContextsTests
                 participation,
                 deploymentFolders ?? StubDeploymentMailFolders.Of(participation),
                 StubMailFolderMappings.ResolvingNothing),
+            reader,
             egressGuard ?? SensitiveContentEgressGuards.Inactive());
     }
 

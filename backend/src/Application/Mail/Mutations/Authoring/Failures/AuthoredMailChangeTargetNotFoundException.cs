@@ -10,7 +10,7 @@ namespace MailFathom.Application.Mail.Mutations.Authoring.Failures;
 /// <remarks>
 /// <para>
 /// It answers four cases with one sentence: no row carries that identity, the row belongs to an account this
-/// deployment no longer serves, the row is in a folder an operator withheld from tools, and the row names a remote
+/// deployment no longer serves, the row is in a folder an operator withheld from AI, and the row names a remote
 /// occurrence the server has expunged — a local copy retained after MailFathom deleted the message, which a listing
 /// still serves because the mail is readable while the UID it carries names nothing the server holds. Telling them
 /// apart would let a caller learn which identifiers exist by asking about them, which is the same reading every mailbox

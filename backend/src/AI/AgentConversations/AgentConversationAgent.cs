@@ -21,6 +21,7 @@ using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -109,7 +110,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         ArgumentNullException.ThrowIfNull(brief);
         ArgumentNullException.ThrowIfNull(journal);
 
-        var scope = await this.readers.ScopeResolver.ReadableScopeAsync([], [], JunkMailInclusion.Excluded, cancellationToken);
+        var scope = await this.readers.ScopeResolver.ReadableScopeAsync(MailboxReaderKind.Agent, [], [], JunkMailInclusion.Excluded, cancellationToken);
         var runLedger = new MailAnsweringRunLedger(this.runBounds);
         var retrieval = new ScopedMailKnowledgeRetrieval(
             this.readers.KnowledgeSearch,

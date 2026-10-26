@@ -13,6 +13,7 @@ using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Answering.Audit;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Retrieval.AskMail;
 
@@ -168,6 +169,7 @@ public sealed class MailboxQuestionReader
         // exclusion exists for: content written to manipulate whoever reads it now has a model reading it, and a caller
         // hunting a wrongly filed message uses the listing or the search that can ask for it.
         var scope = await this.scopeResolver.ReadableScopeAsync(
+            MailboxReaderKind.Agent,
             request.Accounts,
             request.Folders,
             JunkMailInclusion.Excluded,

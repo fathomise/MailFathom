@@ -355,16 +355,17 @@ states its bounds and what it leaves behind.
 
 ## What the two folder switches decide
 
-`GenerateEmbeddings` and `VisibleToTools` are set per folder mapping;
+`GenerateEmbeddings` and `VisibleToAI` are set per folder mapping;
 [what a mapping decides beyond where the folder is](../features/imap-synchronization.md#what-a-mapping-decides-beyond-where-the-folder-is)
 states both. What they decide about this pipeline is the cut:
 
-| `GenerateEmbeddings` | `VisibleToTools` | Passages |
+| `GenerateEmbeddings` | `VisibleToAI` | Passages |
 | --- | --- | --- |
 | `true` | `true` | Cut |
-| `true` | `false` | **Cut** — a folder withheld from tools is still embedded, from the same redacted text |
+| `true` | `false` | Refused when the configuration binds — an embedding is computed by a provider a folder withheld from AI never reaches |
+| unset | `false` | Not cut; leaving `GenerateEmbeddings` out beside `VisibleToAI: false` means no embeddings, so no model or embedding provider derives anything from the folder |
 | `false` | `true` | Not cut; the folder is still mirrored, listed, read, and searched lexically |
-| `false` | `false` | Not cut |
+| `false` | `false` | Not cut; the person still lists, reads, and searches the folder lexically in the client |
 
 Extraction runs for every mirrored folder whatever the switches say, because the extracted text is what a lexical search
 matches on and what a read hands back. Redaction therefore runs for every mirrored folder too, on every deployment that

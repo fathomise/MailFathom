@@ -159,11 +159,11 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
     }
 
     /// <summary>
-    /// Earlier mail counts only while it is still part of the mailbox and sits in a folder a tool may read, and a copy of
+    /// Earlier mail counts only while it is still part of the mailbox and sits in a folder an agent may read, and a copy of
     /// the person's own mail filed in Sent, which carries no arrival instant, is placed by when it was sent.
     /// </summary>
     [Fact]
-    public async Task ReadAsync_EarlierMailExpungedHiddenOrOnlySent_CountsOnlyLiveMailInFoldersVisibleToTools()
+    public async Task ReadAsync_EarlierMailExpungedHiddenOrOnlySent_CountsOnlyLiveMailInFoldersVisibleToAI()
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -288,13 +288,13 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
 
     private static Task<IReadOnlyDictionary<StoredEmailId, EmailProvenance>> ReadAsync(
         OrchestratedMailFathomServices services,
-        IReadOnlyList<SeededMailbox> visibleToTools,
+        IReadOnlyList<SeededMailbox> visibleToAI,
         IReadOnlyCollection<StoredEmailId> emails,
         CancellationToken cancellationToken)
     {
-        IReadOnlyList<MailFolderIdentity> folders = [.. visibleToTools.Select(static mailbox => mailbox.MappedFolder)];
+        IReadOnlyList<MailFolderIdentity> folders = [.. visibleToAI.Select(static mailbox => mailbox.MappedFolder)];
         var deploymentFolders = Substitute.For<IDeploymentMailFolders>();
-        deploymentFolders.ReadAsync(MailFolderSelection.VisibleToTools, Arg.Any<CancellationToken>()).Returns(folders);
+        deploymentFolders.ReadAsync(MailFolderSelection.VisibleToAI, Arg.Any<CancellationToken>()).Returns(folders);
 
         return services.InScopeAsync(
             (scope, token) => new StoredEmailProvenanceReader(
@@ -341,7 +341,7 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
             };
         }
 
-        /// <summary>Gets the folder identity a tool may read, which admits this account and no alias but its own.</summary>
+        /// <summary>Gets the folder identity an agent may read, which admits this account and no alias but its own.</summary>
         public MailFolderIdentity MappedFolder => new(
             MailAccountId.Create(this.account.Id),
             MailFolderAlias.Create("provenance-mapped"));

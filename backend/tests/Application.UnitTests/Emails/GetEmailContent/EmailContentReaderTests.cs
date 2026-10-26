@@ -897,9 +897,9 @@ public sealed class EmailContentReaderTests
             .ReadContentAsync(RequestFor([summary.StoredEmailId]), TestContext.Current.CancellationToken);
     }
 
-    /// <summary>A folder an operator withheld from tools is unreadable by identifier too, and refused the same way as mail that is not there.</summary>
+    /// <summary>A folder an operator withheld from AI is unreadable to an agent by identifier too, and refused the same way as mail that is not there.</summary>
     [Fact]
-    public async Task ReadContentAsync_EmailOfAFolderWithheldFromTools_IsReportedAsNotFound()
+    public async Task ReadContentAsync_EmailOfAFolderWithheldFromAIReadForAnAgent_IsReportedAsNotFound()
     {
         // Arrange
         var summary = SyntheticEmailSummaries.Create();
@@ -918,6 +918,28 @@ public sealed class EmailContentReaderTests
         // Assert
         var failure = FailureOf(Assert.Single(result.Emails));
         Assert.Equal(MailFathomErrorCode.StoredEmailNotFound, failure.ErrorCode);
+    }
+
+    /// <summary>The person opening a message in a folder withheld from AI reads it like any other, because the withholding is from AI alone.</summary>
+    [Fact]
+    public async Task ReadContentAsync_EmailOfAFolderWithheldFromAIReadForThePerson_ServesIt()
+    {
+        // Arrange
+        var summary = SyntheticEmailSummaries.Create();
+        var reader = ReaderOver(
+            summary,
+            RendererReturning(RenderingOf()),
+            folderParticipation: StubMailFolderParticipation
+                .Mapping(new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value))
+                .Hiding(new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value)));
+
+        // Act
+        var result = await reader.ReadContentAsync(
+            RequestFor([summary.StoredEmailId]) with { Reader = MailboxReaderKind.Person },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(summary.StoredEmailId, ContentOf(Assert.Single(result.Emails)).StoredEmailId);
     }
 
     /// <summary>

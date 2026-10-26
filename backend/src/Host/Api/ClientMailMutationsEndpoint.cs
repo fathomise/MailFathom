@@ -229,6 +229,7 @@ internal static class ClientMailMutationsEndpoint
 
         var read = await progress.ReadAsync(
             [.. records.Select(MailboxMutationRecordId.Create)],
+            MailboxReaderKind.Person,
             cancellationToken);
 
         return TypedResults.Ok(ClientMailChangesResponse.For(read));
@@ -385,7 +386,7 @@ internal static class ClientMailMutationsEndpoint
 
         return OverRecordsAsync(
             request,
-            recordIds => withdrawer.WithdrawFlagChangesAsync(recordIds, cancellationToken));
+            recordIds => withdrawer.WithdrawFlagChangesAsync(recordIds, MailboxReaderKind.Person, cancellationToken));
     }
 
     /// <summary>Withdraws moves that have not reached the mail server.</summary>
@@ -402,7 +403,7 @@ internal static class ClientMailMutationsEndpoint
 
         return OverRecordsAsync(
             request,
-            recordIds => withdrawer.WithdrawMovesAsync(recordIds, cancellationToken));
+            recordIds => withdrawer.WithdrawMovesAsync(recordIds, MailboxReaderKind.Person, cancellationToken));
     }
 
     /// <summary>Withdraws deletes the mail server has not been told about yet.</summary>
@@ -420,7 +421,7 @@ internal static class ClientMailMutationsEndpoint
 
         return OverRecordsAsync(
             request,
-            recordIds => withdrawer.WithdrawDeletesAsync(recordIds, cancellationToken));
+            recordIds => withdrawer.WithdrawDeletesAsync(recordIds, MailboxReaderKind.Person, cancellationToken));
     }
 
     /// <summary>Ends the wait in front of deletes whose way back is no longer on anybody's screen.</summary>
@@ -438,7 +439,7 @@ internal static class ClientMailMutationsEndpoint
 
         return OverRecordsAsync(
             request,
-            recordIds => releaser.ReleaseDeletesAsync(recordIds, cancellationToken));
+            recordIds => releaser.ReleaseDeletesAsync(recordIds, MailboxReaderKind.Person, cancellationToken));
     }
 
     /// <summary>Reads one batch of authored records and hands it to whichever use case the route belongs to.</summary>
@@ -486,7 +487,7 @@ internal static class ClientMailMutationsEndpoint
                 KeywordDirectionOf(change.Tags),
                 change.Tags?.Keywords);
 
-            var recorded = await recorder.RecordAsync(authored, requester, cancellationToken);
+            var recorded = await recorder.RecordAsync(authored, requester, MailboxReaderKind.Person, cancellationToken);
 
             return ClientMailFlagChangeResultResponse.Recorded(recorded);
         }
@@ -533,6 +534,7 @@ internal static class ClientMailMutationsEndpoint
             StoredEmailId.Create(move.StoredEmailId),
             destination,
             requester,
+            MailboxReaderKind.Person,
             cancellationToken);
 
         return ClientMailMoveResultResponse.For(move.StoredEmailId, destination, result);
@@ -589,6 +591,7 @@ internal static class ClientMailMutationsEndpoint
             StoredEmailId.Create(deletion.StoredEmailId),
             requester,
             withdrawalWindow,
+            MailboxReaderKind.Person,
             cancellationToken);
 
         return ClientMailDeleteResultResponse.For(deletion.StoredEmailId, result);

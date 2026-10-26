@@ -13,6 +13,7 @@ using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Emails.BrowseTimeline;
 
@@ -388,7 +389,7 @@ public sealed class MailTimelineBrowser
 
         return await this.threadReader.ReadMessageCountsAsync(
             conversations,
-            await this.scopeResolver.ReadableScopeAsync([], [], JunkMailInclusion.Included, cancellationToken),
+            await this.scopeResolver.ReadableScopeAsync(MailboxReaderKind.Person, [], [], JunkMailInclusion.Included, cancellationToken),
             cancellationToken);
     }
 
@@ -405,6 +406,7 @@ public sealed class MailTimelineBrowser
     /// <summary>Validates what the request asked for and restricts the list to the accounts its user owns.</summary>
     private async Task<EmailTimelineFilter> SortedListAsync(BrowseTimelineRequest request, CancellationToken cancellationToken) => EmailTimelineFilter.Create(
         await this.scopeResolver.ReadableScopeAsync(
+            MailboxReaderKind.Person,
             request.Accounts,
             request.Folders,
             request.IncludeJunkMail ? JunkMailInclusion.Included : JunkMailInclusion.Excluded,

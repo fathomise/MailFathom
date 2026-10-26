@@ -7,6 +7,7 @@ using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -170,7 +171,7 @@ internal static class ClientMailThreadEndpoint
     /// per message as well, so a conversation is drawn with none of them resolved.
     /// </remarks>
     internal static GetEmailContentRequest ContentRequestFor(IReadOnlyList<StoredEmailId> storedEmailIds) =>
-        GetEmailContentRequest.Create(storedEmailIds) with { IncludeMailDocument = true };
+        GetEmailContentRequest.Create(storedEmailIds) with { IncludeMailDocument = true, Reader = MailboxReaderKind.Person };
 
     /// <summary>States what a caller has to change, without echoing what they sent.</summary>
     private static ProblemHttpResult Refuse(string stated) =>

@@ -39,8 +39,8 @@ public sealed class MailboxScopeResolver
 
     /// <summary>Initializes the resolver.</summary>
     /// <param name="accountCatalog">Answers which accounts the user this work is acting for is assigned.</param>
-    /// <param name="folderParticipation">Answers whether one folder is one a tool may read from.</param>
-    /// <param name="deploymentFolders">Answers which folders of the accounts in scope a tool may read from, and which is each one's junk folder.</param>
+    /// <param name="folderParticipation">Answers whether one folder is one a reader may reach.</param>
+    /// <param name="deploymentFolders">Answers which folders of the accounts in scope each kind of reader may reach, and which is each one's junk folder.</param>
     /// <param name="folderReferences">Answers whether an account in scope has a folder playing a role a request named.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public MailboxScopeResolver(
@@ -61,6 +61,7 @@ public sealed class MailboxScopeResolver
     }
 
     /// <summary>Resolves what a request named into the scope a query runs with.</summary>
+    /// <param name="reader">Who the read is answering for, which decides whether folders withheld from AI are in it.</param>
     /// <param name="accountSelectors">The text a request named accounts with, or empty for every account the caller's user is assigned.</param>
     /// <param name="folders">The folders a request named, each by its folder identifier or by role, or empty for every folder.</param>
     /// <param name="junkMail">Whether the caller asked for the account's junk folder, which defaults to it being left out.</param>
@@ -70,7 +71,7 @@ public sealed class MailboxScopeResolver
     /// <exception cref="MailboxQueryFilterInvalidException">Thrown when either list names more values than its limit permits.</exception>
     /// <exception cref="MailAccountNotAccessibleException">Thrown when the request names an account the caller's user is not assigned, which includes every account this deployment does not serve.</exception>
     /// <exception cref="MailFolderRoleUnmappedException">Thrown when the request names a role no account in scope maps a folder with.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="junkMail" /> is not a defined member.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="reader" /> or <paramref name="junkMail" /> is not a defined member.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="folders" /> names a folder by its alias, which no request may.</exception>
     /// <remarks>
     /// <para>
@@ -97,13 +98,15 @@ public sealed class MailboxScopeResolver
     /// two apart. The resolved accounts, not the requested ones, take part in a continuation cursor's fingerprint.
     /// </para>
     /// <para>
-    /// The folders a tool may read are named here, once, rather than by each read model — which is what makes "no tool
-    /// lists, searches, reads, or answers from it" a property of the system instead of a list of places somebody has to
-    /// keep complete. It is stated as what is admitted rather than as what is withheld, because the store holds rows of
-    /// folders configuration no longer declares and no list of withheld names reaches those: such a folder stays out by
-    /// not being admitted. A folder no declaration names at all — one a person made on a held account — is the other
-    /// case: no setting can name it, so it is admitted with its account rather than hidden from the tools it was made
-    /// for. A tool that read the mailbox some other
+    /// The folders a read may reach are named here, once, rather than by each read model — which is what makes "no agent
+    /// and no model reaches it" a property of the system instead of a list of places somebody has to keep complete. The
+    /// answer depends on who the read is for, and the caller says so rather than this type guessing: an agent's read
+    /// reaches the folders visible to AI, and the person's read through the client reaches every folder MailFathom
+    /// mirrors, so a folder withheld from AI stays the person's to read. It is stated as what is admitted rather than as
+    /// what is withheld, because the store holds rows of folders configuration no longer declares and no list of
+    /// withheld names reaches those: such a folder stays out by not being admitted, for either reader. A folder no
+    /// declaration names at all — one a person made on a held account — is the other case: no setting can name it, so it
+    /// is admitted with its account for either reader rather than hidden. A read that reached the mailbox some other
     /// way would bypass this, which is why the two reads that reach an email by its identifier ask the folder mapping
     /// directly rather than building a scope. Until #2330 moves them, those two read the mapping in the settings the
     /// work's own scope was prepared with while a scope reads the account's settings columns. A request's settings come
@@ -129,6 +132,7 @@ public sealed class MailboxScopeResolver
     /// </para>
     /// </remarks>
     public async Task<MailboxScope> ReadableScopeAsync(
+        MailboxReaderKind reader,
         IReadOnlyList<MailAccountSelector> accountSelectors,
         IReadOnlyList<MailFolderReference> folders,
         JunkMailInclusion junkMail,
@@ -136,6 +140,8 @@ public sealed class MailboxScopeResolver
     {
         ArgumentNullException.ThrowIfNull(accountSelectors);
         ArgumentNullException.ThrowIfNull(folders);
+
+        var readableFolders = ReadableFoldersFor(reader);
 
         if (!Enum.IsDefined(junkMail))
         {
@@ -187,8 +193,8 @@ public sealed class MailboxScopeResolver
 
         // Read for the accounts in scope alone, because the folders of anybody else's mailbox are no part of a read
         // that cannot reach them.
-        var visibleToTools = await this.deploymentFolders.ReadAsync(
-            MailFolderSelection.VisibleToTools,
+        var admitted = await this.deploymentFolders.ReadAsync(
+            readableFolders,
             accountsInScope,
             cancellationToken);
         var junkFolders = await this.deploymentFolders.ReadAsync(
@@ -197,7 +203,7 @@ public sealed class MailboxScopeResolver
             cancellationToken);
 
         return resolvedScope
-            .RestrictedTo(visibleToTools)
+            .RestrictedTo(admitted)
             .WithJunkMail(junkMail, junkFolders);
     }
 
@@ -226,15 +232,17 @@ public sealed class MailboxScopeResolver
     public async Task<IReadOnlyList<MailAccountId>> ReadAssignedAccountsAsync(CancellationToken cancellationToken) =>
         [.. (await this.accountCatalog.ReadAssignedAccountsAsync(cancellationToken)).Select(static account => account.Id)];
 
-    /// <summary>Reports whether a tool may read one email, given the mailbox it was stored from.</summary>
+    /// <summary>Reports whether a reader may reach one email, given the mailbox it was stored from.</summary>
+    /// <param name="reader">Who the read or the act is answering for.</param>
     /// <param name="accountId">The account the email was read from.</param>
     /// <param name="folderAlias">The alias of the folder the email is in, or <see langword="null" /> for a folder no declaration names, which no setting withholds.</param>
     /// <param name="cancellationToken">Cancels the read of the user's assignments.</param>
-    /// <returns><see langword="true" /> when the user in hand is assigned that account and a mapping admits that folder to tools.</returns>
+    /// <returns><see langword="true" /> when the user in hand is assigned that account and its mapping admits that folder to <paramref name="reader" />.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the work in hand is acting for no user, which is a refusal rather than the <see langword="false" /> a caller with nothing readable is answered with.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="reader" /> is not a defined member.</exception>
     /// <remarks>
     /// This is <see cref="ReadableScopeAsync" /> asked about one email instead of about a query, and it exists because
-    /// several reads reach an email by its identifier and build no scope at all. Both questions are answered from the
+    /// several reads and acts reach an email by its identifier and build no scope at all. Both questions are answered from the
     /// same catalog here, so an account this caller is not assigned cannot be reachable by identifier while it is
     /// unreachable by name. The folder is a different matter until #2330 moves this read: it asks the mapping in the
     /// settings the work's own scope was prepared with, while a scope reads the account's settings columns, so a folder a
@@ -247,24 +255,44 @@ public sealed class MailboxScopeResolver
     /// not found rather than refused, for the reason an account this deployment no longer serves is: a refusal would
     /// confirm the identifier exists.
     /// </remarks>
-    public async Task<bool> IsReadableByToolsAsync(
+    public async Task<bool> IsReadableAsync(
+        MailboxReaderKind reader,
         MailAccountId accountId,
         MailFolderAlias? folderAlias,
         CancellationToken cancellationToken) =>
-        this.IsReadableByTools(await this.ReadAssignedAccountsAsync(cancellationToken), accountId, folderAlias);
+        this.IsReadable(reader, await this.ReadAssignedAccountsAsync(cancellationToken), accountId, folderAlias);
 
-    /// <summary>Reports whether a tool may read one email, given the accounts the user in hand was already read to be assigned.</summary>
+    /// <summary>Reports whether a reader may reach one email, given the accounts the user in hand was already read to be assigned.</summary>
+    /// <param name="reader">Who the read or the act is answering for.</param>
     /// <param name="assignedAccounts">The accounts <see cref="ReadAssignedAccountsAsync" /> answered, read once for every email asked about.</param>
     /// <param name="accountId">The account the email was read from.</param>
     /// <param name="folderAlias">The alias of the folder the email is in, or <see langword="null" /> for a folder no declaration names.</param>
-    /// <returns>The same answer <see cref="IsReadableByToolsAsync" /> gives, without reading the assignments again.</returns>
-    public bool IsReadableByTools(
+    /// <returns>The same answer <see cref="IsReadableAsync" /> gives, without reading the assignments again.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="reader" /> is not a defined member.</exception>
+    public bool IsReadable(
+        MailboxReaderKind reader,
         IReadOnlyList<MailAccountId> assignedAccounts,
         MailAccountId accountId,
-        MailFolderAlias? folderAlias) =>
-        assignedAccounts.Contains(accountId)
-        && (folderAlias is not { } declared
-            || this.folderParticipation.GetParticipation(accountId, declared).IsVisibleToTools);
+        MailFolderAlias? folderAlias)
+    {
+        if (!Enum.IsDefined(reader))
+        {
+            throw new ArgumentOutOfRangeException(nameof(reader), reader, "A read answers either for an agent or for the person.");
+        }
+
+        return assignedAccounts.Contains(accountId)
+            && (folderAlias is not { } declared
+                || this.folderParticipation.GetParticipation(accountId, declared).Admits(reader));
+    }
+
+    /// <summary>Names the folders a scope answering for one kind of reader is restricted to.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="reader" /> is not a defined member.</exception>
+    private static MailFolderSelection ReadableFoldersFor(MailboxReaderKind reader) => reader switch
+    {
+        MailboxReaderKind.Agent => MailFolderSelection.VisibleToAI,
+        MailboxReaderKind.Person => MailFolderSelection.Synchronized,
+        _ => throw new ArgumentOutOfRangeException(nameof(reader), reader, "A read answers either for an agent or for the person."),
+    };
 
     /// <summary>Reads the roles a request named folders by, refusing one no account in scope plays.</summary>
     /// <exception cref="MailFolderRoleUnmappedException">Thrown when a role reaches no folder on any account in scope.</exception>

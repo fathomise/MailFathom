@@ -1153,13 +1153,13 @@ Each exclusion costs that entry rather than the account's whole listing, which w
 
 A mapping also says what MailFathom does with the folder once it has found it. Three switches on the same entry answer
 that, and each one defaults to `true`, so a mapping that names none of them is a folder that is mirrored, embedded, and
-readable by tools:
+visible to AI:
 
 | Switch | With it `false` |
 | --- | --- |
 | `Synchronize` | No run schedules the folder, so no connection is opened for it and nothing further of it is stored. |
 | `GenerateEmbeddings` | What is stored is never cut into passages, its attachments are never read, and nothing of it reaches an embedding provider. |
-| `VisibleToTools` | No MCP tool lists, searches, reads, or answers from the folder. |
+| `VisibleToAI` | The folder is withheld from every AI function and from nothing else: no MCP tool, agent, or model or embedding provider lists, searches, reads, answers from, or derives anything from it, and no act an agent or MCP caller asks for reaches its mail. The person still reads and acts on it in the client exactly as on any other mirrored folder. |
 
 One role decides something beyond where the folder is too. A mapping of `SpecialUse: Junk` names the folder that
 `list_emails` and `search_emails` leave out unless a caller asks for it, and that `ask_mail` leaves out with no way to
@@ -1170,9 +1170,10 @@ mapping no junk folder withholds nothing, and every mailbox read behaves as it d
 
 None of them changes what an **unmapped** folder is, because an unmapped folder is not a folder with its switches turned
 down. A folder no mapping names is not discovered into a binding, stores nothing, and has no alias anything can name it
-by: it does not exist for this deployment. Every reader is expressed over the folders configuration maps — the tools and
-the two reads that name an email by its identifier over the ones a mapping also leaves visible, chunking and the
-embedding backfill over the ones a mapping also leaves embedded, and both rule passes over the ones a mapping mirrors —
+by: it does not exist for this deployment. Every reader is expressed over the folders configuration maps — every read
+answering for an agent over the ones a mapping also leaves visible to AI, every read answering for the person in the
+client over the ones a mapping mirrors, chunking and the embedding backfill over the ones a mapping also leaves embedded,
+and both rule passes over the ones a mapping mirrors —
 so a folder outside that list is outside the answer, and an account mapping nothing has nothing any of them can read.
 That is a different thing from `Synchronize: false`, where the mapping goes on naming the folder and the alias goes on
 resolving.
@@ -1217,18 +1218,18 @@ occurrence is observed gone. There is no setting of its own for this case, and t
 relocation it was rather than as a deletion. A **copy** into such a folder leaves the local store untouched, because the
 message it duplicates stayed where it was and the duplicate is in a folder nothing mirrors.
 
-**Configuration that asks for embedding or tool visibility on an unsynchronized folder is refused when it binds**, naming
-the alias, because a folder that stores nothing has nothing to embed and nothing a tool could read. Leaving a switch out
-is not asking for it, so `Synchronize: false` alone binds. The opposite combination — mirrored and embedded but withheld
-from tools — binds as well, and it is worth naming what it costs: the passages and their vectors are produced and paid
-for, and no reader reaches them today, since the tools are the only readers there are. It is a mapping to write when the
-folder is expected to become visible, not one to leave in place indefinitely.
+**Configuration that asks for embedding or for visibility to AI on an unsynchronized folder is refused when it binds**,
+naming the alias, because a folder that stores nothing has nothing to embed and nothing AI could read. **Asking for
+embedding on a folder withheld from AI is refused the same way**, naming the alias and both keys, because an embedding
+is computed by a provider such a folder never reaches. Leaving a switch out is not asking for it, so `Synchronize: false`
+alone binds, and so does `VisibleToAI: false` with `GenerateEmbeddings` left out — the mapping then derives embedding off
+from it.
 
 **Mail already stored for a folder whose synchronization is switched off is kept.** Nothing is removed, no pass runs
 over the folder, and the checkpoint stays exactly where the last run left it. Rows nobody may read are not stale in a
 way anybody observes: an unsynchronized folder is withdrawn from every reader there is, because the mapping derives the
-other two switches from this one, so no tool lists, searches, reads, or answers from it, nothing of it is embedded, and
-no rule pass reaches it. Erasing them would charge an operator a whole remirror for a switch they may flip back the
+other two switches from this one and the person's reads cover only mirrored folders, so neither the client nor any AI
+function lists, searches, reads, or answers from it, nothing of it is embedded, and no rule pass reaches it. Erasing them would charge an operator a whole remirror for a switch they may flip back the
 same week, so nothing in MailFathom takes local mail away because a configuration value changed.
 
 **Getting the storage back is a command rather than a setting.** [`mfctl folder
@@ -1248,12 +1249,14 @@ for a folder that simply went unread for a while. A
 reconciliation resolves what the invalidation leaves behind. There is no branch anywhere that tells a re-enabled folder
 from a newly mapped one.
 
-The tool switch is applied in exactly one place. `MailboxScopeResolver` resolves the scope every read model is expressed
-in, attaches to it the folders a mapping both names and leaves visible, and answers the same question for the two reads
-that name an email by its identifier, so a tool added later inherits the whole rule — the withheld folder and the
-unmapped one alike — instead of having to remember either. What it attaches is the list of what may be read rather than
-a list of what may not, which is what makes an account with no mapped folder read as nothing rather than as everything.
-[Mailbox queries](mailbox-queries.md#folders-withheld-from-tools) states what a caller sees.
+The AI switch is applied in exactly one place. `MailboxScopeResolver` resolves the scope every read model is expressed
+in for the reader the read answers for — a `MailboxReaderKind` of `Agent` or `Person` — and attaches to it the folders
+that reader may see: for an agent, the folders a mapping both names and leaves visible to AI; for the person, every
+folder a mapping mirrors. It answers the same question for the reads that name an email by its identifier, so an AI
+function added later inherits the whole rule — the withheld folder and the unmapped one alike — instead of having to
+remember either. What it attaches is the list of what may be read rather than a list of what may not, which is what
+makes an account with no mapped folder read as nothing rather than as everything.
+[Mailbox queries](mailbox-queries.md#folders-withheld-from-ai) states what a caller sees.
 
 ### Where an arrival lands on a held account
 

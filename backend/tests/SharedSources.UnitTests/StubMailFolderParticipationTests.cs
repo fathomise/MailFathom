@@ -33,7 +33,7 @@ public sealed class StubMailFolderParticipationTests
 
         // Assert
         Assert.Equal([WorkInbox, PrivateInbox], participation.FoldersSynchronized);
-        Assert.Equal([WorkInbox, PrivateInbox], participation.FoldersVisibleToTools);
+        Assert.Equal([WorkInbox, PrivateInbox], participation.FoldersVisibleToAI);
         Assert.Equal([WorkInbox, PrivateInbox], participation.FoldersGeneratingEmbeddings);
         Assert.Equal(MailFolderParticipation.Full, participation.GetParticipation(Work, WorkInbox.Alias));
     }
@@ -48,21 +48,22 @@ public sealed class StubMailFolderParticipationTests
         // Act, Assert
         Assert.Equal(MailFolderParticipation.Unmapped, participation.GetParticipation(Work, WorkArchive.Alias));
         Assert.Equal(MailFolderParticipation.Unmapped, participation.GetParticipation(Private, WorkInbox.Alias));
-        Assert.Empty(StubMailFolderParticipation.Nothing.FoldersVisibleToTools);
+        Assert.Empty(StubMailFolderParticipation.Nothing.FoldersVisibleToAI);
         Assert.Empty(StubMailFolderParticipation.Nothing.FoldersGeneratingEmbeddings);
     }
 
     [Fact]
-    public void Hiding_AMappedFolder_LeavesItOutOfTheToolsListAndKeepsItEmbedded()
+    public void Hiding_AMappedFolder_LeavesItOutOfTheAIAndEmbeddingListsAndKeepsItMirrored()
     {
         // Act
         var participation = StubMailFolderParticipation.Mapping(WorkInbox, WorkArchive).Hiding(WorkArchive);
 
         // Assert
-        Assert.Equal([WorkInbox], participation.FoldersVisibleToTools);
-        Assert.Equal([WorkInbox, WorkArchive], participation.FoldersGeneratingEmbeddings);
-        Assert.False(participation.GetParticipation(Work, WorkArchive.Alias).IsVisibleToTools);
-        Assert.True(participation.GetParticipation(Work, WorkArchive.Alias).GeneratesEmbeddings);
+        Assert.Equal([WorkInbox], participation.FoldersVisibleToAI);
+        Assert.Equal([WorkInbox], participation.FoldersGeneratingEmbeddings);
+        Assert.Equal([WorkInbox, WorkArchive], participation.FoldersSynchronized);
+        Assert.False(participation.GetParticipation(Work, WorkArchive.Alias).IsVisibleToAI);
+        Assert.False(participation.GetParticipation(Work, WorkArchive.Alias).GeneratesEmbeddings);
     }
 
     [Fact]
@@ -74,7 +75,7 @@ public sealed class StubMailFolderParticipationTests
             .WithoutEmbeddingsIn(WorkArchive);
 
         // Assert
-        Assert.Equal([WorkInbox, WorkArchive], participation.FoldersVisibleToTools);
+        Assert.Equal([WorkInbox, WorkArchive], participation.FoldersVisibleToAI);
         Assert.Equal([WorkInbox], participation.FoldersGeneratingEmbeddings);
     }
 
@@ -87,7 +88,7 @@ public sealed class StubMailFolderParticipationTests
 
         // Assert
         Assert.Equal([WorkInbox], participation.FoldersSynchronized);
-        Assert.Equal([WorkInbox], participation.FoldersVisibleToTools);
+        Assert.Equal([WorkInbox], participation.FoldersVisibleToAI);
         Assert.Equal([WorkInbox], participation.FoldersGeneratingEmbeddings);
         Assert.Equal(MailFolderParticipation.MappedOnly, participation.GetParticipation(Work, WorkArchive.Alias));
     }
@@ -100,8 +101,8 @@ public sealed class StubMailFolderParticipationTests
         var participation = StubMailFolderParticipation.Mapping(WorkInbox).Hiding(WorkInbox);
 
         // Assert
-        Assert.Empty(participation.FoldersVisibleToTools);
-        Assert.Equal([WorkInbox], participation.FoldersGeneratingEmbeddings);
+        Assert.Empty(participation.FoldersVisibleToAI);
+        Assert.Equal([WorkInbox], participation.FoldersSynchronized);
     }
 
     /// <summary>The arrangement is per reader, so a test that took the default answer never sees a folder another one mapped.</summary>
@@ -116,7 +117,7 @@ public sealed class StubMailFolderParticipationTests
         var untouched = StubMailFolderParticipation.Nothing;
 
         // Assert
-        Assert.NotEmpty(arranged.FoldersVisibleToTools);
-        Assert.Empty(untouched.FoldersVisibleToTools);
+        Assert.NotEmpty(arranged.FoldersVisibleToAI);
+        Assert.Empty(untouched.FoldersVisibleToAI);
     }
 }

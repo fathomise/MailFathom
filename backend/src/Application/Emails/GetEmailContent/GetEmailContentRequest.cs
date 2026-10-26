@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Emails.GetEmailContent;
 
@@ -103,6 +104,15 @@ public sealed record GetEmailContentRequest
     /// neither, so the tool surface leaves it alone and pays for neither the parse nor the decode.
     /// </remarks>
     public bool IncludeSelfContainedHtml { get; init; }
+
+    /// <summary>Gets who the read is answering for, which decides whether mail in a folder withheld from AI is served.</summary>
+    /// <remarks>
+    /// An init property for the reason the document is one: the client endpoints a person reads through are the callers
+    /// that set it, and every other entrypoint here hands what it reads to an agent or a model. It defaults to
+    /// <see cref="MailboxReaderKind.Agent" />, so a caller that never names its reader withholds the folder rather than
+    /// handing its mail on.
+    /// </remarks>
+    public MailboxReaderKind Reader { get; init; }
 
     /// <summary>Gets whether the reduced document may carry this message's remote picture references.</summary>
     /// <remarks>

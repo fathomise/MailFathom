@@ -7,6 +7,7 @@ using MailFathom.Application.EmailContent.Rendering.Document;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -99,6 +100,7 @@ internal static class ClientMailBodyEndpoint
     internal static GetEmailContentRequest RequestFor(Guid storedEmailId, bool? remoteImages, bool? fullHtml) =>
         GetEmailContentRequest.Create([StoredEmailId.Create(storedEmailId)]) with
         {
+            Reader = MailboxReaderKind.Person,
             IncludeMailDocument = true,
             IncludeSelfContainedHtml = fullHtml is true,
             RetainRemoteImageReferences = remoteImages is true,

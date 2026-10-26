@@ -24,9 +24,10 @@ Which folder that is comes from configuration rather than from what a server adv
 account's folder mapping, described in [IMAP synchronization](imap-synchronization.md). A deployment that maps no junk
 folder withholds nothing, and both tools behave exactly as they did before this existed.
 
-The override can never reveal a folder an operator withheld. A folder taken out of tool visibility with
-`visibleToTools: false` stays out whatever a caller asks for, because the two decisions are held apart and a query is
-handed their union. [Mailbox queries](mailbox-queries.md) holds the rest of what narrows a read.
+The override can never reveal a folder an operator withheld. A folder withheld from AI with `VisibleToAI: false` stays
+out of both tools whatever a caller asks for, because the two decisions are held apart and a query is handed their
+union. That switch withholds the folder from AI and from nothing else, and the classification described on this page is
+not AI: a deterministic verdict still reaches the folder's mail exactly as it reaches any other mirrored folder's. [Mailbox queries](mailbox-queries.md) holds the rest of what narrows a read.
 
 `ask_mail` excludes junk and offers no override. Its answer is composed by a model from the mail it retrieved, so
 content written to deceive a reader would reach the model as ordinary correspondence with nothing left to notice it.

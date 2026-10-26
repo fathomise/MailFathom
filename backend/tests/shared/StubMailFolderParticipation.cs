@@ -32,9 +32,9 @@ internal sealed class StubMailFolderParticipation : IMailFolderParticipationRead
     public IReadOnlyList<MailFolderIdentity> FoldersSynchronized =>
         [.. this.folders.Where(static folder => folder.Participation.IsSynchronized).Select(static folder => folder.Identity)];
 
-    /// <summary>Gets the mapped folders a tool may read.</summary>
-    public IReadOnlyList<MailFolderIdentity> FoldersVisibleToTools =>
-        [.. this.folders.Where(static folder => folder.Participation.IsVisibleToTools).Select(static folder => folder.Identity)];
+    /// <summary>Gets the mapped folders AI may reach.</summary>
+    public IReadOnlyList<MailFolderIdentity> FoldersVisibleToAI =>
+        [.. this.folders.Where(static folder => folder.Participation.IsVisibleToAI).Select(static folder => folder.Identity)];
 
     /// <summary>Gets the mapped folders whose mail is embedded.</summary>
     public IReadOnlyList<MailFolderIdentity> FoldersGeneratingEmbeddings =>
@@ -67,19 +67,19 @@ internal sealed class StubMailFolderParticipation : IMailFolderParticipationRead
         return this;
     }
 
-    /// <summary>Maps the named folders and withholds each of them from every tool.</summary>
+    /// <summary>Maps the named folders and withholds each of them from AI, which leaves them mirrored and unembedded.</summary>
     /// <param name="folders">The folders to withhold.</param>
     /// <returns>The same reader.</returns>
     public StubMailFolderParticipation Hiding(params MailFolderIdentity[] folders) => this.WithAll(
         folders,
-        MailFolderParticipation.Create(isSynchronized: true, generatesEmbeddings: true, isVisibleToTools: false));
+        MailFolderParticipation.Create(isSynchronized: true, generatesEmbeddings: false, isVisibleToAI: false));
 
     /// <summary>Maps the named folders and embeds nothing of them.</summary>
     /// <param name="folders">The folders to leave unembedded.</param>
     /// <returns>The same reader.</returns>
     public StubMailFolderParticipation WithoutEmbeddingsIn(params MailFolderIdentity[] folders) => this.WithAll(
         folders,
-        MailFolderParticipation.Create(isSynchronized: true, generatesEmbeddings: false, isVisibleToTools: true));
+        MailFolderParticipation.Create(isSynchronized: true, generatesEmbeddings: false, isVisibleToAI: true));
 
     /// <summary>Maps the named folders and mirrors nothing of them, which withdraws all three answers at once.</summary>
     /// <param name="folders">The folders nothing mirrors.</param>

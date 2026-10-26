@@ -198,7 +198,7 @@ public sealed class StubEmailThreadReaderTests
                 participation,
                 new StubDeploymentMailFolders(participation, StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk))),
                 StubMailFolderMappings.ResolvingNothing)
-            .ReadableScopeAsync([], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
+            .ReadableScopeAsync(MailboxReaderKind.Agent, [], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
     }
 
     private static async Task<IReadOnlyList<ThreadedEmailSummary>> ReadAsync(

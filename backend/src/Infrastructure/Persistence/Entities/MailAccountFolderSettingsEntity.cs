@@ -30,6 +30,8 @@ internal sealed class MailAccountFolderSettingsEntity
 
     public bool IsSynchronized { get; set; }
 
+    // Whether the folder is visible to AI. The column keeps the name it was created with rather than being renamed with
+    // the setting, because a rolling upgrade runs the previous build against the same table.
     public bool IsVisibleToTools { get; set; }
 
     public bool GeneratesEmbeddings { get; set; }

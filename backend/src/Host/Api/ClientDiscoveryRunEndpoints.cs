@@ -330,6 +330,7 @@ internal static class ClientDiscoveryRunEndpoints
         var text = MailQuestionText.Create(request?.Question);
 
         var scope = await scopeResolver.ReadableScopeAsync(
+            MailboxReaderKind.Agent,
             Selectors(request?.Accounts),
             Folders(request?.Folders),
             JunkMailInclusion.Excluded,

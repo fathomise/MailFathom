@@ -18,7 +18,7 @@ namespace MailFathom.Infrastructure.Persistence.Emails;
 /// </para>
 /// <para>
 /// Configuration decides by an account and an alias together, because the alias is what per-folder settings —
-/// participation, junk, visibility to tools — are keyed by, and it is matched against the alias recorded on the folder
+/// participation, junk, visibility to AI — are keyed by, and it is matched against the alias recorded on the folder
 /// row. One clause is composed per account the decision reaches — <c>account &lt;&gt; 'a' OR alias &lt;&gt; ALL(…)</c>
 /// to withhold, <c>account &lt;&gt; 'a' OR alias = ANY(…)</c> to admit — which is bounded by how many accounts are
 /// configured. Narrowing by the alias alone would withhold or admit another account's folder of the same name.
@@ -84,7 +84,7 @@ internal static class AccountScopedMailFolders
     /// The same shape as <see cref="Selecting(IQueryable{StoredEmailEntity}, IReadOnlyList{MailFolderId}, IReadOnlyList{MailFolderSpecialUse})" /> and
     /// one difference that is the whole point of having two: an empty list admits nothing rather than everything. A
     /// caller's folder filter is absent when they named no folder, and configuration's admission is empty when the
-    /// deployment maps no folder a tool may read — which has to mean no mail rather than all of it, since the store
+    /// deployment maps no folder the reader may reach — which has to mean no mail rather than all of it, since the store
     /// holds rows of folders no mapping names any more.
     /// </remarks>
     internal static IQueryable<StoredEmailEntity> Admitting(

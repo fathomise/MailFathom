@@ -8,6 +8,7 @@ using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
 
 namespace MailFathom.Application.Mail.Mutations.Authoring;
@@ -74,6 +75,7 @@ public sealed class MailboxChangeReleaser
 
     /// <summary>Ends the wait in front of the deletes this caller authored, so the next pass may take each in hand.</summary>
     /// <param name="recordIds">The records to release.</param>
+    /// <param name="reader">Who the act is asked for: the person through the client, or an agent or an MCP caller.</param>
     /// <param name="cancellationToken">Cancels the read and the commit.</param>
     /// <returns>One entry per record this caller holds under those identities, each reporting where it now stands.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="recordIds" /> is <see langword="null" />.</exception>
@@ -82,6 +84,7 @@ public sealed class MailboxChangeReleaser
     /// <remarks>A record naming anything but a delete is absent from the answer, exactly as a record belonging to somebody else is: this entry point holds authority over deletes and says nothing about anything else.</remarks>
     public async Task<IReadOnlyList<MailboxChangeProgress>> ReleaseDeletesAsync(
         IReadOnlyList<MailboxMutationRecordId> recordIds,
+        MailboxReaderKind reader,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(recordIds);
@@ -96,7 +99,7 @@ public sealed class MailboxChangeReleaser
         var held = await this.records.ReadAsync(assignedAccounts, recordIds, cancellationToken);
 
         var releasable = held
-            .Where(record => record.Request.Mutation == MailboxMutation.Delete && this.IsReadable(assignedAccounts, record))
+            .Where(record => record.Request.Mutation == MailboxMutation.Delete && this.IsReadable(reader, assignedAccounts, record))
             .Select(record => record.Id)
             .ToArray();
 
@@ -134,8 +137,12 @@ public sealed class MailboxChangeReleaser
     }
 
     /// <summary>Reports whether the caller may still reach the mailbox the change was recorded in.</summary>
-    private bool IsReadable(IReadOnlyList<MailAccountId> assignedAccounts, MailboxMutationRecord record) =>
-        this.scopeResolver.IsReadableByTools(
+    private bool IsReadable(
+        MailboxReaderKind reader,
+        IReadOnlyList<MailAccountId> assignedAccounts,
+        MailboxMutationRecord record) =>
+        this.scopeResolver.IsReadable(
+            reader,
             assignedAccounts,
             record.Request.Occurrence.AccountId,
             record.Request.Occurrence.FolderResolutionId.Alias);

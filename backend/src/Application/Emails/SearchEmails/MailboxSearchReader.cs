@@ -12,6 +12,7 @@ using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Emails.SearchEmails;
 
@@ -395,6 +396,7 @@ public sealed class MailboxSearchReader
     /// </remarks>
     private async Task<MailboxEmailSelection> ReadableSelectionAsync(SearchEmailsRequest request, CancellationToken cancellationToken) => MailboxEmailSelection.Create(
         request.ResolvedScope ?? await this.scopeResolver.ReadableScopeAsync(
+            MailboxReaderKind.Agent,
             request.Accounts,
             request.Folders,
             request.IncludeJunkMail ? JunkMailInclusion.Included : JunkMailInclusion.Excluded,

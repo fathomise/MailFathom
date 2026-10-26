@@ -8,6 +8,7 @@ using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
+using MailFathom.Domain.Folders;
 using MailFathom.Mcp.Tools.Results;
 
 namespace MailFathom.Mcp.Tools.Drafts;
@@ -106,6 +107,7 @@ internal sealed class DraftedMailWriting(AuthoredMailDrafting drafting, Authored
         var request = new MailResponseDraftRequest
         {
             AnsweredEmailId = AuthoredMailArguments.AnsweredEmail(fields.AnsweredEmailId!),
+            Reader = MailboxReaderKind.Agent,
             Act = AuthoredAct(answer),
             PlainTextBody = fields.PlainTextBody,
             HtmlBody = fields.HtmlBody,

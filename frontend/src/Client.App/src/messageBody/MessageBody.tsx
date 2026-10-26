@@ -48,7 +48,7 @@ const refusalMessages: Readonly<Record<Exclude<MailDocumentRefusal, 'None'>, Mes
 };
 
 // Why the cleaned view is drawing the ordinary reduced document, said in every case a reader could otherwise read as
-// the cleaning having silently stopped working. Two of the six say nothing: a cleaning that happened needs no sentence,
+// the cleaning having silently stopped working. Two of the seven say nothing: a cleaning that happened needs no sentence,
 // and one that found nothing to drop has already drawn the document it would have composed.
 const cleaningFellBack: Readonly<Record<MailBodyCleaning, MessageKey | null>> = {
     Cleaned: null,
@@ -57,6 +57,7 @@ const cleaningFellBack: Readonly<Record<MailBodyCleaning, MessageKey | null>> = 
     AllowanceExhausted: 'body.cleaningAllowanceExhausted',
     ProviderUnavailable: 'body.cleaningProviderUnavailable',
     AnswerRejected: 'body.cleaningAnswerRejected',
+    WithheldFromAI: 'body.cleaningWithheldFromAI',
 };
 
 // Why the embedded view fell back to the reduced tree, which is said in every case rather than in some of them: a

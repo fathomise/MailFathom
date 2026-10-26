@@ -120,12 +120,12 @@ Points worth knowing before you adapt it:
   read, or answered from, never embedded, and never evaluated by a rule — and so is mail an earlier configuration had
   already stored under an entry you later removed, which stays in the database and stops being reachable.
   *Working out the list* below is how to arrive at one you meant.
-- **A mapped folder is mirrored, embedded, and readable by tools** unless you say otherwise. `Synchronize`,
-  `GenerateEmbeddings`, and `VisibleToTools` each default to `true` on a folder entry, and switching one off is how a
-  folder stays nameable while its mail stays out of the local copy, out of an embedding provider, or out of everything
-  an assistant can read. Mail the folder had already stored is kept when you turn mirroring off, withheld from
-  everything that reads a mailbox, so turning it back on later fetches what arrived meanwhile rather than the whole
-  folder again.
+- **A mapped folder is mirrored, embedded, and visible to AI** unless you say otherwise. `Synchronize`,
+  `GenerateEmbeddings`, and `VisibleToAI` each default to `true` on a folder entry, and switching one off is how a
+  folder stays nameable while its mail stays out of the local copy, out of an embedding provider, or out of every AI
+  function — assistants, MCP tools, and models alike — while you still read it in the client. Mail the folder had
+  already stored is kept when you turn mirroring off, withheld from everything that reads a mailbox, so turning it back
+  on later fetches what arrived meanwhile rather than the whole folder again.
   [What a mapping decides beyond where the folder is](../features/imap-synchronization.md#what-a-mapping-decides-beyond-where-the-folder-is)
   states what each one costs, including what happens to mail already stored when you turn mirroring off.
 - **A folder you name is created only if you ask for it.** Add `CreateIfMissing: true` beside a `RemotePath` and
@@ -191,7 +191,7 @@ The account's `Folders` then grows from the two entries above into the list you 
 }
 ```
 
-Once the service is running, `list_accounts` reports one entry per folder this deployment mapped and lets tools read,
+Once the service is running, `list_accounts` reports one entry per folder this deployment mapped and left visible to AI,
 with when each last synchronized — so a mistyped path shows up as a folder missing from that answer rather than as one
 holding no mail. The log names an alias that resolved to nothing or to more than one folder, in both cases naming the
 remedy.
