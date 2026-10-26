@@ -14,6 +14,7 @@ using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.SearchEmails;
 using MailFathom.Application.Mail;
+using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent;
@@ -429,6 +430,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(new EmailSignatureTrustOptions());
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
+        services.AddSingleton(Substitute.For<IOutgoingSenderIdentityReader>());
         services.AddSingleton(Substitute.For<ISenderTrustPolicyReader>());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
         this.AddScanningPostures(services, SensitiveContentCategory.Create("ProviderToken"));
@@ -470,6 +472,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(new EmailSignatureTrustOptions());
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
+        services.AddSingleton(Substitute.For<IOutgoingSenderIdentityReader>());
         services.AddSingleton(policies);
         services.AddSingleton(MachineAuthorshipProfile.Standard);
 
@@ -518,6 +521,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(new EmailSignatureTrustOptions());
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
+        services.AddSingleton(Substitute.For<IOutgoingSenderIdentityReader>());
         services.AddSingleton(policies);
         services.AddSingleton(MachineAuthorshipProfile.Standard);
 
@@ -561,6 +565,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(new EmailSignatureTrustOptions());
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
+        services.AddSingleton(Substitute.For<IOutgoingSenderIdentityReader>());
         services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
         services.AddSingleton(resolver);
@@ -602,6 +607,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(new EmailSignatureTrustOptions());
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
+        services.AddSingleton(Substitute.For<IOutgoingSenderIdentityReader>());
         services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
         services.AddSingleton(resolver);
@@ -645,6 +651,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(new EmailSignatureTrustOptions());
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
+        services.AddSingleton(Substitute.For<IOutgoingSenderIdentityReader>());
         services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
 
@@ -683,6 +690,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(new EmailSignatureTrustOptions());
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
+        services.AddSingleton(Substitute.For<IOutgoingSenderIdentityReader>());
         services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Disabled);
 
@@ -727,6 +735,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(new EmailSignatureTrustOptions());
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
+        services.AddSingleton(Substitute.For<IOutgoingSenderIdentityReader>());
         services.AddSingleton(policies);
         services.AddSingleton(MachineAuthorshipProfile.Standard);
         this.AddScanningPostures(services, SensitiveContentCategory.Create("ProviderToken"));
@@ -767,6 +776,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(new EmailSignatureTrustOptions());
         services.AddSecretResolution(SecretValueInterpretation.ReferenceOnly);
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
+        services.AddSingleton(Substitute.For<IOutgoingSenderIdentityReader>());
         services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
         this.AddScanningPostures(services, category);

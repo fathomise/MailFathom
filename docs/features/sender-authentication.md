@@ -220,8 +220,10 @@ configuration](../operations/configuration-mail.md#mailsynchronization) states w
 ## Whether the author is one this deployment recognizes
 
 An author who authenticated is still a stranger until something says otherwise, so a third answer is recorded beside
-the two above: **trusted** or **unknown**. The rule is deliberately narrow. An author is trusted when their domain belongs
-to an account this deployment synchronizes, or when an entry on the receiving account's trusted-sender list names them.
+the two above: **trusted** or **unknown**. The rule is deliberately narrow. An author is trusted when [a signature of the
+receiving account's organization](#a-colleague-in-the-receiving-accounts-organization) proves them a member of it, when
+their domain belongs to an account this deployment synchronizes, or when an entry on the receiving account's
+trusted-sender list names them.
 Everything else is unknown — including most legitimate mail, and that is the intended outcome. The claim being made is
 *this deployment does not know who wrote this*, never *this is suspicious*; whether a message is wanted is [spam
 classification](spam-classification.md)'s question and is reached by other means entirely.
@@ -246,7 +248,57 @@ identity happened to authenticate.** Both of the alternatives are forgeries wait
 What establishes an author is [the conclusion above](#whether-the-displayed-author-authenticated), and the list is held
 against its answer and nothing else. A message whose author was not established, and one whose author authentication
 failed, both reach *unknown* without the list being consulted at all; which of the two it was stays where it was
-recorded, on the authentication verdict.
+recorded, on the authentication verdict. [Organization membership](#a-colleague-in-the-receiving-accounts-organization)
+is the one exception, because what it proves is the author's address rather than a domain.
+
+### A colleague in the receiving account's organization
+
+Every message an organization's account sends is signed with a key that organization holds, and a receiving account of
+the same organization verifies the signature locally when the message is extracted. [ADR
+0042](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0042-signing-an-organizations-mail-and-trusting-a-sender-its-signature-proves.md)
+records the format and the reasoning; [Organization signing keys](../operations/organization-signing-keys.md) is where
+the keys are minted, rotated, and revoked.
+
+The signature is a DKIM value written in a header of MailFathom's own, `MailFathom-Organization-Signature`, which every
+other server ignores. Verification hands each value to MimeKit's DKIM verifier as a `DKIM-Signature` header rebuilt in
+memory from the exact bytes the message carried, so the message itself is never modified. At most as many of these
+headers are read as the local DKIM verification reads, because their number is written by whoever sent the message. The
+key is located by the selector alone, among **the receiving account's own organization's keys and nowhere else**: `d=`
+is never read and nothing is asked of DNS.
+
+**The author is trusted as a member only where all three hold:**
+
+1. **The signature verifies** against a key of the receiving account's organization that is active or retired and was
+   never revoked. A retired key keeps its public half, so mail it signed goes on verifying; a revoked key confirms
+   nothing for any message verified after the revocation, whenever the message says it was signed.
+2. **The message carries exactly one `From` field, naming exactly one mailbox, and that address is the sending address
+   of a mail account in the organization now** — the address its mail is written from, never its IMAP user name, so a
+   member whose user name is a bare login is still recognized. Every signed header is listed twice, so a second `From`,
+   or a `Reply-To` that would send the reply elsewhere, inserted after signing breaks the signature. An author who has
+   left the organization is no longer recognized, whatever key once signed for them.
+3. **The message was sent to the receiving account**: its sending address is in the signed `To` or `Cc`, or the record
+   this deployment kept of the send — the one with the signed `Message-ID`, made through the author's account — lists it
+   as a blind copy. This is what refuses a validly signed message replayed to somebody it never named. It also means a
+   message reaching a member through a mailing list, an alias, or a redirect is not recognized this way, and is judged
+   by the other sources as before. A send record deleted by retention or erasure before the blind copy arrives
+   recognizes nothing.
+
+**Membership ranks first and needs no authenticated domain.** Where it holds, the verdict is trusted with the source
+*organization member*, and the lists below are not consulted: a colleague on a server publishing no DKIM key is still
+recognized, and one on the organization's own domain is named as a member rather than by that domain. The verdict also
+stores which organization recognized the author, as a reference a reader is shown the organization's current name
+through; deleting the organization clears the reference and leaves the reason without a name.
+
+**A signature that fails, names no key of the organization, or names a revoked one contributes nothing, and is never a
+warning.** Relays legitimately alter messages — a disclaimer footer breaks the body hash — so the message is judged by
+the other sources exactly as it would have been unsigned. A receiving account in no organization never runs this
+verification, and its mail is judged exactly as before.
+
+Verification happens at extraction and nowhere else, so it is the same in every custody phase: a held account's source
+keeps delivering new mail, which is extracted as an arrival. Nothing re-reads stored mail on account of a rotation, a
+revocation, or a member leaving; [re-deriving stored mail](#re-deriving-what-is-already-stored) re-verifies it under the
+keys, the membership, and the send records as they stand then, so a re-derivation after a revocation leaves no verdict
+that key reached.
 
 ### A user's own domains
 

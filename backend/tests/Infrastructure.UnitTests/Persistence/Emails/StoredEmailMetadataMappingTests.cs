@@ -629,6 +629,30 @@ public sealed class StoredEmailMetadataMappingTests
         Assert.Null(entity.SenderTrustPolicyRevision);
     }
 
+    /// <summary>A verdict an organization reached keeps which organization it was, and a later verdict that names none clears it.</summary>
+    [Fact]
+    public void ApplyExtractedMetadata_OrganizationMemberThenNot_RecordsAndThenClearsTheOrganization()
+    {
+        // Arrange
+        var entity = CreateEntity();
+        var organization = Guid.Parse("0199f000-0000-7000-8000-000000000001");
+        var revision = SenderTrustPolicyRevision.Of([$"organization:{organization:D}"]);
+        StoredEmailMetadataMapping.ApplyExtractedMetadata(
+            entity,
+            CreateExtractedMetadata(senderTrust: SenderTrust.TrustedAsOrganizationMember(organization, revision)));
+        var recognized = (entity.SenderTrustGrantedBy, entity.SenderTrustOrganizationId);
+
+        // Act
+        StoredEmailMetadataMapping.ApplyExtractedMetadata(
+            entity,
+            CreateExtractedMetadata(senderTrust: SenderTrust.Unknown(revision)));
+
+        // Assert
+        Assert.Equal((SenderTrustSource.OrganizationMember, (Guid?)organization), recognized);
+        Assert.Equal(SenderTrustSource.None, entity.SenderTrustGrantedBy);
+        Assert.Null(entity.SenderTrustOrganizationId);
+    }
+
     /// <summary>A re-derivation under a narrower list must replace the whole verdict, not leave the half that recognized.</summary>
     [Fact]
     public void ApplyExtractedMetadata_UnknownAfterARecognizedReading_ReplacesTheWholeVerdict()

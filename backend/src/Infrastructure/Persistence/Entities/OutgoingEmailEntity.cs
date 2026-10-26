@@ -10,6 +10,9 @@ namespace MailFathom.Infrastructure.Persistence.Entities;
 [RequiresIntegrationCoverage]
 internal sealed class OutgoingEmailEntity
 {
+    /// <summary>The longest <c>Message-ID</c> stored, matching the bound arriving mail's own column carries.</summary>
+    internal const int MaximumInternetMessageIdLength = 998;
+
     public Guid Id { get; set; }
 
     /// <summary>Gets or sets the account the message is submitted through and sent as.</summary>
@@ -130,6 +133,13 @@ internal sealed class OutgoingEmailEntity
 
     /// <summary>Gets or sets the subject the message was composed with, or <see langword="null" /> for a row an earlier build wrote.</summary>
     public string? Subject { get; set; }
+
+    /// <summary>Gets or sets the <c>Message-ID</c> the enqueued MIME carries, or <see langword="null" /> where it carried none or an earlier build wrote the row.</summary>
+    /// <remarks>
+    /// Read once, when the record is opened, from the bytes every attempt sends. A receiving account of the same
+    /// organization finds a blind copy's send through it, so a row without one can never vouch for a blind copy.
+    /// </remarks>
+    public string? InternetMessageId { get; set; }
 
     /// <summary>Gets or sets when somebody took the send out of its account's outbox, or <see langword="null" /> while nobody has.</summary>
     public DateTimeOffset? DismissedAt { get; set; }

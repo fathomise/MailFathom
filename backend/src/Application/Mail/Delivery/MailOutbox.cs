@@ -169,7 +169,7 @@ public sealed class MailOutbox(
                     session,
                     request,
                     principal,
-                    signedMime.Length,
+                    signedMime,
                     attemptCancellationToken);
 
                 await contentStore.SaveOutgoingContentAsync(

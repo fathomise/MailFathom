@@ -118,7 +118,10 @@ address into a message. Most legitimate mail stays unknown and that is the
 intended outcome: the claim is that this deployment does not know the author, not that the message is suspicious.
 Turning `TrustOwnAccountDomains` off is the right move for a deployment whose accounts sit on a large shared provider,
 since every user of that provider writes from the same domain; the same page states what an address entry rests on and
-what it deliberately does not establish. Both are unreachable where no trusted header is read at all — an account
+what it deliberately does not establish. Neither is consulted for an author the receiving account's [organization
+signature](../features/sender-authentication.md#a-colleague-in-the-receiving-accounts-organization) proves a member,
+which needs no setting and no authenticated domain and is how a colleague on that shared provider is still recognized.
+Both lists are unreachable where no trusted header is read at all — an account
 that names no authority, and equally one whose receiving server records no results — because a message with no
 established author reaches unknown without either being consulted. [Whether your server says who sent a
 message](../users/mailbox-providers.md#whether-your-server-says-who-sent-a-message) is how that is checked against a

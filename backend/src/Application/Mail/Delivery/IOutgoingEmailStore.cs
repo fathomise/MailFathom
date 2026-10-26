@@ -44,23 +44,30 @@ public interface IOutgoingEmailStore
     /// <param name="session">The session the write joins.</param>
     /// <param name="request">The send that was asked for.</param>
     /// <param name="principal">Whoever asked for it, as the record will remember them.</param>
-    /// <param name="mimeByteLength">How many bytes of MIME are being stored for this message.</param>
+    /// <param name="rawMime">The MIME being stored for this message, whose length and <c>Message-ID</c> the record keeps.</param>
     /// <param name="cancellationToken">Cancels the write or the read that precedes it.</param>
     /// <returns>The record for this request, and whether this call is what wrote it down.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="session" />, <paramref name="request" />, or <paramref name="principal" /> is <see langword="null" />.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="mimeByteLength" /> is not positive.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="rawMime" /> is empty.</exception>
     /// <remarks>
+    /// <para>
     /// The record starts at <see cref="OutgoingEmailStage.Recorded" /> with every recipient unanswered and no attempt
     /// counted, so opening one sends nothing by itself. An identity that already has a record is answered with that
     /// record unchanged — including its recipients, its recorded length, and the principal the first request was made
     /// under — because the message a retry transmits has to be the one a previous attempt may already have begun
     /// transmitting.
+    /// </para>
+    /// <para>
+    /// The <c>Message-ID</c> is kept so a receiving account of the same organization can tell a blind copy this
+    /// deployment sent it from a signed message replayed to somebody it never named. A message carrying none records
+    /// none, and can then never satisfy that half of the check.
+    /// </para>
     /// </remarks>
     Task<OpenedOutgoingEmail> OpenAsync(
         IPersistenceSession session,
         OutgoingEmailRequest request,
         OutgoingEmailPrincipal principal,
-        long mimeByteLength,
+        ReadOnlyMemory<byte> rawMime,
         CancellationToken cancellationToken);
 
     /// <summary>Reads one record back by the identifier everything after the first write refers to it by.</summary>

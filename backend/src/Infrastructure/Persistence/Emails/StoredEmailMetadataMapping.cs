@@ -112,6 +112,7 @@ internal static class StoredEmailMetadataMapping
         entity.SenderTrustPolicyRevision = trust.PolicyRevision.NamesAPolicy
             ? trust.PolicyRevision.Value
             : null;
+        entity.SenderTrustOrganizationId = trust.RecognizingOrganizationId;
     }
 
     /// <summary>Records how much the message's own text read as machine written.</summary>

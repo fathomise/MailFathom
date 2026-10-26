@@ -2098,6 +2098,53 @@ public sealed class MailboxSynchronizerTests
             CancellationToken.None);
     }
 
+    /// <summary>
+    /// An arrival is extracted, and its organization verdict stored, the same way in every custody phase: a held source
+    /// keeps delivering new mail, which is extracted as an arrival before the drain takes it.
+    /// </summary>
+    [Theory]
+    [InlineData(MailAccountCustodyPhase.Mirrored)]
+    [InlineData(MailAccountCustodyPhase.Held)]
+    [InlineData(MailAccountCustodyPhase.Restoring)]
+    public async Task SynchronizeAsync_ArrivalAColleagueSignedInEachCustodyPhase_StoresTheOrganizationVerdict(MailAccountCustodyPhase phase)
+    {
+        // Arrange
+        var accountId = MailAccountId.Create("primary");
+        var uidValidity = ImapUidValidity.Create(5);
+        var occurrence = EmailOccurrenceId.Create(accountId, InboxFolder.Id, uidValidity, ImapUid.Create(10));
+        var options = new MailboxSynchronizationOptions { MaxMetadataBatchSize = 25, MaxRawMimeBytes = 1024 };
+        var organization = Guid.Parse("0199f000-0000-7000-8000-000000000001");
+        var localFolders = new InMemoryLocalMailFolderStore(accountId, phase);
+        var arrangement = ArrangeContentRun(
+            options,
+            uidValidity,
+            [MetadataOf(occurrence, 600)],
+            occurrence.Uid,
+            localFolderArrivals: new LocalMailFolderArrivals(
+                localFolders,
+                localFolders.Composing(new FakeTimeProvider()).Custodians,
+                ClientSignalPublishers.ReachingNobody,
+                new FakeTimeProvider()),
+            mimeReader: ReaderYielding(CreateExtractedMetadata(accountId) with
+            {
+                SenderTrust = SenderTrust.TrustedAsOrganizationMember(organization, SenderTrustPolicyRevision.None),
+            }));
+        StubRetrievedContent(arrangement.Session, options, occurrence, 600);
+
+        // Act
+        await arrangement.Synchronizer.SynchronizeAsync(accountId, InboxMapping, CancellationToken.None);
+
+        // Assert
+        await arrangement.MetadataRepository.Received(1).UpsertMetadataAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<RemoteEmailMetadata>(),
+            Arg.Is<ExtractedEmailMetadata?>(extracted => extracted != null
+                && extracted.SenderTrust.GrantedBy == SenderTrustSource.OrganizationMember
+                && extracted.SenderTrust.RecognizingOrganizationId == organization),
+            StoredEmailContentAvailability.Available,
+            Arg.Any<CancellationToken>());
+    }
+
     /// <summary>Nothing was read from the payload, so the row records only what the server's envelope reported.</summary>
     [Fact]
     public async Task SynchronizeAsync_MessageWhoseMimeCannotBeRead_PersistsTheOccurrenceWithoutExtractedMetadata()
@@ -3323,6 +3370,16 @@ public sealed class MailboxSynchronizerTests
         return mimeReader;
     }
 
+    private static IEmailMimeReader ReaderYielding(ExtractedEmailMetadata extracted)
+    {
+        var mimeReader = Substitute.For<IEmailMimeReader>();
+        mimeReader
+            .ReadMetadataAsync(Arg.Any<MailAccountId>(), Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(EmailMimeExtractionResult.Extracted(extracted)));
+
+        return mimeReader;
+    }
+
     private static ExtractedEmailMetadata CreateExtractedMetadata(MailAccountId accountId) => new(
         accountId,
         Subject: "Subject",
@@ -3895,7 +3952,8 @@ public sealed class MailboxSynchronizerTests
         IAccountStoredContentLedger? accountContentLedger = null,
         SpamClassificationSettings? classificationSettings = null,
         MailFolderResolution? runFolder = null,
-        LocalMailFolderArrivals? localFolderArrivals = null)
+        LocalMailFolderArrivals? localFolderArrivals = null,
+        IEmailMimeReader? mimeReader = null)
     {
         var folder = runFolder ?? InboxFolder;
         var checkpointStore = Substitute.For<ISynchronizationCheckpointStore>();
@@ -3949,7 +4007,8 @@ public sealed class MailboxSynchronizerTests
             storedContentCeiling: storedContentCeiling,
             classificationSettings: classificationSettings,
             jobStore: jobStore,
-            localFolderArrivals: localFolderArrivals);
+            localFolderArrivals: localFolderArrivals,
+            mimeReader: mimeReader);
 
         return new ContentRunArrangement(
             synchronizer,

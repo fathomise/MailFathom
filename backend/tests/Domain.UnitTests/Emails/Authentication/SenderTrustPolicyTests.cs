@@ -11,6 +11,8 @@ namespace MailFathom.Domain.UnitTests.Emails.Authentication;
 /// <summary>Covers which authors one account recognizes, which half recognized them, and what the answer is stored with.</summary>
 public sealed class SenderTrustPolicyTests
 {
+    private static readonly Guid Organization = Guid.Parse("0199f000-0000-7000-8000-000000000001");
+
     /// <summary>Mail one of this deployment's own accounts wrote is recognized wherever it was delivered.</summary>
     [Fact]
     public void Evaluate_AuthorAtAnotherConfiguredAccountsDomain_IsRecognizedAsOwn()
@@ -328,6 +330,84 @@ public sealed class SenderTrustPolicyTests
         // Assert
         Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
         Assert.False(trust.PolicyRevision.NamesAPolicy);
+    }
+
+    /// <summary>An organization's signature proves the address itself, so it trusts a colleague no domain check established.</summary>
+    [Fact]
+    public void Evaluate_MemberOfTheReceivingOrganizationWithNoAuthenticatedDomain_IsTrustedAsAMember()
+    {
+        // Arrange
+        var policy = SenderTrustPolicy.Create([], [], []);
+
+        // Act
+        var trust = policy.Evaluate(
+            SenderAuthentication.NotEstablished(),
+            AddressOf("anna@org.example"),
+            new OrganizationSenderVerification(Organization, SenderIsMember: true));
+
+        // Assert
+        Assert.Equal(SenderTrustLevel.Trusted, trust.Level);
+        Assert.Equal(SenderTrustSource.OrganizationMember, trust.GrantedBy);
+        Assert.Equal(Organization, trust.RecognizingOrganizationId);
+    }
+
+    /// <summary>Membership ranks first, so a colleague on the organization's own domain is named as a member rather than by it.</summary>
+    [Fact]
+    public void Evaluate_MemberWhoseDomainIsAlsoAnOwnAccountDomain_ReportsTheOrganization()
+    {
+        // Arrange
+        var policy = SenderTrustPolicy.Create([DomainOf("org.example")], [], []);
+
+        // Act
+        var trust = policy.Evaluate(
+            WrittenBy("org.example"),
+            AddressOf("anna@org.example"),
+            new OrganizationSenderVerification(Organization, SenderIsMember: true));
+
+        // Assert
+        Assert.Equal(SenderTrustSource.OrganizationMember, trust.GrantedBy);
+    }
+
+    /// <summary>A signature that proved nothing leaves the message judged by the other sources, exactly as without one.</summary>
+    [Fact]
+    public void Evaluate_OrganizationVerifiedNoMember_JudgesByTheOtherSources()
+    {
+        // Arrange
+        var policy = SenderTrustPolicy.Create([DomainOf("org.example")], [], []);
+
+        // Act
+        var trust = policy.Evaluate(
+            WrittenBy("org.example"),
+            AddressOf("anna@org.example"),
+            new OrganizationSenderVerification(Organization, SenderIsMember: false));
+
+        // Assert
+        Assert.Equal(SenderTrustSource.OwnAccountDomain, trust.GrantedBy);
+        Assert.Null(trust.RecognizingOrganizationId);
+    }
+
+    /// <summary>A verdict reached under an organization's keys says whose they were, and one reached under none says nothing new.</summary>
+    [Fact]
+    public void Evaluate_ReceivingAccountInAnOrganization_NamesTheOrganizationInTheRevision()
+    {
+        // Arrange
+        var policy = SenderTrustPolicy.Create([DomainOf("org.example")], [], []);
+
+        // Act
+        var withoutOrganization = policy.Evaluate(WrittenBy("org.example"), displayedSender: null);
+        var underOrganization = policy.Evaluate(
+            WrittenBy("org.example"),
+            displayedSender: null,
+            new OrganizationSenderVerification(Organization, SenderIsMember: false));
+        var underAnother = policy.Evaluate(
+            WrittenBy("org.example"),
+            displayedSender: null,
+            new OrganizationSenderVerification(Guid.Parse("0199f000-0000-7000-8000-000000000002"), SenderIsMember: false));
+
+        // Assert
+        Assert.Equal(policy.Revision, withoutOrganization.PolicyRevision);
+        Assert.NotEqual(policy.Revision, underOrganization.PolicyRevision);
+        Assert.NotEqual(underOrganization.PolicyRevision, underAnother.PolicyRevision);
     }
 
     /// <summary>Builds the verdict of a message whose displayed author the receiving server established.</summary>

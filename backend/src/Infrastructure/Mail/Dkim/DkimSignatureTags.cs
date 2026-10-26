@@ -6,7 +6,7 @@ using MailFathom.Domain.Emails.Authentication;
 
 namespace MailFathom.Infrastructure.Mail.Dkim;
 
-/// <summary>Reads the one tag of a <c>DKIM-Signature</c> header the verdict has to name.</summary>
+/// <summary>Reads the tags of a DKIM signature value that the verification itself does not report back.</summary>
 /// <remarks>
 /// <para>
 /// The verification itself is MimeKit's and reads every tag it needs; what it does not report back is the identity that
@@ -28,6 +28,9 @@ internal static class DkimSignatureTags
     /// <summary>The tag naming the domain a signature was made for.</summary>
     private const string SigningDomainTag = "d";
 
+    /// <summary>The tag naming the algorithm a signature was made with.</summary>
+    private const string AlgorithmTag = "a";
+
     /// <summary>The longest header value read, past which the signature is passed over.</summary>
     /// <remarks>
     /// A signature holds a hash, a base64 signature, and a short list of signed header names, so a legitimate one sits
@@ -44,6 +47,23 @@ internal static class DkimSignatureTags
     {
         signingDomain = default;
 
+        return TryReadTag(headerValue, SigningDomainTag, out var value)
+            && SenderDomain.TryCreate(value, out signingDomain);
+    }
+
+    /// <summary>Answers whether a signature names one algorithm in its <c>a=</c> tag.</summary>
+    /// <param name="headerValue">The signature header's value.</param>
+    /// <param name="algorithm">The algorithm, as RFC 6376 and RFC 8463 write it.</param>
+    /// <returns><see langword="true" /> when the tag names exactly that algorithm; otherwise <see langword="false" />.</returns>
+    public static bool NamesAlgorithm(string headerValue, string algorithm) =>
+        TryReadTag(headerValue, AlgorithmTag, out var value)
+        && value.Equals(algorithm, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Reads one tag's value, unfolded, from a header value no longer than the bound.</summary>
+    private static bool TryReadTag(string headerValue, string tagName, out string value)
+    {
+        value = string.Empty;
+
         if (headerValue.Length > MaximumHeaderValueLength)
         {
             return false;
@@ -53,10 +73,11 @@ internal static class DkimSignatureTags
         {
             var separatorIndex = tag.IndexOf('=', StringComparison.Ordinal);
 
-            if (separatorIndex > 0
-                && tag[..separatorIndex].Trim().Equals(SigningDomainTag, StringComparison.OrdinalIgnoreCase))
+            if (separatorIndex > 0 && tag[..separatorIndex].Trim().Equals(tagName, StringComparison.OrdinalIgnoreCase))
             {
-                return SenderDomain.TryCreate(Unfolded(tag[(separatorIndex + 1)..]), out signingDomain);
+                value = Unfolded(tag[(separatorIndex + 1)..]);
+
+                return true;
             }
         }
 
