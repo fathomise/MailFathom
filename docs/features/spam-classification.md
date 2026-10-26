@@ -558,7 +558,8 @@ nothing leaves the verdict and its keywords recorded and the message where it wa
 A mark on mail of an account whose switch files junk asks for the `mailfathom.mail.move` grant beside
 `mailfathom.mail.flags.write`, for the whole batch before any of it is written, and a mark's move passes the checks a
 person's own move does — a junk folder withheld from them, or one across the edge of the drafts or the sent tree, is no
-move, and the verdict stands where the message is; the client asks the person before an act that moves, so the call is
+move, and the verdict stands where the message is. The switch is read once per account for a batch, so a switch reloaded
+partway through one changes neither its grant nor its moves. The act asks for no confirmation of its own; a call is
 taken as confirmed. `Actions:MarkAsRead` is never applied: the person
 said what the message is, not that they have read it.
 

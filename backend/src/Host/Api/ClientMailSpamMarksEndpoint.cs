@@ -20,7 +20,7 @@ namespace MailFathom.Host.Api;
 /// The person's verdict is final. It outranks every stage of classification, no later stage or reclassification
 /// replaces it, and <i>not spam</i> is the one way a spam verdict is lifted. The keywords RFC 9051 defines follow it into
 /// the mailbox, so every other mail client reads the correction, and whether the act also moves the message is the
-/// account's own switch for filing junk — the client asks before an act that moves, so a call here is taken as
+/// account's own switch for filing junk. The route asks for no confirmation of its own, so a call here is taken as
 /// confirmed.
 /// </para>
 /// <para>
@@ -89,8 +89,8 @@ internal static class ClientMailSpamMarksEndpoint
         }
 
         // Every grant the batch needs is asked for before any message is written, so a refusal is the request's answer
-        // rather than one arriving after part of the batch committed.
-        await recorder.RequireGrantsAsync(
+        // rather than one arriving after part of the batch committed; every mark then moves by the switches read for it.
+        var batch = await recorder.RequireGrantsAsync(
             [.. storedEmailIds.Where(static id => id != Guid.Empty).Select(StoredEmailId.Create)],
             cancellationToken);
 
@@ -101,7 +101,7 @@ internal static class ClientMailSpamMarksEndpoint
             results.Add(storedEmailId == Guid.Empty
                 ? ClientMailSpamMarkResultResponse.MessageNotFound(storedEmailId)
                 : ClientMailSpamMarkResultResponse.For(
-                    await recorder.RecordAsync(StoredEmailId.Create(storedEmailId), mark, requester, cancellationToken)));
+                    await recorder.RecordAsync(StoredEmailId.Create(storedEmailId), mark, requester, batch, cancellationToken)));
         }
 
         return TypedResults.Ok(new ClientMailSpamMarksResponse(results));

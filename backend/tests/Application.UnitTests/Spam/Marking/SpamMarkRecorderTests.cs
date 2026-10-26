@@ -76,6 +76,8 @@ public sealed class SpamMarkRecorderTests
 
     private readonly IEmailChunkStore chunks = Substitute.For<IEmailChunkStore>();
 
+    private readonly IStoredEmailAttachmentTextStore attachmentTexts = Substitute.For<IStoredEmailAttachmentTextStore>();
+
     private readonly IAuthoredDeleteEmailDispositionReader dispositions = Substitute.For<IAuthoredDeleteEmailDispositionReader>();
 
     /// <summary>Maps the inbox and the junk folder as mirrored folders of the account, each bound where its run would have bound it.</summary>
@@ -98,11 +100,7 @@ public sealed class SpamMarkRecorderTests
         var recorder = this.Recorder(Filing(off: true));
 
         // Act
-        var result = await recorder.RecordAsync(
-            Email,
-            SpamMark.Spam(SpamSubcategory.Phishing),
-            Requester,
-            TestContext.Current.CancellationToken);
+        var result = await MarkAsync(recorder, SpamMark.Spam(SpamSubcategory.Phishing));
 
         // Assert
         Assert.Equal(SpamMarkOutcome.Recorded, result.Outcome);
@@ -118,6 +116,7 @@ public sealed class SpamMarkRecorderTests
         Assert.Equal(["$Junk", "$Phishing"], request.Keywords?.Values);
         Assert.Equal([SpamVerdictAct.MarkedJunk, SpamVerdictAct.MarkedPhishing], this.verdictActs.Of(Email).Order());
         await this.chunks.Received(1).DiscardChunksAsync(Arg.Any<IPersistenceSession>(), Email, Arg.Any<CancellationToken>());
+        await this.attachmentTexts.Received(1).DiscardAttachmentTextAsync(Arg.Any<IPersistenceSession>(), Email, Arg.Any<CancellationToken>());
     }
 
     /// <summary>Not spam is the person saying the message is ordinary mail, so it is written as <c>$NotJunk</c> and takes the junk keywords off.</summary>
@@ -128,7 +127,7 @@ public sealed class SpamMarkRecorderTests
         var recorder = this.Recorder(Filing(off: true), keywords: ["$Junk", "$Phishing"]);
 
         // Act
-        var result = await recorder.RecordAsync(Email, SpamMark.NotSpam, Requester, TestContext.Current.CancellationToken);
+        var result = await MarkAsync(recorder, SpamMark.NotSpam);
 
         // Assert
         Assert.Equal(SpamMarkOutcome.Recorded, result.Outcome);
@@ -145,6 +144,10 @@ public sealed class SpamMarkRecorderTests
             Arg.Any<IPersistenceSession>(),
             Arg.Any<StoredEmailId>(),
             Arg.Any<CancellationToken>());
+        await this.attachmentTexts.DidNotReceive().DiscardAttachmentTextAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<StoredEmailId>(),
+            Arg.Any<CancellationToken>());
     }
 
     /// <summary>Spam takes a <c>$NotJunk</c> off, because the person who once said otherwise is now saying spam.</summary>
@@ -155,7 +158,7 @@ public sealed class SpamMarkRecorderTests
         var recorder = this.Recorder(Filing(off: true), keywords: ["$NotJunk"]);
 
         // Act
-        await recorder.RecordAsync(Email, SpamMark.Spam(subcategory: null), Requester, TestContext.Current.CancellationToken);
+        await MarkAsync(recorder, SpamMark.Spam(subcategory: null));
 
         // Assert
         Assert.Equal(
@@ -176,11 +179,7 @@ public sealed class SpamMarkRecorderTests
         var recorder = this.Recorder(Filing(off: true), keywords: ["$Junk"]);
 
         // Act
-        var result = await recorder.RecordAsync(
-            Email,
-            SpamMark.Spam(SpamSubcategory.Marketing),
-            Requester,
-            TestContext.Current.CancellationToken);
+        var result = await MarkAsync(recorder, SpamMark.Spam(SpamSubcategory.Marketing));
 
         // Assert
         Assert.Equal(SpamMarkOutcome.Applied, result.Outcome);
@@ -199,7 +198,7 @@ public sealed class SpamMarkRecorderTests
             permissions: MailRuleActionPermissions.Default with { PermitsWriteKeywords = false });
 
         // Act
-        var result = await recorder.RecordAsync(Email, SpamMark.Spam(subcategory: null), Requester, TestContext.Current.CancellationToken);
+        var result = await MarkAsync(recorder, SpamMark.Spam(subcategory: null));
 
         // Assert
         Assert.Equal(SpamMarkOutcome.Applied, result.Outcome);
@@ -218,7 +217,7 @@ public sealed class SpamMarkRecorderTests
         var recorder = this.Recorder(Filing(off: false));
 
         // Act
-        var result = await recorder.RecordAsync(Email, SpamMark.Spam(subcategory: null), Requester, TestContext.Current.CancellationToken);
+        var result = await MarkAsync(recorder, SpamMark.Spam(subcategory: null));
 
         // Assert
         Assert.Equal(SpamMarkOutcome.Recorded, result.Outcome);
@@ -239,7 +238,7 @@ public sealed class SpamMarkRecorderTests
         var recorder = this.Recorder(Filing(off: false), folder: Junk, keywords: ["$Junk"]);
 
         // Act
-        var result = await recorder.RecordAsync(Email, SpamMark.NotSpam, Requester, TestContext.Current.CancellationToken);
+        var result = await MarkAsync(recorder, SpamMark.NotSpam);
 
         // Assert
         Assert.True(result.IsMoved);
@@ -258,11 +257,7 @@ public sealed class SpamMarkRecorderTests
         var recorder = this.Recorder(Filing(off: false), folder: marksSpam ? Junk : Inbox);
 
         // Act
-        var result = await recorder.RecordAsync(
-            Email,
-            marksSpam ? SpamMark.Spam(subcategory: null) : SpamMark.NotSpam,
-            Requester,
-            TestContext.Current.CancellationToken);
+        var result = await MarkAsync(recorder, marksSpam ? SpamMark.Spam(subcategory: null) : SpamMark.NotSpam);
 
         // Assert
         Assert.False(result.IsMoved);
@@ -277,7 +272,7 @@ public sealed class SpamMarkRecorderTests
         var recorder = this.Recorder(Filing(off: true), folder: Junk, keywords: ["$Junk"]);
 
         // Act
-        var result = await recorder.RecordAsync(Email, SpamMark.NotSpam, Requester, TestContext.Current.CancellationToken);
+        var result = await MarkAsync(recorder, SpamMark.NotSpam);
 
         // Assert
         Assert.False(result.IsMoved);
@@ -294,7 +289,7 @@ public sealed class SpamMarkRecorderTests
         var recorder = this.Recorder(Filing(off: false), localFolders: localFolders, states: states);
 
         // Act
-        var result = await recorder.RecordAsync(Email, SpamMark.Spam(subcategory: null), Requester, TestContext.Current.CancellationToken);
+        var result = await MarkAsync(recorder, SpamMark.Spam(subcategory: null));
 
         // Assert
         Assert.Equal(SpamMarkOutcome.Applied, result.Outcome);
@@ -320,7 +315,7 @@ public sealed class SpamMarkRecorderTests
             states: states);
 
         // Act
-        var result = await recorder.RecordAsync(Email, SpamMark.NotSpam, Requester, TestContext.Current.CancellationToken);
+        var result = await MarkAsync(recorder, SpamMark.NotSpam);
 
         // Assert
         Assert.Equal(SpamMarkOutcome.Applied, result.Outcome);
@@ -340,7 +335,7 @@ public sealed class SpamMarkRecorderTests
             states: states);
 
         // Act
-        var result = await recorder.RecordAsync(Email, SpamMark.Spam(subcategory: null), Requester, TestContext.Current.CancellationToken);
+        var result = await MarkAsync(recorder, SpamMark.Spam(subcategory: null));
 
         // Assert
         Assert.Equal(SpamMarkOutcome.Applied, result.Outcome);
@@ -356,7 +351,7 @@ public sealed class SpamMarkRecorderTests
         var recorder = this.Recorder(Filing(off: true), target: false);
 
         // Act
-        var result = await recorder.RecordAsync(Email, SpamMark.NotSpam, Requester, TestContext.Current.CancellationToken);
+        var result = await MarkAsync(recorder, SpamMark.NotSpam);
 
         // Assert
         Assert.Equal(SpamMarkOutcome.MessageNotFound, result.Outcome);
@@ -374,7 +369,7 @@ public sealed class SpamMarkRecorderTests
             participation: StubMailFolderParticipation.Mapping(new MailFolderIdentity(Account, Junk)));
 
         // Act
-        var result = await recorder.RecordAsync(Email, SpamMark.Spam(subcategory: null), Requester, TestContext.Current.CancellationToken);
+        var result = await MarkAsync(recorder, SpamMark.Spam(subcategory: null));
 
         // Assert
         Assert.Equal(SpamMarkOutcome.MessageNotFound, result.Outcome);
@@ -393,7 +388,7 @@ public sealed class SpamMarkRecorderTests
             participation: StubMailFolderParticipation.Mapping(new MailFolderIdentity(Account, Inbox)));
 
         // Act
-        var result = await recorder.RecordAsync(Email, SpamMark.Spam(subcategory: null), Requester, TestContext.Current.CancellationToken);
+        var result = await MarkAsync(recorder, SpamMark.Spam(subcategory: null));
 
         // Assert
         Assert.False(result.IsMoved);
@@ -409,34 +404,12 @@ public sealed class SpamMarkRecorderTests
         var recorder = this.Recorder(Filing(off: false), folder: Sent);
 
         // Act
-        var result = await recorder.RecordAsync(Email, SpamMark.Spam(subcategory: null), Requester, TestContext.Current.CancellationToken);
+        var result = await MarkAsync(recorder, SpamMark.Spam(subcategory: null));
 
         // Assert
         Assert.False(result.IsMoved);
         Assert.Equal(MailboxMutation.AddKeywords, Assert.Single(this.records.OpenedRequests).Mutation);
         Assert.DoesNotContain(SpamVerdictAct.FiledIntoJunk, this.verdictActs.Of(Email));
-    }
-
-    /// <summary>
-    /// Every grant a batch needs is asked for before anything of it is written, so a caller without the moving grant on an
-    /// account whose switch files junk is refused as a whole rather than after part of the batch committed.
-    /// </summary>
-    [Fact]
-    public async Task RequireGrantsAsync_ACallerHoldingOnlyTheFlagGrantOnAnAccountThatFilesJunk_IsRefusedBeforeAnythingIsWritten()
-    {
-        // Arrange
-        var recorder = this.Recorder(
-            Filing(off: false),
-            authorization: AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailFlagsWrite));
-
-        // Act
-        var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            recorder.RequireGrantsAsync([Email], TestContext.Current.CancellationToken));
-
-        // Assert
-        Assert.Equal(MailFathomPermission.MailMove, refusal.RequiredPermission);
-        Assert.Empty(this.classifications.Saved);
-        Assert.Equal(0, this.records.OpenedRecordCount);
     }
 
     /// <summary>An account whose switch files nothing needs no moving grant, so the flag grant alone admits the batch.</summary>
@@ -455,6 +428,44 @@ public sealed class SpamMarkRecorderTests
         Assert.Null(admitted);
     }
 
+    /// <summary>
+    /// The switch is read once for the batch, so one turned on after the batch was admitted neither refuses a mark the
+    /// grants already admitted nor moves mail the moving grant was never asked for.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_TheSwitchTurnedOnAfterTheBatchWasAdmitted_MarksByTheSwitchTheBatchWasAdmittedUnder()
+    {
+        // Arrange
+        var recorder = this.Recorder(
+            Filing(off: true),
+            authorization: AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailFlagsWrite),
+            reloadedTo: Filing(off: false));
+
+        // Act
+        var result = await MarkAsync(recorder, SpamMark.Spam(subcategory: null));
+
+        // Assert
+        Assert.Equal(SpamMarkOutcome.Recorded, result.Outcome);
+        Assert.False(result.IsMoved);
+        Assert.Equal(MailboxMutation.AddKeywords, Assert.Single(this.records.OpenedRequests).Mutation);
+    }
+
+    /// <summary>A message on an account the batch did not reach when its grants were decided has no grants decided for it, so nothing is recorded.</summary>
+    [Fact]
+    public async Task RecordAsync_AMessageTheBatchDidNotReachWhenItWasAdmitted_RecordsNothing()
+    {
+        // Arrange
+        var recorder = this.Recorder(Filing(off: true));
+        var batch = await recorder.RequireGrantsAsync([], TestContext.Current.CancellationToken);
+
+        // Act
+        var result = await recorder.RecordAsync(Email, SpamMark.NotSpam, Requester, batch, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamMarkOutcome.MessageNotFound, result.Outcome);
+        Assert.Empty(this.classifications.Saved);
+    }
+
     /// <summary>A mark that moves mail asks for the moving grant on top of the flag grant, because the move puts mail somewhere else.</summary>
     [Fact]
     public async Task RecordAsync_ACallerHoldingOnlyTheFlagGrantWhereTheMarkMoves_IsRefusedWithoutRecordingAnything()
@@ -466,7 +477,7 @@ public sealed class SpamMarkRecorderTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            recorder.RecordAsync(Email, SpamMark.Spam(subcategory: null), Requester, TestContext.Current.CancellationToken));
+            MarkAsync(recorder, SpamMark.Spam(subcategory: null)));
 
         // Assert
         Assert.Equal(MailFathomPermission.MailMove, refusal.RequiredPermission);
@@ -485,8 +496,9 @@ public sealed class SpamMarkRecorderTests
         // Arrange
         var localFolders = phase is MailAccountCustodyPhase.Held ? LocalFoldersOf(phase) : null;
         var states = StatesOfAMessageIn(InboxFolder);
-        await this.Recorder(Filing(off: false), localFolders: localFolders, states: states)
-            .RecordAsync(Email, SpamMark.Spam(subcategory: null), Requester, TestContext.Current.CancellationToken);
+        await MarkAsync(
+            this.Recorder(Filing(off: false), localFolders: localFolders, states: states),
+            SpamMark.Spam(subcategory: null));
         states.Store(Email, states.States[Email] with { Folder = InboxFolder });
         var actions = this.ActionRecorder(localFolders, states);
 
@@ -509,8 +521,9 @@ public sealed class SpamMarkRecorderTests
         // Arrange
         var localFolders = phase is MailAccountCustodyPhase.Held ? LocalFoldersOf(phase) : null;
         var states = StatesOfAMessageIn(JunkFolder, "$Junk");
-        await this.Recorder(Filing(off: false), folder: Junk, keywords: ["$Junk"], localFolders: localFolders, states: states)
-            .RecordAsync(Email, SpamMark.NotSpam, Requester, TestContext.Current.CancellationToken);
+        await MarkAsync(
+            this.Recorder(Filing(off: false), folder: Junk, keywords: ["$Junk"], localFolders: localFolders, states: states),
+            SpamMark.NotSpam);
         var opened = this.records.OpenedRecordCount;
         var actions = this.ActionRecorder(localFolders, states);
 
@@ -523,6 +536,14 @@ public sealed class SpamMarkRecorderTests
         // Assert
         Assert.Equal(SpamActionOutcome.NotSpam, acted.Outcome);
         Assert.Equal(opened, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>Marks the one message these tests name as a batch of its own, which is how the route asks.</summary>
+    private static async Task<SpamMarkResult> MarkAsync(SpamMarkRecorder recorder, SpamMark mark)
+    {
+        var batch = await recorder.RequireGrantsAsync([Email], TestContext.Current.CancellationToken);
+
+        return await recorder.RecordAsync(Email, mark, Requester, batch, TestContext.Current.CancellationToken);
     }
 
     private static SpamActionSettings Filing(bool off) =>
@@ -615,7 +636,8 @@ public sealed class SpamMarkRecorderTests
         MailRuleActionPermissions? permissions = null,
         AccessAuthorization? authorization = null,
         bool target = true,
-        StubMailFolderParticipation? participation = null)
+        StubMailFolderParticipation? participation = null,
+        SpamActionSettings? reloadedTo = null)
     {
         var folderAlias = folder ?? Inbox;
         var composition = this.Composition(localFolders, states);
@@ -627,7 +649,7 @@ public sealed class SpamMarkRecorderTests
             .Returns(target ? TargetIn(folderAlias) : null);
 
         var settingsReader = Substitute.For<ISpamActionSettingsReader>();
-        settingsReader.ActionsFor(Account).Returns(settings);
+        settingsReader.ActionsFor(Account).Returns(settings, reloadedTo ?? settings);
 
         var readable = participation ?? StubMailFolderParticipation.Mapping(
             new MailFolderIdentity(Account, Inbox),
@@ -673,7 +695,7 @@ public sealed class SpamMarkRecorderTests
             this.classifications,
             this.verdictActs,
             this.chunks,
-            Substitute.For<IStoredEmailAttachmentTextStore>(),
+            this.attachmentTexts,
             Substitute.For<IDerivedWorkGateTelemetry>(),
             composition.Submission,
             composition.Clock);

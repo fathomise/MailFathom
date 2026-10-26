@@ -31,11 +31,11 @@ namespace MailFathom.Application.Spam.Marking;
 /// </para>
 /// <para>
 /// <b>Whether a mark moves the message is the account's <c>MoveToJunkFolder</c> switch</b>, the one that files automated
-/// spam, read per message's account. With it on, spam is filed into the account's junk destination and not spam takes a
+/// spam, read once per account for a whole batch. With it on, spam is filed into the account's junk destination and not spam takes a
 /// message sitting in the junk folder back to the inbox, each in the same transaction as the verdict; a message already
 /// where the mark would put it stays there. With it off a mark changes the verdict and the keywords and moves nothing.
-/// The client asks before an act that moves, so this takes the call as already confirmed. Marking read stays with
-/// automated verdicts and is never part of the person's act.
+/// This asks for no confirmation of its own, so a call is taken as confirmed. Marking read stays with automated verdicts
+/// and is never part of the person's act.
 /// </para>
 /// <para>
 /// A filing this makes is recorded as an act of a verdict, which is the record an operator's switches read before they
@@ -48,8 +48,9 @@ namespace MailFathom.Application.Spam.Marking;
 /// messages did not take the mark. The grant is <see cref="MailFathomPermission.MailFlagsWrite" />, since a verdict and
 /// its keywords are marks on mail; a mark on mail of an account whose switch files junk asks for
 /// <see cref="MailFathomPermission.MailMove" /> as well, because the move puts mail somewhere else whichever act asked for
-/// it. <see cref="RequireGrantsAsync" /> asks both for a whole batch before any message of it is written, so a refusal is
-/// the request's and never arrives after part of it committed. A mark's move passes the checks a person's own move
+/// it. <see cref="RequireGrantsAsync" /> asks both for a whole batch before any message of it is written and returns the
+/// switches it decided them from, which every mark of the batch then moves by, so a refusal is the request's and never
+/// arrives after part of it committed. A mark's move passes the checks a person's own move
 /// does: a destination the person may not read, or one across the edge of the drafts or the sent tree, is no move.
 /// </para>
 /// </remarks>
@@ -134,65 +135,74 @@ public sealed class SpamMarkRecorder
     /// <summary>Asks for every grant a batch of marks needs, before any message of it is written.</summary>
     /// <param name="storedEmailIds">The messages the batch names.</param>
     /// <param name="cancellationToken">Cancels the reads.</param>
-    /// <returns>A task that completes once every grant is held.</returns>
+    /// <returns>The batch, carrying the switches of each account it reaches as they were read for the grants.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="storedEmailIds" /> is <see langword="null" />.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller lacks the flag grant, or the moving grant while a message of the batch is on an account whose switch files junk.</exception>
     /// <remarks>
     /// The moving grant follows the account's switch rather than whether a given message would move, so the answer
     /// costs no folder resolution and reads the same for a caller who holds the grant and one who does not.
     /// </remarks>
-    public async Task RequireGrantsAsync(IReadOnlyList<StoredEmailId> storedEmailIds, CancellationToken cancellationToken)
+    public async Task<SpamMarkBatch> RequireGrantsAsync(IReadOnlyList<StoredEmailId> storedEmailIds, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(storedEmailIds);
 
         this.authorization.RequirePermission(MailFathomPermission.MailFlagsWrite);
 
-        if (this.authorization.Permits(MailFathomPermission.MailMove))
-        {
-            return;
-        }
+        var settingsByAccount = new Dictionary<MailAccountId, SpamActionSettings>();
 
         foreach (var storedEmailId in storedEmailIds)
         {
-            if (await this.ReadableTargetAsync(storedEmailId, cancellationToken) is { } target)
+            if (await this.ReadableTargetAsync(storedEmailId, cancellationToken) is not { } target
+                || settingsByAccount.ContainsKey(target.Occurrence.AccountId))
             {
-                this.RequireMoveGrantWhereTheAccountFilesJunk(target.Occurrence.AccountId);
+                continue;
             }
+
+            var settings = this.settingsReader.ActionsFor(target.Occurrence.AccountId);
+            this.RequireMoveGrantWhereTheSwitchFilesJunk(settings);
+            settingsByAccount[target.Occurrence.AccountId] = settings;
         }
+
+        return new SpamMarkBatch(settingsByAccount);
     }
 
     /// <summary>Records the person's mark on one message, with the keywords and the move it carries.</summary>
     /// <param name="storedEmailId">The message, as a listing, a conversation, or a search published it.</param>
     /// <param name="mark">What the person says the message is.</param>
     /// <param name="requester">The invocation asking, which is what decides whether asking again is the same request.</param>
+    /// <param name="batch">The batch the message belongs to, whose switches decide the move.</param>
     /// <param name="cancellationToken">Cancels the resolution and the write.</param>
     /// <returns>What was recorded, or why nothing was.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="mark" /> or <paramref name="requester" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="mark" />, <paramref name="requester" />, or <paramref name="batch" /> is <see langword="null" />.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the grant the mark needs.</exception>
     /// <remarks>
     /// Repeating a mark is one change: the verdict is replaced by the same verdict, the keywords the message already
     /// carries are not asked for again, and a move into the folder the message is in is no move. Marking spam again with
     /// another subcategory replaces the person's subcategory. Every destination is resolved before the transaction opens,
-    /// because resolving a folder the account does not mirror can reach the mail server.
+    /// because resolving a folder the account does not mirror can reach the mail server. A message on an account the batch
+    /// did not reach when it was admitted is reported as not found, since its grants were never decided.
     /// </remarks>
     public async Task<SpamMarkResult> RecordAsync(
         StoredEmailId storedEmailId,
         SpamMark mark,
         MailboxMutationRequester requester,
+        SpamMarkBatch batch,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(mark);
         ArgumentNullException.ThrowIfNull(requester);
+        ArgumentNullException.ThrowIfNull(batch);
 
         this.authorization.RequirePermission(MailFathomPermission.MailFlagsWrite);
 
-        if (await this.ReadableTargetAsync(storedEmailId, cancellationToken) is not { } target)
+        if (await this.ReadableTargetAsync(storedEmailId, cancellationToken) is not { } target
+            || batch.SettingsFor(target.Occurrence.AccountId) is not { } settings)
         {
             return SpamMarkResult.NotRecorded(storedEmailId, SpamMarkOutcome.MessageNotFound);
         }
 
         var account = target.Occurrence.AccountId;
-        var settings = this.RequireMoveGrantWhereTheAccountFilesJunk(account);
+        this.RequireMoveGrantWhereTheSwitchFilesJunk(settings);
         var move = await this.PlanMoveAsync(target, mark, settings, cancellationToken);
 
         var prepared = await this.writer.PrepareAsync(storedEmailId, account, mark, cancellationToken);
@@ -319,18 +329,14 @@ public sealed class SpamMarkRecorder
             ? target
             : null;
 
-    /// <summary>Reads the switches of the message's account, asking for the moving grant where they file junk.</summary>
-    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the account files junk and the caller cannot move mail.</exception>
-    private SpamActionSettings RequireMoveGrantWhereTheAccountFilesJunk(MailAccountId account)
+    /// <summary>Asks for the moving grant where the account's switches file junk.</summary>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the switches file junk and the caller cannot move mail.</exception>
+    private void RequireMoveGrantWhereTheSwitchFilesJunk(SpamActionSettings settings)
     {
-        var settings = this.settingsReader.ActionsFor(account);
-
         if (settings.FilesJunk)
         {
             this.authorization.RequirePermission(MailFathomPermission.MailMove);
         }
-
-        return settings;
     }
 
     /// <summary>Answers whether the message is in its account's junk folder, read from the folder it is in rather than the one it was stored under.</summary>

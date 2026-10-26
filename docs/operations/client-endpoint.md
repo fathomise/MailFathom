@@ -2198,8 +2198,9 @@ destination, and not spam out of the junk folder to the inbox. A mark's move pas
 so a destination withheld from the caller, or a move across the edge of the drafts or the sent tree, leaves the message
 where it is with the verdict recorded. A batch naming mail of an account whose switch files junk needs
 `mailfathom.mail.move` beside the flag grant, whether or not a given message would move, and a caller holding only the
-flag grant is refused the whole request with a `403` before any message of it is written. The client asks the person
-before an act that moves, so this route takes the call as confirmed.
+flag grant is refused the whole request with a `403` before any message of it is written. The switch is read once per
+account for the whole batch, so the grant and every move of it are decided from the same reading. The route asks for no
+confirmation of its own; a call is taken as confirmed.
 
 The verdict is final: no later classification replaces it, and `NotSpam` is the one way a spam verdict is lifted.
 Moving a message into the junk folder through the move route is the same mark, with no subcategory or the one the person

@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Emails.AttachmentText;
@@ -28,6 +29,7 @@ using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
+using MailFathom.Domain.Spam;
 using MailFathom.Host.Api;
 using MailFathom.TestSupport;
 using Microsoft.AspNetCore.Http;
@@ -60,6 +62,8 @@ public sealed class ClientMailMutationsEndpointTests
     private static readonly DateTimeOffset RecordedAt = new(2026, 8, 12, 9, 0, 0, TimeSpan.Zero);
 
     private readonly IMailboxMutationRecordStore records = Substitute.For<IMailboxMutationRecordStore>();
+
+    private readonly IEmailSpamClassificationStore spamClassifications = Substitute.For<IEmailSpamClassificationStore>();
 
     /// <summary>The paths a client appends to the address it was configured with, pinned because the client composes them from constants of its own.</summary>
     [Fact]
@@ -928,6 +932,33 @@ public sealed class ClientMailMutationsEndpointTests
             Assert.IsType<Ok<ClientMailSpamMarksResponse>>(result.Result).Value!.Results.Select(static mark => (mark.StoredEmailId, mark.Outcome)));
     }
 
+    /// <summary>
+    /// A caller holding only the flag grant, naming mail of an account whose switch files junk, is refused the whole
+    /// request before any message of it is marked — never after part of the batch committed.
+    /// </summary>
+    [Fact]
+    public async Task SubmitSpamMarksAsync_AFlagOnlyCallerNamingMailOfAnAccountThatFilesJunk_IsRefusedBeforeAnyMessageIsMarked()
+    {
+        // Arrange
+        var recorder = this.SpamMarkRecorder(
+            TargetInInbox(),
+            SpamActionSettings.Create(filesJunk: true, marksJunkRead: false));
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
+            ClientMailSpamMarksEndpoint.SubmitSpamMarksAsync(
+                new ClientMailSpamMarksRequest("call-1", "Spam", SpamSubcategory: null, [Message, Guid.CreateVersion7()]),
+                recorder,
+                TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomPermission.MailMove, refusal.RequiredPermission);
+        await this.spamClassifications.DidNotReceive().SaveAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<SpamClassification>(),
+            Arg.Any<CancellationToken>());
+    }
+
     /// <summary>What a mark wrote reaches the wire as the move and the records a client follows, in the vocabulary every change here uses.</summary>
     [Fact]
     public void SpamMarkResultResponse_AMarkThatMovedTheMessage_CarriesTheMoveAndItsRecords()
@@ -1207,13 +1238,14 @@ public sealed class ClientMailMutationsEndpointTests
 
     /// <summary>Builds the use case the spam route is given, under the grant that route carries.</summary>
     /// <param name="target">The message the caller names, defaulting to none, which is the absence the recorder reports as a message that has gone.</param>
-    private SpamMarkRecorder SpamMarkRecorder(AuthoredMailboxTarget? target = null)
+    /// <param name="switches">The account's spam switches, defaulting to ones that file nothing.</param>
+    private SpamMarkRecorder SpamMarkRecorder(AuthoredMailboxTarget? target = null, SpamActionSettings? switches = null)
     {
         var targets = Substitute.For<IAuthoredMailboxTargetReader>();
         targets.FindAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(target));
 
         var settings = Substitute.For<ISpamActionSettingsReader>();
-        settings.ActionsFor(Arg.Any<MailAccountId>()).Returns(SpamActionSettings.None);
+        settings.ActionsFor(Arg.Any<MailAccountId>()).Returns(switches ?? SpamActionSettings.None);
 
         return new SpamMarkRecorder(
             AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailFlagsWrite),
@@ -1242,7 +1274,7 @@ public sealed class ClientMailMutationsEndpointTests
         return new SpamMarkWriter(
             Substitute.For<ISpamActionOccurrenceReader>(),
             permissions,
-            Substitute.For<IEmailSpamClassificationStore>(),
+            this.spamClassifications,
             Substitute.For<ISpamVerdictActStore>(),
             Substitute.For<IEmailChunkStore>(),
             Substitute.For<IStoredEmailAttachmentTextStore>(),
