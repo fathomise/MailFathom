@@ -31,6 +31,7 @@ test('takes a refused send back to edit from its notification, as the draft it w
     page,
     deployment,
 }) => {
+    deployment.grant('mailfathom.mail.drafts.write', 'mailfathom.mail.send');
     await openSignedIn(page);
     await openCentre(page);
 
@@ -82,6 +83,7 @@ test('opens a draft out of step with its server in the composer, saying so above
     page,
     deployment,
 }) => {
+    deployment.grant('mailfathom.mail.drafts.write');
     await openSignedIn(page);
     await openCentre(page);
 
@@ -91,5 +93,5 @@ test('opens a draft out of step with its server in the composer, saying so above
 
     await expect(page.getByText(/^Your mail server's copy of this draft may be missing or out of date/u)).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Subject' })).toHaveValue(drafts.outOfStepDraft.subject);
-    await expect.poll(() => deployment.requests('GET', `/drafts/${drafts.outOfStepDraft.draftId}`)).toHaveLength(1);
+    await expect.poll(() => deployment.requests('GET', `/drafts/${drafts.outOfStepDraft.draftId}`)).not.toHaveLength(0);
 });

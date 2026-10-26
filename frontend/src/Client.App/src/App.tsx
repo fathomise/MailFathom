@@ -705,6 +705,12 @@ export function App({
 
             const asking = session;
 
+            // Moved to now, in the press that closed whatever it was asked from, rather than once the read answers:
+            // closing a layer gives its history entry back by a traversal, and an address set while that traversal is
+            // still in flight is the entry it lands behind — so the send would open in Mail and the screen fall back
+            // to the space it was asked from.
+            window.location.hash = addressOf('mail');
+
             void readOutgoingMail(asking, readMail, outgoingEmailId).then((answer) => {
                 if (answer.outcome === 'read') {
                     if (decision !== undefined && onTaken !== undefined) {
