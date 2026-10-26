@@ -34,7 +34,7 @@ This record answers what issue 2715 left open: the header, the algorithm, the si
 
 ### What the pinned MimeKit does
 
-A spike on 2026-10-26 ran MimeKit `4.18.1` and BouncyCastle.Cryptography `2.7.0`, the versions `backend/Directory.Packages.props` pins, through `DkimSigner` and `DkimVerifier` with a key locator that reads a key from memory. It signed `from:to:cc:subject:date:message-id:in-reply-to:references` with `relaxed/relaxed`, serialized the message, parsed it back, and verified it.
+A spike on 2026-10-26 ran MimeKit `4.18.1` and BouncyCastle.Cryptography `2.7.0`, the versions `backend/Directory.Packages.props` pins, through `DkimSigner` and `DkimVerifier` with a key locator that reads a key from memory. It signed `from:reply-to:to:cc:subject:date:message-id:in-reply-to:references` with `relaxed/relaxed`, serialized the message, parsed it back, and verified it.
 
 | Check | Ed25519-SHA256 | RSA-SHA256 (2048) |
 |---|---|---|
@@ -47,6 +47,7 @@ A spike on 2026-10-26 ran MimeKit `4.18.1` and BouncyCastle.Cryptography `2.7.0`
 | Signed with no `To`, then a `To` added | fails: `h=` still lists `to`, so an absent header is signed as absent | fails |
 | Each name listed once in `h=`, then a second `From` or `Subject` inserted above the signed one | **still verifies**, and MimeKit's `message.From` then lists the inserted address first | not run |
 | Each name listed twice in `h=`, then the same insertion | fails | not run |
+| A `Reply-To` inserted after a message signed with none | fails, listed once or twice | not run |
 
 Three more facts came out of it:
 
@@ -121,7 +122,7 @@ A key is generated from BouncyCastle's `SecureRandom`, which is the cryptographi
 | `c` | `relaxed/relaxed` | Relays refold headers and rewrite whitespace; `simple` breaks on either. |
 | `d` | the domain of the sending account's address | The format requires it and MimeKit parses it. It grants nothing: the verifier never reads it, locates the key by `s=` alone, and checks the signed `From` instead. |
 | `s` | the key's identifier | Below. |
-| `h` | `from:from:to:to:cc:cc:subject:subject:date:date:message-id:message-id:in-reply-to:in-reply-to:references:references` | Each of the eight names twice. Below. |
+| `h` | `from:from:reply-to:reply-to:to:to:cc:cc:subject:subject:date:date:message-id:message-id:in-reply-to:in-reply-to:references:references` | Each of the nine names twice. Below. |
 | `t` | written by MimeKit | Harmless and never read: a timestamp the signer writes proves nothing about when a forger wrote it. |
 | `x` | **never** | An expiring signature would stop mail already delivered from verifying, which is exactly what keeping a retired key's public half exists to prevent. |
 | `l` | **never** | A body-length limit lets anybody append to a signed body and keep the signature. |
@@ -135,7 +136,9 @@ The spike shows what that costs. Somebody holding a signed message from Alice in
 
 Twice is enough because MailFathom writes each of these headers at most once. A message that carried one of them twice when it was signed would need a third mention, and no send path produces one.
 
-`Bcc` is not listed: the submitted message carries none. `Reply-To` is not listed either. It is the one header a receiving client acts on that a forger would want to change, but changing it does not change who the message is from — and verifying the author is all this signature is for.
+`Bcc` is not listed: the submitted message carries none.
+
+**`Reply-To` is listed and over-signed like the others.** A `Trusted` verdict is what the reader acts on, and replying is the act. Leave it out, and anybody holding a copy could insert `Reply-To: attacker@…` and resend the message unchanged to a recipient it named. The signature would verify, the third condition below would hold, and the colleague's trusted message would send its reply to the attacker. RFC 6376 § 5.4.1 lists it among the headers to sign. The spike confirms that an inserted `Reply-To` breaks the signature, whether or not the message carried one when it was signed.
 
 **The selector is the key's identifier**, a version 7 UUID under ADR 0036. That ADR is what makes it safe to write into every message: an identifier is never a secret. It names one key without naming the organization.
 
@@ -313,7 +316,7 @@ That organization is also part of the receiving account's policy revision, so a 
   - that a promoted draft is signed like a composed message, and a draft that is only stored is not;
   - that an account in no organization signs nothing;
   - that the sent copy is byte-identical to the stored MIME in each custody phase.
-- **Issue 2718** tests each of the three conditions failing alone, and each half of the third, a second `From` header field inserted above the signed one, a key of another organization, a revoked key, a retired key, a message altered after signing (not trusted, no warning), and a receiving account in no organization.
+- **Issue 2718** tests each of the three conditions failing alone, and each half of the third, a second `From` header field inserted above the signed one, a `Reply-To` inserted after signing, a key of another organization, a revoked key, a retired key, a message altered after signing (not trusted, no warning), and a receiving account in no organization.
 - Review holds a change to the header name, the tag set, the algorithm, or the trust conditions against this record. Changing any of them is a new ADR.
 
 ## Pros and Cons of the Options
