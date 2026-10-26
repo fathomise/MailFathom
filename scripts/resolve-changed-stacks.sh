@@ -65,11 +65,11 @@ client_stack_filter=(
 # has, and the reason the full gate's own shared-style-input list is a separate question.
 #
 # A workflow file, and a composite action under `.github/actions/` that a workflow runs, is passed
-# over, and that is the one place these gates depart from `ci.yml`. Both lists name them because in
-# the pipeline a changed workflow runs itself, so building the stack is how its edit is verified. No
-# gate here runs a workflow: a Release build and a unit suite over an
-# unchanged solution prove nothing about an edited YAML file, and the contract suite the full gate
-# runs is what reads one. The entries stay in the lists so they remain copies of `ci.yml`'s filters,
+# over, and that is the one place these gates depart from `ci.yml`. Both lists name workflows, and the
+# client list names the composite actions, because in the pipeline a changed workflow or action runs
+# itself, so building the stack is how its edit is verified. No gate here runs either: a Release build
+# and a unit suite over an unchanged solution prove nothing about an edited YAML file, and the
+# contract suite the full gate runs is what reads one. The entries stay in the lists so they remain copies of `ci.yml`'s filters,
 # and the skip sits here so it holds for both gates and for the unit-suite resolver at once.
 change_reaches() {
   local pattern path
