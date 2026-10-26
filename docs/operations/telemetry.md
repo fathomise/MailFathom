@@ -857,7 +857,9 @@ on.
 The hourly [signing key](organization-signing-keys.md) pass holds `organization-signing-key/<organization>` — the
 organization's identifier — for as long as one organization's key is being minted or rotated, and only for an
 organization that is due one. On the gauge such a series appears for a moment on whichever replica renewed the
-organization, and on most hours none appears at all, because no organization is due. A refused claim is a replica that
+organization, and on most hours none appears at all, because no organization is due. A deployment with no key ring is
+the exception: every organization without a key is due on every pass, so each replica claims up to a hundred of these
+scopes an hour and mints nothing. A refused claim is a replica that
 reached an organization while another was renewing it, and it leaves that organization to the replica that holds it.
 
 ### What a synchronization cycle emits

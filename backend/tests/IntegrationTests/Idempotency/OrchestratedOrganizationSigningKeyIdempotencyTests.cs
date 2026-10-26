@@ -45,7 +45,7 @@ public sealed class OrchestratedOrganizationSigningKeyIdempotencyTests(MailFatho
             var attempts = await ConcurrentIdempotency.RunAsync(
                 $"{nameof(IOrganizationSigningKeyStore)}.{nameof(IOrganizationSigningKeyStore.ReplaceActiveKeyAsync)}",
                 ConcurrentReplicas,
-                (_, token) => ReplaceAsync(services, organization, RotatedAt, token),
+                (_, token) => ReplaceAsync(services, organization, RecordedAt, token),
                 cancellationToken);
 
             // Assert

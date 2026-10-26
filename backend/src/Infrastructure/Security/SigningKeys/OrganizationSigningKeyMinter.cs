@@ -4,7 +4,7 @@
 
 using System.Security.Cryptography;
 using MailFathom.Infrastructure.DataEncryption;
-using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Math.EC.Rfc8032;
 using Org.BouncyCastle.Security;
 
 namespace MailFathom.Infrastructure.Security.SigningKeys;
@@ -15,7 +15,8 @@ namespace MailFathom.Infrastructure.Security.SigningKeys;
 /// The key is drawn from BouncyCastle's <see cref="SecureRandom" />, the cryptographically secure generator ADR 0042
 /// names, and the private half leaves this type only sealed: bound to the key's own identifier under
 /// <see cref="DataEncryptionPurpose.OrganizationSigningKey" />, so a sealed half moved onto another key's row fails to
-/// open. The plaintext copy this type holds is erased before it returns.
+/// open. The private half is generated into a buffer this type owns, which is its only plaintext copy and is erased
+/// before it returns.
 /// </para>
 /// <para>
 /// A deployment without a key ring cannot seal, so it mints nothing; <see cref="CanMint" /> says so before any work is
@@ -55,14 +56,19 @@ internal sealed class OrganizationSigningKeyMinter
     /// <exception cref="InvalidOperationException">Thrown when the ring's active key cannot be resolved.</exception>
     public async Task<MintedOrganizationSigningKey> MintAsync(Guid keyId, CancellationToken cancellationToken)
     {
-        var privateKey = new Ed25519PrivateKeyParameters(new SecureRandom());
-        var privateHalf = privateKey.GetEncoded();
+        // Generated into a buffer this method owns rather than through Ed25519PrivateKeyParameters, which keeps a copy of
+        // its own that nothing here could erase.
+        var privateHalf = new byte[Ed25519.SecretKeySize];
+        var publicHalf = new byte[Ed25519.PublicKeySize];
 
         try
         {
+            Ed25519.GeneratePrivateKey(new SecureRandom(), privateHalf);
+            Ed25519.GeneratePublicKey(privateHalf, 0, publicHalf, 0);
+
             var sealedPrivateHalf = await this.fieldEncryptor.SealAsync(BindingFor(keyId), privateHalf, cancellationToken);
 
-            return new MintedOrganizationSigningKey(keyId, privateKey.GeneratePublicKey().GetEncoded(), sealedPrivateHalf);
+            return new MintedOrganizationSigningKey(keyId, publicHalf, sealedPrivateHalf);
         }
         finally
         {

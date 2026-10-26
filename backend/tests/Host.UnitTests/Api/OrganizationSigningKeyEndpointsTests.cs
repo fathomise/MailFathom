@@ -25,6 +25,8 @@ public sealed class OrganizationSigningKeyEndpointsTests
 
     private static readonly Guid RetiredKeyId = new("0199a0c0-0000-7000-8000-0000000000a0");
 
+    private static readonly Guid RevokedKeyId = new("0199a0c0-0000-7000-8000-00000000009f");
+
     private static readonly DateTimeOffset Now = new(2026, 10, 26, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
@@ -36,7 +38,8 @@ public sealed class OrganizationSigningKeyEndpointsTests
             OrganizationId,
             "Acme Corporation",
             [
-                new OrganizationSigningKey(RetiredKeyId, Now.AddDays(-365), RetiredAt: Now, RevokedAt: Now),
+                new OrganizationSigningKey(RevokedKeyId, Now.AddDays(-730), RetiredAt: Now.AddDays(-365), RevokedAt: Now),
+                new OrganizationSigningKey(RetiredKeyId, Now.AddDays(-365), RetiredAt: Now, RevokedAt: null),
                 new OrganizationSigningKey(ActiveKeyId, Now, RetiredAt: null, RevokedAt: null),
             ],
             ContinuesAfter: null));
@@ -53,7 +56,7 @@ public sealed class OrganizationSigningKeyEndpointsTests
         var listing = Assert.IsType<Ok<OrganizationSigningKeyListResponse>>(result.Result).Value!;
         Assert.Equal("Acme Corporation", listing.DisplayName);
         Assert.Equal(
-            [(RetiredKeyId, "revoked"), (ActiveKeyId, "active")],
+            [(RevokedKeyId, "revoked"), (RetiredKeyId, "retired"), (ActiveKeyId, "active")],
             listing.Keys.Select(key => (key.KeyId, key.State)));
         Assert.Null(listing.NextCursor);
     }
@@ -156,6 +159,44 @@ public sealed class OrganizationSigningKeyEndpointsTests
         // Assert
         var rotated = Assert.IsType<Ok<OrganizationSigningKeyRotatedResponse>>(result.Result).Value;
         Assert.Equal(new OrganizationSigningKeyRotatedResponse(ActiveKeyId, RetiredKeyId), rotated);
+    }
+
+    /// <summary>A rotation that lost to the hourly pass or to another administrator reads the winner's key back and names it.</summary>
+    [Fact]
+    public async Task RotateAsync_ARotationThatLostTheRace_NamesTheKeyThatWon()
+    {
+        // Arrange
+        var keys = Substitute.For<IOrganizationSigningKeyStore>();
+        keys.ReplaceActiveKeyAsync(OrganizationId, Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(new OrganizationSigningKeyReplacement(OrganizationSigningKeyReplacementOutcome.AlreadyCurrent, ActiveKeyId, RetiredKeyId: null));
+
+        // Act
+        var result = await OrganizationSigningKeyEndpoints.RotateAsync(
+            OrganizationId,
+            Administration(keys, MailFathomPermission.AdminCredentialsWrite),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var rotated = Assert.IsType<Ok<OrganizationSigningKeyRotatedResponse>>(result.Result).Value;
+        Assert.Equal(new OrganizationSigningKeyRotatedResponse(ActiveKeyId, RetiredKeyId: null), rotated);
+    }
+
+    [Fact]
+    public async Task RotateAsync_AnOrganizationTheDeploymentDoesNotHold_IsNotFound()
+    {
+        // Arrange
+        var keys = Substitute.For<IOrganizationSigningKeyStore>();
+        keys.ReplaceActiveKeyAsync(OrganizationId, Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(OrganizationSigningKeyReplacement.Of(OrganizationSigningKeyReplacementOutcome.UnknownOrganization));
+
+        // Act
+        var result = await OrganizationSigningKeyEndpoints.RotateAsync(
+            OrganizationId,
+            Administration(keys, MailFathomPermission.AdminCredentialsWrite),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NotFound<ProblemDetails>>(result.Result);
     }
 
     [Theory]
