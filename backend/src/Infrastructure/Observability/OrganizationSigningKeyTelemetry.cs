@@ -12,8 +12,8 @@ namespace MailFathom.Infrastructure.Observability;
 /// <remarks>
 /// Neither counter carries an organization: which ones lack a key is what the listing answers, and an identifier per
 /// organization would be a dimension that grows with the deployment. A deployment whose ring is configured and whose
-/// organizations all hold an active key moves the first not at all, and the second only for a message that names no
-/// signable author or that the signature would carry past the deployment's size bound.
+/// organizations all hold an active key the ring can open moves the first not at all, and the second only for a message
+/// that names no signable author or that the signature would carry past the deployment's size bound.
 /// </remarks>
 public sealed class OrganizationSigningKeyTelemetry : IOrganizationSigningKeyTelemetry
 {
