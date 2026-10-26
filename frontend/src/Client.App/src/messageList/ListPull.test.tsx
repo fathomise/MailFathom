@@ -7,6 +7,7 @@ import { useRef } from 'react';
 import { describe, expect, it } from 'vitest';
 import { SignalledChangesContext, type SignalListener, type SignalledChanges } from '../signals/signalledChanges';
 import { ListPull } from './ListPull';
+import { pullDisc } from './pullTravel';
 
 /** Changes a test speaks for: a refresh is told to every listener, as the hook tells it, and each one asked is counted. */
 function signalling(): { changes: SignalledChanges; refreshedElsewhere: () => void; asked: () => number } {
@@ -67,11 +68,18 @@ function drawing(changes: SignalledChanges, options: { enabled?: boolean; scroll
     return list;
 }
 
-function touch(type: string, on: Element, x: number, y: number): Event {
+/** Where the disc that follows the pull stands, as the offset it is drawn at: above the list while no pull holds it. */
+function discStandsAt(list: HTMLElement): string {
+    return (list.parentElement?.previousElementSibling as HTMLElement | null)?.style.translate ?? '';
+}
+
+/** One touch event at `x`, `y`, with `fingers` on the glass while it lands or moves. */
+function touch(type: string, on: Element, x: number, y: number, fingers = 1): Event {
     const event = new Event(type, { bubbles: true, cancelable: true });
+    const down = type === 'touchstart' || type === 'touchmove';
 
     Object.defineProperty(event, 'touches', {
-        value: type === 'touchstart' || type === 'touchmove' ? [{ clientX: x, clientY: y }] : [],
+        value: down ? Array.from({ length: fingers }, (_, finger) => ({ clientX: x + finger * 50, clientY: y })) : [],
     });
     act(() => {
         on.dispatchEvent(event);
@@ -214,9 +222,13 @@ describe('ListPull', () => {
         touch('touchstart', list, 100, 100);
         touch('touchmove', list, 100, 120);
         touch('touchmove', list, 100, 300);
-        touch('touchstart', list, 200, 300);
+
+        expect(discStandsAt(list)).not.toBe(`0 ${String(-pullDisc)}px`);
+
+        touch('touchstart', list, 100, 300, 2);
         touch('touchend', list, 0, 0);
 
+        expect(discStandsAt(list)).toBe(`0 ${String(-pullDisc)}px`);
         expect(deployment.asked()).toBe(0);
     });
 
