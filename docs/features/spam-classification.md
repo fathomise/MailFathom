@@ -276,7 +276,7 @@ records the shape of the question and what it is shown.
 | The deterministic stage concluded | What the model is asked | What the record says |
 | --- | --- | --- |
 | Not spam, or undetermined | Whether the message is spam, and of which kind | The model's verdict, decided by the model. Spam when its spam probability is at or above the account's threshold, with the kind it named; not spam, with no kind, below it. The probability and the threshold are recorded as the assessment |
-| Spam | Only which kind — and only where the account also switched on naming the kind of deterministic spam, since junk is often most of a mailbox and each one is a call | The deterministic verdict, still decided by the deterministic stage, with the kind the model named beside it |
+| Spam, the [floor](#junk-mail-is-never-below-spam)'s included | Only which kind — and only where the account also switched on naming the kind of deterministic spam, since junk is often most of a mailbox and each one is a call | The deterministic verdict, still decided by the deterministic stage, with the kind the model named beside it |
 
 The question is one choice over seven options — not spam and the six kinds — and the provider reports a probability for
 each. The spam probability is one minus the probability of *not spam*, and the kind is the most probable of the six. The

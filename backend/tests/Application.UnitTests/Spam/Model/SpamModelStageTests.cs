@@ -32,6 +32,7 @@ public sealed class SpamModelStageTests
         StoredEmailId.Create(Guid.Parse("0199a0c0-0000-7000-8000-00000000f00d")),
         MailAccountId.Create("acct-1"),
         MailFolderAlias.Create("INBOX"),
+        MailFolderAlias.Create("INBOX"),
         RemoteEmailKeywords.Create([]));
 
     private static readonly DateTimeOffset EvaluatedAt = new(2026, 9, 14, 8, 30, 0, TimeSpan.Zero);
