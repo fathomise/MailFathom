@@ -79,6 +79,29 @@ public sealed class ListAccountsToolTests
         Assert.True(folder.IsSynchronized);
     }
 
+    /// <summary>Naming a folder publishes that it exists, so the folders an agent is listed are read without one withheld from AI.</summary>
+    [Fact]
+    public async Task ListAccountsAsync_AFolderWithheldFromAI_IsLeftOutOfTheScopeTheFoldersAreReadFor()
+    {
+        // Arrange
+        var visible = new MailFolderIdentity(Work.Id, MailFolderAlias.Create("INBOX"));
+        var withheld = new MailFolderIdentity(Work.Id, MailFolderAlias.Create("Confidential"));
+        var freshnessReader = new StubSynchronizationFreshnessReader();
+        var tool = ToolOver(
+            CatalogServing(Work),
+            [],
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            Substitute.For<IOutboxOperationStore>(),
+            freshnessReader,
+            StubMailFolderParticipation.Mapping(visible).Hiding(withheld));
+
+        // Act
+        await tool.ListAccountsAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([visible], Assert.IsType<MailboxScope>(freshnessReader.LastScope).ReadableFolders);
+    }
+
     /// <summary>A folder MailFathom keeps itself is listed beside the synchronized ones, by the identity a tool names it by.</summary>
     [Fact]
     public async Task ListAccountsAsync_AFolderNothingSynchronizes_PublishesItAsNotSynchronized()
@@ -326,14 +349,15 @@ public sealed class ListAccountsToolTests
             storedFolders,
             AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
             Substitute.For<IOutboxOperationStore>(),
-            folderFreshness);
+            new StubSynchronizationFreshnessReader(folderFreshness));
 
     private static ListAccountsTool ToolOver(
         StubMailAccountCatalog catalog,
         IReadOnlyList<StoredMailFolder> storedFolders,
         AccessAuthorization authorization,
         IOutboxOperationStore outboxOperations,
-        params MailboxFolderFreshness[] folderFreshness)
+        StubSynchronizationFreshnessReader? freshnessReader = null,
+        StubMailFolderParticipation? folderParticipation = null)
     {
         var folderReader = Substitute.For<IStoredMailFolderReader>();
         folderReader.ReadAsync(Arg.Any<MailboxScope>(), Arg.Any<CancellationToken>()).Returns(storedFolders);
@@ -341,12 +365,12 @@ public sealed class ListAccountsToolTests
         return new(
             new MailAccountDirectoryReader(
                 catalog,
-                new StubSynchronizationFreshnessReader(folderFreshness),
+                freshnessReader ?? new StubSynchronizationFreshnessReader(),
                 folderReader,
                 new MailboxScopeResolver(
                     catalog,
-                    StubMailFolderParticipation.Nothing,
-                    StubDeploymentMailFolders.None,
+                    folderParticipation ?? StubMailFolderParticipation.Nothing,
+                    StubDeploymentMailFolders.Of(folderParticipation ?? StubMailFolderParticipation.Nothing),
                     StubMailFolderMappings.ResolvingNothing),
                 Substitute.For<IMailboxReadTelemetry>(),
                 authorization),

@@ -344,6 +344,25 @@ public sealed class SetMailFlagsToolTests
         Assert.Empty(records.OpenedRequests);
     }
 
+    /// <summary>A message in a folder withheld from AI is one no agent may reach, so its flags are refused as an unknown email's and nothing is recorded.</summary>
+    [Fact]
+    public async Task SetMailFlagsAsync_AnEmailOfAFolderWithheldFromAI_IsRefusedAsAnUnknownEmailWithoutRecording()
+    {
+        // Arrange
+        var tool = ToolOver(out var records, out _, inboxWithheldFromAI: true);
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<AuthoredMailChangeTargetNotFoundException>(() =>
+            tool.SetMailFlagsAsync(
+                Guid.CreateVersion7().ToString(),
+                flagged: true,
+                cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomErrorCode.StoredEmailNotFound, refusal.ErrorCode);
+        Assert.Empty(records.OpenedRequests);
+    }
+
     /// <summary>Changing a mailbox is its own grant, asked for by the use case whatever entrypoint reached it.</summary>
     [Fact]
     public async Task SetMailFlagsAsync_ACallerHoldingOnlyTheReadingGrant_IsRefused()
@@ -373,7 +392,8 @@ public sealed class SetMailFlagsToolTests
         out RecordingMailboxMutationRecordStore records,
         out IAuthoredMailboxTargetReader targets,
         AccessAuthorization? authorization = null,
-        bool held = false)
+        bool held = false,
+        bool inboxWithheldFromAI = false)
     {
         records = new RecordingMailboxMutationRecordStore();
 
@@ -415,7 +435,9 @@ public sealed class SetMailFlagsToolTests
         var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
         sessionFactory.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(_ => new CommittingSession());
 
-        var participation = StubMailFolderParticipation.Mapping(new MailFolderIdentity(Account, Inbox));
+        var participation = inboxWithheldFromAI
+            ? StubMailFolderParticipation.Nothing.Hiding(new MailFolderIdentity(Account, Inbox))
+            : StubMailFolderParticipation.Mapping(new MailFolderIdentity(Account, Inbox));
 
         return new SetMailFlagsTool(new MailFlagChangeRecorder(
             authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailFlagsWrite),

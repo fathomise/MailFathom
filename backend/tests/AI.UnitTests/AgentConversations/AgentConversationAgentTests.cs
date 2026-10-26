@@ -195,6 +195,27 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
             block.Links.Select(static link => (link.Link.Target, link.AppearsInCitedSources)));
     }
 
+    /// <summary>A folder whose mapping withholds it from AI is outside the scope every search of the Agent's run reads.</summary>
+    [Fact]
+    public async Task ComposeAsync_AFolderWithheldFromAI_IsLeftOutOfTheScopeTheRunSearches()
+    {
+        // Arrange
+        var withheld = new MailFolderIdentity(Primary, MailFolderAlias.Create("Private"));
+        var search = new RecordingEmailKnowledgeSearch();
+        using var provider = new ScriptedProvider(
+            answering: [Searching("bays"), Answering("Nothing mentions the bays.")],
+            standby: []);
+
+        // Act
+        await provider.AgentOver(ChatDeclarations.Plan(maximumRequestCharacters: 100_000), search, foldersWithheldFromAI: [withheld])
+            .ComposeAsync(this.Brief(), this.journal, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            [new MailFolderIdentity(Primary, MailFolderAlias.Create("inbox"))],
+            Assert.Single(search.Calls).Scope.ReadableFolders);
+    }
+
     /// <summary>
     /// Every round of the tool loop is one request, and all of them belong to the conversation — so each carries the
     /// same session, and it is not the conversation's own identifier.
@@ -328,7 +349,10 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
         /// <summary>Gets the session each request carried, in the order they arrived, with <see langword="null" /> for one carrying none.</summary>
         public List<string?> SentSessions { get; } = [];
 
-        public AgentConversationAgent AgentOver(ChatGenerationPlan plan, IEmailKnowledgeSearch? search = null)
+        public AgentConversationAgent AgentOver(
+            ChatGenerationPlan plan,
+            IEmailKnowledgeSearch? search = null,
+            MailFolderIdentity[]? foldersWithheldFromAI = null)
         {
             var transportFactory = Substitute.For<IHttpClientFactory>();
             transportFactory
@@ -353,7 +377,8 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
             catalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns([SyntheticServedAccount.Of(Primary)]);
             catalog.User.Returns(SyntheticUser.Deployment);
 
-            var participation = StubMailFolderParticipation.Mapping(new MailFolderIdentity(Primary, MailFolderAlias.Create("inbox")));
+            var participation = StubMailFolderParticipation.Mapping(new MailFolderIdentity(Primary, MailFolderAlias.Create("inbox")))
+                .Hiding(foldersWithheldFromAI ?? []);
             var readers = new AgentConversationReaders(
                 new MailboxScopeResolver(
                     catalog,

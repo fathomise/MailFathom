@@ -124,6 +124,31 @@ public sealed class MailReplyDraftingTests
             Arg.Any<CancellationToken>());
     }
 
+    /// <summary>What a reply is drafted from goes to a model, so a folder withheld from AI is outside the scope its sources are read under.</summary>
+    [Fact]
+    public async Task DraftAsync_AFolderWithheldFromAI_IsLeftOutOfTheScopeTheSourcesAreReadUnder()
+    {
+        // Arrange
+        var withheld = new MailFolderIdentity(Account, MailFolderAlias.Create("Private"));
+        var sourceReader = SourceReaderReturning(Sources());
+        var drafting = CreateDrafting(
+            sourceReader,
+            WriterReturning(Written("We accept.")),
+            foldersWithheldFromAI: [withheld]);
+
+        // Act
+        await drafting.DraftAsync(Request(), TestContext.Current.CancellationToken);
+
+        // Assert
+        await sourceReader.Received(1).ReadSourcesAsync(
+            Answered,
+            Arg.Is<MailboxScope>(scope =>
+                scope!.ReadableFolders.Count == 1
+                && scope.ReadableFolders[0] == new MailFolderIdentity(Account, MailFolderAlias.Create("inbox"))),
+            Arg.Any<ReplyDraftBounds>(),
+            Arg.Any<CancellationToken>());
+    }
+
     /// <summary>The operator's switch is the bound: off is no sent mail read rather than a manner derived more quietly.</summary>
     [Theory]
     [InlineData(true, MailReplyDrafting.MaximumStyleMessages)]
@@ -528,7 +553,8 @@ public sealed class MailReplyDraftingTests
         AccessAuthorization? authorization = null,
         SensitiveContentEgressGuard? egressGuard = null,
         UserLanguage language = UserLanguage.English,
-        bool derivesStyleFromSentMail = true)
+        bool derivesStyleFromSentMail = true,
+        MailFolderIdentity[]? foldersWithheldFromAI = null)
     {
         var accounts = servedAccounts ?? [Account];
         var catalog = Substitute.For<ICallerMailAccountCatalog>();
@@ -536,7 +562,8 @@ public sealed class MailReplyDraftingTests
         catalog.User.Returns(SyntheticUser.Deployment);
 
         var participation = StubMailFolderParticipation.Mapping(
-            [.. accounts.Select(accountId => new MailFolderIdentity(accountId, MailFolderAlias.Create("inbox")))]);
+            [.. accounts.Select(accountId => new MailFolderIdentity(accountId, MailFolderAlias.Create("inbox")))])
+            .Hiding(foldersWithheldFromAI ?? []);
 
         var scopeResolver = new MailboxScopeResolver(
             catalog,

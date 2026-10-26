@@ -665,6 +665,25 @@ public sealed class MailboxTimelineReaderTests
             Arg.Any<CancellationToken>());
     }
 
+    /// <summary>A folder whose mapping withholds it from AI is left out of the scope the agent's listing reads.</summary>
+    [Fact]
+    public async Task ListEmailsAsync_AFolderWithheldFromAI_IsLeftOutOfTheAgentsScope()
+    {
+        // Arrange
+        var visible = new MailFolderIdentity(EveryAccountTheSyntheticTimelineUses[0], MailFolderAlias.Create("Inbox"));
+        var withheld = new MailFolderIdentity(EveryAccountTheSyntheticTimelineUses[0], MailFolderAlias.Create("Private"));
+        var timeline = new InMemoryStoredEmailTimeline();
+        var reader = ReaderOver(
+            timeline,
+            folderParticipation: StubMailFolderParticipation.Mapping(visible).Hiding(withheld));
+
+        // Act
+        await reader.ListEmailsAsync(new ListEmailsRequest(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([visible], Assert.Single(timeline.Calls).Filter.Selection.Scope.ReadableFolders);
+    }
+
     [Fact]
     public async Task ListEmailsAsync_CancelledCaller_StopsBeforeReadingTheTimeline()
     {
@@ -908,13 +927,14 @@ public sealed class MailboxTimelineReaderTests
         ISynchronizationFreshnessReader? freshnessReader = null,
         SensitiveContentEgressGuard? egressGuard = null,
         IMailboxReadTelemetry? readTelemetry = null,
-        AccessAuthorization? authorization = null) => new(
+        AccessAuthorization? authorization = null,
+        StubMailFolderParticipation? folderParticipation = null) => new(
         timeline,
         freshnessReader ?? FreshnessReaderReturning(InboxFreshness),
         new MailboxScopeResolver(
             accountCatalog ?? CatalogServing(EveryAccountTheSyntheticTimelineUses),
-            StubMailFolderParticipation.Nothing,
-            StubDeploymentMailFolders.None,
+            folderParticipation ?? StubMailFolderParticipation.Nothing,
+            StubDeploymentMailFolders.Of(folderParticipation ?? StubMailFolderParticipation.Nothing),
             StubMailFolderMappings.ResolvingNothing),
         egressGuard ?? SensitiveContentEgressGuards.Inactive(),
         readTelemetry ?? new RecordingMailboxReadTelemetry(),

@@ -117,6 +117,25 @@ public sealed class MailboxQuestionReaderTests
         Assert.Equal([SyntheticEmailSummaries.FolderIdOf(ServedAccountId, "ARCHIVE")], question.Scope.SelectedFolders);
     }
 
+    /// <summary>A folder whose mapping withholds it from AI is left out of the scope the run answers a question over.</summary>
+    [Fact]
+    public async Task AnswerQuestionAsync_AFolderWithheldFromAI_IsLeftOutOfTheScopeTheRunIsAsked()
+    {
+        // Arrange
+        var visible = new MailFolderIdentity(MailAccountId.Create(ServedAccountId), MailFolderAlias.Create("Inbox"));
+        var withheld = new MailFolderIdentity(MailAccountId.Create(ServedAccountId), MailFolderAlias.Create("Private"));
+        var answerer = new RecordingMailQuestionAnswerer();
+        var reader = ReaderOver(
+            answerer,
+            folderParticipation: StubMailFolderParticipation.Mapping(visible).Hiding(withheld));
+
+        // Act
+        await AnswerAsync(reader, new AskMailRequest { QuestionText = "was the invoice attached" });
+
+        // Assert
+        Assert.Equal([visible], Assert.Single(answerer.Questions).Scope.ReadableFolders);
+    }
+
     /// <summary>The access decision is made before a provider is reached, so an unserved account costs nothing to refuse.</summary>
     [Fact]
     public async Task AnswerQuestionAsync_AnAccountThisDeploymentDoesNotServe_IsRefusedWithoutARun()
@@ -852,7 +871,8 @@ public sealed class MailboxQuestionReaderTests
         IMailAnsweringAuditTrail? auditTrail = null,
         SensitiveContentEgressGuard? egressGuard = null,
         AccessAuthorization? authorization = null,
-        UserClock? userClock = null)
+        UserClock? userClock = null,
+        StubMailFolderParticipation? folderParticipation = null)
     {
         var healthReader = Substitute.For<IAiProviderHealthReader>();
         healthReader.Read(AiProviderRole.Embedding)
@@ -887,8 +907,8 @@ public sealed class MailboxQuestionReaderTests
                 answerer),
             new MailboxScopeResolver(
                 CatalogServing(MailAccountId.Create(ServedAccountId)),
-                StubMailFolderParticipation.Nothing,
-                StubDeploymentMailFolders.None,
+                folderParticipation ?? StubMailFolderParticipation.Nothing,
+                StubDeploymentMailFolders.Of(folderParticipation ?? StubMailFolderParticipation.Nothing),
                 StubMailFolderMappings.ResolvingNothing),
             spendLedger ?? LedgerAdmitting(),
             bounds ?? MailAnswerBounds.Default,

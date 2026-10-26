@@ -227,7 +227,7 @@ public sealed class ReplyToEmailToolTests
     public async Task ReplyToEmailAsync_AnEmailOfAFolderWithheldFromAI_IsRefusedAsNoEmailItCanAnswer()
     {
         // Arrange
-        var tool = ToolOver(out _, participationReader: StubMailFolderParticipation.Nothing);
+        var tool = ToolOver(out _, participationReader: AnsweredMailSubmissions.AnsweredFolderWithheldFromAI);
 
         // Act
         var refusal = await Assert.ThrowsAsync<MailSubmissionRefusedException>(

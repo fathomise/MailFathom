@@ -209,7 +209,7 @@ public sealed class ForwardEmailToolTests
     public async Task ForwardEmailAsync_AnEmailOfAFolderWithheldFromAI_IsRefusedAsNoEmailItCanAnswer()
     {
         // Arrange
-        var tool = ToolOver(out _, participationReader: StubMailFolderParticipation.Nothing);
+        var tool = ToolOver(out _, participationReader: AnsweredMailSubmissions.AnsweredFolderWithheldFromAI);
 
         // Act
         var refusal = await Assert.ThrowsAsync<MailSubmissionRefusedException>(
