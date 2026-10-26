@@ -45,6 +45,8 @@ A spike on 2026-10-26 ran MimeKit `4.18.1` and BouncyCastle.Cryptography `2.7.0`
 | `Subject` changed after signing | fails | fails |
 | A footer appended to the body after signing | fails | fails |
 | Signed with no `To`, then a `To` added | fails: `h=` still lists `to`, so an absent header is signed as absent | fails |
+| Each name listed once in `h=`, then a second `From` or `Subject` inserted above the signed one | **still verifies**, and MimeKit's `message.From` then lists the inserted address first | not run |
+| Each name listed twice in `h=`, then the same insertion | fails | not run |
 
 Three more facts came out of it:
 
@@ -106,7 +108,6 @@ The rename is the one place this design leaves the beaten track of DKIM, so it s
 What Ed25519 gives:
 
 - a 32-byte public key and a 64-byte signature, against a 256-byte key and a 344-character signature for RSA-2048;
-- deterministic signatures, with no random padding to get wrong;
 - no key-size parameter for a later reader to weaken.
 
 A key is generated from BouncyCastle's `SecureRandom`, which is the cryptographically secure generator the root `AGENTS.md` asks for.
@@ -120,7 +121,7 @@ A key is generated from BouncyCastle's `SecureRandom`, which is the cryptographi
 | `c` | `relaxed/relaxed` | Relays refold headers and rewrite whitespace; `simple` breaks on either. |
 | `d` | the domain of the sending account's address | The format requires it and MimeKit parses it. It grants nothing: the verifier never reads it, locates the key by `s=` alone, and checks the signed `From` instead. |
 | `s` | the key's identifier | Below. |
-| `h` | `from:to:cc:subject:date:message-id:in-reply-to:references` | Below. |
+| `h` | `from:from:to:to:cc:cc:subject:subject:date:date:message-id:message-id:in-reply-to:in-reply-to:references:references` | Each of the eight names twice. Below. |
 | `t` | written by MimeKit | Harmless and never read: a timestamp the signer writes proves nothing about when a forger wrote it. |
 | `x` | **never** | An expiring signature would stop mail already delivered from verifying, which is exactly what keeping a retired key's public half exists to prevent. |
 | `l` | **never** | A body-length limit lets anybody append to a signed body and keep the signature. |
@@ -128,9 +129,28 @@ A key is generated from BouncyCastle's `SecureRandom`, which is the cryptographi
 
 **Every listed header is signed whether or not the message carries it.** A header absent at signing is signed as absent, so adding it later fails verification. That is what stops a blind copy from being turned into a message that names its recipient in `To`, and the spike confirms it.
 
+**Every name is listed twice, which over-signs it** (RFC 6376 § 5.4.2 and § 8.15). DKIM signs one instance of a header per mention, counting from the bottom of the header block. With each name listed once, a second instance inserted above the signed one is outside the signature.
+
+The spike shows what that costs. Somebody holding a signed message from Alice inserts `From: ceo@…` above her `From` and resends it. The signature still verifies, and MimeKit reads the inserted address as the first `From`. Listed twice, the second mention signs the *absence* of a further instance, so the insertion fails verification.
+
+Twice is enough because MailFathom writes each of these headers at most once. A message that carried one of them twice when it was signed would need a third mention, and no send path produces one.
+
 `Bcc` is not listed: the submitted message carries none. `Reply-To` is not listed either. It is the one header a receiving client acts on that a forger would want to change, but changing it does not change who the message is from — and verifying the author is all this signature is for.
 
-**The selector is the key's identifier**, a version 7 UUID under ADR 0036. That ADR is what makes it safe to write into every message: an identifier is never a secret. It names one key without naming the organization. A recipient outside the organization learns only that two messages were signed with the same key, which adds little to what their shared `From` domain already says.
+**The selector is the key's identifier**, a version 7 UUID under ADR 0036. That ADR is what makes it safe to write into every message: an identifier is never a secret. It names one key without naming the organization.
+
+It still discloses two things, and this record accepts both:
+
+- **Every address that signs with the key is linked**, across domains. A recipient outside the organization who receives mail from a member on a hosted provider and from a member on the organization's own server sees one `s=` on both, and learns the two addresses belong to one MailFathom organization.
+- **A version 7 UUID carries its creation time**, so the selector says when the key was minted, and therefore roughly when it was last rotated.
+
+The alternative is a fixed selector, the same in every message, with the verifier trying each of the receiving organization's keys in turn. It would disclose neither. It was not chosen:
+
+- every arrival would be verified once per key, and each attempt repeats the body hash;
+- the number of keys grows with every rotation, so it would need a bound of its own;
+- below that bound, mail signed with an older key would quietly stop verifying.
+
+What the linkage reveals is a working relationship between correspondents of the same outsider, which their own mail usually states anyway. If an organization needs its members' addresses kept unlinkable, a fixed selector is the change to make, and it is a new ADR.
 
 ### The key, its sealing, and its rotation
 
@@ -158,13 +178,15 @@ Refusing to create an organization, or refusing to send, over a missing ring wou
 
 **Rotation is the same background pass.** It runs through `IWorkLeaseRunner` with one leased scope per organization, as `backend/src/AGENTS.md` requires of work that must not run twice. An active key older than the interval is rotated in one transaction: the new key is created, and the old one is retired and its private half deleted.
 
-Rotation is not left to the first send after the interval. An organization that stops sending would otherwise keep its active key forever, and a leaked key would go on verifying forever with it.
+**Rotation limits how long a private half exists to be stolen. It does not end a leaked key's validity.** A retired key still verifies, and nothing reads the time a signature claims, so a key leaked before its rotation goes on verifying forged mail of any date afterwards, exactly as it did before. The one answer to a known leak is revocation, below.
+
+Rotation is not left to the first send after the interval. An organization that stops sending would otherwise keep the private half of its active key, sealed but present, for as long as it exists.
 
 **The interval is deployment configuration, `OrganizationSigning:KeyRotationInterval`, defaulting to 365 days and refused below one day.** ADR 0037's settings policy is not the place:
 
 - That policy governs a user's record and a mail account. A key belongs to neither.
 - Putting the interval there would open a third governed section for one value.
-- Whether a leaked key may live a month or a year is the operator's security posture, not a preference somebody in an organization holds.
+- How long a private half may exist to be stolen is the operator's security posture, not a preference somebody in an organization holds.
 
 **A retired key's public half is kept for as long as its organization exists.** One key a year is a few dozen bytes per organization per year, and there is no point after which mail signed with the key stops being worth verifying.
 
@@ -209,18 +231,19 @@ Every occasion of a recurring send is composed on its own, with its own `Date` a
 
 Verification runs at extraction, beside the local DKIM verification, for a receiving account that belongs to an organization. It reads at most `LocalSenderAuthenticationReading.MaximumVerifiedSignaturesPerMessage` headers of this name, because their number is written by whoever sent the message. It locates keys among **the receiving account's own organization's keys and nowhere else**, so a selector naming any other key answers *no key*, and nothing is asked of DNS.
 
-**Trust is granted only where all four hold:**
+**Trust is granted only where all three hold:**
 
 1. **The signature verifies** against a key of the receiving account's organization that is active or retired, and never revoked.
-2. **The signed `From` names exactly one mailbox, and its address is the address of a mail account in that organization**, read at verification time. An author who has left the organization is no longer recognized as a member of it, whatever key once signed for them.
-3. **The receiving account's address is in the signed `To` or `Cc`**,
-4. **or the message is a blind copy the deployment itself sent to it.** The deployment's `OutgoingEmailRecord` whose `Message-ID` is the signed `Message-ID`, sent through the account whose address is the signed `From`, lists the receiving address as a `Bcc` recipient.
+2. **The message carries exactly one `From` header field, naming exactly one mailbox, and that address is the address of a mail account in that organization**, read at verification time. That `From` is both the one the signature covers and the one the client displays, so the trusted address is the displayed one. Over-signing already makes a second `From` break the signature; refusing one here as well keeps the condition true even for a signature that somehow covers it. An author who has left the organization is no longer recognized as a member of it, whatever key once signed for them.
+3. **The message was sent to the receiving account**, in one of two ways:
+   - the receiving account's address is in the signed `To` or `Cc`; or
+   - the message is a blind copy the deployment itself sent to it. The deployment's `OutgoingEmailRecord` whose `Message-ID` is the signed `Message-ID`, sent through the account whose address is the signed `From`, lists the receiving address as a `Bcc` recipient.
 
-Conditions 3 and 4 are what refuse a replay. A validly signed message forwarded or resent, byte for byte, to somebody it never named still verifies cryptographically. It is not trusted, because it was not sent to them.
+Condition 3 is what refuses a replay. A validly signed message forwarded or resent, byte for byte, to somebody it never named still verifies cryptographically. It is not trusted, because it was not sent to them.
 
 The cost of that rule is stated rather than hidden: a message reaching a member through a mailing list, an alias, or a redirect names the list or the alias rather than the member, so it is not trusted by this source. It is judged by the other sources as it is today.
 
-Condition 4 needs the outgoing record to carry, indexed, the `Message-ID` of the MIME it was enqueued with. Today only a filing records one. Issue 2718, which is what reads it, adds that column with an additive migration and fills it when `MailOutbox.EnqueueAsync` opens the record, so the verifying half does not wait on the signing half. A record whose MIME carried no `Message-ID` cannot satisfy condition 4. A record deleted by retention or erasure before the blind copy arrives grants nothing, which fails closed.
+The blind-copy half of condition 3 needs the outgoing record to carry, indexed, the `Message-ID` of the MIME it was enqueued with. Today only a filing records one. Issue 2718, which is what reads it, adds that column with an additive migration and fills it when `MailOutbox.EnqueueAsync` opens the record, so the verifying half does not wait on the signing half. A record whose MIME carried no `Message-ID` cannot satisfy that half. A record deleted by retention or erasure before the blind copy arrives grants nothing, which fails closed.
 
 **A signature that fails, names no key of the organization, or names a revoked key contributes nothing.** It is never a warning on its own. Relays and transport rules legitimately alter messages — a disclaimer footer breaks the body hash, as the spike shows — and DKIM's own rule (RFC 6376 § 6.1) is that a signature that fails is treated as absent. An attacker gains nothing from writing one: the message is judged by every other source exactly as it would have been.
 
@@ -273,9 +296,9 @@ That organization is also part of the receiving account's policy revision, so a 
 
 - Good, because a colleague's message is proven per address rather than per domain. A shared provider's other customers, and a forged `From`, gain nothing.
 - Good, because no recipient outside the organization sees anything it acts on. Their servers ignore the header, and the message is judged as it was before.
-- Good, because a leaked key has an answer that does not depend on a timestamp the forger writes, and an idle organization's key still rotates.
+- Good, because a leaked key has an answer, revocation, that does not depend on a timestamp the forger writes, and an idle organization's private half is still retired on schedule rather than kept indefinitely.
 - Good, because the cryptography is MimeKit's and the key handling is BouncyCastle's, both already pinned. No package is added.
-- Neutral, because the header tells every recipient the sender runs MailFathom and that two messages share a key. The second adds little to what a shared `From` domain already says.
+- Neutral, because the header tells every recipient the sender runs MailFathom. Its selector links every address that signs with the same key, across domains, and its version 7 UUID says when the key was minted. *The selector* above records why that is accepted and what would change it.
 - Neutral, because a message reaching a member through a list, an alias, or a redirect is not trusted by this source. That is the replay refusal working as intended, and it falls back to today's judgement rather than to a warning.
 - Neutral, because a deployment with organizations and no key ring signs nothing until it configures one, and says so on a counter rather than refusing to start.
 - Bad, because verifying a signature under a name `DkimVerifier` refuses depends on rebuilding the header in memory. A MimeKit release that changed how the signature header itself is canonicalized would break it. The adapter's unit tests sign and verify through the rename, so a pin move that breaks it fails the suite rather than production.
@@ -290,7 +313,7 @@ That organization is also part of the receiving account's policy revision, so a 
   - that a promoted draft is signed like a composed message, and a draft that is only stored is not;
   - that an account in no organization signs nothing;
   - that the sent copy is byte-identical to the stored MIME in each custody phase.
-- **Issue 2718** tests each of the four conditions failing alone, a key of another organization, a revoked key, a retired key, a message altered after signing (not trusted, no warning), and a receiving account in no organization.
+- **Issue 2718** tests each of the three conditions failing alone, and each half of the third, a second `From` header field inserted above the signed one, a key of another organization, a revoked key, a retired key, a message altered after signing (not trusted, no warning), and a receiving account in no organization.
 - Review holds a change to the header name, the tag set, the algorithm, or the trust conditions against this record. Changing any of them is a new ADR.
 
 ## Pros and Cons of the Options
@@ -312,17 +335,16 @@ That organization is also part of the receiving account's policy revision, so a 
 
 - Good, because the formats exist to sign a message's author.
 - Bad, because both wrap the body in a `multipart/signed` structure every recipient's client renders. An outsider sees an attachment or a signature badge for a key nothing they hold can check, which breaks the third decision driver outright.
-- Bad, because the existing S/MIME and OpenPGP verification (issue 1588) would read it as an author signature it cannot trust, and report it as *not verifiable here*.
 
 ### The algorithm: Ed25519-SHA256
 
-- Good, because its keys and signatures are small and deterministic, and it has no size parameter to weaken.
+- Good, because its keys and signatures are small, and it has no size parameter to weaken.
 - Neutral, because RFC 8463's interoperability gap does not apply when the only verifier is this deployment.
 
 ### The algorithm: RSA-SHA256 at 2048 bits
 
 - Good, because every DKIM implementation supports it.
-- Bad, because nothing here needs that, and it costs an eight-times-larger key and signature, plus a size a later change could lower.
+- Bad, because nothing here needs that, and it costs an eight-times-larger key and a four-times-larger signature, plus a size a later change could lower.
 
 ### The rotation interval: the settings policy of ADR 0037
 
