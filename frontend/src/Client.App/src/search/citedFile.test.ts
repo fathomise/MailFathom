@@ -48,6 +48,12 @@ function found(carried: Partial<MailSearchResult> = {}): MailSearchResult {
         enrichment: null,
         threadMessageCount: null,
         spam: null,
+        sender: {
+            authorAuthentication: 'Authenticated',
+            deploymentTrust: 'Unknown',
+            signatureOutcome: 'NotSigned',
+            signerMatchesAuthor: false,
+        },
         snippets: [],
         matchedBy: 'LexicalRanking',
         attachmentMatches: [],

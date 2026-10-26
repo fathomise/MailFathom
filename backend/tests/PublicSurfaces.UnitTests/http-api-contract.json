@@ -2710,6 +2710,29 @@
         ],
         "type": "object"
       },
+      "ClientMailListedSenderResponse": {
+        "properties": {
+          "authorAuthentication": {
+            "type": "string"
+          },
+          "deploymentTrust": {
+            "type": "string"
+          },
+          "signatureOutcome": {
+            "type": "string"
+          },
+          "signerMatchesAuthor": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "authorAuthentication",
+          "deploymentTrust",
+          "signatureOutcome",
+          "signerMatchesAuthor"
+        ],
+        "type": "object"
+      },
       "ClientMailMarkResponse": {
         "properties": {
           "aspect": {
@@ -3256,6 +3279,9 @@
               "string"
             ]
           },
+          "sender": {
+            "$ref": "#/components/schemas/ClientMailListedSenderResponse"
+          },
           "senderAddress": {
             "type": [
               "null",
@@ -3344,7 +3370,8 @@
           "matchedBy",
           "attachmentMatches",
           "isDepictedMatch",
-          "spam"
+          "spam",
+          "sender"
         ],
         "type": "object"
       },
@@ -3356,17 +3383,46 @@
               "string"
             ]
           },
+          "authenticationSource": {
+            "type": "string"
+          },
           "authorAuthentication": {
             "type": "string"
           },
           "deploymentTrust": {
             "type": "string"
+          },
+          "dkimDomain": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dmarc": {
+            "type": "string"
+          },
+          "spfDomain": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "trustSource": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "required": [
           "authorAuthentication",
           "deploymentTrust",
-          "authenticatedDomain"
+          "authenticatedDomain",
+          "authenticationSource",
+          "dkimDomain",
+          "spfDomain",
+          "dmarc",
+          "trustSource"
         ],
         "type": "object"
       },
@@ -3985,6 +4041,9 @@
               "string"
             ]
           },
+          "sender": {
+            "$ref": "#/components/schemas/ClientMailListedSenderResponse"
+          },
           "senderAddress": {
             "type": [
               "null",
@@ -4074,7 +4133,8 @@
           "preview",
           "enrichment",
           "threadMessageCount",
-          "spam"
+          "spam",
+          "sender"
         ],
         "type": "object"
       },

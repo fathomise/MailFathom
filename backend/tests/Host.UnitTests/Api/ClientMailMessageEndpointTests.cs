@@ -239,6 +239,90 @@ public sealed class ClientMailMessageEndpointTests
         Assert.Null(response.Sender.AuthenticatedDomain);
     }
 
+    /// <summary>
+    /// The verdict carries what a details popup lists under sender authentication: who checked the message, the DKIM and
+    /// SPF domains that passed, and the DMARC outcome — each as stored, and none of them judged against the others.
+    /// </summary>
+    [Fact]
+    public void For_AMessageTheReceivingServerChecked_PublishesWhoCheckedTheDomainsThatPassedAndDmarc()
+    {
+        // Arrange
+        var evidence = new SenderAuthenticationEvidence
+        {
+            AuthenticatedDomain = SenderDomain.TryCreate("relay.example.test", out var relay) ? relay : default,
+            DkimDomain = relay,
+            SpfDomain = SenderDomain.TryCreate("example.test", out var author) ? author : default,
+            AuthenticatedBy = SenderAuthenticationMethod.DomainKeysIdentifiedMail,
+            Dmarc = DmarcOutcome.TemporaryError,
+            Source = SenderAuthenticationSource.ReceivingServer,
+        };
+
+        // Act
+        var sender = ClientMailMessageResponse.For(MessageWith(evidence)).Sender;
+
+        // Assert
+        Assert.Equal("ReceivingServer", sender.AuthenticationSource);
+        Assert.Equal("relay.example.test", sender.DkimDomain);
+        Assert.Equal("example.test", sender.SpfDomain);
+        Assert.Equal("TemporaryError", sender.Dmarc);
+    }
+
+    /// <summary>MailFathom's own DKIM check reports itself, with no SPF domain and no DMARC result, because it reads neither.</summary>
+    [Fact]
+    public void For_AMessageMailFathomCheckedItself_PublishesLocalVerificationWithNothingItCouldNotRead()
+    {
+        // Arrange
+        var evidence = new SenderAuthenticationEvidence
+        {
+            DkimDomain = SenderDomain.TryCreate("example.test", out var domain) ? domain : default,
+            AuthenticatedBy = SenderAuthenticationMethod.DomainKeysIdentifiedMail,
+            Dmarc = DmarcOutcome.NotReported,
+            Source = SenderAuthenticationSource.LocalVerification,
+        };
+
+        // Act
+        var sender = ClientMailMessageResponse.For(MessageWith(evidence)).Sender;
+
+        // Assert
+        Assert.Equal("LocalVerification", sender.AuthenticationSource);
+        Assert.Null(sender.SpfDomain);
+        Assert.Equal("NotReported", sender.Dmarc);
+    }
+
+    /// <summary>A trusted author's verdict says what recognized them, which is what the popup's trust step explains.</summary>
+    [Fact]
+    public void For_AnAuthorOnTheTrustedSenders_PublishesWhatRecognizedThem()
+    {
+        // Arrange
+        var message = MessageWith() with
+        {
+            SenderVerification = MessageWith().SenderVerification with
+            {
+                DeploymentTrustGrantedBy = SenderTrustSource.ConfiguredTrustedSender,
+            },
+        };
+
+        // Act
+        var sender = ClientMailMessageResponse.For(message).Sender;
+
+        // Assert
+        Assert.Equal("ConfiguredTrustedSender", sender.TrustSource);
+    }
+
+    /// <summary>An author nothing recognized publishes no trust source, which is the ordinary state rather than missing data.</summary>
+    [Fact]
+    public void For_AnAuthorNothingRecognized_PublishesNoTrustSource()
+    {
+        // Arrange
+        var message = MessageWith() with { SenderVerification = SenderVerification.NotEstablished };
+
+        // Act
+        var sender = ClientMailMessageResponse.For(message).Sender;
+
+        // Assert
+        Assert.Null(sender.TrustSource);
+    }
+
     /// <summary>The flags a pane draws are the ones the mail server last showed, and unread is the absence of the seen flag.</summary>
     [Fact]
     public void For_AReadMessage_CarriesTheFlagsTheServerLastShowed()

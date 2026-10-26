@@ -15,6 +15,7 @@ import type {
 } from '@mailfathom/client-backend';
 import { AttachmentExchangeContext, type AttachmentExchange } from '../deployment/attachmentExchange';
 import { LocalizationProvider } from '../localization/Localization';
+import { MailboxActsContext, nothingActed, type MailboxActs } from '../mailboxActs/useMailboxActs';
 import { MessageViewContext } from '../preferences/messageView';
 import { ReadMarkingContext, nothingMarkedRead, type ReadMarking } from '../readMarking/useReadMarking';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
@@ -51,7 +52,38 @@ const described: MailMessage = {
         references: [],
     },
     body: { availability: 'Readable', plainText: true, html: true },
-    sender: { authorAuthentication: 'Authenticated', deploymentTrust: 'Unknown', authenticatedDomain: null },
+    sender: {
+        authorAuthentication: 'Authenticated',
+        deploymentTrust: 'Unknown',
+        authenticatedDomain: null,
+        authenticationSource: 'ReceivingServer',
+        dkimDomain: null,
+        spfDomain: null,
+        dmarc: 'NotReported',
+        trustSource: null,
+    },
+    signature: {
+        outcome: 'NotSigned',
+        format: null,
+        secureMimeType: null,
+        unverifiableReason: null,
+        signedAt: null,
+        steps: {
+            content: 'NotChecked',
+            authority: 'NotChecked',
+            validity: 'NotChecked',
+            revocation: 'NotChecked',
+            signer: 'NotChecked',
+        },
+        trustAnchor: null,
+        chainEnd: null,
+        validityFailure: null,
+        revocationMethod: null,
+        revocationCheckedAt: null,
+        revokedAt: null,
+        signerMatchesAuthor: false,
+        signer: null,
+    },
     attachments: [],
     carried: null,
     unread: true,
@@ -125,6 +157,7 @@ function drawing(
     marking: ReadMarking = nothingMarkedRead,
     view: ClientMessageView = 'reduced',
     onShowFullHtml: () => void = () => undefined,
+    acts: MailboxActs = nothingActed,
 ): void {
     render(
         <LocalizationProvider>
@@ -133,16 +166,18 @@ function drawing(
                     <LinkOpenerContext value={() => Promise.resolve()}>
                         <MessageViewContext value={view}>
                             <ReadMarkingContext value={marking}>
-                                <AttachmentExchangeContext value={deliversNothing}>
-                                    <OpenAttachmentContext value={() => undefined}>
-                                        <OpenedMessage
-                                            session={session}
-                                            message={message}
-                                            body={body}
-                                            onShowFullHtml={onShowFullHtml}
-                                        />
-                                    </OpenAttachmentContext>
-                                </AttachmentExchangeContext>
+                                <MailboxActsContext value={acts}>
+                                    <AttachmentExchangeContext value={deliversNothing}>
+                                        <OpenAttachmentContext value={() => undefined}>
+                                            <OpenedMessage
+                                                session={session}
+                                                message={message}
+                                                body={body}
+                                                onShowFullHtml={onShowFullHtml}
+                                            />
+                                        </OpenAttachmentContext>
+                                    </AttachmentExchangeContext>
+                                </MailboxActsContext>
                             </ReadMarkingContext>
                         </MessageViewContext>
                     </LinkOpenerContext>
@@ -336,5 +371,32 @@ describe('OpenedMessage, marked spam', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Open invoice.pdf' }));
 
         expect(await screen.findByText('Its attachments do not open. Mark it not spam first.')).toBeDefined();
+    });
+});
+
+describe('OpenedMessage, the mark on who sent it', () => {
+    it('draws the mark beside the sender, named for what was established about them', () => {
+        drawing({ ...described, sender: { ...described.sender, deploymentTrust: 'Trusted' } });
+
+        expect(screen.getByRole('button', { name: 'Trusted sender' }).textContent).toBe('Trusted');
+    });
+
+    it('opens the details of every step from the mark', () => {
+        drawing();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Sender not recognized' }));
+
+        expect(screen.getByRole('dialog', { name: 'Sender not recognized' })).toBeDefined();
+        expect(screen.getByRole('region', { name: 'Sender authentication' })).toBeDefined();
+    });
+
+    it('marks no sender on a message in Sent, whose writer is the reader', () => {
+        drawing(described, read, nothingMarkedRead, 'reduced', () => undefined, {
+            ...nothingActed,
+            folderRoleOf: () => 'Sent',
+        });
+
+        expect(screen.queryByRole('button', { name: 'Sender not recognized' })).toBeNull();
+        expect(screen.getByText('Billing')).toBeDefined();
     });
 });

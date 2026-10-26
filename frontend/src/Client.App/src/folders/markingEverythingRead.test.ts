@@ -33,6 +33,12 @@ function message(id: string): Readonly<Record<string, unknown>> {
         preview: null,
         enrichment: null,
         threadMessageCount: null,
+        sender: {
+            authorAuthentication: 'Authenticated',
+            deploymentTrust: 'Unknown',
+            signatureOutcome: 'NotSigned',
+            signerMatchesAuthor: false,
+        },
     };
 }
 

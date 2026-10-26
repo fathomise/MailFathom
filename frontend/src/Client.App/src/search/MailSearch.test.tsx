@@ -13,6 +13,7 @@ import { everything, type MailScope } from '../workspace/mailScope';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import { MailSearch } from './MailSearch';
 import { resultsPerPage } from './searchAsk';
+import { listedSender } from '../../../../tests/fixtures/senders';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
 
@@ -43,6 +44,7 @@ const result = {
     attachmentCount: 0,
     sizeOctets: 1_024,
     preview: 'The invoice for August is attached.',
+    sender: listedSender('unrecognized'),
     snippets: ['The **invoice** for August'],
     matchedBy: 'LexicalRanking',
     attachmentMatches: [],

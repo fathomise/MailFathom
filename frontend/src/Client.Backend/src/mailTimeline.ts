@@ -6,6 +6,7 @@ import { failed, failureReasonForStatus, read, type ClientResult } from './failu
 import { asRecord } from './json';
 import { parseEnrichment, type MailEnrichment, type MailEnrichmentAspect } from './mailEnrichment';
 import { parseSpamVerdict, type MailSpamVerdict } from './mailSpam';
+import { parseListedSender, type MailListedSender } from './senderFacts';
 import { headersFor, routeFor, type ClientSession } from './session';
 import { spanned } from './telemetry';
 import { send, type MailFathomTransport } from './transport';
@@ -151,6 +152,12 @@ export interface MailTimelineEntry {
      * folded or badged the same way wherever it is drawn.
      */
     readonly spam: MailSpamVerdict | null;
+
+    /**
+     * What was established about who sent the message: the facts a sender mark is chosen from, which every surface
+     * drawing this row carries so the list, the search results, and a conversation mark one sender alike.
+     */
+    readonly sender: MailListedSender;
 }
 
 /** One page of the list, and the two cursors the pages either side of it are asked with. */
@@ -406,6 +413,11 @@ export function parseTimelineEntry(value: unknown): MailTimelineEntry | null {
         return null;
     }
 
+    const sender = parseListedSender(record['sender']);
+    if (sender === null) {
+        return null;
+    }
+
     return {
         id,
         account,
@@ -427,6 +439,7 @@ export function parseTimelineEntry(value: unknown): MailTimelineEntry | null {
         enrichment: derived.enrichment,
         threadMessageCount,
         spam: judged.spam,
+        sender,
     };
 }
 

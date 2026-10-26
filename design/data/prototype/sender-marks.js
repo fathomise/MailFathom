@@ -10,7 +10,6 @@
 // it; `trust` says why this account recognizes the author; `sig` is the S/MIME or OpenPGP signature, null where the
 // message carries none. A thread missing here is an authenticated sender the account does not recognize.
 MailFathomDesign.data.senderMarks = {
-  servers: { acc1: "mx.nordwind.example" },
   ownDomains: { acc1: "nordwind.example", acc2: "mail.example" },
   threads: {
     contoso: {

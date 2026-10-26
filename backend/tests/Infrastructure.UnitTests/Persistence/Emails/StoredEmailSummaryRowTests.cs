@@ -172,6 +172,51 @@ public sealed class StoredEmailSummaryRowTests
         Assert.Equal(EmailSignature.NotSigned, signature);
     }
 
+    /// <summary>
+    /// A row reads back the DKIM and SPF domains that passed beside the authenticated one, and what recognized a trusted
+    /// author, which is what a details popup lists and what no other column says.
+    /// </summary>
+    [Fact]
+    public void ToSummary_ARowAServerAuthenticatedAndATrustedSenderMatched_CarriesTheDomainsThatPassedAndWhatRecognizedTheAuthor()
+    {
+        // Arrange
+        var row = RowWith(MachineAuthorshipBand.NotAssessed, 0) with
+        {
+            AuthorAuthenticationOutcome = AuthorAuthenticationOutcome.Authenticated,
+            SenderTrustLevel = SenderTrustLevel.Trusted,
+            AuthenticatedSenderDomain = "RELAY.EXAMPLE",
+            DkimSignerDomain = "RELAY.EXAMPLE",
+            SpfMailFromDomain = "PARTNER.EXAMPLE",
+            SenderAuthenticationMethod = SenderAuthenticationMethod.DomainKeysIdentifiedMail,
+            DmarcOutcome = DmarcOutcome.Pass,
+            SenderTrustGrantedBy = SenderTrustSource.StoredTrustedSender,
+        };
+
+        // Act
+        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>());
+
+        // Assert
+        Assert.Equal("RELAY.EXAMPLE", summary.SenderAuthenticationEvidence.DkimDomain?.Value);
+        Assert.Equal("PARTNER.EXAMPLE", summary.SenderAuthenticationEvidence.SpfDomain?.Value);
+        Assert.Equal(SenderTrustSource.StoredTrustedSender, summary.SenderVerification.DeploymentTrustGrantedBy);
+    }
+
+    /// <summary>A row nothing authenticated reads back no DKIM or SPF domain and no trust source.</summary>
+    [Fact]
+    public void ToSummary_ARowNothingAuthenticated_CarriesNoDomainAndNoTrustSource()
+    {
+        // Arrange
+        var row = RowWith(MachineAuthorshipBand.NotAssessed, 0);
+
+        // Act
+        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>());
+
+        // Assert
+        Assert.Null(summary.SenderAuthenticationEvidence.DkimDomain);
+        Assert.Null(summary.SenderAuthenticationEvidence.SpfDomain);
+        Assert.Equal(SenderTrustSource.None, summary.SenderVerification.DeploymentTrustGrantedBy);
+    }
+
     private static StoredEmailSignatureRow NotSignedRow() => new(
         Format: null,
         SecureMimeType: null,
@@ -238,6 +283,9 @@ public sealed class StoredEmailSummaryRowTests
         SenderAuthenticationMethod.None,
         DmarcOutcome.NotReported,
         SenderAuthenticationSource.ReceivingServer,
+        DkimSignerDomain: null,
+        SpfMailFromDomain: null,
+        SenderTrustSource.None,
         band,
         likelihood,
         MachineAuthorshipSignals.HiddenCharacters,

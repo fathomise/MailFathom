@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { flushSync } from 'react-dom';
 import {
     mostSearchResults,
     readMailSearch,
@@ -24,6 +25,8 @@ import { useLocalization, type Translate } from '../localization/useLocalization
 import { opensAsDraft, useMailboxActs } from '../mailboxActs/useMailboxActs';
 import { useListedMail } from '../messageList/useListedMail';
 import { MessageRow } from '../messageRows/MessageRow';
+import { SenderDetails, type AskedSender } from '../senderMark/SenderDetails';
+import { marksSender } from '../senderMark/senderMarks';
 import { estimatedRowHeight, offsetKeptAcross, offsetOfRow, windowOf } from '../messageRows/rowWindow';
 import { useSignalledChanges } from '../signals/signalledChanges';
 import { useWorkspace } from '../workspace/useWorkspace';
@@ -109,6 +112,33 @@ export function SearchResults({
     const { translate } = useLocalization();
     const { workspace, revise } = useWorkspace();
     const acts = useMailboxActs();
+    const explaining = useRef<HTMLDialogElement>(null);
+    const [askedSender, setAskedSender] = useState<AskedSender | null>(null);
+
+    // A result in Sent or Drafts marks no sender, for the reason a folder's row does not: its writer is the reader.
+    function marksSenderOf(result: MailSearchResult): boolean {
+        return marksSender(
+            acts.folderRoleOf({
+                storedEmailId: result.id,
+                account: result.account,
+                folder: result.folder,
+                unread: result.unread,
+                flagged: result.flagged,
+                spam: result.spam,
+            }),
+        );
+    }
+
+    function explainSender(storedEmailId: string, anchor: DOMRect): void {
+        flushSync(() => {
+            setAskedSender({
+                storedEmailId,
+                message: null,
+                anchor: { left: anchor.left, top: anchor.top, bottom: anchor.bottom },
+            });
+        });
+        explaining.current?.showModal();
+    }
     const listed = useListedMail();
 
     const signalledChanges = useSignalledChanges();
@@ -442,6 +472,13 @@ export function SearchResults({
                                 selected={workspace.selection === result.id}
                                 focusable={row === focusedRow}
                                 note={<WhyItMatched result={result} />}
+                                onSenderDetails={
+                                    marksSenderOf(result)
+                                        ? (anchor) => {
+                                              explainSender(result.id, anchor);
+                                          }
+                                        : undefined
+                                }
                                 onOpen={() => {
                                     open(row);
                                 }}
@@ -461,6 +498,10 @@ export function SearchResults({
                 </ul>
 
                 <div aria-hidden="true" style={{ height: `${String(drawn.below)}px` }} />
+
+                {/* Where the mark on a result's sender is explained. A result offers no menu, so the keyboard's way to
+                    the same details is the badge on the message the result opens. */}
+                <SenderDetails asked={askedSender} session={session} transport={transport} dialog={explaining} />
 
                 {/* A refresh reads the head again under what is drawn, which is not reading more of it, and it says
                     nothing, as a refresh of the folder's list says nothing. */}

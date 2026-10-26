@@ -1190,6 +1190,7 @@ export const pl: Catalogue = {
 
     'list.unread': 'Nieprzeczytana',
     'list.stripRow': '{sender} - {subject}',
+    'list.stripRowMarked': '{sender} - {subject} – {mark}',
     'list.flagged': 'Oznaczona',
     'list.answered': 'Odpowiedziano',
     'list.attachments': 'Załączniki: {count}',
@@ -1507,12 +1508,161 @@ export const pl: Catalogue = {
     'participant.cc': 'Kopia do',
     'participant.bcc': 'Ukryta kopia do',
 
-    'sender.failed':
-        'Odbierający serwer pocztowy sprawdził, kto naprawdę wysłał tę wiadomość, i stwierdził, że wskazany w niej autor się nie potwierdził.',
-    'sender.recognized': 'Ten serwer rozpoznaje nadawcę tej wiadomości.',
-    'sender.authenticatedBy':
-        'Uwierzytelniona przez {domain} – to ona naprawdę ją wysłała, a nie nazwa widoczna powyżej.',
-    'sender.authenticatedByNobody': 'Nic nie uwierzytelniło nadawcy tej wiadomości.',
+    'senderMark.name.signatureMismatch': 'Podejrzana – podpis się nie zgadza',
+    'senderMark.name.trusted': 'Zaufany nadawca',
+    'senderMark.name.verified': 'Zweryfikowany podpis',
+    'senderMark.name.authenticationFailed': 'Podejrzana – uwierzytelnienie nadawcy nie powiodło się',
+    'senderMark.name.neutral': 'Nierozpoznany nadawca',
+    'senderMark.word.suspicious': 'Podejrzana',
+    'senderMark.word.trusted': 'Zaufany',
+    'senderMark.word.verified': 'Zweryfikowany',
+    'senderMark.details': 'Szczegóły nadawcy',
+    'senderMark.rowDetail': '{sender} – {mark}',
+    'senderMark.close': 'Zamknij',
+    'senderMark.reading': 'Odczytywanie tego, co sprawdzono…',
+    'senderMark.readFailed': 'Nie udało się odczytać, co sprawdzono o tym nadawcy: {reason}',
+    'senderMark.why.signatureMismatch':
+        'Jej podpis nie zgadza się z treścią: zmieniono ją po podpisaniu albo podpis jest podrobiony.',
+    'senderMark.why.authenticationFailed':
+        '{domain} nie uwierzytelniła tej wiadomości, więc może ona nie pochodzić od tego, kogo wskazuje.',
+    'senderMark.why.trustedOwnDomain':
+        '{authenticated} uwierzytelniła tę wiadomość, a {domain} to domena Twoich własnych kont.',
+    'senderMark.why.trustedSender':
+        '{authenticated} uwierzytelniła tę wiadomość, a nadawca jest na liście zaufanych nadawców tego konta.',
+    'senderMark.why.verified':
+        'Ma podpis, który się zweryfikował, złożony przez {address} – adres, z którego pochodzi.',
+    'senderMark.why.verifiedDespiteAuthentication':
+        'Ma podpis, który się zweryfikował, złożony przez {address} – adres, z którego pochodzi. Uwierzytelnienie nadawcy nie powiodło się, co często powoduje przekazanie dalej albo lista mailingowa.',
+    'senderMark.why.signedByAnother': 'Jest podpisana, ale przez {signer}, a nie przez adres, z którego pochodzi.',
+    'senderMark.why.signedNotVerifiable': 'Jest podpisana, ale podpisu nie da się tu zweryfikować.',
+    'senderMark.why.authenticatedUnrecognized':
+        '{authenticated} uwierzytelniła tę wiadomość, ale to konto nie rozpoznaje nadawcy.',
+    'senderMark.why.nothingEstablished': 'Nic nie ustaliło, kto wysłał tę wiadomość.',
+    'senderMark.group.authentication': 'Uwierzytelnienie nadawcy',
+    'senderMark.group.trust': 'Zaufanie',
+    'senderMark.group.signature': 'Podpis',
+    'senderMark.result.Passed': 'Zaliczone',
+    'senderMark.result.Failed': 'Niezaliczone',
+    'senderMark.result.NotChecked': 'Niesprawdzone',
+    'senderMark.result.Skipped': 'Pominięte',
+    'senderMark.step.whoChecked': 'Kto sprawdził',
+    'senderMark.step.dkim': 'DKIM',
+    'senderMark.step.spf': 'SPF',
+    'senderMark.step.dmarc': 'DMARC',
+    'senderMark.step.authorDomain': 'Domena autora',
+    'senderMark.step.trustedSender': 'Zaufany nadawca',
+    'senderMark.step.signed': 'Podpisana',
+    'senderMark.step.content': 'Treść niezmieniona',
+    'senderMark.step.authority': 'Urząd certyfikacji',
+    'senderMark.step.validity': 'Ważność i przeznaczenie',
+    'senderMark.step.revocation': 'Nieunieważniony',
+    'senderMark.step.signer': 'Podpisujący to nadawca',
+    'senderMark.step.knownKey': 'Znany klucz',
+    'senderMark.step.keyValidity': 'Ważność',
+    'senderMark.checked.receivingServer':
+        'Zaufany odbierający serwer pocztowy tego konta sprawdził ją, gdy wiadomość dotarła.',
+    'senderMark.checked.locally':
+        'MailFathom sam sprawdził podpis DKIM, bo dla tego konta nie skonfigurowano zaufanego odbierającego serwera pocztowego.',
+    'senderMark.checked.nobody':
+        'Nikt: dla tego konta nie skonfigurowano zaufanego odbierającego serwera pocztowego, a wiadomość nie ma podpisu DKIM, który MailFathom mógłby sam sprawdzić.',
+    'senderMark.notRun': 'Niesprawdzone, bo nikt nie sprawdził tej wiadomości.',
+    'senderMark.dkim.passed': 'Podpis DKIM domeny {domain} został zaliczony.',
+    'senderMark.dkim.failed': 'Żaden podpis DKIM nie został zaliczony.',
+    'senderMark.spf.locally':
+        'Niesprawdzone: własne sprawdzenie MailFathom czyta tylko DKIM, a SPF wymaga serwera, który odebrał wiadomość.',
+    'senderMark.spf.passed': '{domain} dopuszcza serwer, który przekazał wiadomość.',
+    'senderMark.spf.failed':
+        'Żadne sprawdzenie SPF nie zostało zaliczone: {domain} nie wymienia serwera, który przekazał wiadomość.',
+    'senderMark.dmarc.locally': 'Nie zgłoszono: własne sprawdzenie MailFathom nie ocenia DMARC.',
+    'senderMark.dmarc.pass': '{domain} publikuje politykę DMARC, a wiadomość ją spełnia.',
+    'senderMark.dmarc.fail': 'Wiadomość nie spełnia polityki DMARC, którą publikuje {domain}.',
+    'senderMark.dmarc.noPolicy': 'Brak polityki: {domain} nie publikuje polityki DMARC, więc nie było czego oceniać.',
+    'senderMark.dmarc.temporaryError':
+        'Błąd tymczasowy: polityki domeny {domain} nie udało się odczytać, gdy wiadomość dotarła.',
+    'senderMark.dmarc.permanentError': 'Błąd trwały: polityki, którą publikuje {domain}, nie da się odczytać.',
+    'senderMark.dmarc.notReported': 'Nie zgłoszono: odbierający serwer pocztowy nie zgłosił wyniku DMARC.',
+    'senderMark.author.itself': '{domain} jest ustalona jako autor: sama uwierzytelniła wiadomość.',
+    'senderMark.author.by': '{domain} jest ustalona jako autor. Wiadomość uwierzytelniła {authenticated}.',
+    'senderMark.author.failedInstead':
+        '{domain} nie jest ustalona jako autor. Zamiast niej wiadomość uwierzytelniła {authenticated}.',
+    'senderMark.author.failedNobody':
+        '{domain} nie jest ustalona jako autor. Żadna domena nie uwierzytelniła wiadomości.',
+    'senderMark.author.notEstablished': 'Nieustalone: nic nie powiązało domeny {domain} z wiadomością.',
+    'senderMark.trust.skipped': 'Pominięte, bo autor nie został uwierzytelniony.',
+    'senderMark.trust.ownDomain': '{domain} to domena Twoich własnych kont.',
+    'senderMark.trust.trustedSenders': 'Nadawca jest na liście zaufanych nadawców tego konta.',
+    'senderMark.trust.unrecognized':
+        'To konto nie rozpoznaje adresu {address}: nie ma go na liście zaufanych nadawców konta, a {domain} nie jest domeną Twoich własnych kont.',
+    'senderMark.signed.not':
+        'Niepodpisana: wiadomość nie ma podpisu S/MIME ani OpenPGP, więc nie ma czego weryfikować.',
+    'senderMark.signed.detachedAt': 'S/MIME, odłączony (multipart/signed), podpisana {when}.',
+    'senderMark.signed.detached': 'S/MIME, odłączony (multipart/signed).',
+    'senderMark.signed.opaqueAt':
+        'S/MIME, nieprzezroczysty (application/pkcs7-mime; smime-type={type}), podpisana {when}.',
+    'senderMark.signed.opaque': 'S/MIME, nieprzezroczysty (application/pkcs7-mime; smime-type={type}).',
+    'senderMark.signed.openPgpAt': 'OpenPGP, PGP/MIME (multipart/signed), podpisana {when}.',
+    'senderMark.signed.openPgp': 'OpenPGP, PGP/MIME (multipart/signed).',
+    'senderMark.content.passed': 'Podpis zgadza się z podpisaną treścią.',
+    'senderMark.content.failed':
+        'Podpis nie zgadza się z podpisaną treścią: wiadomość zmieniono po podpisaniu albo podpis jest podrobiony.',
+    'senderMark.content.notChecked': 'Niesprawdzone, bo nie ma tu klucza, którym można by sprawdzić podpis.',
+    'senderMark.authority.public': 'Prowadzi do {authority}, uznanego publicznego urzędu certyfikacji.',
+    'senderMark.authority.configured':
+        'Prowadzi do {authority}, urzędu certyfikacji skonfigurowanego przez administratora.',
+    'senderMark.authority.failed':
+        'Nie prowadzi do żadnego urzędu certyfikacji, któremu ten serwer ufa: kończy się na {authority}.',
+    'senderMark.authority.failedUnnamed': 'Nie prowadzi do żadnego urzędu certyfikacji, któremu ten serwer ufa.',
+    'senderMark.key.known': 'Klucz {keyId} skonfigurował Twój administrator.',
+    'senderMark.key.unknown':
+        'Klucza {keyId} nie skonfigurował Twój administrator, więc nie wiadomo tu, kto go posiada.',
+    'senderMark.skipped.keyUnknown': 'Pominięte, bo klucz nie jest tu znany.',
+    'senderMark.skipped.noAuthority':
+        'Pominięte, bo certyfikat nie prowadzi do żadnego urzędu certyfikacji, któremu ten serwer ufa.',
+    'senderMark.validity.passed': 'Ważny w chwili podpisania i przeznaczony do podpisywania poczty.',
+    'senderMark.validity.expired': 'Wygasł {when}, przed podpisaniem wiadomości.',
+    'senderMark.validity.outside': 'Nieważny w chwili podpisania: był poza okresem ważności.',
+    'senderMark.validity.purpose':
+        'Nieprzeznaczony do podpisywania poczty: certyfikat nie wymienia ochrony poczty wśród swoich zastosowań.',
+    'senderMark.validity.failed': 'Nieważny do podpisania tej wiadomości.',
+    'senderMark.keyValidity.passed': 'Niewygasły: klucz jest ważny do {when}.',
+    'senderMark.keyValidity.passedOpen': 'Niewygasły: klucz nie ma daty wygaśnięcia.',
+    'senderMark.keyValidity.expired': 'Klucz wygasł {when}, przed podpisaniem wiadomości.',
+    'senderMark.keyValidity.failed': 'Klucz jest nieważny do podpisania tej wiadomości.',
+    'senderMark.revocation.ocsp': 'Responder OCSP odpowiedział, że jest ważny, {when}.',
+    'senderMark.revocation.crl': 'Lista CRL publikowana przez jego urząd, pobrana {when}, go nie wymienia.',
+    'senderMark.revocation.passed': 'Nieunieważniony.',
+    'senderMark.revocation.revoked': 'Unieważniony {when}.',
+    'senderMark.revocation.revokedUndated': 'Unieważniony.',
+    'senderMark.revocation.notChecked':
+        'Nie dało się sprawdzić: responder OCSP nie odpowiedział i nie udało się pobrać listy CRL, więc podpisu nie da się tu zweryfikować.',
+    'senderMark.keyRevocation.passed': 'Klucz nie ma unieważnienia.',
+    'senderMark.keyRevocation.failed': 'Klucz ma unieważnienie.',
+    'senderMark.signer.certificate': 'Certyfikat wskazuje {address} – adres, z którego pochodzi wiadomość.',
+    'senderMark.signer.certificateOther':
+        'Certyfikat wskazuje {signer}, a nie {address} – adres, z którego pochodzi wiadomość.',
+    'senderMark.signer.key':
+        'Identyfikator użytkownika klucza wskazuje {address} – adres, z którego pochodzi wiadomość.',
+    'senderMark.signer.keyOther':
+        'Identyfikator użytkownika klucza wskazuje {signer}, a nie {address} – adres, z którego pochodzi wiadomość.',
+    'senderMark.passed': 'Zaliczone.',
+    'senderMark.failed': 'Niezaliczone.',
+    'senderMark.notChecked': 'Niesprawdzone.',
+    'senderMark.skipped': 'Pominięte, bo wcześniejszy krok nie został zaliczony.',
+    'senderMark.more.certificate': 'Szczegóły certyfikatu',
+    'senderMark.more.key': 'Szczegóły klucza',
+    'senderMark.more.hide': 'Ukryj szczegóły',
+    'senderMark.fact.name': 'Nazwa',
+    'senderMark.fact.email': 'E-mail',
+    'senderMark.fact.issuer': 'Wystawca',
+    'senderMark.fact.validFrom': 'Ważny od',
+    'senderMark.fact.validUntil': 'Ważny do',
+    'senderMark.fact.serial': 'Numer seryjny',
+    'senderMark.fact.fingerprint': 'Odcisk palca',
+    'senderMark.fact.keyId': 'Identyfikator klucza',
+    'senderMark.fact.userId': 'Identyfikator użytkownika',
+    'senderMark.fact.created': 'Utworzony',
+    'senderMark.fact.expires': 'Wygasa',
+    'senderMark.fact.algorithms': 'Algorytmy',
 
     'attachments.list': 'Pliki dołączone do tej wiadomości',
     'attachments.downloadAll': 'Pobierz wszystkie',

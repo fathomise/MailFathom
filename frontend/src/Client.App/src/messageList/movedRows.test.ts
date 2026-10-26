@@ -28,6 +28,7 @@ function drawn(over: Partial<RowContents> = {}): RowContents {
         hasAttachments: false,
         attachmentCount: 0,
         threadMessageCount: null,
+        senderMark: 'neutral',
         reading: null,
         spam: null,
         ...over,

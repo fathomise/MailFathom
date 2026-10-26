@@ -23,6 +23,7 @@ import * as mail from '../../../../tests/fixtures/mail';
 import * as messages from '../../../../tests/fixtures/messages';
 import * as notifications from '../../../../tests/fixtures/notifications';
 import * as outbox from '../../../../tests/fixtures/outbox';
+import * as senders from '../../../../tests/fixtures/senders';
 import * as tasks from '../../../../tests/fixtures/tasks';
 import type { DeploymentTransport } from '../deployment/sendToDeployment';
 
@@ -801,7 +802,11 @@ function messageAnswer(route: string, asked: URLSearchParams): ClientResponse | 
 
     const message = markupOnly ? messages.markupOnlyMessage : messages.newsletterMessage;
 
-    return answering({ ...message, storedEmailId });
+    return answering({
+        ...message,
+        ...senders.messageSenderEvidence(senders.senderKindOf(storedEmailId)),
+        storedEmailId,
+    });
 }
 
 // The passages a citation request named, in the order it named them, which is what the answer is paired against. A

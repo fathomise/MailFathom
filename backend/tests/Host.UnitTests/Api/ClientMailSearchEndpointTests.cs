@@ -16,7 +16,9 @@ using MailFathom.Application.Observability;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
+using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Spam;
 using MailFathom.Host.Api;
@@ -313,6 +315,40 @@ public sealed class ClientMailSearchEndpointTests
         Assert.Equal(
             new ClientMailSpamVerdictResponse("Spam", "Model", "Marketing", "Model", null, null),
             Assert.Single(response.Results).Spam);
+    }
+
+    /// <summary>A search result carries the sender facts a list row carries, so a result draws the same sender mark.</summary>
+    [Fact]
+    public void For_AResultWhoseSignatureFailed_CarriesTheSenderFacts()
+    {
+        // Arrange
+        var page = PageOf(new BrowsedSearchResult(
+            SyntheticMatchedEmail() with
+            {
+                SenderVerification = new SenderVerification
+                {
+                    AuthorAuthentication = AuthorAuthenticationOutcome.Failed,
+                    DeploymentTrust = SenderTrustLevel.Unknown,
+                    Signature = new EmailSignature
+                    {
+                        Format = EmailSignatureFormat.OpenPgpMime,
+                        ContentCheck = SignatureCheckResult.Failed,
+                    },
+                },
+            },
+            "the invoice is attached",
+            ["**invoice**"],
+            SearchMatchOrigin.LexicalRanking,
+            AttachmentMatches: [],
+            IsDepictedMatch: false));
+
+        // Act
+        var response = ClientMailSearchResponse.For(page);
+
+        // Assert
+        Assert.Equal(
+            new ClientMailListedSenderResponse("Failed", "Unknown", "Failed", false),
+            Assert.Single(response.Results).Sender);
     }
 
     /// <summary>Wraps one result in the page a response is described from, so a shape assertion arranges only what it is about.</summary>

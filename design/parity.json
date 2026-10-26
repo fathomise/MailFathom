@@ -537,10 +537,12 @@
         },
         {
           "click": {
-            "role": "button",
-            "name": "Trusted sender",
-            "exact": true,
-            "nth": 0
+            "text": "Contract addendum - signatures"
+          }
+        },
+        {
+          "click": {
+            "text": "Trusted"
           }
         },
         {

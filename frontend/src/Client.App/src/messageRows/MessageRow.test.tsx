@@ -37,6 +37,12 @@ const email: MailTimelineEntry = {
     enrichment: null,
     threadMessageCount: null,
     spam: null,
+    sender: {
+        authorAuthentication: 'Authenticated',
+        deploymentTrust: 'Unknown',
+        signatureOutcome: 'NotSigned',
+        signerMatchesAuthor: false,
+    },
 };
 
 function drawMoved(moved: {
@@ -1036,5 +1042,114 @@ describe('MessageRow, dragged towards a folder', () => {
         };
 
         expect(draggedRow(acts, () => undefined).className).not.toContain('opacity-45');
+    });
+});
+
+// The mark on who sent the message, which is the pointer's shortcut to the sender details. It is out of the
+// accessibility tree for the reason the readings mark is, so it is found by the name it shows a pointer.
+function senderMarkedRow({
+    sender = email.sender,
+    onSenderDetails,
+    onPoint = vi.fn(),
+    onOpen = vi.fn(),
+}: {
+    sender?: MailTimelineEntry['sender'];
+    onSenderDetails?: ((anchor: DOMRect) => void) | undefined;
+    onPoint?: (event: unknown) => void;
+    onOpen?: () => void;
+}): HTMLElement {
+    render(
+        <LocalizationProvider>
+            <ul>
+                <MessageRow
+                    email={{ ...email, sender }}
+                    position={1}
+                    open={false}
+                    selected={false}
+                    focusable
+                    onSenderDetails={onSenderDetails}
+                    onOpen={onOpen}
+                    onPoint={onPoint}
+                    onElement={() => undefined}
+                />
+            </ul>
+        </LocalizationProvider>,
+    );
+
+    return screen.getByRole('option');
+}
+
+function senderMark(name: string): HTMLElement {
+    const mark = screen
+        .getAllByText(name)
+        .map((sentence) => document.querySelector<HTMLElement>(`[aria-describedby="${sentence.id}"]`))
+        .find((element) => element !== null);
+
+    if (mark === undefined) {
+        throw new Error(`No mark is described by "${name}".`);
+    }
+
+    return mark;
+}
+
+describe('MessageRow, the mark on who sent the message', () => {
+    it('says the state of a trusted sender in words, inside the row a screen reader reads', () => {
+        const row = senderMarkedRow({
+            sender: { ...email.sender, deploymentTrust: 'Trusted' },
+            onSenderDetails: () => undefined,
+        });
+
+        expect(row.textContent).toContain('Trusted sender');
+    });
+
+    it.each([
+        [
+            'a signature that does not match',
+            { signatureOutcome: 'Failed' },
+            'Suspicious - the signature does not match',
+        ],
+        [
+            'a signature the author made',
+            { signatureOutcome: 'Verified', signerMatchesAuthor: true },
+            'Verified signature',
+        ],
+        ['failed authentication', { authorAuthentication: 'Failed' }, 'Suspicious - sender authentication failed'],
+        ['nothing that recognized the sender', {}, 'Sender not recognized'],
+    ] as const)('draws the mark for %s', (_, facts, name) => {
+        senderMarkedRow({ sender: { ...email.sender, ...facts }, onSenderDetails: () => undefined });
+
+        expect(senderMark(name).getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('is drawn on no row that marks no sender', () => {
+        const row = senderMarkedRow({});
+
+        expect(row.textContent).not.toContain('Sender not recognized');
+    });
+
+    it('opens the details anchored under itself', () => {
+        const asked = vi.fn();
+
+        senderMarkedRow({ onSenderDetails: asked });
+        fireEvent.click(senderMark('Sender not recognized'));
+
+        expect(asked).toHaveBeenCalledOnce();
+    });
+
+    it('neither opens nor selects the message it is drawn on', () => {
+        const pointed = vi.fn();
+        const opened = vi.fn();
+
+        senderMarkedRow({ onSenderDetails: () => undefined, onPoint: pointed, onOpen: opened });
+
+        const mark = senderMark('Sender not recognized');
+
+        fireEvent.pointerDown(mark, { pointerType: 'mouse', button: 0 });
+        fireEvent.pointerUp(mark, { pointerType: 'mouse', button: 0 });
+        fireEvent.click(mark);
+        fireEvent.doubleClick(mark);
+
+        expect(pointed).not.toHaveBeenCalled();
+        expect(opened).not.toHaveBeenCalled();
     });
 });
