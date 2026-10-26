@@ -81,7 +81,7 @@ internal sealed class SetMailFlagsTool(MailFlagChangeRecorder flagChangeRecorder
     /// <param name="cancellationToken">Cancels the write when the caller disconnects or the host shuts down.</param>
     /// <returns>The durable record opened for each value asked for.</returns>
     /// <exception cref="StoredEmailIdentifierMalformedException">Thrown when the text names no email this system issued an identifier for.</exception>
-    /// <exception cref="MailFlagChangeInvalidException">Thrown when the call asks for nothing, states half a keyword change, names more keywords than a message may carry or one a mail server could not be asked to store, would put a junk keyword on the email or take one off, carries a request identity no record could be written under, or reuses one that already asked for a different value.</exception>
+    /// <exception cref="MailFlagChangeInvalidException">Thrown when the call asks for nothing, states half a keyword change, names more keywords than a message may carry or one a mail server could not be asked to store, names a junk keyword or asks for a replacement, carries a request identity no record could be written under, or reuses one that already asked for a different value.</exception>
     /// <exception cref="MailFathomException">
     /// Raised by the use case for a grant or an email it refuses. The call-tool filter turns every one of them into the
     /// coded result a client reads, so this tool neither catches nor re-describes any.
@@ -104,11 +104,10 @@ internal sealed class SetMailFlagsTool(MailFlagChangeRecorder flagChangeRecorder
         + "holds on its own there is no mail server to wait on: the result says applied, the change has already "
         + "happened, and no records are returned; requestId matches a repeated call only against a record, so there a "
         + "repeat under the same requestId applies the change again rather than answering with the first call. Every change is "
-        + "reversible: call again with the opposite value. keywordChange replace states the whole keyword set — a "
-        + "keyword you do not list is removed, and an empty list clears them all — so read the email's keywords first, "
-        + "or use add and remove, which touch only what they name. The junk keywords $Junk, $NotJunk, and $Phishing "
-        + "are refused, whether added, removed, or dropped or put on by a replace: they carry the spam verdict and the "
-        + "person's correction of it, which only the person sets. Only these three values can be written: this tool "
+        + "reversible: call again with the opposite value. Keywords are changed with keywordChange add and remove, which "
+        + "touch only what they name; replace, which would state the whole set and take off whatever it does not list, "
+        + "is refused. The junk keywords $Junk, $NotJunk, and $Phishing are refused too: they carry the spam verdict and "
+        + "the person's correction of it, which only the person sets. Only these three values can be written: this tool "
         + "never sets the answered or draft flags, never deletes mail, and never sends anything. A message in an "
         + "account's outbox is not an email and carries no flags: an outgoingEmailId is refused here as an unknown "
         + "email.")]
@@ -119,7 +118,7 @@ internal sealed class SetMailFlagsTool(MailFlagChangeRecorder flagChangeRecorder
         bool? seen = null,
         [Description("true stars the email, false unstars it. This is the flag a mail client draws as a star or a flag, and it is what the user will see in their own client.")]
         bool? flagged = null,
-        [Description("What to do with keywords: add puts the listed ones on beside whatever the email already carries, remove takes the listed ones off and leaves the rest, replace makes the keywords exactly the listed ones. Send it together with keywords; either one alone is refused.")]
+        [Description("What to do with keywords: add puts the listed ones on beside whatever the email already carries, and remove takes the listed ones off and leaves the rest. replace, which would make the keywords exactly the listed ones, is refused on this surface. Send it together with keywords; either one alone is refused.")]
         SetMailFlagsKeywordChange? keywordChange = null,
         [Description("The keywords the change names, at most 64, each at most 64 characters. A keyword is an IMAP atom: no space, no control character, none of ( ) { % * \" \\ ], nothing above plain ASCII, and no leading backslash, which is how system flags are spelled. Two spellings differing only in case are one keyword. An empty list is accepted only with replace, where it clears every keyword.")]
         IReadOnlyList<string>? keywords = null,

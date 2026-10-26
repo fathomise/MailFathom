@@ -15,7 +15,7 @@ namespace MailFathom.Infrastructure.Persistence.Mutations;
 /// <summary>Reads, from the local mailbox copy, where one email is in the identities a mutation names.</summary>
 /// <remarks>
 /// <para>
-/// The projection names seven columns and joins one folder row, which is everything a mutation is addressed by and
+/// The projection names six columns and joins one folder row, which is everything a mutation is addressed by and
 /// nothing a message carries. Reading the entity would pull a subject, the participants, and every derived column into
 /// memory to answer a question none of them takes part in, so the query is written as a projection rather than as a
 /// lookup that discards most of what it loaded.
@@ -58,7 +58,6 @@ internal sealed class AuthoredMailboxTargetReader(MailFathomDbContext readContex
                 Generation = email.MailFolderBinding.ResolutionGeneration,
                 RemotePath = email.MailFolderBinding.RemotePath,
                 email.FolderId,
-                email.RemoteKeywords,
             })
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -81,7 +80,6 @@ internal sealed class AuthoredMailboxTargetReader(MailFathomDbContext readContex
                 ImapUidValidity.Create(uidValidity),
                 ImapUid.Create(uid)),
             folder,
-            MailFolderId.Create(located.FolderId),
-            RemoteEmailKeywords.Create(located.RemoteKeywords));
+            MailFolderId.Create(located.FolderId));
     }
 }

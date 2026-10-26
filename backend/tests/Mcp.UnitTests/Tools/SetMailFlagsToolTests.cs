@@ -427,8 +427,7 @@ public sealed class SetMailFlagsToolTests
             .Returns(Task.FromResult<AuthoredMailboxTarget?>(new AuthoredMailboxTarget(
                 EmailOccurrenceId.Create(Account, folder.Id, ImapUidValidity.Create(9), ImapUid.Create(41)),
                 folder,
-                StoredIn,
-                RemoteEmailKeywords.None)));
+                StoredIn)));
 
         var accountCatalog = Substitute.For<ICallerMailAccountCatalog>();
         accountCatalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns([SyntheticServedAccount.Of(Account)]);

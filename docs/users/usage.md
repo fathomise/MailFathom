@@ -238,7 +238,7 @@ The HTML body, when requested, is aggressively sanitized — no scripts, no styl
 ## `set_mail_flags` — marking, starring, and labelling
 
 The one tool that changes your mailbox rather than MailFathom's copy of it. It marks a message read or unread, stars or
-unstars it, and adds, removes, or replaces its keywords — the labels your mail client shows as tags. All three in one
+unstars it, and adds or removes its keywords — the labels your mail client shows as tags. All three in one
 call, because triaging a message is one decision, and each of them optional: a call that names none is refused rather
 than treated as a change of nothing.
 
@@ -249,9 +249,10 @@ again with the same `requestId`: it answers with the same records and the lifecy
 than starring the message a second time. What you get from that arrangement is that a crash mid-flight leaves a
 change that finishes by itself instead of a value MailFathom thinks it set and the server never heard about.
 
-Keywords have three directions and the third is the one to be careful with. `add` and `remove` touch only the keywords
-you name. `replace` states the **whole** set, so a label you did not list is taken off — the same trap `update_contact`
-has, and the same remedy: read the message's keywords first, or use `add` and `remove`.
+Keywords are added and removed, and each touches only the keywords you name. `replace`, which would state the
+**whole** set and take off every label you did not list, is refused here. So are `$Junk`, `$NotJunk`, and `$Phishing`
+in either direction: they carry the spam verdict and your correction of it, so you set them in your own mail client or
+MailFathom's, and an agent tells you what it thinks of a message instead of marking it.
 
 Everything it writes is reversible with the call that would have made it: mark unread what you marked read, unstar what
 you starred, remove what you added. Nothing else about a message can be written from here: this tool never sets the
@@ -614,7 +615,7 @@ The codes a user meets in practice:
 | `51009` | A contact listing's page size, origin, or search text is not one the book serves | Stay within 1–200 contacts, name `asserted` or `collected`, keep the search to at most 320 characters |
 | `51010` | A contact was named with text that is no identifier and no usable address | Pass a `contactId` a listing or a write returned, or an address on its own — and exactly one of the two |
 | `51011` | A contact record breaks a rule the book holds | The message names the rule: a missing name, no address, a preferred address the record does not name, a value over its limit |
-| `51012` | A flag change asked for nothing, stated half a keyword change, named a keyword no mail server would keep, carried a `requestId` that is no identifier, or reused one that already asked for a different value | Name at least one of `seen`, `flagged`, and the keyword pair; send `keywordChange` and `keywords` together; keep each keyword to one word of plain ASCII and name at most 64; keep `requestId` to at most 128 printable characters, or leave it out and let the server issue one; send a new one when you mean a new change |
+| `51012` | A flag change asked for nothing, stated half a keyword change, named a keyword no mail server would keep or one of the three junk keywords, asked for a `replace`, carried a `requestId` that is no identifier, or reused one that already asked for a different value | Name at least one of `seen`, `flagged`, and the keyword pair; send `keywordChange` and `keywords` together, with `add` or `remove`; leave `$Junk`, `$NotJunk`, and `$Phishing` to the person; keep each keyword to one word of plain ASCII and name at most 64; keep `requestId` to at most 128 printable characters, or leave it out and let the server issue one; send a new one when you mean a new change |
 | `51013` | A field of a message you authored carries a value no message can be composed from — a line break in a subject or a recipient, an address outside ASCII, text naming no account, or an `account` or `idempotencyKey` that is blank, too long, or not printable | Fix the field the message names; it names the field and never the value you sent |
 | `51014` | A message you authored is larger than this deployment composes — more people than the recipient bound allows, a body over its character bound, or a forward whose original carries more files or larger ones than this deployment sends | The message names the bound and the configured number: send to fewer people, send a shorter body, or accept that the message cannot be forwarded from here |
 | `51016` | The `outgoingEmailId` you passed is no identifier this system issues — blank, truncated, or invented | Pass the value a sending tool answered with, verbatim |

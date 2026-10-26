@@ -162,8 +162,9 @@ by a run with `--rescore` — and setting one does not by itself classify the me
 already decided spam therefore turns its verdict on the next run that reaches it.
 
 **No agent sets any of the three through MailFathom.** `set_mail_flags` and every other path an agent or an MCP caller
-changes keywords through refuses a change that would put `$Junk`, `$NotJunk`, or `$Phishing` on a message or take one
-off, because an agent that has just read the mail would otherwise be steered into turning the verdict on the message
+changes keywords through refuses an addition or a removal naming `$Junk`, `$NotJunk`, or `$Phishing`, and refuses a
+replacement outright, since a replacement takes off whatever it does not name from what the server carries when it is
+performed and could strip a mark the person set in another client. That is because an agent that has just read the mail would otherwise be steered into turning the verdict on the message
 steering it — and with the verdict, what every agent may read. The person sets them through the client, and another
 mail client sets them on the server; [ADR 0007](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0007-remote-mailbox-mutation-boundary-and-write-session.md)
 records the decision as its axis O.
@@ -275,8 +276,8 @@ holds.
 Nothing else is ever done. No delete, no flag other than `\Seen`, no keyword added other than `$Junk` and `$Phishing`,
 none taken off but the pair above and a `$Phishing` beside it, no folder created, nothing sent.
 [ADR 0007](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0007-remote-mailbox-mutation-boundary-and-write-session.md)
-admits a spam verdict among the authors of a flag or keyword change and refuses the rest, and this feature does not
-reopen that record.
+admits a spam verdict among the authors of a flag or keyword change and refuses the rest. A verdict's own acts need
+nothing new from it; this feature reopened it only for axis O, which narrows who may write the three junk keywords.
 
 **On an account whose mailbox MailFathom holds itself**, there is no server to write to, so every act is made to the
 stored message as the classification commits, where the junk destination is a mapping the account mirrors: the message

@@ -40,9 +40,11 @@ namespace MailFathom.Application.Mail.Mutations.Authoring;
 /// <para>
 /// The three junk keywords RFC 9051 defines are the person's alone among callers. The spam verdict reads them, so a
 /// <c>$NotJunk</c> decides a message is not spam and with it what every agent may read; an agent that has just read the
-/// mail would otherwise be steered into turning the verdict on the very message steering it. So a change asked for by any
-/// reader but the person that would put one on or take one off is refused before anything is recorded, which is axis O
-/// of ADR 0007. The verdict writes them through a requester of its own and is not a caller here.
+/// mail would otherwise be steered into turning the verdict on the very message steering it. So any reader but the person
+/// is refused an addition or a removal naming one of them, and refused a replacement outright: a replacement takes off
+/// whatever it does not name from the set the server carries when it is performed, which nothing here can read in
+/// advance, so it cannot be told apart from one that strips a <c>$Junk</c> somebody set elsewhere. That is axis O of
+/// ADR 0007. The verdict writes the three through a requester of its own and is not a caller here.
 /// </para>
 /// <para>
 /// The records for one call are opened in one commit, so a call either writes down everything it asked for or nothing.
@@ -99,7 +101,7 @@ public sealed class MailFlagChangeRecorder
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="change" /> or <paramref name="requester" /> is <see langword="null" />.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the writing grant.</exception>
     /// <exception cref="AuthoredMailChangeTargetNotFoundException">Thrown when this deployment serves no readable email under that identity, or when the email it serves names a remote occurrence the mail server no longer holds.</exception>
-    /// <exception cref="MailFlagChangeInvalidException">Thrown when a reader other than the person asks to put a junk keyword on or take one off, or when the requester identity already names one of these mutations on this occurrence with a different value.</exception>
+    /// <exception cref="MailFlagChangeInvalidException">Thrown when a reader other than the person names a junk keyword or asks for a replacement, or when the requester identity already names one of these mutations on this occurrence with a different value.</exception>
     /// <remarks>
     /// A change asked for twice under one requester identity is one change: the record store admits one record per
     /// occurrence, requester, and mutation, and the second call is answered with the record the first opened. That is
@@ -138,8 +140,8 @@ public sealed class MailFlagChangeRecorder
         // and of every reader but the person: an agent is the zero value, so a request that forgot to name its reader
         // is refused rather than admitted.
         if (reader is not MailboxReaderKind.Person
-            && change.Mutations().Any(mutation => mutation.Keywords is { } named
-                && JunkKeywords.AreChangedBy(mutation.Mutation, named, target.Keywords)))
+            && change.Mutations().Any(mutation => mutation.Mutation == MailboxMutation.SetKeywords
+                || (mutation.Keywords is { } named && JunkKeywords.AreNamedIn(named))))
         {
             throw MailFlagChangeInvalidException.JunkKeywordsArePersons();
         }

@@ -102,7 +102,7 @@ public sealed class MailFlagChangeRecorderTests
     {
         // Arrange
         var records = new InMemoryMailboxMutationRecordStore();
-        var recorder = RecorderOver(records, TargetIn(Inbox, "$Junk"));
+        var recorder = RecorderOver(records, TargetIn(Inbox));
         var change = AuthoredMailFlagChange.Create(LocalEmail, seen: true, null, direction, ["$Todo", keyword]);
 
         // Act
@@ -114,14 +114,22 @@ public sealed class MailFlagChangeRecorderTests
         Assert.Equal(0, records.OpenedRecordCount);
     }
 
-    /// <summary>A replacement states the whole set, so an agent's one that would drop a junk keyword the message carries is refused.</summary>
-    [Fact]
-    public async Task RecordAsync_AnAgentReplacementDroppingACarriedJunkKeyword_IsRefused()
+    /// <summary>
+    /// A replacement takes off whatever it does not name from the set the server carries when it is performed, which may
+    /// hold a junk keyword the person set elsewhere since the last synchronization, so an agent's one is refused whatever
+    /// it names.
+    /// </summary>
+    /// <param name="keywords">The set the agent asks the message to carry.</param>
+    [Theory]
+    [InlineData("$Todo")]
+    [InlineData("$Junk", "$Waiting")]
+    [InlineData]
+    public async Task RecordAsync_AnAgentReplacement_IsRefusedWhateverItNames(params string[] keywords)
     {
         // Arrange
         var records = new InMemoryMailboxMutationRecordStore();
-        var recorder = RecorderOver(records, TargetIn(Inbox, "$Junk", "$Todo"));
-        var change = AuthoredMailFlagChange.Create(LocalEmail, null, null, MailKeywordChangeDirection.Replace, ["$Todo"]);
+        var recorder = RecorderOver(records, TargetIn(Inbox));
+        var change = AuthoredMailFlagChange.Create(LocalEmail, null, null, MailKeywordChangeDirection.Replace, keywords);
 
         // Act, Assert
         await Assert.ThrowsAsync<MailFlagChangeInvalidException>(() =>
@@ -129,17 +137,17 @@ public sealed class MailFlagChangeRecorderTests
         Assert.Equal(0, records.OpenedRecordCount);
     }
 
-    /// <summary>An agent's replacement leaving the junk keywords as the message carries them changes no verdict, and goes ahead.</summary>
+    /// <summary>The person may still replace a message's keywords, junk keywords included.</summary>
     [Fact]
-    public async Task RecordAsync_AnAgentReplacementKeepingTheJunkKeywords_IsRecorded()
+    public async Task RecordAsync_ThePersonsReplacement_IsRecorded()
     {
         // Arrange
         var records = new InMemoryMailboxMutationRecordStore();
-        var recorder = RecorderOver(records, TargetIn(Inbox, "$Junk", "$Todo"));
-        var change = AuthoredMailFlagChange.Create(LocalEmail, null, null, MailKeywordChangeDirection.Replace, ["$Junk", "$Waiting"]);
+        var recorder = RecorderOver(records, TargetIn(Inbox));
+        var change = AuthoredMailFlagChange.Create(LocalEmail, null, null, MailKeywordChangeDirection.Replace, ["$NotJunk", "$Todo"]);
 
         // Act
-        var result = await recorder.RecordAsync(change, Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
+        var result = await recorder.RecordAsync(change, Requester, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal([MailboxMutation.SetKeywords], result.Recorded.Select(recorded => recorded.Mutation));
@@ -151,7 +159,7 @@ public sealed class MailFlagChangeRecorderTests
     {
         // Arrange
         var records = new InMemoryMailboxMutationRecordStore();
-        var recorder = RecorderOver(records, TargetIn(Inbox, "$Junk"));
+        var recorder = RecorderOver(records, TargetIn(Inbox));
         var change = AuthoredMailFlagChange.Create(LocalEmail, null, null, MailKeywordChangeDirection.Add, ["$NotJunk"]);
 
         // Act
@@ -467,15 +475,14 @@ public sealed class MailFlagChangeRecorderTests
             runSignal ?? new MailAccountRunSignal());
     }
 
-    private static AuthoredMailboxTarget TargetIn(MailFolderAlias folderAlias, params string[] keywords)
+    private static AuthoredMailboxTarget TargetIn(MailFolderAlias folderAlias)
     {
         var folder = MailFolderResolution.FirstBindingOf(folderAlias, RemoteFolderPath.Create(folderAlias.Value));
 
         return new AuthoredMailboxTarget(
             EmailOccurrenceId.Create(Account, folder.Id, ImapUidValidity.Create(42), ImapUid.Create(7)),
             folder,
-            StoredIn,
-            RemoteEmailKeywords.Create(keywords));
+            StoredIn);
     }
 
     /// <summary>A session that reports the outcome its attempt was arranged with, which is what drives the retry.</summary>

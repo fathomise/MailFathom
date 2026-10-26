@@ -61,11 +61,13 @@ Mail judged spam is withheld from every tool that reads mail in the same way, on
 is spam, in any folder, and the junk folder's mail unless the person marked the message not spam, are listed by no
 tool, searched by none, retrieved into no `ask_mail` answer, and an email of them reads as not found.
 [Spam classification](spam-classification.md#no-agent-reads-a-message-judged-spam) states the rule. `set_mail_flags`
-returns no message content and is not narrowed by it, but it refuses the three junk keywords: a call that would add
-`$Junk`, `$NotJunk`, or `$Phishing`, remove one, or put one on or take one off with a replacement is refused with
-`MailFlagChangeInvalid` before anything is recorded. Those keywords carry the spam verdict and the person's correction
-of it, so a caller steered by the mail it read could otherwise turn the verdict on that very message; the person sets
-them through the client, and every other keyword stays writable.
+returns no message content and is not narrowed by it, but it refuses the three junk keywords: a call adding or removing
+`$Junk`, `$NotJunk`, or `$Phishing` is refused with `MailFlagChangeInvalid` before anything is recorded, and so is every
+`replace`, which takes off whatever it does not name from the set the server carries when it is performed and so could
+strip one the person set in another client since the last synchronization. Those keywords carry the spam verdict and
+the person's correction of it, so a caller steered by the mail it read could otherwise turn the verdict on that very
+message; the person sets them, and replaces keywords, through the client, and every other keyword stays writable with
+`add` and `remove`.
 
 Four properties hold for every tool and are proven by test rather than asserted here:
 
@@ -272,8 +274,7 @@ record where none was held and so has nothing to drop. `promote_contact` is idem
 person is rewritten, what it adds is the caller's own copy of a record the mail account keeps, and a second call finds
 that copy already answering for the address and so leaves the book as the first one left it. `set_mail_flags` is idempotent because each value it writes is stated rather than adjusted, so a
 second identical call asks for exactly what the first one asked for. It is destructive in the sense the protocol
-gives that word — whether the tool performs only additive updates — and it does not: a keyword replacement states the
-whole set and so removes a label the caller never listed, a removal takes named labels off, and clearing `\Seen` or
+gives that word — whether the tool performs only additive updates — and it does not: a removal takes named labels off, and clearing `\Seen` or
 `\Flagged` takes a flag off the message. That every one of those is reversible with the gesture that would have made
 it, in MailFathom or in any mail client the user opens, is true and is a separate fact: the annotation is what a
 client reads before deciding whether a call needs a person, so it answers what the call takes away rather than how
@@ -384,7 +385,7 @@ configured name for an account and carries nothing the caller did not already wr
 | `51009` | A contact listing carries a page size, an origin, or a search the book does not serve | A `pageSize` of 0 or above 200, refused rather than clamped; an `origin` that is neither published name; a `search` over 320 characters or carrying a character that renders as nothing |
 | `51010` | The call named a contact with text that is no identifier and no usable address | A `contactId` that is blank, not a UUID, or the all-zero UUID; an `address` that is no address; or a `get_contact` call naming both or neither |
 | `51011` | A contact record breaks a rule the book holds | No name or one over 256 characters, no address or more than 32, an address that is not one, a preferred address the record does not name, or a note over 4000 characters — the message names the rule and never the value |
-| `51012` | A flag change asks for nothing, states half a keyword change, names a value no record could carry, or reuses a request identity for a different change | A call naming an email and no value at all; `keywordChange` without `keywords` or the reverse; an empty list under `add` or `remove`; a keyword that is no IMAP atom, one over 64 characters, or more than 64 of them; a `requestId` that is blank, over 128 characters, or carrying a control character; or a `requestId` already used on that email for a different value, which is answered by sending a new one rather than by retrying — the message names the rule and never the keyword |
+| `51012` | A flag change asks for nothing, states half a keyword change, names a value no record could carry, or reuses a request identity for a different change | A call naming an email and no value at all; `keywordChange` without `keywords` or the reverse; an empty list under `add` or `remove`; a keyword that is no IMAP atom, one over 64 characters, or more than 64 of them; a `requestId` that is blank, over 128 characters, or carrying a control character; a `requestId` already used on that email for a different value, which is answered by sending a new one rather than by retrying; or a keyword change naming `$Junk`, `$NotJunk`, or `$Phishing`, or any `replace` — the message names the rule and never the keyword |
 | `51013` | A field of a message a caller authored carries a value no message can be composed from | A subject or a recipient carrying a line break, which would smuggle a header nobody wrote; text naming no mailbox; an address outside ASCII, which is refused because a message is written down long before a submission server has said whether it carries one; an `account` or an `idempotencyKey` that is blank, too long, or carrying a control character — the message names the field and never the value |
 | `51014` | A message a caller authored is larger than this deployment composes | More recipients than an outgoing record holds, more than `MailDelivery:MaxRecipientCount` across the three headers, a body over `MailDelivery:MaxBodyCharacters`, or a forward whose original carries more files or larger ones than `MailDelivery` sends — the message names the field and the configured number, never what was measured |
 | `51016` | The call named a queued send with text that is no identifier this system issues | An `outgoingEmailId` that is blank, not a UUID, or the all-zero UUID, refused before anything is looked up — separate from a send nobody may be told about, because this one is true whatever this deployment has queued |
@@ -1071,7 +1072,7 @@ than the value.
 
 ## `set_mail_flags`
 
-Marks one email read or unread, stars or unstars it, and adds, removes, or replaces its keywords — the labels a mail
+Marks one email read or unread, stars or unstars it, and adds or removes its keywords — the labels a mail
 client shows as tags. It is the one tool that changes the user's mailbox rather than MailFathom's copy of it, and the
 three values are one tool because they are one act: a caller triaging a message decides what to do with it once, and a
 mail server writes all three with the same command against the same UID.
@@ -1097,17 +1098,17 @@ Three things follow, and the tool's description states each of them:
 | `storedEmailId` | `string` | **Required.** The email to change, as a listing, a search, or a read returned it. Blank, not a UUID, or the all-zero UUID is refused with `51004` before anything is looked up |
 | `seen` | `boolean` | `true` marks the email read, `false` marks it unread. Omitted leaves the flag where it stands. Reading mail through MailFathom never sets it, so this is the only way it moves from here |
 | `flagged` | `boolean` | `true` stars the email, `false` unstars it — the flag a mail client draws as a star or a flag |
-| `keywordChange` | `string` | `add`, `remove`, or `replace`. Sent together with `keywords`; either one alone is refused with `51012` |
-| `keywords` | `string[]` | The keywords the change names, at most 64, each at most 64 characters and each an IMAP atom. The count is checked as sent, before anything normalizes the list, so a longer one is refused with `51012` rather than deduplicated first. Two spellings differing only in case are one keyword. An empty list is accepted only with `replace`, where it clears every keyword |
+| `keywordChange` | `string` | `add` or `remove`. Sent together with `keywords`; either one alone is refused with `51012`. `replace` is in the schema and refused with `51012` before anything is recorded |
+| `keywords` | `string[]` | The keywords the change names, at most 64, each at most 64 characters and each an IMAP atom. The count is checked as sent, before anything normalizes the list, so a longer one is refused with `51012` rather than deduplicated first. Two spellings differing only in case are one keyword. An empty list is refused |
 | `requestId` | `string` | The caller's own identity for this request, up to 128 characters. The same value on a retry makes it the same request; a new value, or none, is a new request |
 
 At least one of `seen`, `flagged`, and the keyword pair has to be given. A call that names an email and asks for nothing
 is refused with `51012` rather than answered with a change of nothing.
 
-`replace` states the whole keyword set, so a keyword the caller did not list is removed. That is what makes this tool
-`destructiveHint` true, so a client that asks before calling a destructive tool asks before this one. The description
-says it as well, and points a caller working from a partial view of a message's labels at `add` and `remove`, which
-touch only what they name.
+`replace` would state the whole keyword set and take off whatever the caller did not list, from what the server carries
+when the change is performed, so it is refused here and the description points a caller at `add` and `remove`, which
+touch only what they name. A removal and clearing either flag still take a value off the message, which is what makes
+this tool `destructiveHint` true, so a client that asks before calling a destructive tool asks before this one.
 
 ### Result
 

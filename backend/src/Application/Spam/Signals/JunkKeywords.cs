@@ -41,27 +41,17 @@ public static class JunkKeywords
         return keywords.Values.Contains(normalized, StringComparer.Ordinal);
     }
 
-    /// <summary>Reports whether a keyword change would put one of the three junk keywords on a message or take one off.</summary>
-    /// <param name="mutation">The keyword mutation asked for: an addition, a removal, or a replacement.</param>
-    /// <param name="named">The keywords the change names.</param>
-    /// <param name="carried">The keywords the message carries now.</param>
-    /// <returns><see langword="true" /> when the change would add or remove <see cref="Junk" />, <see cref="NotJunk" />, or <see cref="Phishing" />.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="named" /> or <paramref name="carried" /> is <see langword="null" />.</exception>
-    /// <remarks>
-    /// An addition or a removal changes the junk keywords exactly where it names one. A replacement states the whole set,
-    /// so it changes them where the set it names and the set the message carries disagree about any of the three — which
-    /// is what lets a replacement that leaves them as they stand go ahead while one that drops a <c>$Junk</c> does not.
-    /// </remarks>
-    public static bool AreChangedBy(MailboxMutation mutation, AuthoredMailKeywords named, RemoteEmailKeywords carried)
+    /// <summary>Reports whether a list of keywords names any of the three junk keywords, whatever case it is written in.</summary>
+    /// <param name="named">The keywords a change names.</param>
+    /// <returns><see langword="true" /> when it names <see cref="Junk" />, <see cref="NotJunk" />, or <see cref="Phishing" />.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="named" /> is <see langword="null" />.</exception>
+    public static bool AreNamedIn(AuthoredMailKeywords named)
     {
         ArgumentNullException.ThrowIfNull(named);
-        ArgumentNullException.ThrowIfNull(carried);
 
         var namedSet = RemoteEmailKeywords.Create(named.Values);
 
-        return mutation == MailboxMutation.SetKeywords
-            ? All.Any(keyword => Carries(namedSet, keyword) != Carries(carried, keyword))
-            : All.Any(keyword => Carries(namedSet, keyword));
+        return All.Any(keyword => Carries(namedSet, keyword));
     }
 
     /// <summary>Reports whether a recorded verdict rested on a <see cref="NotJunk" /> somebody set.</summary>
