@@ -1681,6 +1681,15 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
                     [nameof(this.Delivery)]);
             }
 
+            // A signing identity signs what this endpoint submits, so one provisioned without an endpoint is material
+            // an operator believes is in use and nothing could ever use.
+            if (this.Delivery.ConfiguresSigningIdentity)
+            {
+                yield return new ValidationResult(
+                    $"Account '{this.AccountId}': the delivery block names a signing identity and no submission host, so nothing it signs could ever be sent.",
+                    [nameof(this.Delivery)]);
+            }
+
             yield break;
         }
 
@@ -1707,6 +1716,15 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
             yield return new ValidationResult(
                 $"Account '{this.AccountId}': the submission endpoint names no address to send from, so set Delivery.FromAddress or give the account a user name that is a mailbox address.",
                 [$"{nameof(this.Delivery)}.{nameof(MailAccountDeliveryOptions.FromAddress)}"]);
+        }
+
+        var signingCertificatePath = $"{nameof(this.Delivery)}:{nameof(MailAccountDeliveryOptions.SmimeSigningCertificate)}";
+
+        foreach (var error in this.Delivery.SmimeSigningCertificate?.FindConfigurationErrors(signingCertificatePath) ?? [])
+        {
+            yield return new ValidationResult(
+                $"Account '{this.AccountId}': {error}",
+                [$"{nameof(this.Delivery)}.{nameof(MailAccountDeliveryOptions.SmimeSigningCertificate)}"]);
         }
 
         if (!synchronizationEnabled)

@@ -76,8 +76,8 @@ public enum CertificateMaterialFailure
     /// <remarks>A PEM chain placed in the bundle setting and a PKCS#12 bundle placed in the chain setting are both this failure; each is a legitimate file in the other setting.</remarks>
     EncodingNotSupportedForRole = 18,
 
-    /// <summary>The certificate's key usage excludes <c>digitalSignature</c>, which every negotiable handshake needs it to permit.</summary>
-    /// <remarks>TLS 1.3 authenticates a server by having it sign the transcript, and the key exchanges TLS 1.2 still negotiates do the same, so a certificate limited to <c>keyEncipherment</c> completes no handshake this endpoint offers.</remarks>
+    /// <summary>The certificate's key usage permits no signature, which is what its role needs it to make.</summary>
+    /// <remarks>TLS 1.3 authenticates a server by having it sign the transcript, and the key exchanges TLS 1.2 still negotiates do the same, so a certificate limited to <c>keyEncipherment</c> completes no handshake this endpoint offers. An S/MIME signing certificate is refused on the same grounds when its key usage permits neither <c>digitalSignature</c> nor <c>nonRepudiation</c>.</remarks>
     DigitalSignatureNotPermitted = 19,
 
     /// <summary>A certificate supplied after the leaf is not a certificate authority, so it can issue nothing.</summary>
@@ -91,4 +91,11 @@ public enum CertificateMaterialFailure
     /// <summary>A certificate supplied after the leaf issues neither the leaf nor another supplied certificate.</summary>
     /// <remarks>It therefore takes no part in the path a client builds, and its presence means the chain that was provisioned is not the chain the leaf belongs to.</remarks>
     ChainCarriesUnrelatedCertificate = 22,
+
+    /// <summary>The certificate's extended key usage excludes email protection, so a recipient would refuse what it signs.</summary>
+    EmailProtectionNotPermitted = 23,
+
+    /// <summary>No mailbox address the certificate names is the address the account sends from.</summary>
+    /// <remarks>A recipient matches the signer against the message's author, so a certificate for another address signs mail its readers cannot attribute to this account.</remarks>
+    AddressNotCoveredByCertificate = 24,
 }

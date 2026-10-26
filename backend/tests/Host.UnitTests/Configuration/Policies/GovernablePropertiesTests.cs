@@ -57,9 +57,14 @@ public sealed class GovernablePropertiesTests
                 "Delivery:FromAddress Value",
                 "Delivery:FromDisplayName Value",
                 "Delivery:Host Value",
+                "Delivery:OpenPgpSigningKey Secret",
                 "Delivery:Port Value",
                 "Delivery:Secrets Block",
                 "Delivery:Secrets:Password Secret",
+                "Delivery:SmimeSigningCertificate Block",
+                "Delivery:SmimeSigningCertificate:Bundle Secret",
+                "Delivery:SmimeSigningCertificate:CertificateChain Secret",
+                "Delivery:SmimeSigningCertificate:PrivateKey Secret",
                 "Delivery:UserName Value",
                 "Delivery:WithdrawDuplicateSentCopy Value",
                 "DisplayName Value",
@@ -170,7 +175,11 @@ public sealed class GovernablePropertiesTests
             [
                 "Delivery:FromAddress=Identity",
                 "Delivery:FromDisplayName=Identity",
+                "Delivery:OpenPgpSigningKey=Identity",
                 "Delivery:Secrets:Password=Identity",
+                "Delivery:SmimeSigningCertificate:Bundle=Identity",
+                "Delivery:SmimeSigningCertificate:CertificateChain=Identity",
+                "Delivery:SmimeSigningCertificate:PrivateKey=Identity",
                 "Delivery:UserName=Identity",
                 "DisplayName=Identity",
                 "EmailAddress=Identity",
@@ -183,7 +192,11 @@ public sealed class GovernablePropertiesTests
             classed);
         Assert.Equal(
             [
+                "Delivery:OpenPgpSigningKey",
                 "Delivery:Secrets:Password",
+                "Delivery:SmimeSigningCertificate:Bundle",
+                "Delivery:SmimeSigningCertificate:CertificateChain",
+                "Delivery:SmimeSigningCertificate:PrivateKey",
                 "OAuth:ClientSecret",
                 "OAuth:RefreshToken",
                 "Secrets:Password",

@@ -6,6 +6,7 @@ using MailFathom.Host.Configuration;
 using MailFathom.Host.Configuration.Persistence;
 using MailFathom.Infrastructure;
 using MailFathom.Infrastructure.Certificates;
+using MailFathom.Infrastructure.Mail.Signing;
 using MailFathom.Infrastructure.Persistence.Connections;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Time.Testing;
@@ -14,8 +15,8 @@ namespace MailFathom.Host.UnitTests.TestDoubles;
 
 /// <summary>Composes the secret validator the two places that judge a user's mail accounts both need.</summary>
 /// <remarks>
-/// The validator is a concrete type with eight collaborators, and both the startup gate and the record administration
-/// take it, so a copy per suite would be the same eight lines written twice and free to drift. Nothing here reaches a
+/// The validator is a concrete type with ten collaborators, and both the startup gate and the record administration
+/// take it, so a copy per suite would be the same ten lines written twice and free to drift. Nothing here reaches a
 /// file, a variable, or a database: the resolver hands back the reference's own target, and the connection settings are
 /// answered by a stub.
 /// </remarks>
@@ -30,6 +31,8 @@ internal static class SecretValidation
         return new SecretConfigurationValidator(
             resolver,
             new TrustAnchorLoader(resolver),
+            new SmimeSigningCertificateValidator(resolver, new FakeTimeProvider()),
+            new OpenPgpSigningKeyValidator(resolver, new FakeTimeProvider()),
             new DatabaseConnectionSettingsMapper(new ConfigurationBuilder().Build()),
             new StubDatabaseConnectionSettingsValidator(),
             PostgresTextSearchConfiguration.Default,

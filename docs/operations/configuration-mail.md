@@ -1,6 +1,6 @@
 # Mail configuration
 
-<!-- describes: backend/src/Host/Configuration/Mail/**, backend/src/Host/Configuration/Rules/**, backend/src/Host/Configuration/Spam/MailAccount*.cs, backend/src/Host/Configuration/SensitiveContent/MailAccount*.cs, backend/src/Infrastructure/Mail/MailServerConnectionBudget.cs -->
+<!-- describes: backend/src/Host/Configuration/Mail/**, backend/src/Host/Configuration/Rules/**, backend/src/Host/Configuration/Spam/MailAccount*.cs, backend/src/Host/Configuration/SensitiveContent/MailAccount*.cs, backend/src/Infrastructure/Mail/MailServerConnectionBudget.cs, backend/src/Infrastructure/Mail/Signing/** -->
 
 Every key deciding which mail is fetched and how, what is sent, what a deployment records about either, what a mailbox
 query and a stored message may cost, and which rules run over what arrives. The tables read as
@@ -294,9 +294,9 @@ states its own.
 
 **The identity properties take no value from a policy.** `EmailAddress`, `DisplayName`, `UserName`,
 `Delivery:UserName`, `Delivery:FromAddress`, and `Delivery:FromDisplayName` say who or which rather than how, and the
-five secret blocks — `Secrets:Password`, `OAuth:ClientSecret`, `OAuth:RefreshToken`,
-`TransportSecurity:TrustedCertificateAuthority`, and `Delivery:Secrets:Password` — name material admissible for one
-user, so no policy states a default or a forced value for any of them and each is always the declaration's own. What
+secret blocks — `Secrets:Password`, `OAuth:ClientSecret`, `OAuth:RefreshToken`,
+`TransportSecurity:TrustedCertificateAuthority`, `Delivery:Secrets:Password`, `Delivery:OpenPgpSigningKey`, and the
+three of `Delivery:SmimeSigningCertificate` — name material admissible for one user, so no policy states a default or a forced value for any of them and each is always the declaration's own. What
 a policy may still say about them is who changes them, through its `Editing` block. `AccountId` is outside every
 policy: the deployment generates it.
 
@@ -611,6 +611,10 @@ what it does not.
 | `…:Delivery:FromDisplayName` | string | unset (the address alone) | The name recipients see this mailbox sign itself with; deliberately not the account's `DisplayName` | reload |
 | `…:Delivery:FileSentCopy` | bool | `true` | Whether a delivered message is appended to the folder this account maps to the `Sent` role | reload |
 | `…:Delivery:WithdrawDuplicateSentCopy` | bool | `true` | Whether that appended copy is taken back out once the provider files one of its own beside it | reload |
+| `…:Delivery:SmimeSigningCertificate:Bundle` | secret block | unset | A PKCS#12 bundle holding the signing certificate, its private key, and any intermediates; its nested `Password` opens it. Never beside the PEM pair below | reload |
+| `…:Delivery:SmimeSigningCertificate:CertificateChain` | secret block | unset | PEM; the first certificate is the signing certificate and the rest are its chain. Never without `PrivateKey` beside it | reload |
+| `…:Delivery:SmimeSigningCertificate:PrivateKey` | secret block | unset | The PEM private key of that certificate; its nested `Password` decrypts it when it is encrypted. Never without `CertificateChain` beside it | reload |
+| `…:Delivery:OpenPgpSigningKey` | secret block | unset | An ASCII-armored OpenPGP secret key holding exactly one key; its nested `Password` is the passphrase when the key is protected | reload |
 
 **`Enabled` is off on every account of every deployment, and turning it on is the act that makes sending possible.** An
 installation upgrading into a release that can send therefore does not thereby become able to: the release meets a
@@ -643,6 +647,48 @@ that nothing else can be. No request, rule, or tool argument names a sender, so 
 to send through an account an operator configured that way. Most deployments write neither key: a provider that
 authenticates the mailbox by its address has already stated it as `UserName`, and the address alone is what recipients
 see.
+
+#### The identities this account signs with
+
+`SmimeSigningCertificate` and `OpenPgpSigningKey` name the S/MIME certificate and the OpenPGP secret key this account
+would sign its outgoing mail with, as itself. Either may be configured, both, or neither, because an account's
+correspondents may read one format, the other, or both; an account configuring neither behaves exactly as one that never
+heard of them. **No message is signed with them yet.** This release reads and judges them so a wrong one is refused when
+the record is written and when the deployment starts, rather than discovered at the first signed send.
+
+Both are secret blocks resolved through the ordinary [secret sources](configuration-sources.md), the public certificate
+chain included, so each part is a file, a systemd credential, or an environment variable. The S/MIME certificate takes
+the two shapes a TLS server certificate does: one PKCS#12 bundle, or a PEM chain beside a PEM private key. A block
+naming no reference is an account that does not sign in that format. Either identity is refused, naming the account,
+when the delivery block names no submission `Host`, because nothing it signed could ever be sent.
+
+Each identity is then read and judged against the address the account sends from, `FromAddress` or the user name it
+falls back to. A refusal names the setting's path and one failure identity in brackets, and never the material, the
+password, the passphrase, or anything read out of the certificate or the key:
+
+| Format | Refused when | Identity |
+| --- | --- | --- |
+| S/MIME | The reference or its password resolves nothing | `SecretNotResolvable` |
+| S/MIME | The material is not a certificate in the shape its setting expects, does not parse, or a bundle carries no certificate | `EncodingNotRecognized`, `EncodingNotSupportedForRole`, `InlineEncodingNotSupported`, `MaterialNotReadable`, `BundleCarriesNoCertificate` |
+| S/MIME | A bundle does not open with the configured password, or needs one and none is configured | `BundlePasswordIncorrect`, `BundlePasswordMissing` |
+| S/MIME | The certificate comes without its private key, the key does not parse or decrypt, or the key belongs to another certificate | `PrivateKeyMissing`, `PrivateKeyNotReadable`, `PrivateKeyDoesNotMatchCertificate` |
+| S/MIME | More than one certificate could be the signing one, or a certificate supplied beside it is no authority, is outside its validity period, or issues nothing in the chain | `ChainCarriesSeveralLeaves`, `ChainCarriesNonAuthorityCertificate`, `ChainCertificateNotCurrentlyValid`, `ChainCarriesUnrelatedCertificate` |
+| S/MIME | The certificate is outside its validity period | `CertificateNotYetValid`, `CertificateExpired` |
+| S/MIME | Its key usage permits neither `digitalSignature` nor `nonRepudiation` | `DigitalSignatureNotPermitted` |
+| S/MIME | Its extended key usage names neither email protection nor any purpose | `EmailProtectionNotPermitted` |
+| S/MIME | Neither an `rfc822Name` alternative name nor the subject's `emailAddress` is the sending address, compared without regard to case | `AddressNotCoveredByCertificate` |
+| OpenPGP | The reference or its passphrase resolves nothing | `SecretNotResolvable` |
+| OpenPGP | The material is not an ASCII-armored private key block — an armored public key is refused here too — or does not parse as one | `NotAnArmoredSecretKey`, `MaterialNotReadable` |
+| OpenPGP | The block holds more than one key | `MaterialCarriesSeveralKeys` |
+| OpenPGP | The key, or every signing-capable key in it, carries a revocation or has passed its expiry | `KeyRevoked`, `KeyExpired` |
+| OpenPGP | No user ID of the key is the sending address | `UserIdDoesNotMatchAddress` |
+| OpenPGP | Neither the primary key nor a subkey has an algorithm that signs, key flags that permit signing where its self-signatures state any, and its secret part present | `SigningKeyMissing` |
+| OpenPGP | A signing key is protected and no passphrase is configured, or the configured one does not open it | `PassphraseMissing`, `PassphraseIncorrect` |
+
+Neither certificate nor key is chained to a trust anchor or checked for revocation online: which authorities and keys a
+recipient trusts is the recipient's, and the material is the operator's own. A revocation or an expiry the OpenPGP key
+itself carries is honored as stated. Nothing read here is kept — every certificate, key, password, and passphrase is
+released or erased once it has been judged.
 
 ## `MailDelivery`
 
