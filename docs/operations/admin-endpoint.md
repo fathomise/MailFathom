@@ -1206,9 +1206,16 @@ answers "why is this in junk"; narrowing with `--verdict` answers "what would th
 
 ```console
 $ mfctl spam classifications --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10 --verdict Spam
-Evaluated             Verdict                      Message                               Folder  Under         Signals        Asked
-2026-08-12 11:04:11Z  Spam (Deterministic 15.2/5)  0199c3d0-0000-7000-8000-000000000002  INBOX   a1b2c3d4e5f6  X-Spam-Status  relocate (0199c3d0-0000-7000-8000-000000000009)
+Evaluated             Verdict                      Spam subcategory  Message                               Folder  Under         Signals        Asked
+2026-08-12 11:04:11Z  Spam (Deterministic 15.2/5)  none              0199c3d0-0000-7000-8000-000000000002  INBOX   a1b2c3d4e5f6  X-Spam-Status  relocate (0199c3d0-0000-7000-8000-000000000009)
 ```
+
+`Spam subcategory` is what kind of spam the message is and which stage named it, with what the model saw a phishing
+message ask for and pretend to be — `Phishing (named by Model): asks for Credentials, impersonates Bank` — or `none`
+where no stage named one. A `Deterministic` verdict beside a subcategory the model named is the model naming the kind of
+spam the mail server already called spam, not the model deciding the verdict. The route serves the same values as
+`spamSubcategory`, `spamSubcategoryNamedBy`, `phishingRequest`, and `impersonatedParty`, each absent where nothing was
+named.
 
 **The signals are names and never values.** `X-Spam-Status` says the verdict rests on that header; what the header said
 is not recorded here, and neither is a subject, an address, or a sending domain. `Under` is the profile the verdict was

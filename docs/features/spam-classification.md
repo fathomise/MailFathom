@@ -41,21 +41,59 @@ behind switches of its own — described in [what an operator can let a verdict 
 | What it holds | Why |
 | --- | --- |
 | The verdict — undetermined, not spam, or spam | Undetermined is an ordinary answer: it says nothing was found either way |
-| The stage that decided it | Always the deterministic stage below: the verdict restates what the message carried rather than a judgement this deployment formed of its own |
+| The stage that decided it — the deterministic stage below, a decision model, or the person | Which of them a verdict rests on is the first thing anybody questioning it needs. Every verdict this build reaches is the deterministic stage's |
+| What kind of spam it is, when a stage named one, and the phishing detail beside it | A phishing message needs a warning and marketing needs filing; [what kind of spam it is](#what-kind-of-spam-it-is) holds what may be named and by whom |
 | The score and the threshold it was judged against, when the message stated both | A score without its threshold cannot be read: the same number is spam under one configuration and ordinary mail under another |
 | The signals the verdict rests on, in the order the stage produced them | An operator diagnosing a wrong verdict asks *which* authentication method failed and *what* the provider header said |
 | The profile the verdict was reached under | A short digest of the terms the verdict was decided under. It is what makes *this message was already decided under the terms now in force* a question somebody can ask of a record that already exists |
 | When it was evaluated | |
 
-A signal is one fact: its kind, its name, what was observed, and where it came from — a header field or a folder
-placement. The signals stay separable rather than being merged into one opaque number, which is what makes the record
+A signal is one fact: its kind, its name, what was observed, and where it came from — a header field, a folder
+placement, or a decision model, named by the build that answered and the instruction revision it was asked under. The signals stay separable rather than being merged into one opaque number, which is what makes the record
 answerable rather than merely present.
 
 The record is bounded: at most 64 signals, the first the stage produced, and an observation longer than 512 characters
 is shortened.
 
-**The profile covers no operator setting.** The deterministic stage reads what a message carried, and nothing an
-operator configures moves its answer, so every record this build writes names the same profile. The folders an account
+### What kind of spam it is
+
+A `Spam` verdict can carry one **spam subcategory**: `Phishing`, `BusinessEmailCompromise`, `MalwareLure`, `Scam`,
+`Extortion`, or `Marketing`. **The spam subcategory is not a mail category.** It says what kind of spam a spam message
+is, and nothing about mail that is not spam; sorting all mail by topic is a different question, and nothing here takes
+that name.
+
+The record refuses what no stage could have concluded:
+
+- a subcategory on a verdict other than `Spam`;
+- a subcategory with nobody to have named it. The deterministic stage names none, so outside the person's own verdict a
+  subcategory needs a model judgement among the record's signals, whose provenance names the model build that answered
+  and the revision of the instructions it was asked under;
+- a verdict decided by the model with no model judgement behind it.
+
+A spam verdict without a subcategory is whole: it is what the deterministic stage reaches on its own. The model can name
+the subcategory of a verdict the deterministic stage reached, and that verdict stays the deterministic stage's, so the
+record tells *the model decided this is spam* from *the mail server decided, and the model named the kind*. Which stage
+named a subcategory follows from the one that decided the verdict — the person names the one on their own verdict and the
+model every other — and both administrative readings print it.
+
+Beside phishing the model also names what the message asks for — credentials, payment details, a one-time code,
+something else, or nothing stated — and beside phishing and business email compromise the **kind** of party it pretends
+to come from: a bank, a courier, an online service, a colleague, an executive, a supplier, another party, or nobody in
+particular. It is the kind and never the name, because a decision model writes no text; where a person needs a name, the
+message's own sender display name is in front of them. Only the model names either of the two.
+
+**The person's verdict outranks every stage.** It is spam, with or without a subcategory, or not spam — and its not spam
+is a statement the person made rather than a check that found nothing. Neither a reclassification nor a
+[classification run](#classifying-the-mail-you-already-have) under any profile replaces it; a run counts it as skipped.
+
+This build has the record and nothing that fills it: neither the model stage nor the person's act ships in it, so every
+classification it reaches carries no subcategory and the deterministic stage's profile.
+
+**The profile covers the model's terms and no other operator setting.** The deterministic stage reads what a message
+carried, and nothing an operator configures moves its answer. The model stage's terms — whether it is consulted, whether
+it names the subcategory of deterministic spam, and the threshold its probability is judged against — are what the
+digest adds when the model is consulted, so a change to any of them re-decides mail on the next run, and a deployment
+that does not consult it keeps the deterministic profile. Every record this build writes names that one. The folders an account
 classifies are deliberately outside it: adding a folder changes which mail is classified and not what any
 classification would have concluded. A record whose profile differs from the current one — or that names none — was
 decided under other terms, and a [classification run](#classifying-the-mail-you-already-have) classifies it again
@@ -63,7 +101,8 @@ rather than skipping it.
 
 ## The deterministic stage
 
-It is the only stage, and it needs nothing deployed beside this service. It reads the stored message's header block —
+It is the only stage this build runs, and it needs nothing deployed beside this service. It reads the stored message's
+header block —
 never its body, never its MIME tree, never an attachment — and records three kinds of fact.
 
 **Sender authentication.** Every outcome each `Authentication-Results` header states, once per authenticating hop, with
@@ -322,7 +361,7 @@ what the same inputs produce. Two callers asking together resolve to one record 
 write conflicts on the record's own optimistic-concurrency token and is retried from a fresh read.
 
 Replacing an existing verdict is an explicit operation. Nothing sets it off — not a reload, not a configuration change,
-and not a message being read again.
+and not a message being read again. The person's own verdict is the one thing it never replaces.
 
 Content comes from the local content store, which already holds it, so no classification path opens an IMAP session and
 none can affect a remote `\Seen` flag. A message stored without content — one that exceeded the size limit — is
@@ -500,8 +539,11 @@ it twice. A change a verdict asked for is named and pointed at rather than descr
 [mutation trail](imap-synchronization.md#an-account-can-keep-a-record-of-what-was-done-to-it-and-none-does-by-default)'s
 own answer, with its own retention.
 
-**The signals appear by name and never by value.** A name is an authentication method, a header field, or a folder
-alias; the observation beside it is text a mail server wrote and can carry a sending domain, which is
+Each record also shows its spam subcategory, the stage that named it, and the phishing detail beside it, or that none was
+named.
+
+**The signals appear by name and never by value.** A name is an authentication method, a header field, a folder alias,
+or the question a model answered; the observation beside it is text a mail server wrote and can carry a sending domain, which is
 exactly the second copy of the mailbox a record read back over an administrative endpoint must not become.
 
 ## Privacy
@@ -514,4 +556,5 @@ anything from the message — and it is removed with the email it describes.
 
 Nothing about a message's content reaches a log line or a telemetry attribute from any path here — not a header value,
 not an authentication detail, not a subject. What is safe to report is the occurrence identifier, the folder alias, the
-outcome, and the verdict.
+outcome, and the verdict. The spam subcategory and the phishing detail are closed values rather than text and are still
+a judgement about one person's message, so no log line or telemetry attribute carries them either.

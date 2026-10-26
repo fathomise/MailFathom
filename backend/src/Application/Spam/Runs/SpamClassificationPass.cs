@@ -229,7 +229,8 @@ public sealed class SpamClassificationPass
     /// The existing record is read first and only where the run does not rescore, which is what makes a run over a
     /// mailbox that has already been scored cost one lookup per message instead of a read of each message. It is reused only
     /// where it names the profile the run is bound to: a record from before the profile was part of one, or from before
-    /// the profile last changed, was decided under a profile the run cannot compare and is therefore reached again.
+    /// the profile last changed, was decided under a profile the run cannot compare and is therefore reached again. The
+    /// person's own verdict is the exception the classifier keeps: it stands under every profile and is counted as skipped.
     /// <para>
     /// A reused verdict is still put to the recorder. Skipping the scoring is a saving; skipping the action would make
     /// switching filing on a run that files nothing, which is one of the two reasons this run exists.
@@ -268,7 +269,15 @@ public sealed class SpamClassificationPass
             }
 
             classification = scored;
-            tally.Classified(scored.Verdict);
+
+            if (result.Outcome is SpamClassificationOutcome.PersonsVerdictKept)
+            {
+                tally.Skipped(scored.Verdict);
+            }
+            else
+            {
+                tally.Classified(scored.Verdict);
+            }
         }
 
         var action = await this.actionRecorder.RecordAsync(

@@ -19,6 +19,7 @@ internal sealed class InMemoryEmailSpamClassificationStore : IEmailSpamClassific
 {
     private readonly Dictionary<StoredEmailId, SpamClassification> classificationsByEmail = [];
     private readonly List<SpamClassification> saved = [];
+    private SpamClassification? heldAfterTheNextRead;
 
     /// <summary>Gets every classification staged through the port, oldest first.</summary>
     internal IReadOnlyList<SpamClassification> Saved => this.saved;
@@ -27,21 +28,41 @@ internal sealed class InMemoryEmailSpamClassificationStore : IEmailSpamClassific
     internal void Hold(SpamClassification classification) =>
         this.classificationsByEmail[classification.EmailId] = classification;
 
-    /// <inheritdoc />
-    public Task<SpamClassification?> FindAsync(StoredEmailId emailId, CancellationToken cancellationToken) =>
-        Task.FromResult(this.classificationsByEmail.GetValueOrDefault(emailId));
+    /// <summary>Records a classification as another writer would, just after the next read has answered without it.</summary>
+    /// <remarks>Models a write committed between a caller's read and its own write, which is the race the conditional write exists for.</remarks>
+    internal void HoldAfterTheNextRead(SpamClassification classification) => this.heldAfterTheNextRead = classification;
 
     /// <inheritdoc />
-    public Task SaveAsync(
+    public Task<SpamClassification?> FindAsync(StoredEmailId emailId, CancellationToken cancellationToken)
+    {
+        var found = this.classificationsByEmail.GetValueOrDefault(emailId);
+
+        if (this.heldAfterTheNextRead is { } arriving)
+        {
+            this.Hold(arriving);
+            this.heldAfterTheNextRead = null;
+        }
+
+        return Task.FromResult(found);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> SaveAsync(
         IPersistenceSession session,
         SpamClassification classification,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(classification);
 
+        if (this.classificationsByEmail.TryGetValue(classification.EmailId, out var recorded)
+            && !classification.MayReplace(recorded.DecidedBy))
+        {
+            return Task.FromResult(false);
+        }
+
         this.classificationsByEmail[classification.EmailId] = classification;
         this.saved.Add(classification);
 
-        return Task.CompletedTask;
+        return Task.FromResult(true);
     }
 }

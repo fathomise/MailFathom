@@ -18,4 +18,7 @@ public enum SpamSignalSource
 
     /// <summary>The folder of the account the occurrence was stored from.</summary>
     FolderPlacement = 1,
+
+    /// <summary>A decision model asked about the message, under a revision of the instructions it was asked with.</summary>
+    Model = 3,
 }

@@ -15,8 +15,8 @@ public sealed record SpamSignalProvenance
 {
     /// <summary>The greatest length an origin may carry, which every one MailFathom writes is far inside.</summary>
     /// <remarks>
-    /// Origins are header field names and folder aliases — both short, and both MailFathom's own or the mail
-    /// standard's rather than free text from a message body. The bound exists so a source that yielded something
+    /// Origins are header field names, folder aliases, and a model build beside an instruction revision — all short,
+    /// and all MailFathom's own, the mail standard's, or the provider's rather than free text from a message body. The bound exists so a source that yielded something
     /// unexpected cannot widen a stored column, and it refuses rather than truncates for that reason.
     /// </remarks>
     public const int MaximumOriginLength = 128;
@@ -30,7 +30,7 @@ public sealed record SpamSignalProvenance
     /// <summary>Gets where the signal was read from.</summary>
     public SpamSignalSource Source { get; }
 
-    /// <summary>Gets what within that source named the signal: a header field name or a folder alias.</summary>
+    /// <summary>Gets what within that source named the signal: a header field name, a folder alias, or a model build and instruction revision.</summary>
     public string Origin { get; }
 
     /// <summary>Records that a signal was read out of one of the message's own headers.</summary>
@@ -46,6 +46,24 @@ public sealed record SpamSignalProvenance
     /// <exception cref="ArgumentException">Thrown when the alias is blank, over-long, or carries a control character.</exception>
     public static SpamSignalProvenance FromFolderPlacement(string folderAlias) =>
         new(SpamSignalSource.FolderPlacement, Checked(folderAlias, nameof(folderAlias)));
+
+    /// <summary>Records that a signal is a decision model's judgement, and which call produced it.</summary>
+    /// <param name="model">The model build that answered, as the response named it rather than as configuration named it.</param>
+    /// <param name="instructionRevision">The revision of the instructions the model was asked under.</param>
+    /// <returns>The provenance, whose origin is <c>model@instructionRevision</c>.</returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when either part is blank, carries a control character or an <c>@</c>, or the two together exceed
+    /// <see cref="MaximumOriginLength" />.
+    /// </exception>
+    /// <remarks>
+    /// One origin of the shape a rule's requester already uses, because the two halves are one identity: the same
+    /// instructions given to another build, or another revision given to the same build, is another call whose answer
+    /// a threshold was not calibrated against.
+    /// </remarks>
+    public static SpamSignalProvenance FromModel(string model, string instructionRevision) =>
+        new(
+            SpamSignalSource.Model,
+            Checked($"{ModelOriginPart(model, nameof(model))}@{ModelOriginPart(instructionRevision, nameof(instructionRevision))}", nameof(model)));
 
     /// <summary>Reads back a provenance this system recorded earlier.</summary>
     /// <param name="source">Where the signal was read from.</param>
@@ -64,6 +82,15 @@ public sealed record SpamSignalProvenance
         }
 
         return new SpamSignalProvenance(source, Checked(origin, nameof(origin)));
+    }
+
+    private static string ModelOriginPart(string part, string parameterName)
+    {
+        var checkedPart = Checked(part, parameterName);
+
+        return checkedPart.Contains('@', StringComparison.Ordinal)
+            ? throw new ArgumentException("A model origin part cannot contain '@', which separates the two.", parameterName)
+            : checkedPart;
     }
 
     private static string Checked(string origin, string parameterName)

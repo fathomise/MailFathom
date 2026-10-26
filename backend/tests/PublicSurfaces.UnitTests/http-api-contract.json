@@ -10697,6 +10697,18 @@
           "folder": {
             "type": "string"
           },
+          "impersonatedParty": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "phishingRequest": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "profile": {
             "type": [
               "null",
@@ -10724,6 +10736,18 @@
             },
             "type": "array"
           },
+          "spamSubcategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "spamSubcategoryNamedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "threshold": {
             "format": "double",
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
@@ -10742,6 +10766,10 @@
           "folder",
           "verdict",
           "decidedBy",
+          "spamSubcategory",
+          "spamSubcategoryNamedBy",
+          "phishingRequest",
+          "impersonatedParty",
           "score",
           "threshold",
           "profile",

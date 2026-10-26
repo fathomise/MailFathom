@@ -21,8 +21,8 @@ public sealed record SpamSignal
 {
     /// <summary>The greatest length a signal name may carry.</summary>
     /// <remarks>
-    /// Names are method names from RFC 8601 (<c>spf</c>, <c>dkim</c>, <c>dmarc</c>), header field names, and folder
-    /// aliases. All are short by construction, so an over-long one is a malformed source rather than a
+    /// Names are method names from RFC 8601 (<c>spf</c>, <c>dkim</c>, <c>dmarc</c>), header field names, folder
+    /// aliases, and the questions a model was asked. All are short by construction, so an over-long one is a malformed source rather than a
     /// long name, and it is refused instead of shortened.
     /// </remarks>
     public const int MaximumNameLength = 128;
@@ -47,7 +47,7 @@ public sealed record SpamSignal
     /// <summary>Gets what kind of fact the signal states.</summary>
     public SpamSignalKind Kind { get; }
 
-    /// <summary>Gets the name of the observed property: an authentication method, a header field, or a folder alias.</summary>
+    /// <summary>Gets the name of the observed property: an authentication method, a header field, a folder alias, or a question a model answered.</summary>
     public string Name { get; }
 
     /// <summary>Gets what was observed, or <see langword="null" /> when the signal is the observation.</summary>

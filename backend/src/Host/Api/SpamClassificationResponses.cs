@@ -123,6 +123,10 @@ internal sealed record SpamClassificationPageResponse(
 /// <param name="Folder">MailFathom's own name for the folder the occurrence is in.</param>
 /// <param name="Verdict">What was concluded.</param>
 /// <param name="DecidedBy">Which stage reached the verdict.</param>
+/// <param name="SpamSubcategory">What kind of spam the message is, absent where no stage named one.</param>
+/// <param name="SpamSubcategoryNamedBy">Which stage named the subcategory, absent exactly when <paramref name="SpamSubcategory" /> is.</param>
+/// <param name="PhishingRequest">What a phishing message asks for, absent where the model named nothing.</param>
+/// <param name="ImpersonatedParty">The kind of party the message pretends to come from, absent where the model named nothing.</param>
 /// <param name="Score">The score reached, absent when no stage produced a number.</param>
 /// <param name="Threshold">The score it was judged against, absent exactly when <paramref name="Score" /> is.</param>
 /// <param name="Profile">The terms the verdict was reached under, absent on a record written before it named one.</param>
@@ -139,6 +143,10 @@ internal sealed record SpamClassificationResponse(
     string Folder,
     string Verdict,
     string DecidedBy,
+    string? SpamSubcategory,
+    string? SpamSubcategoryNamedBy,
+    string? PhishingRequest,
+    string? ImpersonatedParty,
     double? Score,
     double? Threshold,
     string? Profile,
@@ -159,6 +167,10 @@ internal sealed record SpamClassificationResponse(
             entry.FolderAlias.Value,
             entry.Verdict.ToString(),
             entry.DecidedBy.ToString(),
+            entry.Subcategory?.ToString(),
+            entry.SubcategoryNamedBy?.ToString(),
+            entry.PhishingRequest?.ToString(),
+            entry.ImpersonatedParty?.ToString(),
             entry.Assessment?.Score,
             entry.Assessment?.Threshold,
             entry.Profile.IsSpecified ? entry.Profile.Value : null,

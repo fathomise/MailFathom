@@ -14,6 +14,10 @@ namespace MailFathom.Application.Spam.History;
 /// <param name="FolderAlias">MailFathom's own name for the folder the occurrence is in.</param>
 /// <param name="Verdict">What was concluded.</param>
 /// <param name="DecidedBy">Which stage reached the verdict.</param>
+/// <param name="Subcategory">What kind of spam the message is, or <see langword="null" /> where no stage named one.</param>
+/// <param name="SubcategoryNamedBy">Which stage named the subcategory, or <see langword="null" /> where there is none.</param>
+/// <param name="PhishingRequest">What a phishing message asks for, or <see langword="null" /> where the model named nothing.</param>
+/// <param name="ImpersonatedParty">The kind of party the message pretends to come from, or <see langword="null" /> where the model named nothing.</param>
 /// <param name="Assessment">The score and the threshold it was judged against, or <see langword="null" /> when no stage produced a number.</param>
 /// <param name="Profile">The terms the verdict was reached under, or the unspecified value for a record that names none.</param>
 /// <param name="SignalNames">The names of the facts the verdict rests on, in the order the stages produced them.</param>
@@ -42,6 +46,10 @@ public sealed record SpamClassificationHistoryEntry(
     MailFolderAlias FolderAlias,
     SpamVerdict Verdict,
     SpamClassificationStage DecidedBy,
+    SpamSubcategory? Subcategory,
+    SpamClassificationStage? SubcategoryNamedBy,
+    SpamPhishingRequest? PhishingRequest,
+    SpamImpersonatedParty? ImpersonatedParty,
     SpamAssessment? Assessment,
     SpamClassificationProfile Profile,
     IReadOnlyList<string> SignalNames,

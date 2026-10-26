@@ -369,6 +369,10 @@ public sealed class SpamClassificationEndpointsTests
             Inbox,
             SpamVerdict.Spam,
             SpamClassificationStage.Deterministic,
+            SpamSubcategory.Phishing,
+            SpamClassificationStage.Model,
+            SpamPhishingRequest.OneTimeCode,
+            SpamImpersonatedParty.Courier,
             SpamAssessment.Create(15.2, 5.0),
             SpamClassificationProfile.Restore("a67d92672a05"),
             ["X-Spam-Flag", "X-Spam-Status"],
@@ -382,6 +386,9 @@ public sealed class SpamClassificationEndpointsTests
         var served = Assert.Single(Assert.IsType<Ok<SpamClassificationPageResponse>>(result.Result)
             .Value!
             .Classifications);
+        Assert.Equal(
+            ("Deterministic", "Phishing", "Model", "OneTimeCode", "Courier"),
+            (served.DecidedBy, served.SpamSubcategory, served.SpamSubcategoryNamedBy, served.PhishingRequest, served.ImpersonatedParty));
         Assert.Equal(["X-Spam-Flag", "X-Spam-Status"], served.Signals);
         Assert.Equal(
             (recordId.Value, MailboxMutation.Relocate.Name),

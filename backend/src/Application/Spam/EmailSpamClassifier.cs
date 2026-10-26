@@ -20,8 +20,9 @@ namespace MailFathom.Application.Spam;
 /// <para>
 /// The operation is keyed to the occurrence and is idempotent: repeating it either leaves an existing record alone or
 /// replaces it with the same verdict the same inputs produce, so it is safe for a caller to retry and safe for two
-/// callers to ask together. It carries no scheduler, no retry policy of its own, and no execution identity — whatever
-/// asks for a classification owns those.
+/// callers to ask together. The person's own verdict is never replaced, whatever the mode or the terms in force: it is
+/// returned as it stands, for the caller to act on. It carries no scheduler, no retry policy of its own, and no
+/// execution identity — whatever asks for a classification owns those.
 /// </para>
 /// <para>
 /// It reaches no mail server. Content comes from the local store, which already holds it, so classification never
@@ -162,8 +163,16 @@ public sealed class EmailSpamClassifier
             return SpamClassificationResult.NotClassified(SpamClassificationOutcome.OutsideConfiguredScope);
         }
 
-        if (mode is SpamClassificationMode.FirstTimeOnly
-            && await this.classificationStore.FindAsync(emailId, cancellationToken) is not null)
+        var existing = await this.classificationStore.FindAsync(emailId, cancellationToken);
+
+        // Read here so a person's verdict costs no read of the message. It is not what protects that verdict: the write
+        // below is conditional on the row it would replace, which catches one recorded after this read.
+        if (existing is { DecidedBy: SpamClassificationStage.Person })
+        {
+            return SpamClassificationResult.PersonsVerdictKept(existing);
+        }
+
+        if (mode is SpamClassificationMode.FirstTimeOnly && existing is not null)
         {
             return SpamClassificationResult.NotClassified(SpamClassificationOutcome.AlreadyClassified);
         }
@@ -177,11 +186,17 @@ public sealed class EmailSpamClassifier
 
         var classification = await this.EvaluateAsync(email, settings, content, cancellationToken);
         var discardedPassageCount = 0;
+        var written = false;
 
         await this.retryPolicy.CommitAsync(
             async (session, attemptCancellationToken) =>
             {
-                await this.classificationStore.SaveAsync(session, classification, attemptCancellationToken);
+                written = await this.classificationStore.SaveAsync(session, classification, attemptCancellationToken);
+
+                if (!written)
+                {
+                    return;
+                }
 
                 // In the same transaction as the verdict that calls for it, so a crash never leaves a message recorded
                 // as junk while what was derived from it is still retrievable. An attempt the retry policy replays
@@ -204,6 +219,13 @@ public sealed class EmailSpamClassifier
                 }
             },
             cancellationToken);
+
+        if (!written)
+        {
+            return await this.classificationStore.FindAsync(emailId, cancellationToken) is { } kept
+                ? SpamClassificationResult.PersonsVerdictKept(kept)
+                : SpamClassificationResult.NotClassified(SpamClassificationOutcome.OccurrenceMissing);
+        }
 
         if (classification.Verdict is SpamVerdict.Spam)
         {

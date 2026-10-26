@@ -73,6 +73,19 @@ internal sealed class EmailSpamClassificationEntity
 
     public DateTimeOffset EvaluatedAt { get; set; }
 
+    /// <summary>Gets or sets what kind of spam the message is, absent where no stage named one.</summary>
+    /// <remarks>
+    /// Absent on every record written before the column existed as well, which reads back as a spam verdict nobody named a
+    /// subcategory for — exactly what those records were.
+    /// </remarks>
+    public SpamSubcategory? SpamSubcategory { get; set; }
+
+    /// <summary>Gets or sets what a phishing message asks for, absent where the model named nothing.</summary>
+    public SpamPhishingRequest? PhishingRequest { get; set; }
+
+    /// <summary>Gets or sets the kind of party the message pretends to come from, absent where the model named nothing.</summary>
+    public SpamImpersonatedParty? ImpersonatedParty { get; set; }
+
     /// <summary>Gets or sets the optimistic concurrency token, which is PostgreSQL's own <c>xmin</c> rather than a column.</summary>
     /// <remarks>
     /// Two runs can reach one occurrence: an arrival classifies it while an operator's reclassification replaces it. The

@@ -85,6 +85,66 @@ public sealed class EmailSpamClassificationMappingTests
         Assert.False(classification.Profile.IsSpecified);
     }
 
+    /// <summary>A spam row written before the subcategory columns existed reads back as spam nobody named a subcategory for.</summary>
+    [Fact]
+    public void Read_ASpamRowWrittenBeforeTheSubcategoryExisted_ReadsNoSubcategory()
+    {
+        // Arrange
+        var entity = EmptyRow();
+        entity.Verdict = SpamVerdict.Spam;
+
+        // Act
+        var classification = EmailSpamClassificationMapping.Read(entity);
+
+        // Assert
+        Assert.Equal(SpamVerdict.Spam, classification.Verdict);
+        Assert.Null(classification.Subcategory);
+        Assert.Null(classification.SubcategoryNamedBy);
+        Assert.Null(classification.PhishingRequest);
+        Assert.Null(classification.ImpersonatedParty);
+    }
+
+    /// <summary>The model's subcategory and phishing detail, and the judgement that vouches for them, survive the round trip.</summary>
+    [Fact]
+    public void Read_ASubcategoryTheModelNamed_ComesBackWithItsDetailAndProvenance()
+    {
+        // Arrange
+        var classification = SpamClassification.Create(
+            Occurrence,
+            SpamVerdict.Spam,
+            SpamClassificationStage.Model,
+            SpamAssessment.Create(0.93, 0.8),
+            SpamClassificationProfile.Create(namesSubcategoriesOfDeterministicSpam: true, threshold: 0.8),
+            [
+                SpamSignal.Create(
+                    SpamSignalKind.ModelJudgement,
+                    "spam_kind",
+                    "phishing",
+                    SpamSignalProvenance.FromModel("example/decider-2026-09-01", "3f9a1c")),
+            ],
+            EvaluatedAt,
+            SpamSubcategory.Phishing,
+            SpamPhishingRequest.PaymentDetails,
+            SpamImpersonatedParty.Bank);
+        var entity = EmptyRow();
+
+        // Act
+        EmailSpamClassificationMapping.Write(entity, classification);
+
+        foreach (var row in EmailSpamClassificationMapping.SignalRows(classification))
+        {
+            entity.Signals.Add(row);
+        }
+
+        var read = EmailSpamClassificationMapping.Read(entity);
+
+        // Assert
+        Assert.Equal(
+            (SpamClassificationStage.Model, SpamSubcategory.Phishing, SpamPhishingRequest.PaymentDetails, SpamImpersonatedParty.Bank),
+            (read.DecidedBy, read.Subcategory, read.PhishingRequest, read.ImpersonatedParty));
+        Assert.Equal(classification.Signals, read.Signals);
+    }
+
     /// <summary>The order the stages produced the facts in is what a truncated record's meaning rests on.</summary>
     [Fact]
     public void SignalRows_SeveralSignals_NumbersThemInTheOrderTheStagesProducedThem()
