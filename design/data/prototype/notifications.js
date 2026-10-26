@@ -6,7 +6,7 @@
    server never took, a draft whose copy is not on the server — are durable rows like any other. `failure` names which,
    `toast` is what the open client raises when one is raised, and `go` where the row leads. */
 MailFathomDesign.data.notifications = [
-  { id: "nf1", kind: "failure", failure: "send", unread: true, mins: 5, title: "Not sent - the server refused it", body: "Re: Contract addendum - signatures", src: "Outbox · Nordwind · work", go: { screen: "mail", outbox: "acc1", entry: "ob1" },
+  { id: "nf1", kind: "failure", failure: "send", unread: true, mins: 5, title: "Not sent - it waits in the Outbox", body: "Re: Contract addendum - signatures", src: "Outbox · Nordwind · work", go: { screen: "mail", outbox: "acc1", entry: "ob1" },
     toast: { kind: "error", body: "“Re: Contract addendum - signatures” is in the Outbox of Nordwind · work. Send it again or edit it there.", action: "Show in Outbox" } },
   { id: "nf2", kind: "failure", failure: "change", unread: true, mins: 18, title: "A change did not reach your mailbox", body: "Move - the mail server would not take it, so the message is still where the server holds it.", src: "Mail · Nordwind · work", go: { screen: "mail", thread: "travel1" }, change: "travel1",
     toast: { kind: "error", body: "Move - the mail server would not take it, so the message is still where the server holds it.", action: "Show message" } },

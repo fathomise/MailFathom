@@ -313,6 +313,33 @@ public sealed class MailboxMutationPerformerTests
         Assert.Equal(request.StoredEmailId, notification.Target.Message);
     }
 
+    /// <summary>A notification that cannot be written costs that notification and leaves the change given up as it was.</summary>
+    [Fact]
+    public async Task PerformAsync_WhenTheNotificationOfAGivenUpChangeCannotBeWritten_StillAbandonsTheRecord()
+    {
+        // Arrange
+        var context = new PerformerContext(maximumAttempts: 5);
+        var request = MailboxMutationRequest.Relocate(
+            StoredEmailId.Create(Guid.CreateVersion7()),
+            Occurrence(42U),
+            MailboxMutationRequester.Command("client-move-1"),
+            ArchivePath);
+        context.FailRelocationWith(new MailboxMutationUnsupportedException(
+            Account,
+            InboxFolder.Alias,
+            MailboxMutation.Relocate.Name,
+            "UIDPLUS extension (RFC 4315)"));
+        context.Notifications.RefusesRecords = true;
+
+        // Act
+        await Assert.ThrowsAsync<MailboxMutationUnsupportedException>(
+            () => context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None));
+
+        // Assert
+        Assert.Equal(MailboxMutationStage.Abandoned, context.Store.RecordOf(request).Stage);
+        Assert.Empty(context.Notifications.Recorded);
+    }
+
     /// <summary>A rule's change is the rule's business rather than an act anybody watched happen, so nobody is told it was given up.</summary>
     [Fact]
     public async Task PerformAsync_WhenARulesChangeIsGivenUp_TellsNobody()

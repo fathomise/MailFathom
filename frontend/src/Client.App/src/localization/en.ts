@@ -1712,9 +1712,8 @@ export const en = {
         'The mail server refused the credential MailFathom holds, so this account is no longer being fetched.',
     'notifications.said.calendarReminderDue.title': 'Reminder: {subject}',
     'notifications.said.taskReminderDue.title': 'Reminder: {subject}',
-    'notifications.said.sendRefused.title': 'Not sent - the server refused it',
-    'notifications.said.sendRefused.untitled':
-        'A message with no subject was refused by the mail server. It waits in the Outbox.',
+    'notifications.said.sendRefused.title': 'Not sent - it waits in the Outbox',
+    'notifications.said.sendRefused.untitled': 'A message with no subject was not sent. It waits in the Outbox.',
     'notifications.said.mailboxChangeAbandoned.title': 'A change did not reach your mailbox',
     'notifications.said.mailboxChangeAbandoned.markRead':
         'Mark as read - the mail server would not take it, so the message is still where the server holds it.',

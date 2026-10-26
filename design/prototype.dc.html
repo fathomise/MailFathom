@@ -833,18 +833,6 @@ Project repository: https://github.com/fathomise/MailFathom
             </sc-if>
             <sc-if value="{{ listReady }}" hint-placeholder-val="{{ true }}">
             <div data-motion="fade" style="{{ listInnerStyle }}">
-            <sc-if value="{{ draftsLocalShown }}" hint-placeholder-val="{{ false }}">
-              <div role="group" aria-label="Out of step with your server">
-                <div style="{{ draftsLocalHeadStyle }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1">cloud_off</span>Out of step with your server</div>
-                <sc-for list="{{ draftsLocalRows }}" as="ld" hint-placeholder-count="1">
-                  <div role="button" tabindex="0" onClick="{{ ld.open }}" style="{{ ld.rowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
-                    <div style="display:flex;align-items:center;gap:8px;min-width:0"><span style="flex:0 0 auto;font-size:12px;color:var(--muted)">To</span><span style="flex:1;min-width:0;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ld.to }}</span><span aria-hidden="true" title="Out of step with your server" data-tip-hover style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:15px;line-height:1;color:var(--warn-text)">cloud_off</span><span style="flex:0 0 auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint)">{{ ld.at }}</span></div>
-                    <div style="font-size:13px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ld.subject }}</div>
-                  </div>
-                </sc-for>
-                <div style="{{ draftsLocalEndStyle }}"></div>
-              </div>
-            </sc-if>
             <sc-for list="{{ threads }}" as="t" hint-placeholder-count="5">
               <div style="{{ t.swipeWrapStyle }}">
               <sc-if value="{{ t.swiping }}" hint-placeholder-val="{{ false }}">
@@ -886,6 +874,17 @@ Project repository: https://github.com/fathomise/MailFathom
               </div>
             </sc-if>
           </div>
+          <sc-if value="{{ draftsLocalShown }}" hint-placeholder-val="{{ false }}">
+            <div role="group" aria-label="Out of step with your server" style="{{ draftsLocalFootStyle }}">
+              <div style="{{ draftsLocalHeadStyle }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1">cloud_off</span>Out of step with your server</div>
+              <sc-for list="{{ draftsLocalRows }}" as="ld" hint-placeholder-count="1">
+                <div role="button" tabindex="0" onClick="{{ ld.open }}" style="{{ ld.rowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+                  <div style="display:flex;align-items:center;gap:8px;min-width:0"><span style="flex:0 0 auto;font-size:12px;color:var(--muted)">To</span><span style="flex:1;min-width:0;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ld.to }}</span><span aria-hidden="true" title="Out of step with your server" data-tip-hover style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:15px;line-height:1;color:var(--warn-text)">cloud_off</span><span style="flex:0 0 auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint)">{{ ld.at }}</span></div>
+                  <div style="font-size:13px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ld.subject }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
           </sc-if>
           <sc-if value="{{ outboxListShown }}" hint-placeholder-val="{{ false }}">
           <sc-if value="{{ showFab }}" hint-placeholder-val="{{ false }}">

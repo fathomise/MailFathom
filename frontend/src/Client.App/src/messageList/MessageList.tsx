@@ -998,10 +998,6 @@ export function MessageList({
             {/* A folder whose every drawn row has been asked to leave is empty from where the reader stands, and says so
                 rather than waiting to: nothing reads it again once the act lands, so a state kept for "not yet" would be
                 one no act ever ends. A refusal brings the rows back, exactly as it brings one back. */}
-            {draftsAccounts.length === 0 ? null : (
-                <DraftsOutOfStep session={session} transport={transport} accounts={draftsAccounts} />
-            )}
-
             {rowCount === 0 ? (
                 <Note>{translate(emptyReason(accounts, scope, listing))}</Note>
             ) : (
@@ -1100,6 +1096,10 @@ export function MessageList({
                         <p className="px-3 py-2 text-sm text-faint">{translate('list.wholeFolderRead')}</p>
                     ) : null}
                 </div>
+            )}
+
+            {draftsAccounts.length === 0 ? null : (
+                <DraftsOutOfStep session={session} transport={transport} accounts={draftsAccounts} />
             )}
 
             {/* The row's own menu, over whichever row was pressed. It stands outside the scroller because it is placed

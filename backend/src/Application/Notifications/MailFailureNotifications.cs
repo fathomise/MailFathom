@@ -79,8 +79,8 @@ public sealed class MailFailureNotifications
         return await this.RecordAsync(
             users,
             send.AccountId,
-            title: "Not sent - the server refused it",
-            body: subject ?? "A message with no subject was refused by the mail server. It waits in the Outbox.",
+            title: "Not sent - it waits in the Outbox",
+            body: subject ?? "A message with no subject was not sent. It waits in the Outbox.",
             NotificationStatement.SendRefused(carriesSubject: subject is not null),
             NotificationTarget.ToOutgoingEmail(send.Id),
             NotificationDeduplicationKey.For("send-refused", send.Id.ToString()),

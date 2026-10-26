@@ -408,7 +408,9 @@ export function Composer({
                 return;
             }
 
+            // A kept draft is somebody's writing whatever this tab has typed into it, so closing it asks first.
             adoptTheDraft(answer.value.draft);
+            setAuthored(true);
             setComposition((held) => held ?? draftHeld(answer.value));
         });
 

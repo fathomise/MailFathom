@@ -492,6 +492,31 @@ public sealed class MailboxMutationConvergerTests
         Assert.Equal(request.StoredEmailId, notification.Target.Message);
     }
 
+    /// <summary>A notification that cannot be written costs that notification, and the converger still gives the change up.</summary>
+    [Fact]
+    public async Task ConvergeAsync_TheNotificationOfAGivenUpChangeCannotBeWritten_StillAbandonsTheRecord()
+    {
+        // Arrange
+        var context = new ConvergerContext(unknownOutcomeGrace: TimeSpan.FromHours(6));
+        var request = await context.LeaveOutstandingAsync(
+            MailboxMutationRequest.Delete(
+                StoredEmailId.Create(Guid.CreateVersion7()),
+                Occurrence(43U),
+                MailboxMutationRequester.Command("client-delete-1"),
+                AuthoredDeleteEmailDisposition.RetainLocalCopy,
+                AuthoredDeleteServerDisposition.Expunge),
+            record => record with { Stage = MailboxMutationStage.PlacementIssued });
+        context.Notifications.RefusesRecords = true;
+
+        // Act
+        context.Clock.Advance(TimeSpan.FromHours(7));
+        await context.Converger.ConvergeAsync(Account, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(MailboxMutationStage.Abandoned, context.Store.RecordOf(request).Stage);
+        Assert.Empty(context.Notifications.Recorded);
+    }
+
     /// <summary>A record nothing will attempt again is still read back, because being seen is what giving up on it buys.</summary>
     [Fact]
     public async Task ConvergeAsync_AnAlreadyDeadLetteredMutation_IsReportedAndNotAttempted()

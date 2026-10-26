@@ -551,7 +551,7 @@ describe('NotificationCentre, a failure’s row', () => {
     const refusal: ClientNotification = {
         ...mail,
         id: 'n-refusal',
-        title: 'Not sent - the server refused it',
+        title: 'Not sent - it waits in the Outbox',
         body: 'Re: Contract addendum',
         statement: { cause: 'SendRefused', counted: 1, outOf: null },
         target: { kind: 'OutgoingEmail', outgoingEmailId: 'o-1' },

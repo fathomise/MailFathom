@@ -101,6 +101,58 @@ describe('DraftsOutOfStep, read again', () => {
         expect(await screen.findByRole('region', { name: 'Out of step with your server' })).toBeDefined();
     });
 
+    it('keeps the drafts it drew when a read again fails, rather than taking the group away', async () => {
+        const listeners: SignalListener[] = [];
+        const asked: string[] = [];
+        let failing = false;
+        const transport: MailFathomTransport = (request) => {
+            asked.push(request.path);
+
+            return Promise.resolve(
+                failing
+                    ? { status: 503, body: '', headers: {} }
+                    : { status: 200, body: JSON.stringify(drafts.draftList), headers: {} },
+            );
+        };
+
+        render(
+            <LocalizationProvider>
+                <SignalledChangesContext
+                    value={{
+                        listen: (listener) => {
+                            listeners.push(listener);
+
+                            return () => undefined;
+                        },
+                        refresh: () => undefined,
+                    }}
+                >
+                    <ComposingContext value={composing}>
+                        <DraftsOutOfStep session={session} transport={transport} accounts={['work']} />
+                    </ComposingContext>
+                </SignalledChangesContext>
+            </LocalizationProvider>,
+        );
+
+        await screen.findByRole('region', { name: 'Out of step with your server' });
+
+        failing = true;
+        act(() => {
+            for (const listener of listeners) {
+                listener({ kind: 'refresh' });
+            }
+        });
+
+        await waitFor(() => {
+            expect(asked).toHaveLength(2);
+        });
+        await act(async () => {
+            await Promise.resolve();
+        });
+
+        expect(screen.getByRole('button', { name: new RegExp(drafts.outOfStepDraft.subject, 'u') })).toBeDefined();
+    });
+
     it('draws none of one account’s drafts once another account’s Drafts folder is open and not yet read', async () => {
         const transport: MailFathomTransport = (request) =>
             request.path.endsWith('account=work')

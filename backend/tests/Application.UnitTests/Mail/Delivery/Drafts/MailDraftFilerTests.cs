@@ -229,6 +229,52 @@ public sealed class MailDraftFilerTests
         Assert.Equal(draft.Id, notification.Target.MailDraft);
     }
 
+    /// <summary>An earlier copy that could not be taken back out is put in front of the draft's writer once, leading to the draft.</summary>
+    [Fact]
+    public async Task SettleAsync_SupersededCopyCannotBeWithdrawn_TellsTheWriterOnceLeadingToTheDraft()
+    {
+        // Arrange
+        var harness = Harness();
+        harness.MapDraftsFolder(Account, "drafts", "INBOX.Drafts");
+        var draft = await OpenAsync(harness, "first version");
+        await harness.Filer.SettleAsync(draft, CancellationToken.None);
+        var revised = await ReviseAsync(harness, draft.Id, "second version");
+        harness.MapDraftsFolder(Account, "drafts", "INBOX.OldDrafts");
+
+        // Act
+        await harness.Filer.SettleAsync(revised, CancellationToken.None);
+        await harness.Filer.SettleAsync(harness.Drafts.Peek(draft.Id)!, CancellationToken.None);
+
+        // Assert
+        var notification = Assert.Single(harness.Notifications.Recorded);
+        Assert.Equal(draft.User, notification.User);
+        Assert.Equal(NotificationCause.DraftCopyNotKept, notification.Statement?.Cause);
+        Assert.Equal(draft.Id, notification.Target.MailDraft);
+    }
+
+    /// <summary>A notification that cannot be written costs that notification and nothing about the filing it reports.</summary>
+    [Fact]
+    public async Task SettleAsync_NotificationOfAnUnansweredAppendCannotBeWritten_StillRecordsTheDivergence()
+    {
+        // Arrange
+        var harness = Harness();
+        harness.MapDraftsFolder(Account);
+        harness.Append = _ => Task.FromException<AppendedMailCopy>(
+            new MailboxUnavailableException(Account, new InvalidOperationException("unreachable")));
+        harness.Notifications.RefusesRecords = true;
+        var draft = await OpenAsync(harness, "first version");
+
+        // Act
+        await harness.Filer.SettleAsync(draft, CancellationToken.None);
+        var result = await harness.Filer.SettleAsync(harness.Drafts.Peek(draft.Id)!, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(MailDraftFilingOutcome.OutcomeUnknown, result.Outcome);
+        Assert.Equal(MailDraftDivergenceReason.AppendOutcomeUnknown, result.Divergence);
+        Assert.Equal(MailDraftStage.AppendIssued, harness.Drafts.Peek(draft.Id)!.Stage);
+        Assert.Empty(harness.Notifications.Recorded);
+    }
+
     /// <summary>A copy that followed the draft says nothing went wrong, so nobody is told anything.</summary>
     [Fact]
     public async Task SettleAsync_DraftAppendedAndRevisedCleanly_TellsNobody()

@@ -35,7 +35,7 @@ export const refusedSendNotification = {
     id: '00000000-0000-4000-8000-0000000000f5',
     kind: 'Mail',
     statement: { cause: 'SendRefused', counted: 1, outOf: null },
-    title: 'Not sent - the server refused it',
+    title: 'Not sent - it waits in the Outbox',
     body: refusedOutgoingSend.subject,
     source: workAccount.id,
     target: { kind: 'OutgoingEmail', outgoingEmailId: refusedOutgoingSend.outgoingEmail },

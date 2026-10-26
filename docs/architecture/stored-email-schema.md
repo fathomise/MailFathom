@@ -614,12 +614,14 @@ and the newest kept, so a question can be asked about them:
 The pair is the key. An erased message leaves the merged row's count as it was, because the count says how much
 arrived rather than how much is left.
 
-**Two cascades reach it, and they answer different obligations.** The user's row takes their notifications with them,
+**The cascades that reach it answer two different obligations.** The user's row takes their notifications with them,
 so an erasure request never has to name this table — which matters here because the table records no mail account and
-the [erasure walk](#privacy-classification) enumerates the tables that do. And a stored message takes the notifications
-that lead to it, so nothing can leave a row pointing at mail that is gone. That second cascade is why the message is an
-association here where `mailbox_mutation_audit_entries` deliberately keeps its own as a plain value: a trail records an
-act and has to outlive what it acted on, while a notification only offers to open something.
+the [erasure walk](#privacy-classification) enumerates the tables that do. And every record a notification can lead to
+takes the notifications leading to it — a stored message, a calendar event, a task, a send in `outgoing_emails`, a
+change in `mailbox_mutations`, and a draft in `mail_drafts` — so nothing can leave a row pointing at something that is
+gone. That is why the message is an association here where `mailbox_mutation_audit_entries` deliberately keeps its own
+as a plain value: a trail records an act and has to outlive what it acted on, while a notification only offers to open
+something.
 
 **Saying one condition twice is refused by the schema rather than checked for before the insert.**
 `ix_notifications_user_unread_condition` is unique over `(UserId, DeduplicationKey)` and filtered to `NOT "IsRead"`,
@@ -2575,7 +2577,10 @@ and the folder alias, never a subject, an address, a file name, or a line of wha
 names its message and carries that message's sender and subject as its headline and second line, which is somebody
 else's personal data copied out of the mail. So it inherits the source message's obligations, and the cascade from
 `stored_emails` is what makes that structural: a notification offering to open a message that has been erased, or
-still showing who sent it, is exactly the row that must not survive. Every other row is weaker than a mutation history.
+still showing who sent it, is exactly the row that must not survive. A `SendRefused` or a `DraftCopyNotKept` row carries
+the subject of the send or the draft as its second line by the same reading, and goes with that send or that draft
+through its own cascade; a `MailboxChangeAbandoned` row names the act and quotes no mail. Every other row is weaker than
+a mutation history.
 It says that something reached this person's mailbox and when, without saying what — a merged `MailArrived` row
 counts what arrived and quotes none of it. What the rows naming no message carry instead is a bound of the record's
 own: thirty days from the instant described, swept on each account's own run. `notification_named_emails` is derived

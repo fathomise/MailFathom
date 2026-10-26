@@ -1737,9 +1737,8 @@ export const pl: Catalogue = {
         'Serwer pocztowy odrzucił dane logowania, które przechowuje MailFathom, więc poczta z tego konta nie jest już pobierana.',
     'notifications.said.calendarReminderDue.title': 'Przypomnienie: {subject}',
     'notifications.said.taskReminderDue.title': 'Przypomnienie: {subject}',
-    'notifications.said.sendRefused.title': 'Nie wysłano - serwer odmówił',
-    'notifications.said.sendRefused.untitled':
-        'Serwer poczty odmówił przyjęcia wiadomości bez tematu. Czeka w Nadawczej.',
+    'notifications.said.sendRefused.title': 'Nie wysłano - czeka w Nadawczej',
+    'notifications.said.sendRefused.untitled': 'Wiadomość bez tematu nie została wysłana. Czeka w Nadawczej.',
     'notifications.said.mailboxChangeAbandoned.title': 'Zmiana nie dotarła do Twojej skrzynki',
     'notifications.said.mailboxChangeAbandoned.markRead':
         'Oznacz jako przeczytaną - serwer poczty jej nie przyjął, więc wiadomość jest tam, gdzie trzyma ją serwer.',

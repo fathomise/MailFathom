@@ -3368,7 +3368,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           open: () => this.openDraft(Object.assign({ noServerCopy: true }, d)),
           rowStyle: rowStyleFor(false, false) + "border-bottom:1px solid var(--line2);",
         })),
-        draftsLocalEndStyle: "height:8px;background:var(--sub);border-bottom:1px solid var(--line)",
+        draftsLocalFootStyle: "flex:0 0 auto;max-height:50%;overflow:auto;border-top:1px solid var(--line);background:var(--sub);padding-bottom:8px",
         outboxListShown: outboxOn,
         outboxHeadStyle: "flex:0 0 auto;display:flex;align-items:center;gap:" + (touch ? 8 : 9) + "px;box-sizing:border-box;" + (isMobile ? "min-height:56px;padding:6px 12px 6px 16px;" : touch ? "padding:8px 12px;" : "padding:10px 12px;") + "border-bottom:1px solid var(--line)",
         outboxTitleStyle: isMobile ? "font-size:20px;font-weight:600;letter-spacing:-0.01em;line-height:1.2" : "font-size:16px;font-weight:600",

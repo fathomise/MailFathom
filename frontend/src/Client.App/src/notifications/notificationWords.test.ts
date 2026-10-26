@@ -192,7 +192,7 @@ const work: MailAccount = {
 
 const refusal: ClientNotification = {
     ...englishArrival,
-    title: 'Not sent - the server refused it',
+    title: 'Not sent - it waits in the Outbox',
     body: 'Re: Contract addendum',
     statement: { cause: 'SendRefused', counted: 1, outOf: null },
     target: { kind: 'OutgoingEmail', outgoingEmailId: 'o-1' },
@@ -215,7 +215,7 @@ describe('wordNotificationSource', () => {
 describe('wordNotificationToast', () => {
     it('places a refused send in its account’s Outbox and offers the way there', () => {
         expect(wordNotificationToast(refusal, [work], 'en', translating('en'))).toEqual({
-            title: 'Not sent - the server refused it',
+            title: 'Not sent - it waits in the Outbox',
             body: '“Re: Contract addendum” is in the Outbox of Nordwind · work. Send it again or edit it there.',
             action: 'Show in Outbox',
         });

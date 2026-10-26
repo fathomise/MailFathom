@@ -71,7 +71,7 @@ MailFathomDesign.data.outbox = {
 
 // Drafts MailFathom keeps whose copy in the account's Drafts folder on the mail server may be missing (its filing was
 // never answered) or out of date (an older copy could not be removed after an edit): the Drafts list gathers them at
-// its top under *Out of step with your server*.
+// its foot under *Out of step with your server*.
 MailFathomDesign.data.localDrafts = {
   acc1: [
     { id: "ld1", at: "09:31", subject: "Q4 supplier review - agenda",

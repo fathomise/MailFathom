@@ -34,7 +34,7 @@ test('takes a refused send back to edit from its notification, as the draft it w
     await openSignedIn(page);
     await openCentre(page);
 
-    await row(page, 'Not sent - the server refused it').getByRole('button', { name: 'Edit' }).click();
+    await row(page, 'Not sent - it waits in the Outbox').getByRole('button', { name: 'Edit' }).click();
 
     await expect(centre(page)).toBeHidden();
     await expect(page.getByText('Back in Drafts')).toBeVisible();

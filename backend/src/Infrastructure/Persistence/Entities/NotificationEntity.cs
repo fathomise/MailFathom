@@ -9,10 +9,11 @@ namespace MailFathom.Infrastructure.Persistence.Entities;
 
 /// <summary>One thing that happened to a person while nobody was looking at the screen.</summary>
 /// <remarks>
-/// The user is a value, as it is on every other table, and the message is an association — which is the one place
-/// this row deliberately differs from the audit trails beside it. A trail records an act and has to outlive what it
-/// acted on; a notification describes something a person can still open, so a row pointing at mail that has been
-/// deleted is a row that leads nowhere and is erased with it.
+/// The user is a value, as it is on every other table, and every record the row can lead to is an association — a
+/// message, a calendar event, a task, a send, a mailbox change, or a draft — which is where this row deliberately
+/// differs from the audit trails beside it. A trail records an act and has to outlive what it acted on; a notification
+/// describes something a person can still open, so a row pointing at a record that is gone is a row that leads nowhere
+/// and is erased with it.
 /// </remarks>
 [RequiresIntegrationCoverage]
 internal sealed class NotificationEntity

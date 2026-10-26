@@ -7,7 +7,7 @@ MailFathomDesign.data.toastsSamples = [
     desc: "Confirmation of an ordinary operation. No colour - it does not take attention but offers a way back." },
   { kind: "success", name: "Success", title: "Message sent", body: "To: anna.kowalska@lexmar.example", action: "",
     desc: "Operation finished. Green accent only on the icon and the timer bar." },
-  { kind: "error", name: "Error", title: "Not sent - the server refused it", body: "“Re: Contract addendum - signatures” is in the Outbox of Nordwind · work. Send it again or edit it there.", action: "Show in Outbox",
+  { kind: "error", name: "Error", title: "Not sent - it waits in the Outbox", body: "“Re: Contract addendum - signatures” is in the Outbox of Nordwind · work. Send it again or edit it there.", action: "Show in Outbox",
     desc: "Something failed and needs a decision. Always with where it stands and a way to it - never a status code." },
   { kind: "error", name: "Error - a change that did not land", title: "A change did not reach your mailbox", body: "Move - the mail server would not take it, so the message is still where the server holds it.", action: "Show message",
     desc: "Raised with its notification, unless an open tab is already following that change - then its pending line and toast stand for it." },
@@ -26,7 +26,7 @@ MailFathomDesign.data.toastsBurst = [
   { kind: "success", title: "Message sent", body: "To: team@lexmar.example" },
   { kind: "info", title: "Index extended", body: "Search now covers the contents of PDF attachments." },
   { kind: "warning", title: "2 recipients skipped", body: "Addresses outside the domain need legal approval." },
-  { kind: "error", title: "Not sent - the server refused it", body: "“Re: Contract addendum - signatures” is in the Outbox of Nordwind · work. Send it again or edit it there.", action: "Show in Outbox" },
+  { kind: "error", title: "Not sent - it waits in the Outbox", body: "“Re: Contract addendum - signatures” is in the Outbox of Nordwind · work. Send it again or edit it there.", action: "Show in Outbox" },
 ];
 
 MailFathomDesign.data.toastsMessages = {
@@ -48,7 +48,7 @@ MailFathomDesign.data.toastsTasks = {
   sendFailure: {
     title: "Sending message…", body: "To: anna.kowalska@lexmar.example",
     cancelText: "The message is being sent. Aborting stops it here, so it is not sent.",
-    doneKind: "error", doneTitle: "Not sent - the server refused it",
+    doneKind: "error", doneTitle: "Not sent - it waits in the Outbox",
     doneBody: "“Re: Contract addendum - signatures” is in the Outbox of Nordwind · work. Send it again or edit it there.",
     doneAction: "Show in Outbox", ms: 3400,
   },

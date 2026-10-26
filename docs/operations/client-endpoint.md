@@ -3295,7 +3295,8 @@ holds** — so nothing here reports whether such a notification exists.
 what the source line names beyond the kind, where opening it leads, when the thing it describes happened, and whether
 it has been read. Everything a row draws was derived when the notification was produced, so drawing the centre
 re-reads no mail — and no mail body, no recipient, and no attachment reaches these answers at any size. A row about
-one arrived message is the one place mail's own words appear, its sender and its subject, for the reason given below.
+one arrived message carries mail's own words, its sender and its subject, and a refused send and a draft out of step
+carry the subject of the send or the draft, for the reason given below.
 The deduplication key is absent: it is the rule's own name for a condition rather than anything a screen renders.
 
 **What a notification says is a condition and its numbers, and the sentence is the client's.** `statement` carries a

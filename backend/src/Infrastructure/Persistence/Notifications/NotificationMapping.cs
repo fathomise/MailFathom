@@ -17,9 +17,9 @@ namespace MailFathom.Infrastructure.Persistence.Notifications;
 /// <summary>Turns a notification into the row it is stored as.</summary>
 /// <remarks>
 /// The target is flattened into a column per shape here rather than being modelled as one, because the shape a row
-/// carries is what a reader filters and joins on: a column per shape lets the message, the calendar event, and the
-/// task each be a foreign key, which is what erases a notification with the record it leads to, and a serialized
-/// target could be neither.
+/// carries is what a reader filters and joins on: a column per shape lets the message, the calendar event, the task,
+/// the send, the mailbox change, and the draft each be a foreign key, which is what erases a notification with the
+/// record it leads to, and a serialized target could be neither.
 /// </remarks>
 internal static class NotificationMapping
 {

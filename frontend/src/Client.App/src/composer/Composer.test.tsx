@@ -1749,6 +1749,18 @@ describe('Composer, a draft MailFathom keeps', () => {
         expect(screen.queryByText(/^Your mail server's copy of this draft/u)).toBeNull();
     });
 
+    it('asks before giving up a kept draft nobody has typed in yet, and sends no delete', async () => {
+        const { asked } = drawComposer(held, {
+            held: { status: 200, body: heldReading({ attachments: [] }) },
+        });
+
+        await screen.findByRole('textbox', { name: 'Subject' });
+        fireEvent.click(screen.getByRole('button', { name: 'Close the message' }));
+
+        expect(screen.getByRole('dialog', { name: 'Discard this message?' })).toBeDefined();
+        expect(asked.filter((request) => request.method === 'DELETE')).toHaveLength(0);
+    });
+
     it('says why a kept draft could not be opened rather than opening on nothing', async () => {
         drawComposer(held, { held: { status: 404, body: '' } });
 
