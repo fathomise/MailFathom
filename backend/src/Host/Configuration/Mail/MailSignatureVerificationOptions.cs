@@ -41,7 +41,10 @@ internal sealed class MailSignatureVerificationOptions
     /// <remarks>Each entry is an armored or binary transferable public key, or several concatenated.</remarks>
     public IList<ConfiguredSecret> TrustedOpenPgpKeys { get; } = [];
 
-    /// <summary>Gets or sets how long establishing one signer's revocation status may take, over every responder its certificate names.</summary>
+    /// <summary>
+    /// Gets or sets how long establishing one certificate's revocation status may take, over every responder it names;
+    /// the signer and each authority above it that names a source are asked in turn, each under its own deadline.
+    /// </summary>
     /// <remarks>
     /// A check that runs out of time makes the signature not verifiable here rather than verified or failed, and is
     /// tried again the next time the message is re-derived. It runs when a message is stored, never when one is read.

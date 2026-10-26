@@ -218,12 +218,12 @@ internal sealed class CertificateRevocationChecker
                 return null;
             }
 
-            if (!IsSignedByIssuerOrItsResponder(basic, issuer))
+            var now = this.timeProvider.GetUtcNow();
+            if (!IsSignedByIssuerOrItsResponder(basic, issuer, now))
             {
                 return null;
             }
 
-            var now = this.timeProvider.GetUtcNow();
             var single = basic.Responses.FirstOrDefault(candidate => candidate.GetCertID().Equals(requestedCertificate));
             if (single is null || !IsFresh(single.ThisUpdate, single.NextUpdate, now))
             {
@@ -254,9 +254,14 @@ internal sealed class CertificateRevocationChecker
     /// <summary>Accepts an OCSP response signed by the issuer itself, or by a responder the issuer delegated to.</summary>
     /// <remarks>
     /// A delegated responder is a certificate the response carries, issued by the same issuer and naming
-    /// <c>id-kp-OCSPSigning</c>; any other signer could be anybody, so its answer is not believed.
+    /// <c>id-kp-OCSPSigning</c>; any other signer could be anybody, so its answer is not believed. It must also be within
+    /// its validity now: nothing checks a responder certificate's own revocation, so its expiry is the only thing that
+    /// retires a leaked responder key.
     /// </remarks>
-    private static bool IsSignedByIssuerOrItsResponder(BasicOcspResp response, Org.BouncyCastle.X509.X509Certificate issuer)
+    private static bool IsSignedByIssuerOrItsResponder(
+        BasicOcspResp response,
+        Org.BouncyCastle.X509.X509Certificate issuer,
+        DateTimeOffset now)
     {
         if (response.Verify(issuer.GetPublicKey()))
         {
@@ -266,6 +271,7 @@ internal sealed class CertificateRevocationChecker
         return response.GetCerts()
             .Where(responder => IsIssuedBy(responder, issuer))
             .Where(responder => responder.GetExtendedKeyUsage()?.Contains(KeyPurposeID.id_kp_OCSPSigning) == true)
+            .Where(responder => responder.IsValid(now.UtcDateTime))
             .Any(responder => response.Verify(responder.GetPublicKey()));
     }
 
@@ -311,7 +317,7 @@ internal sealed class CertificateRevocationChecker
         try
         {
             var list = new Org.BouncyCastle.X509.X509CrlParser().ReadCrl(encodedList);
-            if (list is null || !list.IssuerDN.Equivalent(issuer.SubjectDN) || !CoversEveryEndEntityCertificate(list, location))
+            if (list is null || !list.IssuerDN.Equivalent(issuer.SubjectDN) || !SpeaksFor(list, location, certificate))
             {
                 return null;
             }
@@ -341,14 +347,15 @@ internal sealed class CertificateRevocationChecker
         }
     }
 
-    /// <summary>Answers whether a list speaks for every end-entity certificate its issuer revoked, so its silence means good.</summary>
+    /// <summary>Answers whether a list speaks for every certificate of the kind being asked about, so its silence means good.</summary>
     /// <remarks>
     /// A list is downloaded over plain HTTP, so whoever answers can hand back any list the issuer signed. A delta list,
-    /// or one scoped to authorities, attribute certificates, some revocation reasons, another distribution point, or
-    /// another issuer, is signed by the same key and does not list a certificate revoked in the base — reading its silence
-    /// as good would turn a revoked signer into a verified one.
+    /// or one scoped to attribute certificates, some revocation reasons, another distribution point, or another issuer,
+    /// is signed by the same key and does not list a certificate revoked in the base, and neither does a list scoped to
+    /// authorities when a signer is asked about, or to end-entity certificates when an authority is — reading its
+    /// silence as good would turn a revoked certificate into a verified one.
     /// </remarks>
-    private static bool CoversEveryEndEntityCertificate(Org.BouncyCastle.X509.X509Crl list, Uri location)
+    private static bool SpeaksFor(Org.BouncyCastle.X509.X509Crl list, Uri location, Org.BouncyCastle.X509.X509Certificate certificate)
     {
         if (list.GetExtensionValue(X509Extensions.DeltaCrlIndicator) is not null)
         {
@@ -361,7 +368,11 @@ internal sealed class CertificateRevocationChecker
         }
 
         var scope = IssuingDistributionPoint.GetInstance(X509ExtensionUtilities.FromExtensionValue(encodedScope));
-        if (scope.OnlyContainsCACerts || scope.OnlyContainsAttributeCerts || scope.OnlySomeReasons is not null || scope.IsIndirectCrl)
+        var isAuthority = certificate.GetBasicConstraints() >= 0;
+        if ((isAuthority ? scope.OnlyContainsUserCerts : scope.OnlyContainsCACerts)
+            || scope.OnlyContainsAttributeCerts
+            || scope.OnlySomeReasons is not null
+            || scope.IsIndirectCrl)
         {
             return false;
         }

@@ -76,10 +76,25 @@ internal static class OpenPgpSignatureVerifier
             return UnknownKey(signature, pgpSignature);
         }
 
+        // RFC 9580 § 9.5 forbids validating a recent signature over one of these: a chosen-prefix collision lets a
+        // signature made over one text stand for another.
+        if (pgpSignature.HashAlgorithm is HashAlgorithmTag.MD5 or HashAlgorithmTag.Sha1 or HashAlgorithmTag.RipeMD160)
+        {
+            return signature with
+            {
+                ContentCheck = SignatureCheckResult.NotChecked,
+                UnverifiableReason = EmailSignatureUnverifiableReason.UnsupportedAlgorithm,
+            };
+        }
+
         var contentCheck = VerifyContent(pgpSignature, signingKey, signedContent);
         if (contentCheck is null)
         {
-            return signature with { UnverifiableReason = EmailSignatureUnverifiableReason.UnsupportedAlgorithm };
+            return signature with
+            {
+                ContentCheck = SignatureCheckResult.NotChecked,
+                UnverifiableReason = EmailSignatureUnverifiableReason.UnsupportedAlgorithm,
+            };
         }
 
         return JudgeKey(signature with { ContentCheck = contentCheck.Value }, pgpSignature, signingKey, binding, ring, displayedSenderAddress);
@@ -107,12 +122,9 @@ internal static class OpenPgpSignatureVerifier
             using var stream = new MemoryStream(signatureBlock.ToArray());
             using var decoded = PgpUtilities.GetDecoderStream(stream);
 
-            var factory = new PgpObjectFactory(decoded);
-            var next = factory.NextPgpObject();
-            if (next is PgpCompressedData compressed)
-            {
-                next = new PgpObjectFactory(compressed.GetDataStream()).NextPgpObject();
-            }
+            // A detached RFC 3156 signature is never compressed, and opening a compressed packet would expand whatever a
+            // stranger packed into it, so a compressed block is read as no signature at all.
+            var next = new PgpObjectFactory(decoded).NextPgpObject();
 
             return next is PgpSignatureList { Count: > 0 } signatures ? signatures[0] : null;
         }

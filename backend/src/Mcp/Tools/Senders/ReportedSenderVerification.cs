@@ -46,8 +46,8 @@ internal sealed record ReportedSenderVerification
     /// <summary>Gets what verifying the email's own signature found.</summary>
     public required ReportedSignature Signature { get; init; }
 
-    /// <summary>Publishes the verdict pair a read returned.</summary>
-    /// <param name="verification">The stored verdict pair to publish.</param>
+    /// <summary>Publishes the conclusions a read returned.</summary>
+    /// <param name="verification">The stored conclusions to publish.</param>
     /// <returns>The wire representation of <paramref name="verification" />.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="verification" /> is <see langword="null" />.</exception>
     public static ReportedSenderVerification From(SenderVerification verification)

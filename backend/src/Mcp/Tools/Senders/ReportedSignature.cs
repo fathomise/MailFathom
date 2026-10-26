@@ -28,7 +28,7 @@ internal sealed record ReportedSignature
     public required SignatureVerificationState Outcome { get; init; }
 
     /// <summary>Gets how the email is signed.</summary>
-    [Description("How the email is signed, or absent when it is not.")]
+    [Description("How the email is signed, or absent when it carries no signed part; an S/MIME part that only carries certificates is 'secureMimeOpaque' with outcome 'notSigned'.")]
     public SignatureFormat? Format { get; init; }
 
     /// <summary>Gets why the signature could not be verified here.</summary>

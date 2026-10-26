@@ -19,10 +19,13 @@ public enum EmailSignatureUnverifiableReason
     /// <summary>The signer's certificate is not meant for signing email: no <c>emailProtection</c> usage, or no signing key usage.</summary>
     WrongKeyUsage = 3,
 
-    /// <summary>The signer's certificate is revoked.</summary>
+    /// <summary>The signer's certificate is revoked, or so is a certificate above it in the chain.</summary>
     Revoked = 4,
 
-    /// <summary>Whether the signer's certificate is revoked could not be established: no responder answered, or none is published.</summary>
+    /// <summary>
+    /// Whether the signer's certificate, or a certificate above it in the chain that publishes a responder or a list, is
+    /// revoked could not be established: no responder answered, or the signer publishes none.
+    /// </summary>
     RevocationNotCheckable = 5,
 
     /// <summary>The OpenPGP signing key is not one this deployment's operator configured.</summary>

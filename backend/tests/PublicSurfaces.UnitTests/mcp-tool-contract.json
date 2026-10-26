@@ -198,7 +198,7 @@
                     "description": "What verifying this email's own S/MIME or OpenPGP signature found. It says who signed and whether the signed content is unchanged, never that the email is safe or that what it says is true.",
                     "properties": {
                       "format": {
-                        "description": "How the email is signed, or absent when it is not.",
+                        "description": "How the email is signed, or absent when it carries no signed part; an S/MIME part that only carries certificates is 'secureMimeOpaque' with outcome 'notSigned'.",
                         "enum": [
                           "secureMimeDetached",
                           "secureMimeOpaque",
@@ -1596,7 +1596,7 @@
                         "description": "What verifying this email's own S/MIME or OpenPGP signature found. It says who signed and whether the signed content is unchanged, never that the email is safe or that what it says is true.",
                         "properties": {
                           "format": {
-                            "description": "How the email is signed, or absent when it is not.",
+                            "description": "How the email is signed, or absent when it carries no signed part; an S/MIME part that only carries certificates is 'secureMimeOpaque' with outcome 'notSigned'.",
                             "enum": [
                               "secureMimeDetached",
                               "secureMimeOpaque",
@@ -2690,7 +2690,7 @@
                     "description": "What verifying this email's own S/MIME or OpenPGP signature found. It says who signed and whether the signed content is unchanged, never that the email is safe or that what it says is true.",
                     "properties": {
                       "format": {
-                        "description": "How the email is signed, or absent when it is not.",
+                        "description": "How the email is signed, or absent when it carries no signed part; an S/MIME part that only carries certificates is 'secureMimeOpaque' with outcome 'notSigned'.",
                         "enum": [
                           "secureMimeDetached",
                           "secureMimeOpaque",
@@ -3892,7 +3892,7 @@
                         "description": "What verifying this email's own S/MIME or OpenPGP signature found. It says who signed and whether the signed content is unchanged, never that the email is safe or that what it says is true.",
                         "properties": {
                           "format": {
-                            "description": "How the email is signed, or absent when it is not.",
+                            "description": "How the email is signed, or absent when it carries no signed part; an S/MIME part that only carries certificates is 'secureMimeOpaque' with outcome 'notSigned'.",
                             "enum": [
                               "secureMimeDetached",
                               "secureMimeOpaque",

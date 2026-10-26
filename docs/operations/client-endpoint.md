@@ -1525,7 +1525,9 @@ is safe. `outcome` is one of four values for both formats — `NotSigned`, `Veri
 match its signature, and `NotVerifiable` where it could not be verified here, with `unverifiableReason` saying why:
 `NoCertificate`, `UntrustedRoot`, `OutsideValidityPeriod`, `WrongKeyUsage`, `Revoked`, `RevocationNotCheckable`,
 `UnknownKey`, `ExpiredKey`, `RevokedKey`, `UnsupportedAlgorithm`, `MalformedSignature`, or `ContentNotOpened` for an
-encrypted or compressed S/MIME body whose signature was never reached. `format` is `SecureMimeDetached`,
+encrypted or compressed S/MIME body whose signature was never reached. `Revoked` and `RevocationNotCheckable`, and the
+`revocationMethod`, `revocationCheckedAt`, and `revokedAt` beside them, describe the signer's answer or, where an
+authority above the signer answered revoked or could not be asked, that authority's. `format` is `SecureMimeDetached`,
 `SecureMimeOpaque`, or `OpenPgpMime`, and `secureMimeType` is the `smime-type` an opaque body declared, whatever it was —
 a `certs-only` body is recorded with it and stays `NotSigned`. Only the message's own signature is read: a signed message
 forwarded as an attachment is not this message's signature.

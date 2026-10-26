@@ -51,7 +51,7 @@ budget or the coordinator loop itself are marked *restart* below.
 | `MailSynchronization:SignatureVerification:TrustSystemStore` | bool | `true` | Whether an S/MIME signer certificate chaining to the operating system's trust store can verify. Off trusts only the authorities named below | reload; the next extraction verifies against it |
 | `MailSynchronization:SignatureVerification:TrustedAuthorities` | list of named secret blocks | empty | Certificate authorities an S/MIME signer may chain to beside the system store, each loaded and validated as a certificate without a private key at startup and on every reload. Several entries rotate an authority by overlap | reload |
 | `MailSynchronization:SignatureVerification:TrustedOpenPgpKeys` | list of named secret blocks | empty | The OpenPGP public keys whose signatures can verify — armored or binary, one or several per entry, each validated when read; the same key listed twice is refused at its second position. Nothing else is trusted for OpenPGP | reload |
-| `MailSynchronization:SignatureVerification:RevocationTimeout` | TimeSpan | `00:00:10` | 1 s – 1 min; how long establishing one signer certificate's revocation status may take over every responder it names. A check that runs out of time makes the signature not verifiable rather than verified | reload |
+| `MailSynchronization:SignatureVerification:RevocationTimeout` | TimeSpan | `00:00:10` | 1 s – 1 min; how long establishing one certificate's revocation status may take over every responder it names. The signer and each authority above it that names a source are asked in turn, each under its own deadline. A check that runs out of time makes the signature not verifiable rather than verified | reload |
 | `MailSynchronization:AssessMachineAuthorship` | bool | `true` | Whether extraction reads how much each message's own text reads as machine written. What the reading weighs is the project's and is not configurable; this decides only whether it runs | reload; the next extraction reads against it |
 
 ### One account — a mailbox in a user's record
@@ -302,7 +302,9 @@ and carry the digital-signature or non-repudiation key usage. The system store i
 public authority issued is reported as the public authority's whatever else is configured. **OpenPGP has no
 authorities**, so with nothing configured every OpenPGP signature is not verifiable here; a key a message carries about
 itself — an attached key, an `Autocrypt` header — is never consulted, and nothing is fetched from a key server. A
-configured key's expiry and revocation are read off the key itself, and only from self-signatures that verify. A subkey
+configured key's expiry and revocation are read off the key itself, and only from self-signatures that verify. A
+signature made over MD5, SHA-1, or RIPEMD-160 is not verifiable, as RFC 9580 requires, and a signature block that is
+compressed is read as malformed rather than opened. A subkey
 signs for its primary only through a binding signature the primary made that allows signing, so a subkey appended to a
 ring by somebody else — as a key server accepting extra packets can serve it — makes its signature not verifiable.
 
@@ -313,9 +315,10 @@ client the service uses for every other dependency, which follows no redirect. A
 and when; nothing about the message, the mailbox, or the recipient is sent. A certificate whose chain is not trusted is
 never checked, so the addresses asked are always ones a trusted authority wrote. An answer is cached for as long as it
 says it is valid, between one minute and one day, and an unreachable responder is asked again after a minute. An OCSP
-answer counts only when the certificate's issuer or a responder it delegated to signed it, about this certificate; a CRL
-counts only when the issuer signed it, it is a complete list rather than a delta, and its issuing distribution point —
-where it names one — covers every end-entity certificate from the address it was read at. An answer that names no
+answer counts only when the certificate's issuer, or a responder it delegated to whose own certificate is valid at the
+moment of the check, signed it, about this certificate; a CRL counts only when the issuer signed it, it is a complete
+list rather than a delta, and its issuing distribution point — where it names one — covers every certificate of the
+kind being asked about, end-entity or authority, from the address it was read at. An answer that names no
 next update is believed for one day from when it was issued. Anything else is no answer. Every certificate between the
 signer and the root is asked about the same way, against the authority that issued it, so a revoked intermediate
 authority makes its signers revoked too; an intermediate that names no responder and no list is passed over, since

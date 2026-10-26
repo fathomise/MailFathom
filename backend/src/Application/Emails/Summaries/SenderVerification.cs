@@ -10,7 +10,7 @@ namespace MailFathom.Application.Emails.Summaries;
 /// <summary>The conclusions a stored email carries about the author it displays, read back as they were stored.</summary>
 /// <remarks>
 /// <para>
-/// The pair is never collapsed into one value. <see cref="AuthorAuthentication" /> is what the receiving mail server
+/// The first two are never collapsed into one value. <see cref="AuthorAuthentication" /> is what the receiving mail server
 /// established about the displayed author, and <see cref="DeploymentTrust" /> is whether this deployment recognizes the
 /// author it established — a fact about the message beside a decision about a list. An authenticated author nobody has
 /// named is the ordinary state of legitimate mail and carries the same trust value as an author whose authentication
@@ -29,7 +29,7 @@ namespace MailFathom.Application.Emails.Summaries;
 /// </remarks>
 public sealed record SenderVerification
 {
-    /// <summary>Gets the pair a row carries where nothing has established an author and no policy has judged one.</summary>
+    /// <summary>Gets the conclusions a row carries where nothing has established an author and no policy has judged one.</summary>
     /// <remarks>
     /// It is the stored default rather than an absence, which is what mail stored before the columns existed reads as
     /// until a re-derivation reaches it. Publishing it as it stands is deliberate: inventing a third state for

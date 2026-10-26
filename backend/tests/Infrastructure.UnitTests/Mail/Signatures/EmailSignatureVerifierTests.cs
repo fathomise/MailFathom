@@ -727,6 +727,85 @@ public sealed class EmailSignatureVerifierTests
         Assert.Equal(EmailSignatureOutcome.Verified, signature.Outcome);
     }
 
+    [Fact]
+    public async Task VerifyAsync_RootListLimitedToEndEntityCertificatesAskedAboutAnAuthority_IsNotVerifiableBecauseRevocationCannotBeChecked()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders(
+            ocspAnswer: "ocsp-irena-good.der",
+            rootRevocationList: "crl-root-user-only.der");
+        var message = SignatureFixtures.Message("smime-detached-irena.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders)
+            .VerifyAsync(message, "irena@signer.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureUnverifiableReason.RevocationNotCheckable, signature.UnverifiableReason);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_OcspAnswerSignedByADelegatedResponderValidNow_IsVerified()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders(ocspAnswer: "ocsp-anna-good-delegated.der");
+        var message = SignatureFixtures.Message("smime-detached-anna.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders)
+            .VerifyAsync(message, "anna@signer.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureOutcome.Verified, signature.Outcome);
+        Assert.Equal(RevocationCheckMethod.Ocsp, signature.RevocationMethod);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_OcspAnswerSignedByAnExpiredDelegatedResponder_IsNotVerifiableBecauseRevocationCannotBeChecked()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders(ocspAnswer: "ocsp-anna-good-delegated-expired.der");
+        var message = SignatureFixtures.Message("smime-detached-anna.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders)
+            .VerifyAsync(message, "anna@signer.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureUnverifiableReason.RevocationNotCheckable, signature.UnverifiableReason);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_OpenPgpSignatureOverSha1_IsNotVerifiableBecauseOfItsAlgorithm()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders();
+        var message = SignatureFixtures.Message("pgp-robert-sha1.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders, trustedKeys: "pgp-robert.asc")
+            .VerifyAsync(message, "robert@pgp.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureUnverifiableReason.UnsupportedAlgorithm, signature.UnverifiableReason);
+        Assert.Equal(SignatureCheckResult.NotChecked, signature.ContentCheck);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_OpenPgpSignatureBlockThatIsCompressed_IsNotVerifiableBecauseMalformed()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders();
+        var message = SignatureFixtures.Message("pgp-robert-compressed.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders, trustedKeys: "pgp-robert.asc")
+            .VerifyAsync(message, "robert@pgp.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureUnverifiableReason.MalformedSignature, signature.UnverifiableReason);
+    }
+
     private static string OpaqueMessage(string declaredType) =>
         "From: anna@signer.example.test\r\n" +
         $"Content-Type: application/pkcs7-mime; smime-type={declaredType}; name=smime.p7m\r\n" +

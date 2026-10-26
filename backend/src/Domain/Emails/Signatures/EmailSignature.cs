@@ -77,16 +77,22 @@ public sealed record EmailSignature
     /// </remarks>
     public EmailSignatureUnverifiableReason? ValidityFailure { get; init; }
 
-    /// <summary>Gets whether the signer is free of a revocation.</summary>
+    /// <summary>Gets whether the signer, and every authority above it that was asked about, is free of a revocation.</summary>
     public SignatureCheckResult RevocationCheck { get; init; } = SignatureCheckResult.Skipped;
 
-    /// <summary>Gets how the revocation status was established, present where an answer was obtained.</summary>
+    /// <summary>
+    /// Gets how the revocation status was established, present where an answer was obtained: the signer's answer, or that
+    /// of the first certificate above it in the chain whose answer was not good.
+    /// </summary>
     public RevocationCheckMethod? RevocationMethod { get; init; }
 
-    /// <summary>Gets when the revocation answer was obtained; present for an online answer.</summary>
+    /// <summary>Gets when the revocation answer <see cref="RevocationMethod" /> describes was obtained; present for an online answer.</summary>
     public DateTimeOffset? RevocationCheckedAt { get; init; }
 
-    /// <summary>Gets when the signer was revoked, where the answer said it was and said when.</summary>
+    /// <summary>
+    /// Gets when the certificate the revocation answer is about was revoked, where the answer said it was and said when:
+    /// the signer's, or an authority above it whose revocation revoked the signer with it.
+    /// </summary>
     public DateTimeOffset? RevokedAt { get; init; }
 
     /// <summary>Gets whether the signer's certificate or key names the address the message displays as its author.</summary>
