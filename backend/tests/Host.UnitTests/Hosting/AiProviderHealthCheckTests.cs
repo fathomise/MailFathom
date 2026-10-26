@@ -84,19 +84,26 @@ public sealed class AiProviderHealthCheckTests
 
     /// <summary>The name is the only thing that tells two otherwise identical checks apart wherever a report lists them.</summary>
     [Fact]
-    public void RegistrationFor_TheTwoRoles_NamesThemApartAndReachesTheReadinessProbeAlone()
+    public void RegistrationFor_EveryRole_NamesThemApartAndReachesTheReadinessProbeAlone()
     {
         // Act
-        var embedding = AiProviderHealthCheck.RegistrationFor(AiProviderRole.Embedding);
-        var chat = AiProviderHealthCheck.RegistrationFor(AiProviderRole.Chat);
+        HealthCheckRegistration[] registrations =
+        [
+            AiProviderHealthCheck.RegistrationFor(AiProviderRole.Embedding),
+            AiProviderHealthCheck.RegistrationFor(AiProviderRole.Chat),
+            AiProviderHealthCheck.RegistrationFor(AiProviderRole.Decision),
+        ];
 
         // Assert
-        Assert.NotEqual(embedding.Name, chat.Name);
-        Assert.Equal(HealthStatus.Degraded, chat.FailureStatus);
-        Assert.Equal([HealthProbe.Readiness.Tag], chat.Tags);
-        Assert.True(HealthProbe.Readiness.Selects(chat));
-        Assert.False(HealthProbe.Liveness.Selects(chat));
-        Assert.False(HealthProbe.Startup.Selects(chat));
+        Assert.Equal(["ai-embedding-provider", "ai-chat-provider", "ai-decision-provider"], registrations.Select(registration => registration.Name));
+        Assert.All(registrations, registration =>
+        {
+            Assert.Equal(HealthStatus.Degraded, registration.FailureStatus);
+            Assert.Equal([HealthProbe.Readiness.Tag], registration.Tags);
+            Assert.True(HealthProbe.Readiness.Selects(registration));
+            Assert.False(HealthProbe.Liveness.Selects(registration));
+            Assert.False(HealthProbe.Startup.Selects(registration));
+        });
     }
 
     [Fact]
