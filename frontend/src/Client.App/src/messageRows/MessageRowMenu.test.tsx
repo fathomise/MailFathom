@@ -143,8 +143,6 @@ describe('MessageRowMenu', () => {
         expect(screen.getByText('Anna Kowalska')).toBeDefined();
     });
 
-    // The design draws the row's context menu with *Remove the flag* over a flagged message, so the menu reads the flag
-    // the way it reads the read mark: the opposite of the state the row is in.
     it('names the sender mark beside who the message is from, since a finger cannot rest on the row’s mark', () => {
         menuUnder({ senderMark: 'trusted', onSenderDetails: vi.fn() });
 
@@ -169,6 +167,8 @@ describe('MessageRowMenu', () => {
         expect(screen.queryByRole('menuitem', { name: 'Sender details' })).toBeNull();
     });
 
+    // The design draws the row's context menu with *Remove the flag* over a flagged message, so the menu reads the flag
+    // the way it reads the read mark: the opposite of the state the row is in.
     it('offers to take the flag off a flagged row, which is the other direction of the one act', () => {
         menuUnder({
             about: [
@@ -326,6 +326,14 @@ describe('MessageRowMenu, over a message marked spam', () => {
         ...actsWhere(() => null),
         spamOffered: true,
         ...over,
+    });
+
+    // A folded spam row draws neither its verdict nor its sender's mark in words a finger can reach, so both join who
+    // wrote it under the subject, in the order the design draws them.
+    it('names the verdict and then the sender mark beside who the message is from', () => {
+        menuUnder({ row: spamRow, about: spamMessages, senderMark: 'trusted', onSenderDetails: vi.fn() });
+
+        expect(screen.getByText('Anna Kowalska - phishing spam - Trusted sender')).toBeDefined();
     });
 
     it('offers to mark a message that is not spam spam, asking first, just before Move', () => {

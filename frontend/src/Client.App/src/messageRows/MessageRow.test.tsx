@@ -1049,11 +1049,13 @@ describe('MessageRow, dragged towards a folder', () => {
 // accessibility tree for the reason the readings mark is, so it is found by the name it shows a pointer.
 function senderMarkedRow({
     sender = email.sender,
+    spam = email.spam,
     onSenderDetails,
     onPoint = vi.fn(),
     onOpen = vi.fn(),
 }: {
     sender?: MailTimelineEntry['sender'];
+    spam?: MailTimelineEntry['spam'];
     onSenderDetails?: ((anchor: DOMRect) => void) | undefined;
     onPoint?: (event: unknown) => void;
     onOpen?: () => void;
@@ -1062,7 +1064,7 @@ function senderMarkedRow({
         <LocalizationProvider>
             <ul>
                 <MessageRow
-                    email={{ ...email, sender }}
+                    email={{ ...email, sender, spam }}
                     position={1}
                     open={false}
                     selected={false}
@@ -1125,6 +1127,16 @@ describe('MessageRow, the mark on who sent the message', () => {
         const row = senderMarkedRow({});
 
         expect(row.textContent).not.toContain('Sender not recognized');
+    });
+
+    // Folded to one muted line, a spam row keeps the mark after who wrote it, which is where the design draws it.
+    it('stays on a spam row folded to one line, after the sender it judges', () => {
+        const asked = vi.fn();
+
+        senderMarkedRow({ spam: spamVerdict(), onSenderDetails: asked });
+        fireEvent.click(senderMark('Sender not recognized'));
+
+        expect(asked).toHaveBeenCalledOnce();
     });
 
     it('opens the details anchored under itself', () => {
