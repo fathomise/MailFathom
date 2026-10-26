@@ -83,6 +83,25 @@ public sealed class ClientMailFoldersEndpointTests
             Assert.Single(response.Accounts).Account);
     }
 
+    /// <summary>
+    /// Whether an account files junk is read per account from the spam settings, which is what tells a client that
+    /// marking spam or not spam moves a message there.
+    /// </summary>
+    [Fact]
+    public void For_SeveralAccounts_SaysWhichOfThemFilesJunk()
+    {
+        // Arrange
+        var directory = Directory(
+            Account(Private, Folder("inbox", MailFolderSpecialUse.Inbox, ["INBOX"], 1, 1)),
+            Account(Work, Folder("inbox", MailFolderSpecialUse.Inbox, ["INBOX"], 2, 2)));
+
+        // Act
+        var response = ClientMailFoldersResponse.For(directory, SpamActionsFor(filingAccount: Work));
+
+        // Assert
+        Assert.Equal([false, true], response.Accounts.Select(account => account.Account.FilesJunk));
+    }
+
     /// <summary>A folder configuration labelled with no role says so rather than being given one a client would then trust.</summary>
     [Fact]
     public void For_AFolderWithNoRole_CarriesNoneRatherThanAGuess()

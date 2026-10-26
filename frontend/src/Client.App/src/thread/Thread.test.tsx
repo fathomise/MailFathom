@@ -164,7 +164,10 @@ function pageOf(
             // carrying neither field — which is the gap a conversation is still drawn with.
             ...(unopened.includes(id)
                 ? {}
-                : { message: describing(id, rows[id]?.['unread'] === true), body: saying(id) }),
+                : {
+                      message: { ...describing(id, rows[id]?.['unread'] === true), spam: rows[id]?.['spam'] ?? null },
+                      body: saying(id),
+                  }),
         })),
         participants: [
             { address: 'auditor@example.invalid', displayName: 'The auditor', messageCount: 2 },
@@ -355,6 +358,47 @@ describe('Thread', () => {
         );
 
         expect(await screen.findByText(said)).toBeDefined();
+    });
+
+    // A conversation standing on spam is read-only: nothing derives where it stands, and nothing hands it to the agent.
+    const scam = {
+        verdict: 'Spam',
+        decidedBy: 'Model',
+        spamSubcategory: 'Scam',
+        spamSubcategoryNamedBy: 'Model',
+        phishingRequest: null,
+        impersonatedParty: null,
+    };
+
+    it('draws neither where it stands nor the AI button under a conversation opened on a spam message', async () => {
+        drawing(
+            deploymentAnswering(pageOf(['one'], {}, { one: { spam: scam } })),
+            { threadId, openAt: null },
+            true,
+            nothingMarkedRead,
+            false,
+            false,
+            footSaying,
+        );
+
+        expect(await screen.findByText(/^Scam\. This message is spam/u)).toBeDefined();
+        expect(screen.queryByRole('region', { name: 'Where this conversation stands' })).toBeNull();
+        expect(screen.queryByText(`${threadId} · The quarterly figures`)).toBeNull();
+    });
+
+    it('draws where it stands and the AI button under a conversation opened on an ordinary message', async () => {
+        drawing(
+            deploymentAnswering(pageOf(['one'])),
+            { threadId, openAt: null },
+            true,
+            nothingMarkedRead,
+            false,
+            false,
+            footSaying,
+        );
+
+        expect(await screen.findByText(`${threadId} · The quarterly figures`)).toBeDefined();
+        expect(screen.getByRole('region', { name: 'Where this conversation stands' })).toBeDefined();
     });
 
     it('draws the latest message and hides every earlier one behind the control that names how many there are', async () => {

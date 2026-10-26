@@ -260,4 +260,21 @@ describe('useSpamMarks', () => {
         await screen.findByRole('button', { name: 'Mark spam' });
         expect(screen.queryByText(/^Marked as spam/u)).toBeNull();
     });
+
+    it('puts back the mark that stood before a press the deployment did not write', async () => {
+        let asked = 0;
+        const deployment = deploymentAnswering((storedEmailIds) => {
+            asked += 1;
+
+            return asked === 1 ? answeredWith('applied')(storedEmailIds) : { status: 503, body: '', headers: {} };
+        });
+
+        drawn([invoice], deployment);
+        await markedSpam(/^Scam/u);
+        fireEvent.click(await screen.findByRole('button', { name: 'Not spam' }));
+
+        await screen.findByText('Nothing was marked');
+        expect(await screen.findByRole('button', { name: 'Not spam' })).toBeDefined();
+        expect(deployment.requests).toHaveLength(2);
+    });
 });

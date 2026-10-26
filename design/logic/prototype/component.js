@@ -3485,10 +3485,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const chgUnknown = !!chg && chg.fate === "unknown";
         const chgAct = chg ? (CHANGE_ACT[chg.act] || CHANGE_ACT.move) : null;
         const chgBtn = "display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:" + (touch ? 44 : 32) + "px;padding:0 14px;border-radius:8px;font-size:13px;";
+        /* The sample data states a verdict per thread, which is every one of its messages' verdict, so each message of
+           a spam thread carries its own warning, as each message the client opens is warned from its own. */
         items.push({
           isMsg: true, isPill: false, key: k, isActive,
           ...(m.mine ? { markShown: false } : badgeOf(thread.id, m.from)),
-          ...(threadSpam.spam && i === lastIdx ? spamWarning(threadSpam) : { spamWarn: false }),
+          ...(threadSpam.spam && !m.mine ? spamWarning(threadSpam) : { spamWarn: false }),
           changeShown: !!chg,
           changeIcon: chgUnknown ? "help" : "sync_problem",
           changeTitle: !chg ? "" : chgUnknown ? chgAct[1] + " may not have happened" : chgAct[0] + " - your mailbox did not take this change",

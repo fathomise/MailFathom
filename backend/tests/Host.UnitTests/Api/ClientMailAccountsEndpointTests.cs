@@ -141,7 +141,7 @@ public sealed class ClientMailAccountsEndpointTests
 
     /// <summary>
     /// The folders the use case carries are the folder route's business, and the mailbox list stays the answer that
-    /// grows with nothing but the account count: an account whose folders are known reaches the wire as the same five
+    /// grows with nothing but the account count: an account whose folders are known reaches the wire as the same six
     /// fields an account whose folders are not does.
     /// </summary>
     [Fact]

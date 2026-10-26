@@ -304,13 +304,14 @@ function OpenMessage({
 
         const file = answer.result.value.attachments.find((held) => held.position === cited.position);
 
-        // A file inside spam is refused like a press on it would be, since it is the same file opened another way.
-        if (file !== undefined && isSpam(answer.result.value.spam)) {
+        // A file inside spam is refused like a press on it would be, since it is the same file opened another way, and
+        // spam is what the pane draws: the person's own mark over the deployment's last verdict.
+        if (file !== undefined && isSpam(drawnSpam(acts, { id: storedEmailId, spam: answer.result.value.spam }))) {
             refuseCitedFile.current('spam.refusedAttachmentOpen');
         } else if (file !== undefined) {
             openCitedFile.current({ storedEmailId: cited.storedEmailId, attachment: file });
         }
-    }, [workspace.citedAttachment, answer, storedEmailId, revise]);
+    }, [workspace.citedAttachment, answer, storedEmailId, revise, acts]);
 
     // An answer's evidence citation named this message, and the correspondence it belongs to is what the reader asked
     // for: a citation carries a message and only a description of that message says which conversation it is part of.

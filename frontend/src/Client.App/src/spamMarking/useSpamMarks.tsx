@@ -137,12 +137,25 @@ export function useSpamMarks({
         });
     }
 
-    function forget(storedEmailIds: readonly string[]): void {
+    /**
+     * Replaces the marks one press drew with what its answer made of them — the corrected mark, or the one that stood
+     * before the press — wherever that press's mark still stands. A later press has drawn a newer mark over an older
+     * answer, and the older answer must not put back what the person has since changed.
+     */
+    function settle(entries: readonly (readonly [string, MarkedSpam, MarkedSpam | undefined])[]): void {
         setKept((current) => {
             const next = new Map(current.marked);
 
-            for (const storedEmailId of storedEmailIds) {
-                next.delete(storedEmailId);
+            for (const [storedEmailId, pressed, settled] of entries) {
+                if (next.get(storedEmailId) !== pressed) {
+                    continue;
+                }
+
+                if (settled === undefined) {
+                    next.delete(storedEmailId);
+                } else {
+                    next.set(storedEmailId, settled);
+                }
             }
 
             return { ...current, marked: next };
@@ -213,8 +226,9 @@ export function useSpamMarks({
         const verdict = ownVerdict(spamMark);
 
         // Drawn from the press: a mark moves a message only on an account whose switch files junk, spam out of every
-        // other folder and not spam out of the Spam folder.
-        remember(
+        // other folder and not spam out of the Spam folder. What stood before is kept, for a mark that is not written.
+        const before = new Map(messages.map((message) => [message.storedEmailId, marked.get(message.storedEmailId)]));
+        const pressed = new Map<string, MarkedSpam>(
             messages.map((message) => [
                 message.storedEmailId,
                 {
@@ -227,6 +241,8 @@ export function useSpamMarks({
                 },
             ]),
         );
+
+        remember([...pressed]);
 
         const batches: Promise<{
             readonly messages: readonly ActedMessage[];
@@ -265,13 +281,26 @@ export function useSpamMarks({
             const notWritten = messages.filter((message) => !results.has(message.storedEmailId));
             const moved = written.filter((message) => results.get(message.storedEmailId)?.moved === true);
 
-            remember(
-                written.map((message) => [
-                    message.storedEmailId,
-                    { verdict, from: message.folder, leaves: results.get(message.storedEmailId)?.moved === true },
-                ]),
+            settle(
+                messages.flatMap((message) => {
+                    const drawnAtPress = pressed.get(message.storedEmailId);
+                    const result = results.get(message.storedEmailId);
+
+                    if (drawnAtPress === undefined) {
+                        return [];
+                    }
+
+                    return [
+                        [
+                            message.storedEmailId,
+                            drawnAtPress,
+                            result === undefined
+                                ? before.get(message.storedEmailId)
+                                : { verdict, from: message.folder, leaves: result.moved },
+                        ] as const,
+                    ];
+                }),
             );
-            forget(notWritten.map((message) => message.storedEmailId));
 
             if (notWritten.length > 0) {
                 const failure = answered.find(({ answer }) => answer.outcome === 'failed')?.answer;

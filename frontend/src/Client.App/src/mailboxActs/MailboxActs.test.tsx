@@ -123,6 +123,16 @@ const folders = JSON.stringify({
                     lastSynchronizedAt: null,
                     behind: false,
                 },
+                {
+                    id: 'work-junk',
+                    role: 'Junk',
+                    path: ['Junk'],
+                    storedEmailCount: 0,
+                    unreadEmailCount: 0,
+                    synchronizationState: 'Synchronized',
+                    lastSynchronizedAt: null,
+                    behind: false,
+                },
             ],
         },
     ],
@@ -1252,5 +1262,51 @@ describe('MailboxActsProvider', () => {
         });
 
         expect(held().refusalOf('delete', [invoice])).toBe('notOffered');
+    });
+
+    // Marking spam writes a flag-shaped mark, and *Not spam* asks whether a message sits in the Spam folder — which only
+    // the folders say.
+    it('reads the folders for a credential that may only mark, which is what says where the Spam folder is', async () => {
+        const deployment = deploymentAnswering();
+        const { held } = acting(deployment, { moves: false, deletes: false });
+
+        await waitFor(() => {
+            expect(held().folderRoleOf(invoice)).toBe('Inbox');
+        });
+
+        expect(deployment.requests.some((request) => request.path.endsWith('/folders'))).toBe(true);
+    });
+
+    // A move into the Spam folder is the same act as pressing *Spam*, so it is drawn spam from the press and asks for
+    // the kind of spam it is.
+    it('draws a message moved into the Spam folder as spam and asks what kind of spam it is', async () => {
+        const deployment = deploymentAnswering();
+        const { held } = acting(deployment);
+
+        await waitFor(() => {
+            expect(held().folderRoleOf(invoice)).toBe('Inbox');
+        });
+
+        perform(held, 'move', [invoice], { folderId: 'work-junk', name: 'Junk', role: 'Junk' });
+
+        expect(await screen.findByRole('dialog', { name: 'Moved to Spam' })).toBeDefined();
+        expect(held().spamMarked.get('message-1')?.verdict.verdict).toBe('Spam');
+    });
+
+    it('asks no kind of spam for a message moved into an ordinary folder', async () => {
+        const deployment = deploymentAnswering();
+        const { held } = acting(deployment);
+
+        await waitFor(() => {
+            expect(held().folderRoleOf(invoice)).toBe('Inbox');
+        });
+
+        perform(held, 'move', [invoice], chosen);
+
+        await waitFor(() => {
+            expect(submitted(deployment)).toHaveLength(1);
+        });
+        expect(screen.queryByRole('dialog', { name: 'Moved to Spam' })).toBeNull();
+        expect(held().spamMarked.size).toBe(0);
     });
 });

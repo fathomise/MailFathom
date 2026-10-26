@@ -602,8 +602,10 @@ export const phraseReading = {
 function spamRow(
     id: string,
     subject: string,
-    sender: { readonly address: string; readonly name: string },
+    senderAddress: string,
+    senderDisplayName: string,
     receivedAt: string,
+    unread: boolean,
     spam: Readonly<Record<string, string | null>>,
 ) {
     return {
@@ -612,9 +614,9 @@ function spamRow(
         folder: 'JUNK',
         subject,
         receivedAt,
-        senderAddress: sender.address,
-        senderDisplayName: sender.name,
-        unread: true,
+        senderAddress,
+        senderDisplayName,
+        unread,
         hasAttachments: false,
         attachmentCount: 0,
         preview: `${subject}.`,
@@ -639,8 +641,10 @@ export const spamRows = [
     spamRow(
         'message-spam-desk',
         phishingSubject,
-        { address: 'it-desk@nordwind-support.example', name: 'Nordwind IT Service Desk' },
+        'it-desk@nordwind-support.example',
+        'Nordwind IT Service Desk',
         '2026-08-31T08:31:00+00:00',
+        true,
         {
             spamSubcategory: 'Phishing',
             spamSubcategoryNamedBy: 'Model',
@@ -651,34 +655,34 @@ export const spamRows = [
     spamRow(
         'message-spam-supplier',
         'Updated bank details for our invoices',
-        { address: 'accounts@halvard-logistlcs.example', name: 'Halvard Logistics' },
+        'accounts@halvard-logistlcs.example',
+        'Halvard Logistics',
         '2026-08-31T07:58:00+00:00',
+        true,
         {
             spamSubcategory: 'BusinessEmailCompromise',
             spamSubcategoryNamedBy: 'Model',
             impersonatedParty: 'Supplier',
         },
     ),
-    {
-        ...spamRow(
-            'message-spam-parcel',
-            'Your parcel could not be delivered - open the attached form',
-            { address: 'notice@parcel-track.example', name: 'Parcel Notice' },
-            '2026-08-30T19:20:00+00:00',
-            { decidedBy: 'Person', spamSubcategory: 'MalwareLure', spamSubcategoryNamedBy: 'Person' },
-        ),
-        unread: false,
-    },
-    {
-        ...spamRow(
-            'message-spam-threat',
-            'Pay within 48 hours',
-            { address: 'noreply@mail-relay.example', name: 'No Reply' },
-            '2026-08-24T22:40:00+00:00',
-            { spamSubcategory: 'Extortion', spamSubcategoryNamedBy: 'Model' },
-        ),
-        unread: false,
-    },
+    spamRow(
+        'message-spam-parcel',
+        'Your parcel could not be delivered - open the attached form',
+        'notice@parcel-track.example',
+        'Parcel Notice',
+        '2026-08-30T19:20:00+00:00',
+        false,
+        { decidedBy: 'Person', spamSubcategory: 'MalwareLure', spamSubcategoryNamedBy: 'Person' },
+    ),
+    spamRow(
+        'message-spam-threat',
+        'Pay within 48 hours',
+        'noreply@mail-relay.example',
+        'No Reply',
+        '2026-08-24T22:40:00+00:00',
+        false,
+        { spamSubcategory: 'Extortion', spamSubcategoryNamedBy: 'Model' },
+    ),
 ];
 
 /** The Spam folder as one page, which is all of it. */
