@@ -19,10 +19,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     nextDefault: NEXT_DEFAULT, seedConversations: SEED_CONVS, agentReplies: AGENT_REPLIES, agentFallback: AGENT_FALLBACK,
     agentDraftHtml: AGENT_DRAFT_HTML,
     notifications: NOTIFS, incomingNotifications: INCOMING, demoBatches: DEMO_BATCHES,
-    senderMarks: SENDER_MARKS,
+    senderMarks: SENDER_MARKS, trustedLinkDomains: TRUSTED_LINK_DOMAINS,
   } = MailFathomDesign.data;
   const { mdPlain, mdView, MDTXT } = MailFathomDesign.markdown;
-  const { HTML_SHELL, embedHtml, htmlFallback } = MailFathomDesign.mailHtml;
+  const { HTML_SHELL, embedHtml, embedLinks, htmlFallback } = MailFathomDesign.mailHtml;
 
   /* CLIENT STATES — INVENTORY (drawn in “client-states.dc.html”).
      Every state below is revealed there by the property state="<id>", at layout = telefon | fold | tablet | desktop | all
@@ -173,6 +173,16 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   const SPAM_READ_ONLY = "While it is marked spam it is read-only: its images are not loaded, its links and attachments do not open, and it cannot be answered or forwarded.";
   /* A link in spam is drawn as words, never as something to press, with where it would have gone said beside it. */
   const hostOf = (href) => { try { return new URL(href).host; } catch (e) { return href; } };
+  /* A link that leaves MailFathom asks before it opens, wherever it is pressed, unless the person trusts its host:
+     a domain on their list covers itself and every subdomain. `wordsHost` reads an address out of a link's own words,
+     so words naming one host over a link to another can be said in the question. */
+  const leavesApp = (href) => /^https?:\/\//i.test(href || "");
+  const hostTrusted = (host) => TRUSTED_LINK_DOMAINS.some(d => host === d || host.endsWith("." + d));
+  const bareHost = (h) => h.replace(/^www\./, "");
+  const wordsHost = (text) => {
+    const m = /^(?:https?:\/\/)?([a-z0-9-]+(?:\.[a-z0-9-]+)+)(?:[\/?#]\S*)?$/i.exec((text || "").trim());
+    return m ? m[1].toLowerCase() : "";
+  };
   const unlinkRuns = (runs) => runs.map(r => r.isLink ? Object.assign({}, r, {
     isLink: false, plain: true, style: "color:var(--text2)", isJudged: true,
     goesTo: " (a link to " + hostOf(r.href) + ", not opened)", warnings: [],
@@ -594,6 +604,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       document.addEventListener("keydown", this.onDocKey);
       window.addEventListener("message", this.onHtmlFrameMessage);
       window.addEventListener("popstate", this.onBackPressed);
+      document.addEventListener("click", this.onLinkClick, true);
+      document.addEventListener("auxclick", this.onLinkClick, true);
       this.backSync();
       this.measure = () => {
         const el = this.rootRef.current;
@@ -1086,7 +1098,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "sideDrawer", "compose", "settings",
       "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock", "replyChooser",
       "newTask", "newEvent", "newContact", "filtersOpen",
-      "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk", "spamAsk", "notSpamAsk", "senderMark"];
+      "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk", "spamAsk", "notSpamAsk", "senderMark", "linkAsk"];
     static MOTION_PANES = ["mailPane", "peoplePane"];
     static MOTION_EXIT_MS = 240;
 
@@ -1134,7 +1146,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        going back across one closes everything still standing, the way the client's change of destination does.
        Steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
     static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
-      "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "senderMark", "replyDock", "replyChooser"];
+      "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "senderMark", "replyDock", "replyChooser", "linkAsk"];
 
     backSteps = (state) => {
       const FR = FRAMES[this.props.layout ?? "auto"] || null;
@@ -1774,7 +1786,38 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     };
 
     onDocKey = (e) => {
+      if (e.key === "Escape" && this.state.linkAsk) { e.preventDefault(); this.closeLinkAsk(); return; }
       if (e.key === "Escape" && this.state.senderMark) { e.preventDefault(); this.closeSenderMark(true); }
+    };
+
+    /* Every press on a link that leaves MailFathom ends here: a text link or a picture inside one, in a message's
+       simplified text, its original, an agent's answer or an event. A trusted host opens at once in a new browser
+       context with no referrer; any other asks first, naming where it goes and repeating what the link already
+       warned about. Spam draws no anchor at all, so it never reaches this. */
+    linkAskCancelRef = React.createRef();
+    pressLink = ({ href, text, image, warnings }) => {
+      const host = hostOf(href).toLowerCase();
+      if (hostTrusted(host)) { window.open(href, "_blank", "noopener,noreferrer"); return; }
+      const named = image ? "" : wordsHost(text);
+      const warn = (warnings || []).filter(Boolean);
+      if (!warn.length && named && bareHost(named) !== bareHost(host)) warn.unshift("Its words name " + named + ", but it goes to " + host + ".");
+      this.setState({ linkAsk: { href, host, image: !!image, warnings: warn } });
+      setTimeout(() => { const b = this.linkAskCancelRef.current; if (b && b.focus) b.focus(); }, 0);
+    };
+    onLinkClick = (e) => {
+      // A middle press opens a tab through `auxclick` rather than `click`, so both arrive here; the right button opens a menu.
+      if (e.defaultPrevented || e.button > 1) return;
+      const a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+      if (!a || !leavesApp(a.getAttribute("href"))) return;
+      e.preventDefault();
+      const w = a.getAttribute("data-link-warn");
+      this.pressLink({ href: a.getAttribute("href"), text: a.textContent, image: !!a.querySelector("img,svg,picture"), warnings: w ? w.split("\n") : [] });
+    };
+    closeLinkAsk = () => this.setState({ linkAsk: null });
+    confirmLinkAsk = () => {
+      const ask = this.state.linkAsk;
+      this.setState({ linkAsk: null });
+      if (ask) window.open(ask.href, "_blank", "noopener,noreferrer");
     };
 
     /* A mark on a row or beside a sender opens the same details, anchored under the mark on desktop and as a sheet
@@ -1857,6 +1900,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     onHtmlFrameMessage = (e) => {
       const d = e && e.data;
       if (!d || typeof d !== "object") return;
+      /* A press on a link inside a message's original arrives here: the frame follows none itself. */
+      if (d.link && typeof d.link.href === "string") {
+        const own = Array.from(document.querySelectorAll("iframe")).some(f => f.contentWindow === e.source);
+        if (own && leavesApp(d.link.href)) this.pressLink({ href: d.link.href, text: String(d.link.text || ""), image: !!d.link.image });
+        return;
+      }
       const id = d.frameId, h = d.height;
       if (typeof id !== "string" || typeof h !== "number" || !isFinite(h)) return;
       const rec = this.htmlFrames.get(id);
@@ -3038,6 +3087,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       document.removeEventListener("keydown", this.onDocKey);
       window.removeEventListener("message", this.onHtmlFrameMessage);
       window.removeEventListener("popstate", this.onBackPressed);
+      document.removeEventListener("click", this.onLinkClick, true);
+      document.removeEventListener("auxclick", this.onLinkClick, true);
       this.htmlFrames.forEach(r => { if (r.timer) clearTimeout(r.timer); });
       this.htmlFrames.clear();
       this.timers.forEach(clearTimeout);
@@ -4912,6 +4963,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           this.setState({ remFor: { key: key, title: e.t, timed: e.time !== "all day", kind: "cal", hint: this.remAnchor({ time: e.time, day: e.day }), src: "Calendar" } });
         },
         eventTitle: st.event ? st.event.t : "",
+        eventHasLink: !!(st.event && st.event.link),
+        eventLink: st.event && st.event.link ? st.event.link : "",
+        eventLinkHost: st.event && st.event.link ? hostOf(st.event.link) : "",
         eventWhen: st.event ? (st.event.day ? st.event.day + " August · " : "") + st.event.time : "",
         eventKind: st.event ? (st.event.kind === "deadline" ? "Deadline" : st.event.kind === "mail" ? "From mail" : "Meeting") : "",
         eventKindStyle: "font-size:11px;border-radius:12px;padding:3px 9px;" + (st.event && st.event.kind === "deadline"
@@ -5514,6 +5568,23 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             confirmNotSpam: this.confirmNotSpam,
           };
         })(),
+        ...(() => {
+          const ask = st.linkAsk;
+          return {
+            linkAskOpen: !!ask,
+            linkAskTitle: ask && ask.image ? "Open the link behind this picture?" : "Open this link?",
+            linkAskHost: ask ? ask.host : "",
+            linkAskHref: ask ? ask.href : "",
+            linkAskWarnings: ask ? ask.warnings.map(w => ({ text: w })) : [],
+            linkAskBtnStyle: "display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:0 16px;min-height:" + (touch ? 44 : 34) + "px",
+            linkAskCancelStyle: "display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:0 15px;min-height:" + (touch ? 44 : 34) + "px",
+            linkAskCancelRef: this.linkAskCancelRef,
+            closeLinkAsk: this.closeLinkAsk,
+            confirmLinkAsk: this.confirmLinkAsk,
+            closeLinkAskKey: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.closeLinkAsk(); } },
+            confirmLinkAskKey: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.confirmLinkAsk(); } },
+          };
+        })(),
         moveOpen: !!(st.moveFor && st.moveFor.length),
         moveTitle: st.moveFor ? "Move " + this.countWord(st.moveFor.length) : "",
         closeMove: this.closeMove,
@@ -6098,7 +6169,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         htmlOpen: !!st.htmlDoc && (!tabsMode || htmlInPane),
         htmlTitleText: st.htmlDoc ? st.htmlDoc.title : "",
         htmlMeta: st.htmlDoc ? st.htmlDoc.from + " · " + st.htmlDoc.when : "",
-        htmlSrc: st.htmlDoc ? st.htmlDoc.src : "",
+        htmlSrc: st.htmlDoc ? embedLinks(st.htmlDoc.src) : "",
         closeHtml: () => (htmlInPane ? this.closeTab(st.activeTab) : this.setState({ htmlDoc: null })),
         htmlOverlayStyle: htmlInPane
           ? "flex:1;display:flex;min-height:0;min-width:0;background:var(--sub)"

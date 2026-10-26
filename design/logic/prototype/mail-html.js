@@ -29,12 +29,19 @@ MailFathomDesign.mailHtml = (() => {
     'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();' +
     'window.addEventListener("load",send);setTimeout(send,120);setTimeout(send,600);})()' + S_CLOSE;
 
-  const embedHtml = (src, frameId) => {
+  /* The frame follows no link itself: a press on one, or on a picture inside one, is handed to the page, which asks
+     before anything leaves MailFathom. */
+  const LINK_SCRIPT = S_OPEN + '(function(){function press(e){if(e.button>1)return;' +
+    'var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;if(!a)return;e.preventDefault();' +
+    'try{parent.postMessage({link:{href:a.getAttribute("href"),text:(a.textContent||"").trim(),image:!!a.querySelector("img,svg,picture")}},"*")}catch(x){}}' +
+    'document.addEventListener("click",press,true);document.addEventListener("auxclick",press,true)})()' + S_CLOSE;
+
+  const inHead = (src, script) => {
     const i = src.indexOf("<head>");
-    return i < 0
-      ? FIT_SCRIPT(frameId) + src
-      : src.slice(0, i + 6) + FIT_SCRIPT(frameId) + src.slice(i + 6);
+    return i < 0 ? script + src : src.slice(0, i + 6) + script + src.slice(i + 6);
   };
+  const embedHtml = (src, frameId) => inHead(src, FIT_SCRIPT(frameId) + LINK_SCRIPT);
+  const embedLinks = (src) => inHead(src, LINK_SCRIPT);
 
   const htmlFallback = (m, subject) => HTML_SHELL(subject || "Message", `
 <div style="padding:24px 12px;font-family:Georgia,'Times New Roman',serif">
@@ -50,5 +57,5 @@ MailFathomDesign.mailHtml = (() => {
  </table>
 </div>`);
 
-  return { HTML_SHELL, FIT_SCRIPT, embedHtml, htmlFallback };
+  return { HTML_SHELL, FIT_SCRIPT, embedHtml, embedLinks, htmlFallback };
 })();

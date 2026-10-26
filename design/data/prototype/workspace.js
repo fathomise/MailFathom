@@ -5,6 +5,10 @@
 // Who is signed in, and the build the About screen names.
 MailFathomDesign.data.me = { name: "Karolina Kowalska", address: "k.kowalska@company.example" };
 MailFathomDesign.data.app = { version: "2.4.2", build: "build 20260907" };
+// The domains whose links open at once, without asking first: the person's own list, which the service keeps per
+// person. A domain covers its subdomains too, so files.nordwind.example opens and northwind-billing.example asks.
+// No screen edits it yet.
+MailFathomDesign.data.trustedLinkDomains = ["nordwind.example"];
 
 // The mail accounts in the folder column and the Move dialog: `counts` are the unread badges on the standard
 // folders, and `moveFolders` the folders Move offers in that account. `movesSpam` is the account's own setting for
