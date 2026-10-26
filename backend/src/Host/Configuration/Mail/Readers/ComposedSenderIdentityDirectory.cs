@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Infrastructure.Persistence.Users;
 
 namespace MailFathom.Host.Configuration.Mail.Readers;
 
@@ -13,6 +14,8 @@ namespace MailFathom.Host.Configuration.Mail.Readers;
 /// <remarks>
 /// Each user is composed once, through the same served-user cache a request reads, so a user whose record has not moved
 /// costs a lookup rather than a composition, and every account they are served is answered from that one composition.
+/// A user whose record the reader refuses for what it holds is left out, so their accounts send as nobody rather than
+/// one operator's oversized record failing the extraction of every signed arrival in the organization.
 /// </remarks>
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "The dependency injection container materializes this directory.")]
 internal sealed class ComposedSenderIdentityDirectory(IMailSynchronizationAccountSource accounts) : ISenderIdentityDirectory
@@ -28,7 +31,10 @@ internal sealed class ComposedSenderIdentityDirectory(IMailSynchronizationAccoun
 
         foreach (var user in users.Distinct())
         {
-            var settings = await accounts.ReadUserSettingsAsync(user, cancellationToken);
+            if (await this.ReadSettingsAsync(user, cancellationToken) is not { } settings)
+            {
+                continue;
+            }
 
             foreach (var (account, identity) in ServedIdentitiesOf(settings))
             {
@@ -37,6 +43,23 @@ internal sealed class ComposedSenderIdentityDirectory(IMailSynchronizationAccoun
         }
 
         return identities;
+    }
+
+    /// <summary>Reads one user's settings, or nothing where the reader refused their record for what it holds.</summary>
+    /// <remarks>
+    /// A refusal carrying no inner failure is the record's own and leaves the user out, as an account run does; one with
+    /// an inner failure is the database declining the read, which fails the extraction so it is read again.
+    /// </remarks>
+    private async Task<MailSynchronizationOptions?> ReadSettingsAsync(UserId user, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await accounts.ReadUserSettingsAsync(user, cancellationToken);
+        }
+        catch (UserSettingsUnreadableException refused) when (refused.InnerException is null)
+        {
+            return null;
+        }
     }
 
     private static IEnumerable<(MailAccountId Account, OutgoingSenderIdentity Identity)> ServedIdentitiesOf(

@@ -184,6 +184,30 @@ public sealed class OrganizationSignatureVerifierTests
         Assert.True(verification?.SenderIsMember);
     }
 
+    /// <summary>
+    /// A member's colleagues are served accounts outside the organization too, so an author sending as one of those proves
+    /// nothing: membership is an account in the organization, not a user who also holds one.
+    /// </summary>
+    [Fact]
+    public async Task VerifyAsync_AuthorIsAMembersAccountOutsideTheOrganization_DoesNotRecognizeTheAuthor()
+    {
+        // Arrange
+        var (directory, key) = Directory();
+        var personal = MailAccountId.Create("0199f000-0000-7000-8000-00000000000c");
+        var identities = Identities(
+            (Author, "anna@org.example.test"),
+            (Receiver, "bob@org.example.test"),
+            (personal, "anna@personal.example.test"));
+        using var message = Signed(key, from: "anna@personal.example.test");
+
+        // Act
+        var verification = await new OrganizationSignatureVerifier(directory, identities)
+            .VerifyAsync(Receiver, message, CancellationToken.None);
+
+        // Assert
+        Assert.False(verification?.SenderIsMember);
+    }
+
     /// <summary>A signed message replayed to somebody it never named, and never sent to as a blind copy, proves nothing to them.</summary>
     [Fact]
     public async Task VerifyAsync_ReceiverNeitherNamedNorOnTheSendRecord_DoesNotRecognizeTheAuthor()

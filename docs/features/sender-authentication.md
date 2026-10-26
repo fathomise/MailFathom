@@ -276,7 +276,9 @@ is never read and nothing is asked of DNS.
    of a mail account in the organization now** — the address its mail is written from, never its IMAP user name, so a
    member whose user name is a bare login is still recognized. It is read from the settings of the users the account is
    assigned to, whoever the receiving account is assigned to, so a colleague served to another person is recognized and
-   an account assigned to nobody sends as nobody. Every signed header is listed twice, so a second `From`,
+   an account assigned to nobody sends as nobody; so does every account of a user whose record is refused for what it
+   holds, which costs that user recognition rather than failing everybody else's mail. A user's account outside the
+   organization never counts, however many of its accounts are in it. Every signed header is listed twice, so a second `From`,
    or a `Reply-To` that would send the reply elsewhere, inserted after signing breaks the signature. An author who has
    left the organization is no longer recognized, whatever key once signed for them.
 3. **The message was sent to the receiving account**: its sending address is in the signed `To` or `Cc`, or the record
