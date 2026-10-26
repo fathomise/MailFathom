@@ -48,8 +48,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        d_asked     1.5  “Asked before” chips (question alone) under the field, idle only; “Forget these”.
                         savedAnswers.a and .fresh are not drawn - recall re-asks instead of replaying.
      MAIL
-       m_verdict   2.1  sender verdict under the sender line: warning box (authenticated by another domain / nothing
-                        authenticated), healthy as one quiet line.
        m_more      2.2a thread paging at its end: Read more · reading more · “That is the whole of this conversation.”
        m_partial   2.2b partial failure in place of the missing messages; head notes (more people, more messages).
        m_pane      2.2c whole pane: failed, offline, nothing you are allowed to see - “Nothing open” layout.
