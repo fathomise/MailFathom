@@ -2953,6 +2953,12 @@
           "outcome": {
             "type": "string"
           },
+          "spamMarkChanges": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailRecordedChangeResponse"
+            },
+            "type": "array"
+          },
           "storedEmailId": {
             "format": "uuid",
             "type": "string"
@@ -2962,7 +2968,8 @@
           "storedEmailId",
           "outcome",
           "destinationFolder",
-          "change"
+          "change",
+          "spamMarkChanges"
         ],
         "type": "object"
       },
@@ -3352,6 +3359,88 @@
           "authorAuthentication",
           "deploymentTrust",
           "authenticatedDomain"
+        ],
+        "type": "object"
+      },
+      "ClientMailSpamMarkResultResponse": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailRecordedChangeResponse"
+            },
+            "type": "array"
+          },
+          "moved": {
+            "type": "boolean"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "storedEmailId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "storedEmailId",
+          "outcome",
+          "moved",
+          "changes"
+        ],
+        "type": "object"
+      },
+      "ClientMailSpamMarksRequest": {
+        "properties": {
+          "requestId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "spamSubcategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "storedEmailIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "verdict": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "requestId",
+          "verdict",
+          "spamSubcategory",
+          "storedEmailIds"
+        ],
+        "type": "object"
+      },
+      "ClientMailSpamMarksResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailSpamMarkResultResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
         ],
         "type": "object"
       },
@@ -19239,6 +19328,46 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ClientMailChangesResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/mutations/spam": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ClientMailSpamMarksRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientMailSpamMarksResponse"
                 }
               }
             },

@@ -310,6 +310,42 @@ public sealed class EmailSpamClassifierTests
             .FindStoredContentAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>The model stage is a stage like the others, so an account consulting it never asks it about a message the person decided.</summary>
+    [Fact]
+    public async Task ClassifyAsync_ThePersonsSpamVerdictWithTheModelStageOn_KeepsItWithoutAskingTheModel()
+    {
+        // Arrange
+        var personsVerdict = SpamClassification.Create(
+            Occurrence,
+            SpamVerdict.Spam,
+            SpamClassificationStage.Person,
+            assessment: null,
+            SpamClassificationProfile.Create(),
+            [],
+            EvaluatedAt.AddDays(-1));
+
+        this.store.Hold(personsVerdict);
+
+        var judge = ScriptedSpamModelJudge.Unused();
+        var classifier = this.Classifier(
+            SpamClassificationSettings.Create(true, [Inbox], SpamModelStageSettings.Consulted(true, 0.5)),
+            FactsSaying("X-Spam-Flag", "NO"),
+            modelStage: SpamModelStages.Over(judge));
+
+        // Act
+        var result = await classifier.ClassifyAsync(
+            Account,
+            Occurrence,
+            SpamClassificationMode.Reclassify,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamClassificationOutcome.PersonsVerdictKept, result.Outcome);
+        Assert.Same(personsVerdict, result.Classification);
+        Assert.Empty(judge.Asked);
+        Assert.Empty(this.store.Saved);
+    }
+
     /// <summary>
     /// Another replica records the person's verdict after this one read the row and before it writes. The early read
     /// cannot see it, so what keeps the verdict is the write refusing to replace it — and a refused write discards

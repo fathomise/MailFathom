@@ -8,11 +8,11 @@ decided what it thought of it — in an `Authentication-Results` header, in a pr
 the message in the junk folder. Spam classification is what keeps that decision rather than discarding it, and records
 it as derived data beside the message.
 
-Six things ship here and are independent of each other: the classification record with the two stages that fill it, mail
-being classified as it arrives, the three switches that let a verdict reach the mail server, spam and the junk folder
-being kept from every agent's read, junk being kept out of everything this deployment derives from mail, and the floor
-that gives every message in the junk folder or carrying `$Junk` at least a spam verdict. The fourth and the sixth reach a
-mailbox with no classification at all.
+Seven things ship here and are independent of each other: the classification record with the two stages that fill it,
+mail being classified as it arrives, the three switches that let a verdict reach the mail server, the person's own
+verdict, spam and the junk folder being kept from every agent's read, junk being kept out of everything this deployment
+derives from mail, and the floor that gives every message in the junk folder or carrying `$Junk` at least a spam verdict.
+The fifth and the seventh reach a mailbox with no classification at all.
 
 ## No agent reads a message judged spam
 
@@ -61,7 +61,7 @@ behind switches of its own — described in [what an operator can let a verdict 
 | What it holds | Why |
 | --- | --- |
 | The verdict — undetermined, not spam, or spam | Undetermined is an ordinary answer: it says nothing was found either way |
-| The stage that decided it — the deterministic stage below, a decision model, or the person | Which of them a verdict rests on is the first thing anybody questioning it needs. The person's act does not ship in this build, so every verdict it reaches is the deterministic stage's or the model's |
+| The stage that decided it — the deterministic stage below, a decision model, or the person | Which of them a verdict rests on is the first thing anybody questioning it needs. Every verdict a stage reaches is the deterministic stage's or the model's; the person's own verdict is the third kind a record carries |
 | What kind of spam it is, when a stage named one, and the phishing detail beside it | A phishing message needs a warning and marketing needs filing; [what kind of spam it is](#what-kind-of-spam-it-is) holds what may be named and by whom |
 | The score and the threshold it was judged against, when the message stated both | A score without its threshold cannot be read: the same number is spam under one configuration and ordinary mail under another |
 | The signals the verdict rests on: the deterministic stage's in the order it produced them, then, where a model answered, the model's own judgement | An operator diagnosing a wrong verdict asks *which* authentication method failed and *what* the provider header said |
@@ -108,9 +108,9 @@ message's own sender display name is in front of them. Only the model names eith
 is a statement the person made rather than a check that found nothing. Neither a reclassification nor a
 [classification run](#classifying-the-mail-you-already-have) under any profile replaces it; a run counts it as skipped.
 
-This build fills the record from the deterministic stage and, where an account consults it, the
-[model stage](#the-model-stage). The person's act does not ship in it, so a subcategory this build records is always the
-model's.
+This build fills the record from the deterministic stage, from the [model stage](#the-model-stage) where an account
+consults it, and from [the person's own verdict](#the-persons-own-verdict), so a subcategory this build records is the
+model's or the one a person named.
 
 **The profile covers the model's terms and no other operator setting.** The deterministic stage reads what a message
 carried, and nothing an operator configures moves its answer. What it reads is part of the digest all the same, so a
@@ -119,11 +119,11 @@ one decided. This build reads a message's junk keywords, which is why the first 
 existing mail, and a message carrying `$Junk` or `$NotJunk` can change its verdict there once. The model stage's terms — whether it is consulted, whether
 it names the subcategory of deterministic spam, and the threshold its probability is judged against — are what the
 digest adds when the model is consulted, so a change to any of them re-decides mail on the next run, and a deployment
-that does not consult it keeps the deterministic profile. The folders an account
-classifies are deliberately outside it: adding a folder changes which mail is classified and not what any
-classification would have concluded. A record whose profile differs from the current one — or that names none — was
-decided under other terms, and a [classification run](#classifying-the-mail-you-already-have) classifies it again
-rather than skipping it.
+that does not consult it keeps the deterministic profile. Every record a stage writes names the profile it was decided
+under; the person's own verdict names none, and a run skips it whatever its profile. The folders an account classifies
+are deliberately outside it: adding a folder changes which mail is classified and not what any classification would have
+concluded. A stage's record whose profile differs from the current one — or that names none — was decided under other
+terms, and a [classification run](#classifying-the-mail-you-already-have) classifies it again rather than skipping it.
 
 ## The deterministic stage
 
@@ -169,8 +169,8 @@ already decided spam therefore turns its verdict on the next run that reaches it
 changes keywords through refuses an addition or a removal naming `$Junk`, `$NotJunk`, or `$Phishing`, and refuses a
 replacement outright, since a replacement takes off whatever it does not name from what the server carries when it is
 performed and could strip a mark the person set in another client. That is because an agent that has just read the mail would otherwise be steered into turning the verdict on the message
-steering it — and with the verdict, what every agent may read. The person sets them through the client, and another
-mail client sets them on the server; [ADR 0007](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0007-remote-mailbox-mutation-boundary-and-write-session.md)
+steering it — and with the verdict, what every agent may read. The person sets them through the client, as part of
+[their own verdict](#the-persons-own-verdict), and another mail client sets them on the server; [ADR 0007](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0007-remote-mailbox-mutation-boundary-and-write-session.md)
 records the decision as its axis O.
 
 A message that already carries `$Junk` when it is first stored is therefore spam on arrival wherever it sits, as a
@@ -526,6 +526,61 @@ bound yet, a folder the server advertises none of, or a role two folders carry �
 including a `\Seen` or keyword change asked for beside it. The same holds for an account a reload stopped declaring, whose answer
 about mail it files away is then nobody's to guess. Marking spam read while leaving it in the inbox takes the unread
 marker off mail that is still there, which is worse than waiting; a later attempt performs the pair whole.
+
+## The person's own verdict
+
+The person marks a batch of messages **spam**, naming one subcategory for the whole batch or none, or **not spam**,
+through `POST /api/client/mutations/spam` — [the client endpoint](../operations/client-endpoint.md#marking-mail-spam-or-not-spam)
+holds the request, the batch bound, and the answers. What it records is a verdict decided by the person, which no stage
+replaces: a reclassification, a [classification run](#classifying-the-mail-you-already-have) under any profile, and a
+change of profile all leave it standing and count it as skipped. **Marking not spam is the one way a spam verdict is
+lifted** — moving a message out of the junk folder is not a correction, as above. Marking a message again is the same
+act: the verdict is replaced with the one just stated, so marking spam with another subcategory changes the subcategory
+rather than adding a second verdict. Each mark asks for every keyword below rather than for what the server last reported
+missing, so a mark undone before the first one reached the server is corrected by the second one's changes, which reach
+it afterwards.
+
+**The keywords follow the verdict into the mailbox**, so every other mail client reads the correction:
+
+| The person says | Added | Taken off |
+|---|---|---|
+| Spam | `$Junk`, and `$Phishing` where the subcategory is phishing | `$NotJunk` |
+| Not spam | `$NotJunk` | `$Junk` and `$Phishing` |
+
+They are the person's own keyword acts, so the account's `RuleActions:WriteKeywords` governs them and
+`SpamClassification:Actions:MarkWithJunkKeywords` does not: an account refusing keyword changes records the verdict and
+writes none. Each is carried by the durable record every keyword change is, before any move, and a folder whose
+`PERMANENTFLAGS` keeps neither `\*` nor the keyword ends that change as unsupported without undoing the verdict.
+
+**Whether the act also moves the message is the account's `SpamClassification:Actions:MoveToJunkFolder`.** With it on,
+spam is moved into the account's junk destination after its keywords and recorded as a filing — so, exactly as for a
+verdict's filing, [a message moved back out is never filed again](#a-message-the-user-moved-back-is-never-filed-again) —
+and not spam moves a message in the junk folder to the inbox. With it off, nothing moves. A destination that resolves to
+nothing leaves the verdict and its keywords recorded and the message where it was, and the answer says it did not move.
+A mark on mail of an account whose switch files junk asks for the `mailfathom.mail.move` grant beside
+`mailfathom.mail.flags.write`, for the whole batch before any of it is written, and a mark's move passes the checks a
+person's own move does — a junk folder withheld from them, or one across the edge of the drafts or the sent tree, is no
+move, and the verdict stands where the message is. The switch is read once per account for a batch, so a switch reloaded
+partway through one changes neither its grant nor its moves. The act asks for no confirmation of its own; a call is
+taken as confirmed. `Actions:MarkAsRead` is never applied: the person
+said what the message is, not that they have read it.
+
+**Moving a message into the junk folder through the client is marking it spam**, in the same act and whatever the switch
+says — with no subcategory, or the one the person already named. The mark is committed with the move or not at all, so
+a move into junk that is not made — the message is already there, or the move is not allowed — marks nothing. Moving
+it out changes no verdict; marking it not spam does. A move an agent or an MCP caller asks for is a move and nothing else.
+
+A message marked spam loses its passages and attachment text in the same transaction, as
+[a junk verdict does](#what-a-junk-verdict-removes); on an account whose classification is off nothing withholds it
+afterwards, so the next sweep of derived work derives from it again. One marked not spam is admitted again: once it is outside a junk
+folder, the next sweep of derived work selects it like any other admitted message. No verdict files it back into junk —
+the switches act on spam verdicts alone, and a stage cannot replace the person's.
+
+**In every custody phase.** On a mirrored account the keyword changes and the move are written down for the account's
+next run, which the act brings forward. On a held account they commit to stored state in the same transaction as the
+verdict, with an audit entry for each where the account keeps one, and a filing into the local junk folder is recorded
+exactly as a mirrored one is. A restoring account commits the same way and opens the records the source is still owed
+where the message stands there, and the answer names them.
 
 ## Junk is kept out of what a deployment derives from mail
 

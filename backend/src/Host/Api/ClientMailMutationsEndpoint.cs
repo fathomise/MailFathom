@@ -606,7 +606,7 @@ internal static class ClientMailMutationsEndpoint
     /// retry: two such calls are two requests, and collapsing them would silently discard the second of a star and an
     /// unstar.
     /// </remarks>
-    private static MailboxMutationRequester? RequesterOf(string? requestId)
+    internal static MailboxMutationRequester? RequesterOf(string? requestId)
     {
         if (requestId is null)
         {
@@ -668,7 +668,7 @@ internal static class ClientMailChangeOutcomes
     /// <summary>The change was written down, and the account's next convergence pass will issue it.</summary>
     internal const string Recorded = "recorded";
 
-    /// <summary>The account is held and the change has already been applied to the mail MailFathom keeps, so there is no record to follow.</summary>
+    /// <summary>The change has already taken effect in what MailFathom keeps — on a held account, or a spam mark that asked the mail server for nothing — so there is no record to follow.</summary>
     internal const string Applied = "applied";
 
     /// <summary>This deployment serves no readable message under that identity, so there was nothing to change.</summary>
@@ -804,11 +804,13 @@ internal sealed record ClientMailMovesResponse(IReadOnlyList<ClientMailMoveResul
 /// <param name="Outcome">What happened, as the outcome's own name.</param>
 /// <param name="DestinationFolder">The folder the move was recorded against, and <see langword="null" /> where none was.</param>
 /// <param name="Change">The durable record the move is carried by, and <see langword="null" /> where none was opened.</param>
+/// <param name="SpamMarkChanges">The keyword records a move into the junk folder opened by marking the message spam, empty for every other move.</param>
 internal sealed record ClientMailMoveResultResponse(
     Guid StoredEmailId,
     string Outcome,
     string? DestinationFolder,
-    ClientMailRecordedChangeResponse? Change)
+    ClientMailRecordedChangeResponse? Change,
+    IReadOnlyList<ClientMailRecordedChangeResponse> SpamMarkChanges)
 {
     /// <summary>Describes what the use case answered about one move.</summary>
     /// <param name="storedEmailId">The message the entry answers for.</param>
@@ -832,7 +834,11 @@ internal sealed record ClientMailMoveResultResponse(
                     MailboxMutation.Relocate.Name,
                     recordId.Value,
                     lifecycle.Name)
-                : null);
+                : null,
+            [.. result.SpamMarkRecords.Select(static record => new ClientMailRecordedChangeResponse(
+                record.Request.Mutation.Name,
+                record.Id.Value,
+                record.Lifecycle.Name))]);
     }
 
     /// <summary>Describes a move the boundary refused before the use case was reached.</summary>
@@ -840,7 +846,7 @@ internal sealed record ClientMailMoveResultResponse(
     /// <param name="outcome">The reason nothing was written down.</param>
     /// <returns>The response entry.</returns>
     internal static ClientMailMoveResultResponse NotRecorded(Guid storedEmailId, MailRelocationOutcome outcome) =>
-        new(storedEmailId, OutcomeOf(outcome), DestinationFolder: null, Change: null);
+        new(storedEmailId, OutcomeOf(outcome), DestinationFolder: null, Change: null, SpamMarkChanges: []);
 
     /// <summary>Reads the published outcome the use case's own answer names.</summary>
     private static string OutcomeOf(MailRelocationOutcome outcome) => outcome switch
@@ -852,6 +858,7 @@ internal sealed record ClientMailMoveResultResponse(
         MailRelocationOutcome.AccountNoLongerConfigured => ClientMailChangeOutcomes.AccountNoLongerConfigured,
         MailRelocationOutcome.Applied => ClientMailChangeOutcomes.Applied,
         MailRelocationOutcome.DestinationNotAllowed => ClientMailChangeOutcomes.DestinationNotAllowed,
+        MailRelocationOutcome.RequestIdAlreadyAskedForAnother => ClientMailChangeOutcomes.ChangeNotUsable,
         _ => throw new ArgumentOutOfRangeException(
             nameof(outcome),
             outcome,

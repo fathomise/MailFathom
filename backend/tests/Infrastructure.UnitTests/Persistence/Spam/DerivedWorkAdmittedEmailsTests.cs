@@ -108,6 +108,24 @@ public sealed class DerivedWorkAdmittedEmailsTests
             admitted.AsEnumerable().Select(email => email.SpamClassification!.Verdict));
     }
 
+    /// <summary>
+    /// The person's <i>not spam</i> lifts what a spam verdict withheld: once the message settles outside the junk folder,
+    /// the next sweep offers it to the derived work it was kept from, without waiting again.
+    /// </summary>
+    [Fact]
+    public void Admitting_MailThePersonMarkedNotSpamOutsideTheJunkFolder_LetsItThrough()
+    {
+        // Arrange
+        var marked = Email("work", "INBOX", Now, SpamVerdict.NotSpam);
+        marked.SpamClassification!.DecidedBy = SpamClassificationStage.Person;
+
+        // Act
+        var admitted = DerivedWorkAdmittedEmails.Admitting(Emails(marked), Terms(WorkJunk));
+
+        // Assert
+        Assert.Same(marked, Assert.Single(admitted));
+    }
+
     /// <summary>The gate's whole point: mail still waiting on a verdict is not offered to anything downstream of it.</summary>
     [Fact]
     public void Admitting_MailInsideTheScopeStillWithinItsWait_LeavesItOut()

@@ -5,6 +5,8 @@
 using System.Security.Cryptography;
 using System.Text;
 using MailFathom.Application.Access;
+using MailFathom.Application.Emails.AttachmentText;
+using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Folders.Local;
@@ -12,7 +14,10 @@ using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Authoring;
 using MailFathom.Application.Mail.Mutations.Destinations;
+using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Spam.Gating;
+using MailFathom.Application.Spam.Marking;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
@@ -20,6 +25,7 @@ using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
+using MailFathom.Domain.Spam;
 using MailFathom.Domain.Transport;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
@@ -57,6 +63,8 @@ public sealed class MailRelocationRecorderTests
 
     private static readonly MailFolderAlias Projects = MailFolderAlias.Create("Projects");
 
+    private static readonly MailFolderAlias Junk = MailFolderAlias.Create("Junk");
+
     private static readonly StoredEmailId LocalEmail = StoredEmailId.Create(Guid.CreateVersion7());
 
     private static readonly MailboxMutationRequester Requester = MailboxMutationRequester.Command("call-1");
@@ -78,9 +86,15 @@ public sealed class MailRelocationRecorderTests
 
     private readonly StubMailFolderMappings mappings = StubMailFolderMappings.Nothing;
 
+    private readonly InMemoryEmailSpamClassificationStore classifications = new();
+
+    private readonly InMemorySpamVerdictActStore verdictActs = new();
+
     private readonly List<RemoteFolder> advertisedFolders = [];
 
     private readonly List<LocalMailFolder> extraFolders = [];
+
+    private int commits;
 
     private readonly IAuthoredDeleteEmailDispositionReader dispositions =
         Substitute.For<IAuthoredDeleteEmailDispositionReader>();
@@ -514,6 +528,195 @@ public sealed class MailRelocationRecorderTests
         Assert.Equal(MailRelocationOutcome.DestinationNotAllowed, intoDrafts.Outcome);
     }
 
+    /// <summary>
+    /// The person moving a message into the junk folder is marking it spam: the verdict is theirs, the junk keyword is
+    /// written before the move, and the filing is recorded so no verdict files it again once it is moved back out.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_ThePersonMovingAMessageIntoTheJunkFolder_MarksItSpamInTheSameAct()
+    {
+        // Arrange
+        this.MapMirrored(Junk, "Junk");
+        var recorder = this.Recorder(TargetIn(Inbox));
+
+        // Act
+        var result = await recorder.RecordAsync(LocalEmail, IdOf(Junk), Requester, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRelocationOutcome.Recorded, result.Outcome);
+        Assert.Equal(
+            [MailboxMutation.AddKeywords, MailboxMutation.RemoveKeywords, MailboxMutation.Relocate],
+            this.records.OpenedRequests.Select(static opened => opened.Mutation));
+
+        var verdict = Assert.Single(this.classifications.Saved);
+        Assert.Equal(
+            (SpamVerdict.Spam, SpamClassificationStage.Person, (SpamSubcategory?)null),
+            (verdict.Verdict, verdict.DecidedBy, verdict.Subcategory));
+        Assert.Equal([SpamVerdictAct.FiledIntoJunk, SpamVerdictAct.MarkedJunk], this.verdictActs.Of(LocalEmail).Order());
+        Assert.Equal(
+            [MailboxMutation.AddKeywords, MailboxMutation.RemoveKeywords],
+            result.SpamMarkRecords.Select(static record => record.Request.Mutation));
+    }
+
+    /// <summary>
+    /// A move the service refuses commits nothing, so the spam mark staged in front of it goes with it: a message in the
+    /// sent folder stays out of the junk folder and keeps no verdict, no act, and no keyword record.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_ThePersonMovingAMessageFromTheSentFolderIntoJunk_IsRefusedAndCommitsNoMark()
+    {
+        // Arrange
+        var sent = this.MapMirrored(Sent, "Sent", MailFolderSpecialUse.Sent);
+        this.MapMirrored(Junk, "Junk");
+        var recorder = this.Recorder(TargetIn(sent.Alias, sent.RemotePath.Value));
+
+        // Act
+        var result = await recorder.RecordAsync(LocalEmail, IdOf(Junk), Requester, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRelocationOutcome.DestinationNotAllowed, result.Outcome);
+        Assert.Empty(result.SpamMarkRecords);
+        Assert.Equal(0, this.commits);
+    }
+
+    /// <summary>A message already in the junk folder is not moved, so the person's move marks nothing either.</summary>
+    [Fact]
+    public async Task RecordAsync_ThePersonMovingAMessageAlreadyInJunkIntoJunk_ReportsItThereAndCommitsNoMark()
+    {
+        // Arrange
+        var junk = this.MapMirrored(Junk, "Junk");
+        var recorder = this.Recorder(TargetIn(junk.Alias, junk.RemotePath.Value));
+
+        // Act
+        var result = await recorder.RecordAsync(LocalEmail, IdOf(Junk), Requester, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRelocationOutcome.AlreadyInDestination, result.Outcome);
+        Assert.Empty(result.SpamMarkRecords);
+        Assert.Equal(0, this.commits);
+    }
+
+    /// <summary>Moving a message out of the junk folder is a move and nothing else: only <i>not spam</i> lifts a verdict.</summary>
+    [Fact]
+    public async Task RecordAsync_ThePersonMovingAMessageOutOfJunk_ChangesNoVerdict()
+    {
+        // Arrange
+        var junk = this.MapMirrored(Junk, "Junk");
+        this.MapMirrored(Inbox, "INBOX", MailFolderSpecialUse.Inbox);
+        var recorder = this.Recorder(TargetIn(junk.Alias, junk.RemotePath.Value));
+
+        // Act
+        var result = await recorder.RecordAsync(LocalEmail, IdOf(Inbox), Requester, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRelocationOutcome.Recorded, result.Outcome);
+        Assert.Equal(MailboxMutation.Relocate, Assert.Single(this.records.OpenedRequests).Mutation);
+        Assert.Empty(this.classifications.Saved);
+        Assert.Empty(this.verdictActs.Of(LocalEmail));
+    }
+
+    /// <summary>
+    /// On an account MailFathom holds or restores, the person's move into its junk folder commits locally with their
+    /// verdict and its keyword, and a restoring account also opens the keyword record its source is still owed.
+    /// </summary>
+    [Theory]
+    [InlineData(MailAccountCustodyPhase.Held)]
+    [InlineData(MailAccountCustodyPhase.Restoring)]
+    public async Task RecordAsync_ThePersonMovingAHeldMessageIntoJunk_CommitsTheMoveWithTheirVerdict(MailAccountCustodyPhase phase)
+    {
+        // Arrange
+        this.MapMirrored(Junk, "Junk", MailFolderSpecialUse.Junk);
+        var states = new InMemoryLocalEmailStateStore(Account);
+        states.Store(
+            LocalEmail,
+            new LocalEmailState(
+                MailFolderResolution.FirstBindingOf(Inbox, RemoteFolderPath.Create(Inbox.Value)),
+                HoldsSourceOccurrence: true,
+                IdOf(Inbox),
+                IsSeen: false,
+                IsFlagged: false,
+                RemoteEmailKeywords.Create([])));
+        var recorder = this.Recorder(TargetIn(Inbox), phase: phase, states: states);
+
+        // Act
+        var result = await recorder.RecordAsync(LocalEmail, IdOf(Junk), Requester, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRelocationOutcome.Applied, result.Outcome);
+        Assert.Equal(IdOf(Junk), states.States[LocalEmail].Folder);
+        Assert.Equal(["$JUNK"], states.States[LocalEmail].Keywords.Values);
+        Assert.Equal(SpamClassificationStage.Person, Assert.Single(this.classifications.Saved).DecidedBy);
+        Assert.Equal([SpamVerdictAct.FiledIntoJunk, SpamVerdictAct.MarkedJunk], this.verdictActs.Of(LocalEmail).Order());
+        Assert.Equal(phase is MailAccountCustodyPhase.Restoring, result.SpamMarkRecords.Count > 0);
+    }
+
+    /// <summary>A request identity that already asked for other keywords is answered as an unusable request, never as a message that has gone.</summary>
+    [Fact]
+    public async Task RecordAsync_AMoveIntoJunkUnderARequestIdThatAskedForOtherKeywords_ReportsTheRequestAsUnusable()
+    {
+        // Arrange
+        this.MapMirrored(Junk, "Junk");
+        var recorder = this.Recorder(TargetIn(Inbox));
+        await recorder.RecordAsync(LocalEmail, IdOf(Junk), Requester, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+        this.classifications.Hold(SpamClassification.Create(
+            LocalEmail,
+            SpamVerdict.Spam,
+            SpamClassificationStage.Person,
+            assessment: null,
+            SpamClassificationProfile.Create(),
+            [],
+            RecordedAt,
+            SpamSubcategory.Phishing));
+
+        // Act
+        var result = await recorder.RecordAsync(LocalEmail, IdOf(Junk), Requester, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRelocationOutcome.RequestIdAlreadyAskedForAnother, result.Outcome);
+    }
+
+    /// <summary>A person who already named the kind of spam keeps it when they file the message themselves, and its keyword follows.</summary>
+    [Fact]
+    public async Task RecordAsync_ThePersonFilingAMessageTheyAlreadyMarkedPhishing_KeepsTheSubcategory()
+    {
+        // Arrange
+        this.MapMirrored(Junk, "Junk");
+        this.classifications.Hold(SpamClassification.Create(
+            LocalEmail,
+            SpamVerdict.Spam,
+            SpamClassificationStage.Person,
+            assessment: null,
+            SpamClassificationProfile.Create(),
+            [],
+            RecordedAt.AddDays(-1),
+            SpamSubcategory.Phishing));
+        var recorder = this.Recorder(TargetIn(Inbox));
+
+        // Act
+        await recorder.RecordAsync(LocalEmail, IdOf(Junk), Requester, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamSubcategory.Phishing, Assert.Single(this.classifications.Saved).Subcategory);
+        Assert.Equal(["$Junk", "$Phishing"], this.records.OpenedRequests[0].Keywords?.Values);
+    }
+
+    /// <summary>An agent filing a message into the junk folder moves it and nothing more, because only the person's own act is a verdict.</summary>
+    [Fact]
+    public async Task RecordAsync_AnAgentMovingAMessageIntoTheJunkFolder_RecordsOnlyTheMove()
+    {
+        // Arrange
+        this.MapMirrored(Junk, "Junk");
+        var recorder = this.Recorder(TargetIn(Inbox));
+
+        // Act
+        await recorder.RecordAsync(LocalEmail, IdOf(Junk), Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailboxMutation.Relocate, Assert.Single(this.records.OpenedRequests).Mutation);
+        Assert.Empty(this.classifications.Saved);
+        Assert.Empty(this.verdictActs.Of(LocalEmail));
+    }
+
     /// <summary>Maps a folder the account mirrors, and records the binding its own synchronization run would have.</summary>
     private MailFolderResolution MapMirrored(MailFolderAlias alias, string remotePath, MailFolderSpecialUse? role = null)
     {
@@ -557,7 +760,9 @@ public sealed class MailRelocationRecorderTests
     private MailRelocationRecorder Recorder(
         AuthoredMailboxTarget? target,
         AccessAuthorization? authorization = null,
-        MailAccountRunSignal? runSignal = null)
+        MailAccountRunSignal? runSignal = null,
+        MailAccountCustodyPhase? phase = null,
+        InMemoryLocalEmailStateStore? states = null)
     {
         var callerAuthorization =
             authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailMove);
@@ -567,7 +772,7 @@ public sealed class MailRelocationRecorderTests
         targets.FindAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(target));
 
         var sessions = Substitute.For<IPersistenceSessionFactory>();
-        sessions.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(_ => new CommittingSession());
+        sessions.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(_ => new CommittingSession(() => this.commits++));
 
         var participation = StubMailFolderParticipation
             .Mapping(
@@ -578,8 +783,14 @@ public sealed class MailRelocationRecorderTests
                 new MailFolderIdentity(Account, DraftsClients),
                 new MailFolderIdentity(Account, SentClients),
                 new MailFolderIdentity(Account, Trash),
-                new MailFolderIdentity(Account, Projects))
+                new MailFolderIdentity(Account, Projects),
+                new MailFolderIdentity(Account, Junk))
             .Hiding(new MailFolderIdentity(Account, Withheld));
+
+        var submission = phase is { } custody
+            ? MailboxChangeSubmissions.Over(this.records, LocalFoldersOf(custody), states)
+            : MailboxChangeSubmissions.Over(this.records);
+        var clock = new FakeTimeProvider(RecordedAt);
 
         return new MailRelocationRecorder(
             callerAuthorization,
@@ -594,18 +805,25 @@ public sealed class MailRelocationRecorderTests
             this.FolderRows(),
             this.DestinationResolver(sessions),
             this.dispositions,
-            MailboxChangeSubmissions.Over(this.records),
-            new OptimisticConcurrencyRetryPolicy(
-                sessions,
-                new PersistenceConcurrencyOptions(),
-                new FakeTimeProvider(RecordedAt)),
-            runSignal ?? new MailAccountRunSignal());
+            submission,
+            new OptimisticConcurrencyRetryPolicy(sessions, new PersistenceConcurrencyOptions(), clock),
+            runSignal ?? new MailAccountRunSignal(),
+            StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)),
+            new SpamMarkWriter(
+                SpamClassificationHarness.KeywordsPermitted(),
+                this.classifications,
+                this.verdictActs,
+                Substitute.For<IEmailChunkStore>(),
+                Substitute.For<IStoredEmailAttachmentTextStore>(),
+                Substitute.For<IDerivedWorkGateTelemetry>(),
+                submission,
+                clock));
     }
 
     /// <summary>Gives every folder these tests name a row, which is what a destination is named by.</summary>
     private ILocalMailFolderStore FolderRows()
     {
-        MailFolderAlias[] named = [Inbox, Archive, Withheld, Drafts, Sent, DraftsClients, SentClients, Trash, Projects];
+        MailFolderAlias[] named = [Inbox, Archive, Withheld, Drafts, Sent, DraftsClients, SentClients, Trash, Projects, Junk];
         IReadOnlyList<LocalMailFolder> rows =
         [
             .. named.Select(static alias => new LocalMailFolder(
@@ -619,6 +837,16 @@ public sealed class MailRelocationRecorderTests
 
         var folders = Substitute.For<ILocalMailFolderStore>();
         folders.ReadFoldersAsync(Account, Arg.Any<CancellationToken>()).Returns(rows);
+
+        return folders;
+    }
+
+    /// <summary>Gives a held or restoring account its own inbox and junk folder, which is where its moves are committed.</summary>
+    private static InMemoryLocalMailFolderStore LocalFoldersOf(MailAccountCustodyPhase phase)
+    {
+        var folders = new InMemoryLocalMailFolderStore(Account, phase);
+        folders.Add(new LocalMailFolder(IdOf(Inbox), ParentId: null, LocalMailFolderName.Create(Inbox.Value), MailFolderSpecialUse.Inbox, Inbox));
+        folders.Add(new LocalMailFolder(IdOf(Junk), ParentId: null, LocalMailFolderName.Create(Junk.Value), MailFolderSpecialUse.Junk, Junk));
 
         return folders;
     }
@@ -664,10 +892,15 @@ public sealed class MailRelocationRecorderTests
             IdOf(folderAlias));
     }
 
-    private sealed class CommittingSession : IPersistenceSession
+    /// <summary>Commits whatever it is asked to and counts it, because the stores beside it write through and a refused commit shows only here.</summary>
+    private sealed class CommittingSession(Action committed) : IPersistenceSession
     {
-        public Task<PersistenceCommitResult> CommitAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(PersistenceCommitResult.Committed);
+        public Task<PersistenceCommitResult> CommitAsync(CancellationToken cancellationToken)
+        {
+            committed();
+
+            return Task.FromResult(PersistenceCommitResult.Committed);
+        }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
