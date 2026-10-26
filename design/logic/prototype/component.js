@@ -196,6 +196,16 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
      rowSlop     10    px after which a row hands over the gesture and cancels its long-press */
   const NG = { commitFrac: 0.32, commitVel: 0.5, springMs: 260, springEase: "cubic-bezier(.32,.72,0,1)", barSlop: 12, rowSlop: 10 };
 
+  /* PULLING THE MESSAGE LIST DOWN TO REFRESH IT (coarse pointer: phone, fold, tablet).
+     decides    14    px of travel after which the touch is a pull (down, more down than across) or is not one at all
+     resistance 0.5   the indicator travels half as far as the finger
+     refreshAt  128   px of finger travel past which a release refreshes (the indicator then stands 64 px down)
+     carriesTo  96    px, the furthest the indicator travels however far the finger goes
+     size       40    px, the indicator's disc
+     rest       16    px from the list's top, where the indicator waits while the refresh is under way
+     The spring back is NG.springMs on NG.springEase, the notification gesture's own. */
+  const LP = { decides: 14, resistance: 0.5, refreshAt: 128, carriesTo: 96, size: 40, rest: 16 };
+
   const FONT = "display:flex;height:100dvh;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Geist',system-ui,sans-serif;font-size:15px";
 
   const avatarOf = (name) => AVATARS[name] || "";
@@ -863,6 +873,68 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       },
       up: () => { this._tsw = null; },
     });
+
+    /* Under a finger, the message list pulled down from its top asks for the one refresh (refreshAll) — the third way in
+       beside the rail's control and the More sheet's row. It is decided at LP.decides px: down and more down than
+       across is a pull, which calls off the row's swipe and its long press; anything else is a scroll or a row's swipe
+       and this touch takes no pull. It starts only on a list already at its first row. The indicator follows at half
+       the finger's travel, released past LP.refreshAt it refreshes and waits at LP.rest pulsing until the refresh
+       lands, released short it springs back. A pull while a refresh is under way shows the waiting indicator and asks
+       nothing. Under prefers-reduced-motion it does not travel: it stands at its resting place from the moment the
+       pull is decided and goes without springing. */
+    listPullStart = (e) => {
+      const t = e.touches && e.touches.length === 1 ? e.touches[0] : null;
+      const list = this.scrollEls.mail;
+      if (!t || !list || list.scrollTop > 0.5) { this._lp = null; return; }
+      this._lp = { x: t.clientX, y: t.clientY, taken: false, still: typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches };
+      document.removeEventListener("touchmove", this._lpMove);
+      document.removeEventListener("touchend", this._lpEnd);
+      document.removeEventListener("touchcancel", this._lpEnd);
+      document.addEventListener("touchmove", this._lpMove, { passive: false });
+      document.addEventListener("touchend", this._lpEnd);
+      document.addEventListener("touchcancel", this._lpEnd);
+    };
+
+    _lpMove = (ev) => {
+      const g = this._lp, p = ev.touches && ev.touches[0];
+      if (!g || !p) return;
+      const dx = p.clientX - g.x, dy = p.clientY - g.y;
+      if (!g.taken) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < LP.decides) return;
+        if (dy <= 0 || Math.abs(dx) >= dy) { this._lpDetach(); return; }
+        g.taken = true;
+        this.swipeCancel();
+        this.setState({ listPullSettled: false });
+      }
+      if (ev.cancelable) ev.preventDefault();
+      const travel = Math.max(0, dy);
+      if (Math.round(travel / 2) !== Math.round((this.state.listPull || 0) / 2) || this.state.listPull == null) {
+        this.setState({ listPull: travel, listPullStill: g.still });
+      }
+    };
+
+    _lpEnd = () => {
+      const g = this._lp;
+      this._lpDetach();
+      if (!g || !g.taken) return;
+      const travel = this.state.listPull || 0;
+      if (this.state.refreshBusy || travel >= LP.refreshAt) {
+        if (!this.state.refreshBusy) this.refreshAll();
+        this.setState({ listPull: null, listPullSettled: true });
+      } else if (g.still) {
+        this.setState({ listPull: null, listPullSettled: false });
+      } else {
+        this.setState({ listPull: null, listPullSettled: false, listPullBack: true });
+        this.timers.push(setTimeout(() => this.setState({ listPullBack: false }), NG.springMs));
+      }
+    };
+
+    _lpDetach = () => {
+      this._lp = null;
+      document.removeEventListener("touchmove", this._lpMove);
+      document.removeEventListener("touchend", this._lpEnd);
+      document.removeEventListener("touchcancel", this._lpEnd);
+    };
 
     undoArchive = () => this.setState(s2 => ({
       archived: (s2.archived || []).filter(x => x !== s2.lastArchived),
@@ -2150,9 +2222,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const t3 = setTimeout(() => {
         const done = (this.state.deleted || []);
         const gone = prev && done.indexOf(prev) < 0 ? prev : (done.indexOf(b.fallbackRemove) < 0 ? b.fallbackRemove : null);
-        if (!gone) { this.setState({ refreshBusy: false, lastSync: Date.now() }); return; }
+        if (!gone) { this.setState({ refreshBusy: false, listPullSettled: false, lastSync: Date.now() }); return; }
         this.notify(b.removeNote, false);
-        this.setState(s => ({ deleted: (s.deleted || []).concat([gone]), refreshBusy: false, lastSync: Date.now() }));
+        this.setState(s => ({ deleted: (s.deleted || []).concat([gone]), refreshBusy: false, listPullSettled: false, lastSync: Date.now() }));
       }, 2050);
       this.timers.push(t2, t3);
     };
@@ -2991,6 +3063,28 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const railW = compact ? 66 : 96;
       this._low = low;
       this._isMobile = isMobile;
+      /* The list's pull: the disc's top edge follows half the finger's travel from above the list, waits at LP.rest
+         while the refresh is under way, and springs back above the list when released short. */
+      const listPull = (() => {
+        const pulling = st.listPull != null;
+        const settled = !!st.listPullSettled && !!st.refreshBusy;
+        const shown = touch && (pulling || settled || !!st.listPullBack);
+        const travel = pulling ? st.listPull : 0;
+        const still = pulling && !!st.listPullStill;
+        const armed = st.refreshBusy || travel >= LP.refreshAt;
+        const top = settled || still ? LP.rest : pulling ? Math.min(LP.carriesTo, travel * LP.resistance) - LP.size : -LP.size;
+        const turn = pulling && !still ? Math.min(1, travel / LP.refreshAt) * 270 : 0;
+        return {
+          shown: shown,
+          discStyle: "position:absolute;left:50%;top:0;z-index:5;width:" + LP.size + "px;height:" + LP.size + "px;margin-left:-" + (LP.size / 2) + "px;" +
+            "display:flex;align-items:center;justify-content:center;border-radius:50%;box-shadow:0 1px 0 var(--inset) inset,0 1px 3px var(--sh-2);pointer-events:none;" +
+            "background:var(--panel);border:1px solid " + (armed ? "var(--accent-line);color:var(--accent-d);" : "var(--line);color:var(--text2);") +
+            "transform:translateY(" + top + "px);opacity:" + (settled || still ? 1 : Math.max(0, Math.min(1, (top + LP.size) / LP.size))) + ";" +
+            (pulling ? "transition:background 140ms ease,color 140ms ease,border-color 140ms ease" : "transition:transform " + NG.springMs + "ms " + NG.springEase + ",opacity " + NG.springMs + "ms " + NG.springEase),
+          glyphStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1;display:block;transform:rotate(" + turn + "deg)" +
+            (st.refreshBusy ? ";animation:mfpulse 1s ease-in-out infinite" : ""),
+        };
+      })();
       /* A dialog takes what a low window has and stops growing in a tall one. */
       const dlgMaxH = low ? "calc(100dvh - 16px)" : tall ? "min(calc(100dvh - 44px), 760px)" : "calc(100dvh - 44px)";
       const toastCompact = w < 900;
@@ -5587,7 +5681,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         onTasksScroll: this.keepScrollOn("tasks"),
         calScrollRef: this.keepScroll("cal"),
         onCalScroll: this.keepScrollOn("cal"),
-        listScrollStyle: "position:relative;flex:1;overflow:auto;min-height:160px;background:var(--sub)",
+        /* overscroll-behavior keeps a browser's own pull-to-refresh from reloading the page under the list's pull. */
+        listScrollStyle: "position:relative;flex:1;overflow:auto;overscroll-behavior:contain;min-height:160px;background:var(--sub)",
+        listPullStart: touch ? this.listPullStart : null,
+        listPullShown: listPull.shown,
+        listPullStyle: listPull.discStyle,
+        listPullGlyphStyle: listPull.glyphStyle,
         listInnerStyle: "display:flex;flex-direction:column;gap:1px;padding:1px 0",
         threadHeadStyle: singlePane
           ? "flex:0 0 auto;display:flex;flex-direction:column;gap:2px;padding:" + (thCollapsed ? "3px 6px" : "6px 8px 8px 8px") + ";border-bottom:1px solid var(--line);background:var(--panel);transition:padding 140ms ease"

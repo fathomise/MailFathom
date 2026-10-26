@@ -819,7 +819,12 @@ Project repository: https://github.com/fathomise/MailFathom
               </div>
             </div>
           </sc-if>
-          <div ref="{{ listScrollRef }}" onScroll="{{ onListScroll }}" style="{{ listScrollStyle }}">
+          <div ref="{{ listScrollRef }}" onScroll="{{ onListScroll }}" onTouchStart="{{ listPullStart }}" style="{{ listScrollStyle }}">
+            <sc-if value="{{ listPullShown }}" hint-placeholder-val="{{ false }}">
+              <div aria-hidden="true" style="position:sticky;top:0;height:0;z-index:5">
+                <div style="{{ listPullStyle }}"><span style="{{ listPullGlyphStyle }}">refresh</span></div>
+              </div>
+            </sc-if>
             <sc-if value="{{ listLoading }}" hint-placeholder-val="{{ false }}">
               <div style="{{ listSkelStyle }}">
                 <sc-for list="{{ listSkelRows }}" as="sk" hint-placeholder-count="6">

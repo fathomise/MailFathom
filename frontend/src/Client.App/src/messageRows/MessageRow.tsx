@@ -6,6 +6,7 @@ import { useRef, type PointerEvent, type ReactNode } from 'react';
 import type { MailTimelineEntry } from '@mailfathom/client-backend';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { pressedByFinger, useRowPress } from '../contextMenu/rowPress';
+import { swipeEngages } from '../controls/swipeAcross';
 import { Icon } from '../controls/Icon';
 import type { IconName } from '../controls/icons';
 import { MessageMarkers } from '../controls/MessageMarkers';
@@ -99,6 +100,23 @@ const swipeDrawn: Readonly<
 // Weight and ink together, because 600 against 400 in one colour read as the same row at a glance.
 function unreadInk(unread: boolean): string {
     return unread ? 'font-bold text-text' : 'font-normal text-text-soft';
+}
+
+/**
+ * Whether a finger lifted here went further up or down the list than across it, past where a gesture engages — a
+ * scroll or a pull of the list rather than a tap. A swipe that sprang back short is still a tap.
+ */
+function travelledAlongList(
+    landed: { readonly x: number; readonly y: number } | null,
+    lifted: { readonly clientX: number; readonly clientY: number },
+): boolean {
+    if (landed === null) {
+        return false;
+    }
+
+    const down = Math.abs(lifted.clientY - landed.y);
+
+    return down >= swipeEngages && down > Math.abs(lifted.clientX - landed.x);
 }
 
 export function MessageRow({
@@ -238,6 +256,11 @@ export function MessageRow({
     // which is what makes letting it go here a press on the row.
     const mousePressed = useRef(false);
 
+    // Where a finger landed on this row, because one that travelled along the list before lifting is not a tap. The
+    // browser usually says so itself by cancelling the pointer as the list pans, but a pull of the list keeps the pan
+    // from starting, and its lift then arrives here as an ordinary one.
+    const landed = useRef<{ readonly x: number; readonly y: number } | null>(null);
+
     // The act this row is still waiting on. It is what the reserved line says while it stands, ahead of whatever the
     // screen would otherwise put there: a message on its way out of the folder is the more urgent fact about the row
     // than why a search found it.
@@ -332,6 +355,7 @@ export function MessageRow({
                 // The primary button alone acts. The second one is what asks the row what it offers, and a row that
                 // also selected the message and opened it under the menu would be answering a question with an act.
                 mousePressed.current = !pressedByFinger(event.pointerType) && event.button === 0;
+                landed.current = { x: event.clientX, y: event.clientY };
             }}
             onPointerMove={(event) => {
                 // The press first, because it is the one that gives way: it is off at a shorter travel than the swipe
@@ -343,9 +367,12 @@ export function MessageRow({
                 // The tap this lift amounts to, read before the press is cleared so that a lift ending a press which
                 // has opened the menu acts on nothing. The swipe is asked afterwards rather than before, because the
                 // lift is what finishes one — and a lift that has just filed the message away is not also a tap on it.
-                const tapped = pressedByFinger(event.pointerType) ? !press.tapSuppressed() : mousePressed.current;
+                const tapped = pressedByFinger(event.pointerType)
+                    ? !travelledAlongList(landed.current, event) && !press.tapSuppressed()
+                    : mousePressed.current;
 
                 mousePressed.current = false;
+                landed.current = null;
 
                 press.onPointerUp();
                 swipe.onPointerUp(event);
