@@ -7,6 +7,7 @@ import type { ClientNotification } from '@mailfathom/client-backend';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { pressedByFinger, useRowPress } from '../contextMenu/rowPress';
 import { Icon } from '../controls/Icon';
+import { useRowSwipe } from '../controls/rowSwipe';
 import { useTip } from '../controls/useTip';
 import { wordInstant } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
@@ -31,6 +32,11 @@ import { wordNotification } from './notificationWords';
 // **A failure carries its decisions the same way**, as pills under the source line at every width so a finger reaches
 // them: a refused send is sent again or taken back to edit, and a change the mailbox did not take is asked again or let
 // go. Each is a decision taken where the row stands rather than a way into the thing it is about.
+//
+// **A card of its own, swiped aside to change its read state.** Each notification stands apart from the next rather than
+// running into it under a hairline, raised while it is unread and outlined once it is read. A finger carried either way
+// across it toggles the read state, exactly as the toggle does — the toggle and the row's menu stay, because a swipe is
+// a second route for a finger and never the only one.
 //
 // **How long ago is drawn and when is read.** The relative wording is what somebody scanning the list needs; the
 // instant behind it is what the `time` element carries and what a pointer resting on it says, so nothing about the
@@ -99,6 +105,7 @@ export function NotificationRow({
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
     const press = useRowPress(onPress);
+    const swipe = useRowSwipe(press, { leftward: onToggleRead, rightward: onToggleRead });
     const primary = useRef<HTMLButtonElement>(null);
     const tone = toneOf(notification);
     const tucked = onSummarize === null && decisions.length === 0;
@@ -127,22 +134,53 @@ export function NotificationRow({
     }
 
     return (
-        <li
-            className={`flex items-start gap-3 overflow-hidden border-b border-line-soft ps-4 pe-3 ${
-                arrived ? 'animate-row-opening ' : ''
-            }${selected ? 'bg-accent-soft' : notification.read ? '' : 'bg-sunken'}`}
-        >
+        <li className={`relative shrink-0 touch-pan-y overflow-hidden rounded-lg ${arrived ? 'animate-row-opening' : ''}`}>
+            {swipe.carried === 0 ? null : (
+                // What lifting the finger will do, against the edge the card has uncovered. Hidden from the
+                // accessibility tree because the same act is the toggle beside it, which is where a keyboard and a
+                // screen reader meet it; faint until the swipe has gone far enough and full once it has.
+                <span
+                    aria-hidden="true"
+                    className={`absolute inset-0 flex items-center rounded-lg bg-accent-soft text-accent-strong ${
+                        swipe.carried < 0 ? 'justify-end pe-5.5' : 'justify-start ps-5.5'
+                    } ${swipe.commits === null ? 'opacity-55' : 'opacity-100'}`}
+                >
+                    <Icon
+                        name={notification.read ? 'mark_email_unread' : 'mark_email_read'}
+                        className="me-2 size-icon-xl"
+                    />
+
+                    <span className="text-base font-semibold">
+                        {translate(
+                            notification.read ? 'notifications.swipeMarksUnread' : 'notifications.swipeMarksRead',
+                        )}
+                    </span>
+                </span>
+            )}
+
+            <div
+                className={`relative flex items-start gap-3 rounded-lg border ps-3.5 pe-3 hover:border-line-strong ${
+                    swipe.carried === 0 ? 'transition' : ''
+                } ${
+                    selected
+                        ? 'border-line bg-accent-soft'
+                        : notification.read
+                          ? 'border-line-soft'
+                          : 'border-line bg-panel shadow-raised'
+                }`}
+                // How far a finger has carried the card is a distance it decided rather than one the theme took.
+                style={swipe.carried === 0 ? undefined : { transform: `translateX(${String(swipe.carried)}px)` }}
+            >
             <span className="flex min-w-0 flex-1 flex-col">
                 <button
                     ref={primary}
                     type="button"
                     aria-pressed={selecting ? selected : undefined}
-                    className={`flex cursor-pointer items-start gap-3 pt-3.25 text-start ${
-                        tucked ? 'pb-3.25' : 'pb-1.5'
-                    }`}
+                    className={`flex cursor-pointer items-start gap-3 pt-3 text-start ${tucked ? 'pb-3' : 'pb-1.5'}`}
                     onContextMenu={press.onContextMenu}
                     onPointerDown={(event) => {
                         press.onPointerDown(event);
+                        swipe.onPointerDown(event);
 
                         // A mouse acts as it goes down; a finger's press is not decided until it is lifted, because the
                         // same touch may become the press that opens this row's menu.
@@ -150,17 +188,27 @@ export function NotificationRow({
                             pointed(event);
                         }
                     }}
-                    onPointerMove={press.onPointerMove}
+                    onPointerMove={(event) => {
+                        // The press first, because it gives way at a shorter travel than the swipe needs to engage.
+                        press.onPointerMove(event);
+                        swipe.onPointerMove(event);
+                    }}
                     onPointerUp={(event) => {
                         const tapped = pressedByFinger(event.pointerType) && !press.tapSuppressed();
 
                         press.onPointerUp();
+                        // Asked after the tap is read, because the lift is what finishes a swipe — and a lift that has
+                        // just changed the read state is not also a tap opening what the card is about.
+                        swipe.onPointerUp(event);
 
-                        if (tapped) {
+                        if (tapped && !swipe.tapSuppressed()) {
                             pointed(event);
                         }
                     }}
-                    onPointerCancel={press.onPointerCancel}
+                    onPointerCancel={() => {
+                        press.onPointerCancel();
+                        swipe.onPointerCancel();
+                    }}
                     // The keyboard reaches the row through its own activation rather than through a pointer, so the two
                     // are separate paths to the same two acts and neither is a simulation of the other.
                     onKeyDown={(event) => {
@@ -221,7 +269,7 @@ export function NotificationRow({
                 {/* Under the text rather than under the symbol, which is where the design hangs it: inset by the
                 symbol's width and the gap beside it. */}
                 {onSummarize === null ? null : (
-                    <button type="button" onClick={onSummarize} className={`ms-11 mb-3.25 self-start ${pill}`}>
+                    <button type="button" onClick={onSummarize} className={`ms-11 mb-3 self-start ${pill}`}>
                         <Icon name="auto_awesome" className="size-icon-md" />
                         {summarizeName}
                     </button>
@@ -231,7 +279,7 @@ export function NotificationRow({
                     <span
                         role="group"
                         aria-label={translate('notifications.decisions')}
-                        className="ms-11 mb-3.25 flex flex-wrap gap-2"
+                        className="ms-11 mb-3 flex flex-wrap gap-2"
                     >
                         {/* A decision takes its pills away, so focus goes to the row's own control first rather than
                             falling to the document with the pill that held it. */}
@@ -258,7 +306,7 @@ export function NotificationRow({
                 )}
             </span>
 
-            <span className="flex shrink-0 items-center gap-1.75 py-3.25">
+            <span className="flex shrink-0 items-center gap-1.75 py-3">
                 {notification.read ? null : (
                     <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-accent" />
                 )}
@@ -267,16 +315,17 @@ export function NotificationRow({
                     {...markName.anchor}
                     type="button"
                     aria-label={translate(notification.read ? 'notifications.markUnread' : 'notifications.markRead')}
-                    className={`flex size-8 cursor-pointer items-center justify-center rounded-lg border transition pointer-coarse:size-9.5 ${
+                    className={`flex size-8 cursor-pointer items-center justify-center rounded-lg border transition pointer-coarse:size-11 ${
                         notification.read
                             ? 'border-line bg-panel text-muted'
-                            : 'border-transparent bg-accent text-on-accent'
+                            : 'border-accent-line bg-accent-soft text-accent-deep'
                     }`}
                 >
                     <Icon name={notification.read ? 'mark_email_unread' : 'mark_email_read'} className="size-icon-lg" />
                 </button>
                 {markName.tip}
             </span>
+            </div>
         </li>
     );
 }

@@ -2053,7 +2053,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (mode === "open" && this.state.notifCenter) return;
       this.notifGestDetach();
       const t = (e.touches && e.touches[0]) || e;
-      const g = { mode: mode, y0: t.clientY, yPrev: t.clientY, tPrev: Date.now(), v: 0, live: false, anchor: 0 };
+      const g = { mode: mode, x0: t.clientX, y0: t.clientY, yPrev: t.clientY, tPrev: Date.now(), v: 0, live: false, anchor: 0 };
       this._notifG = g;
       if (mode === "open") this._notifBarTap = false;
 
@@ -2082,11 +2082,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         }
 
         if (!g.live) {
-          /* A card already carried aside keeps the finger: one finger is one gesture. */
-          if (this.state.notifSwipeId) return;
           /* Movement beyond the row slop cancels the long press — one or the other, never both. */
           if (Math.abs(dy) > NG.rowSlop) clearTimeout(this._lpT);
           if (dy < NG.rowSlop) return;
+          /* A finger gone more across than down is a card's swipe, never the panel's: one finger is one gesture. */
+          if (Math.abs(p.clientX - g.x0) > dy) { this.notifGestDetach(); this._notifG = null; return; }
           const list = this.notifListRef.current;
           if (list && list.scrollTop > 0.5) { g.y0 = p.clientY; return; }
           /* The list is at the top — the same uninterrupted move becomes a panel dismissal. */
@@ -5667,13 +5667,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             touchMove: (e) => { notifPress.up(); if (touch) this.notifSwipeMove(n.id, e); },
             touchEnd: () => { notifPress.up(); if (touch) this.notifSwipeEnd(n); },
             swiping: touch && notifSwiped && Math.abs(notifDx) > 8,
-            swipeBgStyle: "position:absolute;inset:0;display:flex;align-items:center;border-radius:14px;background:var(--accent-soft);color:var(--accent-d);" +
+            swipeBgStyle: "position:absolute;inset:0;display:flex;align-items:center;border-radius:12px;background:var(--accent-soft);color:var(--accent-d);" +
               (notifDx < 0 ? "justify-content:flex-end;padding-right:22px;" : "justify-content:flex-start;padding-left:22px;"),
             swipeIcon: unread ? "mark_email_read" : "mark_email_unread",
             swipeLabel: unread ? "Mark read" : "Mark unread",
             swipeIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' " + (Math.abs(notifDx) >= 96 ? 500 : 300) + ";font-size:22px;line-height:1;margin-right:8px",
             swipeTextStyle: "font-size:13px;font-weight:600;opacity:" + (Math.abs(notifDx) >= 96 ? "1" : "0.55"),
-            wrapStyle: "position:relative;flex:0 0 auto;border-radius:14px" +
+            wrapStyle: "position:relative;flex:0 0 auto;border-radius:12px" +
               (notifAnim[n.id] === "in" ? ";overflow:hidden;animation:mfrowin 480ms cubic-bezier(.22,1,.36,1) both" : ""),
             toggleRead: (e) => this.toggleNotifRead(n, e),
             readIcon: unread ? "mark_email_read" : "mark_email_unread",
@@ -5684,8 +5684,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             iconWrapStyle: "flex:0 0 auto;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:" + K.soft,
             iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1;color:" + K.c,
             /* Unread is raised — filled and lifted by a soft shadow; read is outlined and sits flat. */
-            style: "position:relative;display:flex;align-items:flex-start;gap:12px;padding:12px 12px 12px 14px;border-radius:14px;border:1px solid " + (unread ? "var(--line)" : "var(--line2)") + ";" +
-              "background:" + (unread ? "var(--panel);box-shadow:0 1px 2px var(--sh-1),0 2px 6px var(--sh-1);" : "transparent;") + selMark("notifs", n.id) +
+            style: "position:relative;display:flex;align-items:flex-start;gap:12px;padding:12px 12px 12px 14px;border-radius:12px;border:1px solid " + (unread ? "var(--line)" : "var(--line2)") + ";" +
+              "background:" + (unread ? "var(--panel);box-shadow:0 1px 3px var(--sh-2);" : "transparent;") + selMark("notifs", n.id) +
               (touch && notifSwiped ? "transform:translateX(" + notifDx + "px);" : "transform:translateX(0);transition:transform 160ms ease,background 120ms ease,border-color 120ms ease;"),
           };
         }),

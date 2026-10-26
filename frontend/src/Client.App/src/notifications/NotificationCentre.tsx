@@ -509,7 +509,10 @@ export function NotificationCentre({
                 ref={(element) => {
                     swipe.attachList(element);
                 }}
-                className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+                // The cards stand on the page's own recessed surface, and so does the sentence that stands in for them.
+                className={`min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain bg-page px-2.5 pt-2.5 pb-3.5 ${
+                    drawn.length === 0 ? 'hidden' : 'flex'
+                }`}
             >
                 {drawn.map((notification) => (
                     <NotificationRow
@@ -639,7 +642,7 @@ function Nothing({
 
     if (reading) {
         return (
-            <p role="status" className="flex flex-1 items-center justify-center px-6 py-13 text-base text-muted">
+            <p role="status" className="flex flex-1 items-center justify-center bg-page px-6 py-13 text-base text-muted">
                 {translate('notifications.reading')}
             </p>
         );
@@ -647,14 +650,14 @@ function Nothing({
 
     if (failure !== null) {
         return (
-            <p role="alert" className="flex flex-1 items-center justify-center px-6 py-13 text-base text-error-text">
+            <p role="alert" className="flex flex-1 items-center justify-center bg-page px-6 py-13 text-base text-error-text">
                 {translate('notifications.failed', { reason: translate(failureLabels[failure]) })}
             </p>
         );
     }
 
     return (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2.25 px-6 py-13 text-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-2.25 bg-page px-6 py-13 text-center">
             <Icon name="notifications_off" className="size-icon-3xl text-faint" />
             <p className="text-base text-pretty text-muted">
                 {translate(filter === 'unread' ? 'notifications.empty' : 'notifications.emptyAll')}

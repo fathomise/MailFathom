@@ -306,6 +306,55 @@ describe('NotificationCentre', () => {
         expect(acts.markRead).toHaveBeenCalledWith(['n-meeting'], false);
     });
 
+    describe('a card swiped aside', () => {
+        /** A finger landing on the card's title, travelling across it, and lifting there. */
+        function swipeAcross(title: string, across: number, pointerType = 'touch'): void {
+            const card = screen.getByText(title);
+            const landed = { pointerId: 1, pointerType, button: 0, clientX: 200, clientY: 100 };
+            const travelled = { ...landed, clientX: 200 + across };
+
+            fireEvent.pointerDown(card, landed);
+            fireEvent.pointerMove(card, travelled);
+            fireEvent.pointerUp(card, travelled);
+        }
+
+        it('marks an unread notification read, rightward as well as leftward, without opening it', () => {
+            panel();
+
+            swipeAcross('Ada Lovelace wrote', 120);
+            swipeAcross('Ada Lovelace wrote', -120);
+
+            expect(acts.markRead).toHaveBeenNthCalledWith(1, ['n-mail'], true);
+            expect(acts.markRead).toHaveBeenNthCalledWith(2, ['n-mail'], true);
+            expect(acts.follow).not.toHaveBeenCalled();
+        });
+
+        it('marks a read notification unread again, as the toggle beside it would', () => {
+            panel();
+            showAll();
+
+            swipeAcross('Standing meeting moved', -120);
+
+            expect(acts.markRead).toHaveBeenCalledWith(['n-meeting'], false);
+        });
+
+        it('springs back short of the threshold, leaving the read state as it was', () => {
+            panel();
+
+            swipeAcross('Ada Lovelace wrote', 60);
+
+            expect(acts.markRead).not.toHaveBeenCalled();
+        });
+
+        it('is never carried by a mouse, which has the toggle and the menu for the same act', () => {
+            panel();
+
+            swipeAcross('Ada Lovelace wrote', 120, 'mouse');
+
+            expect(acts.markRead).not.toHaveBeenCalled();
+        });
+    });
+
     it('marks the whole centre read in one act', () => {
         panel();
 
