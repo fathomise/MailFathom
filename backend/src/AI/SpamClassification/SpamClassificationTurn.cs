@@ -6,7 +6,6 @@ using System.Text.Json;
 using MailFathom.AI.Orchestration;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.Spam.Model;
-using MailFathom.Domain.Emails.Authentication;
 
 namespace MailFathom.AI.SpamClassification;
 
@@ -37,7 +36,6 @@ internal static class SpamClassificationTurn
     internal const string BodyElementName = "body";
 
     internal const string AddressAttributeName = "address";
-    internal const string SenderTrustedAttributeName = "sender-trusted";
     internal const string HostAttributeName = "host";
     internal const string DisplayedHostAttributeName = "displayed-host";
     internal const string DisplayedHostDiffersAttributeName = "displayed-host-differs";
@@ -108,14 +106,7 @@ internal static class SpamClassificationTurn
     private static void Write(AgentTurnDocument document, SpamModelEvidence evidence)
     {
         document.StartElement(MessageElementName);
-        document.WriteAttribute(
-            AgentTurnDocument.SenderAuthenticationAttributeName,
-            SenderAuthenticationValue(evidence.AuthorAuthentication));
-
-        if (evidence.IsSenderTrusted)
-        {
-            document.WriteAttribute(SenderTrustedAttributeName, TrueValue);
-        }
+        document.WriteSender(evidence.AuthorAuthentication, evidence.IsSenderTrusted);
 
         if (evidence.SenderAddress is { } senderAddress)
         {
@@ -176,14 +167,6 @@ internal static class SpamClassificationTurn
         document.WriteQuoted(BodyElementName, evidence.Body, evidence.IsBodyCut);
         document.EndElement();
     }
-
-    /// <summary>Names an outcome in the words every turn document publishes it under.</summary>
-    private static string SenderAuthenticationValue(AuthorAuthenticationOutcome outcome) => outcome switch
-    {
-        AuthorAuthenticationOutcome.Authenticated => AgentTurnDocument.AuthenticatedSender,
-        AuthorAuthenticationOutcome.Failed => AgentTurnDocument.FailedSender,
-        _ => AgentTurnDocument.NotEstablishedSender,
-    };
 
     /// <summary>Returns the evidence with every value but the two addresses replaced by what the guard let through.</summary>
     private static async Task<SpamModelEvidence> GuardedAsync(

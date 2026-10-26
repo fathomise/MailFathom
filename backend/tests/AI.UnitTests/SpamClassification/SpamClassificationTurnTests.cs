@@ -40,7 +40,7 @@ public sealed class SpamClassificationTurnTests
         // Assert
         var message = Assert.Single(written.Elements(SpamClassificationTurn.MessageElementName));
         Assert.Equal(hostile, Assert.Single(message.Elements(SpamClassificationTurn.BodyElementName)).Value);
-        Assert.Null(message.Attribute(SpamClassificationTurn.SenderTrustedAttributeName));
+        Assert.Null(message.Attribute(AgentTurnDocument.SenderTrustedAttributeName));
         Assert.Equal(AgentTurnDocument.NotEstablishedSender, (string?)message.Attribute(AgentTurnDocument.SenderAuthenticationAttributeName));
     }
 
@@ -203,7 +203,7 @@ public sealed class SpamClassificationTurnTests
         var message = Parsed(SpamClassificationTurn.Compose(evidence)).Element(SpamClassificationTurn.MessageElementName)!;
 
         // Assert
-        Assert.Equal(expected, (string?)message.Attribute(SpamClassificationTurn.SenderTrustedAttributeName));
+        Assert.Equal(expected, (string?)message.Attribute(AgentTurnDocument.SenderTrustedAttributeName));
     }
 
     /// <summary>The account's posture applies in full to the free text, and the two addresses cross as an address does everywhere.</summary>

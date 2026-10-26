@@ -298,8 +298,9 @@ deterministic spam while naming its kind is off.
 - the plain-text body, cut to `SpamClassification:ModelStage:MaxBodyCharacters` (8 000 by default), with the model told
   where it was cut;
 - for each followable link, the host it leads to, the host its words name, and whether the two differ — the same reading
-  that makes the reading pane warn about a link;
-- the declared type and name of each attachment, never its content;
+  that makes the reading pane warn about a link — up to 32 of them, read from the first 100 000 characters of each of the
+  body's representations rather than from the part of it that is sent, so a long body or a heavy stylesheet costs no link;
+- the declared type and name of up to 16 attachments, a name cut to 128 characters, never their content;
 - what the account's trusted receiving server established about the displayed author — authenticated, failed, or not
   established — as the message's [provenance](../operations/configuration-mail.md) records it, and whether this
   deployment trusts the authenticated sender.

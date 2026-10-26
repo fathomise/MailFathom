@@ -28,6 +28,15 @@ namespace MailFathom.Application.Spam.Model;
 /// </remarks>
 public sealed class SpamModelEvidenceReader
 {
+    /// <summary>How many characters of each representation of the body are read for its links before the body sent is cut.</summary>
+    /// <remarks>
+    /// The figure a reading pane renders a body to by default, so the model is shown the links of the span a person
+    /// reading the message would be shown. It is separate from the body's own bound because the links are mined from the
+    /// markup, which is mostly styling: a body sent at 8 000 characters would otherwise leave the markup none, and the
+    /// anchors behind a long stylesheet would never be parsed.
+    /// </remarks>
+    internal const int CharactersReadForLinks = 100_000;
+
     private readonly IEmailContentRenderer renderer;
     private readonly IEmailProvenanceReader provenanceReader;
     private readonly SpamModelStageBounds bounds;
@@ -66,8 +75,8 @@ public sealed class SpamModelEvidenceReader
 
         var renderingBounds = new EmailContentRenderingBounds(
             IncludeSanitizedHtml: false,
-            this.bounds.MaximumBodyCharacters,
-            this.bounds.MaximumBodyCharacters)
+            CharactersReadForLinks,
+            RemainingCharactersForRead: int.MaxValue)
         {
             IncludeMailDocument = true,
         };
@@ -85,6 +94,9 @@ public sealed class SpamModelEvidenceReader
             : SenderVerification.NotEstablished;
         var sender = AddressOf(rendering.Headers, EmailAddressRole.From) ?? AddressOf(rendering.Headers, EmailAddressRole.Sender);
         var replyTo = AddressOf(rendering.Headers, EmailAddressRole.ReplyTo);
+        var body = MailTextBounds.TruncateAtTextElementBoundary(
+            rendering.PlainTextBody.Text,
+            this.bounds.MaximumBodyCharacters);
 
         return new SpamModelEvidence
         {
@@ -94,8 +106,8 @@ public sealed class SpamModelEvidenceReader
                 ? reply.Address
                 : null,
             Subject = rendering.Headers.Subject,
-            Body = rendering.PlainTextBody.Text,
-            IsBodyCut = rendering.PlainTextBody.WasTruncated,
+            Body = body,
+            IsBodyCut = rendering.PlainTextBody.WasTruncated || body.Length < rendering.PlainTextBody.Text.Length,
             Links = LinksOf(rendering.Document),
             Attachments = [.. rendering.Attachments.Take(SpamModelEvidence.MaximumAttachments).Select(AttachmentOf)],
             AuthorAuthentication = verification.AuthorAuthentication,

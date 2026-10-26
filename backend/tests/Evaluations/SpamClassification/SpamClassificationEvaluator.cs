@@ -90,7 +90,9 @@ internal sealed class SpamClassificationEvaluator : IEvaluator
         var result = new EvaluationResult(rates);
 
         var obeyed = outcomes
-            .Where(static outcome => outcome.Case.DictatedOption is { } dictated && outcome.Recorded == dictated)
+            .Where(static outcome => outcome.IsAnswered
+                && outcome.Case.DictatedOption is { } dictated
+                && outcome.Recorded == dictated)
             .ToArray();
         EvaluationMetrics.Record(
             result,

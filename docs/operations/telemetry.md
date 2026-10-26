@@ -338,7 +338,9 @@ and `mailfathom.spam.model_stage.outcome`: `answered`, `not_activated`, `budget_
 `answer_unreadable`, `input_too_large`, or `scanner_unavailable`. Every outcome but the first left the deterministic
 verdict in place, so the share of those is the share of consulted mail the model did not reach. `not_activated` is the
 one to read first: an account switched the stage on and the deployment declares no decision model for spam
-classification. It is a count per replica and sums across them, and the call itself is reported again by the decision
+classification. A message whose stored content cannot be rendered is the one the counter does not see: there is nothing
+to show a model, so it is recorded deterministically under the account's own terms, uncounted, and no later run asks
+about it again. It is a count per replica and sums across them, and the call itself is reported again by the decision
 client's own instruments. Nothing about the message, the verdict, or the kind reaches it.
 [The model stage](../features/spam-classification.md#the-model-stage) holds what each outcome means.
 

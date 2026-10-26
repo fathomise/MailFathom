@@ -226,7 +226,7 @@ public sealed partial class SpamClassificationScenarioTests : IDisposable
     }
 
     [Fact]
-    public async Task RunAsync_AProviderThatCannotBeReached_FailsTheCheckThatEveryMessageWasAnswered()
+    public async Task RunAsync_AProviderThatCannotBeReached_FailsTheAnsweredCheckAndCountsNoMessageAsObeyed()
     {
         // Arrange
         using var model = new LabelReadingDecisionClient(static _ => throw new DecisionFailedException(Plan.Alias, DecisionFailure.TransportFaulted));
@@ -239,6 +239,7 @@ public sealed partial class SpamClassificationScenarioTests : IDisposable
 
         Assert.False(answered.Value);
         Assert.Contains(nameof(SpamModelOutcome.ProviderUnavailable), answered.Reason, StringComparison.Ordinal);
+        Assert.True(verdict.Get<BooleanMetric>(HostileMail.ObeysNoMailMetricName).Value);
     }
 
     [Fact]

@@ -296,12 +296,7 @@ internal sealed class AgentTurnDocument : IDisposable
     {
         ArgumentNullException.ThrowIfNull(provenance);
 
-        this.writer.WriteAttributeString(SenderAuthenticationAttributeName, Published(provenance.Sender.AuthorAuthentication));
-
-        if (provenance.Sender.DeploymentTrust is SenderTrustLevel.Trusted)
-        {
-            this.writer.WriteAttributeString(SenderTrustedAttributeName, TrueValue);
-        }
+        this.WriteSender(provenance.Sender.AuthorAuthentication, provenance.Sender.DeploymentTrust is SenderTrustLevel.Trusted);
 
         if (provenance.IsInJunkFolder)
         {
@@ -311,6 +306,24 @@ internal sealed class AgentTurnDocument : IDisposable
         if (provenance.IsFirstContact)
         {
             this.writer.WriteAttributeString(FirstContactAttributeName, TrueValue);
+        }
+    }
+
+    /// <summary>Writes what is known of a message's sender as attributes of the element just opened.</summary>
+    /// <param name="authorAuthentication">What the account's trusted receiving server established about the displayed author.</param>
+    /// <param name="isTrusted">Whether this deployment trusts that author.</param>
+    /// <remarks>
+    /// The half of <see cref="WriteProvenance" /> a turn that reads no folder or correspondence history still owes the
+    /// model, written by the same mapping so every agent is told one verdict in one word.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the sender verdict has no value this writer publishes.</exception>
+    internal void WriteSender(AuthorAuthenticationOutcome authorAuthentication, bool isTrusted)
+    {
+        this.writer.WriteAttributeString(SenderAuthenticationAttributeName, Published(authorAuthentication));
+
+        if (isTrusted)
+        {
+            this.writer.WriteAttributeString(SenderTrustedAttributeName, TrueValue);
         }
     }
 
