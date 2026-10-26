@@ -102,8 +102,9 @@ floor](../features/spam-classification.md#junk-mail-is-never-below-spam) gives e
 carrying `$Junk` at least a spam verdict, on every account whether or not it classifies, so the classification run, the
 rules, and the cut after it meet such a message below spam only while a backlog larger than the step's per-run bound is
 still being worked through, which the first run after an upgrade over a large junk folder is. That verdict outlives the placement: on an account
-that classifies, a message the floor raised stays withheld after it leaves the junk folder, until the person marks it
-not spam or a later classification that reaches it decides otherwise.
+that classifies, a message the floor raised stays withheld after MailFathom moves it out of the junk folder, or the
+person moves it out locally on a held account, until the person marks it not spam or a later classification that
+reaches it decides otherwise.
 
 Four things can become of one classification, and the gate below reads what was recorded rather than what happened to
 the job. A verdict of junk withholds the message; a verdict of anything else admits it; a scan that could not answer
@@ -187,8 +188,11 @@ derived store. Classification reads none of the body, so redaction has nothing t
 ## What each classification outcome permits
 
 The gate reads where the message is now and what was decided about it, and it writes nothing down. What was decided
-includes the verdict the spam floor gives mail in the junk folder, so mail a user drags out of it is withheld on that
-verdict rather than admitted the moment it leaves.
+includes the verdict the spam floor gives mail in the junk folder, so on an account that classifies, a message MailFathom
+moves out of junk, or one the person moves out locally on a held account, keeps its row and is withheld on that verdict
+rather than admitted the moment it leaves. A drag in another client on a mirrored account arrives as a new occurrence
+with no classification of its own and is decided afresh, and an account that classifies nothing admits its mail
+whatever it carries.
 
 | Outcome | Rules | Passages | Vectors |
 | --- | --- | --- | --- |
