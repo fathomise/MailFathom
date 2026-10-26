@@ -51,6 +51,9 @@ interface Held {
     readonly closing: boolean;
     readonly height: number;
 
+    /** Where the finger landed across the screen, which is what tells a row's swipe from the panel's. */
+    readonly fromAcross: number;
+
     /** Where the gesture is measured from, which moves while a list underneath is still scrolling on it. */
     from: number;
     at: number;
@@ -125,6 +128,7 @@ export function usePanelSwipe(shown: boolean, offered: boolean, onOpen: () => vo
                 closing,
                 from: event.clientY,
                 height: measured > 0 ? measured : window.innerHeight,
+                fromAcross: event.clientX,
                 at: event.clientY,
                 when: event.timeStamp,
                 velocity: 0,
@@ -160,7 +164,7 @@ export function usePanelSwipe(shown: boolean, offered: boolean, onOpen: () => vo
             const travelled = event.clientY - gesture.from;
 
             if (gesture.anchor === null) {
-                const verdict = handover(gesture, travelled, list.current);
+                const verdict = handover(gesture, travelled, event.clientX - gesture.fromAcross, list.current);
 
                 if (verdict === 'abandoned') {
                     held.current = null;
@@ -282,15 +286,21 @@ type Handover = 'taken' | 'waiting' | 'abandoned';
 /**
  * What the movement so far means, before the panel has taken the gesture over.
  *
- * Downward on the panel is taken from the list, and only once the list can scroll no further; upward on the navigation
+ * Downward on the panel is taken from the list, and only once the list can scroll no further — and never from a finger
+ * that has gone further across than down, which is a row being swiped aside rather than the panel being pushed away,
+ * so one finger is still one gesture; upward on the navigation
  * is taken from the item the finger landed on, and only past the bar's own slop. Movement the other way on the
  * navigation is nobody's gesture at all, which is what `abandoned` says — the touch goes back to the item it landed
  * on, tap and all.
  */
-function handover(gesture: Held, travelled: number, scrolling: HTMLElement | null): Handover {
+function handover(gesture: Held, travelled: number, across: number, scrolling: HTMLElement | null): Handover {
     if (gesture.closing) {
         if (travelled < rowSlop) {
             return 'waiting';
+        }
+
+        if (Math.abs(across) > travelled) {
+            return 'abandoned';
         }
 
         // A list scrolled away from its top scrolls first. The zero point moves with the finger while that is true, so

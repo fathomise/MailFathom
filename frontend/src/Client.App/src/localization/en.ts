@@ -1663,6 +1663,8 @@ export const en = {
     'notifications.markAll': 'Mark all',
     'notifications.markRead': 'Mark as read',
     'notifications.markUnread': 'Mark as unread',
+    'notifications.swipeMarksRead': 'Mark read',
+    'notifications.swipeMarksUnread': 'Mark unread',
     'notifications.unreadMark': 'Unread',
     'notifications.select': 'Select notifications',
     'notifications.openSource': 'Open the source',

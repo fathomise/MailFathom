@@ -29,7 +29,7 @@ import {
 } from '../mailboxActs/useMailboxActs';
 import { drawnUnread, useReadMarking } from '../readMarking/useReadMarking';
 import { correspondent } from './rowContents';
-import { useRowSwipe, type RowSwipeAct } from './rowSwipe';
+import { useRowSwipe, type RowSwipeDirection } from '../controls/rowSwipe';
 
 // One row of mail, which is its own component for the reason a tree's row is: it is what carries state, a keyboard
 // path, and a test. What it draws is what the page answered with — nothing here reads anything of its own, so a row
@@ -87,10 +87,10 @@ const carriedMailType = 'application/x-mailfathom-message';
 // `mailboxActs/drawnActs.ts` rather than from a second table here, so a swipe says what the row's menu and the toolbar
 // say; answering is not one of the five acts and names its own.
 const swipeDrawn: Readonly<
-    Record<RowSwipeAct, { readonly icon: IconName; readonly said: MessageKey; readonly tint: string }>
+    Record<RowSwipeDirection, { readonly icon: IconName; readonly said: MessageKey; readonly tint: string }>
 > = {
-    answer: { icon: 'reply', said: 'mail.reply', tint: 'justify-end pe-5.5 bg-accent-soft text-accent-strong' },
-    archive: {
+    leftward: { icon: 'reply', said: 'mail.reply', tint: 'justify-end pe-5.5 bg-accent-soft text-accent-strong' },
+    rightward: {
         icon: actsDrawn.archive.icon,
         said: actsDrawn.archive.label,
         tint: 'justify-start ps-5.5 bg-warning-soft text-warning-text',
@@ -236,7 +236,7 @@ export function MessageRow({
     const folded = useListFold()?.folded === true;
 
     // A strip of senders is too narrow to carry a row across, so folded it answers a tap and its menu alone.
-    const swipe = useRowSwipe(press, folded ? {} : { answer: onAnswer, archive: onArchive });
+    const swipe = useRowSwipe(press, folded ? {} : { leftward: onAnswer, rightward: onArchive });
     const stripName = translate('list.stripRow', {
         sender: correspondent(email) ?? translate('list.senderUnknown'),
         subject: email.subject ?? translate('list.noSubject'),
@@ -317,7 +317,7 @@ export function MessageRow({
     // What is showing behind the row while a finger carries it, or nothing for a row standing where the list drew it.
     // Which of the two it is is the direction alone: what the threshold decides is how firmly it is drawn rather than
     // which act it names, so somebody who has begun a swipe can read what it is for before they have finished it.
-    const carrying = swipe.carried === 0 ? undefined : swipeDrawn[swipe.carried < 0 ? 'answer' : 'archive'];
+    const carrying = swipe.carried === 0 ? undefined : swipeDrawn[swipe.carried < 0 ? 'leftward' : 'rightward'];
 
     return (
         <li

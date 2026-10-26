@@ -28,7 +28,7 @@ function drive(shown: boolean) {
 }
 
 function press(swipe: PanelSwipe, closing: boolean, at: number): void {
-    const event = { clientY: at, timeStamp: 0, pointerType: 'touch' } as unknown as ReactPointerEvent;
+    const event = { clientX: 0, clientY: at, timeStamp: 0, pointerType: 'touch' } as unknown as ReactPointerEvent;
 
     act(() => {
         if (closing) {
@@ -39,8 +39,8 @@ function press(swipe: PanelSwipe, closing: boolean, at: number): void {
     });
 }
 
-function moveTo(at: number, when: number): void {
-    const event = new MouseEvent('pointermove', { clientY: at });
+function moveTo(at: number, when: number, across = 0): void {
+    const event = new MouseEvent('pointermove', { clientX: across, clientY: at });
 
     Object.defineProperty(event, 'timeStamp', { value: when });
 
@@ -77,6 +77,18 @@ describe('usePanelSwipe', () => {
 
         expect(closed).not.toHaveBeenCalled();
         expect(swipe().springing).toBe(true);
+    });
+
+    it('leaves a finger that has gone further across than down to the row it is swiping', () => {
+        const { swipe, closed } = drive(true);
+
+        press(swipe(), true, 100);
+        moveTo(115, 100, 60);
+        moveTo(100 + height, 1000, 60);
+        release();
+
+        expect(closed).not.toHaveBeenCalled();
+        expect(swipe().offset).toBeNull();
     });
 
     it('leaves the panel open when an upward gesture covers enough of it', () => {

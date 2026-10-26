@@ -3,13 +3,14 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
-import { swipeCarry, swipeSoFar } from '../controls/swipeAcross';
+import { swipeCarry, swipeSoFar } from './swipeAcross';
 import { pressedByFinger, type RowPress } from '../contextMenu/rowPress';
 
-// The other thing a finger on a message row can mean: carried aside, left to answer the message and right to file it
-// away. The arithmetic is `controls/swipeAcross.ts`'s, because a toast answers to the same numbers; what is here is the
-// part that belongs to a row — which of the two acts each direction is, and how the gesture shares one finger with the
-// press that opens the row's menu.
+// The other thing a finger on a list row can mean: carried aside, leftward or rightward, to ask for whatever the list
+// offers that way — a message row answers its message leftward and files it away rightward, and a notification row
+// toggles its read state either way. The arithmetic is `swipeAcross.ts`'s, because a toast answers to the same numbers;
+// what is here is the part that belongs to a row — which direction a swipe went, and how the gesture shares one finger
+// with the press that opens the row's menu.
 //
 // **One touch, two gestures, and they never both fire.** They begin together and each rules the other out as it takes
 // over: the press is already off by the time the swipe engages, because it cancels on a shorter travel than the swipe
@@ -17,13 +18,13 @@ import { pressedByFinger, type RowPress } from '../contextMenu/rowPress';
 // to. So the finger is only ever doing one of the three things a row offers.
 //
 // **It is bound to the pointer rather than to a head**, exactly as the press is: a finger or a pen swipes, a mouse
-// never does. Dragging a row with a mouse would file mail on a slipped button, and every act either direction performs
-// is on the row's own menu and in the toolbar for a pointer that has one.
+// never does. Dragging a row with a mouse would act on a slipped button, and every act either direction performs is on
+// the row's own menu for a pointer that has one.
 
-/** What lifting the finger asks for: answering the message, or filing it away. */
-export type RowSwipeAct = 'answer' | 'archive';
+/** Which way the finger carried the row, which is what decides what lifting it asks for. */
+export type RowSwipeDirection = 'leftward' | 'rightward';
 
-/** How long the tap arriving after a swipe that acted is ignored for, so an archive does not also open what it filed. */
+/** How long the tap arriving after a swipe that acted is ignored for, so an act does not also open what it acted on. */
 export const swipeSuppressesTapFor = 400;
 
 /** What a row binds to answer a swipe, beside what it is drawing while one is in flight. */
@@ -32,7 +33,7 @@ export interface RowSwipe {
     readonly carried: number;
 
     /** What lifting the finger now would do, or `null` while the row would spring back instead. */
-    readonly commits: RowSwipeAct | null;
+    readonly commits: RowSwipeDirection | null;
 
     readonly onPointerDown: (event: PointerEvent) => void;
     readonly onPointerMove: (event: PointerEvent) => void;
@@ -47,13 +48,13 @@ export interface RowSwipe {
  * The gesture, bound to one row.
  *
  * @param press The row's press, which the swipe rules out as it engages and defers to once a menu is open.
- * @param acts What each direction performs, or `undefined` for a direction this list does not offer — a search result
- * cannot be filed, and a deployment that refuses a draft cannot be answered, so a row given neither answers a swipe by
- * springing back rather than by promising an act nobody would see happen.
+ * @param acts What a swipe `leftward` and one `rightward` perform, or `undefined` for a direction this list offers
+ * nothing in — a row carried that way stays where it is and springs back, rather than promising an act nobody would
+ * see happen.
  */
 export function useRowSwipe(
     press: RowPress,
-    acts: { readonly answer?: (() => void) | undefined; readonly archive?: (() => void) | undefined },
+    acts: { readonly leftward?: (() => void) | undefined; readonly rightward?: (() => void) | undefined },
 ): RowSwipe {
     // How far the row is drawn is on the screen, so it is state; where the finger landed is not, so it is a ref. A
     // render per pointer move costs this one row, which is what keeps the list's scrolling out of it.
@@ -76,19 +77,19 @@ export function useRowSwipe(
         [],
     );
 
-    /** Which of the two a swipe this far across is, which is its direction and nothing else. */
-    function actAt(across: number): RowSwipeAct {
-        return across < 0 ? 'answer' : 'archive';
+    /** Which way a swipe this far across went. */
+    function directionOf(across: number): RowSwipeDirection {
+        return across < 0 ? 'leftward' : 'rightward';
     }
 
     /** What that direction performs, or `undefined` where the list offers nothing that way. */
     function actOf(across: number): (() => void) | undefined {
-        return actAt(across) === 'answer' ? acts.answer : acts.archive;
+        return acts[directionOf(across)];
     }
 
     return {
         carried,
-        commits: swipeSoFar(carried, 0) === 'committed' ? actAt(carried) : null,
+        commits: swipeSoFar(carried, 0) === 'committed' ? directionOf(carried) : null,
 
         onPointerDown: (event) => {
             if (!pressedByFinger(event.pointerType)) {
@@ -141,8 +142,8 @@ export function useRowSwipe(
                 return;
             }
 
-            // The lift that finished the swipe is also a tap, and a row that acted twice on one finger would open the
-            // message it has just filed away.
+            // The lift that finished the swipe is also a tap, and a row that acted twice on one finger would open what
+            // it has just acted on.
             if (suppressing.current !== null) {
                 window.clearTimeout(suppressing.current);
             }

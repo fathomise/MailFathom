@@ -825,6 +825,39 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (this.state.swipeId) this.setState({ swipeId: null, swipeDx: 0 });
     };
 
+    /* A notification card swipes on the message row's numbers — engaged at 14 px, given up as a scroll once it drifts
+       26 px and more down than across, acted on past 96 px — and either way it toggles the card's read state, as its
+       read control does. */
+    notifSwipeStart = (id, e) => {
+      const t = e.touches && e.touches[0];
+      this._nswx = t ? t.clientX : 0;
+      this._nswy = t ? t.clientY : 0;
+      this._nswid = id;
+    };
+
+    notifSwipeMove = (id, e) => {
+      const t = e.touches && e.touches[0];
+      if (!t || this._nswid !== id) return;
+      const dx = t.clientX - this._nswx, dy = t.clientY - this._nswy;
+      if (Math.abs(dy) > 26 && Math.abs(dy) > Math.abs(dx)) { this._nswid = null; if (this.state.notifSwipeId) this.setState({ notifSwipeId: null, notifSwipeDx: 0 }); return; }
+      if (Math.abs(dx) < 14) return;
+      const cl = Math.max(-148, Math.min(148, dx));
+      if (Math.round(cl / 4) !== Math.round((this.state.notifSwipeDx || 0) / 4) || this.state.notifSwipeId !== id) {
+        this.setState({ notifSwipeId: id, notifSwipeDx: cl });
+      }
+    };
+
+    notifSwipeEnd = (n) => {
+      const dx = this.state.notifSwipeDx || 0;
+      const was = this.state.notifSwipeId === n.id;
+      this._nswid = null;
+      if (this.state.notifSwipeId) this.setState({ notifSwipeId: null, notifSwipeDx: 0 });
+      if (!was || Math.abs(dx) < 96) return;
+      this.suppressClick = true;
+      setTimeout(() => { this.suppressClick = false; }, 400);
+      this.toggleNotifRead(n);
+    };
+
     swipeEnd = (id) => {
       this.cancelLongPress();
       const dx = this.state.swipeDx || 0;
@@ -2020,7 +2053,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (mode === "open" && this.state.notifCenter) return;
       this.notifGestDetach();
       const t = (e.touches && e.touches[0]) || e;
-      const g = { mode: mode, y0: t.clientY, yPrev: t.clientY, tPrev: Date.now(), v: 0, live: false, anchor: 0 };
+      const g = { mode: mode, x0: t.clientX, y0: t.clientY, yPrev: t.clientY, tPrev: Date.now(), v: 0, live: false, anchor: 0 };
       this._notifG = g;
       if (mode === "open") this._notifBarTap = false;
 
@@ -2052,6 +2085,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           /* Movement beyond the row slop cancels the long press — one or the other, never both. */
           if (Math.abs(dy) > NG.rowSlop) clearTimeout(this._lpT);
           if (dy < NG.rowSlop) return;
+          /* A finger gone more across than down is a card's swipe, never the panel's: one finger is one gesture. */
+          if (Math.abs(p.clientX - g.x0) > dy) { this.notifGestDetach(); this._notifG = null; return; }
           const list = this.notifListRef.current;
           if (list && list.scrollTop > 0.5) { g.y0 = p.clientY; return; }
           /* The list is at the top — the same uninterrupted move becomes a panel dismissal. */
@@ -5594,9 +5629,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             (notifFilter === x.k ? "var(--accent);background:var(--accent-soft);color:var(--accent-d);font-weight:600" : "var(--border2);background:var(--panel);color:var(--text2)"),
         })),
         notifEmpty: notifShown.length === 0,
+        /* Rows separated as the Mail list's are: each one raised on --panel, a hairline of --sub between them. */
+        notifListStyle: "flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:1px;padding:1px 0;background:var(--sub)",
         notifItems: notifShown.map(n => {
           const K = NKIND[n.kind] || NKIND.system;
           const unread = isNotifUnread(n, st.notifRead || {});
+          const notifSwiped = st.notifSwipeId === n.id;
+          const notifDx = notifSwiped ? (st.notifSwipeDx || 0) : 0;
           /* A refused send and an abandoned change carry their decisions as pills under the source line, visible at
              every width so a finger reaches them; the same decisions stand in the row's menu. A change already decided on
              its message has nothing left to decide. */
@@ -5606,23 +5645,36 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             : changeOpen
             ? [{ icon: "refresh", label: (CHANGE_NOTICES[n.change] || {}).act === "move" ? "Move again…" : "Ask again", run: (e) => this.decideChange(n.change, true, e) }, { icon: "close", label: "Let it go", run: (e) => this.decideChange(n.change, false, e) }]
             : [];
-          return {
-            pills: pills, hasPills: pills.length > 0,
-            title: n.title, body: n.body, src: n.src, icon: K.icon, unread: unread,
-            time: notifTime(n.mins),
-            press: this.pressFor("notifs", n.id, n.title, [
+          const notifPress = this.pressFor("notifs", n.id, n.title, [
               { icon: "check_box", label: "Select notifications", run: () => this.selStart("notifs", n.id) },
               { icon: unread ? "mark_email_read" : "mark_email_unread", label: unread ? "Mark as read" : "Mark as unread", run: () => this.toggleNotifRead(n) },
               { icon: "open_in_new", label: "Open source", run: () => this.openNotif(n) },
             ].concat(n.merged ? [{ icon: "auto_awesome", label: "Summarize", run: () => this.summarizeNotif(n) }] : []).concat(pills).concat([
               { icon: "delete", label: "Delete notification", danger: true, run: () => this.askHide("notifs", [n.id], "Delete notification?", n.title + " will disappear from the notification centre.") },
-            ]), 420, notifInstant(n.mins)),
+            ]), 420, notifInstant(n.mins));
+          return {
+            pills: pills, hasPills: pills.length > 0,
+            title: n.title, body: n.body, src: n.src, icon: K.icon, unread: unread,
+            time: notifTime(n.mins),
+            press: notifPress,
             merged: !!n.merged,
             summarize: (e) => this.summarizeNotif(n, e),
             summarizeStyle: "align-self:flex-start;display:inline-flex;align-items:center;gap:7px;margin-top:6px;border:1px solid var(--accent-line);border-radius:10px;background:var(--accent-soft);color:var(--accent-d);font-weight:600;" +
               (touch ? "min-height:44px;padding:0 14px;font-size:14px;" : "min-height:30px;padding:0 11px;font-size:13px;"),
             summarizeIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;line-height:1;font-size:" + (touch ? 20 : 17) + "px",
-            open: this.rowTap("notifs", n.id, () => this.openNotif(n)),
+            open: (e) => { if (this.suppressClick) return; this.rowTap("notifs", n.id, () => this.openNotif(n))(e); },
+            touchStart: (e) => { notifPress.down(e); if (touch) this.notifSwipeStart(n.id, e); },
+            touchMove: (e) => { notifPress.up(); if (touch) this.notifSwipeMove(n.id, e); },
+            touchEnd: () => { notifPress.up(); if (touch) this.notifSwipeEnd(n); },
+            swiping: touch && notifSwiped && Math.abs(notifDx) > 8,
+            swipeBgStyle: "position:absolute;inset:0;display:flex;align-items:center;background:var(--accent-soft);color:var(--accent-d);" +
+              (notifDx < 0 ? "justify-content:flex-end;padding-right:22px;" : "justify-content:flex-start;padding-left:22px;"),
+            swipeIcon: unread ? "mark_email_read" : "mark_email_unread",
+            swipeLabel: unread ? "Mark read" : "Mark unread",
+            swipeIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' " + (Math.abs(notifDx) >= 96 ? 500 : 300) + ";font-size:22px;line-height:1;margin-right:8px",
+            swipeTextStyle: "font-size:13px;font-weight:600;opacity:" + (Math.abs(notifDx) >= 96 ? "1" : "0.55"),
+            wrapStyle: "position:relative;flex:0 0 auto" +
+              (notifAnim[n.id] === "in" ? ";overflow:hidden;animation:mfrowin 480ms cubic-bezier(.22,1,.36,1) both" : ""),
             toggleRead: (e) => this.toggleNotifRead(n, e),
             readIcon: unread ? "mark_email_read" : "mark_email_unread",
             readTitle: unread ? "Mark as read" : "Mark as unread",
@@ -5631,8 +5683,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             titleStyle: "flex:1;min-width:0;font-size:14px;line-height:1.35;text-wrap:pretty;font-weight:" + (unread ? "600" : "500") + ";color:" + (unread ? "var(--text)" : "var(--text2)"),
             iconWrapStyle: "flex:0 0 auto;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:" + K.soft,
             iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1;color:" + K.c,
-            style: "display:flex;align-items:flex-start;gap:12px;padding:13px 16px;border-bottom:1px solid var(--line2);" + (unread ? "background:var(--sub);" : "") + selMark("notifs", n.id) +
-              (notifAnim[n.id] === "in" ? "overflow:hidden;animation:mfrowin 480ms cubic-bezier(.22,1,.36,1) both;" : ""),
+            style: "position:relative;display:flex;align-items:flex-start;gap:12px;padding:13px 16px;background:var(--panel);box-shadow:inset 0 1px 0 var(--inset),0 1px 2px var(--sh-1);" + selMark("notifs", n.id) +
+              (touch && notifSwiped ? "transform:translateX(" + notifDx + "px);" : "transform:translateX(0);transition:transform 160ms ease,background 120ms ease;"),
           };
         }),
         /* On the phone and the fold a toast is a slim strip at the top: it says one thing and goes. */

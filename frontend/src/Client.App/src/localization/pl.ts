@@ -1688,6 +1688,8 @@ export const pl: Catalogue = {
     'notifications.markAll': 'Oznacz wszystkie',
     'notifications.markRead': 'Oznacz jako przeczytane',
     'notifications.markUnread': 'Oznacz jako nieprzeczytane',
+    'notifications.swipeMarksRead': 'Przeczytane',
+    'notifications.swipeMarksUnread': 'Nieprzeczytane',
     'notifications.unreadMark': 'Nieprzeczytane',
     'notifications.select': 'Zaznacz powiadomienia',
     'notifications.openSource': 'Otwórz źródło',
