@@ -68,15 +68,6 @@ MailFathomDesign.data.clientStatesSample = {
   ],
 
   mail: {
-    bankDetailsSubject: "Updated bank details for invoice 114",
-    bankDetailsThreadCount: "1 message · Nordwind · work",
-    bankDetailsTime: "10:42",
-    bankDetailsVerdict: "This may not be from Tomasz Bąk - authenticating its author failed.",
-    bankDetailsVerdictDetail: "Authenticated by sendwave.example - that is who actually sent it, not the name above.",
-    bankDetailsBody: "Hello, please note our bank account has changed. Use the details below for invoice 2026/08/114 from today.",
-    healthySenderTime: "Mon",
-    healthyVerdictDetail: "Authenticated by contoso.example.",
-    unauthenticatedVerdict: "This may not be from Jacek Wrona - authenticating its author failed.",
     longThreadCount: "31 messages · Nordwind · work",
     longThreadParticipants: "Frida Iversen, Marta Nowak, you · 31 messages",
     longThreadReadCount: "12 of 31 messages read",
