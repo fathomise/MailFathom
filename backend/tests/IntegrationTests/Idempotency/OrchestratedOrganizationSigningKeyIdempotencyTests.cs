@@ -30,6 +30,30 @@ public sealed class OrchestratedOrganizationSigningKeyIdempotencyTests(MailFatho
 
     private static readonly DateTimeOffset RotatedAt = RecordedAt.AddDays(1);
 
+    /// <summary>An organization recorded on a deployment with a key ring holds its key from the transaction that records it.</summary>
+    [Fact]
+    public async Task CreateAsync_AnOrganizationRecordedWithAKeyRing_IsRecordedWithOneActiveKey()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var organization = Guid.CreateVersion7();
+
+        try
+        {
+            // Act
+            await CreateOrganizationAsync(services, organization, cancellationToken);
+
+            // Assert
+            Assert.Equal(1, await CountKeysAsync(services, organization, created: RecordedAt, cancellationToken));
+            Assert.Equal(1, await CountActiveKeysAsync(services, organization, cancellationToken));
+        }
+        finally
+        {
+            await DeleteOrganizationAsync(services, organization);
+        }
+    }
+
     [Fact]
     public async Task ReplaceActiveKeyAsync_ManyReplicasRotatingOneOrganization_LeavesOneActiveKeyEveryReplicaNames()
     {

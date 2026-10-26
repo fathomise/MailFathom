@@ -41,8 +41,10 @@ there is no moment at which the organization exists and holds nothing to sign wi
 **Every other organization is given one by an hourly pass.** Each replica runs a pass an hour after it starts and every
 hour after that, looks for organizations with no active key or with an active key older than the rotation interval, and
 gives each a fresh one — **at most a hundred per pass**, taken in identifier order, so a deployment with more due at once
-works through them a hundred an hour on one replica rather than within one hour. Each replica's pass takes the next
-hundred still due, so more replicas work through a backlog faster. That covers an
+works through them a hundred an hour on one replica rather than within one hour. A replica whose pass falls at a
+different point in the hour takes the next hundred still due; replicas started together run their passes together, read
+the same hundred, and share it, so more replicas hurry a backlog only as far as their passes are spread across the
+hour. That covers an
 organization recorded before the deployment had a key ring, one recorded before the release that introduced these keys,
 and one whose active key was revoked while no replacement could be sealed.
 
@@ -113,7 +115,7 @@ nothing to sign with.
 - Revoking an active key still revokes it — withdrawing trust never waits on a key ring — and the command says that no
   replacement could be minted.
 
-Configuring a key ring is the whole fix. The passes that follow mint every missing key, a hundred an hour on each replica, and nothing
+Configuring a key ring is the whole fix. The passes that follow mint every missing key, at least a hundred an hour, and nothing
 about the organizations has to change.
 
 ## Rotating the key ring under signing keys
