@@ -13,6 +13,7 @@ using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Spam;
 using MailFathom.Host.Api;
 using Xunit;
 
@@ -237,6 +238,28 @@ public sealed class ClientMailMessageEndpointTests
         Assert.True(response.Unread);
         Assert.False(response.Flagged);
         Assert.False(response.Answered);
+    }
+
+    /// <summary>An opened message carries the verdict its row carries, so a warning is drawn from the message already fetched.</summary>
+    [Fact]
+    public void For_AMessageThePersonMarkedSpam_CarriesTheirVerdictAndTheirSubcategory()
+    {
+        // Arrange
+        var message = MessageWith() with
+        {
+            Spam = new EmailSpamVerdict(
+                SpamVerdict.Spam,
+                SpamClassificationStage.Person,
+                SpamSubcategory.Scam,
+                PhishingRequest: null,
+                ImpersonatedParty: null),
+        };
+
+        // Act
+        var response = ClientMailMessageResponse.For(message);
+
+        // Assert
+        Assert.Equal(new ClientMailSpamVerdictResponse("Spam", "Person", "Scam", "Person", null, null), response.Spam);
     }
 
     private static ReadEmailContent MessageWith(SenderAuthenticationEvidence? evidence = null) => new()

@@ -9,6 +9,7 @@ using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
+using MailFathom.Domain.Spam;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Folders;
 
@@ -26,7 +27,9 @@ namespace MailFathom.Infrastructure.Persistence.Emails;
 /// and thread-reference arrays, which are filterable but not listed, and every column of the raw MIME table, which no
 /// summary query joins to at all. The sender-authentication columns are the one group a listing reads without
 /// publishing all of it: the single-email read is built from this same summary and publishes the evidence, and one
-/// projection reading it is cheaper than a second query for the read that needs it.
+/// projection reading it is cheaper than a second query for the read that needs it. The spam columns are the one join:
+/// five columns of the message's classification row, keyed by the message, and never its signals, its score, or its
+/// profile, which say what the verdict was reached from rather than what a list draws.
 /// </para>
 /// <para>
 /// The projection and the mapping live on the row rather than in either reader, because a listing and a single-email
@@ -73,7 +76,12 @@ internal sealed record StoredEmailSummaryRow(
     MachineAuthorshipBand MachineAuthorshipBand,
     double MachineAuthorshipLikelihood,
     MachineAuthorshipSignals MachineAuthorshipSignals,
-    string? MachineAuthorshipProfileRevision)
+    string? MachineAuthorshipProfileRevision,
+    SpamVerdict? SpamVerdict,
+    SpamClassificationStage? SpamDecidedBy,
+    SpamSubcategory? SpamSubcategory,
+    SpamPhishingRequest? SpamPhishingRequest,
+    SpamImpersonatedParty? SpamImpersonatedParty)
 {
     /// <summary>Gets the projection every summary query selects, which is what keeps the two readers publishing one shape.</summary>
     public static Expression<Func<StoredEmailEntity, StoredEmailSummaryRow>> Projection { get; } = email =>
@@ -115,7 +123,12 @@ internal sealed record StoredEmailSummaryRow(
             email.MachineAuthorshipBand,
             email.MachineAuthorshipLikelihood,
             email.MachineAuthorshipSignals,
-            email.MachineAuthorshipProfileRevision);
+            email.MachineAuthorshipProfileRevision,
+            email.SpamClassification == null ? null : email.SpamClassification.Verdict,
+            email.SpamClassification == null ? null : email.SpamClassification.DecidedBy,
+            email.SpamClassification == null ? null : email.SpamClassification.SpamSubcategory,
+            email.SpamClassification == null ? null : email.SpamClassification.PhishingRequest,
+            email.SpamClassification == null ? null : email.SpamClassification.ImpersonatedParty);
 
     /// <summary>Rebuilds the summaries of a set of rows, naming each one's folder by its path.</summary>
     /// <param name="rows">The rows, in the order the summaries are wanted in.</param>
@@ -191,7 +204,23 @@ internal sealed record StoredEmailSummaryRow(
             Source = this.SenderAuthenticationSource,
         },
         MachineAuthorship = this.StoredAuthorship(),
+        Spam = this.StoredSpamVerdict(),
     };
+
+    /// <summary>Reads the classification columns back into the verdict a screen draws, or reports that none is recorded.</summary>
+    /// <remarks>
+    /// The verdict and the deciding stage are columns of one row, absent together exactly when the message has no
+    /// classification, which is the only case read as none.
+    /// </remarks>
+    private EmailSpamVerdict? StoredSpamVerdict() =>
+        this is { SpamVerdict: { } verdict, SpamDecidedBy: { } decidedBy }
+            ? new EmailSpamVerdict(
+                verdict,
+                decidedBy,
+                this.SpamSubcategory,
+                this.SpamPhishingRequest,
+                this.SpamImpersonatedParty)
+            : null;
 
     /// <summary>Reads the authorship columns back into the assessment they were written from.</summary>
     /// <remarks>

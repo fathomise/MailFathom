@@ -110,6 +110,10 @@ public sealed record ReadEmailContent
     /// </remarks>
     public required MachineAuthorshipAssessment MachineAuthorship { get; init; }
 
+    /// <summary>Gets what spam classification concluded about the email, or <see langword="null" /> where nothing has classified it.</summary>
+    /// <remarks>The same reading a listing carries, taken from the same summary, so a row and an opened message agree.</remarks>
+    public EmailSpamVerdict? Spam { get; init; }
+
     /// <summary>
     /// Gets the conversation this email belongs to and the other messages in it, or <see langword="null" /> when nothing
     /// has placed the email in one.

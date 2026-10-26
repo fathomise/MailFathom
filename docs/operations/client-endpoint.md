@@ -816,7 +816,8 @@ continues the list at each end:
           }
         ]
       },
-      "threadMessageCount": 4
+      "threadMessageCount": 4,
+      "spam": null
     }
   ],
   "nextCursor": "AbCd...",
@@ -861,6 +862,43 @@ Two states reach a client and they mean different things. The field is **`null`*
 reached — which is every message on a deployment with the switch off. It is an **object with an empty `marks` array**
 for one a derivation settled with nothing to say. A client may draw the two identically, but it can tell them apart,
 which is what the shape exists for.
+
+**`spam` is what spam classification concluded about the message**, read in the same query the page comes from, so a
+list badges a row in the Spam folder or folds one anywhere else without a request per row:
+
+```jsonc
+"spam": {
+  "verdict": "Spam",
+  "decidedBy": "Deterministic",
+  "spamSubcategory": "Phishing",
+  "spamSubcategoryNamedBy": "Model",
+  "phishingRequest": "Credentials",
+  "impersonatedParty": "Bank"
+}
+```
+
+It is **`null`** for a message no stage has reached — every message on a deployment that classifies nothing — and an
+object for one a stage concluded about, `NotSpam` and `Undetermined` included. `verdict` and `decidedBy` are always
+there; the other four are `null` where nothing named them. Every value is the name of a closed set's member, so nothing
+in the object is text a model or a sender wrote, and a screen that wants a sentence composes it from the value.
+
+| Field | Values |
+| --- | --- |
+| `verdict` | `Spam`, `NotSpam`, `Undetermined` |
+| `decidedBy` | `Deterministic` — what the receiving mail server and the message itself established — `Model`, or `Person` |
+| `spamSubcategory` | `Phishing`, `BusinessEmailCompromise`, `MalwareLure`, `Scam`, `Extortion`, `Marketing`, on a `Spam` verdict only |
+| `spamSubcategoryNamedBy` | `Model` or `Person`, beside a subcategory |
+| `phishingRequest` | `Credentials`, `PaymentDetails`, `OneTimeCode`, `Other`, `NothingStated`, on `Phishing` only |
+| `impersonatedParty` | `Bank`, `Courier`, `OnlineService`, `Colleague`, `Executive`, `Supplier`, `Other`, `NobodyEvident`, on `Phishing` and `BusinessEmailCompromise` only |
+
+**The two judges are published apart because they can differ.** The model names the subcategory of a verdict the
+deterministic stage reached, and that verdict stays the deterministic stage's, so a warning can say the mail server
+judged the message spam and a model said what kind. `Person` in `decidedBy` is the person's own call, which outranks
+every stage and which no later stage replaces — their `NotSpam` included. The subcategory carries `spam` in its name
+because it says what kind of spam a message is and nothing about mail that is not spam; it is not a mail category.
+`impersonatedParty` is the kind of party a message pretends to come from and never a name — where a reader needs one,
+the message's own sender is in front of them. [Spam classification](../features/spam-classification.md) is where each
+stage and each value is decided.
 
 **`evidence` names passages rather than carrying them.** Each entry is a passage identifier, resolvable through the
 same citation route an answer's citations use, so a client that wants the words behind a mark asks for them. A row
@@ -974,7 +1012,8 @@ It answers with one page of the user's mail ranked against what they are looking
           "extracts": [ "**Invoice** 4471 is payable within 30 days" ]
         }
       ],
-      "isDepictedMatch": false
+      "isDepictedMatch": false,
+      "spam": null
     }
   ],
   "nextCursor": "AbCd...",
@@ -995,6 +1034,7 @@ acted on without a second request. `snippets` are the extracts around what match
 `**` — text cut from untrusted mail rather than markup to render — and `preview` is the same bounded opening the list
 route publishes. The one list field a result does not carry is `threadMessageCount`: a search ranks messages rather
 than correspondences, and counting the conversation behind every result would be a query this route does not owe.
+`spam` is the list row's own object, read the same way, so a result is folded or badged exactly as its row would be.
 
 **`matchedBy` is why the row is there**: `LexicalRanking` for a message carrying the query's words, `SemanticRanking`
 for one matching by meaning, and `BothRankings` for one both rankings found. It is the field a screen needs most for
@@ -1204,7 +1244,8 @@ It answers with one conversation as a single document — the messages in it, wh
             }
           ]
         },
-        "threadMessageCount": 2
+        "threadMessageCount": 2,
+        "spam": null
       }
     },
     {
@@ -1229,7 +1270,8 @@ It answers with one conversation as a single document — the messages in it, wh
         "sizeOctets": 3120,
         "preview": "Thanks — I will read the notes this afternoon.",
         "enrichment": null,
-        "threadMessageCount": 2
+        "threadMessageCount": 2,
+        "spam": null
       }
     }
   ],
@@ -1407,7 +1449,8 @@ of its body exist to be asked for:
   },
   "unread": true,
   "flagged": false,
-  "answered": false
+  "answered": false,
+  "spam": null
 }
 ```
 
@@ -1440,6 +1483,9 @@ name a message displays is not it. It is the domain the receiving mail server au
 `null` for a message nothing authenticated a sender for, and it is published beside the two states rather than
 compared against the `From` address, because judging whether the two agree is the policy this path deliberately does
 not evaluate.
+
+**`spam` is the object a list row carries**, read from the same summary the row is, so the warning an opened message
+draws and the badge on its row cannot disagree. [The mail list route](#the-mail-list-route) describes its fields.
 
 **No octet of a file is here, at any size and in any encoding.** Each entry says what the file is called, what it
 declares itself to be, and how large it decodes to — which is what a reader decides against — and `position` is what its

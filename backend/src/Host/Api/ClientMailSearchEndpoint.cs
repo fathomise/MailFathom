@@ -268,6 +268,7 @@ internal sealed record ClientMailSearchResponse(
 /// <param name="MatchedBy">Which ranking found this result: <c>LexicalRanking</c>, <c>SemanticRanking</c>, or <c>BothRankings</c>.</param>
 /// <param name="AttachmentMatches">The attachments of this message the query reached, each naming the file, the place inside it, and bounded extracts of its text.</param>
 /// <param name="IsDepictedMatch">Whether a description of an attached picture is the whole of this message's claim on the query.</param>
+/// <param name="Spam">What spam classification concluded about the message, or <see langword="null" /> where nothing has classified it.</param>
 /// <remarks>
 /// <para>
 /// The row is the message list's row, field for field, so one layout draws both and a search result can be opened,
@@ -312,7 +313,8 @@ internal sealed record ClientMailSearchResultResponse(
     IReadOnlyList<string> Snippets,
     string MatchedBy,
     IReadOnlyList<ClientMailAttachmentMatchResponse> AttachmentMatches,
-    bool IsDepictedMatch)
+    bool IsDepictedMatch,
+    ClientMailSpamVerdictResponse? Spam)
 {
     /// <summary>Describes one result for the wire.</summary>
     /// <param name="result">The result the use case read.</param>
@@ -338,7 +340,8 @@ internal sealed record ClientMailSearchResultResponse(
         result.Snippets,
         result.MatchedBy.ToString(),
         [.. result.AttachmentMatches.Select(ClientMailAttachmentMatchResponse.For)],
-        result.IsDepictedMatch);
+        result.IsDepictedMatch,
+        ClientMailSpamVerdictResponse.For(result.Email.Spam));
 }
 
 /// <summary>One attachment of a result the query reached, and where inside the file it was reached.</summary>

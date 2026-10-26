@@ -15,6 +15,7 @@ using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Spam;
 using MailFathom.Host.Api;
 using MailFathom.TestSupport;
 using Microsoft.AspNetCore.Http;
@@ -400,6 +401,71 @@ public sealed class ClientMailTimelineEndpointTests
         Assert.NotNull(settled.Enrichment);
         Assert.Empty(settled.Enrichment.Marks);
         Assert.Null(outstanding.Enrichment);
+    }
+
+    /// <summary>
+    /// A row carries the spam verdict and both judges, so a list can fold it or badge it from the page it holds, and the
+    /// judge of the verdict and the judge of its subcategory stay apart where they differ.
+    /// </summary>
+    [Fact]
+    public void For_ARowAStageJudgedSpam_CarriesTheVerdictTheSubcategoryAndBothJudges()
+    {
+        // Arrange
+        var row = new BrowsedEmail(
+            SyntheticListedEmail() with
+            {
+                Spam = new EmailSpamVerdict(
+                    SpamVerdict.Spam,
+                    SpamClassificationStage.Deterministic,
+                    SpamSubcategory.Phishing,
+                    SpamPhishingRequest.Credentials,
+                    SpamImpersonatedParty.OnlineService),
+            },
+            Preview: null,
+            Enrichment: null,
+            ThreadMessageCount: null);
+
+        // Act
+        var response = ClientMailTimelineEntryResponse.For(row);
+
+        // Assert
+        Assert.Equal(
+            new ClientMailSpamVerdictResponse(
+                "Spam",
+                "Deterministic",
+                "Phishing",
+                "Model",
+                "Credentials",
+                "OnlineService"),
+            response.Spam);
+    }
+
+    /// <summary>A message no stage has reached carries no spam object, and one a stage cleared carries its conclusion.</summary>
+    [Fact]
+    public void For_ARowNothingClassifiedAndOneAStageCleared_ReachTheWireDifferently()
+    {
+        // Arrange
+        var unclassified = new BrowsedEmail(SyntheticListedEmail(), Preview: null, Enrichment: null, ThreadMessageCount: null);
+        var cleared = unclassified with
+        {
+            Email = SyntheticListedEmail() with
+            {
+                Spam = new EmailSpamVerdict(
+                    SpamVerdict.NotSpam,
+                    SpamClassificationStage.Person,
+                    Subcategory: null,
+                    PhishingRequest: null,
+                    ImpersonatedParty: null),
+            },
+        };
+
+        // Act
+        var outstanding = ClientMailTimelineEntryResponse.For(unclassified);
+        var settled = ClientMailTimelineEntryResponse.For(cleared);
+
+        // Assert
+        Assert.Null(outstanding.Spam);
+        Assert.Equal(new ClientMailSpamVerdictResponse("NotSpam", "Person", null, null, null, null), settled.Spam);
     }
 
     /// <summary>Both cursors reach the wire, because a list a screen can only scroll one way is half a list.</summary>

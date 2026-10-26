@@ -34,6 +34,7 @@ using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Spam;
 using MailFathom.TestSupport;
 using NSubstitute;
 using Xunit;
@@ -651,6 +652,38 @@ public sealed class EmailContentReaderTests
         Assert.Equal(EmailBodyAvailability.EncryptedNotReadableLocally, body.Availability);
         Assert.Null(body.SanitizedHtml);
         Assert.Equal(string.Empty, body.PlainText.Text);
+    }
+
+    /// <summary>
+    /// An opened message carries the spam verdict its row carries, whether or not its content was stored, so a warning on
+    /// the message and the badge on its row cannot disagree.
+    /// </summary>
+    [Theory]
+    [InlineData(StoredEmailContentAvailability.Available)]
+    [InlineData(StoredEmailContentAvailability.ExceededSizeLimit)]
+    public async Task ReadContentAsync_AClassifiedEmail_CarriesTheSpamVerdictOfItsSummary(
+        StoredEmailContentAvailability availability)
+    {
+        // Arrange
+        var summary = SyntheticEmailSummaries.Create() with
+        {
+            ContentAvailability = availability,
+            Spam = new EmailSpamVerdict(
+                SpamVerdict.Spam,
+                SpamClassificationStage.Model,
+                SpamSubcategory.Phishing,
+                SpamPhishingRequest.OneTimeCode,
+                SpamImpersonatedParty.Courier),
+        };
+        var reader = ReaderOver(summary, RendererReturning(RenderingOf()));
+
+        // Act
+        var result = await reader.ReadContentAsync(
+            RequestFor([summary.StoredEmailId], includeAttachmentDownloadLinks: false),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(summary.Spam, ContentOf(Assert.Single(result.Emails)).Spam);
     }
 
     /// <summary>Mail the size limit kept out of storage is answered with what exists, and no repair is asked for.</summary>

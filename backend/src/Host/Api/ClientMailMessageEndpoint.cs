@@ -111,6 +111,7 @@ internal static class ClientMailMessageEndpoint
 /// <param name="Unread">Whether the mail server last showed the message as unseen.</param>
 /// <param name="Flagged">Whether the mail server last showed the message as flagged.</param>
 /// <param name="Answered">Whether the mail server last showed the message as answered.</param>
+/// <param name="Spam">What spam classification concluded about the message, or <see langword="null" /> where nothing has classified it.</param>
 /// <remarks>
 /// All of it is mail content and personal data, so none of it reaches a log, a span attribute, or a telemetry event,
 /// here or anywhere it is carried afterwards.
@@ -128,7 +129,8 @@ internal sealed record ClientMailMessageResponse(
     ClientMailCarriedResponse? Carried,
     bool Unread,
     bool Flagged,
-    bool Answered)
+    bool Answered,
+    ClientMailSpamVerdictResponse? Spam)
 {
     /// <summary>Describes one message for the wire.</summary>
     /// <param name="message">The message the use case read.</param>
@@ -152,7 +154,8 @@ internal sealed record ClientMailMessageResponse(
             message.AttachmentSummary is { } carried ? ClientMailCarriedResponse.For(carried) : null,
             !message.RemoteFlags.IsSeen,
             message.RemoteFlags.IsFlagged,
-            message.RemoteFlags.IsAnswered);
+            message.RemoteFlags.IsAnswered,
+            ClientMailSpamVerdictResponse.For(message.Spam));
     }
 }
 
@@ -277,6 +280,53 @@ internal sealed record ClientMailSenderVerdictResponse(
             verification.DeploymentTrust.ToString(),
             evidence.AuthenticatedDomain?.Value);
     }
+}
+
+/// <summary>What spam classification concluded about one message, and who concluded it.</summary>
+/// <param name="Verdict">What was concluded — <c>Spam</c>, <c>NotSpam</c>, or <c>Undetermined</c> — as the verdict's own name.</param>
+/// <param name="DecidedBy">Which stage reached it — <c>Deterministic</c> for what the mail server and the message itself established, <c>Model</c>, or <c>Person</c> — as the stage's own name.</param>
+/// <param name="SpamSubcategory">What kind of spam the message is, or <see langword="null" /> where no stage named one.</param>
+/// <param name="SpamSubcategoryNamedBy">Which stage named the subcategory, <c>Model</c> or <c>Person</c>, or <see langword="null" /> where there is none.</param>
+/// <param name="PhishingRequest">What a phishing message asks its reader for, or <see langword="null" /> where the model named nothing.</param>
+/// <param name="ImpersonatedParty">The kind of party a phishing or business-email-compromise message pretends to come from, or <see langword="null" /> where the model named nothing.</param>
+/// <remarks>
+/// <para>
+/// The same object on a list row, on a message inside a conversation, on a search result, and on an opened message,
+/// read in the query each of them already makes, so a screen draws a badge, a folded row, or a warning without a
+/// second request. It is absent for a message no stage has reached, and present with <c>NotSpam</c> for one a stage
+/// cleared — the person's own <c>NotSpam</c> included, which no later stage replaces.
+/// </para>
+/// <para>
+/// The two stages are published apart because they can differ: the model names the subcategory of a verdict the
+/// deterministic stage reached. The subcategory carries <c>spam</c> in its name because it is not a mail category and
+/// must not be read as one.
+/// </para>
+/// <para>
+/// Every value is a closed one published as its member's name, so nothing here is text a model or a sender wrote — the
+/// impersonated party is the kind of party, never a name — and no egress guard stands between it and the client. A
+/// screen that wants a sentence composes it from the value.
+/// </para>
+/// </remarks>
+internal sealed record ClientMailSpamVerdictResponse(
+    string Verdict,
+    string DecidedBy,
+    string? SpamSubcategory,
+    string? SpamSubcategoryNamedBy,
+    string? PhishingRequest,
+    string? ImpersonatedParty)
+{
+    /// <summary>Describes one message's spam verdict for the wire, or nothing where none is recorded.</summary>
+    /// <param name="spam">The verdict the read carried, or <see langword="null" /> where nothing has classified the message.</param>
+    /// <returns>The response body, or <see langword="null" /> where <paramref name="spam" /> is.</returns>
+    internal static ClientMailSpamVerdictResponse? For(EmailSpamVerdict? spam) => spam is null
+        ? null
+        : new ClientMailSpamVerdictResponse(
+            spam.Verdict.ToString(),
+            spam.DecidedBy.ToString(),
+            spam.Subcategory?.ToString(),
+            spam.SubcategoryNamedBy?.ToString(),
+            spam.PhishingRequest?.ToString(),
+            spam.ImpersonatedParty?.ToString());
 }
 
 /// <summary>One file a message carries, described and carrying none of what it holds.</summary>

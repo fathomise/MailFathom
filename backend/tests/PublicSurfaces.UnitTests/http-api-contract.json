@@ -2862,6 +2862,16 @@
               "string"
             ]
           },
+          "spam": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailSpamVerdictResponse"
+              }
+            ]
+          },
           "storedEmailId": {
             "format": "uuid",
             "type": "string"
@@ -2890,7 +2900,8 @@
           "carried",
           "unread",
           "flagged",
-          "answered"
+          "answered",
+          "spam"
         ],
         "type": "object"
       },
@@ -3252,6 +3263,16 @@
             },
             "type": "array"
           },
+          "spam": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailSpamVerdictResponse"
+              }
+            ]
+          },
           "subject": {
             "type": [
               "null",
@@ -3296,7 +3317,8 @@
           "snippets",
           "matchedBy",
           "attachmentMatches",
-          "isDepictedMatch"
+          "isDepictedMatch",
+          "spam"
         ],
         "type": "object"
       },
@@ -3319,6 +3341,49 @@
           "authorAuthentication",
           "deploymentTrust",
           "authenticatedDomain"
+        ],
+        "type": "object"
+      },
+      "ClientMailSpamVerdictResponse": {
+        "properties": {
+          "decidedBy": {
+            "type": "string"
+          },
+          "impersonatedParty": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "phishingRequest": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "spamSubcategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "spamSubcategoryNamedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "verdict": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "verdict",
+          "decidedBy",
+          "spamSubcategory",
+          "spamSubcategoryNamedBy",
+          "phishingRequest",
+          "impersonatedParty"
         ],
         "type": "object"
       },
@@ -3630,6 +3695,16 @@
               "string"
             ]
           },
+          "spam": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailSpamVerdictResponse"
+              }
+            ]
+          },
           "subject": {
             "type": [
               "null",
@@ -3681,7 +3756,8 @@
           "sizeOctets",
           "preview",
           "enrichment",
-          "threadMessageCount"
+          "threadMessageCount",
+          "spam"
         ],
         "type": "object"
       },

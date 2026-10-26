@@ -255,7 +255,8 @@ values, beside the total attachment size and the encrypted, unverified-signature
 email by, its account and folder — the folder's identity and its place in the account's hierarchy — the message identifier, the identifier of the
 [conversation](../architecture/stored-email-schema.md#the-conversation-a-message-belongs-to) it belongs to, subject,
 sent and received timestamps, size, the sender's display name and address, the sender verdict, the machine-authorship
-reading, the `To` addresses, the attachment summary, whether raw MIME is stored locally, and the remote flag snapshot.
+reading, the `To` addresses, the attachment summary, whether raw MIME is stored locally, the remote flag snapshot, and
+the spam verdict where one is recorded.
 
 The conversation identifier is absent for a message nothing has assembled one for, which is what a mailbox stored before
 threading existed holds until `mfctl mailbox rederive` reaches it. It is MailFathom's own identifier and carries nothing
@@ -366,6 +367,16 @@ from the columns extraction wrote, so a listing reads no body, weighs nothing, a
 It is **informational and never a finding against the message**. Nothing in the query path filters, sorts, ranks, or
 refuses on it, and it takes no part in the freshness reporting or the bounds around a page. [Machine
 authorship](machine-authorship.md) holds what the reading is made of and what it deliberately does not claim.
+
+### The spam verdict a summary carries
+
+`EmailSpamVerdict` is what [spam classification](spam-classification.md) concluded about the message: the verdict, the
+stage that reached it, and the subcategory, the stage that named it, and the phishing detail where those were named. It
+is five columns of the message's classification row, read by the same query through a join on the message's identity —
+never the classification's signals, score, or profile — and it is absent for a message no stage has reached, which is
+not the same as `NotSpam`. Every part of it is a closed value, so it reaches no sensitive-content scanner. Nothing in
+the query path filters, sorts, or ranks on it; which folders a listing reads is what keeps junk out, as
+[spam classification](spam-classification.md#the-junk-folder-is-left-out-of-listing-and-search) describes.
 
 ### The remote flag snapshot
 
