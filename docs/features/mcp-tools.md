@@ -871,7 +871,8 @@ Four things about it are worth reading before a caller writes against them:
   it answers whatever the two clocks say, because a sender's clock is not something MailFathom can check; two replies to
   one message are ordered by their sent timestamps, and messages that still tie are settled on their local identity. The
   same conversation read twice comes back in the same order.
-- **Withheld mail is absent from all of it.** A message in a folder withheld from AI, or one judged spam, appears in no `otherMessages`
+- **Withheld mail is absent from all of it.** A message in a folder withheld from AI, one judged spam, or one in the
+  junk folder that the person has not marked not spam appears in no `otherMessages`
   list, is in no `messageCount`, and is returned by no call naming its conversation — and a message whose parent is
   withheld is published as a root naming no ancestor, rather than pointing at something the caller may not see. A
   conversation whose messages are all withheld is published nowhere, so asking about its identifier returns no email
@@ -1427,9 +1428,10 @@ no permission here implies another — so a deployment that means an agent to re
 the sending grant is offered the tools and refused by the use case behind them. The sending grant is what narrows the
 listing, because that is the effect that leaves this deployment.
 
-**Five ways of naming an email that cannot be answered are one answer.** An identifier nothing is held under, an email
+**Six ways of naming an email that cannot be answered are one answer.** An identifier nothing is held under, an email
 of an account this deployment no longer serves, an email in a folder mapped `VisibleToAI: false`, an email judged spam,
-and one whose stored content is no longer readable all produce `53005`, with the same message. That is deliberate and it is the whole
+an email in the junk folder that the person has not marked not spam, and one whose stored content is no longer readable
+all produce `53005`, with the same message. That is deliberate and it is the whole
 reason the code exists: telling them apart would let a caller discover which mail this deployment holds, and which of it
 an operator withheld, by replying to identifiers one at a time. Below the boundary the distinction survives where it is
 useful — a damaged copy still records a repair request — and it stops at the answer.
