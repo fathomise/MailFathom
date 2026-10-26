@@ -55,8 +55,8 @@ public sealed record SenderTrust
 
     /// <summary>Gets the organization whose signature recognized the author, present exactly when <see cref="GrantedBy" /> is <see cref="SenderTrustSource.OrganizationMember" />.</summary>
     /// <remarks>
-    /// A reference rather than a name, because the reader is shown the organization's current display name, and an
-    /// organization deleted since leaves the reason standing without one.
+    /// A reference rather than a name, so nothing about the organization is copied onto the message; an organization
+    /// deleted since leaves the reason standing without one.
     /// </remarks>
     public Guid? RecognizingOrganizationId { get; }
 

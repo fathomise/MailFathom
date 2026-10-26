@@ -61,7 +61,8 @@ public sealed class SenderTrustPolicy
     /// </remarks>
     public static SenderTrustPolicy RecognizingNobody { get; } = new([], [], []);
 
-    /// <summary>Gets the revision that names this policy, which every verdict it reaches is stored with.</summary>
+    /// <summary>Gets the revision that names this policy, which a verdict reached without an organization verification is stored with.</summary>
+    /// <remarks>A verdict reached for an account of an organization carries a revision that also names that organization, so it differs from this one.</remarks>
     public SenderTrustPolicyRevision Revision { get; }
 
     /// <summary>Builds the policy one account judges its mail by.</summary>

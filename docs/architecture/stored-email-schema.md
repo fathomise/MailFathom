@@ -144,7 +144,7 @@ states the rule the verdict follows.
 
 `SenderTrustOrganizationId` is the fourth, set only where `SenderTrustGrantedBy` is `OrganizationMember`: the
 organization whose signature recognized the author. It is a foreign key onto `organizations` with `ON DELETE SET NULL`,
-so deleting an organization keeps every verdict it reached and loses only the name a reader would have been shown, and
+so deleting an organization keeps every verdict it reached and loses only which organization it was, and
 the partial index `ix_stored_emails_sender_trust_organization` over the rows that carry one is what lets that deletion
 find them without reading the whole table. A receiving account's organization is also part of the revision of every
 verdict reached under it, so a revision says whose keys were consulted.

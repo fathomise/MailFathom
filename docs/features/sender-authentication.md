@@ -253,8 +253,9 @@ is the one exception, because what it proves is the author's address rather than
 
 ### A colleague in the receiving account's organization
 
-Every message an organization's account sends is signed with a key that organization holds, and a receiving account of
-the same organization verifies the signature locally when the message is extracted. [ADR
+A receiving account that belongs to an organization verifies, locally and when the message is extracted, a signature
+made with a key that organization holds, wherever a message carries one. Nothing signs outgoing mail yet, so until
+signing arrives in a later release no message carries such a signature and this recognizes nobody. [ADR
 0042](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0042-signing-an-organizations-mail-and-trusting-a-sender-its-signature-proves.md)
 records the format and the reasoning; [Organization signing keys](../operations/organization-signing-keys.md) is where
 the keys are minted, rotated, and revoked.
@@ -286,8 +287,8 @@ is never read and nothing is asked of DNS.
 **Membership ranks first and needs no authenticated domain.** Where it holds, the verdict is trusted with the source
 *organization member*, and the lists below are not consulted: a colleague on a server publishing no DKIM key is still
 recognized, and one on the organization's own domain is named as a member rather than by that domain. The verdict also
-stores which organization recognized the author, as a reference a reader is shown the organization's current name
-through; deleting the organization clears the reference and leaves the reason without a name.
+stores which organization recognized the author, as a reference to it; deleting the organization clears the reference
+and leaves the reason standing without it.
 
 **A signature that fails, names no key of the organization, or names a revoked one contributes nothing, and is never a
 warning.** Relays legitimately alter messages — a disclaimer footer breaks the body hash — so the message is judged by

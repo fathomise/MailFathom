@@ -113,7 +113,8 @@ public sealed class OrchestratedOrganizationSenderDirectoryTests(MailFathomOrche
                         Organization: await directory.FindOrganizationAsync(account, token),
                         Accounts: await directory.ListAccountsAsync(organization, token),
                         Through: await directory.ListBlindCopyRecipientsAsync([account], messageId, token),
-                        Elsewhere: await directory.ListBlindCopyRecipientsAsync([MailAccountId.Create("elsewhere")], messageId, token));
+                        Elsewhere: await directory.ListBlindCopyRecipientsAsync([MailAccountId.Create("elsewhere")], messageId, token),
+                        OtherMessage: await directory.ListBlindCopyRecipientsAsync([account], $"other-{messageId}", token));
                 },
                 cancellationToken);
 
@@ -122,6 +123,7 @@ public sealed class OrchestratedOrganizationSenderDirectoryTests(MailFathomOrche
             Assert.Equal([account], answers.Accounts);
             Assert.Equal(["BOB@ORG.EXAMPLE.TEST"], answers.Through.Select(static address => address.NormalizedAddress.ToUpperInvariant()));
             Assert.Empty(answers.Elsewhere);
+            Assert.Empty(answers.OtherMessage);
         }
         finally
         {

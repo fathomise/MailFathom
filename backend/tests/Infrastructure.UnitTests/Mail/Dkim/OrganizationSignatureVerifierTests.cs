@@ -307,14 +307,14 @@ public sealed class OrganizationSignatureVerifierTests
     private static OrganizationSignatureVerifier Verifier(InMemoryOrganizationSenderDirectory directory) =>
         new(directory, Identities((Author, "anna@org.example.test"), (Receiver, "bob@org.example.test")));
 
-    private static IOutgoingSenderIdentityReader Identities(params (MailAccountId Account, string Address)[] identities)
+    private static ISenderIdentityDirectory Identities(params (MailAccountId Account, string Address)[] identities)
     {
-        var reader = Substitute.For<IOutgoingSenderIdentityReader>();
+        var reader = Substitute.For<ISenderIdentityDirectory>();
 
         foreach (var (account, address) in identities)
         {
             Assert.True(EmailAddress.TryCreate(displayName: null, address, out var parsed));
-            reader.FindSenderIdentity(account).Returns(OutgoingSenderIdentity.Create(account, parsed));
+            reader.FindSenderIdentityAsync(account, Arg.Any<CancellationToken>()).Returns(OutgoingSenderIdentity.Create(account, parsed));
         }
 
         return reader;

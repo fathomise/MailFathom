@@ -51,13 +51,13 @@ internal sealed class OrganizationSignatureVerifier
     private const int PublicKeyLength = 32;
 
     private readonly IOrganizationSenderDirectory directory;
-    private readonly IOutgoingSenderIdentityReader identities;
+    private readonly ISenderIdentityDirectory identities;
 
     /// <summary>Initializes a verifier over the deployment's own state.</summary>
     /// <param name="directory">Answers the organization, its keys, its accounts, and the records of its sends.</param>
-    /// <param name="identities">Resolves the address each account sends as.</param>
+    /// <param name="identities">Resolves the address each account sends as, including accounts of users the work unit does not act for.</param>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
-    public OrganizationSignatureVerifier(IOrganizationSenderDirectory directory, IOutgoingSenderIdentityReader identities)
+    public OrganizationSignatureVerifier(IOrganizationSenderDirectory directory, ISenderIdentityDirectory identities)
     {
         ArgumentNullException.ThrowIfNull(directory);
         ArgumentNullException.ThrowIfNull(identities);
@@ -129,16 +129,15 @@ internal sealed class OrganizationSignatureVerifier
         CancellationToken cancellationToken)
     {
         if (SoleAuthorOf(message) is not { } author
-            || this.identities.FindSenderIdentity(receivingAccount)?.Address is not { } receivingAddress)
+            || (await this.identities.FindSenderIdentityAsync(receivingAccount, cancellationToken))?.Address is not { } receivingAddress)
         {
             return false;
         }
 
-        var accounts = await this.directory.ListAccountsAsync(organizationId, cancellationToken);
-        MailAccountId[] authorAccounts =
-        [
-            .. accounts.Where(account => this.identities.FindSenderIdentity(account)?.Address == author),
-        ];
+        var authorAccounts = await this.AccountsSendingAsAsync(
+            await this.directory.ListAccountsAsync(organizationId, cancellationToken),
+            author,
+            cancellationToken);
 
         if (authorAccounts.Length == 0)
         {
@@ -153,6 +152,25 @@ internal sealed class OrganizationSignatureVerifier
         return InternetMessageIdReader.Read(message.Headers) is { } internetMessageId
             && (await this.directory.ListBlindCopyRecipientsAsync(authorAccounts, internetMessageId, cancellationToken))
                 .Contains(receivingAddress);
+    }
+
+    /// <summary>Selects the accounts whose sending identity is the author, one read at a time because each composes an account over the scope's own context.</summary>
+    private async Task<MailAccountId[]> AccountsSendingAsAsync(
+        IReadOnlyList<MailAccountId> accounts,
+        EmailAddress author,
+        CancellationToken cancellationToken)
+    {
+        var sendingAsAuthor = new List<MailAccountId>();
+
+        foreach (var account in accounts)
+        {
+            if ((await this.identities.FindSenderIdentityAsync(account, cancellationToken))?.Address == author)
+            {
+                sendingAsAuthor.Add(account);
+            }
+        }
+
+        return [.. sendingAsAuthor];
     }
 
     /// <summary>Reads the one mailbox the message's one <c>From</c> field names, or nothing where it names any other number.</summary>

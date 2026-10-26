@@ -207,8 +207,8 @@ internal sealed class StoredEmailEntity
 
     /// <summary>Gets or sets the organization whose signature recognized the author, set only where <see cref="SenderTrustGrantedBy" /> is <see cref="SenderTrustSource.OrganizationMember" />.</summary>
     /// <remarks>
-    /// A reference the client reads the organization's current display name through. Deleting the organization clears
-    /// it and leaves the source standing, so the reason survives without a name.
+    /// A reference rather than a copy of anything about the organization. Deleting the organization clears it and leaves
+    /// the source standing, so the reason survives without the organization.
     /// </remarks>
     public Guid? SenderTrustOrganizationId { get; set; }
 

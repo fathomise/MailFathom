@@ -1233,9 +1233,11 @@ public sealed class MimeKitEmailMimeReaderTests
 
     private static OrganizationSignatureVerifier OrganizationVerifier(InMemoryOrganizationSenderDirectory directory)
     {
-        var identities = Substitute.For<IOutgoingSenderIdentityReader>();
-        identities.FindSenderIdentity(MimeFixtures.Account).Returns(SenderIdentity(MimeFixtures.Account, "bob@org.example.test"));
-        identities.FindSenderIdentity(Colleague).Returns(SenderIdentity(Colleague, "anna@org.example.test"));
+        var identities = Substitute.For<ISenderIdentityDirectory>();
+        identities.FindSenderIdentityAsync(MimeFixtures.Account, Arg.Any<CancellationToken>())
+            .Returns(SenderIdentity(MimeFixtures.Account, "bob@org.example.test"));
+        identities.FindSenderIdentityAsync(Colleague, Arg.Any<CancellationToken>())
+            .Returns(SenderIdentity(Colleague, "anna@org.example.test"));
 
         return new OrganizationSignatureVerifier(directory, identities);
     }

@@ -1031,7 +1031,7 @@ public static class ServiceCollectionExtensions
                         new OrganizationSignatureVerifier(
                             new PersistedOrganizationSenderDirectory(
                                 new Lazy<MailFathomDbContext>(provider.GetRequiredService<MailFathomDbContext>)),
-                            provider.GetRequiredService<IOutgoingSenderIdentityReader>())),
+                            provider.GetRequiredService<ISenderIdentityDirectory>())),
                     provider.GetRequiredService<ISenderTrustPolicyReader>()),
                 provider.GetRequiredService<MachineAuthorshipProfile>());
 
