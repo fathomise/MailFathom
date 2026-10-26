@@ -14,7 +14,7 @@ using Pgvector;
 namespace MailFathom.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(MailFathomDbContext))]
-    [Migration("20261026013334_AddEmailSpamVerdictActs")]
+    [Migration("20261026034753_AddEmailSpamVerdictActs")]
     partial class AddEmailSpamVerdictActs
     {
         /// <inheritdoc />
@@ -1477,8 +1477,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsSynchronized")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsVisibleToTools")
-                        .HasColumnType("boolean");
+                    b.Property<bool>("IsVisibleToAI")
+                        .HasColumnType("boolean")
+                        .HasColumnName("IsVisibleToTools");
 
                     b.Property<int?>("SpecialUse")
                         .HasColumnType("integer");
