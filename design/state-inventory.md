@@ -600,7 +600,7 @@ drawn as Verified: `piotr`, through a list that broke DKIM. Verified alone: `kli
 domain on the list (`contoso`, `anna2`), by an address on it (`finanse`), as a domain of the owner's own accounts with
 a certificate authority the operator configured and a CRL (`devops1`), and as a member of the account's organization:
 named, *Nordwind* (`rekrutacja1`), and nameless because the organization has since been deleted, from a server that
-sent no DKIM signature and established no author domain (`handover1`). A warning from
+passed neither DKIM nor SPF and reported no DMARC result, so no author domain is established (`handover1`). A warning from
 authentication: `bank1`, `spamDesk`, `spamThreat`. Neutral, authenticated and not recognized: `jacek`, `spamPayroll`, `spamParcel`;
 signed by somebody else: `hr1`, an opaque S/MIME message; not verifiable here because the certificate chains to no
 trusted authority (`prawnik2`), expired (`fabrikam1`), is not meant for email (`audyt1`), was revoked (`marta`), or

@@ -201,7 +201,7 @@ MailFathomDesign.data.senderMarks = {
       author: "authenticated", authDomain: "company.example", trust: { source: "org", org: "Nordwind" }, sig: null,
     },
     handover1: {
-      from: "o.mazur@harborworks.example", checker: "server", dkim: null, spf: "harborworks.example", dmarc: "none",
+      from: "o.mazur@harborworks.example", checker: "server", dkim: null, spf: null, dmarc: "unreported",
       author: "notEstablished", authDomain: null, trust: { source: "org", org: null }, sig: null,
     },
     spamPayroll: {
