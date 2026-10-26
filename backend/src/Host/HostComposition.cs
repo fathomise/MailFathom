@@ -954,8 +954,9 @@ internal static class HostComposition
         builder.Services.AddSingleton<ISettingsSnapshot<ChatModelOptions>>(provider => provider.GetRequiredService<ValidatedSettingsSnapshot<ChatModelOptions>>());
         builder.Services.AddHostedService(provider => provider.GetRequiredService<ValidatedSettingsSnapshot<ChatModelOptions>>());
 
-        // Registered once for both declarations, because it resolves by alias and the aliases are unique across them. It is
-        // needed by whichever adapter exists, so it is registered when either does rather than by each of them.
+        // Registered once for the embedding, chat, and decision declarations, because it resolves by alias and the startup
+        // and reload rules keep an alias unique across all three. It is needed by whichever adapter exists, so it is
+        // registered when any of them does rather than by each of them.
         if (declaredEmbeddings?.IsConfigured is true
             || declaredChat?.IsConfigured is true
             || declaredDecisions?.Models.Count > 0)
@@ -1050,10 +1051,10 @@ internal static class HostComposition
                         "The relevance filter was enabled at registration and is absent from the configuration in force."));
             }
 
-            // Readiness alone, and never worse than degraded. Neither provider serves a request path, so a failing one must
+            // Readiness alone, and never worse than degraded. No AI provider serves a request path, so a failing one must
             // not take the instance out of traffic and must never reach the liveness probe: restarting the process cannot
             // fix a provider and would turn one outage into an outage plus a restart loop. The registration says all of
-            // that once, for both roles.
+            // that once, for every role.
             builder.Services.AddHealthChecks()
                 .Add(AiProviderHealthCheck.RegistrationFor(AiProviderRole.Chat));
         }

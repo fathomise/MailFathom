@@ -1046,11 +1046,14 @@ an arrangement holds and what acting on one takes.
 
 ## `Decisions`
 
-Which model this deployment asks a closed question — a yes or no, a choice between named options, a place on a scale —
-and gets probabilities back rather than prose. A root of its own beside `Chat`, because the two reach different APIs on
+Which model a closed question — a yes or no, a choice between named options, a place on a scale — is put to, with
+probabilities coming back rather than prose. A root of its own beside `Chat`, because the two reach different APIs on
 different terms: a chat model writes an answer under parameters the operator chooses, while a decision model answers a
 fixed question through [OpenRouter's Decisions API](https://openrouter.ai/docs), which takes no generation parameters at
-all. Writing nothing is a supported deployment and composes no decision client. [ADR
+all. Writing nothing is a supported deployment and composes no decision client. **No part of this build asks a
+decision model yet**: declaring one validates the section, composes the client each function resolves, and registers
+the `ai-decision-provider` check, and it changes no verdict — spam classification runs exactly as it does without
+the section, and the check stays unobserved. [ADR
 0041](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0041-asking-a-model-a-closed-question-through-openrouters-decisions-api.md)
 holds the decision and its reasoning.
 
@@ -1114,7 +1117,7 @@ does for a chat model.
 | Key | Type | Default | Constraint | Change |
 | --- | --- | --- | --- | --- |
 | `Decisions:DefaultModel:Alias` | string | *(empty)* | the declared alias a function naming no model of its own is asked through. Required once more than one model is declared and a function falls through to it; with exactly one model declared, empty means that one | restart |
-| `Decisions:SpamClassification:Model:Alias` | string | *(empty)* | the declared alias spam classification is asked through. Empty takes `Decisions:DefaultModel` | restart |
+| `Decisions:SpamClassification:Model:Alias` | string | *(empty)* | the declared alias the `SpamClassification` decision function resolves to. Empty takes `Decisions:DefaultModel`. Nothing in this build asks that function yet | restart |
 
 A reference naming no declared model, or naming a chat model, refuses the start and says which. A reference written
 with no model declared at all is refused the same way, so a forgotten `Models` block is not read as no capability.

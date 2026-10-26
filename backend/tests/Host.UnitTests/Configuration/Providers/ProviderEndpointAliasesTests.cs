@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Host.Configuration.Chat;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Embeddings;
 using MailFathom.Host.Configuration.Providers;
 using MailFathom.Host.UnitTests.TestDoubles;
@@ -91,6 +92,71 @@ public sealed class ProviderEndpointAliasesTests
         // Assert
         Assert.Contains("shared", message, StringComparison.Ordinal);
         Assert.Contains("circuit", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The credential source matches an alias without case and finds a chat model first, so a collision hidden behind
+    /// spelling would present a chat key at a decision model's address.
+    /// </summary>
+    [Theory]
+    [InlineData("decider")]
+    [InlineData("DECIDER")]
+    [InlineData("Decider")]
+    [InlineData("  decider  ")]
+    public void FindReusedDecisionAlias_AnAliasDifferingOnlyInCaseOrSpacing_StillCollides(string chatAlias)
+    {
+        // Act
+        var reused = ProviderEndpointAliases.FindReusedDecisionAlias(
+            DecisionsDeclaring(" decider ", "scorer"),
+            ChatDeclaring(chatAlias));
+
+        // Assert
+        Assert.Equal("decider", reused);
+    }
+
+    [Fact]
+    public void FindReusedDecisionAlias_SectionsDeclaringDifferentAliases_FindsNothing()
+    {
+        // Act
+        var reused = ProviderEndpointAliases.FindReusedDecisionAlias(
+            DecisionsDeclaring("decider"),
+            ChatDeclaring("answering"));
+
+        // Assert
+        Assert.Null(reused);
+    }
+
+    [Fact]
+    public void FindReusedDecisionAlias_WithOnlyOneSectionDeclared_FindsNothing()
+    {
+        // Act, Assert
+        Assert.Null(ProviderEndpointAliases.FindReusedDecisionAlias(DecisionsDeclaring("decider"), chat: null));
+        Assert.Null(ProviderEndpointAliases.FindReusedDecisionAlias(decisions: null, ChatDeclaring("answering")));
+        Assert.Null(ProviderEndpointAliases.FindReusedDecisionAlias(decisions: null, chat: null));
+    }
+
+    [Fact]
+    public void DescribeReusedDecisionAlias_TheCollision_NamesTheAliasAndWhyItMatters()
+    {
+        // Act
+        var message = ProviderEndpointAliases.DescribeReusedDecisionAlias("decider");
+
+        // Assert
+        Assert.Contains("'decider'", message, StringComparison.Ordinal);
+        Assert.Contains("decision model", message, StringComparison.Ordinal);
+        Assert.Contains("circuit", message, StringComparison.Ordinal);
+    }
+
+    private static DecisionModelOptions DecisionsDeclaring(params string[] aliases)
+    {
+        var settings = new DecisionModelOptions();
+
+        foreach (var alias in aliases)
+        {
+            settings.Models.Add(new DecisionModelDeclarationOptions { Alias = alias });
+        }
+
+        return settings;
     }
 
     private static EmbeddingOptions EmbeddingsDeclaring(params string[] aliases)
