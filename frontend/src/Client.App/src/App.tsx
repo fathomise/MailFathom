@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
     endSession,
+    readOutgoingMail,
     reportingRefusedCredential,
     revokeRefreshToken,
     readAuthorizationServer,
@@ -59,6 +60,7 @@ import { ListedMailProvider } from './messageList/ListedMail';
 import { MessageList } from './messageList/MessageList';
 import { forgetListings } from './messageList/rememberedListings';
 import { NotificationBell } from './notifications/NotificationBell';
+import { failureOf } from './notifications/failures';
 import { followTarget } from './notifications/notificationDestination';
 import { NotificationCentre } from './notifications/NotificationCentre';
 import { usePanelSwipe } from './notifications/usePanelSwipe';
@@ -108,7 +110,11 @@ import { useTelemetry } from './telemetry/clientTelemetry';
 import { useNavigationTelemetry } from './telemetry/navigationTelemetry';
 import { Thread } from './thread/Thread';
 import { ThreadAgentField, type ReadingFoot } from './threadAgent/ThreadAgentField';
-import { ToastLifetimeContext } from './toasts/useToasts';
+import { ToastLifetimeContext, useToasts } from './toasts/useToasts';
+import { showDraftsFolder } from './messageList/showDraftsFolder';
+import { showOutboxEntry, wordUnshownSend } from './outbox/showOutboxEntry';
+import type { OutboxDecisionAsked } from './outbox/useMailOutbox';
+import type { AbandonedChange } from './pendingChanges/usePendingChanges';
 import { MailOutboxProvider } from './outbox/MailOutbox';
 import { OutboxList } from './outbox/OutboxList';
 import { OutboxPane } from './outbox/OutboxPane';
@@ -683,6 +689,39 @@ export function App({
     // Where a notification leads. What each target kind comes to is `notifications/notificationDestination.ts`, which
     // is where it can be asserted without a frame around it; what this supplies is the two things this client can
     // actually do about one, because opening a message and reaching a space are the frame's rather than a mapping's.
+    const toasts = useToasts();
+    const { translate } = useLocalization();
+
+    // A send is opened in its own account's Outbox, which the notification names only by the send: so its account is
+    // read first, and a send the deployment no longer answers for is said rather than opened onto nothing.
+    // A decision about a send asked from its notification, held until the Outbox that draws the send has read it.
+    const [outboxAsked, setOutboxAsked] = useState<OutboxDecisionAsked | null>(null);
+
+    const showSend = useCallback(
+        (outgoingEmailId: string, decision?: OutboxDecisionAsked['decision'], onTaken?: () => void): void => {
+            if (session === null) {
+                return;
+            }
+
+            const asking = session;
+
+            void readOutgoingMail(asking, readMail, outgoingEmailId).then((answer) => {
+                if (answer.outcome === 'read') {
+                    if (decision !== undefined && onTaken !== undefined) {
+                        setOutboxAsked({ account: answer.value.account, outgoingEmailId, decision, onTaken });
+                    }
+
+                    showOutboxEntry(asking, readMail, revise, answer.value.account, outgoingEmailId);
+
+                    return;
+                }
+
+                toasts.raise({ kind: 'warning', title: wordUnshownSend(answer.failure.reason, translate) });
+            });
+        },
+        [session, readMail, revise, toasts, translate],
+    );
+
     const followNotification = useCallback(
         (target: NotificationTarget): void => {
             followTarget(target, {
@@ -696,10 +735,27 @@ export function App({
                 goTo: (space) => {
                     window.location.hash = addressOf(space);
                 },
+                showOutboxEntry: (outgoingEmailId) => {
+                    showSend(outgoingEmailId);
+                },
+                openDraft: (draftId) => {
+                    window.location.hash = addressOf('mail');
+                    composing.compose({ kind: 'held', draftId });
+
+                    if (session !== null) {
+                        void showDraftsFolder(session, readMail, revise, draftId);
+                    }
+                },
             });
         },
-        [openTabs],
+        [openTabs, showSend, composing, session, readMail, revise],
     );
+
+    // The changes this tab has followed, so the notification a given-up one raises does not speak over the queue that
+    // already told the person. A ref because nothing is drawn from it, and it only ever grows: a record identity is
+    // never reused, and a change this tab settled is one nobody needs telling about again either.
+    const changesFollowedHere = useRef(new Set<string>());
+    const followedHere = useCallback((recordId: string) => changesFollowedHere.current.has(recordId), []);
 
     // Asked for on the grants the routes are admitted under: the notification routes read and mark what this
     // deployment drew for one person, so a credential that may not do both meets no bell rather than a bell that
@@ -712,6 +768,22 @@ export function App({
         readMail,
         connection.online,
         followNotification,
+        mailAccounts,
+        followedHere,
+    );
+
+    // What stands unread about a change the deployment gave up on is a question still waiting on the person, wherever
+    // it was asked; reading the row is how it was answered.
+    const abandonedChanges = useMemo<readonly AbandonedChange[]>(
+        () =>
+            notifications.notifications.flatMap((notification) => {
+                const failure = notification.read ? null : failureOf(notification);
+
+                return failure?.kind === 'change'
+                    ? [{ recordId: failure.recordId, storedEmailId: failure.storedEmailId, act: failure.act }]
+                    : [];
+            }),
+        [notifications.notifications],
     );
 
     // The two gestures belong to the phone composition and to a coarse pointer, which is the one place this frame asks
@@ -1008,7 +1080,15 @@ export function App({
                         {/* Above everything that changes a mailbox, because following a change is not the business of whichever
             screen asked for one: what is waiting, what the deployment refused, and what only a person can settle are
             one queue whoever produced the change. */}
-                        <PendingChangesProvider session={session} transport={readMail}>
+                        <PendingChangesProvider
+                            session={session}
+                            transport={readMail}
+                            abandoned={abandonedChanges}
+                            onFollowed={(recordIds) => {
+                                recordIds.forEach((recordId) => changesFollowedHere.current.add(recordId));
+                            }}
+                            onDecided={notifications.changeDecided}
+                        >
                             {/* Above the frame rather than inside a space, because three unrelated places below read what has been
             marked: the row that draws a message, the folder tree that counts unread mail, and the body that marks one
             on being drawn. What it holds goes with the credential, exactly as the workspace does. Whether opening a
@@ -1131,6 +1211,10 @@ export function App({
                                                                                     session={session}
                                                                                     transport={readMail}
                                                                                     online={connection.online}
+                                                                                    asked={outboxAsked}
+                                                                                    onAskedTaken={() => {
+                                                                                        setOutboxAsked(null);
+                                                                                    }}
                                                                                 >
                                                                                     <Space
                                                                                         // Every space this deployment offers, because every one of them is mounted: moving
@@ -1634,6 +1718,10 @@ export function App({
                                                                             <NotificationCentre
                                                                                 centre={notifications}
                                                                                 swipe={swipe}
+                                                                                session={readsMail ? session : null}
+                                                                                transport={readMail}
+                                                                                accounts={mailAccounts}
+                                                                                onDecideSend={showSend}
                                                                             />
                                                                         ) : null}
 
@@ -1668,6 +1756,8 @@ function openingKey(opening: ComposerOpening): string {
             return `new:${(opening.to ?? []).join(',')}`;
         case 'draft':
             return `draft:${opening.storedEmailId}`;
+        case 'held':
+            return `held:${opening.draftId}`;
         case 'answer':
             return `${opening.answers}:${opening.storedEmailId}`;
     }

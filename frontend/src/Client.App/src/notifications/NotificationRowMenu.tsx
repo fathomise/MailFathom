@@ -8,6 +8,9 @@ import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { wordInstant } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
+import { failureDecisionShapes } from './notificationKinds';
+import type { RowDecision } from './NotificationRow';
+import { wordNotification } from './notificationWords';
 
 // What a notification row answers a press with. It is this row's items and nothing else: where the menu stands, how it
 // is walked, and how it is left are `contextMenu/ContextMenu.tsx`'s, which is the same component five other lists open.
@@ -22,6 +25,8 @@ import { useReadingZone } from '../localization/useReadingZone';
 // **A merged arrival offers *Summarize* beside opening it**, the same act as the control drawn on the row, because a
 // finger holding the row is asking what it can do with it.
 //
+// **A failure offers its decisions here too**, the same ones its row draws as pills, for the reason Summarize is here.
+//
 // **Deleting is last and drawn as what it is.** It takes a row out of the centre for good, so it sits apart from the
 // three acts above it and the question in front of it is the panel's rather than this menu's — a menu that closes as it
 // is chosen from cannot also hold a dialog open.
@@ -33,6 +38,7 @@ export function NotificationRowMenu({
     onToggleRead,
     onOpen,
     onSummarize,
+    decisions,
     onDelete,
     onClose,
 }: {
@@ -49,6 +55,9 @@ export function NotificationRowMenu({
 
     /** Hands the messages a merged arrival stands for to the agent, or `null` on every row that stands for none. */
     readonly onSummarize: (() => void) | null;
+
+    /** What may be decided about the failure this row reports, which the row draws as well. */
+    readonly decisions: readonly RowDecision[];
 
     /** Asks the panel to put the question in front of removing this row for good. */
     readonly onDelete: () => void;
@@ -71,11 +80,24 @@ export function NotificationRowMenu({
         ...(onSummarize === null
             ? []
             : [{ icon: 'auto_awesome' as const, label: translate('notifications.summarize'), choose: onSummarize }]),
+        ...decisions.map(({ decision, take }) => ({
+            icon: failureDecisionShapes[decision].icon,
+            label: translate(failureDecisionShapes[decision].label),
+            choose: take,
+        })),
         { icon: 'delete', label: translate('notifications.delete'), destroys: true, choose: onDelete },
     ];
 
     // The row shows how long ago it happened; the instant itself stands here for a finger, which has no hover to ask.
     const happened = wordInstant(notification.occurredAt, locale, 'full', timeZone) ?? undefined;
 
-    return <ContextMenu header={notification.title} detail={happened} at={at} items={items} onClose={onClose} />;
+    return (
+        <ContextMenu
+            header={wordNotification(notification, locale, translate).title}
+            detail={happened}
+            at={at}
+            items={items}
+            onClose={onClose}
+        />
+    );
 }

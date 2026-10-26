@@ -30,6 +30,9 @@ export const mailOutboxRequeueRoute = '/outbox/requeue';
 /** The route one send is taken out of its account's outbox at, relative to the client prefix. */
 export const mailOutboxDismissalRoute = '/outbox/dismissal';
 
+/** The route one refused send is taken back to the draft it was written in on, relative to the client prefix. */
+export const mailOutboxReopeningRoute = '/outbox/reopening';
+
 /** The route one send is read from, relative to the client prefix. */
 export function outgoingMailRoute(outgoingEmailId: string): string {
     return `${mailOutboxRoute}/${encodeURIComponent(outgoingEmailId)}`;
@@ -148,6 +151,16 @@ export type MailSendWithdrawal = 'withdrawn' | 'alreadyBeingSent' | 'pastRecall'
 
 /** What became of the send a decision named: taken, raced by an attempt, past the point it applied, unknown, or a refusal not restated. */
 export type MailOutboxDecision = 'accepted' | 'alreadyBeingSent' | 'pastRecall' | 'noSuchSend' | 'refusalNotRestated';
+
+/**
+ * What became of a refused send somebody asked to take back to its draft: the draft to go on editing, or why not.
+ *
+ * `noDraftToReopen` is the one outcome no other decision has — a send written from no draft of this person's, which
+ * there is nothing to open for.
+ */
+export type MailOutboxReopening =
+    | { readonly reopened: true; readonly draftId: string }
+    | { readonly reopened: false; readonly decision: Exclude<MailOutboxDecision, 'accepted'> | 'noDraftToReopen' };
 
 const decisions: Readonly<Record<string, MailOutboxDecision | undefined>> = {
     Accepted: 'accepted',
@@ -294,6 +307,34 @@ export function dismissOutgoingMail(
     return decide(session, transport, mailOutboxDismissalRoute, { outgoingEmail: outgoingEmailId });
 }
 
+/**
+ * Takes one refused send out of its account's outbox and back into the draft it was written in, so it can be edited.
+ *
+ * Nothing is sent by this: the send leaves the outbox and the draft is what is left, which is what a composer opens.
+ * Only a refusal is taken back — a send nobody knows the fate of may already have arrived — and the deployment says so
+ * as `pastRecall` rather than refusing the request.
+ *
+ * @returns What became of it, or an expected failure as a value.
+ */
+export function reopenOutgoingMailAsDraft(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    outgoingEmailId: string,
+): Promise<ClientResult<MailOutboxReopening>> {
+    return spanned(`POST ${mailOutboxReopeningRoute}`, async () =>
+        answered(
+            await send(transport, {
+                method: 'POST',
+                path: routeFor(session, mailOutboxReopeningRoute),
+                headers: { ...headersFor(session), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ outgoingEmail: outgoingEmailId }),
+                longestAnswer: longestDecisionAnswer,
+            }),
+            parseReopening,
+        ),
+    );
+}
+
 function decide(
     session: ClientSession,
     transport: MailFathomTransport,
@@ -343,6 +384,30 @@ function parseDecision(value: unknown): MailOutboxDecision | null {
     const outcome = asRecord(value)?.['outcome'];
 
     return (typeof outcome === 'string' && Object.hasOwn(decisions, outcome) ? decisions[outcome] : undefined) ?? null;
+}
+
+// The draft is read only beside an acceptance, and an acceptance without one is refused: it would leave the send gone
+// from the outbox with nothing to open, which is the one answer here a screen could not say anything true about.
+function parseReopening(value: unknown): MailOutboxReopening | null {
+    const record = asRecord(value);
+    const outcome = record?.['outcome'];
+    const draftId = record?.['draftId'] ?? null;
+
+    if (outcome === 'NoDraftToReopen') {
+        return { reopened: false, decision: 'noDraftToReopen' };
+    }
+
+    const decision = parseDecision(value);
+
+    if (decision === null) {
+        return null;
+    }
+
+    if (decision !== 'accepted') {
+        return { reopened: false, decision };
+    }
+
+    return typeof draftId === 'string' && draftId !== '' ? { reopened: true, draftId } : null;
 }
 
 function parsePage(value: unknown): MailOutboxPage | null {

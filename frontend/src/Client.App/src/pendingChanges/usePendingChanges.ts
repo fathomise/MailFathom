@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { createContext, useContext } from 'react';
+import type { AbandonedAct } from '../notifications/failures';
 import type { ChangeSubmission, ChangeStanding, PendingChange } from './changeStandings';
 
 // The changes this client has asked its mailbox for and is still following, and the two ways of adding to that and of
@@ -33,6 +34,18 @@ export interface UndecidedChange extends PendingChange {
     readonly standing: Extract<ChangeStanding, 'exhausted' | 'unanswered'>;
 }
 
+/**
+ * A change the deployment gave up on that this tab did not follow, known from the notification it raised.
+ *
+ * It is what a change asked for in another tab, on another device, or before a reload comes back as: the record has
+ * nothing left to follow, so it is a question for the person and nothing else, and it stands until they answer it.
+ */
+export interface AbandonedChange {
+    readonly recordId: string;
+    readonly storedEmailId: string;
+    readonly act: AbandonedAct;
+}
+
 /** What a person may do about a change the deployment could not settle. Both are acts; neither is a default. */
 export type ChangeResolution = 'askAgain' | 'letGo';
 
@@ -43,13 +56,22 @@ export interface PendingChanges {
     /** The changes waiting on a person rather than on a mailbox. */
     readonly undecided: readonly UndecidedChange[];
 
+    /** The changes given up on that this tab never followed, less any it is already asking about itself. */
+    readonly abandoned: readonly AbandonedChange[];
+
     /** Whether the client has stopped asking where its changes stand, having been unanswered too many times running. */
     readonly stoppedFollowing: boolean;
 
     /** Follows what one submission became: what was written down is waited on, and what was refused is reported. */
     readonly follow: (submission: ChangeSubmission) => void;
 
-    /** Settles one change the deployment could not, by asking for it again or by letting it go. */
+    /**
+     * Settles one change the deployment could not, by asking for it again or by letting it go.
+     *
+     * A change this tab followed is asked again by the act that produced it. One it only knows as abandoned has no
+     * producer here, so settling it records the person's answer and nothing more: whoever asks it again performs the
+     * act itself, which is `useChangeDecision.ts`'s.
+     */
     readonly settle: (recordId: string, resolution: ChangeResolution) => void;
 
     /** Asks again where the followed changes stand, from a person asking rather than from the client trying on its own. */
@@ -66,6 +88,7 @@ export interface PendingChanges {
 export const nothingPending: PendingChanges = {
     waiting: [],
     undecided: [],
+    abandoned: [],
     stoppedFollowing: false,
     follow: () => undefined,
     settle: () => undefined,

@@ -14,9 +14,11 @@ import { useLocalization } from '../localization/useLocalization';
 import { Message } from '../messageBody/Message';
 import type { MessageBodyRead } from '../messageBody/useMessageBody';
 import { useMessageView } from '../preferences/messageView';
+import { usePendingChanges } from '../pendingChanges/usePendingChanges';
 import { useReadMarking } from '../readMarking/useReadMarking';
 import { useWorkspace } from '../workspace/useWorkspace';
 import { Attachments } from './Attachments';
+import { ChangeNotice } from './ChangeNotice';
 import { SenderVerdict } from './SenderVerdict';
 
 // One message drawn out in full, which is the same drawing wherever a message is drawn: the verdict on who sent it, who
@@ -67,6 +69,10 @@ export function OpenedMessage({
     const storedEmailId = message.storedEmailId;
     const author = message.headers.participants.find((participant) => participant.role === 'From') ?? null;
     const numbers = new Intl.NumberFormat(locale);
+
+    // Whether a change the mailbox did not take stands over this message, which is the only case the notice is mounted in.
+    const pending = usePendingChanges();
+    const asked = [...pending.undecided, ...pending.abandoned].some((change) => change.storedEmailId === storedEmailId);
 
     // What a person selected becomes the scope the intent field asks its next question under. It is read from the
     // gesture that produced it rather than from an effect watching the document, and it is bounded, trimmed, and
@@ -124,6 +130,9 @@ export function OpenedMessage({
 
                     <ReceivedAt at={message.headers.receivedAt} />
                 </div>
+
+                {/* A change the mailbox did not take stands over the words it is about, until it is answered. */}
+                {asked ? <ChangeNotice message={message} /> : null}
 
                 {/* The gestures a selection ends on rather than a document-wide subscription: a selection made with the
                     pointer settles on the release and one made with the keyboard on the key coming back up, and both of

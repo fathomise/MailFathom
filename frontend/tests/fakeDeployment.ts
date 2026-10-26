@@ -713,6 +713,10 @@ export class FakeDeployment {
                 return answering(this.sendOfferedAgain(request.body));
             case 'POST /outbox/dismissal':
                 return answering(this.sendDismissed(request.body));
+            case 'POST /outbox/reopening':
+                return answering(this.sendReopened(request.body));
+            case 'GET /drafts':
+                return answering(drafts.draftList);
             case 'GET /replies/drafting':
                 return answering(drafts.draftsReplies);
             case 'POST /replies/drafting':
@@ -1134,6 +1138,16 @@ export class FakeDeployment {
 
         const held = this.draftsHeld.get(id);
 
+        // The two kept drafts the corpus reads whole: the one out of step with its server, and the one a refused send
+        // is taken back to edit as.
+        if (method === 'GET' && part === undefined) {
+            const reading = [drafts.outOfStepDraftReading, drafts.reopenedDraftReading].find(
+                ({ draft }) => draft.draftId === id,
+            );
+
+            return reading === undefined ? { status: 404, body: '' } : answering(reading);
+        }
+
         if (method === 'PUT' && part === undefined) {
             return held === undefined
                 ? { status: 404, body: '' }
@@ -1387,6 +1401,21 @@ export class FakeDeployment {
         }
 
         return this.outboxDecided({ outgoingEmail, outcome });
+    }
+
+    /** Takes a refused send back to edit, which takes it out of the Outbox and answers the draft it is edited as. */
+    private sendReopened(body: unknown): Held {
+        const named = recordIn(body)?.['outgoingEmail'];
+        const outgoingEmail = typeof named === 'string' ? named : '';
+        const send = this.outboxHeld.find((held) => held.outgoingEmail === outgoingEmail);
+
+        if (send?.stage !== 'Refused') {
+            return { outgoingEmail, outcome: send ? 'StageDoesNotAllowIt' : 'RecordUnknown', draftId: null };
+        }
+
+        this.outboxLeaves(outgoingEmail, 'Cancelled');
+
+        return this.outboxDecided({ ...drafts.reopenedSend, outgoingEmail });
     }
 
     /** Says the Outbox moved once a decision about one of its sends was taken, and answers with the decision. */

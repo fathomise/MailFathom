@@ -6,10 +6,35 @@ import { describe, expect, it, vi } from 'vitest';
 import { followTarget, type NotificationDestinations } from './notificationDestination';
 
 function following(): NotificationDestinations {
-    return { openMail: vi.fn(), goTo: vi.fn() };
+    return { openMail: vi.fn(), goTo: vi.fn(), showOutboxEntry: vi.fn(), openDraft: vi.fn() };
 }
 
 describe('followTarget', () => {
+    it('opens the message a change the mailbox did not take was asked of', () => {
+        const client = following();
+
+        followTarget({ kind: 'MailboxChange', storedEmailId: 'e-4', changeRecordId: 'r-1' }, client);
+
+        expect(client.openMail).toHaveBeenCalledExactlyOnceWith('e-4');
+    });
+
+    it('opens a refused send in its Outbox', () => {
+        const client = following();
+
+        followTarget({ kind: 'OutgoingEmail', outgoingEmailId: 'o-2' }, client);
+
+        expect(client.showOutboxEntry).toHaveBeenCalledExactlyOnceWith('o-2');
+        expect(client.openMail).not.toHaveBeenCalled();
+    });
+
+    it('opens the composer on a draft out of step with its server', () => {
+        const client = following();
+
+        followTarget({ kind: 'MailDraft', draftId: 'd-3' }, client);
+
+        expect(client.openDraft).toHaveBeenCalledExactlyOnceWith('d-3');
+    });
+
     it('opens the message a notification about mail names', () => {
         const client = following();
 

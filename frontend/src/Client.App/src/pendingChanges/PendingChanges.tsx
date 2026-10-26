@@ -18,6 +18,7 @@ import {
     followedChangeInterval,
     mostFollowingAttempts,
     PendingChangesContext,
+    type AbandonedChange,
     type ChangeResolution,
     type PendingChanges,
     type UndecidedChange,
@@ -59,6 +60,8 @@ interface HeldUndecided extends UndecidedChange {
 
 const nothingHeld: Held = { session: null, followed: [], undecided: [] };
 
+const noneAbandoned: readonly AbandonedChange[] = [];
+
 /** How many reads running the deployment has not answered, and whose credential it did not answer them under. */
 interface Failures {
     readonly session: ClientSession | null;
@@ -70,11 +73,26 @@ const noFailures: Failures = { session: null, count: 0 };
 export function PendingChangesProvider({
     session,
     transport,
+    abandoned = noneAbandoned,
+    onFollowed,
+    onDecided,
     children,
 }: {
     /** Who is asking and where, or `null` where there is nobody to follow a change for. */
     readonly session: ClientSession | null;
     readonly transport: MailFathomTransport;
+
+    /** The changes the deployment gave up on that are still waiting on the person, as the notification centre holds them. */
+    readonly abandoned?: readonly AbandonedChange[];
+
+    /**
+     * Told the records this tab starts following, which is what keeps the notification a given-up one raises from
+     * speaking a second time over the toast this queue raises for it.
+     */
+    readonly onFollowed?: (recordIds: readonly string[]) => void;
+
+    /** Told when the person settles a change, wherever it was settled, which is what marks its notification read. */
+    readonly onDecided?: (recordId: string) => void;
 
     readonly children: ReactNode;
 }) {
@@ -297,10 +315,13 @@ export function PendingChangesProvider({
 
             return { session, followed: [...carried.followed, ...arriving], undecided: carried.undecided };
         });
+        onFollowed?.(arriving.map((change) => change.recordId));
     }
 
     function settle(recordId: string, resolution: ChangeResolution): void {
         const change = inForce.undecided.find((undecided) => undecided.recordId === recordId);
+
+        onDecided?.(recordId);
 
         if (change === undefined) {
             return;
@@ -320,9 +341,14 @@ export function PendingChangesProvider({
         }
     }
 
+    // One change is one question, so a given-up record this tab is still following or already asking about is asked
+    // about once, here: the queue decides it, and its notification never stands beside it as a second question.
+    const askedHere = new Set([...inForce.followed, ...inForce.undecided].map((change) => change.recordId));
+
     const value: PendingChanges = {
         waiting: inForce.followed,
         undecided: inForce.undecided,
+        abandoned: abandoned.filter((change) => !askedHere.has(change.recordId)),
         stoppedFollowing,
         follow,
         settle,

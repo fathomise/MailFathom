@@ -323,7 +323,7 @@
         {
           "click": {
             "role": "button",
-            "name": "2 unread notifications",
+            "name": "5 unread notifications",
             "exact": true
           }
         },
@@ -331,6 +331,127 @@
           "expect": {
             "role": "heading",
             "name": "Notifications"
+          }
+        }
+      ]
+    },
+    {
+      "id": "mail-outbox-refused",
+      "route": "/#/mail",
+      "signIn": true,
+      "steps": [
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Messages"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Folders and filters",
+            "exact": true
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Outbox - 4 waiting to leave, 1 refused",
+            "exact": true
+          }
+        },
+        {
+          "click": {
+            "text": "Re: Contract addendum - signatures"
+          }
+        },
+        {
+          "expect": {
+            "role": "button",
+            "name": "Edit",
+            "exact": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "mail-change-notice",
+      "route": "/#/mail",
+      "signIn": true,
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "5 unread notifications",
+            "exact": true
+          }
+        },
+        {
+          "click": {
+            "text": "A change did not reach your mailbox"
+          }
+        },
+        {
+          "expect": {
+            "text": "Not moved - your mailbox did not take this change"
+          }
+        }
+      ]
+    },
+    {
+      "id": "composer-held-draft",
+      "route": "/#/mail",
+      "signIn": true,
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "5 unread notifications",
+            "exact": true
+          }
+        },
+        {
+          "click": {
+            "text": "Draft out of step with your server"
+          }
+        },
+        {
+          "expect": {
+            "text": "Your mail server's copy of this draft may be missing or out of date, so another mail app may not show what you see here. It is kept in MailFathom."
+          }
+        }
+      ]
+    },
+    {
+      "id": "mail-drafts",
+      "route": "/#/mail",
+      "signIn": true,
+      "steps": [
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Messages"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Folders and filters",
+            "exact": true
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "text": "Drafts"
+          }
+        },
+        {
+          "expect": {
+            "role": "region",
+            "name": "Out of step with your server",
+            "exact": true
           }
         }
       ]

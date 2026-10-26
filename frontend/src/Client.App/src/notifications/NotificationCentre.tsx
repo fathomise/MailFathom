@@ -3,7 +3,14 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect, useId, useRef, useState } from 'react';
-import type { ClientFailureReason, ClientNotification } from '@mailfathom/client-backend';
+import {
+    readMailMessage,
+    type ClientFailureReason,
+    type ClientNotification,
+    type ClientSession,
+    type MailAccount,
+    type MailFathomTransport,
+} from '@mailfathom/client-backend';
 import { Confirmation } from '../confirmation/Confirmation';
 import { ChoiceSegment } from '../controls/ChoiceSegment';
 import { Control } from '../controls/Control';
@@ -11,13 +18,16 @@ import { Icon } from '../controls/Icon';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { useChangeDecision, type AskingAgain, type ChangeQuestion } from '../pendingChanges/useChangeDecision';
 import { useAgentHandOver } from '../routing/agentHandOver';
+import { useToasts } from '../toasts/useToasts';
+import { failureOf } from './failures';
 import { useScreenLayer } from '../shell/screenLayers';
 import { useCurrentMinute } from './notificationAge';
-import { NotificationRow } from './NotificationRow';
+import { NotificationRow, type RowDecision } from './NotificationRow';
 import { notificationKindLabels } from './notificationKinds';
 import { NotificationRowMenu } from './NotificationRowMenu';
-import { wordNotification } from './notificationWords';
+import { wordNotification, wordNotificationSource } from './notificationWords';
 import type { NotificationCentre as Centre, NotificationFilter } from './useNotificationCentre';
 import type { PanelSwipe } from './usePanelSwipe';
 import { Departing } from '../shell/Departing';
@@ -91,19 +101,42 @@ const summarizeQuestions: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
 export function NotificationCentre({
     centre,
     swipe,
+    session = null,
+    transport,
+    accounts = noAccounts,
+    onDecideSend = decidesNoSend,
 }: {
     readonly centre: Centre;
 
     /** The two gestures a finger drives the panel with, which the frame holds because the navigation carries half of them. */
     readonly swipe: PanelSwipe;
+
+    /**
+     * Who is asking and how, which a change asked again from its row needs: the act is performed on the message as it
+     * stands, and the row knows only which message that is.
+     */
+    readonly session?: ClientSession | null;
+    readonly transport?: MailFathomTransport;
+
+    /** The person's mail accounts, which is what a failure names the account it came from by. */
+    readonly accounts?: readonly MailAccount[];
+
+    /** Takes a refused send to its Outbox and decides it there, which is where the decision under way is seen. */
+    readonly onDecideSend?: (outgoingEmailId: string, decision: 'again' | 'edit', onTaken: () => void) => void;
 }) {
     const { locale, translate } = useLocalization();
     const handToAgent = useAgentHandOver();
+    const changes = useChangeDecision();
+    const toasts = useToasts();
     const now = useCurrentMinute();
     const panel = useRef<HTMLDialogElement>(null);
     const tabs = useId();
     const [filter, setFilter] = useState<NotificationFilter>('unread');
     const [selected, setSelected] = useState<readonly string[]>([]);
+
+    // The changes being asked again from their rows while the message they are about is read, so a second press asks
+    // nothing twice.
+    const [askingFor, setAskingFor] = useState<readonly string[]>([]);
     const [menu, setMenu] = useState<{ readonly notification: ClientNotification; readonly at: MenuPoint } | null>(
         null,
     );
@@ -192,6 +225,107 @@ export function NotificationCentre({
         };
     }
 
+    // A refused send is decided in its Outbox, so the panel goes on the way there and the row is read once the Outbox has
+    // the send in front of it; a change is decided where it stands, and deciding it is what marks its row read. A change
+    // that needs a folder chosen is the one taken to its message, whose notice asks for the folder. A decision on the
+    // unread tab takes its row off the list, so focus stays in the panel rather than going with the row.
+    function decisionsFor(notification: ClientNotification): readonly RowDecision[] {
+        const failure = failureOf(notification);
+
+        if (failure?.kind === 'send') {
+            const decideSend = (decision: 'again' | 'edit') => () => {
+                leave();
+                onDecideSend(failure.outgoingEmailId, decision, () => {
+                    if (!notification.read) {
+                        centre.markRead([notification.id], true);
+                    }
+                });
+            };
+
+            return [
+                { decision: 'sendAgain', take: decideSend('again') },
+                { decision: 'edit', take: decideSend('edit') },
+            ];
+        }
+
+        const question = failure?.kind === 'change' ? changes.questionOf(failure.recordId) : null;
+
+        if (question === null) {
+            return [];
+        }
+
+        const again = changes.askingAgain(question);
+
+        return [
+            ...(again === null
+                ? []
+                : [
+                      {
+                          decision: 'askAgain' as const,
+                          underWay: askingFor.includes(question.change.recordId),
+                          take: () => {
+                              askAgain(notification, question, again);
+                              keepFocusInPanel();
+                          },
+                      },
+                  ]),
+            {
+                decision: 'letGo',
+                take: () => {
+                    changes.letGo(question);
+                    keepFocusInPanel();
+                },
+            },
+        ];
+    }
+
+    function keepFocusInPanel(): void {
+        if (filter === 'unread') {
+            panel.current?.focus();
+        }
+    }
+
+    function askAgain(notification: ClientNotification, question: ChangeQuestion, again: AskingAgain): void {
+        if (question.kind === 'followed') {
+            changes.askAgain(question, null);
+
+            return;
+        }
+
+        if (again === 'choosesFolder' || session === null || transport === undefined) {
+            clear();
+            centre.follow(notification);
+
+            return;
+        }
+
+        const recordId = question.change.recordId;
+
+        if (askingFor.includes(recordId)) {
+            return;
+        }
+
+        setAskingFor((asking) => [...asking, recordId]);
+
+        void readMailMessage(session, transport, question.change.storedEmailId).then((answer) => {
+            setAskingFor((asking) => asking.filter((asked) => asked !== recordId));
+
+            if (answer.outcome === 'failed') {
+                toasts.raise({
+                    kind: 'error',
+                    title: translate('pendingChange.undecided'),
+                    body: translate('change.notAskedAgain', {
+                        reason: translate(failureLabels[answer.failure.reason]),
+                    }),
+                });
+
+                return;
+            }
+
+            changes.askAgain(question, answer.value);
+        });
+    }
+
     // The question is put in front of every delete, one row or a selection, because a notification that has gone does
     // not come back. What it is asked about is recorded here and the dialog is opened imperatively, which is the shape
     // the confirmation publishes: the element is what holds whether it is standing.
@@ -211,6 +345,7 @@ export function NotificationCentre({
                 swipe.attachPanel(element);
             }}
             aria-label={translate('notifications.title')}
+            tabIndex={-1}
             style={swipe.offset === null ? undefined : { transform: `translateY(${String(swipe.offset)}px)` }}
             // The two compositions are the design's own: a sheet that stops above the bottom navigation in a
             // narrow window, and a panel standing beside the rail in a wide one. Where it comes from differs with it,
@@ -395,6 +530,8 @@ export function NotificationCentre({
                             centre.markRead([notification.id], !notification.read);
                         }}
                         onSummarize={summarizing(notification)}
+                        decisions={decisionsFor(notification)}
+                        source={wordNotificationSource(notification, accounts, translate)}
                         onPress={(at) => {
                             setMenu({ notification, at });
                         }}
@@ -420,6 +557,7 @@ export function NotificationCentre({
                             centre.follow(menu.notification);
                         }}
                         onSummarize={summarizing(menu.notification)}
+                        decisions={decisionsFor(menu.notification)}
                         onDelete={() => {
                             askToDelete(
                                 [menu.notification.id],
@@ -475,6 +613,12 @@ export function NotificationCentre({
             />
         </dialog>
     );
+}
+
+const noAccounts: readonly MailAccount[] = [];
+
+function decidesNoSend(): void {
+    return undefined;
 }
 
 // The three things an empty list can mean, each said as what it is rather than as an absence: a read still in flight, a

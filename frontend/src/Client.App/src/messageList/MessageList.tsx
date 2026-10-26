@@ -32,7 +32,9 @@ import {
     useMailboxActs,
     type ActedMessage,
     type AskedAct,
+    type MailboxActs,
 } from '../mailboxActs/useMailboxActs';
+import { DraftsOutOfStep } from './DraftsOutOfStep';
 import { useComposing } from '../composer/useComposing';
 import { MessageReading } from '../messageRows/MessageReading';
 import { leadingReading, readingsOf } from '../messageRows/messageReadings';
@@ -108,6 +110,28 @@ const failureLabels: Readonly<Record<ClientFailureReason, MessageKey>> = {
 // writes once rather than per frame, short enough that leaving immediately afterwards keeps the position.
 const restingBeforeRemembered = 400;
 
+// The accounts whose Drafts folder this list is, which is where the drafts out of step with their server are drawn: the
+// one account's where one Drafts folder is open, and every account's where the Drafts of all of them are.
+function draftsAccountsOf(scope: MailScope, accounts: readonly MailAccount[], acts: MailboxActs): readonly string[] {
+    if (scope.kind === 'role') {
+        return scope.role === 'Drafts' ? accounts.map((account) => account.id) : [];
+    }
+
+    if (scope.kind !== 'folder') {
+        return [];
+    }
+
+    const role = acts.folderRoleOf({
+        storedEmailId: '',
+        account: scope.accountId,
+        folder: scope.folderId,
+        unread: false,
+        flagged: false,
+    });
+
+    return role === 'Drafts' ? [scope.accountId] : [];
+}
+
 export function MessageList({
     session,
     transport,
@@ -140,6 +164,7 @@ export function MessageList({
     // dialog as what a finger reaches, and on a touch screen the folder column is a drawer a drag cannot reach while a
     // held finger is the row's menu — which a platform starting a drag on that same hold would take away.
     const coarse = useCoarsePointer();
+    const draftsAccounts = draftsAccountsOf(scope, accounts, acts);
     const composing = useComposing();
     const signalledChanges = useSignalledChanges();
     // Where this list opens: how the folder was last read and where in it the reader was. State rather than a value
@@ -973,6 +998,10 @@ export function MessageList({
             {/* A folder whose every drawn row has been asked to leave is empty from where the reader stands, and says so
                 rather than waiting to: nothing reads it again once the act lands, so a state kept for "not yet" would be
                 one no act ever ends. A refusal brings the rows back, exactly as it brings one back. */}
+            {draftsAccounts.length === 0 ? null : (
+                <DraftsOutOfStep session={session} transport={transport} accounts={draftsAccounts} />
+            )}
+
             {rowCount === 0 ? (
                 <Note>{translate(emptyReason(accounts, scope, listing))}</Note>
             ) : (

@@ -20,7 +20,17 @@ export type OutboxPage =
 /** A decision about one send that the deployment has not answered yet, which holds that send's controls. */
 export interface OutboxDecisionUnderWay {
     readonly outgoingEmailId: string;
-    readonly decision: 'cancel' | 'again';
+    readonly decision: 'cancel' | 'again' | 'edit';
+}
+
+/** A decision about one send asked for somewhere the Outbox is not drawn, which it takes once that send is on its page. */
+export interface OutboxDecisionAsked {
+    readonly account: string;
+    readonly outgoingEmailId: string;
+    readonly decision: 'again' | 'edit';
+
+    /** Told once the Outbox has the send in front of it and takes the decision, which is what reads its notification. */
+    readonly onTaken: () => void;
 }
 
 export interface MailOutbox {
@@ -47,6 +57,12 @@ export interface MailOutbox {
 
     /** Takes a refused send, or one whose outcome is unknown, out of the Outbox, for as long as its toast offers it back. */
     readonly dismiss: (send: OutgoingMail) => void;
+
+    /**
+     * Takes a refused send back to edit: it leaves the Outbox with nothing sent, and the composer opens on the draft it
+     * was written in, which goes on being that draft.
+     */
+    readonly edit: (send: OutgoingMail) => void;
 }
 
 export const MailOutboxContext = createContext<MailOutbox | null>(null);

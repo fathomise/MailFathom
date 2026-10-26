@@ -50,7 +50,7 @@ test('draws a notification that arrives while somebody works, and opens the mess
 }) => {
     await page.clock.install();
     await openSignedIn(page);
-    await expect(bell(page)).toHaveAccessibleName('2 unread notifications');
+    await expect(bell(page)).toHaveAccessibleName('5 unread notifications');
 
     // Nothing is pushed: the deployment holds it, and the client finds it on the next read of the count. The clock is
     // held from here, so the notice it raises stands until the journey has pressed it.
@@ -58,7 +58,7 @@ test('draws a notification that arrives while somebody works, and opens the mess
     await holdTheClock(page);
     await page.clock.runFor(unreadCountInterval);
 
-    await expect(bell(page)).toHaveAccessibleName('3 unread notifications');
+    await expect(bell(page)).toHaveAccessibleName('6 unread notifications');
 
     const notice = page.getByRole('list', { name: 'Notices' }).getByRole('listitem').filter({
         hasText: notifications.arrivingNotification.body,
@@ -70,7 +70,7 @@ test('draws a notification that arrives while somebody works, and opens the mess
     // notice was raised over.
     await expect(page.getByRole('main', { name: 'Mail' })).toBeVisible();
     await expect(page.getByRole('article', messageRegion)).toBeVisible();
-    await expect(bell(page)).toHaveAccessibleName('2 unread notifications');
+    await expect(bell(page)).toHaveAccessibleName('5 unread notifications');
     await expect
         .poll(() => deployment.requests('POST', `/notifications/${notifications.arrivingNotification.id}/read-state`))
         .toMatchObject([{ body: { read: true } }]);
@@ -93,14 +93,14 @@ test('goes to the space a notification names, and the centre and the bell agree 
 
     await expect(centre(page)).toBeHidden();
     await expect(page.getByRole('main', { name: 'Mail' })).toBeVisible();
-    await expect(bell(page)).toHaveAccessibleName('1 unread notification');
+    await expect(bell(page)).toHaveAccessibleName('4 unread notifications');
     await expect
         .poll(() => deployment.requests('POST', `/notifications/${notifications.notificationId}/read-state`))
         .toHaveLength(1);
 
     await page.reload();
 
-    await expect(bell(page)).toHaveAccessibleName('1 unread notification');
+    await expect(bell(page)).toHaveAccessibleName('4 unread notifications');
     await openCentre(page);
     await showAll(page);
     await expect(row(page, '8 new messages')).not.toContainText('Unread');
@@ -115,12 +115,12 @@ test('marks one notification and then the rest read, and the bell holds nothing 
 
     await row(page, 'This account needs signing in again').getByRole('button', { name: 'Mark as read' }).click();
 
-    await expect(bell(page)).toHaveAccessibleName('1 unread notification');
+    await expect(bell(page)).toHaveAccessibleName('4 unread notifications');
 
     // The centre opens on the unread tab, which is read at the moment it is drawn, so the row marked a moment ago is
     // not on it.
-    await expect(centre(page).getByRole('radio', { name: 'Unread · 1' })).toBeChecked();
-    await expect(centre(page).getByRole('listitem')).toHaveCount(1);
+    await expect(centre(page).getByRole('radio', { name: 'Unread · 4' })).toBeChecked();
+    await expect(centre(page).getByRole('listitem')).toHaveCount(4);
 
     await centre(page).getByRole('button', { name: 'Mark all' }).click();
 
@@ -154,14 +154,14 @@ test('deletes a notification from its own menu, and it stays gone from the centr
     await question.getByRole('button', { name: 'Delete' }).click();
 
     await expect(row(page, '8 new messages')).toHaveCount(0);
-    await expect(bell(page)).toHaveAccessibleName('1 unread notification');
+    await expect(bell(page)).toHaveAccessibleName('4 unread notifications');
     await expect
         .poll(() => deployment.requests('POST', '/notifications/deletions'))
         .toMatchObject([{ body: { notificationIds: [notifications.notificationId] } }]);
 
     await page.reload();
 
-    await expect(bell(page)).toHaveAccessibleName('1 unread notification');
+    await expect(bell(page)).toHaveAccessibleName('4 unread notifications');
     await openCentre(page);
     await showAll(page);
     await expect(centre(page).getByRole('listitem')).toHaveCount(
@@ -182,7 +182,7 @@ test('summarizes a merged arrival in the Agent space, asking about the messages 
     await expect(centre(page)).toBeHidden();
     await expect(page.getByRole('main', { name: 'Agent' })).toBeVisible();
     await expect(page.getByText('Context: 8 new messages · Work')).toBeVisible();
-    await expect(bell(page)).toHaveAccessibleName('1 unread notification');
+    await expect(bell(page)).toHaveAccessibleName('4 unread notifications');
     await expect
         .poll(() =>
             deployment.issued

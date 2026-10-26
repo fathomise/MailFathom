@@ -4,6 +4,7 @@
 
 import { failed, failureReasonForStatus, read, type ClientResult } from './failure';
 import { asRecord, parseEach } from './json';
+import { parseMailDocument, type MailDocument } from './mailBody';
 import { headersFor, routeFor, type ClientSession } from './session';
 import { spanned } from './telemetry';
 import { send, type ClientRequest, type ClientResponse, type MailFathomTransport } from './transport';
@@ -67,6 +68,24 @@ export interface MailStagedAttachment {
     readonly sizeOctets: number;
 }
 
+/**
+ * What a draft still owes its copy in the user's drafts folder on the mail server, by the stage's own name.
+ *
+ * `Filed` is a copy in step with what MailFathom holds; every other stage is a filing or a replacement still owed, and
+ * `Discarded` a draft given up.
+ */
+export type MailDraftServerCopy =
+    'Composed' | 'AppendIssued' | 'Filed' | 'ReplacementAppendPending' | 'ReplacementRemovalPending' | 'Discarded';
+
+/**
+ * Why a draft's copy on the mail server stopped being one MailFathom may touch.
+ *
+ * Each means the same thing to the person writing it — another mail app may show something other than what MailFathom
+ * holds — and which one it was is what an operator reads.
+ */
+export type MailDraftDivergence =
+    'AppendOutcomeUnknown' | 'PlacementUnreported' | 'DestinationChanged' | 'FolderRecreated';
+
 /** One draft as the deployment holds it, which is what a save answers with. */
 export interface MailDraft {
     readonly draftId: string;
@@ -76,6 +95,33 @@ export interface MailDraft {
     readonly attachments: readonly MailStagedAttachment[];
     readonly revision: number;
     readonly sizeOctets: number;
+    readonly serverCopy: MailDraftServerCopy;
+
+    /** Why its copy on the mail server is out of step, or `null` while it is not. */
+    readonly divergence: MailDraftDivergence | null;
+
+    /** The code of the failure the last attempt on the mailbox ended in, or `null` while none has failed. */
+    readonly lastFailureCode: number | null;
+
+    /** When it last changed, as the instant the deployment stated, which is what a list sorts and dates by. */
+    readonly revisedAt: string;
+}
+
+/** One draft opened to go on editing: the record and the words its stored message carries. */
+export interface MailDraftReading {
+    readonly draft: MailDraft;
+    readonly plainTextBody: string;
+
+    /** The words as the closed tree a composer reads formatting back from, or `null` where the message yields none. */
+    readonly document: MailDocument | null;
+}
+
+/** The drafts one person is writing in one account, newest edit first. */
+export interface MailDraftList {
+    readonly drafts: readonly MailDraft[];
+
+    /** How many a reading answers with at most, so a screen can say when it is showing all of them. */
+    readonly maximumCount: number;
 }
 
 /**
@@ -178,6 +224,99 @@ export const mostAttachmentsInDraft = 100;
 // A draft record is a handful of short fields plus the two bounded collections above, and it carries no body at any
 // size. Generous against that arithmetic and far below anything worth buffering.
 const longestDraftAnswer = 262_144;
+
+// An opened draft carries its words and their reduced document as well, so it is bounded as a message body is.
+const longestDraftReadingAnswer = 8 * 1024 * 1024;
+
+// A listing carries no body at any size. The deployment states how many it answers with at most, and this bounds that
+// number before trusting it, so a listing is never walked past what this client would draw.
+const mostDraftsListed = 500;
+const longestDraftListAnswer = 4 * 1024 * 1024;
+
+const serverCopies: readonly MailDraftServerCopy[] = [
+    'Composed',
+    'AppendIssued',
+    'Filed',
+    'ReplacementAppendPending',
+    'ReplacementRemovalPending',
+    'Discarded',
+];
+
+const divergences: readonly MailDraftDivergence[] = [
+    'AppendOutcomeUnknown',
+    'PlacementUnreported',
+    'DestinationChanged',
+    'FolderRecreated',
+];
+
+/**
+ * Reads the drafts the signed-in person is writing in one account, without their words.
+ *
+ * @param account The account, as the deployment names it.
+ */
+export function readMailDrafts(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    account: string,
+): Promise<ClientResult<MailDraftList>> {
+    return spanned(`GET ${mailDraftsRoute}`, async () => {
+        const response = await send(transport, {
+            method: 'GET',
+            path: `${routeFor(session, mailDraftsRoute)}?account=${encodeURIComponent(account)}`,
+            headers: headersFor(session),
+            longestAnswer: longestDraftListAnswer,
+        });
+
+        if (response === null) {
+            return failed('unavailable', null);
+        }
+
+        if (response.status !== 200) {
+            return failed(failureReasonForStatus(response.status), response.status);
+        }
+
+        const listed = parseList(bodyIn(response));
+
+        return listed === null ? failed('unreadable', response.status) : read(listed);
+    });
+}
+
+/**
+ * Opens one draft with the words its stored message carries, which is what a composer goes on editing from.
+ *
+ * @returns The draft and its words, `missing` where this person holds no such draft, or another expected failure.
+ */
+export function readMailDraft(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    draftId: string,
+): Promise<ClientResult<MailDraftReading>> {
+    return spanned('GET /drafts/{draftId}', async () => {
+        const response = await send(transport, {
+            method: 'GET',
+            path: routeFor(session, mailDraftRoute(draftId)),
+            headers: headersFor(session),
+            longestAnswer: longestDraftReadingAnswer,
+        });
+
+        if (response === null) {
+            return failed('unavailable', null);
+        }
+
+        // The route names one draft, so its absence is that draft's: one given up, sent, or never this person's.
+        if (response.status === 404) {
+            return failed('missing', 404);
+        }
+
+        if (response.status !== 200) {
+            return failed(failureReasonForStatus(response.status), response.status);
+        }
+
+        const reading = parseReading(bodyIn(response));
+
+        return reading === null ? failed('unreadable', response.status) : read(reading);
+    });
+}
 
 /**
  * Writes one new draft, as a message of its own or as an answer to stored mail.
@@ -481,13 +620,21 @@ function parseDraft(body: Readonly<Record<string, unknown>> | null): MailDraft |
     const subject = record['subject'];
     const revision = record['revision'];
     const sizeOctets = record['sizeOctets'];
+    const serverCopy = record['serverCopy'];
+    const divergence = record['divergence'] ?? null;
+    const lastFailureCode = record['lastFailureCode'] ?? null;
+    const revisedAt = record['revisedAt'];
 
     if (
         typeof draftId !== 'string' ||
         typeof account !== 'string' ||
         typeof subject !== 'string' ||
         typeof revision !== 'number' ||
-        typeof sizeOctets !== 'number'
+        typeof sizeOctets !== 'number' ||
+        typeof revisedAt !== 'string' ||
+        !isOneOf(serverCopy, serverCopies) ||
+        (divergence !== null && !isOneOf(divergence, divergences)) ||
+        (lastFailureCode !== null && !isWholeNumber(lastFailureCode))
     ) {
         return null;
     }
@@ -497,7 +644,48 @@ function parseDraft(body: Readonly<Record<string, unknown>> | null): MailDraft |
 
     return recipients === null || attachments === null
         ? null
-        : { draftId, account, subject, recipients, attachments, revision, sizeOctets };
+        : {
+              draftId,
+              account,
+              subject,
+              recipients,
+              attachments,
+              revision,
+              sizeOctets,
+              serverCopy,
+              divergence,
+              lastFailureCode,
+              revisedAt,
+          };
+}
+
+function parseList(body: Readonly<Record<string, unknown>> | null): MailDraftList | null {
+    const maximumCount = body?.['maximumCount'];
+
+    if (body === null || !isWholeNumber(maximumCount) || maximumCount < 0) {
+        return null;
+    }
+
+    const drafts = parseEach(body['drafts'], Math.min(maximumCount, mostDraftsListed), (entry) =>
+        parseDraft(asRecord(entry)),
+    );
+
+    return drafts === null ? null : { drafts, maximumCount };
+}
+
+function parseReading(body: Readonly<Record<string, unknown>> | null): MailDraftReading | null {
+    const draft = body === null ? null : parseDraft(asRecord(body['draft']));
+    const plainTextBody = body?.['plainTextBody'];
+    const carried = body?.['document'] ?? null;
+    const document = carried === null ? null : parseMailDocument(carried);
+
+    // A document that arrived and could not be read is refused rather than dropped: the plain text would still open,
+    // and the author would then save over their own formatting without knowing any was there.
+    if (draft === null || typeof plainTextBody !== 'string' || (carried !== null && document === null)) {
+        return null;
+    }
+
+    return { draft, plainTextBody, document };
 }
 
 function parseRecipient(entry: unknown): MailDraftRecipient | null {
@@ -528,6 +716,14 @@ function parseAttachment(entry: unknown): MailStagedAttachment | null {
         typeof sizeOctets === 'number'
         ? { attachmentId, fileName, mediaType, sizeOctets }
         : null;
+}
+
+function isOneOf<TValue extends string>(value: unknown, values: readonly TValue[]): value is TValue {
+    return typeof value === 'string' && values.includes(value as TValue);
+}
+
+function isWholeNumber(value: unknown): value is number {
+    return typeof value === 'number' && Number.isSafeInteger(value);
 }
 
 function isRecipientRole(value: unknown): value is MailRecipientRole {

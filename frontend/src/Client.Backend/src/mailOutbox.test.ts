@@ -9,8 +9,10 @@ import {
     offerOutgoingMailAgain,
     readMailOutbox,
     readOutgoingMail,
+    reopenOutgoingMailAsDraft,
     withdrawOutgoingMail,
     type MailOutboxDecision,
+    type MailOutboxReopening,
     type MailSendWithdrawal,
 } from './mailOutbox';
 import type { ClientSession } from './session';
@@ -359,5 +361,44 @@ describe('dismissOutgoingMail', () => {
         expect(requests[0]?.path).toBe('https://mail.example.invalid/api/client/outbox/dismissal');
         expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({ outgoingEmail: outgoingEmailId });
         expect(answer).toStrictEqual({ outcome: 'read', value: 'accepted' });
+    });
+});
+
+describe('reopenOutgoingMailAsDraft', () => {
+    const draftId = 'd0d1a2b3-0000-4000-8000-00000000abcd';
+
+    it('names the one send it takes back on the reopening route and answers the draft to edit', async () => {
+        const requests: ClientRequest[] = [];
+
+        const answer = await reopenOutgoingMailAsDraft(
+            session,
+            recording(
+                { status: 200, body: JSON.stringify({ outgoingEmail: outgoingEmailId, outcome: 'Accepted', draftId }) },
+                requests,
+            ),
+            outgoingEmailId,
+        );
+
+        expect(requests[0]?.method).toBe('POST');
+        expect(requests[0]?.path).toBe('https://mail.example.invalid/api/client/outbox/reopening');
+        expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({ outgoingEmail: outgoingEmailId });
+        expect(answer).toStrictEqual({ outcome: 'read', value: { reopened: true, draftId } });
+    });
+
+    it.each<{ answered: string; reopening: MailOutboxReopening }>([
+        { answered: 'StageDoesNotAllowIt', reopening: { reopened: false, decision: 'pastRecall' } },
+        { answered: 'AttemptUnderWay', reopening: { reopened: false, decision: 'alreadyBeingSent' } },
+        { answered: 'RecordUnknown', reopening: { reopened: false, decision: 'noSuchSend' } },
+        { answered: 'NoDraftToReopen', reopening: { reopened: false, decision: 'noDraftToReopen' } },
+    ])('reads $answered as a send not taken back', async ({ answered, reopening }) => {
+        const answer = await reopenOutgoingMailAsDraft(session, answering(deciding(answered)), outgoingEmailId);
+
+        expect(answer).toStrictEqual({ outcome: 'read', value: reopening });
+    });
+
+    it('refuses an acceptance naming no draft, which would leave nothing to open', async () => {
+        const answer = await reopenOutgoingMailAsDraft(session, answering(deciding('Accepted')), outgoingEmailId);
+
+        expect(answer).toStrictEqual(unreadable);
     });
 });

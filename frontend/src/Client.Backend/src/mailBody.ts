@@ -570,6 +570,20 @@ function parseText(value: unknown): MailBodyText | null {
     return { text, originalCharacterCount, truncation };
 }
 
+/**
+ * Reads one reduced document out of an answer that carries it beside something other than a body, which is how an
+ * opened draft carries the words its author wrote.
+ *
+ * It admits no remote picture, because nothing that reads one asked to draw any.
+ *
+ * @returns The document, or `null` where what arrived is not one.
+ */
+export function parseMailDocument(value: unknown): MailDocument | null {
+    const record = asRecord(value);
+
+    return record === null ? null : parseDocument(record, false);
+}
+
 function parseDocument(record: Readonly<Record<string, unknown>>, remoteImages: boolean): MailDocument | null {
     const schemaVersion = record['schemaVersion'];
     const refusal = record['refusal'];

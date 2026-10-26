@@ -189,6 +189,9 @@ function looking(at: boolean): void {
     vi.spyOn(document, 'hasFocus').mockReturnValue(at);
 }
 
+/** The changes the tab is already following, which is what silences the toast a given-up one's row would raise. */
+const followedHere = new Set<string>();
+
 /** Who the tree is signed in as, read while the wrapper renders so one mounted tree can be handed a second credential. */
 let signedInAs: ClientSession | null = session;
 
@@ -229,9 +232,16 @@ function centreOf(
 
     const view = renderHook(
         () =>
-            useNotificationCentre(signedInAs, transport, true, (target) => {
-                led = target;
-            }),
+            useNotificationCentre(
+                signedInAs,
+                transport,
+                true,
+                (target) => {
+                    led = target;
+                },
+                [],
+                (recordId) => followedHere.has(recordId),
+            ),
         {
             wrapper: ({ children }: { readonly children: ReactNode }) => (
                 <LocalizationProvider>
@@ -1067,5 +1077,88 @@ describe('useNotificationCentre', () => {
         });
 
         expect(requests.length).toBe(before);
+    });
+
+    describe('a change the mailbox did not take', () => {
+        const abandoned = {
+            ...mail,
+            id: 'n-change',
+            kind: 'Mail',
+            title: 'A change did not reach your mailbox',
+            body: 'Move to another folder',
+            statement: { cause: 'MailboxChangeAbandoned', counted: 4, outOf: null },
+            target: { kind: 'MailboxChange', messageId: 'm-9', changeRecordId: 'r-1' },
+        };
+
+        beforeEach(() => {
+            followedHere.clear();
+        });
+
+        it('leads to its message and stays unread, the decision there being what reads it', async () => {
+            const { transport, requests } = deployment({ unreadCount: 1, notifications: [abandoned] });
+            const { result } = centreOf(transport);
+
+            act(() => {
+                result.current.show();
+            });
+            await settled();
+
+            act(() => {
+                result.current.follow(only(result.current));
+            });
+            await settled();
+
+            expect(led).toStrictEqual({ kind: 'MailboxChange', storedEmailId: 'm-9', changeRecordId: 'r-1' });
+            expect(result.current.unreadCount).toBe(1);
+            expect(pathsAsked(requests).some((path) => path.endsWith('/read-state'))).toBe(false);
+        });
+
+        it('marks its row read once the change is decided', async () => {
+            const { transport, requests } = deployment({ unreadCount: 1, notifications: [abandoned] });
+            const { result } = centreOf(transport);
+
+            act(() => {
+                result.current.show();
+            });
+            await settled();
+
+            act(() => {
+                result.current.changeDecided('r-1');
+            });
+            await settled();
+
+            expect(only(result.current).read).toBe(true);
+            expect(pathsAsked(requests).some((path) => path.endsWith('/n-change/read-state'))).toBe(true);
+        });
+
+        it('raises no toast for a change this tab is already following, whose own line said it', async () => {
+            const { transport, hold } = deployment({ unreadCount: 0, notifications: [] });
+            const { result } = centreOf(transport);
+
+            followedHere.add('r-1');
+            act(() => {
+                result.current.show();
+            });
+            await settled();
+            hold(1, [abandoned]);
+            await polled();
+
+            expect(result.current.notifications).toHaveLength(1);
+            expect(screen.queryByRole('button', { name: 'Show message' })).toBeNull();
+        });
+
+        it('raises its toast where nothing in this tab is following it', async () => {
+            const { transport, hold } = deployment({ unreadCount: 0, notifications: [] });
+            const { result } = centreOf(transport);
+
+            act(() => {
+                result.current.show();
+            });
+            await settled();
+            hold(1, [abandoned]);
+            await polled();
+
+            expect(screen.getByRole('button', { name: 'Show message' })).toBeDefined();
+        });
     });
 });

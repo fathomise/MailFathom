@@ -3,10 +3,10 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { describe, expect, it } from 'vitest';
-import type { ClientNotification, NotificationStatement } from '@mailfathom/client-backend';
+import type { ClientNotification, MailAccount, NotificationStatement } from '@mailfathom/client-backend';
 import { catalogues, type Locale } from '../localization/locale';
 import type { Translate } from '../localization/useLocalization';
-import { wordNotification } from './notificationWords';
+import { wordNotification, wordNotificationSource, wordNotificationToast } from './notificationWords';
 
 // What the deployment sends is a condition and its numbers, so this is where it becomes a sentence — and the sentence
 // is asserted as the literal words each language actually reads, in both of them. Anything less would pass for a
@@ -179,5 +179,58 @@ describe('wordNotification', () => {
     // knows, both reach a screen the same way: as the service's own English, which is better than a row nobody draws.
     it('falls back to what the deployment sent where it named no condition', () => {
         expect(said(null, 'pl')).toEqual({ title: 'New mail', body: '3 new messages arrived.' });
+    });
+});
+
+const work: MailAccount = {
+    id: 'work',
+    displayName: 'Nordwind · work',
+    synchronizationState: 'Synchronized',
+    lastSynchronizedAt: null,
+    behind: false,
+};
+
+const refusal: ClientNotification = {
+    ...englishArrival,
+    title: 'Not sent - the server refused it',
+    body: 'Re: Contract addendum',
+    statement: { cause: 'SendRefused', counted: 1, outOf: null },
+    target: { kind: 'OutgoingEmail', outgoingEmailId: 'o-1' },
+};
+
+describe('wordNotificationSource', () => {
+    it('names the account a failure came from by the name a reader knows it by, never its identifier', () => {
+        expect(wordNotificationSource(refusal, [work], translating('en'))).toBe('Outbox · Nordwind · work');
+    });
+
+    it('says the place alone where the client holds no name for the account', () => {
+        expect(wordNotificationSource(refusal, [], translating('en'))).toBe('Outbox');
+    });
+
+    it('keeps the deployment’s own line for a notification that reports no failure', () => {
+        expect(wordNotificationSource({ ...englishArrival, statement: null }, [], translating('en'))).toBe('work');
+    });
+});
+
+describe('wordNotificationToast', () => {
+    it('places a refused send in its account’s Outbox and offers the way there', () => {
+        expect(wordNotificationToast(refusal, [work], 'en', translating('en'))).toEqual({
+            title: 'Not sent - the server refused it',
+            body: '“Re: Contract addendum” is in the Outbox of Nordwind · work. Send it again or edit it there.',
+            action: 'Show in Outbox',
+        });
+    });
+
+    it('says which act a change the mailbox did not take was, and offers its message', () => {
+        const change: ClientNotification = {
+            ...englishArrival,
+            statement: { cause: 'MailboxChangeAbandoned', counted: 2, outOf: null },
+            target: { kind: 'MailboxChange', storedEmailId: 'e-1', changeRecordId: 'r-1' },
+        };
+
+        expect(wordNotificationToast(change, [work], 'en', translating('en'))).toMatchObject({
+            title: 'A change did not reach your mailbox',
+            action: 'Show message',
+        });
     });
 });

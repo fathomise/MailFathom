@@ -72,15 +72,21 @@ export type NotificationScreen = 'Mail' | 'Settings';
 /**
  * Where opening a notification leads.
  *
- * Five closed shapes rather than a set of optional values, because which of them a producer chose is what a reader
+ * Closed shapes rather than a set of optional values, because which of them a producer chose is what a reader
  * switches on: a notification that leads nowhere is a different thing from one whose record this client cannot name.
+ *
+ * A change target names two things because it answers two questions: the message is where opening the row leads, and
+ * the change record is what a tab that is still following that change recognises as the same failure.
  */
 export type NotificationTarget =
     | { readonly kind: 'Nothing' }
     | { readonly kind: 'Message'; readonly storedEmailId: string }
     | { readonly kind: 'Screen'; readonly screen: NotificationScreen }
     | { readonly kind: 'CalendarEvent'; readonly calendarEventId: string }
-    | { readonly kind: 'PersonalTask'; readonly taskId: string };
+    | { readonly kind: 'PersonalTask'; readonly taskId: string }
+    | { readonly kind: 'OutgoingEmail'; readonly outgoingEmailId: string }
+    | { readonly kind: 'MailboxChange'; readonly changeRecordId: string; readonly storedEmailId: string }
+    | { readonly kind: 'MailDraft'; readonly draftId: string };
 
 /**
  * What a notification was raised for, as a closed set rather than as the sentence it is said in.
@@ -95,7 +101,10 @@ export type NotificationCause =
     | 'CredentialRefused'
     | 'CalendarReminderDue'
     | 'TaskReminderDue'
-    | 'MessageArrived';
+    | 'MessageArrived'
+    | 'SendRefused'
+    | 'MailboxChangeAbandoned'
+    | 'DraftCopyNotKept';
 
 /**
  * What a notification says, as the condition it was raised for and the numbers it is stated with.
@@ -184,6 +193,9 @@ const causes: readonly NotificationCause[] = [
     'CalendarReminderDue',
     'TaskReminderDue',
     'MessageArrived',
+    'SendRefused',
+    'MailboxChangeAbandoned',
+    'DraftCopyNotKept',
 ];
 const screens: readonly NotificationScreen[] = ['Mail', 'Settings'];
 
@@ -436,6 +448,9 @@ const countsPerCause: Readonly<Record<NotificationCause, readonly ('counted' | '
     CalendarReminderDue: ['counted'],
     TaskReminderDue: ['counted'],
     MessageArrived: ['counted'],
+    SendRefused: ['counted'],
+    MailboxChangeAbandoned: ['counted'],
+    DraftCopyNotKept: ['counted'],
 };
 
 /**
@@ -481,6 +496,9 @@ function parseTarget(value: unknown): NotificationTarget | null {
     const screen = record['screen'] ?? null;
     const calendarEventId = record['calendarEventId'] ?? null;
     const taskId = record['taskId'] ?? null;
+    const outgoingEmailId = record['outgoingEmailId'] ?? null;
+    const changeRecordId = record['changeRecordId'] ?? null;
+    const draftId = record['draftId'] ?? null;
 
     switch (record['kind']) {
         case 'Nothing':
@@ -493,6 +511,14 @@ function parseTarget(value: unknown): NotificationTarget | null {
             return isNotificationIdentity(calendarEventId) ? { kind: 'CalendarEvent', calendarEventId } : null;
         case 'PersonalTask':
             return isNotificationIdentity(taskId) ? { kind: 'PersonalTask', taskId } : null;
+        case 'OutgoingEmail':
+            return isNotificationIdentity(outgoingEmailId) ? { kind: 'OutgoingEmail', outgoingEmailId } : null;
+        case 'MailboxChange':
+            return isNotificationIdentity(changeRecordId) && isNotificationIdentity(storedEmailId)
+                ? { kind: 'MailboxChange', changeRecordId, storedEmailId }
+                : null;
+        case 'MailDraft':
+            return isNotificationIdentity(draftId) ? { kind: 'MailDraft', draftId } : null;
         default:
             return null;
     }

@@ -9,6 +9,7 @@ import {
     answeredSubject,
     answerTo,
     draftContinued,
+    draftHeld,
     looksLikeAnAddress,
     nothingWrittenYet,
     whatWouldBeMissing,
@@ -136,6 +137,44 @@ describe('draftContinued', () => {
 
     it('opens on no words where the body could not be read, which is a draft to carry on rather than one to refuse', () => {
         expect(draftContinued(message('Half written', []), null).words).toStrictEqual([]);
+    });
+});
+
+describe('draftHeld', () => {
+    // A kept draft is carried on with as itself, so what opens is what its record holds, each address under the header
+    // its author put it in, and the identity it goes on being saved as.
+    it('opens on what the kept draft holds and goes on being that draft', () => {
+        const composed = draftHeld({
+            draft: {
+                draftId: 'd-7',
+                account: 'work',
+                subject: 'Q4 supplier review',
+                recipients: [
+                    { role: 'To', address: 'marta@example.invalid', displayName: null },
+                    { role: 'Cc', address: 'olek@example.invalid', displayName: null },
+                ],
+                attachments: [],
+                revision: 3,
+                sizeOctets: 400,
+                serverCopy: 'AppendIssued',
+                divergence: 'AppendOutcomeUnknown',
+                lastFailureCode: null,
+                revisedAt: '2026-09-04T11:55:00+00:00',
+            },
+            plainTextBody: 'Agenda\nfirst item',
+            document: null,
+        });
+
+        expect(composed).toMatchObject({
+            answering: null,
+            continuing: 'd-7',
+            account: 'work',
+            subject: 'Q4 supplier review',
+            to: ['marta@example.invalid'],
+            cc: ['olek@example.invalid'],
+            bcc: [],
+        });
+        expect(composed.words).toHaveLength(2);
     });
 });
 

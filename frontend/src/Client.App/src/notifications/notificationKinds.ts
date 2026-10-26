@@ -2,10 +2,11 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { NotificationKind } from '@mailfathom/client-backend';
+import type { ClientNotification, NotificationKind } from '@mailfathom/client-backend';
 import type { IconName } from '../controls/icons';
 import type { MessageKey } from '../localization/en';
 import type { ToastKind } from '../toasts/useToasts';
+import { failureOf, type Failure, type FailureDecision } from './failures';
 
 // How each of the four kinds is drawn, said, and — when one arrives while somebody is looking at the screen — spoken
 // about in the corner. Three lookups rather than three chains inside the components that read them, each exhaustive by
@@ -81,4 +82,43 @@ export const notificationToastKinds: Readonly<Record<NotificationKind, ToastKind
     Calendar: 'info',
     Task: 'neutral',
     System: 'neutral',
+};
+
+// A failure is drawn by what failed rather than by the part of MailFathom it belongs to: all three are mail, and a row
+// drawn in the mail tint would read as one more message arriving. A refused send and a change the mailbox did not take
+// are errors, and a draft kept here whose server copy is out of step is a warning, which is what its toast says too.
+const failureTones: Readonly<Record<Failure['kind'], NotificationTone>> = {
+    send: { icon: 'error', mark: 'bg-error-soft text-error-text' },
+    change: { icon: 'error', mark: 'bg-error-soft text-error-text' },
+    draft: { icon: 'cloud_off', mark: 'bg-warning-soft text-warning-text' },
+};
+
+const failureToastKinds: Readonly<Record<Failure['kind'], ToastKind>> = {
+    send: 'error',
+    change: 'error',
+    draft: 'warning',
+};
+
+/** The symbol and tint one notification is drawn with: its failure's where it reports one, and its kind's otherwise. */
+export function toneOf(notification: ClientNotification): NotificationTone {
+    const failure = failureOf(notification);
+
+    return failure === null ? notificationTones[notification.kind] : failureTones[failure.kind];
+}
+
+/** The weight a toast about one notification is raised at, by the same rule as its tone. */
+export function toastKindOf(notification: ClientNotification): ToastKind {
+    const failure = failureOf(notification);
+
+    return failure === null ? notificationToastKinds[notification.kind] : failureToastKinds[failure.kind];
+}
+
+/** The symbol and the words each decision a failure's row offers is drawn with. */
+export const failureDecisionShapes: Readonly<
+    Record<FailureDecision, { readonly icon: IconName; readonly label: MessageKey }>
+> = {
+    sendAgain: { icon: 'send', label: 'outbox.sendAgain' },
+    edit: { icon: 'edit', label: 'outbox.edit' },
+    askAgain: { icon: 'refresh', label: 'pendingChange.askAgain' },
+    letGo: { icon: 'close', label: 'pendingChange.letGo' },
 };

@@ -26,6 +26,15 @@ export interface NotificationDestinations {
 
     /** Goes to a space, which is where a notification about a screen leads when this client has that space. */
     readonly goTo: (space: Space) => void;
+
+    /** Opens one send in its account's Outbox, which is where a refusal is decided about. */
+    readonly showOutboxEntry: (outgoingEmailId: string) => void;
+
+    /**
+     * Opens the composer on one draft the deployment holds, with its account's Drafts folder behind it, which is where
+     * a draft out of step is carried on.
+     */
+    readonly openDraft: (draftId: string) => void;
 }
 
 // Exhaustive by its own type, so a screen the service adds fails to compile here until somebody has decided where it
@@ -37,8 +46,21 @@ const screenSpaces: Readonly<Record<NotificationScreen, Space | null>> = {
 };
 
 export function followTarget(target: NotificationTarget, client: NotificationDestinations): void {
-    if (target.kind === 'Message') {
+    // A change the mailbox did not take leads to the message it was asked of, which is where it is decided about.
+    if (target.kind === 'Message' || target.kind === 'MailboxChange') {
         client.openMail(target.storedEmailId);
+
+        return;
+    }
+
+    if (target.kind === 'OutgoingEmail') {
+        client.showOutboxEntry(target.outgoingEmailId);
+
+        return;
+    }
+
+    if (target.kind === 'MailDraft') {
+        client.openDraft(target.draftId);
 
         return;
     }
