@@ -19,6 +19,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     nextDefault: NEXT_DEFAULT, seedConversations: SEED_CONVS, agentReplies: AGENT_REPLIES, agentFallback: AGENT_FALLBACK,
     agentDraftHtml: AGENT_DRAFT_HTML,
     notifications: NOTIFS, incomingNotifications: INCOMING, demoBatches: DEMO_BATCHES,
+    senderMarks: SENDER_MARKS,
   } = MailFathomDesign.data;
   const { mdPlain, mdView, MDTXT } = MailFathomDesign.markdown;
   const { HTML_SHELL, embedHtml, htmlFallback } = MailFathomDesign.mailHtml;
@@ -231,6 +232,151 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     return prior.concat([last]);
   };
 
+  /* THE SENDER MARK — what the service publishes about who sent a received message (data/prototype/sender-marks.js),
+     read into the one mark a row and an opened message carry and the steps its details popup lists. The first rule
+     that holds decides the mark: a signature that does not match its content, then trust, then a signature verified
+     by the author, then failed sender authentication; everything else is neutral. */
+  const MARKS = {
+    warnSig: { glyph: "gpp_bad", word: "Suspicious", tone: "err", name: "Suspicious - the signature does not match" },
+    trusted: { glyph: "verified_user", word: "Trusted", tone: "ok", name: "Trusted sender" },
+    verified: { glyph: "signature", word: "Verified", tone: "accent", name: "Verified signature" },
+    warnAuth: { glyph: "gpp_bad", word: "Suspicious", tone: "err", name: "Suspicious - sender authentication failed" },
+    neutral: { glyph: "shield", word: "", tone: "plain", name: "Sender not recognized" },
+  };
+  const MARK_INK = { err: "var(--err-text)", ok: "var(--ok-text)", accent: "var(--accent-d)", plain: "var(--muted)" };
+  const MARK_PILL = {
+    err: "color:var(--err-text);background:var(--err-soft);border:1px solid var(--err);",
+    ok: "color:var(--ok-text);background:var(--ok-soft);border:1px solid transparent;",
+    accent: "color:var(--accent-d);background:var(--accent-soft);border:1px solid transparent;",
+    plain: "color:var(--muted);background:transparent;border:1px solid transparent;",
+  };
+  const STEP_RESULT = {
+    pass: { glyph: "check_circle", word: "Passed", ink: "var(--ok-text)" },
+    fail: { glyph: "cancel", word: "Failed", ink: "var(--err-text)" },
+    unchecked: { glyph: "help", word: "Not checked", ink: "var(--muted)" },
+    skip: { glyph: "do_not_disturb_on", word: "Skipped", ink: "var(--muted)" },
+  };
+  const domainOf = (a) => (a || "").split("@")[1] || a || "";
+  const pgpSig = (s) => s.format === "pgp";
+  const sigVerified = (r) => {
+    const s = r.sig;
+    if (!s || s.content !== "pass" || s.signer !== r.from || (s.revocation || {}).result !== "pass") return false;
+    return pgpSig(s) ? s.key === "known" && s.keyValidity === "pass" : s.ca.result !== "none" && s.validity === "pass";
+  };
+  const markKeyOf = (r) => r.sig && r.sig.content === "fail" ? "warnSig"
+    : r.trust ? "trusted"
+    : sigVerified(r) ? "verified"
+    : r.author === "failed" ? "warnAuth" : "neutral";
+  /* A message from somebody other than the thread's newest sender reads that person's own record where one exists. */
+  const senderRecord = (threadId, from) => {
+    const t = THREADS.find(x => x.id === threadId) || {};
+    if (!from || from === t.from) return SENDER_MARKS.threads[threadId] || null;
+    const other = THREADS.find(x => x.from === from && SENDER_MARKS.threads[x.id]);
+    if (other) return SENDER_MARKS.threads[other.id];
+    const c = CONTACTS.find(x => x.name === from);
+    const addr = c ? c.mail : "";
+    return { from: addr, checker: "server", dkim: domainOf(addr), spf: domainOf(addr), dmarc: "pass", author: "authenticated", authDomain: domainOf(addr), trust: null, sig: null };
+  };
+  const senderWhy = (k, r) => {
+    const fromDom = domainOf(r.from);
+    if (k === "warnSig") return "Its signature does not match its content: it was changed after it was signed, or the signature is forged.";
+    if (k === "warnAuth") return fromDom + " did not authenticate this message, so it may not come from who it names.";
+    if (k === "trusted") return r.authDomain + " authenticated this message, and " + (r.trust.source === "own"
+      ? r.trust.match + " is a domain of your own accounts."
+      : (r.trust.match.indexOf("@") >= 0 ? "the address" : "the domain") + " is on this account's trusted senders.");
+    if (k === "verified") return "It carries a signature that verified, made by " + r.from + ", the address it is from" +
+      (r.author === "failed" ? ". Sender authentication failed, which a forward or a mailing list often causes." : ".");
+    if (r.sig && r.sig.signer && r.sig.signer !== r.from) return "It is signed, but by " + r.sig.signer + ", not by the address it is from.";
+    if (r.sig) return "It is signed, but the signature is not verifiable here.";
+    if (r.author === "authenticated") return r.authDomain + " authenticated this message, but this account does not recognize the sender.";
+    return "Nothing established who sent this message.";
+  };
+  const senderSteps = (r, acc) => {
+    const fromDom = domainOf(r.from);
+    const nobody = r.checker === "none";
+    const own = r.checker === "own";
+    const notRun = ["unchecked", "Not checked, because nobody checked this message."];
+    const step = (name, res, more) => ({ name, result: res[0], detail: res[1], more: more || null });
+    const auth = [
+      step("Who checked", r.checker === "server"
+        ? ["pass", "This account's trusted receiving mail server, " + SENDER_MARKS.servers[acc] + ", checked it when the message arrived."]
+        : own ? ["pass", "MailFathom checked the DKIM signature itself, because no trusted receiving mail server is configured for this account."]
+        : ["unchecked", "Nobody: no trusted receiving mail server is configured for this account, and the message carries no DKIM signature MailFathom could check itself."]),
+      step("DKIM", nobody ? notRun : r.dkim ? ["pass", "A DKIM signature by " + r.dkim + " passed."] : ["fail", "No DKIM signature passed."]),
+      step("SPF", nobody ? notRun
+        : own ? ["unchecked", "Not checked: MailFathom's own check reads DKIM only, and SPF needs the server that received the message."]
+        : r.spf ? ["pass", r.spf + " allows the server that handed the message over."]
+        : ["fail", "No SPF check passed: " + fromDom + " does not list the server that handed the message over."]),
+      step("DMARC", nobody ? notRun
+        : own ? ["unchecked", "Not reported: MailFathom's own check does not evaluate DMARC."]
+        : r.dmarc === "pass" ? ["pass", fromDom + " publishes a DMARC policy, and the message meets it."]
+        : r.dmarc === "fail" ? ["fail", "The message fails the DMARC policy " + fromDom + " publishes."]
+        : r.dmarc === "none" ? ["unchecked", "No policy published: " + fromDom + " publishes no DMARC policy, so there was nothing to evaluate."]
+        : r.dmarc === "temperror" ? ["unchecked", "A temporary error: the policy of " + fromDom + " could not be looked up when the message arrived."]
+        : r.dmarc === "permerror" ? ["unchecked", "A permanent error: the policy " + fromDom + " publishes cannot be read."]
+        : ["unchecked", "Not reported: the receiving mail server did not report a DMARC result."]),
+      step("Author domain", r.author === "authenticated"
+        ? ["pass", fromDom + " is established as the author" + (r.authDomain === fromDom ? ": it authenticated the message itself." : ". " + r.authDomain + " authenticated the message.")]
+        : r.author === "failed"
+        ? ["fail", fromDom + " is not established as the author. " + (r.authDomain ? r.authDomain + " authenticated the message instead." : "No domain authenticated the message.")]
+        : nobody ? notRun
+        : ["unchecked", "Not established: the DMARC check could not run, so nothing tied " + fromDom + " to the message."]),
+    ];
+    const trust = [
+      step("Trusted sender", r.author !== "authenticated"
+        ? ["skip", "Skipped, because the author was not authenticated."]
+        : r.trust && r.trust.source === "own" ? ["pass", r.trust.match + " is a domain of your own accounts."]
+        : r.trust ? ["pass", (r.trust.match.indexOf("@") >= 0 ? "The address " : "The domain ") + r.trust.match + " is on this account's trusted senders."]
+        : ["fail", "This account does not recognize " + r.from + ": it is not on the account's trusted senders, and " + fromDom + " is not a domain of your own accounts."]),
+    ];
+    const s = r.sig;
+    if (!s) return { auth, trust, sig: [step("Signed", ["skip", "Not signed: the message carries no S/MIME or OpenPGP signature, so there is nothing to verify."])] };
+    const fmt = s.format === "smime-detached" ? "S/MIME, detached (multipart/signed)"
+      : s.format === "smime-opaque" ? "S/MIME, opaque (application/pkcs7-mime; smime-type=" + s.smimeType + ")"
+      : "OpenPGP, PGP/MIME (multipart/signed)";
+    const sig = [
+      step("Signed", ["pass", fmt + ", signed " + s.signedAt + "."]),
+      step("Content unchanged", s.content === "pass" ? ["pass", "The signature matches the signed content."]
+        : s.content === "fail" ? ["fail", "The signature does not match the signed content: the message was changed after it was signed, or the signature is forged."]
+        : ["unchecked", "Not checked, because there is no key here to check the signature with."]),
+    ];
+    if (pgpSig(s)) {
+      const k = s.pgpKey || {};
+      const unknown = s.key !== "known";
+      const keyMore = unknown ? [["Key ID", k.keyId]]
+        : [["Fingerprint", k.fingerprint], ["Key ID", k.keyId], ["User ID", k.userId], ["Created", k.created], ["Expires", k.expires], ["Algorithms", k.algorithms]];
+      const skipped = ["skip", "Skipped, because the key is not known here."];
+      sig.push(
+        step("Known key", unknown ? ["fail", "The key " + k.keyId + " is not one your operator configured, so who holds it is not known here."]
+          : ["pass", "The key " + k.keyId + " is one your operator configured."], keyMore),
+        step("Validity", unknown ? skipped : s.keyValidity === "pass" ? ["pass", "Not expired: the key is valid until " + k.expires + "."]
+          : ["fail", "The key expired on " + s.keyExpired + ", before the message was signed."]),
+        step("Not revoked", unknown ? skipped : s.revocation.result === "pass" ? ["pass", "The key carries no revocation."] : ["fail", "The key carries a revocation."]),
+        step("Signer is the sender", unknown ? skipped : s.signer === r.from ? ["pass", "The key's user ID names " + r.from + ", the address the message is from."]
+          : ["fail", "The key's user ID names " + s.signer + ", not " + r.from + ", the address the message is from."]),
+      );
+      return { auth, trust, sig };
+    }
+    const c = s.cert || {};
+    const rv = s.revocation || {};
+    sig.push(
+      step("Certificate authority", s.ca.result === "public" ? ["pass", "Chains to " + s.ca.name + ", a recognized public certificate authority."]
+        : s.ca.result === "operator" ? ["pass", "Chains to " + s.ca.name + ", a certificate authority your operator configured."]
+        : ["fail", "Chains to no certificate authority this server trusts: it ends at " + s.ca.name + "."],
+        [["Subject", c.subject], ["Email", c.email], ["Issuer", c.issuer], ["Valid", c.valid], ["Serial", c.serial], ["Fingerprint", c.fingerprint], ["Algorithms", c.algorithms]]),
+      step("Validity and purpose", s.validity === "pass" ? ["pass", "Valid at the signing time, and meant for signing email."]
+        : s.validity === "expired" ? ["fail", "Expired on " + s.expired + ", before the message was signed."]
+        : ["fail", "Not meant for signing email: the certificate does not name email protection among its purposes."]),
+      step("Not revoked", rv.result === "pass" ? ["pass", rv.how === "OCSP" ? "The OCSP responder answered good at " + rv.at + "." : "The CRL its authority publishes, fetched at " + rv.at + ", does not list it."]
+        : rv.result === "revoked" ? ["fail", "Revoked on " + rv.on + ": the OCSP responder said so at " + rv.at + "."]
+        : rv.result === "unchecked" ? ["unchecked", "Could not be checked: the OCSP responder did not answer and no CRL could be fetched, so the signature is not verifiable here."]
+        : ["skip", "Skipped, because the certificate chains to no certificate authority this server trusts."]),
+      step("Signer is the sender", s.signer === r.from ? ["pass", "The certificate names " + r.from + ", the address the message is from."]
+        : ["fail", "The certificate names " + s.signer + ", not " + r.from + ", the address the message is from."]),
+    );
+    return { auth, trust, sig };
+  };
+
   const docContent = (d) => {
     if (!d) return [];
     const n = d.name || "";
@@ -437,6 +583,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     componentDidMount() {
       if (document.fonts && document.fonts.ready) document.fonts.ready.then(this.tbReset);
       document.addEventListener("mousedown", this.onDocDown, true);
+      document.addEventListener("keydown", this.onDocKey);
       window.addEventListener("message", this.onHtmlFrameMessage);
       window.addEventListener("popstate", this.onBackPressed);
       this.backSync();
@@ -829,7 +976,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "sideDrawer", "compose", "settings",
       "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock", "replyChooser",
       "newTask", "newEvent", "newContact", "filtersOpen",
-      "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk", "spamAsk", "notSpamAsk"];
+      "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk", "spamAsk", "notSpamAsk", "senderMark"];
     static MOTION_PANES = ["mailPane", "peoplePane"];
     static MOTION_EXIT_MS = 240;
 
@@ -877,7 +1024,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        going back across one closes everything still standing, the way the client's change of destination does.
        Steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
     static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
-      "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "replyDock", "replyChooser"];
+      "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "senderMark", "replyDock", "replyChooser"];
 
     backSteps = (state) => {
       const FR = FRAMES[this.props.layout ?? "auto"] || null;
@@ -1464,7 +1611,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.setState({
         ctxMenu: {
           x: p.x, y: p.y, kind: "mail", id: id, title: th.subject || "Message",
-          detail: th.from + (sp.spam ? " - " + (spamKind(sp.kind) ? spamKind(sp.kind).label + " spam" : "Spam") : ""),
+          detail: th.from + (sp.spam ? " - " + (spamKind(sp.kind) ? spamKind(sp.kind).label + " spam" : "Spam") : "") +
+            (/·(Sent|Drafts)$/.test(this.state.folderKey || "") || !senderRecord(id, null) ? "" : " - " + MARKS[markKeyOf(senderRecord(id, null))].name),
           items: [
             ai && { icon: "auto_awesome", label: "AI summary", run: () => this.openAiSum(id) },
             { icon: "check_box", label: "Select messages", run: () => this.toggleSelect(id) },
@@ -1511,6 +1659,36 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* On the phone the filters band stands over the list rather than beside it, so a press anywhere outside the band
          and its control folds it away as its control would. */
       if (this.state.filtersOpen && this._isMobile && !e.target.closest?.("[data-filters-band],[data-filters-toggle]")) this.setState({ filtersOpen: false });
+      /* The sender details close on a press anywhere outside them; a press on a mark is that mark's own to answer. */
+      if (this.state.senderMark && !e.target.closest?.("[data-sender-pop],[data-sender-mark]")) this.closeSenderMark(false);
+    };
+
+    onDocKey = (e) => {
+      if (e.key === "Escape" && this.state.senderMark) { e.preventDefault(); this.closeSenderMark(true); }
+    };
+
+    /* A mark on a row or beside a sender opens the same details, anchored under the mark on desktop and as a sheet
+       on touch. Pressing it neither opens nor selects the message; pressing the open one again closes it. */
+    senderPopRef = React.createRef();
+    openSenderMark = (threadId, from, e) => {
+      if (e && e.type === "keydown") {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+      }
+      if (e && e.stopPropagation) e.stopPropagation();
+      const key = threadId + "|" + (from || "");
+      if (this.state.senderMark && this.state.senderMark.key === key) { this.closeSenderMark(true); return; }
+      const el = e && e.currentTarget;
+      const r = el && el.getBoundingClientRect ? el.getBoundingClientRect() : { left: 0, top: 0, bottom: 0 };
+      const a = this.localPt(r.left, r.bottom);
+      this._markTrigger = el || null;
+      this.setState({ senderMark: { key, id: threadId, from: from || null, x: a.x, y: a.y, top: this.localPt(r.left, r.top).y }, senderMore: {} });
+      setTimeout(() => { const p = this.senderPopRef.current; if (p && p.focus) p.focus(); }, 0);
+    };
+    closeSenderMark = (refocus) => {
+      const t = this._markTrigger;
+      this.setState({ senderMark: null });
+      if (refocus && t && t.focus) setTimeout(() => t.focus(), 0);
     };
 
     tabsMode = () => {
@@ -2745,6 +2923,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     componentWillUnmount() {
       document.removeEventListener("mousedown", this.onDocDown, true);
+      document.removeEventListener("keydown", this.onDocKey);
       window.removeEventListener("message", this.onHtmlFrameMessage);
       window.removeEventListener("popstate", this.onBackPressed);
       this.htmlFrames.forEach(r => { if (r.timer) clearTimeout(r.timer); });
@@ -2970,6 +3149,46 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           } : {}),
         });
       };
+      /* The sender mark. Every received message's row carries it, folded spam rows included, since a lookalike sender
+         is exactly what someone unsure of a verdict wants to judge; rows that draw recipients - Sent and Drafts - carry
+         none. On a row it is the glyph alone, beside a sender it is a badge naming the state, and a neutral badge is
+         the glyph alone too. Either opens the same details. */
+      const recipientList = /·(Sent|Drafts)$/.test(st.folderKey || "");
+      const markGlyph = (px) => "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:" + px + "px";
+      const markOf = (threadId, from) => {
+        const r = senderRecord(threadId, from);
+        if (!r) return null;
+        const k = markKeyOf(r);
+        return Object.assign({ k, open: (e) => this.openSenderMark(threadId, from, e) }, MARKS[k]);
+      };
+      const withMark = (t, row) => {
+        const M = recipientList ? null : markOf(t.id, null);
+        if (!M) return Object.assign(row, { markShown: false, stripMarkShown: false });
+        return Object.assign(row, {
+          markShown: true, markGlyph: M.glyph, markName: M.name, openMark: M.open,
+          markOpen: !!(st.senderMark && st.senderMark.key === t.id + "|"),
+          markBtnStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:" + MARK_INK[M.tone] + ";" +
+            (touch ? "width:44px;height:44px;margin:-12px -10px;" : "width:24px;height:24px;margin:-4px -3px;"),
+          markGlyphStyle: markGlyph(touch ? 20 : 18),
+          stripLabel: row.stripLabel + " - " + M.name,
+          stripMarkShown: M.k !== "neutral",
+          stripMarkStyle: "position:absolute;bottom:6px;right:6px;width:18px;height:18px;border-radius:50%;background:var(--panel);box-shadow:0 0 0 2px var(--sub);display:flex;align-items:center;justify-content:center;color:" +
+            MARK_INK[M.tone] + ";" + markGlyph(13),
+        });
+      };
+      const badgeOf = (threadId, from) => {
+        const M = markOf(threadId, from);
+        if (!M) return { markShown: false };
+        return {
+          markShown: true, markGlyph: M.glyph, markWord: M.word, markName: M.name, openMark: M.open,
+          markOpen: !!(st.senderMark && st.senderMark.key === threadId + "|" + from),
+          markBtnStyle: "flex:0 0 auto;align-self:center;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;" +
+            (touch ? "min-width:44px;min-height:44px;margin:-11px 0;" : ""),
+          markPillStyle: "display:inline-flex;align-items:center;gap:4px;box-sizing:border-box;height:22px;border-radius:6px;font-family:'Geist',system-ui,sans-serif;font-size:12px;font-weight:600;line-height:1;white-space:nowrap;" +
+            MARK_PILL[M.tone] + (M.word ? "padding:0 8px 0 6px;" : "width:22px;justify-content:center;padding:0;"),
+          markGlyphStyle: markGlyph(M.word ? 15 : 16),
+        };
+      };
       const rowAnim = st.rowAnim || {};
       const rowOut = (id) => rowAnim[id] === "out" || rowAnim[id] === "outdel" || rowAnim[id] === "outarc";
       /* the wash names the act: red for a deletion, orange for archive and move */
@@ -3073,6 +3292,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const chgBtn = "display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:" + (touch ? 44 : 32) + "px;padding:0 14px;border-radius:8px;font-size:13px;";
         items.push({
           isMsg: true, isPill: false, key: k, isActive,
+          ...(m.mine ? { markShown: false } : badgeOf(thread.id, m.from)),
           ...(threadSpam.spam && i === lastIdx ? spamWarning(threadSpam, thread.spam || {}) : { spamWarn: false }),
           changeShown: !!chg,
           changeIcon: chgUnknown ? "help" : "sync_problem",
@@ -3565,6 +3785,72 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const y = Math.max(10, Math.min(c.y, bh - H - 10));
           return base + "left:" + x + "px;top:" + y + "px;width:" + W + "px";
         })(),
+        ...(() => {
+          /* The sender details: the state the mark shows and why, then every verification step with its result,
+             grouped under sender authentication, trust and signature. A step with more to say unfolds it in place. */
+          const smk = st.senderMark;
+          const r = smk ? senderRecord(smk.id, smk.from) : null;
+          if (!r) return { senderPopOpen: false };
+          const k = markKeyOf(r), M = MARKS[k];
+          const steps = senderSteps(r, this.accountOf(smk.id));
+          const moreOpen = st.senderMore || {};
+          const group = (label, list, gk) => ({
+            label,
+            steps: list.map((s2, i) => {
+              const R = STEP_RESULT[s2.result];
+              const key = gk + i;
+              const open = !!moreOpen[key];
+              return {
+                name: s2.name, detail: s2.detail, word: R.word, glyph: R.glyph,
+                hasMore: !!s2.more, moreOpen: open,
+                more: (s2.more || []).filter(d => d[1]).map(d => ({ k: d[0], v: d[1] })),
+                moreLabel: open ? "Hide details" : r.sig && pgpSig(r.sig) ? "Key details" : "Certificate details",
+                moreGlyph: open ? "expand_less" : "expand_more",
+                toggleMore: (e) => {
+                  if (e && e.type === "keydown") { if (e.key !== "Enter" && e.key !== " ") return; e.preventDefault(); }
+                  this.setState(s3 => ({ senderMore: Object.assign({}, s3.senderMore, { [key]: !open }) }));
+                },
+                rowStyle: "display:flex;flex-direction:column;gap:3px;padding:10px 0;" + (i ? "border-top:1px solid var(--line2);" : ""),
+                resultStyle: "flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;white-space:nowrap;color:" + R.ink,
+                moreBtnStyle: "align-self:flex-start;display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--accent-d);border-radius:8px;margin-left:-6px;" +
+                  (touch ? "min-height:44px;padding:0 6px;" : "padding:3px 6px;"),
+              };
+            }),
+          });
+          const bw = st.vw || 1200;
+          const bh = st.vh || (typeof window !== "undefined" ? window.innerHeight : 900);
+          const W = 392;
+          const below = bh - smk.y - 16;
+          const up = below < 320 && smk.top > below;
+          const x = Math.max(10, Math.min(smk.x - 8, bw - W - 10));
+          const frame = "display:flex;flex-direction:column;background:var(--panel);overflow:hidden;outline:none;";
+          return {
+            senderPopOpen: true,
+            senderPopSheet: touch,
+            senderPopMotion: touch ? "sheet" : "pop",
+            closeSenderMark: () => this.closeSenderMark(true),
+            senderPopRef: this.senderPopRef,
+            senderPopTitle: M.name,
+            senderPopWhy: senderWhy(k, r),
+            senderPopFrom: r.from,
+            senderPopGlyph: M.glyph,
+            senderPopGroups: [group("Sender authentication", steps.auth, "a"), group("Trust", steps.trust, "t"), group("Signature", steps.sig, "s")],
+            senderPopStyle: touch
+              ? "position:fixed;z-index:93;left:0;right:0;bottom:0;margin:0 auto;width:100%;max-width:600px;max-height:" + (low ? "calc(100dvh - 8px)" : tall ? "min(82dvh, 640px)" : "82dvh") + ";" +
+                frame + "border-top-left-radius:16px;border-top-right-radius:16px;box-shadow:0 -12px 40px var(--sh-3)"
+              : "position:fixed;z-index:93;left:" + x + "px;width:" + W + "px;max-width:calc(100% - 20px);" +
+                (up ? "bottom:" + (bh - smk.top + 6) + "px;max-height:" + Math.min(560, smk.top - 16) + "px;" : "top:" + (smk.y + 6) + "px;max-height:" + Math.min(560, below) + "px;") +
+                frame + "border:1px solid var(--line);border-radius:12px;box-shadow:0 20px 46px var(--sh-3)",
+            senderPopHeadStyle: "flex:0 0 auto;display:flex;align-items:flex-start;gap:12px;border-bottom:1px solid var(--line);" + (touch ? "padding:4px 12px 14px 18px" : "padding:16px 10px 14px 18px"),
+            senderPopTileStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;box-sizing:border-box;" +
+              MARK_PILL[M.tone] + (M.tone === "plain" ? "background:var(--sub);border-color:var(--line);" : "") + markGlyph(20),
+            senderPopTitleStyle: "font-size:15px;font-weight:600;line-height:1.35;color:" + (M.tone === "plain" ? "var(--text)" : MARK_INK[M.tone]),
+            senderPopBodyStyle: "flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;" + (touch ? "padding:14px 18px 22px" : "padding:14px 18px 18px"),
+          };
+        })(),
+        senderGroupStyle: "display:flex;flex-direction:column;background:var(--sub);border:1px solid var(--line);border-radius:12px;padding:0 14px",
+        senderResultGlyphStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px",
+        senderMoreGridStyle: "display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;margin-top:4px;padding:9px 11px;border-radius:8px;background:var(--panel);border:1px solid var(--line);font-size:12px;line-height:1.45",
         selBarShown: !!selBarIds.length,
         selClear: () => this.selClearKind(selBarKind),
         selBarCount: selBarIds.length + " selected",
@@ -5443,7 +5729,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         cameFromResult: st.cameFrom,
         fromCitation: st.fromCite || "",
         backToResult: () => this.setState({ screen: "discover", cameFrom: false }),
-        threads: listedThreads.map(t => spamRowOf(t, {
+        threads: listedThreads.map(t => withMark(t, spamRowOf(t, {
           flagged: !!flags[t.id],
           isUnread: !!unreadMap[t.id],
           movedTo: movedMap[t.id] || "",
@@ -5468,9 +5754,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           /* Unread is the weight and the ink of the words, as every mail client draws it: the sender and the subject
              in 700 and the full text colour, a read row in 400 and the secondary one. 600 against 400 alone read as
              the same row at a glance. No dot. */
-          fromStyle: (isMobile ? "flex:1;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:14px;white-space:nowrap") + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
+          fromStyle: (isMobile ? "flex:0 1 auto;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "flex:0 0 auto;max-width:60%;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap") + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
           subjStyle: (isMobile ? "font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:14px") + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
-          orgStyle: isMobile || compact ? "display:none" : "font-size:12px;color:var(--muted);white-space:nowrap",
+          orgStyle: isMobile || compact ? "display:none" : "flex:0 1 auto;min-width:0;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
           showAi: aiHints && !!t.ai,
           openAiSum: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.openAiSum(t.id); },
           aiBtnStyle: "width:" + (touch ? 32 : 24) + "px;height:" + (touch ? 32 : 24) + "px;flex:0 0 " + (touch ? 32 : 24) + "px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:" + (touch ? 20 : 16) + "px;line-height:1",
@@ -5503,7 +5789,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             rowWash(t.id),
           count: parseInt(((t.meta || "").match(/thread: (\d+)/) || [])[1] || "1", 10),
           multi: parseInt(((t.meta || "").match(/thread: (\d+)/) || [])[1] || "1", 10) > 1,
-        })),
+        }))),
         activeSubject: thread.subject,
         activeMeta: thread.meta,
         activeState: thread.state.map((s, i) => {

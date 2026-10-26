@@ -13,6 +13,7 @@ Project repository: https://github.com/fathomise/MailFathom
 <script src="data/prototype/workspace.js"></script>
 <script src="data/prototype/people.js"></script>
 <script src="data/prototype/threads.js"></script>
+<script src="data/prototype/sender-marks.js"></script>
 <script src="data/prototype/mail-bodies.js"></script>
 <script src="data/prototype/documents.js"></script>
 <script src="data/prototype/compose.js"></script>
@@ -760,6 +761,7 @@ Project repository: https://github.com/fathomise/MailFathom
               <sc-for list="{{ threads }}" as="t" hint-placeholder-count="5">
                 <div onClick="{{ t.select }}" onContextMenu="{{ t.longPress }}" onTouchStart="{{ t.stripTouchStart }}" onTouchEnd="{{ t.stripTouchEnd }}" onTouchMove="{{ t.stripTouchEnd }}" data-tip-hover title="{{ t.stripLabel }}" style="{{ t.stripStyle }}" style-hover="cursor:pointer;background:var(--hover)">
                   <span style="{{ t.stripAvatarStyle }}">{{ t.stripInitials }}</span>
+                  <sc-if value="{{ t.stripMarkShown }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="{{ t.stripMarkStyle }}">{{ t.markGlyph }}</span></sc-if>
                   <sc-if value="{{ t.isUnread }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:7px;right:7px;width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--sub)"></span></sc-if>
                 </div>
               </sc-for>
@@ -844,13 +846,14 @@ Project repository: https://github.com/fathomise/MailFathom
                 <span aria-hidden="true" style="{{ t.foldGlyphStyle }}">report</span>
                 <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">{{ t.spamName }}</span>
                 <span style="{{ t.foldFromStyle }}">{{ t.from }}</span>
+                <sc-if value="{{ t.markShown }}" hint-placeholder-val="{{ true }}"><span role="button" tabindex="0" data-sender-mark data-tip-hover title="{{ t.markName }}" aria-label="{{ t.markName }}" aria-haspopup="dialog" aria-expanded="{{ t.markOpen }}" onClick="{{ t.openMark }}" onKeyDown="{{ t.openMark }}" style="{{ t.markBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ t.markGlyphStyle }}">{{ t.markGlyph }}</span></span></sc-if>
                 <span style="{{ t.foldSubjStyle }}">{{ t.subject }}</span>
                 <span style="{{ t.foldTimeStyle }}">{{ t.time }}</span>
               </div>
               </sc-if>
               <sc-if value="{{ t.unfolded }}" hint-placeholder-val="{{ true }}">
               <div onClick="{{ t.select }}" draggable="{{ true }}" onDragStart="{{ t.dragStart }}" onDragEnd="{{ t.dragEnd }}" onContextMenu="{{ t.longPress }}" onTouchStart="{{ t.touchStart }}" onTouchEnd="{{ t.touchEnd }}" onTouchMove="{{ t.touchMove }}" style="{{ t.rowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
-                <div style="display:flex;align-items:center;gap:9px;min-width:0"><sc-if value="{{ t.selected }}" hint-placeholder-val="{{ false }}"><span style="align-self:center;width:17px;height:17px;flex:0 0 17px;border-radius:50%;background:var(--accent);color:var(--onaccent);display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">check</span></sc-if><sc-if value="{{ t.hasAvatar }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="{{ t.from }}" style="{{ t.avatarImgStyle }}"></span></sc-if><sc-if value="{{ t.noAvatar }}" hint-placeholder-val="{{ true }}"><span data-tip-hover title="{{ t.from }}" style="{{ t.avatarStyle }}">{{ t.initials }}</span></sc-if><span style="{{ t.fromStyle }}">{{ t.from }}</span><span style="{{ t.orgStyle }}">{{ t.org }}</span><span style="margin-left:auto;flex:0 0 auto;display:flex;align-items:center;gap:7px"><sc-if value="{{ t.flagged }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="Flagged" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1;color:var(--warn)">flag</span></sc-if><sc-if value="{{ t.multi }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--text2);background:var(--rail);border:1px solid var(--line2);border-radius:8px;padding:1px 6px">{{ t.count }}</span></sc-if><sc-if value="{{ t.aiBtnShown }}" hint-placeholder-val="{{ true }}"><span onClick="{{ t.openAiSum }}" title="AI summary" style="{{ t.aiBtnStyle }}" style-hover="cursor:pointer;background:var(--accent-soft);color:var(--accent-d)">auto_awesome</span></sc-if><span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint)">{{ t.time }}</span></span></div>
+                <div style="display:flex;align-items:center;gap:9px;min-width:0"><sc-if value="{{ t.selected }}" hint-placeholder-val="{{ false }}"><span style="align-self:center;width:17px;height:17px;flex:0 0 17px;border-radius:50%;background:var(--accent);color:var(--onaccent);display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">check</span></sc-if><sc-if value="{{ t.hasAvatar }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="{{ t.from }}" style="{{ t.avatarImgStyle }}"></span></sc-if><sc-if value="{{ t.noAvatar }}" hint-placeholder-val="{{ true }}"><span data-tip-hover title="{{ t.from }}" style="{{ t.avatarStyle }}">{{ t.initials }}</span></sc-if><span style="{{ t.fromStyle }}">{{ t.from }}</span><sc-if value="{{ t.markShown }}" hint-placeholder-val="{{ true }}"><span role="button" tabindex="0" data-sender-mark data-tip-hover title="{{ t.markName }}" aria-label="{{ t.markName }}" aria-haspopup="dialog" aria-expanded="{{ t.markOpen }}" onClick="{{ t.openMark }}" onKeyDown="{{ t.openMark }}" style="{{ t.markBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ t.markGlyphStyle }}">{{ t.markGlyph }}</span></span></sc-if><span style="{{ t.orgStyle }}">{{ t.org }}</span><span style="margin-left:auto;flex:0 0 auto;display:flex;align-items:center;gap:7px"><sc-if value="{{ t.flagged }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="Flagged" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1;color:var(--warn)">flag</span></sc-if><sc-if value="{{ t.multi }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--text2);background:var(--rail);border:1px solid var(--line2);border-radius:8px;padding:1px 6px">{{ t.count }}</span></sc-if><sc-if value="{{ t.aiBtnShown }}" hint-placeholder-val="{{ true }}"><span onClick="{{ t.openAiSum }}" title="AI summary" style="{{ t.aiBtnStyle }}" style-hover="cursor:pointer;background:var(--accent-soft);color:var(--accent-d)">auto_awesome</span></sc-if><span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint)">{{ t.time }}</span></span></div>
                 <div style="{{ t.subjStyle }}">{{ t.subject }}</div>
                 <sc-if value="{{ t.showMoved }}" hint-placeholder-val="{{ false }}">
                   <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">folder</span>{{ t.movedTo }}</div>
@@ -1118,8 +1121,9 @@ Project repository: https://github.com/fathomise/MailFathom
                     <sc-if value="{{ m.hasAvatar }}" hint-placeholder-val="{{ false }}"><div title="{{ m.from }}" style="{{ m.avatarImgStyle }}"></div></sc-if>
                     <sc-if value="{{ m.noAvatar }}" hint-placeholder-val="{{ true }}"><div style="{{ m.avatarStyle }}">{{ m.initials }}</div></sc-if>
                     <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0">
-                      <div style="display:flex;align-items:baseline;gap:8px;min-width:0">
-                        <span style="font-size:14px;font-weight:600;white-space:nowrap">{{ m.from }}</span>
+                      <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;min-width:0">
+                        <span style="flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:14px;font-weight:600;white-space:nowrap">{{ m.from }}</span>
+                        <sc-if value="{{ m.markShown }}" hint-placeholder-val="{{ true }}"><span role="button" tabindex="0" data-sender-mark title="{{ m.markName }}" aria-label="{{ m.markName }}" aria-haspopup="dialog" aria-expanded="{{ m.markOpen }}" onClick="{{ m.openMark }}" onKeyDown="{{ m.openMark }}" style="{{ m.markBtnStyle }}" style-hover="cursor:pointer;opacity:0.86"><span style="{{ m.markPillStyle }}"><span aria-hidden="true" style="{{ m.markGlyphStyle }}">{{ m.markGlyph }}</span>{{ m.markWord }}</span></span></sc-if>
                         <span style="font-size:11px;color:var(--muted)">{{ m.role }}</span>
                         <sc-if value="{{ m.isActive }}" hint-placeholder-val="{{ false }}">
                           <span style="flex:0 0 auto;display:flex;align-items:center;gap:4px;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--accent-d);background:var(--accent-soft);border-radius:6px;padding:2px 7px;white-space:nowrap;font-weight:600"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:12px;line-height:1">arrow_right</span>Opened from the list</span>
@@ -2098,6 +2102,52 @@ Project repository: https://github.com/fathomise/MailFathom
             <div onClick="{{ saveTask }}" style="font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:8px 16px" style-hover="cursor:pointer;opacity:0.9">Add task</div>
           </div>
         </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ senderPopOpen }}" hint-placeholder-val="{{ false }}">
+    <sc-if value="{{ senderPopSheet }}" hint-placeholder-val="{{ false }}">
+      <div data-motion="scrim" data-phase="{{ mo.senderMark }}" onClick="{{ closeSenderMark }}" style="position:fixed;inset:0;z-index:92;background:var(--scrim)"></div>
+    </sc-if>
+    <div data-sender-pop ref="{{ senderPopRef }}" role="dialog" aria-label="{{ senderPopTitle }}" tabindex="-1" data-motion="{{ senderPopMotion }}" data-phase="{{ mo.senderMark }}" style="{{ senderPopStyle }}">
+      <sc-if value="{{ senderPopSheet }}" hint-placeholder-val="{{ false }}"><div style="{{ grabberStyle }}"></div></sc-if>
+      <div style="{{ senderPopHeadStyle }}">
+        <span aria-hidden="true" style="{{ senderPopTileStyle }}">{{ senderPopGlyph }}</span>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;padding-top:1px">
+          <div style="{{ senderPopTitleStyle }}">{{ senderPopTitle }}</div>
+          <div style="font-size:12px;color:var(--muted);overflow-wrap:anywhere">{{ senderPopFrom }}</div>
+          <div style="font-size:13px;line-height:1.5;color:var(--text2);text-wrap:pretty;padding-top:3px">{{ senderPopWhy }}</div>
+        </div>
+        <div role="button" tabindex="0" title="Close" aria-label="Close" onClick="{{ closeSenderMark }}" style="{{ closeBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span aria-hidden="true" style="{{ closeIconStyle }}">close</span></div>
+      </div>
+      <div style="{{ senderPopBodyStyle }}">
+        <sc-for list="{{ senderPopGroups }}" as="g" hint-placeholder-count="3">
+          <div role="group" aria-label="{{ g.label }}" style="display:flex;flex-direction:column;gap:6px">
+            <div style="font-size:11px;font-weight:600;color:var(--muted)">{{ g.label }}</div>
+            <div style="{{ senderGroupStyle }}">
+              <sc-for list="{{ g.steps }}" as="s" hint-placeholder-count="3">
+                <div style="{{ s.rowStyle }}">
+                  <div style="display:flex;align-items:center;gap:10px;min-width:0">
+                    <span style="flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--text)">{{ s.name }}</span>
+                    <span style="{{ s.resultStyle }}"><span aria-hidden="true" style="{{ senderResultGlyphStyle }}">{{ s.glyph }}</span>{{ s.word }}</span>
+                  </div>
+                  <div style="font-size:13px;line-height:1.5;color:var(--text2);text-wrap:pretty;overflow-wrap:anywhere">{{ s.detail }}</div>
+                  <sc-if value="{{ s.hasMore }}" hint-placeholder-val="{{ false }}">
+                    <div role="button" tabindex="0" aria-expanded="{{ s.moreOpen }}" onClick="{{ s.toggleMore }}" onKeyDown="{{ s.toggleMore }}" style="{{ s.moreBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ senderResultGlyphStyle }}">{{ s.moreGlyph }}</span>{{ s.moreLabel }}</div>
+                    <sc-if value="{{ s.moreOpen }}" hint-placeholder-val="{{ false }}">
+                      <div style="{{ senderMoreGridStyle }}">
+                        <sc-for list="{{ s.more }}" as="d" hint-placeholder-count="4">
+                          <div style="display:contents"><span style="color:var(--muted)">{{ d.k }}</span><span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--text);overflow-wrap:anywhere">{{ d.v }}</span></div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
       </div>
     </div>
   </sc-if>

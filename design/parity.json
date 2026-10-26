@@ -523,6 +523,60 @@
           }
         }
       ]
+    },
+    "mail-sender-details": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Trusted sender",
+            "exact": true,
+            "nth": 0
+          }
+        },
+        {
+          "expect": {
+            "text": "Sender authentication"
+          }
+        }
+      ]
+    },
+    "mail-sender-badge": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Invoice 08/2026"
+          }
+        },
+        {
+          "click": {
+            "text": "Suspicious"
+          }
+        },
+        {
+          "expect": {
+            "text": "Content unchanged"
+          }
+        }
+      ]
     }
   }
 }

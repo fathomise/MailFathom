@@ -12,6 +12,7 @@ Project repository: https://github.com/fathomise/MailFathom
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300,0,0&display=block" rel="stylesheet" />
 <link rel="stylesheet" href="styles/base.css" />
 <link rel="stylesheet" href="styles/mail-search.css" />
 </head>
@@ -54,23 +55,23 @@ Project repository: https://github.com/fathomise/MailFathom
         </div>
         <div class="rows">
           <div class="row open">
-            <div class="line1"><span class="who">Hanna Wiśniewska</span><span class="org">nordwind.example</span><span class="when">27 Aug</span></div>
+            <div class="line1"><span class="who">Hanna Wiśniewska</span><button class="mark ok" type="button" title="Trusted sender" aria-label="Trusted sender" aria-haspopup="dialog">verified_user</button><span class="org">nordwind.example</span><span class="when">27 Aug</span></div>
             <div class="line2"><span class="subject">Invoice 2026/08/114</span><span class="preview">Attached is the invoice for…</span></div>
             <div class="why">Why this matches: <mark>invoice</mark> for <mark>August</mark>, number 114</div>
           </div>
           <div class="row">
-            <div class="line1"><span class="who">Accounting office</span><span class="org">kontor.example</span><span class="when">21 Aug</span></div>
+            <div class="line1"><span class="who">Accounting office</span><button class="mark accent" type="button" title="Verified signature" aria-label="Verified signature" aria-haspopup="dialog">signature</button><span class="org">kontor.example</span><span class="when">21 Aug</span></div>
             <div class="line2"><span class="subject">Monthly settlement</span><span class="preview">Full set of documents for the close…</span></div>
             <div class="why">Both the words and what this message is about match.</div>
           </div>
           <div class="row">
-            <div class="line1"><span class="who">Marek Zieliński</span><span class="org">nordwind.example</span><span class="when">14 Aug</span></div>
+            <div class="line1"><span class="who">Marek Zieliński</span><button class="mark" type="button" title="Sender not recognized" aria-label="Sender not recognized" aria-haspopup="dialog">shield</button><span class="org">nordwind.example</span><span class="when">14 Aug</span></div>
             <div class="line2"><span class="subject">Payment went through</span><span class="preview">Confirming, the transfer went out yesterday.</span></div>
             <div class="why">Found by meaning, not by these words.</div>
           </div>
           <div class="row fold">
             <span class="sr">Spam: Phishing, judged by a model.</span>
-            <span class="who">Accounts Desk</span><span class="subject">Your August invoice is overdue</span><span class="when">12 Aug</span>
+            <span class="who">Accounts Desk</span><button class="mark err" type="button" title="Suspicious - sender authentication failed" aria-label="Suspicious - sender authentication failed" aria-haspopup="dialog">gpp_bad</button><span class="subject">Your August invoice is overdue</span><span class="when">12 Aug</span>
           </div>
         </div>
         <div class="foot">That is everything this search found.</div>
@@ -80,7 +81,9 @@ Project repository: https://github.com/fathomise/MailFathom
         carries the reason for the match here. The excerpt shows the matched words, because a person can check those
         themselves; a sentence replaces it only where the server extracted none. A message judged spam folds here as it
         does in every list but the Spam folder: one muted line of sender and subject, with no excerpt and no reason, and
-        its kind said in its accessible name rather than in a badge.
+        its kind said in its accessible name rather than in a badge. Every result carries the sender mark beside the
+        sender, folded spam included, exactly as the folder list does: the glyph alone, in the tone of its state, and a
+        press on it opens the sender details rather than the message. The prototype draws those details.
       </p>
     </section>
 
