@@ -732,6 +732,64 @@ verify_full_runs_both_flows_for_a_change_above_both_stacks() {
   assert_contains '--dir frontend run build' "$client_invocation_log"
 }
 
+# `ci.yml` is named by both filters, and by them alone it would run both flows and, naming no unit
+# suite, widen the service flow to the whole solution. No gate runs a workflow, so neither flow could
+# verify the edit, and the matcher passes over the path instead.
+stage_workflow_change() {
+  mkdir -p "$repository_root/.github/workflows"
+  printf 'name: CI\n' > "$repository_root/.github/workflows/ci.yml"
+  git -C "$repository_root" add .github/workflows/ci.yml
+}
+
+discard_workflow_change() {
+  git -C "$repository_root" rm --quiet --force --cached .github/workflows/ci.yml
+  rm -rf "$repository_root/.github"
+}
+
+# On the fixture branch, so the C# file it carries is what earns the service flow: the run is the one
+# that file alone earns, narrowed to the one suite naming it, and the client flow does not run.
+verify_fast_passes_over_a_workflow_when_it_decides_the_stacks() {
+  : > "$invocation_log"
+  : > "$client_invocation_log"
+  stage_workflow_change
+
+  (
+    cd "$repository_root"
+    "$scripts_directory/verify-fast.sh"
+  ) > "$test_directory/verify-fast-workflow-output" 2>&1
+
+  discard_workflow_change
+  assert_file_content \
+    $'restore backend/MailFathom.slnx --locked-mode\nbuild backend/MailFathom.slnx --configuration Release --no-restore\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build\nformat backend/MailFathom.slnx --no-restore --include backend/src/Sample.cs' \
+    "$invocation_log"
+  assert_file_content '' "$client_invocation_log"
+}
+
+# Detached at the base, so the workflow is the whole change: the contract suite is what answers for
+# it, and no stack's flow runs.
+verify_full_runs_no_stack_flow_for_a_workflow_only_change() {
+  local gate_output="$test_directory/verify-full-workflow-output"
+
+  : > "$invocation_log"
+  : > "$client_invocation_log"
+  : > "$workflow_invocation_log"
+  git -C "$repository_root" checkout --quiet --detach origin/main
+  stage_workflow_change
+
+  (
+    cd "$repository_root"
+    "$scripts_directory/verify-full.sh"
+  ) > "$gate_output" 2>&1
+
+  discard_workflow_change
+  git -C "$repository_root" checkout --quiet "$fixture_branch"
+
+  assert_file_content 'workflow-contracts' "$workflow_invocation_log"
+  assert_file_content '' "$invocation_log"
+  assert_file_content '' "$client_invocation_log"
+  assert_contains 'This change reaches neither stack' "$gate_output"
+}
+
 # The fixture branch changes one C# file and nothing else, which is also the case the scoped
 # verification below is about: the gate verifies the file the branch wrote rather than the 1113 the
 # solution holds, because formatting is a property of a file and every other one was verified by
@@ -12055,6 +12113,8 @@ run_test verify_fast_runs_the_client_flow_for_a_change_under_frontend
 run_test verify_fast_runs_no_stack_flow_for_a_change_no_build_reads
 run_test verify_full_runs_no_stack_flow_for_a_change_no_build_reads
 run_test verify_full_runs_both_flows_for_a_change_above_both_stacks
+run_test verify_fast_passes_over_a_workflow_when_it_decides_the_stacks
+run_test verify_full_runs_no_stack_flow_for_a_workflow_only_change
 run_test verify_full_runs_tests_once_through_coverage
 run_test verify_full_runs_the_client_flow_for_a_change_under_frontend
 run_test verify_full_runs_workflow_contracts_for_a_change_beyond_csharp

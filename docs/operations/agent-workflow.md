@@ -245,7 +245,7 @@ reaches neither is proved by building neither. Both gates decide that from the
 changed paths, and the decision is not the person's who started the run: a change
 under `backend/` builds and tests `backend/MailFathom.slnx`, a change under
 `frontend/` reaches the client stack, a change to a file above both reaches both,
-and a documentation-only change reaches neither.
+and a documentation-only or workflow-only change reaches neither.
 
 **Two client checks are deliberately outside both gates.** `pnpm test:browser`
 builds the bundle, serves it, and drives it in a real browser, so it needs a
@@ -286,7 +286,19 @@ overlap to resolve: `.editorconfig` becomes a build failure through
 `EnforceCodeStyleInBuild` for the service and is what Prettier reads its client
 section from, `Version.props` is the version both stacks stamp, and `ci.yml`
 itself decides whether either job runs. A change to one of those reaches both
-flows because it genuinely moves both.
+flows in the pipeline because it genuinely moves both.
+
+The gates depart from the filters in one place: they pass over every path under
+`.github/workflows/` before matching. The workflow entries are in the filters
+because in the pipeline a changed workflow runs itself, so building a stack is how
+its edit is verified. No gate here runs a workflow, so a Release build and a unit
+suite over a solution the change did not touch would prove nothing about it, and
+an edit to `ci.yml` would otherwise run both flows in full — no unit-test project
+names it, so `resolve_changed_unit_suites` could not narrow either. What reads a
+workflow locally is the contract suite, which the full gate runs for every change
+that is not C# alone. The skip sits in the matcher rather than in the lists, so the
+lists stay copies of `ci.yml`'s filters for the contract above, and it holds for
+both gates and for the unit-suite resolver from one place.
 
 Four files sit above both stacks and belong to one filter anyway, which is the
 same argument read the other way. `scripts/read-declared-version.sh` is the
