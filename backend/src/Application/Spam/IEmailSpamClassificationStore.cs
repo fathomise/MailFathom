@@ -44,7 +44,8 @@ public interface IEmailSpamClassificationStore
     /// <para>
     /// The refusal is decided by <see cref="SpamClassification.MayReplace" /> against the row the session reads, so it
     /// holds against a person's verdict committed after the caller last looked: the session's own read either sees it,
-    /// or its concurrency token makes the commit conflict and the retry read it.
+    /// or the commit conflicts — on the row's concurrency token for a replacement, on the occurrence's key for a first
+    /// record — and the retry reads it.
     /// </para>
     /// </remarks>
     Task<bool> SaveAsync(
