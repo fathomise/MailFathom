@@ -83,8 +83,8 @@
          parsing untrusted wire data. It is Apache-2.0, carries no dependencies of its own on its net8.0 target, and
          reads the operating system's own resolver configuration rather than naming a nameserver of its own. -->
     <PackageVersion Include="DnsClient" Version="1.8.0" />
-    <!-- MimeKit brings this in transitively and the DKIM key locator names one of its types, because that is what
-         MimeKit's locator contract returns. Pinned directly for the reason MimeKit itself is: a version the code
+    <!-- MimeKit brings this in transitively, the DKIM key locator names one of its types because that is what
+         MimeKit's locator contract returns, and an account's OpenPGP signing key is read with its parser. Pinned directly for the reason MimeKit itself is: a version the code
          compiles against is decided here rather than inherited from another package's dependency range. -->
     <PackageVersion Include="BouncyCastle.Cryptography" Version="2.7.0" />
     <PackageVersion Include="MailKit" Version="4.18.1" />

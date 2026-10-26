@@ -79,6 +79,14 @@ an address it is not reached at. An endpoint that resolves to no address at all 
 compose nothing — and the display name is deliberately not the account's own `DisplayName`, which is the alias an
 operator invented for their tooling rather than a name to sign somebody's mail with.
 
+**It names the identities this account signs as, too, and nothing is signed with them yet.** `SmimeSigningCertificate`
+and `OpenPgpSigningKey` take an S/MIME certificate with its private key and an OpenPGP secret key with its passphrase,
+either, both, or neither. Each is read and judged against the sending address when the account's record is written and
+when the deployment starts, so a certificate for another address, a key that cannot sign, or a passphrase that does not
+open it is refused before anything is sent; no message carries a signature in this release.
+[The identities this account signs with](../operations/configuration-mail.md#the-identities-this-account-signs-with)
+lists every material form and every refusal.
+
 **The endpoint's own choice is where it is and how it is encrypted; everything else stays the account's.** A provider
 serving implicit TLS for reading and STARTTLS for submission is the ordinary case, which is why `ConnectionSecurity`
 is per endpoint — while the permitted mechanisms, the two weakening opt-ins, and the certificate authority are one

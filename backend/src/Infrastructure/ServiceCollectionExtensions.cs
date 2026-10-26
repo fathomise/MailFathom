@@ -141,6 +141,7 @@ using MailFathom.Infrastructure.Mail.MailKit.Writes;
 using MailFathom.Infrastructure.Mail.Mime;
 using MailFathom.Infrastructure.Mail.Mime.Composition;
 using MailFathom.Infrastructure.Mail.OAuth;
+using MailFathom.Infrastructure.Mail.Signing;
 using MailFathom.Infrastructure.ObjectStorage;
 using MailFathom.Infrastructure.Observability;
 using MailFathom.Infrastructure.Persistence;
@@ -285,10 +286,13 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISecretReferenceResolver, CompositeSecretReferenceResolver>();
         // The loaders belong here rather than beside the mail adapter or the endpoint: they turn resolved bytes into
         // typed material and know nothing about IMAP or about hosting, so a future material kind joins them instead of
-        // touching a scheme adapter. The two are separate types because they enforce opposite rules about a private
-        // key — an anchor must not carry one, a server identity must.
+        // touching a scheme adapter. The first two are separate types because they enforce opposite rules about a
+        // private key — an anchor must not carry one, a server identity must — and the signing validators judge an
+        // account's signing identities against the address it sends from.
         services.AddSingleton<TrustAnchorLoader>();
         services.AddSingleton<TlsServerCertificateLoader>();
+        services.AddSingleton<SmimeSigningCertificateValidator>();
+        services.AddSingleton<OpenPgpSigningKeyValidator>();
 
         return services;
     }

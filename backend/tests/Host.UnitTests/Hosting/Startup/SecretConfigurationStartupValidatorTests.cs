@@ -15,6 +15,7 @@ using MailFathom.Host.UnitTests.TestDoubles;
 using MailFathom.Infrastructure;
 using MailFathom.Infrastructure.Certificates;
 using MailFathom.Infrastructure.DataEncryption;
+using MailFathom.Infrastructure.Mail.Signing;
 using MailFathom.Infrastructure.Persistence.Connections;
 using MailFathom.Infrastructure.Secrets.Discovery;
 using MailFathom.Infrastructure.Secrets.References;
@@ -778,6 +779,8 @@ public sealed class SecretConfigurationStartupValidatorTests
             new SecretConfigurationValidator(
                 resolver,
                 new TrustAnchorLoader(resolver),
+                new SmimeSigningCertificateValidator(resolver, new FakeTimeProvider()),
+                new OpenPgpSigningKeyValidator(resolver, new FakeTimeProvider()),
                 new DatabaseConnectionSettingsMapper(new ConfigurationBuilder().Build()),
                 connectionSettingsValidator,
                 PostgresTextSearchConfiguration.Default,
