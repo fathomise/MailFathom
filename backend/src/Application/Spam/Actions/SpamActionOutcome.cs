@@ -54,8 +54,9 @@ public enum SpamActionOutcome
     /// <summary>Filing this message was asked for once already, and it is not in the destination.</summary>
     /// <remarks>
     /// <para>
-    /// It is the one outcome that outranks every switch, and it covers two readings that are the same decision: somebody
-    /// moved the message back out, which is the correction a false positive is meant to have, or the change is written
+    /// It is the one outcome that outranks every switch but the removal of a <c>$Junk</c> and <c>$NotJunk</c> pair, which
+    /// is asked for on its own instead and reported as requested. It covers two readings that are the same decision:
+    /// somebody moved the message back out, which is the correction a false positive is meant to have, or the change is written
     /// down and the account's convergence pass has not carried it out yet. Asking again would either argue with the
     /// person whose mailbox it is or duplicate a change already in flight.
     /// </para>

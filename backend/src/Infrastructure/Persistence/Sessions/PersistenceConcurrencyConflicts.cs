@@ -67,8 +67,9 @@ internal static class PersistenceConcurrencyConflicts
     /// </para>
     /// <para>
     /// The verdict-act key is that same message met by two actions: two replicas acting on one verdict both read that
-    /// the message carries no act, both ask for the change, and both insert the same act for it. The retry re-reads the
-    /// acts, finds the winner's row, and asks for nothing further, so one verdict is acted on once.
+    /// the message carries no act, both ask for the change, and both insert the same act for it. The retry finds the
+    /// winner's row and records the act no second time. It does not take the change back: on a mirrored account the
+    /// mutation identity is what absorbs the repeated request, and on a held account the change is committed again.
     /// </para>
     /// <para>
     /// The next three are one message met by two writers, at the stages that write per attachment and per passage. The

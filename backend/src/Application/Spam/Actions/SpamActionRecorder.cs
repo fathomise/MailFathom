@@ -32,13 +32,16 @@ namespace MailFathom.Application.Spam.Actions;
 /// <c>$Junk</c>, and <c>$Phishing</c> beside it for the phishing subcategory; <c>$Phishing</c> is never written without
 /// <c>$Junk</c>, because a client warns only where both are set, and no verdict ever writes <c>$NotJunk</c>, which only
 /// the person can say. The one keyword removal is the one RFC 9051 asks of a client, made on any verdict once a message
-/// carries <c>$Junk</c> and <c>$NotJunk</c> together: a pair somebody else set is cleared whole, and a <c>$Junk</c>
-/// this deployment wrote is taken off alone, because the <c>$NotJunk</c> beside it is the person correcting it.
+/// carries <c>$Junk</c> and <c>$NotJunk</c> together, a message moved back out of junk included: a pair somebody else
+/// set is cleared whole, and a <c>$Junk</c> this deployment wrote is taken off alone, because the <c>$NotJunk</c>
+/// beside it is the person correcting it. Only a filing withheld until its destination or its account is known again
+/// withholds the removal with it, because that intent is performed whole once it is.
 /// </para>
 /// <para>
 /// Two rules keep the switches from turning into an argument with the mailbox's user. An act already taken is not taken
-/// again: a message filed once that is not in the destination is left alone entirely, because somebody moved it back,
-/// and a keyword a verdict added once is not added again, because somebody took it off. Both are read from the record
+/// again: a message filed once that is not in the destination is left alone but for that removal, because somebody
+/// moved it back, and a keyword a verdict added once is not added again, because somebody took it off. Both are read
+/// from the record
 /// of what this deployment's verdicts did, which is written beside the act on every account whatever its custody phase,
 /// so a held message moved back out of the local junk folder is left alone exactly as a mirrored one is. The filing
 /// rule also reads the mutation records, which is where a mirrored filing older than that record is found.
@@ -212,18 +215,23 @@ public sealed class SpamActionRecorder
         IReadOnlySet<SpamVerdictAct> ownActs,
         CancellationToken cancellationToken)
     {
+        var removal = this.JunkMarksCleared(occurrence, settings, ownActs);
         var filing = await this.DecideFilingAsync(occurrence, settings, ownActs, cancellationToken);
 
         if (filing.Refusal is { } refusal)
         {
-            return ActionDecision.Refused(refusal);
+            // A message somebody moved back out of junk is left alone, but a pair standing on it is the RFC's to clear,
+            // and that removal argues with nobody.
+            return refusal is SpamActionOutcome.PreviouslyFiled && removal is not null
+                ? ActionDecision.Planned(new ActionPlan(MarksRead: false, removal, Filing: null))
+                : ActionDecision.Refused(refusal);
         }
 
         var marksRead = settings.MarksJunkRead && !occurrence.IsRemotelySeen;
 
         // A pair standing together is cleared in place of an addition: $Junk is already there, and RFC 9051 reads the
         // message as carrying neither until somebody takes them off.
-        var marks = this.JunkMarksCleared(occurrence, settings, ownActs)
+        var marks = removal
             ?? (this.MayWriteJunkKeywords(occurrence.Account, settings, MailboxMutation.AddKeywords)
                 ? JunkMarksOwed(classification, occurrence, ownActs)
                 : null);
@@ -373,7 +381,7 @@ public sealed class SpamActionRecorder
         }
 
         // Asked after the folder is known and before anything is written, because it is the one answer that outranks
-        // every switch: this feature has already asked for this email to be filed and the email is not in the
+        // every switch but clearing a junk keyword pair: this feature has already asked for this email to be filed and the email is not in the
         // destination, so either somebody put it back or the change is still in flight.
         if (ownActs.Contains(SpamVerdictAct.FiledIntoJunk)
             || await this.records.HasRecordAsync(
@@ -621,9 +629,6 @@ public sealed class SpamActionRecorder
     /// <summary>Everything one verdict asks of the mailbox, in the order it is applied.</summary>
     private sealed record ActionPlan(bool MarksRead, KeywordChange? Keywords, FilingPlan? Filing)
     {
-        /// <summary>Gets the plan that asks for nothing.</summary>
-        internal static ActionPlan Nothing { get; } = new(MarksRead: false, Keywords: null, Filing: null);
-
         internal bool IsEmpty => !this.MarksRead && this.Keywords is null && this.Filing is null;
     }
 

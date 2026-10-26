@@ -252,7 +252,9 @@ found nothing is not that statement. A keyword the message already carries is no
 `\Seen`, each a change of its own, still go ahead.
 
 With the same switch on, **a message carrying `$Junk` and `$NotJunk` together has the `$Junk` taken off**, as RFC 9051
-asks of a client that finds both, whatever the verdict. A pair somebody else set is cleared whole, and on a spam verdict
+asks of a client that finds both, whatever the verdict and on a message moved back out of junk as well. Only a filing
+withheld until its destination or its account is known again holds the removal back with it, because what the switches
+ask is then performed whole once it is. A pair somebody else set is cleared whole, and on a spam verdict
 that removal stands in place of the `$Junk` the verdict would otherwise owe. A `$Junk` this deployment wrote is taken off
 alone, with a `$Phishing` it wrote beside it, because the `$NotJunk` next to it is the person correcting that verdict and
 is what has to stand. It is asked for once per message, read from the record of what verdicts did, so a pair somebody
@@ -311,7 +313,8 @@ nothing said about why.
 Two rules keep filing from becoming an argument with the person whose mailbox it is.
 
 A message already in the destination is not moved into it. And a message this feature has already asked to have filed,
-which is not in the destination, is **left alone entirely** — not filed again, and not marked read again. Either
+which is not in the destination, is **left alone** — not filed again, not marked read again, and given no keyword, the
+one removal of a `$Junk` and `$NotJunk` pair above being the only change still asked of it. Either
 somebody moved it back out, which is exactly the correction a false positive is supposed to have, or the change is
 written down and has not been carried out yet; asking again would argue with the first or duplicate the second. That is
 read from the durable mutation record, and from the record of what the verdict did that every custody phase keeps,

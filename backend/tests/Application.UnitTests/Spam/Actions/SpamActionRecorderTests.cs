@@ -676,7 +676,7 @@ public sealed class SpamActionRecorderTests
     {
         // Arrange
         var recorder = this.Recorder(MarkingWithKeywords());
-        await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+        await recorder.RecordAsync(ModelSpamVerdict(), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
         var carryingJunk = this.Recorder(
             MarkingWithKeywords(),
             OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk"]));
@@ -781,6 +781,30 @@ public sealed class SpamActionRecorderTests
         // Arrange
         var recorder = this.Recorder(
             MarkingWithKeywords(),
+            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk", "$NotJunk"]));
+
+        // Act
+        var result = await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.Requested, result.Outcome);
+        var request = Assert.Single(this.records.OpenedRequests);
+        Assert.Equal(MailboxMutation.RemoveKeywords, request.Mutation);
+        Assert.Equal(["$Junk", "$NotJunk"], request.Keywords!.Values.Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// A message filed once and moved back out is left alone by every switch, and a pair standing on it is still cleared,
+    /// on its own: that removal argues with nobody.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_APairOnAMessageFiledOnceAndMovedBackOut_IsClearedAndNothingElseIsAsked()
+    {
+        // Arrange
+        this.MapMirroredJunk("Junk");
+        this.verdictActs.With(Email, SpamVerdictAct.FiledIntoJunk);
+        var recorder = this.Recorder(
+            SpamActionSettings.Create(filesJunk: true, marksJunkRead: true, marksJunkWithKeywords: true),
             OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk", "$NotJunk"]));
 
         // Act
@@ -938,6 +962,22 @@ public sealed class SpamActionRecorderTests
 
     private static SpamActionSettings MarkingWithKeywords() =>
         SpamActionSettings.Create(filesJunk: false, marksJunkRead: false, marksJunkWithKeywords: true);
+
+    /// <summary>A spam verdict the model stage reached without naming a kind, so it differs from <see cref="PhishingVerdict" /> only by the subcategory.</summary>
+    private static SpamClassification ModelSpamVerdict() => SpamClassification.Create(
+        Email,
+        SpamVerdict.Spam,
+        SpamClassificationStage.Model,
+        assessment: null,
+        SpamClassificationProfile.Create(),
+        [
+            SpamSignal.Create(
+                SpamSignalKind.ModelJudgement,
+                "spam_kind",
+                observation: "unnamed",
+                SpamSignalProvenance.FromModel("example/decider-2026-09-01", "3f9a1c")),
+        ],
+        EvaluatedAt);
 
     private static SpamClassification PhishingVerdict() => SpamClassification.Create(
         Email,

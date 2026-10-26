@@ -415,6 +415,62 @@ public sealed class EmailSpamClassifierTests
     }
 
     [Fact]
+    public async Task ClassifyAsync_AJunkKeywordAnEarlierVerdictWrote_IsNotReadBackAsEvidence()
+    {
+        // Arrange
+        this.verdictActs.With(Occurrence, SpamVerdictAct.MarkedJunk);
+        var classifier = this.Classifier(
+            SettingsCovering(Inbox),
+            SpamHeaderFacts.None,
+            email: new ClassifiableEmail(Occurrence, Account, Inbox, RemoteEmailKeywords.Create(["$Junk"])));
+
+        // Act
+        await classifier.ClassifyAsync(
+            Account,
+            Occurrence,
+            SpamClassificationMode.FirstTimeOnly,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var saved = Assert.Single(this.store.Saved);
+
+        Assert.Equal(SpamVerdict.Undetermined, saved.Verdict);
+        Assert.DoesNotContain(saved.Signals, signal => signal.Kind is SpamSignalKind.JunkKeyword);
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_AJunkFolderPlacementAnEarlierVerdictRecorded_IsNotReadBackAsEvidence()
+    {
+        // Arrange
+        this.verdictActs.With(Occurrence, SpamVerdictAct.FiledIntoJunk);
+        var classifier = this.Classifier(
+            SettingsCovering(Junk),
+            SpamHeaderFacts.None,
+            email: new ClassifiableEmail(Occurrence, Account, Junk, RemoteEmailKeywords.None),
+            junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
+
+        // Act
+        await classifier.ClassifyAsync(
+            Account,
+            Occurrence,
+            SpamClassificationMode.FirstTimeOnly,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var saved = Assert.Single(this.store.Saved);
+
+        Assert.Equal(SpamVerdict.Undetermined, saved.Verdict);
+        Assert.Empty(saved.Signals);
+        await this.mutationRecords
+            .DidNotReceive()
+            .HasRecordAsync(
+                Arg.Any<StoredEmailId>(),
+                Arg.Any<MailboxMutation>(),
+                Arg.Any<MailboxMutationOrigin>(),
+                Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task ClassifyAsync_AModeOutsideTheDeclaredSet_IsRefused()
     {
         // Arrange
