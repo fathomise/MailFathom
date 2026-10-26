@@ -2,9 +2,11 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Emails.Summaries;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
+using MailFathom.Domain.Spam;
 using MailFathom.Infrastructure.Persistence.Emails;
 using Xunit;
 
@@ -74,7 +76,45 @@ public sealed class StoredEmailSummaryRowTests
         Assert.False(summary.MachineAuthorship.ProfileRevision.NamesAProfile);
     }
 
-    private static StoredEmailSummaryRow RowWith(MachineAuthorshipBand band, double likelihood) => new(
+    /// <summary>A recorded classification reaches the summary whole: the verdict, both judges, and the phishing detail.</summary>
+    [Fact]
+    public void ToSummary_ARowWithAClassification_CarriesTheVerdictAStageReached()
+    {
+        // Arrange
+        var recorded = new EmailSpamVerdict(
+            SpamVerdict.Spam,
+            SpamClassificationStage.Deterministic,
+            SpamSubcategory.Phishing,
+            SpamPhishingRequest.Credentials,
+            SpamImpersonatedParty.Bank);
+        var row = RowWith(MachineAuthorshipBand.NotAssessed, 0, recorded);
+
+        // Act
+        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>());
+
+        // Assert
+        Assert.Equal(recorded, summary.Spam);
+        Assert.Equal(SpamClassificationStage.Model, summary.Spam?.SubcategoryNamedBy);
+    }
+
+    /// <summary>A message no stage has reached carries no verdict at all, which is not the same as one a stage cleared.</summary>
+    [Fact]
+    public void ToSummary_ARowNothingClassified_CarriesNoSpamVerdict()
+    {
+        // Arrange
+        var row = RowWith(MachineAuthorshipBand.NotAssessed, 0);
+
+        // Act
+        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>());
+
+        // Assert
+        Assert.Null(summary.Spam);
+    }
+
+    private static StoredEmailSummaryRow RowWith(
+        MachineAuthorshipBand band,
+        double likelihood,
+        EmailSpamVerdict? spam = null) => new(
         Guid.CreateVersion7(),
         "primary",
         Guid.CreateVersion7(),
@@ -112,5 +152,10 @@ public sealed class StoredEmailSummaryRowTests
         band,
         likelihood,
         MachineAuthorshipSignals.HiddenCharacters,
-        MachineAuthorshipProfile.Standard.Revision.Value);
+        MachineAuthorshipProfile.Standard.Revision.Value,
+        spam?.Verdict,
+        spam?.DecidedBy,
+        spam?.Subcategory,
+        spam?.PhishingRequest,
+        spam?.ImpersonatedParty);
 }

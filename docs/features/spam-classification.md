@@ -546,6 +546,19 @@ named.
 or the question a model answered; the observation beside it is text a mail server wrote and can carry a sending domain, which is
 exactly the second copy of the mailbox a record read back over an administrative endpoint must not become.
 
+### What the person's own mail client reads
+
+The [client endpoint](../operations/client-endpoint.md#the-mail-list-route) publishes the verdict on every message it
+serves — a list row in any folder, a message inside a conversation, a search result, and an opened message — as one
+`spam` object read in the query each of them already makes. It carries the verdict, the stage that reached it, the
+subcategory and the stage that named it, and the phishing detail, and nothing else: the score, the profile, and the
+signals stay on the administrative reading above, because they are what a verdict was reached from rather than what a
+person reading their mail acts on. A message no stage has reached carries `null`, which is not the same as `NotSpam`.
+
+Every value is a closed set's member name, so no text a model wrote crosses to the client and the object needs no
+egress guard. It reads the record that exists and derives nothing: a message whose record names no subcategory is
+published with none rather than with one inferred. The MCP surface publishes none of it.
+
 ## Privacy
 
 A classification is derived from mail content and inherits its classification, retention, and deletion constraints: the

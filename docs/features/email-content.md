@@ -125,6 +125,7 @@ fact whether it named one email or ten.
 | `Thread` | The conversation this email belongs to, with the other messages named rather than reproduced, or absent when nothing has assembled one |
 | `SenderVerification` | What was established about the author the message displays, and what this deployment made of them |
 | `SenderAuthenticationEvidence` | What that conclusion was reached from: the authenticated domain, the displayed author's domain, the check that established the first, the DMARC result, and which reading produced all of it |
+| `Spam` | What spam classification concluded and who concluded it, taken from the same summary a listing carries, or absent when nothing has classified the email |
 
 ### The sender verdict is read from the row, and only here is its evidence published
 

@@ -536,6 +536,7 @@ public sealed class EmailContentReader
             SenderVerification = summary.SenderVerification,
             SenderAuthenticationEvidence = summary.SenderAuthenticationEvidence,
             MachineAuthorship = summary.MachineAuthorship,
+            Spam = summary.Spam,
         };
     }
 
@@ -589,6 +590,7 @@ public sealed class EmailContentReader
             SenderVerification = summary.SenderVerification,
             SenderAuthenticationEvidence = summary.SenderAuthenticationEvidence,
             MachineAuthorship = summary.MachineAuthorship,
+            Spam = summary.Spam,
         };
     }
 

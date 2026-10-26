@@ -18,6 +18,7 @@ using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Spam;
 using MailFathom.Host.Api;
 using MailFathom.TestSupport;
 using Microsoft.AspNetCore.Http;
@@ -261,6 +262,36 @@ public sealed class ClientMailSearchEndpointTests
 
         // Assert
         Assert.Empty(Assert.Single(response.Results).AttachmentMatches);
+    }
+
+    /// <summary>A search result carries the spam verdict a list row carries, so a result is folded or badged the same way.</summary>
+    [Fact]
+    public void For_AResultAModelJudgedSpam_CarriesTheVerdict()
+    {
+        // Arrange
+        var page = PageOf(new BrowsedSearchResult(
+            SyntheticMatchedEmail() with
+            {
+                Spam = new EmailSpamVerdict(
+                    SpamVerdict.Spam,
+                    SpamClassificationStage.Model,
+                    SpamSubcategory.Marketing,
+                    PhishingRequest: null,
+                    ImpersonatedParty: null),
+            },
+            "the invoice is attached",
+            ["**invoice**"],
+            SearchMatchOrigin.LexicalRanking,
+            AttachmentMatches: [],
+            IsDepictedMatch: false));
+
+        // Act
+        var response = ClientMailSearchResponse.For(page);
+
+        // Assert
+        Assert.Equal(
+            new ClientMailSpamVerdictResponse("Spam", "Model", "Marketing", "Model", null, null),
+            Assert.Single(response.Results).Spam);
     }
 
     /// <summary>Wraps one result in the page a response is described from, so a shape assertion arranges only what it is about.</summary>

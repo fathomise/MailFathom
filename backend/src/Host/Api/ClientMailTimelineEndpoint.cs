@@ -347,6 +347,7 @@ internal sealed record ClientMailTimelineResponse(
 /// <param name="Preview">The opening of the message's own text, bounded, or <see langword="null" /> where nothing has extracted the message yet.</param>
 /// <param name="Enrichment">What a derivation concluded about the message, or <see langword="null" /> where none has reached it.</param>
 /// <param name="ThreadMessageCount">How many messages this user may see in the row's conversation, or <see langword="null" /> where threading has placed the message in none.</param>
+/// <param name="Spam">What spam classification concluded about the message, or <see langword="null" /> where nothing has classified it.</param>
 /// <remarks>
 /// <para>
 /// The three flags are published as the states a row draws rather than as the snapshot they came from, because a screen
@@ -399,7 +400,8 @@ internal sealed record ClientMailTimelineEntryResponse(
     long SizeOctets,
     string? Preview,
     ClientMailEnrichmentResponse? Enrichment,
-    int? ThreadMessageCount)
+    int? ThreadMessageCount,
+    ClientMailSpamVerdictResponse? Spam)
 {
     /// <summary>Describes one row for the wire.</summary>
     /// <param name="row">The row the use case read.</param>
@@ -443,5 +445,6 @@ internal sealed record ClientMailTimelineEntryResponse(
         email.SizeOctets,
         preview,
         ClientMailEnrichmentResponse.For(enrichment),
-        threadMessageCount);
+        threadMessageCount,
+        ClientMailSpamVerdictResponse.For(email.Spam));
 }

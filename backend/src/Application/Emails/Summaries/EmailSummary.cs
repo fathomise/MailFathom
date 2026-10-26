@@ -6,6 +6,7 @@ using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Spam;
 
 namespace MailFathom.Application.Emails.Summaries;
 
@@ -108,6 +109,14 @@ public sealed record EmailSummary
 
     /// <summary>Gets the flags a mail server last showed for the email, and when they were read.</summary>
     public required RemoteEmailFlagSnapshot RemoteFlags { get; init; }
+
+    /// <summary>Gets what spam classification concluded about the email, or <see langword="null" /> where nothing has classified it.</summary>
+    /// <remarks>
+    /// Read beside the row in the same query rather than asked for afterwards, so a list draws a spam badge or a folded
+    /// row from the page it already holds. Absent and <see cref="SpamVerdict.NotSpam" /> are different
+    /// states: the first is mail no stage has reached, the second is a conclusion.
+    /// </remarks>
+    public EmailSpamVerdict? Spam { get; init; }
 
     /// <summary>Gets where the email sits in the timeline order, which is the boundary a continuation cursor is built from.</summary>
     public EmailTimelinePosition Position => new(this.ReceivedAt, this.StoredEmailId);
