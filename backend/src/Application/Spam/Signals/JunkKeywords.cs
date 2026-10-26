@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Mutations;
 using MailFathom.Domain.Spam;
 
 namespace MailFathom.Application.Spam.Signals;
@@ -24,6 +25,8 @@ public static class JunkKeywords
     /// <summary>The keyword a message highly likely to be phishing carries, beside <see cref="Junk" />.</summary>
     public const string Phishing = "$Phishing";
 
+    private static readonly string[] All = [Junk, NotJunk, Phishing];
+
     /// <summary>Reports whether a stored keyword set carries one keyword, whatever case either is written in.</summary>
     /// <param name="keywords">The keywords the message carries.</param>
     /// <param name="keyword">The keyword asked about.</param>
@@ -36,6 +39,29 @@ public static class JunkKeywords
         var normalized = RemoteEmailKeywords.Normalized(keyword);
 
         return keywords.Values.Contains(normalized, StringComparer.Ordinal);
+    }
+
+    /// <summary>Reports whether a keyword change would put one of the three junk keywords on a message or take one off.</summary>
+    /// <param name="mutation">The keyword mutation asked for: an addition, a removal, or a replacement.</param>
+    /// <param name="named">The keywords the change names.</param>
+    /// <param name="carried">The keywords the message carries now.</param>
+    /// <returns><see langword="true" /> when the change would add or remove <see cref="Junk" />, <see cref="NotJunk" />, or <see cref="Phishing" />.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="named" /> or <paramref name="carried" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// An addition or a removal changes the junk keywords exactly where it names one. A replacement states the whole set,
+    /// so it changes them where the set it names and the set the message carries disagree about any of the three — which
+    /// is what lets a replacement that leaves them as they stand go ahead while one that drops a <c>$Junk</c> does not.
+    /// </remarks>
+    public static bool AreChangedBy(MailboxMutation mutation, AuthoredMailKeywords named, RemoteEmailKeywords carried)
+    {
+        ArgumentNullException.ThrowIfNull(named);
+        ArgumentNullException.ThrowIfNull(carried);
+
+        var namedSet = RemoteEmailKeywords.Create(named.Values);
+
+        return mutation == MailboxMutation.SetKeywords
+            ? All.Any(keyword => Carries(namedSet, keyword) != Carries(carried, keyword))
+            : All.Any(keyword => Carries(namedSet, keyword));
     }
 
     /// <summary>Reports whether a recorded verdict rested on a <see cref="NotJunk" /> somebody set.</summary>

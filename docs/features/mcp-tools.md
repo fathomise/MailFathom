@@ -61,7 +61,11 @@ Mail judged spam is withheld from every tool that reads mail in the same way, on
 is spam, in any folder, and the junk folder's mail unless the person marked the message not spam, are listed by no
 tool, searched by none, retrieved into no `ask_mail` answer, and an email of them reads as not found.
 [Spam classification](spam-classification.md#no-agent-reads-a-message-judged-spam) states the rule. `set_mail_flags`
-returns no message content and is not narrowed by it.
+returns no message content and is not narrowed by it, but it refuses the three junk keywords: a call that would add
+`$Junk`, `$NotJunk`, or `$Phishing`, remove one, or put one on or take one off with a replacement is refused with
+`MailFlagChangeInvalid` before anything is recorded. Those keywords carry the spam verdict and the person's correction
+of it, so a caller steered by the mail it read could otherwise turn the verdict on that very message; the person sets
+them through the client, and every other keyword stays writable.
 
 Four properties hold for every tool and are proven by test rather than asserted here:
 

@@ -45,12 +45,15 @@ public interface IAuthoredMailboxTargetReader
 /// <param name="Occurrence">The account, folder binding, UIDVALIDITY, and UID an IMAP command is issued against.</param>
 /// <param name="Folder">The binding the occurrence belongs to, including the remote path a write session selects.</param>
 /// <param name="StoredIn">The folder the email is in, which is what a report names it by.</param>
+/// <param name="Keywords">The keywords the email carries, which is what a replacement is weighed against.</param>
 /// <remarks>
-/// The two travel together for the reason <see cref="OutstandingMailboxMutation" /> gives: an occurrence names a folder
-/// without saying where it is, and performing the change needs the remote path while reporting it needs the folder.
-/// Nothing derived from the message is carried, so deciding whether a change may be made never reads mail.
+/// The occurrence and the binding travel together for the reason <see cref="OutstandingMailboxMutation" /> gives: an
+/// occurrence names a folder without saying where it is, and performing the change needs the remote path while
+/// reporting it needs the folder. The keywords are labels a client or a person set, never anything the sender wrote, so
+/// deciding whether a change may be made still never reads mail.
 /// </remarks>
 public sealed record AuthoredMailboxTarget(
     EmailOccurrenceId Occurrence,
     MailFolderResolution Folder,
-    MailFolderId StoredIn);
+    MailFolderId StoredIn,
+    RemoteEmailKeywords Keywords);

@@ -661,7 +661,8 @@ public sealed class MailRelocationRecorderTests
         return new AuthoredMailboxTarget(
             EmailOccurrenceId.Create(Account, folder.Id, ImapUidValidity.Create(42), ImapUid.Create(7)),
             folder,
-            IdOf(folderAlias));
+            IdOf(folderAlias),
+            RemoteEmailKeywords.None);
     }
 
     private sealed class CommittingSession : IPersistenceSession

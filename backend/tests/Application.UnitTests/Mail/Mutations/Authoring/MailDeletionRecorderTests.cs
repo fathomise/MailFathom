@@ -467,7 +467,8 @@ public sealed class MailDeletionRecorderTests
         return new AuthoredMailboxTarget(
             EmailOccurrenceId.Create(Account, folder.Id, ImapUidValidity.Create(42), ImapUid.Create(7)),
             folder,
-            StoredIn);
+            StoredIn,
+            RemoteEmailKeywords.None);
     }
 
     private sealed class CommittingSession : IPersistenceSession

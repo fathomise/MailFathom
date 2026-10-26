@@ -932,7 +932,8 @@ public sealed class ClientMailMutationsEndpointTests
         return new AuthoredMailboxTarget(
             EmailOccurrenceId.Create(ServedAccount, folder.Id, ImapUidValidity.Create(42), ImapUid.Create(7)),
             folder,
-            MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-000000000005")));
+            MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-000000000005")),
+            RemoteEmailKeywords.None);
     }
 
     private static OptimisticConcurrencyRetryPolicy CommitPolicy()

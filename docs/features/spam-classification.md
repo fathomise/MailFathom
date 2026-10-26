@@ -161,6 +161,13 @@ by a run with `--rescore` — and setting one does not by itself classify the me
 [reclassifying is explicit](#classifying-is-idempotent-and-reclassifying-is-explicit). A `$NotJunk` set on a message
 already decided spam therefore turns its verdict on the next run that reaches it.
 
+**No agent sets any of the three through MailFathom.** `set_mail_flags` and every other path an agent or an MCP caller
+changes keywords through refuses a change that would put `$Junk`, `$NotJunk`, or `$Phishing` on a message or take one
+off, because an agent that has just read the mail would otherwise be steered into turning the verdict on the message
+steering it — and with the verdict, what every agent may read. The person sets them through the client, and another
+mail client sets them on the server; [ADR 0007](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0007-remote-mailbox-mutation-boundary-and-write-session.md)
+records the decision as its axis O.
+
 A message that already carries `$Junk` when it is first stored is therefore spam on arrival wherever it sits, as a
 server that marks junk without filing it can leave one in the inbox; [what an operator can let a verdict
 do](#what-an-operator-can-let-a-verdict-do) decides at once whether it is filed.

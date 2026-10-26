@@ -81,7 +81,7 @@ internal sealed class SetMailFlagsTool(MailFlagChangeRecorder flagChangeRecorder
     /// <param name="cancellationToken">Cancels the write when the caller disconnects or the host shuts down.</param>
     /// <returns>The durable record opened for each value asked for.</returns>
     /// <exception cref="StoredEmailIdentifierMalformedException">Thrown when the text names no email this system issued an identifier for.</exception>
-    /// <exception cref="MailFlagChangeInvalidException">Thrown when the call asks for nothing, states half a keyword change, names more keywords than a message may carry or one a mail server could not be asked to store, carries a request identity no record could be written under, or reuses one that already asked for a different value.</exception>
+    /// <exception cref="MailFlagChangeInvalidException">Thrown when the call asks for nothing, states half a keyword change, names more keywords than a message may carry or one a mail server could not be asked to store, would put a junk keyword on the email or take one off, carries a request identity no record could be written under, or reuses one that already asked for a different value.</exception>
     /// <exception cref="MailFathomException">
     /// Raised by the use case for a grant or an email it refuses. The call-tool filter turns every one of them into the
     /// coded result a client reads, so this tool neither catches nor re-describes any.
@@ -106,7 +106,9 @@ internal sealed class SetMailFlagsTool(MailFlagChangeRecorder flagChangeRecorder
         + "repeat under the same requestId applies the change again rather than answering with the first call. Every change is "
         + "reversible: call again with the opposite value. keywordChange replace states the whole keyword set — a "
         + "keyword you do not list is removed, and an empty list clears them all — so read the email's keywords first, "
-        + "or use add and remove, which touch only what they name. Only these three values can be written: this tool "
+        + "or use add and remove, which touch only what they name. The junk keywords $Junk, $NotJunk, and $Phishing "
+        + "are refused, whether added, removed, or dropped or put on by a replace: they carry the spam verdict and the "
+        + "person's correction of it, which only the person sets. Only these three values can be written: this tool "
         + "never sets the answered or draft flags, never deletes mail, and never sends anything. A message in an "
         + "account's outbox is not an email and carries no flags: an outgoingEmailId is refused here as an unknown "
         + "email.")]
