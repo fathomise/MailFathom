@@ -9141,6 +9141,27 @@ sys.exit(1 if unbounded else 0)
 PYTHON
 }
 
+# A package install waits on the runner's mirror, which has held one for a job's whole budget while
+# the install ordinarily takes half a minute, so a step that runs `apt-get` is bounded on its own
+# rather than left to whatever the job allows.
+every_apt_step_declares_its_timeout() {
+  python3 - "$source_repository_root"/.github/workflows/*.yml <<'PYTHON'
+import sys
+import yaml
+
+unbounded = [
+    f"{path.rsplit('/', 1)[-1]}:{job_id}:{step.get('name', '<unnamed>')}"
+    for path in sys.argv[1:]
+    for job_id, job in yaml.safe_load(open(path, encoding="utf-8"))["jobs"].items()
+    for step in job.get("steps", [])
+    if "apt-get" in step.get("run", "") and "timeout-minutes" not in step
+]
+if unbounded:
+    print(f"Steps run apt-get on their job's timeout alone: {'; '.join(unbounded)}", file=sys.stderr)
+sys.exit(1 if unbounded else 0)
+PYTHON
+}
+
 # Every write scope in the repository, named here so a new one is a deliberate edit to this list
 # rather than a line nobody reviewed. The publishing jobs need a registry write and the two an
 # attestation takes; `announce` needs to write the release it announces. `release.yml` states them for
@@ -12339,6 +12360,7 @@ run_test quick_start_says_it_is_an_evaluation_rather_than_a_recommended_deployme
 run_test every_external_action_names_an_approved_owner
 run_test every_workflow_job_declares_its_permissions
 run_test every_workflow_job_declares_its_timeout
+run_test every_apt_step_declares_its_timeout
 run_test every_write_scope_is_one_the_policy_records
 run_test every_checkout_refuses_to_persist_credentials
 run_test the_release_restores_the_annotated_tag_before_asserting_it

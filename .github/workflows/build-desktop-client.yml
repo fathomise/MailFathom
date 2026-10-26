@@ -72,8 +72,12 @@ jobs:
       # The system half of the Linux toolchain, which the runner image does not carry: the WebView the shell renders in
       # and the libraries Tauri links and bundles beside it. The Windows runner needs none of this — WebView2 and the
       # MSVC build tools are part of its image.
+      # The step carries a bound of its own because what stalls it is the runner's package mirror rather than anything
+      # here: it ordinarily takes half a minute, and a slow mirror once held it for the job's whole budget. Five minutes
+      # is about four times the slowest ordinary run.
       - name: Install the Linux WebView and bundling dependencies
         if: runner.os == 'Linux'
+        timeout-minutes: 5
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends \

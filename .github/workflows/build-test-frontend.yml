@@ -197,7 +197,11 @@ jobs:
 
       # The same system half `Build the desktop client` installs, plus the two this job needs and that one does not: the
       # WebDriver for the WebView the shell renders in, and a display for it to open a window on.
+      # The step carries a bound of its own because what stalls it is the runner's package mirror rather than anything
+      # here: it ordinarily takes half a minute, and a slow mirror once held it for the job's whole budget. Five minutes
+      # is about four times the slowest ordinary run.
       - name: Install the Linux WebView, bundling, and WebDriver dependencies
+        timeout-minutes: 5
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends \
