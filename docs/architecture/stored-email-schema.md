@@ -250,6 +250,23 @@ records it, from the moment it records it; `DisplayName`, at most 128 characters
 stored upper-cased and unique across the deployment under its own index, because it is half of a login and what a
 sign-in resolves the organization by; and when it was recorded.
 
+`organization_signing_keys` holds [the keys an organization signs with](../operations/organization-signing-keys.md):
+every key the deployment ever minted for it, active, retired, or revoked. The organization's name is not on any of them.
+
+| Column of `organization_signing_keys` | What it records |
+| --- | --- |
+| `Id` | A version 7 identifier minted with the key, which is also the selector a signature names |
+| `OrganizationId` | The organization the key belongs to, as a foreign key onto `organizations` (`fk_organization_signing_keys_organization`) with `ON DELETE CASCADE`, so removing an organization removes its keys |
+| `PublicKey` | The 32-byte Ed25519 public key, `bytea`, kept for the life of the row |
+| `SealedPrivateKey`, `DataEncryptionKeyId` | The private key sealed under the key ring with the purpose `organization-signing-key` and the row's `Id` as its subject, and the ring key it was sealed under. Both are present or both are null (`ck_organization_signing_keys_sealed_pair`), and both are null on a retired or revoked key (`ck_organization_signing_keys_spent_holds_no_private_key`), so a spent key holds no private half the database could still hand out |
+| `CreatedAt`, `RetiredAt`, `RevokedAt` | When the key was minted, when a rotation replaced it, and when an operator revoked it |
+
+A row with neither `RetiredAt` nor `RevokedAt` is the organization's active key, and the partial unique index
+`ix_organization_signing_keys_active` on `OrganizationId` over exactly those rows is what holds an organization to one:
+a replica that inserts a second loses on it and reads the winner's key back instead.
+`ix_organization_signing_keys_organization` on `(OrganizationId, Id)` serves the listing, which pages through one
+organization's keys in identifier order — the order they were minted in.
+
 `settings_policies` holds [the settings policy](../operations/admin-endpoint.md#settings-policies) each scope states:
 at most one row for the deployment and one per organization. A scope that has stored none has no row, and reads as a
 policy stating nothing at version `0`.

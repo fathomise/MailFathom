@@ -84,10 +84,10 @@
          reads the operating system's own resolver configuration rather than naming a nameserver of its own. -->
     <PackageVersion Include="DnsClient" Version="1.8.0" />
     <!-- MimeKit brings this in transitively, and MailFathom compiles against it: the DKIM key locator names the key type
-         MimeKit's locator contract returns, an account's OpenPGP signing key is read with its parser, and message
-         signature verification calls its CMS, OCSP, CRL, and OpenPGP readers. Pinned directly for the reason MimeKit
-         itself is: a version the code compiles against is decided here rather than inherited from another package's
-         dependency range. -->
+         MimeKit's locator contract returns, an account's OpenPGP signing key is read with its parser, message
+         signature verification calls its CMS, OCSP, CRL, and OpenPGP readers, and an organization's Ed25519 signing key
+         is generated with it. Pinned directly for the reason MimeKit itself is: a version the code compiles against is
+         decided here rather than inherited from another package's dependency range. -->
     <PackageVersion Include="BouncyCastle.Cryptography" Version="2.7.0" />
     <PackageVersion Include="MailKit" Version="4.18.1" />
     <PackageVersion Include="MimeKit" Version="4.18.1" />

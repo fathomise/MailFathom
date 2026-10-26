@@ -7,6 +7,7 @@ using MailFathom.Application.Access.Credentials;
 using MailFathom.Application.Access.DefaultAdministrator;
 using MailFathom.Application.Access.Grants;
 using MailFathom.Application.Access.Organizations;
+using MailFathom.Application.Access.Organizations.SigningKeys;
 using MailFathom.Application.Access.Sessions;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Accounts.Custody;
@@ -193,6 +194,7 @@ using MailFathom.Infrastructure.Security.ApiKeys;
 using MailFathom.Infrastructure.Security.ClientAssertions;
 using MailFathom.Infrastructure.Security.OAuth;
 using MailFathom.Infrastructure.Security.Passwords;
+using MailFathom.Infrastructure.Security.SigningKeys;
 using MailFathom.Infrastructure.SensitiveContent.PersonalData;
 using MailFathom.Infrastructure.SensitiveContent.Secrets;
 using Microsoft.EntityFrameworkCore;
@@ -637,6 +639,11 @@ public static class ServiceCollectionExtensions
         // The organizations users are grouped into and the membership that scopes a password's login. Scoped for the
         // reason the credential store is: it writes through the request's own context.
         services.AddScoped<IOrganizationStore, PersistedOrganizations>();
+        // The organizations' signing keys, and what generates and seals one. The minter is a singleton over the ring's own
+        // singletons; the store is scoped for the reason the organization store is, and the organization store mints the
+        // first key through the same minter in the transaction that records the organization.
+        services.AddSingleton<OrganizationSigningKeyMinter>();
+        services.AddScoped<IOrganizationSigningKeyStore, PersistedOrganizationSigningKeys>();
         // The settings policy the deployment and each organization hold. Scoped for the reason the organization store
         // is: it reads and writes through the request's own context.
         services.AddScoped<ISettingsPolicyStore, PersistedSettingsPolicies>();
@@ -678,6 +685,10 @@ public static class ServiceCollectionExtensions
         // it and a port registered here stay in one place.
         services.AddScoped<UserCredentialAdministration>();
         services.AddScoped<OrganizationAdministration>();
+        services.AddScoped<IOrganizationSigningKeyAuditor, LoggedOrganizationSigningKeyAuditor>();
+        services.AddScoped<OrganizationSigningKeyAdministration>();
+        services.AddScoped<OrganizationSigningKeyRenewal>();
+        services.AddSingleton<IOrganizationSigningKeyTelemetry, OrganizationSigningKeyTelemetry>();
         // Where a change to a role, a group, or an assignment is written down, and what an administrator does to them.
         services.AddScoped<IGrantAuditor, LoggedGrantAuditor>();
         services.AddScoped<GrantAdministration>();

@@ -283,6 +283,12 @@ internal static class CliRootCommand
             RenameOrganizationCommand.Create(context),
             SetOrganizationShortNameCommand.Create(context),
             RemoveOrganizationCommand.Create(context),
+            new Command("signing-key", "Read, rotate, and revoke the keys an organization signs its accounts' mail with.")
+            {
+                ListOrganizationSigningKeysCommand.Create(context),
+                RotateOrganizationSigningKeyCommand.Create(context),
+                RevokeOrganizationSigningKeyCommand.Create(context),
+            },
         };
 
         // What the deployment and each organization state once for the users and the mail accounts beneath them. A

@@ -40,6 +40,9 @@
     - name: Secret rotation
       href: secret-rotation.md
       description: Which credentials are rotated without restarting, what MailFathom does when one changes, and how to verify the rotation took.
+    - name: Organization signing keys
+      href: organization-signing-keys.md
+      description: How each organization gets the key its accounts' mail is signed with, when that key is rotated or revoked, and what a deployment with no key ring is left without.
 - name: Deployment
   items:
     - name: The container image
