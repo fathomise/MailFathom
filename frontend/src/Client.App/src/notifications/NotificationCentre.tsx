@@ -642,7 +642,10 @@ function Nothing({
 
     if (reading) {
         return (
-            <p role="status" className="flex flex-1 items-center justify-center bg-page px-6 py-13 text-base text-muted">
+            <p
+                role="status"
+                className="flex flex-1 items-center justify-center bg-page px-6 py-13 text-base text-muted"
+            >
                 {translate('notifications.reading')}
             </p>
         );
@@ -650,7 +653,10 @@ function Nothing({
 
     if (failure !== null) {
         return (
-            <p role="alert" className="flex flex-1 items-center justify-center bg-page px-6 py-13 text-base text-error-text">
+            <p
+                role="alert"
+                className="flex flex-1 items-center justify-center bg-page px-6 py-13 text-base text-error-text"
+            >
                 {translate('notifications.failed', { reason: translate(failureLabels[failure]) })}
             </p>
         );

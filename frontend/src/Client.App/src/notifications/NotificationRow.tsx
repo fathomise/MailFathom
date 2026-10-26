@@ -134,7 +134,9 @@ export function NotificationRow({
     }
 
     return (
-        <li className={`relative shrink-0 touch-pan-y overflow-hidden rounded-lg ${arrived ? 'animate-row-opening' : ''}`}>
+        <li
+            className={`relative shrink-0 touch-pan-y overflow-hidden rounded-lg ${arrived ? 'animate-row-opening' : ''}`}
+        >
             {swipe.carried === 0 ? null : (
                 // What lifting the finger will do, against the edge the card has uncovered. Hidden from the
                 // accessibility tree because the same act is the toggle beside it, which is where a keyboard and a
@@ -171,160 +173,165 @@ export function NotificationRow({
                 // How far a finger has carried the card is a distance it decided rather than one the theme took.
                 style={swipe.carried === 0 ? undefined : { transform: `translateX(${String(swipe.carried)}px)` }}
             >
-            <span className="flex min-w-0 flex-1 flex-col">
-                <button
-                    ref={primary}
-                    type="button"
-                    aria-pressed={selecting ? selected : undefined}
-                    className={`flex cursor-pointer items-start gap-3 pt-3 text-start ${tucked ? 'pb-3' : 'pb-1.5'}`}
-                    onContextMenu={press.onContextMenu}
-                    onPointerDown={(event) => {
-                        press.onPointerDown(event);
-                        swipe.onPointerDown(event);
+                <span className="flex min-w-0 flex-1 flex-col">
+                    <button
+                        ref={primary}
+                        type="button"
+                        aria-pressed={selecting ? selected : undefined}
+                        className={`flex cursor-pointer items-start gap-3 pt-3 text-start ${tucked ? 'pb-3' : 'pb-1.5'}`}
+                        onContextMenu={press.onContextMenu}
+                        onPointerDown={(event) => {
+                            press.onPointerDown(event);
+                            swipe.onPointerDown(event);
 
-                        // A mouse acts as it goes down; a finger's press is not decided until it is lifted, because the
-                        // same touch may become the press that opens this row's menu.
-                        if (!pressedByFinger(event.pointerType) && event.button === 0) {
-                            pointed(event);
-                        }
-                    }}
-                    onPointerMove={(event) => {
-                        // The press first, because it gives way at a shorter travel than the swipe needs to engage.
-                        press.onPointerMove(event);
-                        swipe.onPointerMove(event);
-                    }}
-                    onPointerUp={(event) => {
-                        const tapped = pressedByFinger(event.pointerType) && !press.tapSuppressed();
-
-                        press.onPointerUp();
-                        // Asked after the tap is read, because the lift is what finishes a swipe — and a lift that has
-                        // just changed the read state is not also a tap opening what the card is about.
-                        swipe.onPointerUp(event);
-
-                        if (tapped && !swipe.tapSuppressed()) {
-                            pointed(event);
-                        }
-                    }}
-                    onPointerCancel={() => {
-                        press.onPointerCancel();
-                        swipe.onPointerCancel();
-                    }}
-                    // The keyboard reaches the row through its own activation rather than through a pointer, so the two
-                    // are separate paths to the same two acts and neither is a simulation of the other.
-                    onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-
-                            if (event.ctrlKey || event.metaKey || event.shiftKey || selecting) {
-                                onSelect();
-                            } else {
-                                onOpen();
+                            // A mouse acts as it goes down; a finger's press is not decided until it is lifted, because the
+                            // same touch may become the press that opens this row's menu.
+                            if (!pressedByFinger(event.pointerType) && event.button === 0) {
+                                pointed(event);
                             }
-                        }
-                    }}
-                >
-                    <span
-                        aria-hidden="true"
-                        className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${tone.mark}`}
-                    >
-                        <Icon name={tone.icon} className="size-icon-lg" />
-                    </span>
+                        }}
+                        onPointerMove={(event) => {
+                            // The press first, because it gives way at a shorter travel than the swipe needs to engage.
+                            press.onPointerMove(event);
+                            swipe.onPointerMove(event);
+                        }}
+                        onPointerUp={(event) => {
+                            const tapped = pressedByFinger(event.pointerType) && !press.tapSuppressed();
 
-                    <span className="flex min-w-0 flex-1 flex-col gap-0.75">
-                        <span className="flex items-baseline gap-2.25">
-                            {/* Unread is weight and colour, which is how the design draws it, and a word for a
+                            press.onPointerUp();
+                            // Asked after the tap is read, because the lift is what finishes a swipe — and a lift that has
+                            // just changed the read state is not also a tap opening what the card is about.
+                            swipe.onPointerUp(event);
+
+                            if (tapped && !swipe.tapSuppressed()) {
+                                pointed(event);
+                            }
+                        }}
+                        onPointerCancel={() => {
+                            press.onPointerCancel();
+                            swipe.onPointerCancel();
+                        }}
+                        // The keyboard reaches the row through its own activation rather than through a pointer, so the two
+                        // are separate paths to the same two acts and neither is a simulation of the other.
+                        onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+
+                                if (event.ctrlKey || event.metaKey || event.shiftKey || selecting) {
+                                    onSelect();
+                                } else {
+                                    onOpen();
+                                }
+                            }
+                        }}
+                    >
+                        <span
+                            aria-hidden="true"
+                            className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${tone.mark}`}
+                        >
+                            <Icon name={tone.icon} className="size-icon-lg" />
+                        </span>
+
+                        <span className="flex min-w-0 flex-1 flex-col gap-0.75">
+                            <span className="flex items-baseline gap-2.25">
+                                {/* Unread is weight and colour, which is how the design draws it, and a word for a
                             reader who is looking at neither. */}
-                            <span
-                                className={`min-w-0 flex-1 text-md text-pretty ${
-                                    notification.read ? 'font-medium text-text-soft' : 'font-semibold text-text'
-                                }`}
-                            >
-                                {said.title}
+                                <span
+                                    className={`min-w-0 flex-1 text-md text-pretty ${
+                                        notification.read ? 'font-medium text-text-soft' : 'font-semibold text-text'
+                                    }`}
+                                >
+                                    {said.title}
+                                </span>
+
+                                <time
+                                    {...(age === null || at === null ? {} : instantSaid.anchor)}
+                                    dateTime={notification.occurredAt}
+                                    className="shrink-0 text-xs whitespace-nowrap text-faint"
+                                >
+                                    {age ?? at}
+                                </time>
+                                {instantSaid.tip}
                             </span>
 
-                            <time
-                                {...(age === null || at === null ? {} : instantSaid.anchor)}
-                                dateTime={notification.occurredAt}
-                                className="shrink-0 text-xs whitespace-nowrap text-faint"
-                            >
-                                {age ?? at}
-                            </time>
-                            {instantSaid.tip}
-                        </span>
+                            <span className="text-base text-pretty text-text-soft">{said.body}</span>
 
-                        <span className="text-base text-pretty text-text-soft">{said.body}</span>
-
-                        {/* The kind is what the source line falls back to, because a row says where it came from either
+                            {/* The kind is what the source line falls back to, because a row says where it came from either
                         way — and the kind is the one thing every notification has. */}
-                        <span className="pt-0.25 text-xs text-muted">
-                            {source ?? translate(notificationKindLabels[notification.kind])}
+                            <span className="pt-0.25 text-xs text-muted">
+                                {source ?? translate(notificationKindLabels[notification.kind])}
+                            </span>
                         </span>
-                    </span>
 
-                    {notification.read ? null : (
-                        <span className="sr-only">{translate('notifications.unreadMark')}</span>
-                    )}
-                </button>
-
-                {/* Under the text rather than under the symbol, which is where the design hangs it: inset by the
-                symbol's width and the gap beside it. */}
-                {onSummarize === null ? null : (
-                    <button type="button" onClick={onSummarize} className={`ms-11 mb-3 self-start ${pill}`}>
-                        <Icon name="auto_awesome" className="size-icon-md" />
-                        {summarizeName}
+                        {notification.read ? null : (
+                            <span className="sr-only">{translate('notifications.unreadMark')}</span>
+                        )}
                     </button>
-                )}
 
-                {decisions.length === 0 ? null : (
-                    <span
-                        role="group"
-                        aria-label={translate('notifications.decisions')}
-                        className="ms-11 mb-3 flex flex-wrap gap-2"
-                    >
-                        {/* A decision takes its pills away, so focus goes to the row's own control first rather than
+                    {/* Under the text rather than under the symbol, which is where the design hangs it: inset by the
+                symbol's width and the gap beside it. */}
+                    {onSummarize === null ? null : (
+                        <button type="button" onClick={onSummarize} className={`ms-11 mb-3 self-start ${pill}`}>
+                            <Icon name="auto_awesome" className="size-icon-md" />
+                            {summarizeName}
+                        </button>
+                    )}
+
+                    {decisions.length === 0 ? null : (
+                        <span
+                            role="group"
+                            aria-label={translate('notifications.decisions')}
+                            className="ms-11 mb-3 flex flex-wrap gap-2"
+                        >
+                            {/* A decision takes its pills away, so focus goes to the row's own control first rather than
                             falling to the document with the pill that held it. */}
-                        {decisions.map(({ decision, take, underWay }) => (
-                            <button
-                                key={decision}
-                                type="button"
-                                aria-disabled={underWay === true ? true : undefined}
-                                onClick={() => {
-                                    if (underWay === true) {
-                                        return;
-                                    }
+                            {decisions.map(({ decision, take, underWay }) => (
+                                <button
+                                    key={decision}
+                                    type="button"
+                                    aria-disabled={underWay === true ? true : undefined}
+                                    onClick={() => {
+                                        if (underWay === true) {
+                                            return;
+                                        }
 
-                                    primary.current?.focus();
-                                    take();
-                                }}
-                                className={pill}
-                            >
-                                <Icon name={failureDecisionShapes[decision].icon} className="size-icon-md" />
-                                {translate(failureDecisionShapes[decision].label)}
-                            </button>
-                        ))}
-                    </span>
-                )}
-            </span>
+                                        primary.current?.focus();
+                                        take();
+                                    }}
+                                    className={pill}
+                                >
+                                    <Icon name={failureDecisionShapes[decision].icon} className="size-icon-md" />
+                                    {translate(failureDecisionShapes[decision].label)}
+                                </button>
+                            ))}
+                        </span>
+                    )}
+                </span>
 
-            <span className="flex shrink-0 items-center gap-1.75 py-3">
-                {notification.read ? null : (
-                    <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-accent" />
-                )}
+                <span className="flex shrink-0 items-center gap-1.75 py-3">
+                    {notification.read ? null : (
+                        <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-accent" />
+                    )}
 
-                <button
-                    {...markName.anchor}
-                    type="button"
-                    aria-label={translate(notification.read ? 'notifications.markUnread' : 'notifications.markRead')}
-                    className={`flex size-8 cursor-pointer items-center justify-center rounded-lg border transition pointer-coarse:size-11 ${
-                        notification.read
-                            ? 'border-line bg-panel text-muted'
-                            : 'border-accent-line bg-accent-soft text-accent-deep'
-                    }`}
-                >
-                    <Icon name={notification.read ? 'mark_email_unread' : 'mark_email_read'} className="size-icon-lg" />
-                </button>
-                {markName.tip}
-            </span>
+                    <button
+                        {...markName.anchor}
+                        type="button"
+                        aria-label={translate(
+                            notification.read ? 'notifications.markUnread' : 'notifications.markRead',
+                        )}
+                        className={`flex size-8 cursor-pointer items-center justify-center rounded-lg border transition pointer-coarse:size-11 ${
+                            notification.read
+                                ? 'border-line bg-panel text-muted'
+                                : 'border-accent-line bg-accent-soft text-accent-deep'
+                        }`}
+                    >
+                        <Icon
+                            name={notification.read ? 'mark_email_unread' : 'mark_email_read'}
+                            className="size-icon-lg"
+                        />
+                    </button>
+                    {markName.tip}
+                </span>
             </div>
         </li>
     );
