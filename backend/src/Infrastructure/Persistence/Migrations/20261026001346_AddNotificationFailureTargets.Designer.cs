@@ -14,7 +14,7 @@ using Pgvector;
 namespace MailFathom.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(MailFathomDbContext))]
-    [Migration("20261025202545_AddNotificationFailureTargets")]
+    [Migration("20261026001346_AddNotificationFailureTargets")]
     partial class AddNotificationFailureTargets
     {
         /// <inheritdoc />
