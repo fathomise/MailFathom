@@ -14,7 +14,7 @@ using Pgvector;
 namespace MailFathom.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(MailFathomDbContext))]
-    [Migration("20261026010752_AddNotificationFailureTargets")]
+    [Migration("20261026040527_AddNotificationFailureTargets")]
     partial class AddNotificationFailureTargets
     {
         /// <inheritdoc />
@@ -1459,8 +1459,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsSynchronized")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsVisibleToTools")
-                        .HasColumnType("boolean");
+                    b.Property<bool>("IsVisibleToAI")
+                        .HasColumnType("boolean")
+                        .HasColumnName("IsVisibleToTools");
 
                     b.Property<int?>("SpecialUse")
                         .HasColumnType("integer");
