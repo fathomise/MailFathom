@@ -4065,7 +4065,8 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("bytea");
 
-                    b.HasKey("StoredEmailId");
+                    b.HasKey("StoredEmailId")
+                        .HasName("pk_stored_email_signer_keys");
 
                     b.ToTable("stored_email_signer_keys", (string)null);
                 });

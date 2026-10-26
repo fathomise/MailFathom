@@ -74,7 +74,10 @@ internal static class SignatureFixtures
     /// <summary>Composes the verifier over the fixture trust, the given transport, and the fixed clock.</summary>
     /// <param name="responders">What the revocation responders answer.</param>
     /// <param name="trustTestAuthority">Whether the test root authority is configured as trusted.</param>
-    /// <param name="trustedKeys">The OpenPGP key fixtures configured as trusted.</param>
+    /// <param name="trustedKeys">
+    /// The OpenPGP key fixtures configured as trusted, each under its own reference. A suffix after <c>#</c> names a
+    /// second reference to the same fixture, which is how one key configured twice is arranged.
+    /// </param>
     public static EmailSignatureVerifier Verifier(
         FakeHttpMessageHandler responders,
         bool trustTestAuthority = true,
@@ -85,7 +88,7 @@ internal static class SignatureFixtures
         resolver.Provision("root-authority.pem", Bytes("root-authority.pem"));
         foreach (var key in trustedKeys)
         {
-            resolver.Provision(key, Bytes(key));
+            resolver.Provision(key, Bytes(key.Split('#')[0]));
         }
 
         var httpClientFactory = Substitute.For<IHttpClientFactory>();

@@ -2,6 +2,9 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Globalization;
+using System.Text;
+
 namespace MailFathom.Domain.Emails.Signatures;
 
 /// <summary>Who a signature names as its signer: an S/MIME certificate or an OpenPGP key, as far as it could be read.</summary>
@@ -79,8 +82,30 @@ public sealed record EmailSigner
         init => field = value.Length > MaximumKeyMaterialLength ? ReadOnlyMemory<byte>.Empty : value;
     }
 
-    private static string? Bounded(string? value, int maximumLength) =>
-        string.IsNullOrWhiteSpace(value) ? null
-        : value.Length > maximumLength ? value[..maximumLength]
-        : value;
+    /// <summary>Makes text a certificate or key carried safe to store and bounds it.</summary>
+    /// <param name="value">The text as the signature carried it.</param>
+    /// <param name="maximumLength">The most UTF-16 code units kept.</param>
+    /// <returns>The printable text cut on a text-element boundary, or <see langword="null" /> where nothing printable is left.</returns>
+    /// <remarks>
+    /// The text comes from whoever made the certificate, before anything trusts it. A control character, a formatting
+    /// character, or an unpaired surrogate would either mislead whoever reads the signer or make PostgreSQL refuse the
+    /// row, and a refused row is a message that is never stored. Walking scalars turns an unpaired surrogate into
+    /// U+FFFD, and cutting on a text-element boundary never leaves half of a pair at the end.
+    /// </remarks>
+    internal static string? Bounded(string? value, int maximumLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var printable = string.Concat(value.EnumerateRunes()
+            .Where(scalar => !Rune.IsControl(scalar) && Rune.GetUnicodeCategory(scalar) is not UnicodeCategory.Format)
+            .Select(scalar => scalar.ToString()))
+            .Trim();
+
+        var bounded = MailTextBounds.TruncateAtTextElementBoundary(printable, maximumLength);
+
+        return bounded.Length == 0 ? null : bounded;
+    }
 }

@@ -278,10 +278,10 @@ internal sealed class StoredEmailEntity
     public DateTimeOffset? SignatureSignedAt { get; set; }
 
     /// <summary>Gets or sets whether the signature matched the signed content.</summary>
-    public SignatureCheckResult SignatureContentCheck { get; set; }
+    public SignatureCheckResult SignatureContentCheck { get; set; } = SignatureCheckResult.Skipped;
 
     /// <summary>Gets or sets whether the signer chained to a trusted authority or is a configured key.</summary>
-    public SignatureCheckResult SignatureAuthorityCheck { get; set; }
+    public SignatureCheckResult SignatureAuthorityCheck { get; set; } = SignatureCheckResult.Skipped;
 
     /// <summary>Gets or sets where that trust came from.</summary>
     public SignatureTrustAnchor? SignatureTrustAnchor { get; set; }
@@ -290,13 +290,13 @@ internal sealed class StoredEmailEntity
     public string? SignatureChainEnd { get; set; }
 
     /// <summary>Gets or sets whether the signer was valid at the signing time and meant for signing email.</summary>
-    public SignatureCheckResult SignatureValidityCheck { get; set; }
+    public SignatureCheckResult SignatureValidityCheck { get; set; } = SignatureCheckResult.Skipped;
 
     /// <summary>Gets or sets what the validity check objected to.</summary>
     public EmailSignatureUnverifiableReason? SignatureValidityFailure { get; set; }
 
     /// <summary>Gets or sets whether the signer is free of a revocation.</summary>
-    public SignatureCheckResult SignatureRevocationCheck { get; set; }
+    public SignatureCheckResult SignatureRevocationCheck { get; set; } = SignatureCheckResult.Skipped;
 
     /// <summary>Gets or sets how the revocation status was established.</summary>
     public RevocationCheckMethod? SignatureRevocationMethod { get; set; }
@@ -308,7 +308,7 @@ internal sealed class StoredEmailEntity
     public DateTimeOffset? SignatureRevokedAt { get; set; }
 
     /// <summary>Gets or sets whether the signer names the displayed author.</summary>
-    public SignatureCheckResult SignatureSignerCheck { get; set; }
+    public SignatureCheckResult SignatureSignerCheck { get; set; } = SignatureCheckResult.Skipped;
 
     /// <summary>Gets or sets the signer's certificate subject name or OpenPGP user ID.</summary>
     public string? SignerName { get; set; }

@@ -22,10 +22,21 @@ namespace MailFathom.Infrastructure.Mail.Signatures;
 /// <para>
 /// A configured key's validity and revocation are read off the key itself — its self-signature's expiry and any
 /// revocation signature it carries — since an OpenPGP key publishes both about itself rather than through a responder.
+/// Only what the key verifiably said about itself counts: a user ID or an expiry is read from a self-certification that
+/// verifies against the primary key, and a subkey signs for the key only through a binding the primary key made that
+/// allows signing.
 /// </para>
 /// </remarks>
 internal static class OpenPgpSignatureVerifier
 {
+    private static readonly int[] SelfCertificationTypes =
+    [
+        PgpSignature.DefaultCertification,
+        PgpSignature.NoCertification,
+        PgpSignature.CasualCertification,
+        PgpSignature.PositiveCertification,
+    ];
+
     /// <summary>Verifies one detached OpenPGP signature.</summary>
     /// <param name="signedContent">The canonical signed content.</param>
     /// <param name="signatureBlock">The signature part's decoded octets, armored or binary.</param>
@@ -53,18 +64,16 @@ internal static class OpenPgpSignatureVerifier
         var ring = signingKey is null ? null : trustedKeys.GetPublicKeyRing(pgpSignature.KeyId);
         if (signingKey is null || ring is null)
         {
-            return signature with
-            {
-                ContentCheck = SignatureCheckResult.NotChecked,
-                AuthorityCheck = SignatureCheckResult.Failed,
-                UnverifiableReason = EmailSignatureUnverifiableReason.UnknownKey,
-                Signer = new EmailSigner
-                {
-                    KeyId = $"{pgpSignature.KeyId:X16}",
-                    PublicKeyAlgorithm = PublicKeyAlgorithmOf(pgpSignature.KeyAlgorithm, bitStrength: null),
-                    DigestAlgorithm = HashAlgorithmOf(pgpSignature.HashAlgorithm),
-                },
-            };
+            return UnknownKey(signature, pgpSignature);
+        }
+
+        // A subkey is trusted only through a binding its primary key made and that allows signing. A ring copied from a
+        // key server can carry a subkey somebody else appended, and the presence of its packet proves nothing about who
+        // holds it.
+        var binding = signingKey.IsMasterKey ? null : SigningBindingOf(ring.GetPublicKey(), signingKey);
+        if (!signingKey.IsMasterKey && binding is null)
+        {
+            return UnknownKey(signature, pgpSignature);
         }
 
         var contentCheck = VerifyContent(pgpSignature, signingKey, signedContent);
@@ -73,7 +82,7 @@ internal static class OpenPgpSignatureVerifier
             return signature with { UnverifiableReason = EmailSignatureUnverifiableReason.UnsupportedAlgorithm };
         }
 
-        return JudgeKey(signature with { ContentCheck = contentCheck.Value }, pgpSignature, signingKey, ring, displayedSenderAddress);
+        return JudgeKey(signature with { ContentCheck = contentCheck.Value }, pgpSignature, signingKey, binding, ring, displayedSenderAddress);
     }
 
     /// <summary>Reads configured armored or binary public keys into one set, skipping nothing silently: a key that does not parse throws.</summary>
@@ -136,27 +145,91 @@ internal static class OpenPgpSignatureVerifier
         }
     }
 
+    private static EmailSignature UnknownKey(EmailSignature signature, PgpSignature pgpSignature) =>
+        signature with
+        {
+            ContentCheck = SignatureCheckResult.NotChecked,
+            AuthorityCheck = SignatureCheckResult.Failed,
+            UnverifiableReason = EmailSignatureUnverifiableReason.UnknownKey,
+            Signer = new EmailSigner
+            {
+                KeyId = $"{pgpSignature.KeyId:X16}",
+                PublicKeyAlgorithm = PublicKeyAlgorithmOf(pgpSignature.KeyAlgorithm, bitStrength: null),
+                DigestAlgorithm = HashAlgorithmOf(pgpSignature.HashAlgorithm),
+            },
+        };
+
+    /// <summary>Finds the newest subkey binding the primary key made that verifies and allows signing.</summary>
+    private static PgpSignature? SigningBindingOf(PgpPublicKey primaryKey, PgpPublicKey subkey) =>
+        subkey.GetSignaturesOfType(PgpSignature.SubkeyBinding)
+            .Where(binding => (binding.GetHashedSubPackets()?.GetKeyFlags() & PgpKeyFlags.CanSign) != 0)
+            .Where(binding => Verifies(binding, primaryKey, certify => certify.VerifyCertification(primaryKey, subkey)))
+            .OrderByDescending(binding => binding.CreationTime)
+            .FirstOrDefault();
+
+    /// <summary>Reads the user IDs the primary key certified itself, each with the newest self-certification that verifies.</summary>
+    /// <remarks>
+    /// A user ID nobody but its own key could have bound is the only one that says whose key this is; one appended
+    /// without a verifying self-certification would let anybody give a trusted key their own address.
+    /// </remarks>
+    private static IReadOnlyList<(string UserId, PgpSignature Certification)> SelfCertifiedUserIdsOf(PgpPublicKey primaryKey) =>
+    [
+        .. primaryKey.GetUserIds()
+            .Select(userId => (
+                UserId: userId,
+                Certification: (primaryKey.GetSignaturesForId(userId) ?? [])
+                    .Where(certification => SelfCertificationTypes.Contains(certification.SignatureType))
+                    .Where(certification => Verifies(certification, primaryKey, certify => certify.VerifyCertification(userId, primaryKey)))
+                    .OrderByDescending(certification => certification.CreationTime)
+                    .FirstOrDefault()))
+            .Where(candidate => candidate.Certification is not null)
+            .Select(candidate => (candidate.UserId, candidate.Certification!)),
+    ];
+
+    private static bool Verifies(PgpSignature signature, PgpPublicKey signer, Func<PgpSignature, bool> verify)
+    {
+        try
+        {
+            signature.InitVerify(signer);
+
+            return verify(signature);
+        }
+        catch (Exception exception) when (IsUnreadable(exception))
+        {
+            return false;
+        }
+    }
+
     private static EmailSignature JudgeKey(
         EmailSignature signature,
         PgpSignature pgpSignature,
         PgpPublicKey signingKey,
+        PgpSignature? binding,
         PgpPublicKeyRing ring,
         string? displayedSenderAddress)
     {
         var primaryKey = ring.GetPublicKey();
         var signedAt = pgpSignature.CreationTime;
-        var expired = new[] { primaryKey, signingKey }.Any(key => !IsValidAt(key, signedAt));
+        var certifiedUserIds = SelfCertifiedUserIdsOf(primaryKey);
+
+        // Expiry is read only from a self-certification or a binding that verified, never from a packet merely present.
+        var validSeconds = certifiedUserIds
+            .Select(candidate => candidate.Certification)
+            .OrderByDescending(certification => certification.CreationTime)
+            .Select(ExpirySecondsOf)
+            .FirstOrDefault();
+        var expired = !IsValidAt(primaryKey.CreationTime, validSeconds, signedAt)
+            || (binding is not null && !IsValidAt(signingKey.CreationTime, ExpirySecondsOf(binding), signedAt));
         var revocation = new[] { primaryKey, signingKey }
             .SelectMany(key => key.GetSignaturesOfType(key.IsMasterKey ? PgpSignature.KeyRevocation : PgpSignature.SubkeyRevocation))
             .FirstOrDefault();
 
-        var userIds = primaryKey.GetUserIds().ToList();
+        var userIds = certifiedUserIds.Select(candidate => candidate.UserId).ToList();
         var addresses = userIds
             .Select(userId => MailboxAddress.TryParse(userId, out var mailbox) ? mailbox.Address : null)
             .OfType<string>()
             .ToList();
         var matchingAddress = addresses.FirstOrDefault(address => string.Equals(address, displayedSenderAddress, StringComparison.OrdinalIgnoreCase));
-        var validSeconds = primaryKey.GetValidSeconds();
 
         signature = signature with
         {
@@ -192,12 +265,11 @@ internal static class OpenPgpSignatureVerifier
             };
     }
 
-    private static bool IsValidAt(PgpPublicKey key, DateTime instant)
-    {
-        var validSeconds = key.GetValidSeconds();
+    private static long ExpirySecondsOf(PgpSignature certification) =>
+        certification.GetHashedSubPackets()?.GetKeyExpirationTime() ?? 0;
 
-        return key.CreationTime <= instant && (validSeconds <= 0 || key.CreationTime.AddSeconds(validSeconds) > instant);
-    }
+    private static bool IsValidAt(DateTime createdAt, long validSeconds, DateTime instant) =>
+        createdAt <= instant && (validSeconds <= 0 || createdAt.AddSeconds(validSeconds) > instant);
 
     private static string PublicKeyAlgorithmOf(PublicKeyAlgorithmTag algorithm, int? bitStrength) => algorithm switch
     {

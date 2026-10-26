@@ -15,7 +15,8 @@ internal sealed class StoredEmailSignerKeyConfiguration : IEntityTypeConfigurati
     public void Configure(EntityTypeBuilder<StoredEmailSignerKeyEntity> entity)
     {
         entity.ToTable("stored_email_signer_keys");
-        entity.HasKey(signerKey => signerKey.StoredEmailId);
+        entity.HasKey(signerKey => signerKey.StoredEmailId)
+            .HasName(PersistenceConstraintNames.StoredEmailSignerKeyPrimaryKeyConstraintName);
         entity.Property(signerKey => signerKey.StoredEmailId).ValueGeneratedNever();
         entity.Property(signerKey => signerKey.KeyMaterial).IsRequired();
 

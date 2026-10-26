@@ -62,7 +62,7 @@ public sealed record EmailSignature
     public string? ChainEnd
     {
         get;
-        init => field = value is { Length: > EmailSigner.MaximumNameLength } ? value[..EmailSigner.MaximumNameLength] : value;
+        init => field = EmailSigner.Bounded(value, EmailSigner.MaximumNameLength);
     }
 
     /// <summary>Gets whether the signer was valid at the signing time and meant for signing email.</summary>

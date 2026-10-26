@@ -50,7 +50,7 @@ budget or the coordinator loop itself are marked *restart* below.
 | `MailSynchronization:VerifyDkimLocally` | bool | `true` | Whether extraction verifies a message's own DKIM signatures where no trusted `Authentication-Results` header was found. A fallback and never a supplement: an account whose server writes the header verifies nothing locally. It is the only path that makes an outbound DNS query | reload; the next extraction verifies against it |
 | `MailSynchronization:SignatureVerification:TrustSystemStore` | bool | `true` | Whether an S/MIME signer certificate chaining to the operating system's trust store can verify. Off trusts only the authorities named below | reload; the next extraction verifies against it |
 | `MailSynchronization:SignatureVerification:TrustedAuthorities` | list of named secret blocks | empty | Certificate authorities an S/MIME signer may chain to beside the system store, each loaded and validated as a certificate without a private key at startup and on every reload. Several entries rotate an authority by overlap | reload |
-| `MailSynchronization:SignatureVerification:TrustedOpenPgpKeys` | list of named secret blocks | empty | The OpenPGP public keys whose signatures can verify — armored or binary, one or several per entry, each validated when read. Nothing else is trusted for OpenPGP | reload |
+| `MailSynchronization:SignatureVerification:TrustedOpenPgpKeys` | list of named secret blocks | empty | The OpenPGP public keys whose signatures can verify — armored or binary, one or several per entry, each validated when read; the same key listed twice is refused at its second position. Nothing else is trusted for OpenPGP | reload |
 | `MailSynchronization:SignatureVerification:RevocationTimeout` | TimeSpan | `00:00:10` | 1 s – 1 min; how long establishing one signer certificate's revocation status may take over every responder it names. A check that runs out of time makes the signature not verifiable rather than verified | reload |
 | `MailSynchronization:AssessMachineAuthorship` | bool | `true` | Whether extraction reads how much each message's own text reads as machine written. What the reading weighs is the project's and is not configurable; this decides only whether it runs | reload; the next extraction reads against it |
 
@@ -302,19 +302,27 @@ and carry the digital-signature or non-repudiation key usage. The system store i
 public authority issued is reported as the public authority's whatever else is configured. **OpenPGP has no
 authorities**, so with nothing configured every OpenPGP signature is not verifiable here; a key a message carries about
 itself — an attached key, an `Autocrypt` header — is never consulted, and nothing is fetched from a key server. A
-configured key's expiry and revocation are read off the key itself.
+configured key's expiry and revocation are read off the key itself, and only from self-signatures that verify. A subkey
+signs for its primary only through a binding signature the primary made that allows signing, so a subkey appended to a
+ring by somebody else — as a key server accepting extra packets can serve it — makes its signature not verifiable.
 
 **Revocation is checked online, and this is outbound traffic the deployment did not make before.** For a signer whose
 chain is trusted, MailFathom asks the OCSP responder the certificate names and, where none answers, reads the CRL its
 distribution point names — at most two of each, over plain HTTP or HTTPS, through the bounded and retried outbound
-client the service uses for every other dependency. A responder learns that this deployment checked that certificate,
+client the service uses for every other dependency, which follows no redirect. A responder learns that this deployment checked that certificate,
 and when; nothing about the message, the mailbox, or the recipient is sent. A certificate whose chain is not trusted is
 never checked, so the addresses asked are always ones a trusted authority wrote. An answer is cached for as long as it
-says it is valid, between one minute and one day, and an unreachable responder is asked again after a minute. The cache
+says it is valid, between one minute and one day, and an unreachable responder is asked again after a minute. An OCSP
+answer counts only when the certificate's issuer or a responder it delegated to signed it, about this certificate; a CRL
+counts only when the issuer signed it, it is a complete list rather than a delta, and its issuing distribution point —
+where it names one — covers every end-entity certificate from the address it was read at. Anything else is no answer. The cache
 is one per replica, so a deployment of several replicas asks each responder up to `× replicaCount` as often. Every check
 has the hard `RevocationTimeout`; one that cannot complete — no network, a timeout, every responder unreachable — makes
-the signature *not verifiable*, never verified and never failed. Verification runs at extraction, so opening a message
-never waits on a responder. A deployment that must make no such request sets `TrustSystemStore` to `false` and names no
+the signature *not verifiable*, never verified and never failed. Verification runs at extraction — when synchronization
+stores a message, when a re-derivation or the extraction backfill reads one again, and when MailFathom writes a message
+into a mailbox itself: a copy committed to a held or restoring mailbox and the filed copy of a sent message are read the
+same way, so those acts can wait on a responder for up to `RevocationTimeout` per signer. Opening a message never waits
+on one. A deployment that must make no such request sets `TrustSystemStore` to `false` and names no
 authority, which leaves every S/MIME signature not verifiable and asks nobody.
 
 **Changing the trust re-judges stored mail only when it is re-derived.** A message is verified once, when it is

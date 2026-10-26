@@ -9,18 +9,22 @@ namespace MailFathom.Infrastructure.Mail.Signatures;
 /// <summary>Judges configured OpenPGP key material without handing the OpenPGP library's types to whoever configured it.</summary>
 public static class OpenPgpPublicKeyMaterial
 {
-    /// <summary>Reports whether material holds at least one OpenPGP public key, armored or binary.</summary>
+    /// <summary>Reads the primary key IDs the material holds, armored or binary.</summary>
     /// <param name="material">The resolved material of one configured key.</param>
-    /// <returns><see langword="true" /> when a verification could trust a key from it; otherwise <see langword="false" />.</returns>
-    public static bool IsReadable(ReadOnlySpan<byte> material)
+    /// <returns>
+    /// Each primary key's ID as sixteen hexadecimal digits, so two configured entries holding one key can be told apart
+    /// from two holding different keys; <see langword="null" /> when the material holds no OpenPGP public key a
+    /// verification could trust.
+    /// </returns>
+    public static IReadOnlyList<string>? PrimaryKeyIdsOf(ReadOnlySpan<byte> material)
     {
         try
         {
-            return OpenPgpSignatureVerifier.ReadPublicKeys(material).Count > 0;
+            return [.. OpenPgpSignatureVerifier.ReadPublicKeys(material).Select(ring => $"{ring.GetPublicKey().KeyId:X16}")];
         }
         catch (Exception exception) when (exception is PgpException or IOException or ArgumentException)
         {
-            return false;
+            return null;
         }
     }
 }

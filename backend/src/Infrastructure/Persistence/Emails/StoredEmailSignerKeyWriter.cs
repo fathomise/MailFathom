@@ -11,9 +11,15 @@ namespace MailFathom.Infrastructure.Persistence.Emails;
 
 /// <summary>Writes the signer's key material one extraction found, inside the caller's open session.</summary>
 /// <remarks>
+/// <para>
 /// Every writer of extracted metadata calls this beside the metadata mapping, so the key a row keeps is always the one
 /// its own signature columns describe: a message re-derived as unsigned, or as signed by somebody else, loses the key an
 /// earlier reading kept rather than holding on to it.
+/// </para>
+/// <para>
+/// The write is idempotent from a fresh read, so two runs reaching one message at once converge: both find no row and
+/// both insert, the loser violates the named primary key, and the optimistic retry re-reads the row the winner wrote.
+/// </para>
 /// </remarks>
 [RequiresIntegrationCoverage]
 internal static class StoredEmailSignerKeyWriter

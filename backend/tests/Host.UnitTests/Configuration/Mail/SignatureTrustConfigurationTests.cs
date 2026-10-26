@@ -5,6 +5,10 @@
 using MailFathom.Host.Configuration.Mail;
 using MailFathom.Host.UnitTests.TestDoubles;
 using MailFathom.Infrastructure.Secrets.Discovery;
+using MailFathom.Infrastructure.Secrets.References;
+using MailFathom.Infrastructure.Secrets.Resolution;
+using MailFathom.Infrastructure.Secrets.Sources;
+using NSubstitute;
 using Xunit;
 
 namespace MailFathom.Host.UnitTests.Configuration.Mail;
@@ -50,6 +54,27 @@ public sealed class SignatureTrustConfigurationTests
     }
 
     [Fact]
+    public async Task FindMailConfigurationErrorsAsync_OneOpenPgpKeyConfiguredTwice_IsRefusedAtTheSecondPositionNamingTheFirst()
+    {
+        // Arrange
+        var resolver = Substitute.For<ISecretReferenceResolver>();
+        resolver.ResolveAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(_ => SecretResolutionResult.Resolved(ResolvedSecret.FromBytes(RobertsKey()), SecretMaterialSource.SchemeAdapter));
+        var options = new MailSynchronizationOptions();
+        options.SignatureVerification.TrustedOpenPgpKeys.Add(new ConfiguredSecret { Name = "release-key", SecretReference = "env:release-key" });
+        options.SignatureVerification.TrustedOpenPgpKeys.Add(new ConfiguredSecret { Name = "release-key-refreshed", SecretReference = "env:release-key-refreshed" });
+
+        // Act
+        var errors = await SecretValidation.Over(resolver)
+            .FindMailConfigurationErrorsAsync(options, TestContext.Current.CancellationToken);
+
+        // Assert
+        var error = Assert.Single(errors);
+        Assert.StartsWith("MailSynchronization:SignatureVerification:TrustedOpenPgpKeys:1", error, StringComparison.Ordinal);
+        Assert.Contains("MailSynchronization:SignatureVerification:TrustedOpenPgpKeys:0", error, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task FindMailConfigurationErrorsAsync_NothingTrustedBeyondTheSystemStore_ReportsNothing()
     {
         // Act
@@ -58,5 +83,14 @@ public sealed class SignatureTrustConfigurationTests
 
         // Assert
         Assert.Empty(errors);
+    }
+
+    private static byte[] RobertsKey()
+    {
+        using var resource = typeof(SignatureTrustConfigurationTests).Assembly.GetManifestResourceStream("Signatures.pgp-robert.asc")!;
+        using var copy = new MemoryStream();
+        resource.CopyTo(copy);
+
+        return copy.ToArray();
     }
 }

@@ -33,6 +33,13 @@ namespace MailFathom.Infrastructure.Mail.Signatures;
 /// </remarks>
 internal sealed class SecureMimeSignatureVerifier
 {
+    /// <summary>The most certificates one signature may carry before it is refused as malformed.</summary>
+    /// <remarks>
+    /// A signer, its intermediates, and perhaps a root or a cross-certificate are a handful. Every carried certificate
+    /// is decoded and offered to chain building, so a stranger's signature is bounded before any of that is paid for.
+    /// </remarks>
+    public const int MaximumCarriedCertificates = 16;
+
     /// <summary>The extended key usage a signing certificate names, <c>id-kp-emailProtection</c>.</summary>
     private const string EmailProtectionOid = "1.3.6.1.5.5.7.3.4";
 
@@ -83,6 +90,12 @@ internal sealed class SecureMimeSignatureVerifier
         var signedAt = SigningTimeOf(signer);
         signature = signature with { SignedAt = signedAt };
 
+        var carriedCertificates = signedData.GetCertificates().EnumerateMatches(null).ToArray();
+        if (carriedCertificates.Length > MaximumCarriedCertificates)
+        {
+            return signature with { UnverifiableReason = EmailSignatureUnverifiableReason.MalformedSignature };
+        }
+
         var signerCertificate = signedData.GetCertificates().EnumerateMatches(signer.SignerID).FirstOrDefault();
         if (signerCertificate is null)
         {
@@ -101,16 +114,20 @@ internal sealed class SecureMimeSignatureVerifier
         }
 
         using var certificate = X509CertificateLoader.LoadCertificate(signerCertificate.GetEncoded());
-        var carried = signedData.GetCertificates().EnumerateMatches(null)
-            .Select(carriedCertificate => X509CertificateLoader.LoadCertificate(carriedCertificate.GetEncoded()))
-            .ToArray();
+        var carried = new List<X509Certificate2>(carriedCertificates.Length);
 
         try
         {
+            // Loaded inside the try so a certificate that fails to load leaves none of those before it undisposed.
+            foreach (var carriedCertificate in carriedCertificates)
+            {
+                carried.Add(X509CertificateLoader.LoadCertificate(carriedCertificate.GetEncoded()));
+            }
+
             return await this.JudgeSignerAsync(
                 signature with { ContentCheck = contentCheck.Value, Signer = DescribeSigner(certificate, signer, displayedSenderAddress) },
                 certificate,
-                carried,
+                [.. carried],
                 trust,
                 signedAt ?? this.timeProvider.GetUtcNow(),
                 displayedSenderAddress,

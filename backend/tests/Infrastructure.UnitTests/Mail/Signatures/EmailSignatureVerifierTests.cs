@@ -464,6 +464,135 @@ public sealed class EmailSignatureVerifierTests
         Assert.Equal(expected, signature.Format);
     }
 
+    [Fact]
+    public async Task VerifyAsync_OcspAnswerSignedByAKeyTheIssuerDoesNotHold_IsNotVerifiableBecauseRevocationCannotBeChecked()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders(ocspAnswer: "ocsp-anna-good-forged.der");
+        var message = SignatureFixtures.Message("smime-detached-anna.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders)
+            .VerifyAsync(message, "anna@signer.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureUnverifiableReason.RevocationNotCheckable, signature.UnverifiableReason);
+        Assert.Equal(SignatureCheckResult.NotChecked, signature.RevocationCheck);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_OcspAnswerAboutAnotherCertificate_IsNotVerifiableBecauseRevocationCannotBeChecked()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders(ocspAnswer: "ocsp-anna-good.der");
+        var message = SignatureFixtures.Message("smime-detached-dorota.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders)
+            .VerifyAsync(message, "dorota@signer.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureUnverifiableReason.RevocationNotCheckable, signature.UnverifiableReason);
+        Assert.Equal(SignatureCheckResult.Passed, signature.AuthorityCheck);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_RevocationListThatIsADelta_IsNotVerifiableBecauseRevocationCannotBeChecked()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders(revocationList: "crl-delta-none-revoked.der");
+        var message = SignatureFixtures.Message("smime-detached-celina.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders)
+            .VerifyAsync(message, "celina@signer.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureUnverifiableReason.RevocationNotCheckable, signature.UnverifiableReason);
+        Assert.Equal(SignatureCheckResult.NotChecked, signature.RevocationCheck);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_SignatureCarryingMoreCertificatesThanTheBound_IsNotVerifiableBecauseMalformed()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders(ocspAnswer: "ocsp-anna-good.der");
+        var message = SignatureFixtures.Message("smime-detached-anna-crowded.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders)
+            .VerifyAsync(message, "anna@signer.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureUnverifiableReason.MalformedSignature, signature.UnverifiableReason);
+        Assert.Empty(responders.RecordedRequests);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_OpenPgpSignedContentChangedAfterSigning_FailsWithoutAnUnverifiableReason()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders();
+        var tampered = Encoding.UTF8.GetString(SignatureFixtures.Bytes("pgp-robert.eml"))
+            .Replace("attached to the next message", "payable to a new account", StringComparison.Ordinal);
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders, trustedKeys: "pgp-robert.asc")
+            .VerifyAsync(SignatureFixtures.MessageFrom(tampered), "robert@pgp.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureOutcome.Failed, signature.Outcome);
+        Assert.Equal(SignatureCheckResult.Failed, signature.ContentCheck);
+        Assert.Null(signature.UnverifiableReason);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_OpenPgpSignatureByASigningSubkeyItsPrimaryBound_IsVerified()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders();
+        var message = SignatureFixtures.Message("pgp-sara.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders, trustedKeys: "pgp-sara.asc")
+            .VerifyAsync(message, "sara@pgp.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureOutcome.Verified, signature.Outcome);
+        Assert.True(signature.SignerMatchesAuthor);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_OpenPgpSignatureByASubkeyAppendedWithoutTheTrustedPrimarysBinding_IsNotVerifiableBecauseTheKeyIsUnknown()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders();
+        var message = SignatureFixtures.Message("pgp-orion.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders, trustedKeys: "pgp-orion.asc")
+            .VerifyAsync(message, "orion@pgp.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureUnverifiableReason.UnknownKey, signature.UnverifiableReason);
+        Assert.Equal(SignatureCheckResult.NotChecked, signature.ContentCheck);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_OneOpenPgpKeyConfiguredTwice_StillVerifiesItsSignature()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders();
+        var message = SignatureFixtures.Message("pgp-robert.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders, true, "pgp-robert.asc", "pgp-robert.asc#rotated")
+            .VerifyAsync(message, "robert@pgp.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureOutcome.Verified, signature.Outcome);
+    }
+
     private static string OpaqueMessage(string declaredType) =>
         "From: anna@signer.example.test\r\n" +
         $"Content-Type: application/pkcs7-mime; smime-type={declaredType}; name=smime.p7m\r\n" +

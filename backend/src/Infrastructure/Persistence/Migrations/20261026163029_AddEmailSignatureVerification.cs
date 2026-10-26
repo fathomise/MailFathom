@@ -207,7 +207,7 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_stored_email_signer_keys", x => x.StoredEmailId);
+                    table.PrimaryKey("pk_stored_email_signer_keys", x => x.StoredEmailId);
                     table.ForeignKey(
                         name: "FK_stored_email_signer_keys_stored_emails_StoredEmailId",
                         column: x => x.StoredEmailId,

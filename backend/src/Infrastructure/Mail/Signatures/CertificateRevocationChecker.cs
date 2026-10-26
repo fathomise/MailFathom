@@ -6,10 +6,12 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using MailFathom.Domain.Emails.Signatures;
+using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Ocsp;
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.X509.Extension;
 using Polly.CircuitBreaker;
 using Polly.RateLimiting;
 using Polly.Timeout;
@@ -32,7 +34,7 @@ namespace MailFathom.Infrastructure.Mail.Signatures;
 /// </para>
 /// <para>
 /// Every failure — no URL, a refused connection, a timeout, an answer that does not verify, an answer about another
-/// certificate, a stale one — ends in <see cref="CertificateRevocationStatus.Unavailable" />, never in good and never in
+/// certificate, a list that does not speak for every end-entity certificate, a stale one — ends in <see cref="CertificateRevocationStatus.Unavailable" />, never in good and never in
 /// revoked.
 /// </para>
 /// </remarks>
@@ -43,9 +45,6 @@ internal sealed class CertificateRevocationChecker
 
     /// <summary>The largest OCSP response or CRL read; a public authority's list stays well inside it.</summary>
     public const long MaximumAnswerBytes = 10L * 1024 * 1024;
-
-    /// <summary>How many redirects a CRL download or OCSP request follows before it is treated as unanswered.</summary>
-    public const int MaximumRedirections = 3;
 
     /// <summary>How many OCSP responders, and separately how many CRL locations, one certificate may send requests to.</summary>
     private const int MaximumLocationsPerKind = 2;
@@ -279,7 +278,7 @@ internal sealed class CertificateRevocationChecker
         {
             var list = await this.SendAsync(() => new HttpRequestMessage(HttpMethod.Get, location), deadline, cancellationToken);
 
-            if (list is not null && this.ReadRevocationList(list, certificate, issuer) is { } answered)
+            if (list is not null && this.ReadRevocationList(list, location, certificate, issuer) is { } answered)
             {
                 return answered;
             }
@@ -290,13 +289,14 @@ internal sealed class CertificateRevocationChecker
 
     private (CertificateRevocationAnswer Answer, DateTimeOffset? ValidUntil)? ReadRevocationList(
         byte[] encodedList,
+        Uri location,
         Org.BouncyCastle.X509.X509Certificate certificate,
         Org.BouncyCastle.X509.X509Certificate issuer)
     {
         try
         {
             var list = new Org.BouncyCastle.X509.X509CrlParser().ReadCrl(encodedList);
-            if (list is null || !list.IssuerDN.Equivalent(issuer.SubjectDN))
+            if (list is null || !list.IssuerDN.Equivalent(issuer.SubjectDN) || !CoversEveryEndEntityCertificate(list, location))
             {
                 return null;
             }
@@ -324,6 +324,42 @@ internal sealed class CertificateRevocationChecker
         {
             return null;
         }
+    }
+
+    /// <summary>Answers whether a list speaks for every end-entity certificate its issuer revoked, so its silence means good.</summary>
+    /// <remarks>
+    /// A list is downloaded over plain HTTP, so whoever answers can hand back any list the issuer signed. A delta list,
+    /// or one scoped to authorities, attribute certificates, some revocation reasons, another distribution point, or
+    /// another issuer, is signed by the same key and does not list a certificate revoked in the base — reading its silence
+    /// as good would turn a revoked signer into a verified one.
+    /// </remarks>
+    private static bool CoversEveryEndEntityCertificate(Org.BouncyCastle.X509.X509Crl list, Uri location)
+    {
+        if (list.GetExtensionValue(X509Extensions.DeltaCrlIndicator) is not null)
+        {
+            return false;
+        }
+
+        if (list.GetExtensionValue(X509Extensions.IssuingDistributionPoint) is not { } encodedScope)
+        {
+            return true;
+        }
+
+        var scope = IssuingDistributionPoint.GetInstance(X509ExtensionUtilities.FromExtensionValue(encodedScope));
+        if (scope.OnlyContainsCACerts || scope.OnlyContainsAttributeCerts || scope.OnlySomeReasons is not null || scope.IsIndirectCrl)
+        {
+            return false;
+        }
+
+        return scope.DistributionPoint switch
+        {
+            null => true,
+            { Type: DistributionPointName.FullName } point => GeneralNames.GetInstance(point.Name).GetNames()
+                .Where(name => name.TagNo == GeneralName.UniformResourceIdentifier)
+                .Select(name => DerIA5String.GetInstance(name.Name).GetString())
+                .Any(named => Uri.TryCreate(named, UriKind.Absolute, out var namedLocation) && namedLocation == location),
+            _ => false,
+        };
     }
 
     private bool IsFresh(DateTime thisUpdate, DateTime? nextUpdate, DateTimeOffset now) =>

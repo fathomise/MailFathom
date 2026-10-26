@@ -976,15 +976,11 @@ public static class ServiceCollectionExtensions
         // is: a cache per scope would ask the same responder about the same certificate once per folder run. The
         // client keeps the standard resilience handler the service defaults add, so an OCSP request or a CRL download
         // is retried and bounded like any other idempotent outbound read, and the checker holds the whole check to the
-        // configured deadline on top of that. Redirects are followed a short way because CRLs are commonly served from
-        // a content network behind the address an authority wrote into its certificates; only an address a trusted
-        // authority wrote ever reaches the client.
+        // configured deadline on top of that. Redirects are not followed: the addresses are plain HTTP, so whoever
+        // answers could otherwise send this process to any host, and only an address a trusted authority wrote into a
+        // certificate may reach the client. A redirect is no answer, which leaves the signature not verifiable.
         services.AddHttpClient(CertificateRevocationChecker.HttpClientName)
-            .ConfigurePrimaryHttpMessageHandler(static () => new SocketsHttpHandler
-            {
-                AllowAutoRedirect = true,
-                MaxAutomaticRedirections = CertificateRevocationChecker.MaximumRedirections,
-            })
+            .ConfigurePrimaryHttpMessageHandler(static () => new SocketsHttpHandler { AllowAutoRedirect = false })
             .ConfigureHttpClient(static client =>
                 client.MaxResponseContentBufferSize = CertificateRevocationChecker.MaximumAnswerBytes);
         services.AddSingleton(provider => new CertificateRevocationAnswerCache(provider.GetRequiredService<TimeProvider>()));

@@ -247,7 +247,15 @@ internal sealed class EmailSignatureVerifier : IEmailSignatureVerifier
             {
                 try
                 {
-                    rings.AddRange(OpenPgpSignatureVerifier.ReadPublicKeys(material.RevealBytes()));
+                    // A key already loaded is skipped rather than added twice, because one key set cannot hold it twice
+                    // and refusing the whole set would leave every PGP/MIME signature unverifiable over one repeat.
+                    foreach (var ring in OpenPgpSignatureVerifier.ReadPublicKeys(material.RevealBytes()))
+                    {
+                        if (rings.TrueForAll(loaded => loaded.GetPublicKey().KeyId != ring.GetPublicKey().KeyId))
+                        {
+                            rings.Add(ring);
+                        }
+                    }
                 }
                 catch (Exception exception) when (exception is PgpException or IOException)
                 {

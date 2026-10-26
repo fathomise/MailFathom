@@ -146,6 +146,13 @@ internal static class PersistenceConstraintNames
     /// </remarks>
     internal const string EmailAttachmentTextPrimaryKeyName = "PK_email_attachment_texts";
 
+    /// <summary>The primary key over a stored email's signer key material, one row per signed message.</summary>
+    /// <remarks>
+    /// Named because the row is written by update-or-insert: two runs re-deriving or backfilling one signed message both
+    /// find no row and both insert, and the loser violates this key and is retried onto the row the winner wrote.
+    /// </remarks>
+    internal const string StoredEmailSignerKeyPrimaryKeyConstraintName = "pk_stored_email_signer_keys";
+
     /// <summary>The unique index over an embedding profile's identity, which is what makes activation idempotent.</summary>
     /// <remarks>
     /// Named because a losing writer is recognized by the constraint its insert violated: two operators activating the

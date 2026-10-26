@@ -14,7 +14,7 @@ using Pgvector;
 namespace MailFathom.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(MailFathomDbContext))]
-    [Migration("20261026151344_AddEmailSignatureVerification")]
+    [Migration("20261026163029_AddEmailSignatureVerification")]
     partial class AddEmailSignatureVerification
     {
         /// <inheritdoc />
@@ -4068,7 +4068,8 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("bytea");
 
-                    b.HasKey("StoredEmailId");
+                    b.HasKey("StoredEmailId")
+                        .HasName("pk_stored_email_signer_keys");
 
                     b.ToTable("stored_email_signer_keys", (string)null);
                 });

@@ -8,6 +8,7 @@ using MailFathom.Infrastructure;
 using MailFathom.Infrastructure.Certificates;
 using MailFathom.Infrastructure.Mail.Signing;
 using MailFathom.Infrastructure.Persistence.Connections;
+using MailFathom.Infrastructure.Secrets.References;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Time.Testing;
 
@@ -24,10 +25,13 @@ internal static class SecretValidation
 {
     /// <summary>Builds a validator that resolves a reference under any scheme a deployment registers, and no other.</summary>
     /// <returns>The validator.</returns>
-    internal static SecretConfigurationValidator OverRegisteredSchemes()
-    {
-        var resolver = new RegisteredSchemeSecretReferenceResolver();
+    internal static SecretConfigurationValidator OverRegisteredSchemes() => Over(new RegisteredSchemeSecretReferenceResolver());
 
+    /// <summary>Builds a validator over a resolver the test states, which is how material that has to parse is handed in.</summary>
+    /// <param name="resolver">What every reference the validator reads resolves to.</param>
+    /// <returns>The validator.</returns>
+    internal static SecretConfigurationValidator Over(ISecretReferenceResolver resolver)
+    {
         return new SecretConfigurationValidator(
             resolver,
             new TrustAnchorLoader(resolver),

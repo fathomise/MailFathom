@@ -279,7 +279,8 @@ internal sealed partial class SecretConfigurationValidator
     /// <remarks>
     /// Resolving the reference is not enough, for the reason the other anchors are loaded too: material that resolves
     /// but is not a certificate, or not an OpenPGP public key, would pass a reference check and then quietly trust
-    /// nothing. Each one is discarded once it has proven loadable, because a verification loads its own.
+    /// nothing. Each one is discarded once it has proven loadable, because a verification loads its own. The keys are
+    /// also judged together, because one key configured at two positions is refused only when both are seen.
     /// </remarks>
     private async Task<IReadOnlyList<string>> FindSignatureTrustErrorsAsync(
         MailSignatureVerificationOptions candidate,
@@ -304,9 +305,12 @@ internal sealed partial class SecretConfigurationValidator
             }
         }
 
+        var keysSectionPath = $"{sectionPath}:{nameof(MailSignatureVerificationOptions.TrustedOpenPgpKeys)}";
+        var firstPositionOfKey = new Dictionary<string, int>(StringComparer.Ordinal);
+
         foreach (var (index, configuredKey) in candidate.TrustedOpenPgpKeys.Index())
         {
-            var configurationPath = $"{sectionPath}:{nameof(MailSignatureVerificationOptions.TrustedOpenPgpKeys)}:{index}";
+            var configurationPath = $"{keysSectionPath}:{index}";
 
             var resolved = await this.secretReferenceResolver.ResolveAsync(configuredKey.SecretReference, cancellationToken);
             if (resolved.Secret is not { } material)
@@ -318,10 +322,18 @@ internal sealed partial class SecretConfigurationValidator
 
             using (material)
             {
-                if (!OpenPgpPublicKeyMaterial.IsReadable(material.RevealBytes()))
+                if (OpenPgpPublicKeyMaterial.PrimaryKeyIdsOf(material.RevealBytes()) is not { } keyIds)
                 {
                     errors.Add($"{configurationPath} — the material is not an OpenPGP public key.");
+
+                    continue;
                 }
+
+                // One key configured twice — a refreshed copy added during rotation is the usual way — cannot be put
+                // into one key set, so it is refused here rather than left to fail every verification later.
+                errors.AddRange(keyIds
+                    .Where(keyId => !firstPositionOfKey.TryAdd(keyId, index))
+                    .Select(keyId => $"{configurationPath} — holds an OpenPGP key already trusted at {keysSectionPath}:{firstPositionOfKey[keyId]}; configure each key once."));
             }
         }
 

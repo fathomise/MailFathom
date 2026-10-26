@@ -261,10 +261,14 @@ is the layer rather than something MailFathom re-implements:
   point a signed message's signer certificate names, asked when extraction verifies an S/MIME signature whose chain is
   already trusted. It runs under no `OutboundDependency` pipeline, so it keeps the standard resilience handler the service
   defaults give the `certificate-revocation` client, and that handler is the single layer; the registration adds the
-  bounds a stranger's address calls for — at most three redirections and a 10 MiB answer. Above it sits one hard deadline,
+  bounds a stranger's address calls for — no redirect is followed, since a plain-HTTP answer could send the process
+  anywhere, and an answer may reach 10 MiB. Above it sits one hard deadline,
   `MailSynchronization:SignatureVerification:RevocationTimeout`, over every responder the certificate names together,
   and nothing retries above that: an answer that does not arrive leaves the signature *not verifiable*, which is a value
-  the verification already has. An answer is cached per issuer key and serial number for as long as it says it is valid.
+  the verification already has. An answer is cached per issuer key and serial number until the next update it names,
+  held for at least one minute and at most one day whatever that says, and an unavailable answer is remembered for one
+  minute — so a responder that failed once leaves that minute's messages from the signer *not verifiable* until they are
+  re-derived. The cache is per replica.
   [Verifying a message's own
   signature](../operations/configuration-mail.md#verifying-a-messages-own-signature--signatureverification) states what a
   responder learns.

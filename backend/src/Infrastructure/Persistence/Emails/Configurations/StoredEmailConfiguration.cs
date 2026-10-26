@@ -187,6 +187,16 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
             .OnDelete(DeleteBehavior.SetNull);
     }
 
+    // The sentinel is the database default rather than the CLR default, because Passed is the CLR default: a step that
+    // passed on a new row would otherwise be left out of the insert and written as the column default instead.
+    private static void ConfigureSignatureCheck(PropertyBuilder<SignatureCheckResult> property) =>
+        property
+            .HasConversion<string>()
+            .HasMaxLength(64)
+            .HasDefaultValue(SignatureCheckResult.Skipped)
+            .HasSentinel(SignatureCheckResult.Skipped)
+            .IsRequired();
+
     /// <summary>Declares the indexes mailbox reads are planned against, and with them the timeline ordering contract.</summary>
     /// <remarks>
     /// <para>
@@ -211,13 +221,6 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
     /// scan. A B-tree over an array would only serve equality against a whole array, which no query asks for.
     /// </para>
     /// </remarks>
-    private static void ConfigureSignatureCheck(PropertyBuilder<SignatureCheckResult> property) =>
-        property
-            .HasConversion<string>()
-            .HasMaxLength(64)
-            .HasDefaultValue(SignatureCheckResult.Skipped)
-            .IsRequired();
-
     private static void ConfigureIndexes(EntityTypeBuilder<StoredEmailEntity> entity)
     {
         entity.HasIndex(email => new { email.MailFolderBindingId, email.UidValidity, email.Uid })
