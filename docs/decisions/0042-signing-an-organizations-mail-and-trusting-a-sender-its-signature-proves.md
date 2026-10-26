@@ -197,7 +197,21 @@ Rotation is not left to the first send after the interval. An organization that 
 
 **A revoked key confirms nothing for any message verified after the revocation**, whenever the message says it was signed. The other answer — revoked only for messages signed after the revocation — would rest on `t=` or `Date`, and the forger writes both. A leaked key would sign backdated mail that verifies forever.
 
-What a revocation cannot reach is a verdict already stored. Mail already stored is not re-evaluated, so a revocation changes the verdict of every later arrival and of nothing that arrived before it.
+A revocation does not reach out to a verdict already stored: nothing in this feature re-reads stored mail, so a revocation changes the verdict of every later arrival, and of nothing that arrived before it, until something else re-reads that mail. *Mail already stored* below says what does.
+
+### Mail already stored
+
+**This feature never re-reads stored mail.** A rotation, a revocation, a member leaving, and an outgoing record being deleted each change what the *next* verification finds. None of them starts one. That is what the owner's *mail already stored is not re-evaluated* means here.
+
+**The extraction backfill is the one thing that re-reads stored mail, and it re-derives this verdict like every other.** `StoredEmailExtractionBackfill` re-reads stored MIME through the same `IEmailMimeReader` port synchronization uses, whenever its rebuild target moves for reasons of its own. `SenderTrustEvaluatingEmailMimeReader` names it as the deliberate act that re-judges stored mail. The organization verification sits behind that port, beside the local DKIM verification, so a backfill re-verifies a stored message under the keys, the membership, and the outgoing records as they stand when it runs.
+
+That is accepted rather than carved out, for three reasons:
+
+- **It is how every other trust source already behaves.** A trusted-sender entry removed since a message arrived stops recognizing it at the next backfill too. A verdict kept only for this source would make one column mean two things.
+- **It points the right way.** A backfill after a revocation is exactly when mail a leaked key signed should stop being trusted. A backfill after a member left stops naming them as a member, which they no longer are.
+- **It fails closed.** A blind copy whose outgoing record retention has since deleted loses `Trusted` and is judged by the other sources. It never gains anything.
+
+What a backfill cannot do is make a message `Trusted` by this source that was not sent to the receiving account and signed by a current member's non-revoked key, because those are the conditions it re-checks.
 
 ### Signing
 
@@ -237,10 +251,10 @@ Verification runs at extraction, beside the local DKIM verification, for a recei
 **Trust is granted only where all three hold:**
 
 1. **The signature verifies** against a key of the receiving account's organization that is active or retired, and never revoked.
-2. **The message carries exactly one `From` header field, naming exactly one mailbox, and that address is the address of a mail account in that organization**, read at verification time. That `From` is both the one the signature covers and the one the client displays, so the trusted address is the displayed one. Over-signing already makes a second `From` break the signature; refusing one here as well keeps the condition true even for a signature that somehow covers it. An author who has left the organization is no longer recognized as a member of it, whatever key once signed for them.
+2. **The message carries exactly one `From` header field, naming exactly one mailbox, and that address is the outgoing sender identity of a mail account in that organization**, read at verification time. That identity is what `IOutgoingSenderIdentityReader` answers for an account: the address the composer writes into `From`, so the signer and this condition read the same value. It is never the account's IMAP user name, which may be a bare login. An account that configures no address to send from matches nothing here. That `From` is both the one the signature covers and the one the client displays, so the trusted address is the displayed one. Over-signing already makes a second `From` break the signature; refusing one here as well keeps the condition true even for a signature that somehow covers it. An author who has left the organization is no longer recognized as a member of it, whatever key once signed for them.
 3. **The message was sent to the receiving account**, in one of two ways:
-   - the receiving account's address is in the signed `To` or `Cc`; or
-   - the message is a blind copy the deployment itself sent to it. The deployment's `OutgoingEmailRecord` whose `Message-ID` is the signed `Message-ID`, sent through the account whose address is the signed `From`, lists the receiving address as a `Bcc` recipient.
+   - the receiving account's outgoing sender identity, compared as in condition 2, is in the signed `To` or `Cc`; or
+   - the message is a blind copy the deployment itself sent to it. The deployment's `OutgoingEmailRecord` whose `Message-ID` is the signed `Message-ID`, sent through the account whose outgoing sender identity is the signed `From`, lists the receiving account's outgoing sender identity as a `Bcc` recipient.
 
 Condition 3 is what refuses a replay. A validly signed message forwarded or resent, byte for byte, to somebody it never named still verifies cryptographically. It is not trusted, because it was not sent to them.
 
@@ -286,14 +300,14 @@ That organization is also part of the receiving account's policy revision, so a 
 
 **Signing is identical in `Mirrored`, `Held`, and `Restoring`.** The outbox signs and stores the MIME the same way in every phase, and the copy filed in the sent folder is the stored, signed bytes in each. A held account files it locally, and a mirrored or restoring one appends it to the source.
 
-**Verification is identical in every phase.** It happens at extraction, and every phase extracts arrivals: ADR 0034 has a held source keep delivering new mail, which is extracted as an arrival before the drain takes it. A restore appends what MailFathom already holds back to the source and re-extracts nothing, so it re-evaluates nothing — consistent with mail already stored not being re-evaluated.
+**Verification is identical in every phase.** It happens at extraction, and every phase extracts arrivals: ADR 0034 has a held source keep delivering new mail, which is extracted as an arrival before the drain takes it. A restore appends what MailFathom already holds back to the source and re-extracts nothing, so it re-evaluates nothing. Only an extraction backfill re-reads stored mail, in any phase, as *Mail already stored* states.
 
 ### Several replicas and a rolling upgrade
 
 - **One active key per organization** is a database constraint, not a check before a write.
 - **Rotation runs once per organization**, under a leased scope.
 - **Signing reads the active key inside its own short transaction**, and holds nothing across the SMTP submission that follows.
-- **During a rolling upgrade**, a replica of the older build composes unsigned mail and verifies nothing. Its arrivals are judged as they are today and never re-evaluated. That window is the cost of the upgrade, and nothing about it is unsafe.
+- **During a rolling upgrade**, a replica of the older build composes unsigned mail and verifies nothing. Its arrivals are judged as they are today until an extraction backfill re-reads them. That window is the cost of the upgrade, and nothing about it is unsafe.
 
 ### Consequences
 
@@ -316,7 +330,7 @@ That organization is also part of the receiving account's policy revision, so a 
   - that a promoted draft is signed like a composed message, and a draft that is only stored is not;
   - that an account in no organization signs nothing;
   - that the sent copy is byte-identical to the stored MIME in each custody phase.
-- **Issue 2718** tests each of the three conditions failing alone, and each half of the third, a second `From` header field inserted above the signed one, a `Reply-To` inserted after signing, a key of another organization, a revoked key, a retired key, a message altered after signing (not trusted, no warning), and a receiving account in no organization.
+- **Issue 2718** tests each of the three conditions failing alone, and each half of the third, a second `From` header field inserted above the signed one, a `Reply-To` inserted after signing, a key of another organization, a revoked key, a retired key, a message altered after signing (not trusted, no warning), a receiving account in no organization, a member whose IMAP user name is a bare login (still trusted through the sender identity), and an extraction backfill after a revocation (the stored verdict loses `OrganizationMember`).
 - Review holds a change to the header name, the tag set, the algorithm, or the trust conditions against this record. Changing any of them is a new ADR.
 
 ## Pros and Cons of the Options
