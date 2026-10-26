@@ -11,7 +11,11 @@ public interface IOrganizationSigningKeyTelemetry
     /// <remarks>Counted once per organization per pass, so it keeps rising for as long as the ring stays absent rather than recording the fact once.</remarks>
     void MintRefusedWithoutKeyRing();
 
-    /// <summary>Records that a message an organization's account sent left unsigned, because the organization held no key that could sign it.</summary>
+    /// <summary>
+    /// Records that a message an organization's account sent left unsigned: the organization held no active key, its
+    /// private half did not open, the message named no signable author domain, or the signature would have carried it
+    /// past the deployment's size bound.
+    /// </summary>
     /// <remarks>
     /// Counted once per send the outbox is asked to queue, before it knows whether the request is new: a repeat of a
     /// request already queued, and an enqueue that then fails to commit, count again although no further message

@@ -1079,9 +1079,11 @@ domain the signature could carry, or the signature would have carried a message 
 because a signature is never a condition of delivery, so this counter is the only place the gap shows. It counts when
 the outbox is asked, before it knows whether the request is new, so a send asked for again with the same identity — a
 retried call, a rule that ran twice — counts again though only one message leaves, and so does an enqueue that then
-fails to commit. A deployment whose organizations all hold an openable key reads zero, or close to it; a sustained rise
-is mail colleagues will not be able to verify, and the fix is the key ring or the key rather than anything about the
-mail. It is additive like the counter above — each replica counts the sends it was asked to queue — and mail from an
+fails to commit. A sustained rise is mail colleagues will not be able to verify, and it is usually the key ring or the
+key: an organization without an active key, or one sealed under a ring key since removed. A message composed near
+`MailDelivery:MaxMessageBytes` and one naming no signable author are counted too and need no key change, so a
+deployment whose every organization holds an openable key reads close to zero rather than exactly zero when it sends
+messages that large. It is additive like the counter above — each replica counts the sends it was asked to queue — and mail from an
 account in no organization never moves it. Nothing identifying the account, the organization, the message, or the key
 reaches it.
 

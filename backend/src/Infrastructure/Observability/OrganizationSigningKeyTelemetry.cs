@@ -8,11 +8,12 @@ using MailFathom.Common.Observability;
 
 namespace MailFathom.Infrastructure.Observability;
 
-/// <summary>Publishes how often an organization got no signing key, and how often its mail left unsigned for want of one.</summary>
+/// <summary>Publishes how often an organization got no signing key, and how often its mail left unsigned.</summary>
 /// <remarks>
 /// Neither counter carries an organization: which ones lack a key is what the listing answers, and an identifier per
 /// organization would be a dimension that grows with the deployment. A deployment whose ring is configured and whose
-/// organizations all hold an active key moves neither.
+/// organizations all hold an active key moves the first not at all, and the second only for a message that names no
+/// signable author or that the signature would carry past the deployment's size bound.
 /// </remarks>
 public sealed class OrganizationSigningKeyTelemetry : IOrganizationSigningKeyTelemetry
 {
@@ -30,7 +31,7 @@ public sealed class OrganizationSigningKeyTelemetry : IOrganizationSigningKeyTel
         this.unsignedMessages = Telemetry.Meter.CreateCounter<long>(
             "mailfathom.organization.mail.unsigned",
             unit: "{message}",
-            description: "Messages an organization's mail account sent without the organization's signature, because the organization held no active signing key that could be opened.");
+            description: "Sends an organization's mail account asked to queue without the organization's signature: no active signing key, a private half that did not open, no signable author domain, or a signature that would carry the message past MailDelivery:MaxMessageBytes.");
     }
 
     /// <inheritdoc />
