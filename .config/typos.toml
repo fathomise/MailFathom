@@ -93,6 +93,12 @@
 # because a second corpus is committed by whoever needs different mail and would otherwise fail a check nobody
 # expected. `docs/operations/local-development.md` says how one is read.
 #
+# `backend/tests/Infrastructure.UnitTests/Mail/Signing/SigningIdentityFixtures.cs` is the signing identities the
+# signing tests read: certificates, private keys, PKCS#12 bundles, and armored OpenPGP keys, generated once and
+# committed so that no test generates a key. The file is almost entirely base64, which a dictionary reads as a stream
+# of two-letter words, and no pattern could ignore those runs without also ignoring every long identifier elsewhere.
+# It is excluded whole for the reason the lock file above is, and its few summaries are the price of that.
+#
 # `/design/` is the design the client is built from, and it is the fourth kind: its sample data is Polish mail, people
 # and places written as a person reads them in the application, its artboards name compositions in the same language
 # (`telefon`), and the state inventory and the pairing beside them quote both. The Polish runs through the templates
@@ -106,6 +112,7 @@
 # this one directory at the root.
 extend-exclude = [
   'backend/src/Application/Localization/ApplicationTexts.pl.resx',
+  'backend/tests/Infrastructure.UnitTests/Mail/Signing/SigningIdentityFixtures.cs',
   'backend/tools/SyntheticMail/corpora/',
   '/design/',
   'frontend/pnpm-lock.yaml',
