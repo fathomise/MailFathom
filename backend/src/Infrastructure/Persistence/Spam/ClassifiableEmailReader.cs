@@ -11,9 +11,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MailFathom.Infrastructure.Persistence.Spam;
 
-/// <summary>Reads the account, folder, and keywords of one stored occurrence, and nothing else about it.</summary>
+/// <summary>
+/// Reads the account, the folder a stored occurrence was stored from and the folder it is in now, and its keywords, and
+/// nothing else about it.
+/// </summary>
 /// <remarks>
-/// A bounded projection rather than the entity, for the reason every read model here is one: classification needs four
+/// A bounded projection rather than the entity, for the reason every read model here is one: classification needs five
 /// values, and loading a whole email row would put its subject and its participants into memory to answer a question
 /// about where it lives and how it is marked.
 /// </remarks>

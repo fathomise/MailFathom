@@ -100,7 +100,8 @@ record the same record; what differs is which mail they cover.
 A step just before that pass is not classification at all: [the spam
 floor](../features/spam-classification.md#junk-mail-is-never-below-spam) gives every message in the junk folder or
 carrying `$Junk` at least a spam verdict, on every account whether or not it classifies, so the classification run, the
-rules, and the cut after it never meet such a message below spam. That verdict outlives the placement: on an account
+rules, and the cut after it meet such a message below spam only while a backlog larger than the step's per-run bound is
+still being worked through, which the first run after an upgrade over a large junk folder is. That verdict outlives the placement: on an account
 that classifies, a message the floor raised stays withheld after it leaves the junk folder, until the person marks it
 not spam or a later classification that reaches it decides otherwise.
 

@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Floor;
@@ -169,6 +170,44 @@ public sealed class OrchestratedSpamVerdictFloorTests(MailFathomOrchestrationFix
     }
 
     /// <summary>
+    /// A held account moves a message by its current folder and leaves its binding where it was synchronized from, so the
+    /// placement is read from the folder it is in now: a message moved into junk is selected, one moved out is not.
+    /// </summary>
+    [Fact]
+    public async Task GetCandidatesAsync_MessagesMovedLocallyBetweenFolders_ReadsTheFolderEachIsInNow()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var movedIntoJunk = await StoreWithKeywordsAsync(
+            services,
+            ArchiveFolderAlias,
+            9741,
+            StoredEmailContentAvailability.ExceededSizeLimit,
+            [],
+            cancellationToken);
+        var movedOutOfJunk = await StoreWithKeywordsAsync(
+            services,
+            JunkFolderAlias,
+            9742,
+            StoredEmailContentAvailability.ExceededSizeLimit,
+            [],
+            cancellationToken);
+        var archiveState = await ReadLocalStateAsync(services, movedIntoJunk, cancellationToken);
+        var junkState = await ReadLocalStateAsync(services, movedOutOfJunk, cancellationToken);
+
+        await WriteLocalStateAsync(services, movedIntoJunk, archiveState with { Folder = junkState.Folder }, cancellationToken);
+        await WriteLocalStateAsync(services, movedOutOfJunk, junkState with { Folder = archiveState.Folder }, cancellationToken);
+
+        // Act
+        var candidates = await AllCandidatesAsync(services, Terms(classified: []), cancellationToken);
+
+        // Assert
+        Assert.Contains(candidates, candidate => candidate.Id == movedIntoJunk && candidate.FolderAlias == Junk);
+        Assert.DoesNotContain(candidates, candidate => candidate.Id == movedOutOfJunk);
+    }
+
+    /// <summary>
     /// A message whose content classification will read is left to the arrival job while it is within its wait, and is
     /// selected once the wait has run out; a message with no content stored awaits nothing and is selected either way.
     /// </summary>
@@ -333,6 +372,35 @@ public sealed class OrchestratedSpamVerdictFloorTests(MailFathomOrchestrationFix
                         AppliesRemoteDeletions: true,
                         EvaluatedAt),
                     token),
+            cancellationToken);
+
+        Assert.Equal(PersistenceCommitResult.Committed, commitResult);
+    }
+
+    private static async Task<LocalEmailState> ReadLocalStateAsync(
+        OrchestratedMailFathomServices services,
+        StoredEmailId storedEmailId,
+        CancellationToken cancellationToken)
+    {
+        var state = await services.CommitProducingAsync(
+            (scope, session, token) => scope.GetRequiredService<ILocalEmailStateStore>()
+                .ReadAsync(session, SyntheticMailAccount.Account, storedEmailId, token),
+            cancellationToken);
+
+        Assert.NotNull(state);
+
+        return state;
+    }
+
+    private static async Task WriteLocalStateAsync(
+        OrchestratedMailFathomServices services,
+        StoredEmailId storedEmailId,
+        LocalEmailState state,
+        CancellationToken cancellationToken)
+    {
+        var commitResult = await services.CommitAsync(
+            (scope, session, token) => scope.GetRequiredService<ILocalEmailStateStore>()
+                .WriteAsync(session, SyntheticMailAccount.Account, storedEmailId, state, token),
             cancellationToken);
 
         Assert.Equal(PersistenceCommitResult.Committed, commitResult);

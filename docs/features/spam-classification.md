@@ -246,8 +246,10 @@ not the account classifies — so a new arrival, a message another client moved 
 another client set are raised in the run that read them. Both places read the folder the message is in now rather than
 the one it was synchronized from, so on a held or restoring account a message the person moved into the local junk folder
 is held at spam by a classification run as well as by the step. A message classification still awaits is left to it until the
-[wait](#waiting-is-bounded-and-running-out-of-patience-is-not-a-failure) a verdict is allowed runs out, so a stalled or
-unqueued classification leaves nothing below the floor for longer than that. The step reads at most
+[wait](#waiting-is-bounded-and-running-out-of-patience-is-not-a-failure) a verdict is allowed runs out, and is raised by
+the first synchronization run of its account after that, within the step's per-run bound — so a stalled or unqueued
+classification leaves a message below the floor for the wait and up to one more run, or longer while a backlog above the
+bound is drained. The step reads at most
 `SpamClassification:RunBatchSize` × `SpamClassification:MaxRunBatchesPerPass` messages per run, in identity order, and
 the run after an upgrade reaches the mail stored before the floor existed, so the rule holds for every message rather
 than only for new ones. A message it raised is no candidate afterwards, so a mailbox already at the floor costs one

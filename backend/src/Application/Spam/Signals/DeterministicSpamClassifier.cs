@@ -50,8 +50,11 @@ public sealed class DeterministicSpamClassifier
 
     /// <summary>Reads a verdict out of one message's headers, its junk keywords, and where the mailbox filed it.</summary>
     /// <param name="facts">What the message's headers carried.</param>
-    /// <param name="folderAlias">MailFathom's own name for the folder the occurrence was stored from.</param>
-    /// <param name="isJunkFolder">Whether that folder is the one the account advertises as its junk folder.</param>
+    /// <param name="folderAlias">
+    /// MailFathom's own name for the junk folder the message is in now, which names the placement signal; where it is in no
+    /// junk folder, the alias of the folder it was stored from, which nothing reads.
+    /// </param>
+    /// <param name="isJunkFolder">Whether the folder the message is in now is the one the account advertises as its junk folder.</param>
     /// <param name="keywords">The keywords the message carries in its mailbox.</param>
     /// <param name="ownActs">What this deployment's own verdicts already did to the message, none of which is evidence.</param>
     /// <returns>The verdict, the assessment when a source carried both numbers, and every observed fact.</returns>
