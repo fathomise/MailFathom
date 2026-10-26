@@ -4,7 +4,7 @@
 
 import { expect, type Locator, type Page } from '@playwright/test';
 
-import { holdTheClock, messageRegion, openSignedIn, test } from './client.harness';
+import { holdTheClock, messageRegion, openSignedIn, settled, test } from './client.harness';
 import * as notifications from './fixtures/notifications';
 
 // The notification centre as a person uses it: a notification arriving while they work, opening one to what it is
@@ -98,8 +98,13 @@ test('carries a notice dragged aside, brings it back let go short, and lets it g
     const notice = page.getByRole('list', { name: 'Notices' }).getByRole('listitem').filter({
         hasText: notifications.arrivingNotification.body,
     });
-    // The card is what moves, and the notice it stands in does not: it is read through the one control it draws.
+    // The card is what moves, and the notice it stands in does not: it is read through the one control it draws, once
+    // it has finished arriving, since it slides in from the side.
     const card = notice.getByRole('button', { name: /Show$/u });
+
+    await expect(card).toBeVisible();
+    await settled(page);
+
     const standing = await card.boundingBox();
 
     expect(standing).not.toBeNull();
@@ -113,6 +118,7 @@ test('carries a notice dragged aside, brings it back let go short, and lets it g
     await page.mouse.move(across.x + 60, across.y, { steps: 6 });
     await expect.poll(async () => (await card.boundingBox())?.x ?? left).toBeGreaterThan(left + 50);
     await page.mouse.up();
+    await settled(page);
     await expect.poll(async () => Math.round((await card.boundingBox())?.x ?? 0)).toBe(Math.round(left));
 
     // Past it the card goes, and the notification it stood for is neither opened nor read.
