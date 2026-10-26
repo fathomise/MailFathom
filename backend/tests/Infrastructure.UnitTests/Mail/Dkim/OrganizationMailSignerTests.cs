@@ -4,6 +4,7 @@
 
 using System.Text;
 using MailFathom.Application.Access.Organizations.SigningKeys;
+using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Common;
 using MailFathom.Domain.Accounts;
 using MailFathom.Infrastructure.DataEncryption;
@@ -220,6 +221,43 @@ public sealed class OrganizationMailSignerTests
         this.telemetry.Received(1).MessageSentUnsigned();
     }
 
+    /// <summary>A ring key removed from configuration while a signing key is still sealed under it stops the signature, never the mail.</summary>
+    [Fact]
+    public async Task SignAsync_AKeySealedUnderARingKeyNoLongerConfigured_SendsUnsignedAndCountsIt()
+    {
+        // Arrange
+        var sealedUnderRetiredRingKey = await CreateEncryptor("2025-01").SealAsync(
+            OrganizationSigningKeyMinter.BindingFor(KeyId),
+            this.privateKey.GetEncoded(),
+            TestContext.Current.CancellationToken);
+        this.keys.ReadAsync(Account, Arg.Any<CancellationToken>()).Returns(AccountSigningKeyReading.Active(KeyId, sealedUnderRetiredRingKey));
+        var rawMime = ComposeMessage();
+
+        // Act
+        var signed = await this.CreateSigner().SignAsync(Account, rawMime, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(rawMime, signed.ToArray());
+        this.telemetry.Received(1).MessageSentUnsigned();
+    }
+
+    /// <summary>The bound was measured on the composed bytes, so a signature that would carry them past it is left off rather than sent over it.</summary>
+    [Fact]
+    public async Task SignAsync_AMessageTheSignatureWouldCarryPastTheBound_SendsUnsignedAndCountsIt()
+    {
+        // Arrange
+        await this.HoldActiveKeyAsync();
+        var rawMime = ComposeMessage();
+        var withinOnlyUnsigned = rawMime.Length + 16;
+
+        // Act
+        var signed = await this.CreateSigner(withinOnlyUnsigned).SignAsync(Account, rawMime, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(rawMime, signed.ToArray());
+        this.telemetry.Received(1).MessageSentUnsigned();
+    }
+
     /// <summary>A message naming no author has no domain for <c>d=</c>, and is sent unsigned rather than refused.</summary>
     [Fact]
     public async Task SignAsync_AMessageNamingNoAuthor_SendsUnsignedAndCountsIt()
@@ -236,14 +274,14 @@ public sealed class OrganizationMailSignerTests
         this.telemetry.Received(1).MessageSentUnsigned();
     }
 
-    private static FieldEncryptor CreateEncryptor()
+    private static FieldEncryptor CreateEncryptor(string ringKeyId = RingKeyId)
     {
         var resolver = new ProvisionedMaterialResolver();
         resolver.ProvisionText("plaintext:active", Convert.ToBase64String([.. Enumerable.Repeat((byte)0x11, AesGcmEnvelope.KeySizeInBytes)]));
 
         var settings = new DataEncryptionKeyRingSettings(
-            RingKeyId,
-            [new DataEncryptionKeyReference(RingKeyId, new ConfiguredSecret { Name = "data-key-active", SecretReference = "plaintext:active" })]);
+            ringKeyId,
+            [new DataEncryptionKeyReference(ringKeyId, new ConfiguredSecret { Name = "data-key-active", SecretReference = "plaintext:active" })]);
 
         return new FieldEncryptor(new DataEncryptionKeyRing(() => settings, resolver));
     }
@@ -291,7 +329,18 @@ public sealed class OrganizationMailSignerTests
         this.keys.ReadAsync(Account, Arg.Any<CancellationToken>()).Returns(AccountSigningKeyReading.Active(KeyId, sealedPrivateKey));
     }
 
-    private OrganizationMailSigner CreateSigner() => new(this.keys, this.fieldEncryptor, this.telemetry);
+    private OrganizationMailSigner CreateSigner(long maxMessageBytes = 1_000_000) => new(
+        this.keys,
+        this.fieldEncryptor,
+        this.telemetry,
+        new OutgoingEmailBounds
+        {
+            MaxRecipientCount = 10,
+            MaxBodyCharacters = 10_000,
+            MaxAttachmentCount = 0,
+            MaxAttachmentBytes = 0,
+            MaxMessageBytes = maxMessageBytes,
+        });
 
     /// <summary>Verifies the way the receiving side will: a <c>DKIM-Signature</c> rebuilt from the value, against the public half.</summary>
     private bool Verifies(MimeMessage message, Header signature, string signingDomain = AuthorDomain)

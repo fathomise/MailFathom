@@ -80,7 +80,10 @@ an eight-bit body.
 
 **A send is never refused for want of a signature.** Where the organization holds no active key — no key ring, a mint
 that has not run yet, or a sealed private half the ring can no longer open — the message leaves unsigned and
-[`mailfathom.organization.mail.unsigned`](telemetry.md#organizations-left-without-a-signing-key) counts it.
+[`mailfathom.organization.mail.unsigned`](telemetry.md#organizations-left-without-a-signing-key) counts it. So does a
+message composed within a few hundred bytes of
+[`MailDelivery:MaxMessageBytes`](configuration-mail.md#maildelivery), which the signature header would carry past the
+bound: the bound is the operator's ceiling on what is stored and sent, and the signature never stretches it.
 
 ## Rotation
 

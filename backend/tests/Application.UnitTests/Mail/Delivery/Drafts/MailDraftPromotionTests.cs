@@ -92,21 +92,36 @@ public sealed class MailDraftPromotionTests
             Arg.Any<CancellationToken>());
     }
 
-    /// <summary>A draft that is only stored is not sent, so it is never signed: the copy in the drafts folder is not the message that leaves.</summary>
+    /// <summary>
+    /// A draft that is only stored is not sent, so it is never signed: the signer the send reaches records nothing while
+    /// the draft is only saved, and signing the send leaves the copy in the drafts store as it was written.
+    /// </summary>
     [Fact]
-    public async Task SaveAsync_ADraftOnlyStored_IsNeverSigned()
+    public async Task PromoteAsync_ADraftSavedThenSent_SignsTheSendAndNeverTheStoredDraft()
     {
         // Arrange
+        const string signature = "MailFathom-Organization-Signature: v=1\r\n";
         var harness = Harness();
-        var signer = OrganizationMailSigners.Adding("MailFathom-Organization-Signature: v=1\r\n");
-        _ = PromotionOver(harness, signer: signer);
+        var contentStore = ContentStores.Substituted();
+        var signer = OrganizationMailSigners.Adding(signature);
+        var promotion = PromotionOver(harness, contentStore: contentStore, signer: signer);
+        var draft = await SaveAsync(harness, "the message as written");
+        var requestsWhileOnlyStored = signer.Requests.Count;
+        var storedDraft = harness.Contents.Peek(draft.Id).ToArray();
 
         // Act
-        var draft = await SaveAsync(harness, "the message as written");
+        var record = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
 
         // Assert
-        Assert.Empty(signer.Requests);
-        Assert.StartsWith("Subject: a draft", Encoding.ASCII.GetString(harness.Contents.Peek(draft.Id).Span), StringComparison.Ordinal);
+        Assert.Equal(0, requestsWhileOnlyStored);
+        Assert.StartsWith("Subject: a draft", Encoding.ASCII.GetString(storedDraft), StringComparison.Ordinal);
+        Assert.Single(signer.Requests);
+        Assert.Equal(storedDraft, harness.Contents.Peek(draft.Id).ToArray());
+        await contentStore.Received(1).SaveOutgoingContentAsync(
+            Arg.Any<IPersistenceSession>(),
+            record.Id,
+            Arg.Is<PlacedEmailContent>(placed => Encoding.ASCII.GetString(placed!.RawMime.ToArray()).StartsWith(signature, StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
     }
 
     /// <summary>Asking twice queues one message, because the draft already names the record the first ask wrote.</summary>

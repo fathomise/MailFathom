@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using MailFathom.Application.Access.Organizations.SigningKeys;
+using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Signing;
 using MailFathom.Domain.Accounts;
 using MailFathom.Infrastructure.DataEncryption;
@@ -37,10 +38,12 @@ namespace MailFathom.Infrastructure.Mail.Dkim;
 /// <param name="keys">Reads the sending account's organization and its active key.</param>
 /// <param name="fieldEncryptor">Opens the key's sealed private half.</param>
 /// <param name="telemetry">Counts a message an organization's account sent unsigned.</param>
+/// <param name="bounds">The deployment's bound on a composed message, which the signature header may not carry it past.</param>
 internal sealed class OrganizationMailSigner(
     IAccountSigningKeyReader keys,
     FieldEncryptor fieldEncryptor,
-    IOrganizationSigningKeyTelemetry telemetry)
+    IOrganizationSigningKeyTelemetry telemetry,
+    OutgoingEmailBounds bounds)
     : IOrganizationMailSigner
 {
     /// <summary>The header the signature is written in.</summary>
@@ -68,34 +71,20 @@ internal sealed class OrganizationMailSigner(
     {
         var reading = await keys.ReadAsync(account, cancellationToken);
 
-        if (!reading.BelongsToOrganization)
+        if (reading is AccountSigningKeyReading.Unaffiliated)
         {
             return rawMime;
         }
 
-        if (reading.ActiveKey is not { } key
-            || await this.OpenAsync(key, cancellationToken) is not { } privateHalf)
+        if (reading is AccountSigningKeyReading.SigningKey key
+            && await this.SignWithAsync(key, rawMime, cancellationToken) is { } signed)
         {
-            telemetry.MessageSentUnsigned();
-
-            return rawMime;
+            return signed;
         }
 
-        try
-        {
-            if (Sign(rawMime, key.KeyId, privateHalf) is { } signed)
-            {
-                return signed;
-            }
+        telemetry.MessageSentUnsigned();
 
-            telemetry.MessageSentUnsigned();
-
-            return rawMime;
-        }
-        finally
-        {
-            CryptographicOperations.ZeroMemory(privateHalf);
-        }
+        return rawMime;
     }
 
     /// <summary>Signs a message with an Ed25519 private key, answering with the signature header followed by the message.</summary>
@@ -153,6 +142,33 @@ internal sealed class OrganizationMailSigner(
         catch (ArgumentException)
         {
             return null;
+        }
+    }
+
+    /// <summary>Signs a message with an organization's key, answering with nothing where the key or the message cannot be signed.</summary>
+    /// <remarks>
+    /// A message the composer measured within the deployment's bound is refused a signature that would carry it past
+    /// the bound, rather than being stored and sent larger than the operator allowed.
+    /// </remarks>
+    private async Task<byte[]?> SignWithAsync(
+        AccountSigningKeyReading.SigningKey key,
+        ReadOnlyMemory<byte> rawMime,
+        CancellationToken cancellationToken)
+    {
+        if (await this.OpenAsync(key, cancellationToken) is not { } privateHalf)
+        {
+            return null;
+        }
+
+        try
+        {
+            return Sign(rawMime, key.KeyId, privateHalf) is { } signed && signed.Length <= bounds.MaxMessageBytes
+                ? signed
+                : null;
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(privateHalf);
         }
     }
 

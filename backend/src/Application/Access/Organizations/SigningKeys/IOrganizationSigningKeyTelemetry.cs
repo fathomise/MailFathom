@@ -12,6 +12,10 @@ public interface IOrganizationSigningKeyTelemetry
     void MintRefusedWithoutKeyRing();
 
     /// <summary>Records that a message an organization's account sent left unsigned, because the organization held no key that could sign it.</summary>
-    /// <remarks>Counted once per message, so it rises with the mail an organization sends for as long as nothing signs it.</remarks>
+    /// <remarks>
+    /// Counted once per send the outbox is asked to queue, before it knows whether the request is new: a repeat of a
+    /// request already queued, and an enqueue that then fails to commit, count again although no further message
+    /// leaves. It rises with the mail an organization sends for as long as nothing signs it.
+    /// </remarks>
     void MessageSentUnsigned();
 }
