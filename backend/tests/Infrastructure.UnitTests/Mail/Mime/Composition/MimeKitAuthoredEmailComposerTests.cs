@@ -122,6 +122,87 @@ public sealed class MimeKitAuthoredEmailComposerTests
         Assert.Equal(ComposedAt, Parse(composition).Date);
     }
 
+    /// <summary>A sent message names the product that wrote it, and no version a recipient could fingerprint a build by.</summary>
+    [Fact]
+    public void Compose_AuthoredMessage_NamesTheProductAsItsUserAgentAndNothingElse()
+    {
+        // Arrange
+        var composer = CreateComposer();
+
+        // Act
+        var composition = composer.Compose(Account, SyntheticUser.Deployment, Requester(), Authored(), Capabilities());
+
+        // Assert
+        var headers = Parse(composition).Headers;
+        Assert.Equal("Fathomise MailFathom", Assert.Single(UserAgentsOf(headers)));
+        Assert.False(headers.Contains(HeaderId.XMailer));
+    }
+
+    /// <summary>A draft carries the same identification a send does, since a draft is what a send is promoted from.</summary>
+    [Fact]
+    public void ComposeDraft_AuthoredMessage_NamesTheProductAsItsUserAgent()
+    {
+        // Arrange
+        var composer = CreateComposer();
+
+        // Act
+        var composition = composer.ComposeDraft(Account, Authored(), Capabilities());
+
+        // Assert
+        Assert.Equal("Fathomise MailFathom", Assert.Single(UserAgentsOf(ParseDraft(composition).Headers)));
+    }
+
+    /// <summary>An occasion of a recurring send composed from a draft that already names the product names it once.</summary>
+    [Fact]
+    public void RecomposeAsOccurrence_DraftAlreadyNamingTheProduct_NamesItOnce()
+    {
+        // Arrange
+        var composer = CreateComposer();
+        var draft = composer.ComposeDraft(Account, Authored(), Capabilities()).Draft!;
+
+        // Act
+        var composition = composer.RecomposeAsOccurrence(
+            Account,
+            SyntheticUser.Deployment,
+            Requester(),
+            [Recipient("anna@example.test")],
+            draft.RawMime,
+            Capabilities());
+
+        // Assert
+        Assert.Equal("Fathomise MailFathom", Assert.Single(UserAgentsOf(Parse(composition).Headers)));
+    }
+
+    /// <summary>
+    /// A draft stored before messages named their product, or carrying another product's name, leaves naming this one.
+    /// </summary>
+    [Fact]
+    public void RecomposeAsOccurrence_DraftNamingAnotherUserAgent_NamesTheProductInstead()
+    {
+        // Arrange
+        var composer = CreateComposer();
+        using var stored = new MimeMessage();
+        stored.From.Add(new MailboxAddress("MailFathom", "mailfathom@example.test"));
+        stored.To.Add(new MailboxAddress("Anna", "anna@example.test"));
+        stored.Subject = "Quarterly report";
+        stored.Headers.Add(HeaderId.UserAgent, "Another Client/2.1");
+        stored.Body = new TextPart("plain") { Text = "The report is attached." };
+        using var draftMime = new MemoryStream();
+        stored.WriteTo(draftMime, TestContext.Current.CancellationToken);
+
+        // Act
+        var composition = composer.RecomposeAsOccurrence(
+            Account,
+            SyntheticUser.Deployment,
+            Requester(),
+            [Recipient("anna@example.test")],
+            draftMime.ToArray(),
+            Capabilities());
+
+        // Assert
+        Assert.Equal("Fathomise MailFathom", Assert.Single(UserAgentsOf(Parse(composition).Headers)));
+    }
+
     /// <summary>
     /// One mailbox is offered once. Somebody an author named both as a primary recipient and as a blind one was meant to
     /// be seen, so the more visible header keeps them and the later mention is dropped.
@@ -1143,6 +1224,16 @@ public sealed class MimeKitAuthoredEmailComposerTests
         using var stream = new MemoryStream(composition.Draft!.RawMime.ToArray());
 
         return MimeMessage.Load(stream);
+    }
+
+    private static string[] UserAgentsOf(HeaderList headers) =>
+        [.. headers.Where(static header => header.Id is HeaderId.UserAgent).Select(static header => header.Value)];
+
+    private static OutgoingRecipient Recipient(string address)
+    {
+        Assert.True(EmailAddress.TryCreate(null, address, out var parsed));
+
+        return OutgoingRecipient.Create(parsed, OutgoingRecipientRole.To);
     }
 
     private static MimeKitAuthoredEmailComposer CreateComposer() => CreateComposer(Bounds());

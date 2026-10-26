@@ -330,7 +330,11 @@ authored contract carries no sender at all, which is a stronger guarantee than v
 comes from the account's `Delivery` block instead. The `Message-ID` is minted here from a cryptographically secure
 random half and the account's own domain, so nothing outside this deployment can predict the identity of a message it
 has not seen and forge a reply into its thread. The `Date` comes from the injected clock, as every timestamp in this
-system does.
+system does. Every message names the product that wrote it as `User-Agent: Fathomise MailFathom`, and nothing beyond
+the name: a version, a runtime, or a platform would tell every recipient which build a deployment runs, which is a
+fingerprint nobody reading the header needs. No `X-Mailer` is written beside it. A send, a draft, and an occasion of a
+recurring send all carry it exactly once, because it is written where each of them is serialized and replaces whatever
+a stored draft carried.
 
 **The threading headers are owned here too.** `In-Reply-To` and `References` are what every mail client threads by and are
 the whole of what it threads by, so a message answering another carries both or neither. Nothing above the composer
@@ -1316,7 +1320,8 @@ bytes back with the same parser this system reads arriving mail with. What they 
 field it names, the sending address and the minted identity against an account that supplied neither, one mailbox named
 in two headers becoming one offer in the more visible one, a blind recipient appearing in the envelope and in none of
 the transmitted bytes, an eight-bit body transfer-encoded when the server takes none, the two threading headers written
-together or not at all, and the line ending a stored message carries — which matters precisely because the bytes are
+together or not at all, one `User-Agent` naming the product on a send, a draft, and an occasion recomposed from a draft
+that carried it already or carried another, and the line ending a stored message carries — which matters precisely because the bytes are
 transmitted verbatim rather than re-serialized.
 
 Resolving a recipient named as a person is settled in the unit suite too, against an in-memory book rather than a
