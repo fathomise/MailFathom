@@ -245,7 +245,7 @@ screenshot shows none of this, so the numbers are the contract the client matche
 | `scrim` | the colour fades up from transparent, base, ease-out | fades back to transparent, base, ease-in | every backdrop: the drawer, both sheets, every dialog, the context menu, Settings on two panes |
 | `sheet` | from 100 % below its place, slow, ease-sheet | back down 100 %, slow, ease-in | the thread actions sheet (`threadSheetOpen`), the *More* sheet (`moreOpen`), and on the phone every full-screen surface: compose, the form dialogs, Settings on one pane; the AI reading wherever it fills the screen, the fold included |
 | `drawer` | from 100 % to the left, slow, ease-sheet | back out to the left, slow, ease-in | the folder list where it is a drawer (`showSide` under `drawer`) |
-| `pop` | from opacity 0 at 96 % scale, fast, ease-out | to opacity 0 at 96 %, fast, ease-in | the context menu (`ctxMenuOpen`), the user menu (`userMenuOpen`), the return pill (`convReturnShown`), every short question at every width — discarding a draft (`closeAskOpen`), the send warnings (`sendAskOpen`), deleting a folder, a conversation or an item (`delFolderOpen`, `deleteConvAskOpen`, `confirmDelOpen`), closing every tab (`closeAllAsk`), aborting a running operation (`cancelAskOpen`), marking spam not spam (`notSpamAskOpen`), showing the original message (`htmlAskOpen`), the composer's changed-context mark (`composeCtxChanged`), which arrives this way and goes at once rather than leaving — and off the phone every dialog (new folder, new task, new event, new contact, reminder, move, the spam chooser, AI summary, event) and Settings on two panes |
+| `pop` | from opacity 0 at 96 % scale, fast, ease-out | to opacity 0 at 96 %, fast, ease-in | the context menu (`ctxMenuOpen`), the user menu (`userMenuOpen`), the return pill (`convReturnShown`), every short question at every width — discarding a draft (`closeAskOpen`), the send warnings (`sendAskOpen`), deleting a folder, a conversation or an item (`delFolderOpen`, `deleteConvAskOpen`, `confirmDelOpen`), closing every tab (`closeAllAsk`), aborting a running operation (`cancelAskOpen`), marking spam not spam (`notSpamAskOpen`), showing the original message (`htmlAskOpen`), following a link that leaves MailFathom (`linkAskOpen`), the composer's changed-context mark (`composeCtxChanged`), which arrives this way and goes at once rather than leaving — and off the phone every dialog (new folder, new task, new event, new contact, reminder, move, the spam chooser, AI summary, event) and Settings on two panes |
 | `rise` | from opacity 0, 18 px below, base, ease-out | back down 18 px to opacity 0, base, ease-in | the composer where it docks over the screen rather than filling a pane, and the reply drafter (`replyDock`) |
 | `fade` | from opacity 0, base, ease-out | to opacity 0, base, ease-in | the composer in a pane, the list replacing its skeleton (`listReady`), the composer body on restore (`composeExpanded`) |
 | `veil` | at once | fades out, base, ease-out | the message skeleton (`msgLoading`) laid over a thread that is already there |
@@ -646,6 +646,7 @@ account (`travel1`, `spamChairs`), and nobody (`spamEstate`, `spamSignals`). DMA
 | HTML view open | `htmlOpen` | the `code` control on a message head, titled *Show the original message* |
 | HTML mode warning | `htmlModeWarn` | `st.msgView === "html"`, chosen in Settings |
 | HTML confirmation | `htmlAskOpen` | opening the original from a message — *Show the original message?*, answered by *Stay in simplified* or *Show the original*. A message marked spam answers with a toast instead (§ *Spam*, *Read-only spam*) |
+| A link inside the original | `embedLinks` / `LINK_SCRIPT` | the original's frame, inline or in the preview, follows no link itself: a press on a link, or on a picture inside one, is handed to the page and asks as any other link does (§ *A link that leaves MailFathom*). *Tickets Kraków-Berlin* carries such a picture, a hotel banner that goes to another host than the sender's |
 
 ### Tabs
 
@@ -685,6 +686,7 @@ menu's *Tab mode* switch is turned on at a width of at least 1180 px**.
 | **No proposals left** | `calNoProposals` | every proposed slot has been dealt with — reachable only by clearing them all |
 | Event open | `eventOpen` | an event is pressed |
 | Event has a source | `eventHasSrc` | the event carries the mail it came from |
+| Event has a meeting link | `eventHasLink` / `eventLink` | the event carries a link to join it: a `videocam` glyph, *Meeting link* in 12 px `--muted`, and the link's host as an underlined `--accent-d` link under it. Pressed, it goes where every link that leaves MailFathom goes (§ *A link that leaves MailFathom*) — *Fabrikam rollout review* asks, *Rollout status with Piotr* is on a trusted domain and opens at once |
 | Event has reminders | `eventRemAny` / `eventRemNone` | the reminder list for that event |
 | Parsed from a message | `evParsedShown` | the event was read out of mail |
 | New event | `newEventOpen` | the new-event control. Title, a description (`evNotesRef`), *All day*, then *Starts* and *Ends* each a day and a time — the same fields as editing one (`c_edit` on the client-states artboard) — with how long it lasts under them, reminders, and *Generate* filling the fields from one sentence |
@@ -766,6 +768,8 @@ cites.* where the cited mail does not carry it (`linkWarnings`). A link the map 
 so it takes the second warning. An answer carries no picture: the service turns one into a link before the client
 sees it, so the template has nothing to draw for one. `c-links` shows both links; a mail body passes no map, so its
 links draw as before.
+Pressed, a link in an answer asks as every link that leaves MailFathom does, and the question repeats the warnings
+drawn beside it (§ *A link that leaves MailFathom*).
 
 A mail body in the simplified view now draws its runs the same way: a paragraph's or a
 list item's runs sit side by side with no whitespace between them, so only a run's own text separates
@@ -915,6 +919,22 @@ to a folder and marking as read stay a one-line `Suggested action`.
 Every label in the prototype is English, among them the Settings tabs *Profile* and *Application*, the user menu's
 *Sign out*, and the single-pane state toggle beside the thread head, *Hide panels - correspondence only* against
 *Show thread panels* — and `design/parity.json` presses two of those under their English names.
+
+### A link that leaves MailFathom
+
+**No link that leaves MailFathom opens on the press that found it.** A text link or a picture inside one, an `http` or
+`https` address, asks first wherever it is drawn — the simplified text of a message, its original, an agent's answer,
+an event's detail, and every surface added after them, because the rule is one interception in the artboard's logic
+(`onLinkClick`, and the frame's `LINK_SCRIPT` for the original) rather than a dialog any screen owns. A screen that
+draws a link therefore draws nothing extra for it. Spam is outside the rule rather than an exception to it: its links
+are words, never anchors (§ *Spam*, *A link in spam*), so nothing in it can be pressed.
+
+| State | Flag | Reveal |
+|---|---|---|
+| The question | `linkAskOpen` | a link pressed whose host the person does not trust: a short question, `pop` at every width, 400 px off touch and 344 px under a finger. An `open_in_new` glyph in `--warn` beside the title, *Open this link?*, or *Open the link behind this picture?* where what was pressed is a picture, over *It leaves MailFathom and opens in your browser. Open it only if you expected to go there.* Under it, on `--sub` inside a `--line` border, the host in 15 px semibold and the whole address beneath it in 12 px Geist Mono `--muted`, wrapped anywhere and selectable, so a lookalike host or a long tracking address is read rather than guessed. Then *Cancel*, which takes focus, beside *Open link* in `--accent`, both 34 px tall and 44 px under a finger. *Cancel*, its scrim, *Escape* and back close it and nothing opens |
+| What the link already said | `linkAskWarnings` | each warning the link carries, one line each in 13 px `--warn-text` behind a `warning` glyph: an agent's answer passes its judgement on (`data-link-warn` — *This link does not go where its words say. It goes to …*, *This address is in none of the messages this answer cites.*), and a link carrying no judgement whose own words name another host than the one it goes to says so — *Its words name travel.example, but it goes to click.travelmail.example.*, which the tracked check-in link in *Tickets Kraków-Berlin* draws A picture has no words to read, so it carries none of the second kind |
+| Opened | `confirmLinkAsk` | *Open link*: the question closes and the address opens in a new browser context with no referrer (`noopener`, `noreferrer`), so the page reached learns neither where it was linked from nor how to reach back |
+| A trusted host | `hostTrusted` / `trustedLinkDomains` | the host is on the person's own list of trusted domains, or a subdomain of one: the link opens at once, the same way *Open link* opens it, and no question is drawn. The sample list is *nordwind.example*, so *files.nordwind.example* in *Trade show materials 24.09* opens straight away, and *northwind-billing.example*, which only borrows a name like it, still asks. The list is kept per person by the service, and **no screen edits it yet** — Settings draws nothing for it |
 
 ### The settings panel
 
@@ -1210,6 +1230,10 @@ clicking a preview.
   that screen is designing something the design has not settled, and it is drawn in `design/` — ahead of
   the client or in the pull request that builds it — rather than invented in the client. The folder column alone has one: `m_folders` in the Client States file draws
   *No account configured*, which is the column's state and not the application's.
+- **A trusted link opening** (`hostTrusted`). A link to a host on the person's trusted list opens a new browser
+  context and draws nothing in the application at all, so the only evidence of the path is that no question
+  appeared; the meeting link of *Rollout status with Piotr* and the materials folder in *Trade show materials
+  24.09* take it.
 - **A rejected profile photo** (`photoError`). Set only by choosing a file over 1 MB; no control in
   the prototype can produce one.
 - **Every tab state** (`tabsBarShown`, `noTabsOpen`, `convBarShown`, `closeAllAsk`). Two conditions at

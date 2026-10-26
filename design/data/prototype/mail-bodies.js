@@ -32,13 +32,13 @@ MailFathomDesign.data.mailBodies = {
    </td></tr>
    <tr><td style="padding:18px 28px 26px 28px">
      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-       <td style="background:#14293f;border-radius:3px"><a href="#" style="display:inline-block;padding:11px 20px;color:#ffffff;text-decoration:none;font-family:Arial,sans-serif;font-size:13px">Open in the document portal</a></td>
+       <td style="background:#14293f;border-radius:3px"><a href="https://portal.contoso.example/documents/addendum-3" style="display:inline-block;padding:11px 20px;color:#ffffff;text-decoration:none;font-family:Arial,sans-serif;font-size:13px">Open in the document portal</a></td>
        <td style="padding-left:12px;font-family:Arial,sans-serif;font-size:12px;color:#8a94a6">valid 14 days</td>
      </tr></table>
    </td></tr>
    <tr><td style="border-top:1px solid #e3e8ee;padding:16px 28px;font-family:Arial,sans-serif;font-size:11px;line-height:1.6;color:#8a94a6">
      Contoso Ltd, 51 Prosta St, 00-838 Warsaw · Reg. 0000123456 · VAT 525-000-00-00<br>
-     This message contains confidential information. <a href="#" style="color:#4a6fa5">Data processing policy</a>
+     This message contains confidential information. <a href="https://contoso.example/privacy" style="color:#4a6fa5">Data processing policy</a>
    </td></tr>
   </table>
  </td></tr>
@@ -92,7 +92,7 @@ MailFathomDesign.data.mailBodies = {
     </div>
   </td></tr>
   <tr><td style="background:#f7f9fb;border-top:1px solid #e3e8ee;padding:14px 24px;font-size:11px;color:#9aa5b1;line-height:1.6">
-    Business Bank plc · helpline 801 000 000 · <a href="#" style="color:#0d4f3c">Terms</a> · <a href="#" style="color:#0d4f3c">Unsubscribe from alerts</a>
+    Business Bank plc · helpline 801 000 000 · <a href="https://businessbank.example/terms" style="color:#0d4f3c">Terms</a> · <a href="https://businessbank.example/alerts/unsubscribe" style="color:#0d4f3c">Unsubscribe from alerts</a>
   </td></tr>
  </table>
 </div>` },
@@ -122,7 +122,8 @@ MailFathomDesign.data.mailBodies = {
     <div style="margin-top:18px;padding:12px 14px;background:#fdf0e4;border-left:3px solid #d9a441;font-size:13px;line-height:1.6">
      Online check-in opens <strong>11.09 at 07:40</strong> and closes 2 h before departure.
     </div>
-    <div style="margin-top:18px"><a href="#" style="display:inline-block;background:#14293f;color:#ffffff;text-decoration:none;padding:12px 22px;font-size:13px">Check in online</a></div>
+    <div style="margin-top:18px"><a href="https://travel.example/checkin/7QX4MB" style="display:inline-block;background:#14293f;color:#ffffff;text-decoration:none;padding:12px 22px;font-size:13px">Check in online</a></div>
+    <div style="margin-top:20px"><a href="https://travel-deals.example/berlin?ref=7QX4MB"><img width="552" alt="Hotels in Berlin near the airport from 79 EUR a night" style="display:block;width:100%;max-width:552px;border:0" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="552" height="132" viewBox="0 0 552 132"><rect width="552" height="132" fill="#1f3b57"/><rect x="392" width="160" height="132" fill="#d9a441"/><text x="24" y="54" font-family="Arial,sans-serif" font-size="22" font-weight="bold" fill="#ffffff">Staying in Berlin?</text><text x="24" y="84" font-family="Arial,sans-serif" font-size="14" fill="#c9d6e3">Hotels near the airport from 79 EUR a night</text><text x="472" y="74" text-anchor="middle" font-family="Arial,sans-serif" font-size="15" font-weight="bold" fill="#14293f">Book now</text></svg>')}"></a></div>
   </td></tr>
   <tr><td style="background:#f7f9fb;border-top:1px solid #e3e8ee;padding:14px 24px;font-size:11px;color:#9aa5b1">Travel Desk · bookings@travel.example · free changes up to 24 h before departure</td></tr>
  </table>
@@ -162,9 +163,9 @@ MailFathomDesign.data.mailBodies = {
     <div style="border:1px solid #e3e8ee;background:#f7f9fb;padding:14px 16px;font-size:13px;line-height:1.6;color:#3e4c59">
      <strong>Printer deadline: 10.09, 12:00.</strong> After that, a 35% rush surcharge applies.
     </div>
-    <div style="margin-top:16px"><a href="#" style="display:inline-block;background:#2b5079;color:#ffffff;text-decoration:none;padding:11px 20px;font-size:13px">Open the materials folder</a></div>
+    <div style="margin-top:16px"><a href="https://files.nordwind.example/trade-show-2409" style="display:inline-block;background:#2b5079;color:#ffffff;text-decoration:none;padding:11px 20px;font-size:13px">Open the materials folder</a></div>
   </td></tr>
-  <tr><td style="border-top:1px solid #eef1f5;padding:14px 26px;font-size:11px;color:#9aa5b1">Sent to: sales team, marketing · <a href="#" style="color:#2b5079">unsubscribe</a></td></tr>
+  <tr><td style="border-top:1px solid #eef1f5;padding:14px 26px;font-size:11px;color:#9aa5b1">Sent to: sales team, marketing · <a href="https://lists.nordwind.example/unsubscribe" style="color:#2b5079">unsubscribe</a></td></tr>
  </table>
 </div>` },
 
@@ -186,7 +187,7 @@ MailFathomDesign.data.mailBodies = {
    </table>
    <p style="font-size:12px;color:#7b8794;line-height:1.7;margin:16px 0 0 0">Account: <span style="font-family:monospace">DE27 1140 2004 0000 3002 01</span><br>Please quote the invoice number in the reference.</p>
   </td></tr>
-  <tr><td style="padding:16px 26px 24px 26px"><a href="#" style="display:inline-block;background:#14293f;color:#ffffff;text-decoration:none;padding:11px 22px;font-size:13px">Download PDF</a></td></tr>
+  <tr><td style="padding:16px 26px 24px 26px"><a href="https://billing.hostingcloud.example/invoices/07-2026.pdf" style="display:inline-block;background:#14293f;color:#ffffff;text-decoration:none;padding:11px 22px;font-size:13px">Download PDF</a></td></tr>
   <tr><td style="background:#f7f9fb;border-top:1px solid #e3e8ee;padding:13px 26px;font-size:11px;color:#9aa5b1">Cloud Provider Ltd · VAT 701-000-00-00 · billing@cloud.example</td></tr>
  </table>
 </div>` },
@@ -216,7 +217,7 @@ MailFathomDesign.data.mailBodies = {
    </table>
    <div style="margin:18px 0 4px 0;padding:12px 14px;background:#f4f7fa;border-left:3px solid #1f3b57;font-size:13px;line-height:1.6">To decide: the UAT window. I suggest 15–19.09 so we finish before the training.</div>
   </td></tr>
-  <tr><td style="padding:14px 24px 22px 24px"><a href="#" style="display:inline-block;background:#1f3b57;color:#ffffff;text-decoration:none;padding:11px 20px;font-size:13px">Open the sprint board</a></td></tr>
+  <tr><td style="padding:14px 24px 22px 24px"><a href="https://boards.fabrikam.example/rollout-phase-2" style="display:inline-block;background:#1f3b57;color:#ffffff;text-decoration:none;padding:11px 20px;font-size:13px">Open the sprint board</a></td></tr>
   <tr><td style="background:#f7f9fb;border-top:1px solid #e3e8ee;padding:13px 24px;font-size:11px;color:#9aa5b1">Generated automatically every Monday · rollout team</td></tr>
  </table>
 </div>` },
@@ -281,8 +282,8 @@ MailFathomDesign.data.mailBodies = {
   </td></tr>
   <tr><td style="padding:12px 26px 24px 26px">
    <table cellpadding="0" cellspacing="0"><tr>
-    <td style="background:#14293f"><a href="#" style="display:inline-block;padding:11px 20px;color:#ffffff;text-decoration:none;font-size:13px">Accept option B</a></td>
-    <td style="padding-left:10px"><a href="#" style="display:inline-block;padding:11px 20px;color:#14293f;text-decoration:none;font-size:13px;border:1px solid #c3ccd8">Book a call</a></td>
+    <td style="background:#14293f"><a href="https://contoso.example/terms-2027/accept?option=b" style="display:inline-block;padding:11px 20px;color:#ffffff;text-decoration:none;font-size:13px">Accept option B</a></td>
+    <td style="padding-left:10px"><a href="https://contoso.example/terms-2027/call" style="display:inline-block;padding:11px 20px;color:#14293f;text-decoration:none;font-size:13px;border:1px solid #c3ccd8">Book a call</a></td>
    </tr></table>
   </td></tr>
   <tr><td style="background:#f7f9fb;border-top:1px solid #e3e8ee;padding:14px 26px;font-size:11px;color:#9aa5b1;line-height:1.6">Anna Kowalska · Key Account Manager · +48 22 000 00 00<br>Contoso Ltd, 51 Prosta St, 00-838 Warsaw</td></tr>
@@ -302,11 +303,11 @@ MailFathomDesign.data.mailBodies = {
    <div style="text-align:center;padding:6px 0 14px 0">
     <div style="font-size:13px;color:#6b7280;margin-bottom:10px">Start with one click — how would you rate the last quarter?</div>
     <table align="center" cellpadding="0" cellspacing="0"><tr>
-     <td style="padding:0 4px"><a href="#" style="display:inline-block;width:38px;height:38px;line-height:38px;border-radius:19px;background:#f3eefc;color:#4b3f8f;text-decoration:none;font-size:15px">1</a></td>
-     <td style="padding:0 4px"><a href="#" style="display:inline-block;width:38px;height:38px;line-height:38px;border-radius:19px;background:#f3eefc;color:#4b3f8f;text-decoration:none;font-size:15px">2</a></td>
-     <td style="padding:0 4px"><a href="#" style="display:inline-block;width:38px;height:38px;line-height:38px;border-radius:19px;background:#f3eefc;color:#4b3f8f;text-decoration:none;font-size:15px">3</a></td>
-     <td style="padding:0 4px"><a href="#" style="display:inline-block;width:38px;height:38px;line-height:38px;border-radius:19px;background:#4b3f8f;color:#ffffff;text-decoration:none;font-size:15px">4</a></td>
-     <td style="padding:0 4px"><a href="#" style="display:inline-block;width:38px;height:38px;line-height:38px;border-radius:19px;background:#f3eefc;color:#4b3f8f;text-decoration:none;font-size:15px">5</a></td>
+     <td style="padding:0 4px"><a href="https://survey-hub.example/s/2026-hr?score=1" style="display:inline-block;width:38px;height:38px;line-height:38px;border-radius:19px;background:#f3eefc;color:#4b3f8f;text-decoration:none;font-size:15px">1</a></td>
+     <td style="padding:0 4px"><a href="https://survey-hub.example/s/2026-hr?score=2" style="display:inline-block;width:38px;height:38px;line-height:38px;border-radius:19px;background:#f3eefc;color:#4b3f8f;text-decoration:none;font-size:15px">2</a></td>
+     <td style="padding:0 4px"><a href="https://survey-hub.example/s/2026-hr?score=3" style="display:inline-block;width:38px;height:38px;line-height:38px;border-radius:19px;background:#f3eefc;color:#4b3f8f;text-decoration:none;font-size:15px">3</a></td>
+     <td style="padding:0 4px"><a href="https://survey-hub.example/s/2026-hr?score=4" style="display:inline-block;width:38px;height:38px;line-height:38px;border-radius:19px;background:#4b3f8f;color:#ffffff;text-decoration:none;font-size:15px">4</a></td>
+     <td style="padding:0 4px"><a href="https://survey-hub.example/s/2026-hr?score=5" style="display:inline-block;width:38px;height:38px;line-height:38px;border-radius:19px;background:#f3eefc;color:#4b3f8f;text-decoration:none;font-size:15px">5</a></td>
     </tr></table>
    </div>
    <table width="100%" style="border-collapse:collapse;font-size:13px;color:#3e4c59">
@@ -315,8 +316,8 @@ MailFathomDesign.data.mailBodies = {
     <tr><td style="padding:8px 0;border-top:1px solid #eef1f5">Deadline</td><td align="right" style="padding:8px 0;border-top:1px solid #eef1f5;color:#9a3412"><strong>5 September</strong></td></tr>
    </table>
   </td></tr>
-  <tr><td style="padding:8px 28px 28px 28px;text-align:center"><a href="#" style="display:inline-block;background:#4b3f8f;color:#ffffff;text-decoration:none;padding:14px 34px;border-radius:24px;font-size:14px">Take the survey</a></td></tr>
-  <tr><td style="background:#f7f9fb;padding:16px 28px;font-size:11px;color:#9aa5b1;line-height:1.6;text-align:center">An external platform collects the answers; we only see aggregate results.<br><a href="#" style="color:#4b3f8f">Data processing policy</a> · <a href="#" style="color:#4b3f8f">no reminders, please</a></td></tr>
+  <tr><td style="padding:8px 28px 28px 28px;text-align:center"><a href="https://survey-hub.example/s/2026-hr" style="display:inline-block;background:#4b3f8f;color:#ffffff;text-decoration:none;padding:14px 34px;border-radius:24px;font-size:14px">Take the survey</a></td></tr>
+  <tr><td style="background:#f7f9fb;padding:16px 28px;font-size:11px;color:#9aa5b1;line-height:1.6;text-align:center">An external platform collects the answers; we only see aggregate results.<br><a href="https://survey-hub.example/privacy" style="color:#4b3f8f">Data processing policy</a> · <a href="https://survey-hub.example/privacy" style="color:#4b3f8f">no reminders, please</a></td></tr>
  </table>
 </div>` },
 
@@ -343,7 +344,7 @@ MailFathomDesign.data.mailBodies = {
     Schedule: start two weeks after signature, final acceptance after six weeks. Support €1,200/month from the second month after acceptance.
    </div>
   </td></tr>
-  <tr><td style="padding:12px 26px 24px 26px"><a href="#" style="display:inline-block;background:#b4531f;color:#ffffff;text-decoration:none;padding:12px 22px;font-size:13px">Download the quote as PDF</a></td></tr>
+  <tr><td style="padding:12px 26px 24px 26px"><a href="https://quotes.reportingworks.example/q/2026-114.pdf" style="display:inline-block;background:#b4531f;color:#ffffff;text-decoration:none;padding:12px 22px;font-size:13px">Download the quote as PDF</a></td></tr>
   <tr><td style="background:#f7f9fb;border-top:1px solid #e3e8ee;padding:14px 26px;font-size:11px;color:#9aa5b1">Robert Lis · Northwind Ltd · r.lis@northwind.example · +48 61 000 00 00</td></tr>
  </table>
 </div>` },
@@ -374,8 +375,8 @@ MailFathomDesign.data.mailBodies = {
   </td></tr>
   <tr><td style="padding:14px 26px 24px 26px">
    <table cellpadding="0" cellspacing="0"><tr>
-    <td style="background:#5b3f2e"><a href="#" style="display:inline-block;padding:11px 20px;color:#ffffff;text-decoration:none;font-size:13px">Potwierdzam 12.11</a></td>
-    <td style="padding-left:10px"><a href="#" style="display:inline-block;padding:11px 20px;color:#5b3f2e;text-decoration:none;font-size:13px;border:1px solid #d9c9bb">Propose another date</a></td>
+    <td style="background:#5b3f2e"><a href="https://fabrikam.example/delivery/confirm?date=12-11" style="display:inline-block;padding:11px 20px;color:#ffffff;text-decoration:none;font-size:13px">Potwierdzam 12.11</a></td>
+    <td style="padding-left:10px"><a href="https://fabrikam.example/delivery/propose" style="display:inline-block;padding:11px 20px;color:#5b3f2e;text-decoration:none;font-size:13px;border:1px solid #d9c9bb">Propose another date</a></td>
    </tr></table>
   </td></tr>
   <tr><td style="background:#f7f9fb;border-top:1px solid #e3e8ee;padding:13px 26px;font-size:11px;color:#9aa5b1">Tomasz Bąk · Fabrikam · logistics · t.bak@fabrikam.example</td></tr>
@@ -402,7 +403,7 @@ MailFathomDesign.data.mailBodies = {
    </div>
    <p style="font-size:12px;color:#7b8794;line-height:1.7;margin:14px 0 0 0">Basis: 2026 audit plan, point 4.2. The request needs no formal reply; sending the list is enough.</p>
   </td></tr>
-  <tr><td style="padding:14px 26px 24px 26px"><a href="#" style="display:inline-block;background:#37474f;color:#ffffff;text-decoration:none;padding:11px 20px;font-size:13px">Download the template XLSX</a></td></tr>
+  <tr><td style="padding:14px 26px 24px 26px"><a href="https://audit.adventure.example/templates/contract-register.xlsx" style="display:inline-block;background:#37474f;color:#ffffff;text-decoration:none;padding:11px 20px;font-size:13px">Download the template XLSX</a></td></tr>
   <tr><td style="background:#f7f9fb;border-top:1px solid #e3e8ee;padding:13px 26px;font-size:11px;color:#9aa5b1">Internal Audit · ext. 412 · correspondence is archived</td></tr>
  </table>
 </div>` },
@@ -429,7 +430,7 @@ MailFathomDesign.data.mailBodies = {
     For signature <strong>by 5 September</strong>. If the other side rejects the lower penalty, I recommend the variant with a €150,000 aggregate cap.
    </div>
   </td></tr>
-  <tr><td style="padding:8px 30px 26px 30px"><a href="#" style="display:inline-block;background:#3b3428;color:#ffffff;text-decoration:none;padding:11px 22px;font-family:Arial,sans-serif;font-size:13px">Sign electronically</a></td></tr>
+  <tr><td style="padding:8px 30px 26px 30px"><a href="https://northwind.example/legal/nda-draft" style="display:inline-block;background:#3b3428;color:#ffffff;text-decoration:none;padding:11px 22px;font-family:Arial,sans-serif;font-size:13px">Sign electronically</a></td></tr>
   <tr><td style="background:#faf7f0;border-top:1px solid #e6dfd0;padding:14px 30px;font-family:Arial,sans-serif;font-size:10px;color:#8c8271;line-height:1.7">Working document · not an offer in the legal sense · Wrona Law Office</td></tr>
  </table>
 </div>` },

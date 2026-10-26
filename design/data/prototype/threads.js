@@ -426,7 +426,7 @@ Direct flight, flying time *1 h 25 min*. Seat **14C**, aisle.
 
 ---
 
-Online check-in: **11.09 from 07:40**, closes 2 h before departure - [check in online](https://travel.example/checkin/7QX4MB).`,
+Online check-in: **11.09 from 07:40**, closes 2 h before departure - [travel.example/checkin/7QX4MB](https://click.travelmail.example/r/7QX4MB).`,
       },
     ],
     attachments: [{ type: "PDF", name: "Tickets.pdf", size: "120 kB" }],

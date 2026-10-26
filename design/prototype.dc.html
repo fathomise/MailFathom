@@ -205,6 +205,30 @@ Project repository: https://github.com/fathomise/MailFathom
       </div>
     </div>
   </sc-if>
+  <sc-if value="{{ linkAskOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-motion="scrim" data-phase="{{ mo.linkAsk }}" onClick="{{ closeLinkAsk }}" style="{{ ovAsk99 }}">
+      <div data-motion="pop" data-phase="{{ mo.linkAsk }}" role="alertdialog" aria-label="{{ linkAskTitle }}" onClick="{{ stopProp }}" style="{{ dlgAsk }}">
+        <div style="display:flex;align-items:flex-start;gap:11px">
+          <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;color:var(--warn);padding-top:1px">open_in_new</span>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0">
+            <div style="font-size:16px;font-weight:600;text-wrap:pretty">{{ linkAskTitle }}</div>
+            <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">It leaves MailFathom and opens in your browser. Open it only if you expected to go there.</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:11px 13px">
+          <div style="font-size:15px;font-weight:600;color:var(--text);overflow-wrap:anywhere">{{ linkAskHost }}</div>
+          <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere;user-select:text">{{ linkAskHref }}</div>
+        </div>
+        <sc-for list="{{ linkAskWarnings }}" as="w" hint-placeholder-count="1">
+          <div style="display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.5;color:var(--warn-text);text-wrap:pretty"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:20px;flex-shrink:0">warning</span><span>{{ w.text }}</span></div>
+        </sc-for>
+        <div style="display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap;margin-top:2px">
+          <div role="button" tabindex="0" ref="{{ linkAskCancelRef }}" onClick="{{ closeLinkAsk }}" style="{{ linkAskCancelStyle }}" style-hover="cursor:pointer;background:var(--hover)">Cancel</div>
+          <div role="button" tabindex="0" onClick="{{ confirmLinkAsk }}" style="{{ linkAskBtnStyle }}" style-hover="cursor:pointer;opacity:0.9">Open link</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
 
 
   <sc-if value="{{ isDiscover }}" hint-placeholder-val="{{ true }}">
@@ -1180,14 +1204,14 @@ Project repository: https://github.com/fathomise/MailFathom
                       <sc-if value="{{ m.simpleView }}" hint-placeholder-val="{{ true }}">
                         <sc-for list="{{ m.paras }}" as="p" hint-placeholder-count="2">
                           <sc-if value="{{ p.isText }}" hint-placeholder-val="{{ true }}">
-                            <div style="{{ p.style }}"><sc-for list="{{ p.runs }}" as="r" hint-placeholder-count="1"><sc-if value="{{ r.plain }}" hint-placeholder-val="{{ true }}"><span style="{{ r.style }}">{{ r.text }}</span></sc-if><sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" style="{{ r.style }}">{{ r.text }}</a></sc-if><sc-if value="{{ r.isJudged }}" hint-placeholder-val="{{ false }}"><span style="{{ r.noteStyle }}">{{ r.goesTo }}</span><sc-for list="{{ r.warnings }}" as="w" hint-placeholder-count="1"><span style="{{ r.warnStyle }}">{{ w.text }}</span></sc-for></sc-if></sc-for></div>
+                            <div style="{{ p.style }}"><sc-for list="{{ p.runs }}" as="r" hint-placeholder-count="1"><sc-if value="{{ r.plain }}" hint-placeholder-val="{{ true }}"><span style="{{ r.style }}">{{ r.text }}</span></sc-if><sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" data-link-warn="{{ r.warnText }}" style="{{ r.style }}">{{ r.text }}</a></sc-if><sc-if value="{{ r.isJudged }}" hint-placeholder-val="{{ false }}"><span style="{{ r.noteStyle }}">{{ r.goesTo }}</span><sc-for list="{{ r.warnings }}" as="w" hint-placeholder-count="1"><span style="{{ r.warnStyle }}">{{ w.text }}</span></sc-for></sc-if></sc-for></div>
                           </sc-if>
                           <sc-if value="{{ p.isList }}" hint-placeholder-val="{{ false }}">
                             <div style="{{ p.style }}">
                               <sc-for list="{{ p.items }}" as="it" hint-placeholder-count="3">
                                 <div style="{{ it.style }}">
                                   <span style="{{ it.markerStyle }}">{{ it.marker }}</span>
-                                  <span style="{{ it.textStyle }}"><sc-for list="{{ it.runs }}" as="r" hint-placeholder-count="1"><sc-if value="{{ r.plain }}" hint-placeholder-val="{{ true }}"><span style="{{ r.style }}">{{ r.text }}</span></sc-if><sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" style="{{ r.style }}">{{ r.text }}</a></sc-if><sc-if value="{{ r.isJudged }}" hint-placeholder-val="{{ false }}"><span style="{{ r.noteStyle }}">{{ r.goesTo }}</span><sc-for list="{{ r.warnings }}" as="w" hint-placeholder-count="1"><span style="{{ r.warnStyle }}">{{ w.text }}</span></sc-for></sc-if></sc-for></span>
+                                  <span style="{{ it.textStyle }}"><sc-for list="{{ it.runs }}" as="r" hint-placeholder-count="1"><sc-if value="{{ r.plain }}" hint-placeholder-val="{{ true }}"><span style="{{ r.style }}">{{ r.text }}</span></sc-if><sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" data-link-warn="{{ r.warnText }}" style="{{ r.style }}">{{ r.text }}</a></sc-if><sc-if value="{{ r.isJudged }}" hint-placeholder-val="{{ false }}"><span style="{{ r.noteStyle }}">{{ r.goesTo }}</span><sc-for list="{{ r.warnings }}" as="w" hint-placeholder-count="1"><span style="{{ r.warnStyle }}">{{ w.text }}</span></sc-for></sc-if></sc-for></span>
                                 </div>
                               </sc-for>
                             </div>
@@ -1472,7 +1496,7 @@ Project repository: https://github.com/fathomise/MailFathom
               </div>
             </div>
             <div style="position:relative;flex:1;min-height:0;display:flex">
-              <iframe srcDoc="{{ htmlSrc }}" sandbox="" title="Message HTML preview" style="{{ htmlFrameStyle }}"></iframe>
+              <iframe srcDoc="{{ htmlSrc }}" sandbox="allow-scripts" title="Message HTML preview" style="{{ htmlFrameStyle }}"></iframe>
               <sc-if value="{{ htmlLoading }}" hint-placeholder-val="{{ false }}">
                 <div style="{{ htmlSkelStyle }}">
                   <sc-for list="{{ htmlSkelLines }}" as="ln" hint-placeholder-count="6">
@@ -1656,14 +1680,14 @@ Project repository: https://github.com/fathomise/MailFathom
                   <div style="display:flex;flex-direction:column;gap:12px">
                   <sc-for list="{{ m.md }}" as="p" hint-placeholder-count="1">
                     <sc-if value="{{ p.isText }}" hint-placeholder-val="{{ true }}">
-                      <div style="{{ p.style }}"><sc-for list="{{ p.runs }}" as="r" hint-placeholder-count="1"><sc-if value="{{ r.plain }}" hint-placeholder-val="{{ true }}"><span style="{{ r.style }}">{{ r.text }}</span></sc-if><sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" style="{{ r.style }}">{{ r.text }}</a></sc-if><sc-if value="{{ r.isJudged }}" hint-placeholder-val="{{ false }}"><span style="{{ r.noteStyle }}">{{ r.goesTo }}</span><sc-for list="{{ r.warnings }}" as="w" hint-placeholder-count="1"><span style="{{ r.warnStyle }}">{{ w.text }}</span></sc-for></sc-if></sc-for></div>
+                      <div style="{{ p.style }}"><sc-for list="{{ p.runs }}" as="r" hint-placeholder-count="1"><sc-if value="{{ r.plain }}" hint-placeholder-val="{{ true }}"><span style="{{ r.style }}">{{ r.text }}</span></sc-if><sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" data-link-warn="{{ r.warnText }}" style="{{ r.style }}">{{ r.text }}</a></sc-if><sc-if value="{{ r.isJudged }}" hint-placeholder-val="{{ false }}"><span style="{{ r.noteStyle }}">{{ r.goesTo }}</span><sc-for list="{{ r.warnings }}" as="w" hint-placeholder-count="1"><span style="{{ r.warnStyle }}">{{ w.text }}</span></sc-for></sc-if></sc-for></div>
                     </sc-if>
                     <sc-if value="{{ p.isList }}" hint-placeholder-val="{{ false }}">
                       <div style="{{ p.style }}">
                         <sc-for list="{{ p.items }}" as="it" hint-placeholder-count="3">
                           <div style="{{ it.style }}">
                             <span style="{{ it.markerStyle }}">{{ it.marker }}</span>
-                            <span style="{{ it.textStyle }}"><sc-for list="{{ it.runs }}" as="r" hint-placeholder-count="1"><sc-if value="{{ r.plain }}" hint-placeholder-val="{{ true }}"><span style="{{ r.style }}">{{ r.text }}</span></sc-if><sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" style="{{ r.style }}">{{ r.text }}</a></sc-if><sc-if value="{{ r.isJudged }}" hint-placeholder-val="{{ false }}"><span style="{{ r.noteStyle }}">{{ r.goesTo }}</span><sc-for list="{{ r.warnings }}" as="w" hint-placeholder-count="1"><span style="{{ r.warnStyle }}">{{ w.text }}</span></sc-for></sc-if></sc-for></span>
+                            <span style="{{ it.textStyle }}"><sc-for list="{{ it.runs }}" as="r" hint-placeholder-count="1"><sc-if value="{{ r.plain }}" hint-placeholder-val="{{ true }}"><span style="{{ r.style }}">{{ r.text }}</span></sc-if><sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" data-link-warn="{{ r.warnText }}" style="{{ r.style }}">{{ r.text }}</a></sc-if><sc-if value="{{ r.isJudged }}" hint-placeholder-val="{{ false }}"><span style="{{ r.noteStyle }}">{{ r.goesTo }}</span><sc-for list="{{ r.warnings }}" as="w" hint-placeholder-count="1"><span style="{{ r.warnStyle }}">{{ w.text }}</span></sc-for></sc-if></sc-for></span>
                           </div>
                         </sc-for>
                       </div>
@@ -2616,6 +2640,15 @@ Project repository: https://github.com/fathomise/MailFathom
           <div style="font-size:14px;color:var(--text2)">{{ eventWhen }}</div>
           <sc-if value="{{ eventHasSrc }}" hint-placeholder-val="{{ false }}">
             <div onClick="{{ eventOpenThread }}" style="align-self:flex-start;font-size:12px;color:var(--accent-d);background:var(--accent-soft);border-radius:6px;padding:5px 10px" style-hover="cursor:pointer;text-decoration:underline"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1;vertical-align:-2px;margin-right:4px">open_in_new</span>{{ eventSrc }}</div>
+          </sc-if>
+          <sc-if value="{{ eventHasLink }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0">
+              <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)">videocam</span>
+              <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+                <span style="font-size:12px;color:var(--muted)">Meeting link</span>
+                <a href="{{ eventLink }}" style="font-size:14px;color:var(--accent-d);text-decoration:underline;text-underline-offset:2px;overflow-wrap:anywhere">{{ eventLinkHost }}</a>
+              </div>
+            </div>
           </sc-if>
           <div style="display:flex;align-items:center;gap:10px;background:var(--sub);border-radius:8px;padding:11px 13px">
             <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:2px 6px">AI</span>

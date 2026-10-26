@@ -101,6 +101,7 @@ MailFathomDesign.markdown = (() => {
       style: r.href ? MDRUN.a : r.b ? MDRUN.b : r.i ? MDRUN.i : r.s ? MDRUN.s : r.c ? MDRUN.c : "",
       isJudged: !!j, goesTo: j ? " goes to " + j.host : "", noteStyle: LINKNOTE, warnStyle: LINKWARN,
       warnings: j ? linkWarnings(j).map(w => ({ text: " " + w })) : [],
+      warnText: j ? linkWarnings(j).join("\n") : "",
     };
   });
 
