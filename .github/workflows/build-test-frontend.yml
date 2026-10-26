@@ -156,8 +156,15 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
 
       # `--with-deps` installs the shared libraries the browser needs from apt, which the cache above does not hold and
-      # which a GitHub-hosted runner does not carry. Chromium alone: `frontend/playwright.config.ts` says why.
+      # which a GitHub-hosted runner does not carry, so it is an apt install like any other: a mirror is chosen first and
+      # each step carries the bound `Build the desktop client` gives it. Chromium alone: `frontend/playwright.config.ts`
+      # says why.
+      - name: Choose a fast apt mirror
+        timeout-minutes: 2
+        uses: vegardit/fast-apt-mirror.sh@1.4.5
+
       - name: Install the browser
+        timeout-minutes: 5
         run: pnpm --dir frontend exec playwright install --with-deps chromium
 
       # `pnpm test:browser` is `pnpm build` and then Playwright, so this is the build step as well as the browser one
