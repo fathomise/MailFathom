@@ -223,8 +223,8 @@ Project repository: https://github.com/fathomise/MailFathom
           <div style="display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.5;color:var(--warn-text);text-wrap:pretty"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:20px;flex-shrink:0">warning</span><span>{{ w.text }}</span></div>
         </sc-for>
         <div style="display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap;margin-top:2px">
-          <div role="button" tabindex="0" ref="{{ linkAskCancelRef }}" onClick="{{ closeLinkAsk }}" style="{{ linkAskCancelStyle }}" style-hover="cursor:pointer;background:var(--hover)">Cancel</div>
-          <div role="button" tabindex="0" onClick="{{ confirmLinkAsk }}" style="{{ linkAskBtnStyle }}" style-hover="cursor:pointer;opacity:0.9">Open link</div>
+          <div role="button" tabindex="0" ref="{{ linkAskCancelRef }}" onClick="{{ closeLinkAsk }}" onKeyDown="{{ closeLinkAskKey }}" style="{{ linkAskCancelStyle }}" style-hover="cursor:pointer;background:var(--hover)" style-focus="outline:2px solid var(--accent);outline-offset:2px">Cancel</div>
+          <div role="button" tabindex="0" onClick="{{ confirmLinkAsk }}" onKeyDown="{{ confirmLinkAskKey }}" style="{{ linkAskBtnStyle }}" style-hover="cursor:pointer;opacity:0.9" style-focus="outline:2px solid var(--accent);outline-offset:2px">Open link</div>
         </div>
       </div>
     </div>

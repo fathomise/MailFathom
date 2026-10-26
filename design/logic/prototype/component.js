@@ -5578,6 +5578,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             linkAskCancelRef: this.linkAskCancelRef,
             closeLinkAsk: this.closeLinkAsk,
             confirmLinkAsk: this.confirmLinkAsk,
+            closeLinkAskKey: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.closeLinkAsk(); } },
+            confirmLinkAskKey: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.confirmLinkAsk(); } },
           };
         })(),
         moveOpen: !!(st.moveFor && st.moveFor.length),
