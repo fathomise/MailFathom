@@ -261,7 +261,6 @@ export function MessageRow({
     const spamName = spam !== null && isSpam(spam) ? spamRowName(spam, translate) : null;
     const foldedSpam = spamName !== null && !inSpamFolder;
 
-
     // The mark on who sent the message, chosen by the one rule every surface draws it by, or none on a row whose
     // writer is the reader.
     const mark = onSenderDetails === undefined ? null : senderMarkOf(email.sender);
@@ -287,40 +286,40 @@ export function MessageRow({
     // opening the row's menu.
     const senderMark =
         markDrawn === null || markName === null ? null : (
-                        <>
-                            <span
-                                {...markSaid.anchor}
-                                ref={(element) => {
-                                    markAnchor.current = element;
-                                    markSaid.anchor.ref(element);
-                                }}
-                                aria-hidden="true"
-                                className={`-mx-0.75 -my-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-hover pointer-coarse:-mx-2.5 pointer-coarse:-my-3 pointer-coarse:size-11 ${
-                                    senderMarkInk[markDrawn.tone]
-                                }`}
-                                onPointerDown={(event) => {
-                                    event.stopPropagation();
-                                    markSaid.anchor.onPointerDown(event);
-                                }}
-                                onPointerUp={(event) => {
-                                    event.stopPropagation();
-                                    markSaid.anchor.onPointerUp();
-                                }}
-                                onClick={(event) => {
-                                    event.stopPropagation();
-                                    markSaid.anchor.onClick(event);
-                                }}
-                                onDoubleClick={(event) => {
-                                    event.stopPropagation();
-                                }}
-                            >
-                                <Icon name={markDrawn.icon} className="size-icon-md pointer-coarse:size-icon-lg" />
-                            </span>
-                            {markSaid.tip}
+            <>
+                <span
+                    {...markSaid.anchor}
+                    ref={(element) => {
+                        markAnchor.current = element;
+                        markSaid.anchor.ref(element);
+                    }}
+                    aria-hidden="true"
+                    className={`-mx-0.75 -my-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-hover pointer-coarse:-mx-2.5 pointer-coarse:-my-3 pointer-coarse:size-11 ${
+                        senderMarkInk[markDrawn.tone]
+                    }`}
+                    onPointerDown={(event) => {
+                        event.stopPropagation();
+                        markSaid.anchor.onPointerDown(event);
+                    }}
+                    onPointerUp={(event) => {
+                        event.stopPropagation();
+                        markSaid.anchor.onPointerUp();
+                    }}
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        markSaid.anchor.onClick(event);
+                    }}
+                    onDoubleClick={(event) => {
+                        event.stopPropagation();
+                    }}
+                >
+                    <Icon name={markDrawn.icon} className="size-icon-md pointer-coarse:size-icon-lg" />
+                </span>
+                {markSaid.tip}
 
-                            <span className="sr-only">{markName}</span>
-                        </>
-                    );
+                <span className="sr-only">{markName}</span>
+            </>
+        );
 
     const stripSubject = {
         sender: correspondent(email) ?? translate('list.senderUnknown'),
