@@ -14,7 +14,7 @@ using Pgvector;
 namespace MailFathom.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(MailFathomDbContext))]
-    [Migration("20261026144017_AddEmailSignatureVerification")]
+    [Migration("20261026151344_AddEmailSignatureVerification")]
     partial class AddEmailSignatureVerification
     {
         /// <inheritdoc />
@@ -3926,9 +3926,6 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
-                    b.Property<byte[]>("SignerKeyMaterial")
-                        .HasColumnType("bytea");
-
                     b.Property<string>("SignerName")
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");
@@ -4060,6 +4057,20 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_stored_emails_occurrence_complete", "(\"UidValidity\" IS NULL) = (\"Uid\" IS NULL)");
                         });
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.StoredEmailSignerKeyEntity", b =>
+                {
+                    b.Property<Guid>("StoredEmailId")
+                        .HasColumnType("uuid");
+
+                    b.Property<byte[]>("KeyMaterial")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("StoredEmailId");
+
+                    b.ToTable("stored_email_signer_keys", (string)null);
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.StoredFileEntity", b =>
@@ -5184,6 +5195,17 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Navigation("Folder");
 
                     b.Navigation("MailFolderBinding");
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.StoredEmailSignerKeyEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.StoredEmailEntity", "StoredEmail")
+                        .WithOne()
+                        .HasForeignKey("MailFathom.Infrastructure.Persistence.Entities.StoredEmailSignerKeyEntity", "StoredEmailId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("StoredEmail");
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.StoredFileEntity", b =>

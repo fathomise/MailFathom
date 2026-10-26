@@ -105,6 +105,7 @@ internal sealed class StoredMailRederivationStore(
                 "Re-derived metadata cannot be applied to a stored email that no longer exists.");
 
         StoredEmailMetadataMapping.ApplyExtractedMetadata(storedEmail, metadata);
+        await StoredEmailSignerKeyWriter.SaveAsync(sessionContext, storedEmail, metadata.Signature, cancellationToken);
 
         await threadAssembly.AssembleAsync(
             session,

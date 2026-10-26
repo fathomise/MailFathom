@@ -170,7 +170,7 @@ reading deliberately does not claim.
 
 ### The message's own signature
 
-Twenty-seven columns record what verifying the message's own S/MIME or OpenPGP signature found, on the email for the
+Twenty-six columns record what verifying the message's own S/MIME or OpenPGP signature found, on the email for the
 reason the groups above are: every message extraction reached carries an answer, the not-signed one included.
 `SignatureOutcome` is the verdict the steps add up to, stored beside them so a query can select on it, and defaults to
 `NotSigned`; `SignatureFormat`, `SignatureSecureMimeType`, and `SignatureUnverifiableReason` are nullable text. The five
@@ -182,10 +182,14 @@ sits beside it: `SignatureTrustAnchor` and `SignatureChainEnd`, `SignatureValidi
 the signer claims.
 
 The `Signer*` columns are who signed, as their certificate or key names them — name, address, issuer, validity, serial
-number, fingerprint, OpenPGP key ID, and algorithms — each bounded by the value it is written from, and
-`SignerKeyMaterial` is the certificate's DER or the key ring's transferable form, `bytea` and dropped above 64 KiB. It is
-kept so a later feature can encrypt to the signer, and nothing reads it back today: no summary projection selects it. All
-of it is personal data, inherits the message's classification, and is erased with it.
+number, fingerprint, OpenPGP key ID, and algorithms — each bounded by the value it is written from. The signer's
+certificate or public key itself is not on the email: `stored_email_signer_keys` holds it, one row per signed message
+keyed by the email's identifier, as `KeyMaterial` — the certificate's DER or the key's transferable form, `bytea`, and
+dropped above 64 KiB. It is a table of its own for the reason raw MIME is, so no mailbox query carries binary key
+material through the change tracker; it is kept so a later feature can encrypt to the signer, and nothing reads it back
+today. Extraction writes, replaces, or deletes that row together with the columns, so a message re-derived as unsigned
+keeps no key. All of it is personal data, inherits the message's classification, and is erased with the message by the
+cascade from it.
 
 The whole group is written by extraction and written whole on every extraction, so a re-derivation that reaches a
 revocation responder it could not reach before replaces every step rather than one. [Verifying a message's own

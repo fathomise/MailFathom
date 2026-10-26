@@ -165,12 +165,6 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                 maxLength: 128,
                 nullable: true);
 
-            migrationBuilder.AddColumn<byte[]>(
-                name: "SignerKeyMaterial",
-                table: "stored_emails",
-                type: "bytea",
-                nullable: true);
-
             migrationBuilder.AddColumn<string>(
                 name: "SignerName",
                 table: "stored_emails",
@@ -203,11 +197,32 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                 table: "stored_emails",
                 type: "timestamp with time zone",
                 nullable: true);
+
+            migrationBuilder.CreateTable(
+                name: "stored_email_signer_keys",
+                columns: table => new
+                {
+                    StoredEmailId = table.Column<Guid>(type: "uuid", nullable: false),
+                    KeyMaterial = table.Column<byte[]>(type: "bytea", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_stored_email_signer_keys", x => x.StoredEmailId);
+                    table.ForeignKey(
+                        name: "FK_stored_email_signer_keys_stored_emails_StoredEmailId",
+                        column: x => x.StoredEmailId,
+                        principalTable: "stored_emails",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropTable(
+                name: "stored_email_signer_keys");
+
             migrationBuilder.DropColumn(
                 name: "SignatureAuthorityCheck",
                 table: "stored_emails");
@@ -290,10 +305,6 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
             migrationBuilder.DropColumn(
                 name: "SignerKeyId",
-                table: "stored_emails");
-
-            migrationBuilder.DropColumn(
-                name: "SignerKeyMaterial",
                 table: "stored_emails");
 
             migrationBuilder.DropColumn(

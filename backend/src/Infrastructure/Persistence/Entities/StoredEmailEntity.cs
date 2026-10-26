@@ -340,13 +340,6 @@ internal sealed class StoredEmailEntity
     /// <summary>Gets or sets the digest or hash algorithm the signature was made over.</summary>
     public string? SignerDigestAlgorithm { get; set; }
 
-    /// <summary>Gets or sets the signer's certificate or OpenPGP public key, kept as key material mail can later be encrypted to.</summary>
-    /// <remarks>
-    /// Bounded by the domain value to a size no certificate or public key reaches, and selected by no read projection:
-    /// nothing reads it yet, and nothing publishes it.
-    /// </remarks>
-    public byte[]? SignerKeyMaterial { get; set; }
-
     /// <summary>Gets or sets the normalized <c>To</c> addresses, which recipient filters test for containment.</summary>
     /// <remarks>
     /// Only the comparison form is kept, for the reason the per-attachment list is not kept at all: a display name is

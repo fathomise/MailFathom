@@ -25,7 +25,7 @@ namespace MailFathom.Infrastructure.Persistence.Emails;
 /// <para>
 /// It carries exactly the columns the summary carries and no others. Notably absent are the <c>Cc</c>, <c>Reply-To</c>,
 /// and thread-reference arrays, which are filterable but not listed, and every column of the raw MIME table, which no
-/// summary query joins to at all, and the signer's key material, which nothing publishes. The sender-authentication columns are the one group a listing reads without
+/// summary query joins to at all, and the table holding the signer's key material, which nothing publishes. The sender-authentication columns are the one group a listing reads without
 /// publishing all of it: the single-email read is built from this same summary and publishes the evidence, and one
 /// projection reading it is cheaper than a second query for the read that needs it. The spam columns are the one join:
 /// five columns of the message's classification row, keyed by the message, and never its signals, its score, or its

@@ -395,7 +395,7 @@ public sealed class StoredEmailMetadataMappingTests
                 RevocationMethod = RevocationCheckMethod.Crl,
                 RevocationCheckedAt = checkedAt,
                 SignerCheck = SignatureCheckResult.Passed,
-                Signer = new EmailSigner { Address = "anna@signer.example.test", Fingerprint = "AB12", KeyMaterial = new byte[] { 4, 5, 6 } },
+                Signer = new EmailSigner { Address = "anna@signer.example.test", Fingerprint = "AB12" },
             },
         };
 
@@ -411,7 +411,6 @@ public sealed class StoredEmailMetadataMappingTests
         Assert.Equal(checkedAt, entity.SignatureRevocationCheckedAt);
         Assert.Equal(SignatureCheckResult.Passed, entity.SignatureSignerCheck);
         Assert.Equal("anna@signer.example.test", entity.SignerAddress);
-        Assert.Equal([4, 5, 6], entity.SignerKeyMaterial);
     }
 
     /// <summary>
@@ -426,7 +425,6 @@ public sealed class StoredEmailMetadataMappingTests
         entity.SignatureOutcome = EmailSignatureOutcome.Verified;
         entity.SignatureContentCheck = SignatureCheckResult.Passed;
         entity.SignerAddress = "anna@signer.example.test";
-        entity.SignerKeyMaterial = [1];
 
         // Act
         StoredEmailMetadataMapping.ApplyExtractedMetadata(entity, CreateExtractedMetadata());
@@ -435,7 +433,6 @@ public sealed class StoredEmailMetadataMappingTests
         Assert.Equal(EmailSignatureOutcome.NotSigned, entity.SignatureOutcome);
         Assert.Equal(SignatureCheckResult.Skipped, entity.SignatureContentCheck);
         Assert.Null(entity.SignerAddress);
-        Assert.Null(entity.SignerKeyMaterial);
     }
 
     /// <summary>

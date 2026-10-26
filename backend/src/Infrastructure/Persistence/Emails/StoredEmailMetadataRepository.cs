@@ -80,6 +80,7 @@ internal sealed class StoredEmailMetadataRepository(
         if (extractedMetadata is not null)
         {
             StoredEmailMetadataMapping.ApplyExtractedMetadata(entity, extractedMetadata);
+            await StoredEmailSignerKeyWriter.SaveAsync(dbContext, entity, extractedMetadata.Signature, cancellationToken);
 
             // The search document is written from the same extraction in the same session, so an email's indexed text
             // can never describe a different reading of its MIME than its own metadata columns do. The stamp travels
@@ -328,6 +329,7 @@ internal sealed class StoredEmailMetadataRepository(
         if (extractedMetadata is not null)
         {
             StoredEmailMetadataMapping.ApplyExtractedMetadata(entity, extractedMetadata);
+            await StoredEmailSignerKeyWriter.SaveAsync(sessionContext, entity, extractedMetadata.Signature, cancellationToken);
 
             await EmailSearchDocumentWriter.SaveAsync(
                 sessionContext,

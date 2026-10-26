@@ -167,7 +167,6 @@ internal static class StoredEmailMetadataMapping
         entity.SignerKeyId = signer?.KeyId;
         entity.SignerPublicKeyAlgorithm = signer?.PublicKeyAlgorithm;
         entity.SignerDigestAlgorithm = signer?.DigestAlgorithm;
-        entity.SignerKeyMaterial = signer is { KeyMaterial.IsEmpty: false } ? signer.KeyMaterial.ToArray() : null;
     }
 
     /// <summary>Records the one participant a timeline names as the message's sender.</summary>
