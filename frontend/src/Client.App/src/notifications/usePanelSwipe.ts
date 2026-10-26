@@ -51,7 +51,7 @@ interface Held {
     readonly closing: boolean;
     readonly height: number;
 
-    /** Where the finger landed across the screen, which is what tells a card's swipe from the panel's. */
+    /** Where the finger landed across the screen, which is what tells a row's swipe from the panel's. */
     readonly fromAcross: number;
 
     /** Where the gesture is measured from, which moves while a list underneath is still scrolling on it. */
@@ -287,7 +287,7 @@ type Handover = 'taken' | 'waiting' | 'abandoned';
  * What the movement so far means, before the panel has taken the gesture over.
  *
  * Downward on the panel is taken from the list, and only once the list can scroll no further — and never from a finger
- * that has gone further across than down, which is a card being swiped aside rather than the panel being pushed away,
+ * that has gone further across than down, which is a row being swiped aside rather than the panel being pushed away,
  * so one finger is still one gesture; upward on the navigation
  * is taken from the item the finger landed on, and only past the bar's own slop. Movement the other way on the
  * navigation is nobody's gesture at all, which is what `abandoned` says — the touch goes back to the item it landed

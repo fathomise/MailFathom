@@ -5629,8 +5629,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             (notifFilter === x.k ? "var(--accent);background:var(--accent-soft);color:var(--accent-d);font-weight:600" : "var(--border2);background:var(--panel);color:var(--text2)"),
         })),
         notifEmpty: notifShown.length === 0,
-        /* Each notification stands on a card of its own over the recessed list, so one ends where the next begins. */
-        notifListStyle: "flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:10px 10px 14px;background:var(--bg)",
+        /* Rows separated as the Mail list's are: each one raised on --panel, a hairline of --sub between them. */
+        notifListStyle: "flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:1px;padding:1px 0;background:var(--sub)",
         notifItems: notifShown.map(n => {
           const K = NKIND[n.kind] || NKIND.system;
           const unread = isNotifUnread(n, st.notifRead || {});
@@ -5667,13 +5667,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             touchMove: (e) => { notifPress.up(); if (touch) this.notifSwipeMove(n.id, e); },
             touchEnd: () => { notifPress.up(); if (touch) this.notifSwipeEnd(n); },
             swiping: touch && notifSwiped && Math.abs(notifDx) > 8,
-            swipeBgStyle: "position:absolute;inset:0;display:flex;align-items:center;border-radius:12px;background:var(--accent-soft);color:var(--accent-d);" +
+            swipeBgStyle: "position:absolute;inset:0;display:flex;align-items:center;background:var(--accent-soft);color:var(--accent-d);" +
               (notifDx < 0 ? "justify-content:flex-end;padding-right:22px;" : "justify-content:flex-start;padding-left:22px;"),
             swipeIcon: unread ? "mark_email_read" : "mark_email_unread",
             swipeLabel: unread ? "Mark read" : "Mark unread",
             swipeIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' " + (Math.abs(notifDx) >= 96 ? 500 : 300) + ";font-size:22px;line-height:1;margin-right:8px",
             swipeTextStyle: "font-size:13px;font-weight:600;opacity:" + (Math.abs(notifDx) >= 96 ? "1" : "0.55"),
-            wrapStyle: "position:relative;flex:0 0 auto;border-radius:12px" +
+            wrapStyle: "position:relative;flex:0 0 auto" +
               (notifAnim[n.id] === "in" ? ";overflow:hidden;animation:mfrowin 480ms cubic-bezier(.22,1,.36,1) both" : ""),
             toggleRead: (e) => this.toggleNotifRead(n, e),
             readIcon: unread ? "mark_email_read" : "mark_email_unread",
@@ -5683,10 +5683,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             titleStyle: "flex:1;min-width:0;font-size:14px;line-height:1.35;text-wrap:pretty;font-weight:" + (unread ? "600" : "500") + ";color:" + (unread ? "var(--text)" : "var(--text2)"),
             iconWrapStyle: "flex:0 0 auto;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:" + K.soft,
             iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1;color:" + K.c,
-            /* Unread is raised — filled and lifted by a soft shadow; read is outlined and sits flat. */
-            style: "position:relative;display:flex;align-items:flex-start;gap:12px;padding:12px 12px 12px 14px;border-radius:12px;border:1px solid " + (unread ? "var(--line)" : "var(--line2)") + ";" +
-              "background:" + (unread ? "var(--panel);box-shadow:0 1px 3px var(--sh-2);" : "transparent;") + selMark("notifs", n.id) +
-              (touch && notifSwiped ? "transform:translateX(" + notifDx + "px);" : "transform:translateX(0);transition:transform 160ms ease,background 120ms ease,border-color 120ms ease;"),
+            style: "position:relative;display:flex;align-items:flex-start;gap:12px;padding:13px 16px;background:var(--panel);box-shadow:inset 0 1px 0 var(--inset),0 1px 2px var(--sh-1);" + selMark("notifs", n.id) +
+              (touch && notifSwiped ? "transform:translateX(" + notifDx + "px);" : "transform:translateX(0);transition:transform 160ms ease,background 120ms ease;"),
           };
         }),
         /* On the phone and the fold a toast is a slim strip at the top: it says one thing and goes. */

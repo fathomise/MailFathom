@@ -7,7 +7,7 @@ import { swipeCarry, swipeSoFar } from './swipeAcross';
 import { pressedByFinger, type RowPress } from '../contextMenu/rowPress';
 
 // The other thing a finger on a list row can mean: carried aside, leftward or rightward, to ask for whatever the list
-// offers that way — a message row answers its message leftward and files it away rightward, and a notification card
+// offers that way — a message row answers its message leftward and files it away rightward, and a notification row
 // toggles its read state either way. The arithmetic is `swipeAcross.ts`'s, because a toast answers to the same numbers;
 // what is here is the part that belongs to a row — which direction a swipe went, and how the gesture shares one finger
 // with the press that opens the row's menu.

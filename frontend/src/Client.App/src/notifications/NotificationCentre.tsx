@@ -509,8 +509,9 @@ export function NotificationCentre({
                 ref={(element) => {
                     swipe.attachList(element);
                 }}
-                // The cards stand on the page's own recessed surface, and so does the sentence that stands in for them.
-                className={`min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain bg-page px-2.5 pt-2.5 pb-3.5 ${
+                // Rows raised off a hairline of the list's own surface, as the message list's are, and the sentence that
+                // stands in for them on the same surface.
+                className={`min-h-0 flex-1 flex-col gap-px overflow-y-auto overscroll-contain bg-sunken py-px ${
                     drawn.length === 0 ? 'hidden' : 'flex'
                 }`}
             >
@@ -644,7 +645,7 @@ function Nothing({
         return (
             <p
                 role="status"
-                className="flex flex-1 items-center justify-center bg-page px-6 py-13 text-base text-muted"
+                className="flex flex-1 items-center justify-center bg-sunken px-6 py-13 text-base text-muted"
             >
                 {translate('notifications.reading')}
             </p>
@@ -655,7 +656,7 @@ function Nothing({
         return (
             <p
                 role="alert"
-                className="flex flex-1 items-center justify-center bg-page px-6 py-13 text-base text-error-text"
+                className="flex flex-1 items-center justify-center bg-sunken px-6 py-13 text-base text-error-text"
             >
                 {translate('notifications.failed', { reason: translate(failureLabels[failure]) })}
             </p>
@@ -663,7 +664,7 @@ function Nothing({
     }
 
     return (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2.25 bg-page px-6 py-13 text-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-2.25 bg-sunken px-6 py-13 text-center">
             <Icon name="notifications_off" className="size-icon-3xl text-faint" />
             <p className="text-base text-pretty text-muted">
                 {translate(filter === 'unread' ? 'notifications.empty' : 'notifications.emptyAll')}

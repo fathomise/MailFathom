@@ -33,10 +33,10 @@ import { wordNotification } from './notificationWords';
 // them: a refused send is sent again or taken back to edit, and a change the mailbox did not take is asked again or let
 // go. Each is a decision taken where the row stands rather than a way into the thing it is about.
 //
-// **A card of its own, swiped aside to change its read state.** Each notification stands apart from the next rather than
-// running into it under a hairline, raised while it is unread and outlined once it is read. A finger carried either way
-// across it toggles the read state, exactly as the toggle does — the toggle and the row's menu stay, because a swipe is
-// a second route for a finger and never the only one.
+// **A row of its own, swiped aside to change its read state.** Each notification is raised off the list the way a
+// message row is, so one ends where the next begins. A finger carried either way across it toggles the read state,
+// exactly as the toggle does — the toggle and the row's menu stay, because a swipe is a second route for a finger and
+// never the only one.
 //
 // **How long ago is drawn and when is read.** The relative wording is what somebody scanning the list needs; the
 // instant behind it is what the `time` element carries and what a pointer resting on it says, so nothing about the
@@ -135,15 +135,17 @@ export function NotificationRow({
 
     return (
         <li
-            className={`relative shrink-0 touch-pan-y overflow-hidden rounded-lg ${arrived ? 'animate-row-opening' : ''}`}
+            className={`relative shrink-0 touch-pan-y overflow-hidden shadow-raised ${
+                arrived ? 'animate-row-opening' : ''
+            }`}
         >
             {swipe.carried === 0 ? null : (
-                // What lifting the finger will do, against the edge the card has uncovered. Hidden from the
+                // What lifting the finger will do, against the edge the row has uncovered. Hidden from the
                 // accessibility tree because the same act is the toggle beside it, which is where a keyboard and a
                 // screen reader meet it; faint until the swipe has gone far enough and full once it has.
                 <span
                     aria-hidden="true"
-                    className={`absolute inset-0 flex items-center rounded-lg bg-accent-soft text-accent-strong ${
+                    className={`absolute inset-0 flex items-center bg-accent-soft text-accent-strong ${
                         swipe.carried < 0 ? 'justify-end pe-5.5' : 'justify-start ps-5.5'
                     } ${swipe.commits === null ? 'opacity-55' : 'opacity-100'}`}
                 >
@@ -161,16 +163,10 @@ export function NotificationRow({
             )}
 
             <div
-                className={`relative flex items-start gap-3 rounded-lg border ps-3.5 pe-3 hover:border-line-strong ${
-                    swipe.carried === 0 ? 'transition' : ''
-                } ${
-                    selected
-                        ? 'border-line bg-accent-soft'
-                        : notification.read
-                          ? 'border-line-soft'
-                          : 'border-line bg-panel shadow-raised'
+                className={`relative flex items-start gap-3 ps-4 pe-3 ${swipe.carried === 0 ? 'transition' : ''} ${
+                    selected ? 'bg-accent-soft' : 'bg-panel hover:bg-hover'
                 }`}
-                // How far a finger has carried the card is a distance it decided rather than one the theme took.
+                // How far a finger has carried the row is a distance it decided rather than one the theme took.
                 style={swipe.carried === 0 ? undefined : { transform: `translateX(${String(swipe.carried)}px)` }}
             >
                 <span className="flex min-w-0 flex-1 flex-col">
@@ -178,7 +174,7 @@ export function NotificationRow({
                         ref={primary}
                         type="button"
                         aria-pressed={selecting ? selected : undefined}
-                        className={`flex cursor-pointer items-start gap-3 pt-3 text-start ${tucked ? 'pb-3' : 'pb-1.5'}`}
+                        className={`flex cursor-pointer items-start gap-3 pt-3.25 text-start ${tucked ? 'pb-3.25' : 'pb-1.5'}`}
                         onContextMenu={press.onContextMenu}
                         onPointerDown={(event) => {
                             press.onPointerDown(event);
@@ -200,7 +196,7 @@ export function NotificationRow({
 
                             press.onPointerUp();
                             // Asked after the tap is read, because the lift is what finishes a swipe — and a lift that has
-                            // just changed the read state is not also a tap opening what the card is about.
+                            // just changed the read state is not also a tap opening what the row is about.
                             swipe.onPointerUp(event);
 
                             if (tapped && !swipe.tapSuppressed()) {
@@ -271,7 +267,7 @@ export function NotificationRow({
                     {/* Under the text rather than under the symbol, which is where the design hangs it: inset by the
                 symbol's width and the gap beside it. */}
                     {onSummarize === null ? null : (
-                        <button type="button" onClick={onSummarize} className={`ms-11 mb-3 self-start ${pill}`}>
+                        <button type="button" onClick={onSummarize} className={`ms-11 mb-3.25 self-start ${pill}`}>
                             <Icon name="auto_awesome" className="size-icon-md" />
                             {summarizeName}
                         </button>
@@ -281,7 +277,7 @@ export function NotificationRow({
                         <span
                             role="group"
                             aria-label={translate('notifications.decisions')}
-                            className="ms-11 mb-3 flex flex-wrap gap-2"
+                            className="ms-11 mb-3.25 flex flex-wrap gap-2"
                         >
                             {/* A decision takes its pills away, so focus goes to the row's own control first rather than
                             falling to the document with the pill that held it. */}
@@ -308,7 +304,7 @@ export function NotificationRow({
                     )}
                 </span>
 
-                <span className="flex shrink-0 items-center gap-1.75 py-3">
+                <span className="flex shrink-0 items-center gap-1.75 py-3.25">
                     {notification.read ? null : (
                         <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-accent" />
                     )}

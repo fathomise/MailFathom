@@ -79,7 +79,7 @@ describe('usePanelSwipe', () => {
         expect(swipe().springing).toBe(true);
     });
 
-    it('leaves a finger that has gone further across than down to the card it is swiping', () => {
+    it('leaves a finger that has gone further across than down to the row it is swiping', () => {
         const { swipe, closed } = drive(true);
 
         press(swipe(), true, 100);

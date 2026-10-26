@@ -306,16 +306,16 @@ describe('NotificationCentre', () => {
         expect(acts.markRead).toHaveBeenCalledWith(['n-meeting'], false);
     });
 
-    describe('a card swiped aside', () => {
-        /** A finger landing on the card's title, travelling across it, and lifting there. */
+    describe('a row swiped aside', () => {
+        /** A finger landing on the row's title, travelling across it, and lifting there. */
         function swipeAcross(title: string, across: number, pointerType = 'touch'): void {
-            const card = screen.getByText(title);
+            const row = screen.getByText(title);
             const landed = { pointerId: 1, pointerType, button: 0, clientX: 200, clientY: 100 };
             const travelled = { ...landed, clientX: 200 + across };
 
-            fireEvent.pointerDown(card, landed);
-            fireEvent.pointerMove(card, travelled);
-            fireEvent.pointerUp(card, travelled);
+            fireEvent.pointerDown(row, landed);
+            fireEvent.pointerMove(row, travelled);
+            fireEvent.pointerUp(row, travelled);
         }
 
         it('marks an unread notification read, rightward as well as leftward, without opening it', () => {
