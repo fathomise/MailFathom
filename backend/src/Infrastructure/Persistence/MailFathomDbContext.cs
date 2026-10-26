@@ -78,6 +78,8 @@ internal sealed class MailFathomDbContext : DbContext
 
     internal DbSet<OrganizationEntity> Organizations => this.Set<OrganizationEntity>();
 
+    internal DbSet<OrganizationSigningKeyEntity> OrganizationSigningKeys => this.Set<OrganizationSigningKeyEntity>();
+
     internal DbSet<SettingsPolicyEntity> SettingsPolicies => this.Set<SettingsPolicyEntity>();
 
     internal DbSet<UserAccountEntity> UserAccounts => this.Set<UserAccountEntity>();
@@ -287,6 +289,7 @@ internal sealed class MailFathomDbContext : DbContext
 
         modelBuilder.ApplyConfiguration(new RootSettingsConfiguration());
         modelBuilder.ApplyConfiguration(new OrganizationConfiguration());
+        modelBuilder.ApplyConfiguration(new OrganizationSigningKeyConfiguration());
         modelBuilder.ApplyConfiguration(new SettingsPolicyConfiguration());
         modelBuilder.ApplyConfiguration(new UserAccountConfiguration());
         modelBuilder.ApplyConfiguration(new MailAccountRecordConfiguration());

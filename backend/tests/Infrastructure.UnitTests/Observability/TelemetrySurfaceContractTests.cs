@@ -144,6 +144,7 @@ public sealed class TelemetrySurfaceContractTests
     private static readonly SpamModelStageTelemetry SpamModelStage = new();
     private static readonly ObjectStorageTelemetry ObjectStorage = new(Clock);
     private static readonly StoredContentMoveTelemetry ContentMove = new(Clock);
+    private static readonly OrganizationSigningKeyTelemetry OrganizationSigningKeys = new();
     private static readonly RetainedContentReleaseTelemetry ContentRelease = new();
     private static readonly StoredEmailContentTelemetry StoredContent = new(Clock);
     private static readonly StoredMailRederivationTelemetry Rederivation = new(Clock);
@@ -178,6 +179,7 @@ public sealed class TelemetrySurfaceContractTests
         typeof(MailExtractionBackfillTelemetry),
         typeof(MailSynchronizationTelemetry),
         typeof(ObjectStorageTelemetry),
+        typeof(OrganizationSigningKeyTelemetry),
         typeof(PersistenceCommitTelemetry),
         typeof(RetainedContentReleaseTelemetry),
         typeof(SensitiveContentDerivationTelemetry),
@@ -322,6 +324,7 @@ public sealed class TelemetrySurfaceContractTests
         DriveContentObjectReclamation();
         DriveContentMove();
         ContentRelease.Released(payloadCount: 3, byteCount: 61_057);
+        OrganizationSigningKeys.MintRefusedWithoutKeyRing();
         DriveObjectStorage();
         DriveSensitiveContent();
         DriveSpamModelStage();

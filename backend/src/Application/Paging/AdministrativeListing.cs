@@ -31,4 +31,7 @@ public enum AdministrativeListing
 
     /// <summary>The role assignments a deployment holds.</summary>
     RoleAssignments = 6,
+
+    /// <summary>The signing keys of one organization.</summary>
+    OrganizationSigningKeys = 7,
 }

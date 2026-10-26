@@ -354,6 +354,25 @@ internal static class AdminEndpointRoutes
     internal static string OrganizationShortNamePath(Guid organizationId) =>
         $"{OrganizationPath(organizationId)}/short-name";
 
+    /// <summary>Where one organization's signing keys are listed.</summary>
+    /// <param name="organizationId">The organization the path names.</param>
+    /// <returns>The path.</returns>
+    internal static string OrganizationSigningKeysPath(Guid organizationId) =>
+        $"{OrganizationPath(organizationId)}/signing-keys";
+
+    /// <summary>Where one organization's active signing key is rotated ahead of schedule.</summary>
+    /// <param name="organizationId">The organization the path names.</param>
+    /// <returns>The path.</returns>
+    internal static string OrganizationSigningKeyRotationPath(Guid organizationId) =>
+        $"{OrganizationSigningKeysPath(organizationId)}/rotation";
+
+    /// <summary>Where one of an organization's signing keys is revoked.</summary>
+    /// <param name="organizationId">The organization the key belongs to.</param>
+    /// <param name="keyId">The key the path names.</param>
+    /// <returns>The path.</returns>
+    internal static string OrganizationSigningKeyRevocationPath(Guid organizationId, Guid keyId) =>
+        $"{OrganizationSigningKeysPath(organizationId)}/{keyId:D}/revocation";
+
     /// <summary>Where one scope's settings policy is read whole, and where an edited one is saved back.</summary>
     /// <param name="organizationId">The organization whose policy the path names, or <see langword="null" /> for the deployment's own.</param>
     /// <returns>The path.</returns>

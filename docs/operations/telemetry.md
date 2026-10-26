@@ -854,6 +854,12 @@ once a minute on one replica and a refused claim about once a minute on each of 
 refusals here is the ordinary reading of a deployment with more than one replica rather than contention worth acting
 on.
 
+The hourly [signing key](organization-signing-keys.md) pass holds `organization-signing-key/<organization>` — the
+organization's identifier — for as long as one organization's key is being minted or rotated, and only for an
+organization that is due one. On the gauge such a series appears for a moment on whichever replica renewed the
+organization, and on most hours none appears at all, because no organization is due. A refused claim is a replica that
+reached an organization while another was renewing it, and it leaves that organization to the replica that holds it.
+
 ### What a synchronization cycle emits
 
 No instrumentation package exists for the mail library, so without what follows the part of MailFathom that spends the
@@ -1046,6 +1052,21 @@ configured and writing nothing.
 
 The one tag is MailFathom's own closed set. No address, name, display name, folder, or message identity reaches an
 instrument from collection: the outcome is a decision about a person and never the person, and nothing here logs at all.
+
+### Organizations left without a signing key
+
+Every organization holds [a signing key](organization-signing-keys.md) whose private half is sealed under the
+deployment's key ring, so a deployment that configures no ring mints none: the organization is still recorded, and the
+pass that renews keys leaves it without one. `mailfathom.organization.signing_key.unminted` counts each time that pass
+reached an organization it could not mint a key for, in `{organization}`, with no dimension, and the pass logs the same
+count as a warning. A pass reaches at most a hundred organizations, so the count rises by at most a hundred per pass
+however many are waiting. A deployment that has configured `DataEncryption` reads zero for ever; one that has not reads a
+steady rise every hour for as long as it has organizations, which is the signal that they hold nothing to sign with and
+that the fix is the key ring rather than anything about the organizations.
+
+It is a counter and it is additive: each replica counts the organizations its own hourly passes reached, so a
+deployment of several replicas rises by up to one per organization per replica each hour, and a panel sums it across
+them. No organization identity, name, or key reaches the instrument or the log.
 
 ### What delivering the outbox emits
 

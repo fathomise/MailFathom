@@ -58,10 +58,18 @@ public readonly record struct DataEncryptionPurpose
     /// </remarks>
     public static DataEncryptionPurpose AttachmentDownloadLink { get; } = new("attachment-download-link");
 
+    /// <summary>Gets the purpose of the private half of a key an organization signs its accounts' mail with.</summary>
+    /// <remarks>
+    /// The subject of a value sealed under this purpose is the signing key's own identifier, so a sealed private half
+    /// moved onto another key's row fails to open rather than signing as that key. See
+    /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0042-signing-an-organizations-mail-and-trusting-a-sender-its-signature-proves.md">ADR 0042</see>.
+    /// </remarks>
+    public static DataEncryptionPurpose OrganizationSigningKey { get; } = new("organization-signing-key");
+
     /// <summary>Gets every supported purpose.</summary>
     /// <remarks>Declared last so the members it lists are already initialized when this initializer runs.</remarks>
     public static IReadOnlyList<DataEncryptionPurpose> All { get; } =
-        [MailboxRefreshToken, StoredSecret, AttachmentDownloadLink];
+        [MailboxRefreshToken, StoredSecret, AttachmentDownloadLink, OrganizationSigningKey];
 
     /// <summary>Gets whether this value names a supported purpose rather than the unusable struct default.</summary>
     public bool IsSpecified => this.identity is not null;

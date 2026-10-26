@@ -295,7 +295,8 @@ Over organization 0198f0aa-… it is granted mailfathom.admin.read, mailfathom.a
 **Some operations are the deployment's alone**, and a grant below the deployment never reaches them whatever else does:
 the configuration reads and writes under `/api/admin/configuration`, the embedding routes under `/api/admin/embeddings`,
 the loaded rules, the stopped jobs naming no account, the outbox's summary and listing, the content move and the release
-of what it left behind, creating and deleting an organization, changing its short name, and defining a role.
+of what it left behind, creating and deleting an organization, changing its short name, rotating and revoking its
+[signing key](organization-signing-keys.md), and defining a role.
 [What only the deployment scope grants](permissions.md#what-only-the-deployment-scope-grants) lists them per
 permission.
 
@@ -467,6 +468,7 @@ These routes accept a grant held at any of the three, and check it against the t
 | `GET /api/admin/organizations` | — lists the organizations the caller's scopes for `mailfathom.admin.read` cover; a user scope covers none |
 | `PUT /api/admin/organizations/{organizationId}/display-name` | The organization |
 | `GET` and `POST /api/admin/organizations/{organizationId}/policy` | The organization |
+| `GET /api/admin/organizations/{organizationId}/signing-keys` | The organization |
 
 **A target outside the caller's scope is answered exactly as one that does not exist**, because a refusal naming the
 missing scope would tell an organization's administrator that the account, the person, or the organization exists
@@ -680,6 +682,9 @@ and a request with none is refused as any other.
 | `POST /api/admin/policy` | `mailfathom.admin.configuration.write` | Takes that policy back edited and commits it as one change against the version it was opened over. It is what `mfctl policy edit` sends when the editor exits; a policy that does not validate, and one another writer moved past, are refused in the answer rather than merged or written in part. |
 | `GET /api/admin/organizations/{organizationId}/policy` | `mailfathom.admin.read` | Hands over the settings policy one organization holds, the same way. It answers `404` for an organization this deployment does not hold. |
 | `POST /api/admin/organizations/{organizationId}/policy` | `mailfathom.admin.configuration.write` | Takes that organization's policy back edited and commits it as one change, the same way. It answers `404` for an organization this deployment does not hold. |
+| `GET /api/admin/organizations/{organizationId}/signing-keys` | `mailfathom.admin.read` | Reads [one page](#reading-the-users-mail-accounts-and-organizations-a-page-at-a-time) of [the organization's signing keys](organization-signing-keys.md), oldest first, each with its identifier, its state — `active`, `retired`, or `revoked` — and when it was created, retired, and revoked, beside the organization's display name and `nextCursor` naming where the following page continues. No key material is ever part of the answer. It answers `404` for an organization this deployment does not hold or the caller's scope does not cover. This is what `mfctl organization signing-key list` asks. |
+| `POST /api/admin/organizations/{organizationId}/signing-keys/rotation` | `mailfathom.admin.credentials.write` | Mints the organization a fresh active signing key now and retires the one it signed with, answering with both identifiers. It answers `404` for an organization this deployment does not hold, and `409` naming `DataEncryption` where the deployment configures no key ring to seal the new key under. |
+| `POST /api/admin/organizations/{organizationId}/signing-keys/{keyId}/revocation` | `mailfathom.admin.credentials.write` | Revokes one of the organization's signing keys. Revoking the active key mints its replacement in the same transaction, and the answer names it. It answers `404` for a key the organization does not hold, and `409` for a key already revoked. |
 | `GET /api/admin/roles` | `mailfathom.admin.read` | Reads one page of the [roles](#roles-groups-and-assignments) this deployment holds, each with its list as it was written under `permissions`, what each pattern on that list reaches in this build under `patterns`, and any stored entry granting nothing in this build under `unpublished`. |
 | `POST /api/admin/roles` | `mailfathom.admin.roles.write` at the deployment | Records a role from the name and the list of permissions the body carries — published names, and [patterns](permissions.md#a-pattern-in-a-roles-list) — and answers with the identifier it was minted under. A name another role carries is answered `409`, and a name it does not accept, a missing list, a permission this build does not publish, or a pattern reaching nothing it publishes `400`. |
 | `PUT /api/admin/roles/{roleId}/name` | `mailfathom.admin.roles.write` at the deployment | Replaces the name an operator reads the role by. It answers `204`, `404`, `409` for a name already taken, and `400` for a name it does not accept. |
@@ -740,8 +745,10 @@ short page against the size you asked for. The rows are in identifier order, whi
 indexed in and — every identifier MailFathom mints being a version 7 UUID — the order the rows were recorded in. A
 cursor names the last row a page held rather than a position counted from the start, so a row recorded or removed
 while you walk moves nothing you have not read yet, and a cursor naming a row removed since is still a place to
-continue from. A cursor another listing issued, a cursor one group's members were listed with presented to another
-group's, or anything this deployment did not issue, is refused with `400`, and so is a page size outside the range.
+continue from. A cursor another listing issued, a cursor one group's members or one organization's signing keys were
+listed with presented to another group's or organization's, or anything this deployment did not issue, is refused with
+`400`, and so is a page size outside the range. An organization's [signing keys](organization-signing-keys.md) are paged
+the same way, under the same two parameters.
 
 `mfctl user list`, `mfctl account list`, and `mfctl organization list` follow the cursor to the end themselves and
 print the whole listing; `mfctl organization list` sorts it by short name before printing. A script reading a listing
@@ -2063,6 +2070,9 @@ method's](mcp-endpoint.md#passwords) to state.
 | `mfctl organization rename --organization <id> --display-name <name>` | Replaces the name an operator reads it by |
 | `mfctl organization set-short-name --organization <id> --short-name <name>` | Replaces the short name its members sign in under |
 | `mfctl organization remove --organization <id>` | Removes an organization with neither members nor mail accounts |
+| `mfctl organization signing-key list --organization <id>` | Reads every one of the organization's [signing keys](organization-signing-keys.md), oldest first, with each one's state and dates and never its material |
+| `mfctl organization signing-key rotate --organization <id>` | Mints a fresh active signing key now and retires the one the organization signed with |
+| `mfctl organization signing-key revoke --organization <id> --key <id>` | Revokes one signing key after asking, minting a replacement in the same act when it was the active one |
 | `mfctl user set-organization (--organization <id> \| --none)` | Moves one user into an organization, or out of every organization; it takes `--user` as every other user command does |
 | `mfctl account set-organization --account <id> (--organization <id> \| --none)` | Moves one mail account into an organization, or out of every organization |
 

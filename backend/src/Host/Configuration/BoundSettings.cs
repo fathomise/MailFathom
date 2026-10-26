@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Host.Configuration.Access;
 using MailFathom.Host.Configuration.Answering;
 using MailFathom.Host.Configuration.Chat;
 using MailFathom.Host.Configuration.DataEncryption;
@@ -194,6 +195,14 @@ internal static class BoundSettings
         services.AddOptions<DataEncryptionOptions>()
             .Bind(
                 configuration.GetSection(DataEncryptionOptions.SectionName),
+                binderOptions => binderOptions.ErrorOnUnknownConfiguration = true)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        // A root of its own rather than a section of DataEncryption: the ring seals the keys, but how often an
+        // organization's key is replaced is a decision about signing, and ADR 0042 keeps it out of the settings policy.
+        services.AddOptions<OrganizationSigningOptions>()
+            .Bind(
+                configuration.GetSection(OrganizationSigningOptions.SectionName),
                 binderOptions => binderOptions.ErrorOnUnknownConfiguration = true)
             .ValidateDataAnnotations()
             .ValidateOnStart();

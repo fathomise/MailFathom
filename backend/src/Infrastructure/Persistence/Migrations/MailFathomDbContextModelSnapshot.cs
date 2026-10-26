@@ -2851,6 +2851,52 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.ToTable("organizations", (string)null);
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.OrganizationSigningKeyEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DataEncryptionKeyId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<byte[]>("PublicKey")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<DateTimeOffset?>("RetiredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<byte[]>("SealedPrivateKey")
+                        .HasColumnType("bytea");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_organization_signing_keys_active")
+                        .HasFilter("\"RetiredAt\" IS NULL AND \"RevokedAt\" IS NULL");
+
+                    b.HasIndex("OrganizationId", "Id")
+                        .HasDatabaseName("ix_organization_signing_keys_organization");
+
+                    b.ToTable("organization_signing_keys", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_organization_signing_keys_sealed_pair", "(\"SealedPrivateKey\" IS NULL) = (\"DataEncryptionKeyId\" IS NULL)");
+
+                            t.HasCheckConstraint("ck_organization_signing_keys_spent_holds_no_private_key", "(\"RetiredAt\" IS NULL AND \"RevokedAt\" IS NULL) OR \"SealedPrivateKey\" IS NULL");
+                        });
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.OutgoingEmailContentEntity", b =>
                 {
                     b.Property<Guid>("OutgoingEmailId")
@@ -5027,6 +5073,16 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasForeignKey("StoredEmailId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.OrganizationSigningKeyEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.OrganizationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_organization_signing_keys_organization");
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.OutgoingEmailContentEntity", b =>

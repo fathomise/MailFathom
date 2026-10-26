@@ -895,6 +895,9 @@ person into it, taking the identifier `mfctl organization list` reports. From th
 password as `TESTFIRMA/username` rather than as `username`, so two companies can each have a `jan`; `--none` moves
 them back out. `mfctl organization rename`, `set-short-name`, and `remove` maintain the rest, and `mfctl credential list`
 shows each password credential's login in its "Resolved by" column, so you can read off what somebody should type.
+Each organization is also given a signing key without anybody asking, provided the deployment has a data-encryption key
+ring; `mfctl organization signing-key list`, `rotate`, and `revoke` read and replace it, and
+[organization signing keys](../operations/organization-signing-keys.md) says when you would.
 
 **A company can have an administrator of its own.** A role assigned at an organization's scope administers that
 organization's people — recording them with `mfctl user add --organization <id>`, editing their records, and provisioning

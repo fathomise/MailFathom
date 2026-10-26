@@ -60,6 +60,7 @@ internal static class MailFathomConfigurationSections
         "MailRules",
         "MailSynchronization",
         "McpEndpoint",
+        "OrganizationSigning",
         "Persistence",
         "Resilience",
         "ReverseProxy",

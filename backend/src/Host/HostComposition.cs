@@ -58,6 +58,7 @@ using MailFathom.Common.Observability;
 using MailFathom.Host.Api;
 using MailFathom.Host.Api.Documentation;
 using MailFathom.Host.Configuration;
+using MailFathom.Host.Configuration.Access;
 using MailFathom.Host.Configuration.Administration;
 using MailFathom.Host.Configuration.Answering;
 using MailFathom.Host.Configuration.Chat;
@@ -168,6 +169,7 @@ internal static class HostComposition
 
         AddContentStorage(builder);
         AddMailboxExport(builder);
+        AddOrganizationSigning(builder);
         AddBackgroundWork(builder, embedsMail);
 
         // Ahead of the surfaces rather than inside one, because the document it generates describes two of them and
@@ -1298,6 +1300,19 @@ internal static class HostComposition
             provider.GetRequiredService<IOptions<MailboxExportOptions>>().Value.ExpirySweepInterval,
             provider.GetRequiredService<ILogger<MailboxExportExpiryWorker>>(),
             provider.GetRequiredService<TimeProvider>()));
+    }
+
+    /// <summary>Registers the interval organization signing keys rotate on, and the pass that mints and rotates them.</summary>
+    /// <remarks>
+    /// Registered on every deployment, whether or not it configures a key ring: without one the pass mints nothing and
+    /// counts every organization it could not give a key, which is what tells an operator the ring is missing.
+    /// </remarks>
+    private static void AddOrganizationSigning(WebApplicationBuilder builder)
+    {
+        builder.Services.AddSingleton(provider =>
+            provider.GetRequiredService<IOptions<OrganizationSigningOptions>>().Value.ToSigningSettings());
+
+        builder.Services.AddHostedService<OrganizationSigningKeyRenewalWorker>();
     }
 
     /// <summary>Registers the startup gates and the workers behind them, in the order a run may first touch mail.</summary>

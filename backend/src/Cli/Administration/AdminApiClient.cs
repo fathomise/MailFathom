@@ -2106,6 +2106,73 @@ internal sealed class AdminApiClient
             cancellationToken,
             absenceMessage: NoSuchOrganization);
 
+    /// <summary>Reads every signing key of one organization, oldest first, following the listing's cursor to its end.</summary>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="organizationId">The organization.</param>
+    /// <param name="cancellationToken">Cancels the requests.</param>
+    /// <returns>The organization's display name and its keys, never their material.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="token" /> is <see langword="null" />.</exception>
+    /// <exception cref="CliFailure">Thrown when the deployment holds no such organization, refused the credential, could not be reached, or answered with something that is not a listing.</exception>
+    internal async Task<OrganizationSigningKeyList> ReadOrganizationSigningKeysAsync(
+        string token,
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        var pages = await this.ReadEveryPageAsync(
+            AdminEndpointRoutes.OrganizationSigningKeysPath(organizationId),
+            token,
+            CliJsonContext.Default.OrganizationSigningKeyList,
+            page => page.NextCursor,
+            cancellationToken,
+            NoSuchOrganization);
+
+        return new OrganizationSigningKeyList(
+            organizationId,
+            pages[^1].DisplayName,
+            [.. pages.SelectMany(page => page.Keys ?? [])],
+            NextCursor: null);
+    }
+
+    /// <summary>Mints a fresh active signing key for an organization now, retiring the one it signs with.</summary>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="organizationId">The organization.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The organization's active key now, and the key it retired.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="token" /> is <see langword="null" />.</exception>
+    /// <exception cref="CliFailure">Thrown when the deployment holds no such organization, configures no key ring, refused the credential, or could not be reached.</exception>
+    internal Task<OrganizationSigningKeyRotated> RotateOrganizationSigningKeyAsync(
+        string token,
+        Guid organizationId,
+        CancellationToken cancellationToken) =>
+        this.RequestAsync(
+            HttpMethod.Post,
+            AdminEndpointRoutes.OrganizationSigningKeyRotationPath(organizationId),
+            token,
+            CliJsonContext.Default.OrganizationSigningKeyRotated,
+            cancellationToken,
+            absenceMessage: NoSuchOrganization);
+
+    /// <summary>Revokes one of an organization's signing keys.</summary>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="organizationId">The organization the key belongs to.</param>
+    /// <param name="keyId">The key.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>Whether the key was the active one, and the replacement minted for it.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="token" /> is <see langword="null" />.</exception>
+    /// <exception cref="CliFailure">Thrown when the organization holds no such key, the key was already revoked, the credential was refused, or the deployment could not be reached.</exception>
+    internal Task<OrganizationSigningKeyRevoked> RevokeOrganizationSigningKeyAsync(
+        string token,
+        Guid organizationId,
+        Guid keyId,
+        CancellationToken cancellationToken) =>
+        this.RequestAsync(
+            HttpMethod.Post,
+            AdminEndpointRoutes.OrganizationSigningKeyRevocationPath(organizationId, keyId),
+            token,
+            CliJsonContext.Default.OrganizationSigningKeyRevoked,
+            cancellationToken,
+            absenceMessage: "This organization holds no signing key under that identifier. Run 'mfctl organization signing-key list' and name one it holds.");
+
     /// <summary>Moves one user into an organization, or out of every organization.</summary>
     /// <param name="token">The bearer credential to present.</param>
     /// <param name="userId">The user being moved.</param>

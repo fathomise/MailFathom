@@ -707,6 +707,23 @@ internal static class PersistenceConstraintNames
     /// <remarks>Stated because the store reads it: a write that violates it is a short name another organization signs in under, which an operator acts on rather than a provider failure.</remarks>
     internal const string OrganizationShortNameUniqueIndexName = "ix_organizations_short_name";
 
+    /// <summary>The partial index that keeps an organization to at most one active signing key.</summary>
+    /// <remarks>Stated because the store reads it: an insert that meets it is the replica that lost a race to mint or rotate, which reads the winner's key back rather than failing.</remarks>
+    internal const string OrganizationSigningKeyActiveUniqueIndexName = "ix_organization_signing_keys_active";
+
+    /// <summary>The index an organization's signing keys are paged through by, in identifier order.</summary>
+    internal const string OrganizationSigningKeyOrganizationIndexName = "ix_organization_signing_keys_organization";
+
+    /// <summary>The foreign key that refuses a signing key for an organization that does not exist, and removes it with the organization.</summary>
+    internal const string OrganizationSigningKeyOrganizationForeignKeyName = "fk_organization_signing_keys_organization";
+
+    /// <summary>The check that keeps a sealed private half and the ring key that sealed it present or absent together.</summary>
+    internal const string OrganizationSigningKeySealedPairCheckConstraintName = "ck_organization_signing_keys_sealed_pair";
+
+    /// <summary>The check that refuses a retired or revoked signing key still holding its private half.</summary>
+    internal const string OrganizationSigningKeySpentHoldsNoPrivateKeyCheckConstraintName =
+        "ck_organization_signing_keys_spent_holds_no_private_key";
+
     /// <summary>The index that keeps one settings policy to one scope: the deployment, or one organization.</summary>
     /// <remarks>Nulls are not distinct in it, so the deployment's own row is as unique as an organization's, and it is what the write storing a scope's first policy loses to when another stored one first.</remarks>
     internal const string SettingsPolicyScopeUniqueIndexName = "ix_settings_policies_scope";
