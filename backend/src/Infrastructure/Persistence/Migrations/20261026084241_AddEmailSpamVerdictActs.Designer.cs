@@ -14,7 +14,7 @@ using Pgvector;
 namespace MailFathom.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(MailFathomDbContext))]
-    [Migration("20261026034753_AddEmailSpamVerdictActs")]
+    [Migration("20261026084241_AddEmailSpamVerdictActs")]
     partial class AddEmailSpamVerdictActs
     {
         /// <inheritdoc />
@@ -2759,6 +2759,15 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<Guid?>("TargetMailDraftId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TargetMailboxMutationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TargetOutgoingEmailId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("TargetPersonalTaskId")
                         .HasColumnType("uuid");
 
@@ -2780,6 +2789,12 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("TargetCalendarEventId");
+
+                    b.HasIndex("TargetMailDraftId");
+
+                    b.HasIndex("TargetMailboxMutationId");
+
+                    b.HasIndex("TargetOutgoingEmailId");
 
                     b.HasIndex("TargetPersonalTaskId");
 
@@ -4826,6 +4841,21 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasForeignKey("TargetCalendarEventId")
                         .OnDelete(DeleteBehavior.Cascade);
 
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.MailDraftEntity", "TargetMailDraft")
+                        .WithMany()
+                        .HasForeignKey("TargetMailDraftId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.MailboxMutationEntity", "TargetMailboxMutation")
+                        .WithMany()
+                        .HasForeignKey("TargetMailboxMutationId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.OutgoingEmailEntity", "TargetOutgoingEmail")
+                        .WithMany()
+                        .HasForeignKey("TargetOutgoingEmailId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("MailFathom.Infrastructure.Persistence.Entities.PersonalTaskEntity", "TargetPersonalTask")
                         .WithMany()
                         .HasForeignKey("TargetPersonalTaskId")
@@ -4843,6 +4873,12 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("TargetCalendarEvent");
+
+                    b.Navigation("TargetMailDraft");
+
+                    b.Navigation("TargetMailboxMutation");
+
+                    b.Navigation("TargetOutgoingEmail");
 
                     b.Navigation("TargetPersonalTask");
 
