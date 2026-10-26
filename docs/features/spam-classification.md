@@ -119,11 +119,11 @@ one decided. This build reads a message's junk keywords, which is why the first 
 existing mail, and a message carrying `$Junk` or `$NotJunk` can change its verdict there once. The model stage's terms — whether it is consulted, whether
 it names the subcategory of deterministic spam, and the threshold its probability is judged against — are what the
 digest adds when the model is consulted, so a change to any of them re-decides mail on the next run, and a deployment
-that does not consult it keeps the deterministic profile. The folders an account
-classifies are deliberately outside it: adding a folder changes which mail is classified and not what any
-classification would have concluded. A record whose profile differs from the current one — or that names none — was
-decided under other terms, and a [classification run](#classifying-the-mail-you-already-have) classifies it again
-rather than skipping it.
+that does not consult it keeps the deterministic profile. Every record a stage writes names the profile it was decided
+under; the person's own verdict names none, and a run skips it whatever its profile. The folders an account classifies
+are deliberately outside it: adding a folder changes which mail is classified and not what any classification would have
+concluded. A stage's record whose profile differs from the current one — or that names none — was decided under other
+terms, and a [classification run](#classifying-the-mail-you-already-have) classifies it again rather than skipping it.
 
 ## The deterministic stage
 
