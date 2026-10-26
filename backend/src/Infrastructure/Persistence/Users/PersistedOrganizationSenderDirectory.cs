@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.CodeCoverage;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Emails;
@@ -82,6 +83,21 @@ internal sealed class PersistedOrganizationSenderDirectory(Lazy<MailFathomDbCont
             .ToListAsync(cancellationToken);
 
         return [.. accounts.Select(static account => MailAccountId.Create(account.ToString("D")))];
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<UserId>> ListAssignedUsersAsync(Guid organizationId, CancellationToken cancellationToken)
+    {
+        var context = readContext.Value;
+        var users = await context.MailAccountAssignments
+            .AsNoTracking()
+            .Where(assignment => context.MailAccountRecords
+                .Any(record => record.Id == assignment.MailAccountId && record.OrganizationId == organizationId))
+            .Select(assignment => assignment.UserId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return [.. users.Order().Select(UserId.Create)];
     }
 
     /// <inheritdoc />

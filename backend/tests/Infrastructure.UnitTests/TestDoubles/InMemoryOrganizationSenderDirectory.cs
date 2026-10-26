@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Infrastructure.Mail.Dkim;
@@ -47,6 +48,17 @@ internal sealed class InMemoryOrganizationSenderDirectory : IOrganizationSenderD
     public Task<IReadOnlyList<MailAccountId>> ListAccountsAsync(Guid organizationId, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<MailAccountId>>(
             [.. this.Memberships.Where(membership => membership.Value == organizationId).Select(static membership => membership.Key)]);
+
+    /// <inheritdoc />
+    /// <remarks>One user stands for each organization, which is all a verifier needs to hand on to the identity directory.</remarks>
+    public Task<IReadOnlyList<UserId>> ListAssignedUsersAsync(Guid organizationId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<UserId>>(
+            this.Memberships.ContainsValue(organizationId) ? [UserOf(organizationId)] : []);
+
+    /// <summary>Names the one user an organization's accounts are assigned to here.</summary>
+    /// <param name="organizationId">The organization.</param>
+    /// <returns>The user.</returns>
+    public static UserId UserOf(Guid organizationId) => UserId.Create(organizationId);
 
     /// <inheritdoc />
     public Task<IReadOnlyList<EmailAddress>> ListBlindCopyRecipientsAsync(

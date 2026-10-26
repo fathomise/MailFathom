@@ -106,8 +106,8 @@ public sealed class SenderTrustPolicy
     /// it would have been with no organization at all.
     /// </para>
     /// <para>
-    /// <b>The subject of the decision is <see cref="SenderAuthentication.AuthenticatedAuthorDomain" /> and nothing
-    /// else.</b> The <c>From</c> header on its own is written by whoever sent the message, so holding it against a list
+    /// <b>The subject the lists are held against is <see cref="SenderAuthentication.AuthenticatedAuthorDomain" /> and
+    /// nothing else.</b> The <c>From</c> header on its own is written by whoever sent the message, so holding it against a list
     /// would let anybody be recognized by claiming to be; and the identity the receiving server happened to authenticate
     /// belongs to whoever handed the message over, which for a relay, a mailing list, or a delivery provider is not the
     /// author at all. Recognizing a provider one correspondent uses would otherwise recognize every message that
@@ -115,7 +115,8 @@ public sealed class SenderTrustPolicy
     /// </para>
     /// <para>
     /// So a message whose author was not established, and one whose author authentication the receiving server refused,
-    /// both reach <see cref="SenderTrustLevel.Unknown" /> without the list being consulted at all. Which of the two it
+    /// both reach <see cref="SenderTrustLevel.Unknown" /> without the list being consulted at all, unless organization
+    /// membership was proved as stated above. Which of the two it
     /// was stays on <see cref="SenderAuthentication.AuthorAuthentication" />, where it was recorded, because this
     /// verdict answers only about the list.
     /// </para>

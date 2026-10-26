@@ -26,8 +26,8 @@ namespace MailFathom.IntegrationTests.Persistence;
 /// <remarks>
 /// The verifier's own rules are unit tested against a double that applies the same filters; what only PostgreSQL can
 /// show is that the queries do apply them — a retired key still answers, a revoked one and another organization's do
-/// not, and a blind copy is found by the <c>Message-ID</c> a send was opened with and only through the account it was
-/// sent through.
+/// not, a blind copy is found by the <c>Message-ID</c> a send was opened with and only through the account it was sent
+/// through, and the users an organization's accounts are assigned to are read through the assignment rows themselves.
 /// </remarks>
 [Collection(OrchestratedInfrastructureCollectionDefinition.Name)]
 public sealed class OrchestratedOrganizationSenderDirectoryTests(MailFathomOrchestrationFixture orchestration)
@@ -112,6 +112,7 @@ public sealed class OrchestratedOrganizationSenderDirectoryTests(MailFathomOrche
                     return (
                         Organization: await directory.FindOrganizationAsync(account, token),
                         Accounts: await directory.ListAccountsAsync(organization, token),
+                        Users: await directory.ListAssignedUsersAsync(organization, token),
                         Through: await directory.ListBlindCopyRecipientsAsync([account], messageId, token),
                         Elsewhere: await directory.ListBlindCopyRecipientsAsync([MailAccountId.Create("elsewhere")], messageId, token),
                         OtherMessage: await directory.ListBlindCopyRecipientsAsync([account], $"other-{messageId}", token));
@@ -121,6 +122,7 @@ public sealed class OrchestratedOrganizationSenderDirectoryTests(MailFathomOrche
             // Assert
             Assert.Equal(organization, answers.Organization);
             Assert.Equal([account], answers.Accounts);
+            Assert.Equal([SyntheticMailAccount.User], answers.Users);
             Assert.Equal(["BOB@ORG.EXAMPLE.TEST"], answers.Through.Select(static address => address.NormalizedAddress.ToUpperInvariant()));
             Assert.Empty(answers.Elsewhere);
             Assert.Empty(answers.OtherMessage);
@@ -133,6 +135,7 @@ public sealed class OrchestratedOrganizationSenderDirectoryTests(MailFathomOrche
                     var context = scope.GetRequiredService<MailFathomDbContext>();
 
                     return await context.OutgoingEmails.Where(email => email.MailboxAccountId == account.Value).ExecuteDeleteAsync(token)
+                        + await context.MailAccountAssignments.Where(assignment => assignment.MailAccountId == accountId).ExecuteDeleteAsync(token)
                         + await context.MailAccountRecords.Where(record => record.Id == accountId).ExecuteDeleteAsync(token);
                 },
                 CancellationToken.None);
@@ -182,6 +185,12 @@ public sealed class OrchestratedOrganizationSenderDirectoryTests(MailFathomOrche
                     Version = 1,
                     CreatedAt = RecordedAt,
                     UpdatedAt = RecordedAt,
+                });
+                context.MailAccountAssignments.Add(new MailAccountAssignmentEntity
+                {
+                    UserId = SyntheticMailAccount.User.Value,
+                    MailAccountId = accountId,
+                    AssignedAt = RecordedAt,
                 });
                 await context.SaveChangesAsync(token);
             },

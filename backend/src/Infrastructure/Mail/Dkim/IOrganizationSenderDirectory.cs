@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 
@@ -33,6 +34,13 @@ internal interface IOrganizationSenderDirectory
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>The accounts, in no particular order.</returns>
     Task<IReadOnlyList<MailAccountId>> ListAccountsAsync(Guid organizationId, CancellationToken cancellationToken);
+
+    /// <summary>Lists the users any of an organization's mail accounts is assigned to now, in one read.</summary>
+    /// <param name="organizationId">The organization.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>Each such user once, in the order of their identifiers.</returns>
+    /// <remarks>An account's sending identity is composed from the records of the users it is assigned to, so these are whom every member account's identity is read through.</remarks>
+    Task<IReadOnlyList<UserId>> ListAssignedUsersAsync(Guid organizationId, CancellationToken cancellationToken);
 
     /// <summary>Lists the blind-copy recipients of the sends one of several accounts made with a <c>Message-ID</c>.</summary>
     /// <param name="sentThrough">The accounts the send must have been made through.</param>

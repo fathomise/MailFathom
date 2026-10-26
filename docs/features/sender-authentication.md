@@ -274,7 +274,9 @@ is never read and nothing is asked of DNS.
    nothing for any message verified after the revocation, whenever the message says it was signed.
 2. **The message carries exactly one `From` field, naming exactly one mailbox, and that address is the sending address
    of a mail account in the organization now** — the address its mail is written from, never its IMAP user name, so a
-   member whose user name is a bare login is still recognized. Every signed header is listed twice, so a second `From`,
+   member whose user name is a bare login is still recognized. It is read from the settings of the users the account is
+   assigned to, whoever the receiving account is assigned to, so a colleague served to another person is recognized and
+   an account assigned to nobody sends as nobody. Every signed header is listed twice, so a second `From`,
    or a `Reply-To` that would send the reply elsewhere, inserted after signing breaks the signature. An author who has
    left the organization is no longer recognized, whatever key once signed for them.
 3. **The message was sent to the receiving account**: its sending address is in the signed `To` or `Cc`, or the record
@@ -367,9 +369,11 @@ every author unknown, and an operator would meet the difference as mail whose au
 
 The answer is stored on the message rather than decided when the message is read, so a reader and a rule can ask
 whether an author is trusted without re-evaluating a policy that may since have changed. What makes that legible is
-the **policy revision** recorded beside it: a digest of the effective list, so two verdicts carrying different revisions
-were reached under different lists, and one carrying none was never put to a policy at all. Reordering a list is not a
-change to it and produces the same revision; adding an entry to it produces a different one.
+the **policy revision** recorded beside it: a digest of the effective list together with the receiving account's
+organization, so two verdicts carrying different revisions were reached under a different list or for a different
+organization, and one carrying none was never put to a policy at all. Reordering a list is not a change to it and
+produces the same revision; adding an entry to it, or the account joining or leaving an organization, produces a
+different one.
 
 Adding a domain therefore does not silently rewrite what a reader was already shown. What re-judges mail already stored
 is [`mfctl mailbox rederive`](imap-synchronization.md#bringing-stored-mail-up-to-a-later-release), the same deliberate

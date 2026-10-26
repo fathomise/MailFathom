@@ -3,8 +3,10 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Mail.Delivery.Composition;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Infrastructure.Mail.Dkim;
 using MailFathom.Infrastructure.UnitTests.TestDoubles;
 using MimeKit;
@@ -293,6 +295,45 @@ public sealed class OrganizationSignatureVerifierTests
         Assert.Equal(0, directory.KeyReads);
     }
 
+    /// <summary>The sender writes how many signature headers a message carries, so no more than the bound are ever looked up.</summary>
+    [Fact]
+    public async Task VerifyAsync_MoreSignatureHeadersThanTheBound_ReadsAKeyForTheBoundAlone()
+    {
+        // Arrange
+        var (directory, _) = Directory();
+        using var composed = OrganizationSignatureFixtures.Compose();
+        foreach (var unheld in Enumerable.Range(0, LocalSenderAuthenticationReading.MaximumVerifiedSignaturesPerMessage + 3)
+            .Select(static _ => OrganizationSignatureFixtures.CreateKey()))
+        {
+            OrganizationSignatureFixtures.Sign(composed, unheld);
+        }
+
+        using var message = OrganizationSignatureFixtures.RoundTrip(composed).Parsed;
+
+        // Act
+        var verification = await Verifier(directory).VerifyAsync(Receiver, message, CancellationToken.None);
+
+        // Assert
+        Assert.False(verification?.SenderIsMember);
+        Assert.Equal(LocalSenderAuthenticationReading.MaximumVerifiedSignaturesPerMessage, directory.KeyReads);
+    }
+
+    /// <summary>A header naming another algorithm is passed over before its selector is looked up, even one naming a held key.</summary>
+    [Fact]
+    public async Task VerifyAsync_SignatureNamingAnotherAlgorithm_ReadsNoKeyAndRecognizesNobody()
+    {
+        // Arrange
+        var (directory, key) = Directory();
+        using var message = Signed(key, alter: static written => written.Replace("a=ed25519-sha256", "a=rsa-sha256", StringComparison.Ordinal));
+
+        // Act
+        var verification = await Verifier(directory).VerifyAsync(Receiver, message, CancellationToken.None);
+
+        // Assert
+        Assert.False(verification?.SenderIsMember);
+        Assert.Equal(0, directory.KeyReads);
+    }
+
     private static (InMemoryOrganizationSenderDirectory Directory, OrganizationSignatureFixtures.OrganizationKey Key) Directory()
     {
         var key = OrganizationSignatureFixtures.CreateKey();
@@ -307,15 +348,24 @@ public sealed class OrganizationSignatureVerifierTests
     private static OrganizationSignatureVerifier Verifier(InMemoryOrganizationSenderDirectory directory) =>
         new(directory, Identities((Author, "anna@org.example.test"), (Receiver, "bob@org.example.test")));
 
+    /// <summary>Answers the identities only when asked through the organization's assigned user, as the host would compose them.</summary>
     private static ISenderIdentityDirectory Identities(params (MailAccountId Account, string Address)[] identities)
     {
-        var reader = Substitute.For<ISenderIdentityDirectory>();
+        var served = identities.ToDictionary(
+            static identity => identity.Account,
+            static identity =>
+            {
+                Assert.True(EmailAddress.TryCreate(displayName: null, identity.Address, out var parsed));
 
-        foreach (var (account, address) in identities)
-        {
-            Assert.True(EmailAddress.TryCreate(displayName: null, address, out var parsed));
-            reader.FindSenderIdentityAsync(account, Arg.Any<CancellationToken>()).Returns(OutgoingSenderIdentity.Create(account, parsed));
-        }
+                return OutgoingSenderIdentity.Create(identity.Account, parsed);
+            });
+        var reader = Substitute.For<ISenderIdentityDirectory>();
+        reader.ReadServedIdentitiesAsync(Arg.Any<IReadOnlyCollection<UserId>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<MailAccountId, OutgoingSenderIdentity>());
+        reader.ReadServedIdentitiesAsync(
+                Arg.Is<IReadOnlyCollection<UserId>>(users => users.Contains(InMemoryOrganizationSenderDirectory.UserOf(Organization))),
+                Arg.Any<CancellationToken>())
+            .Returns(served);
 
         return reader;
     }

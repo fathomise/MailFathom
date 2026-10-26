@@ -6,6 +6,7 @@ using System.Text;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Delivery.Composition;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
@@ -1234,10 +1235,12 @@ public sealed class MimeKitEmailMimeReaderTests
     private static OrganizationSignatureVerifier OrganizationVerifier(InMemoryOrganizationSenderDirectory directory)
     {
         var identities = Substitute.For<ISenderIdentityDirectory>();
-        identities.FindSenderIdentityAsync(MimeFixtures.Account, Arg.Any<CancellationToken>())
-            .Returns(SenderIdentity(MimeFixtures.Account, "bob@org.example.test"));
-        identities.FindSenderIdentityAsync(Colleague, Arg.Any<CancellationToken>())
-            .Returns(SenderIdentity(Colleague, "anna@org.example.test"));
+        identities.ReadServedIdentitiesAsync(Arg.Any<IReadOnlyCollection<UserId>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<MailAccountId, OutgoingSenderIdentity>
+            {
+                [MimeFixtures.Account] = SenderIdentity(MimeFixtures.Account, "bob@org.example.test"),
+                [Colleague] = SenderIdentity(Colleague, "anna@org.example.test"),
+            });
 
         return new OrganizationSignatureVerifier(directory, identities);
     }
