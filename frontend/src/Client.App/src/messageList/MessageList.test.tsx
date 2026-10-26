@@ -1660,6 +1660,68 @@ describe('MessageList', () => {
     });
 });
 
+// A folder whose first message a model judged phishing, beside two that nothing judged.
+const phishingFirst = pageOf([
+    message(0, {
+        spam: {
+            verdict: 'Spam',
+            decidedBy: 'Model',
+            spamSubcategory: 'Phishing',
+            spamSubcategoryNamedBy: 'Model',
+            phishingRequest: 'Credentials',
+            impersonatedParty: 'OnlineService',
+        },
+    }),
+    message(1),
+    message(2),
+]);
+
+/** The phishing row, the first the list draws. */
+async function phishingRow(): Promise<HTMLElement> {
+    const [first] = await rows();
+
+    if (first === undefined) {
+        throw new Error('The list drew no rows.');
+    }
+
+    return first;
+}
+
+// The Spam folder is told apart two ways — a scope naming the role, and a folder the acts know to be that role — and
+// each reaches it by its own path, so each is proven rather than one standing for both.
+describe('MessageList, holding a message judged spam', () => {
+    it.each<[string, Partial<Drawn>]>([
+        ['the Spam folder of every account', { scope: { kind: 'role', role: 'Junk' } }],
+        [
+            "one account's Spam folder",
+            {
+                scope: { kind: 'folder', accountId: 'work', folderId: 'Spam' },
+                acts: { ...nothingActed, folderRoleOf: () => 'Junk' },
+            },
+        ],
+    ])('keeps the row in its shape and names its kind in %s', async (_, drawn) => {
+        renderList(answering(phishingFirst), drawn);
+
+        const spam = await phishingRow();
+
+        expect(within(spam).getByText('Phishing')).toBeDefined();
+        expect(within(spam).getByText('Message 0')).toBeDefined();
+        expect(spam.textContent).not.toMatch(/^Spam:/u);
+    });
+
+    it.each<[string, MailScope]>([
+        ['the Inbox', { kind: 'role', role: 'Inbox' }],
+        ['every account at once', everything],
+    ])('folds the row to one line naming the verdict in %s', async (_, scope) => {
+        renderList(answering(phishingFirst), { scope });
+
+        const spam = await phishingRow();
+
+        expect(spam.textContent).toMatch(/^Spam: Phishing, judged by a model\.Writer 0/u);
+        expect(within(spam).queryByText('Phishing')).toBeNull();
+    });
+});
+
 // What a finger carrying a row aside reaches. The gesture itself — the threshold, the cancellation, the suppression —
 // belongs to the row and is proven there; what is proven here is that the list hands the row the two acts it already
 // performs from the same row's menu, rather than a second way of archiving mail.
@@ -1677,8 +1739,8 @@ describe('MessageList, under a finger carried across a row', () => {
         }),
     };
 
-    function listWithPlaces(drawn: Partial<Drawn> = {}): RenderResult {
-        return render(<ListedMailContext value={listed}>{listUnder(answering(wholeFolder), drawn)}</ListedMailContext>);
+    function listWithPlaces(drawn: Partial<Drawn> = {}, transport = answering(wholeFolder)): RenderResult {
+        return render(<ListedMailContext value={listed}>{listUnder(transport, drawn)}</ListedMailContext>);
     }
 
     /** A finger landing on the row, travelling far enough to have asked, and lifting there. */
@@ -1717,6 +1779,18 @@ describe('MessageList, under a finger carried across a row', () => {
         });
 
         expect(carried().selection).toBe('message-0');
+    });
+
+    // The composer is shared by every test in the file, so what it recorded before this one is let go of first.
+    it('says why spam cannot be answered rather than opening it or starting an answer when the finger goes left', async () => {
+        vi.mocked(composing.compose).mockClear();
+        listWithPlaces({}, answering(phishingFirst));
+
+        carry(await phishingRow(), -swipeDistance);
+
+        expect(await screen.findByText('Spam cannot be answered. Mark it not spam first.')).toBeDefined();
+        expect(composing.compose).not.toHaveBeenCalled();
+        expect(carried().selection).toBeNull();
     });
 
     it('files nothing away where the deployment refuses to, the row springing back instead', async () => {

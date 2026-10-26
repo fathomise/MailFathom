@@ -53,8 +53,7 @@ export function SpamControl({
             shape={shape}
             className={tone}
             onPress={() => {
-                acts.toggleSpam(messages);
-                onActed?.();
+                acts.toggleSpam(messages, onActed);
             }}
         />
     );

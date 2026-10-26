@@ -290,6 +290,8 @@ describe('MailboxActControls, with the spam control', () => {
         expect(screen.queryByRole('button', { name: /spam/iu })).toBeNull();
     });
 
+    // What the strip is told once a mark is sent is handed on rather than run on the press, so a question cancelled
+    // leaves the selection standing.
     it('turns to Not spam where every message is spam, and presses the one spam control over them', () => {
         const toggleSpam = vi.fn();
         const acted = vi.fn();
@@ -301,8 +303,8 @@ describe('MailboxActControls, with the spam control', () => {
         drawControls({ spamOffered: true, toggleSpam }, spam, acted, 'strip');
         fireEvent.click(screen.getByRole('button', { name: 'Not spam' }));
 
-        expect(toggleSpam).toHaveBeenCalledWith(spam);
-        expect(acted).toHaveBeenCalledOnce();
+        expect(toggleSpam).toHaveBeenCalledWith(spam, acted);
+        expect(acted).not.toHaveBeenCalled();
     });
 
     it('reads a selection mixing spam with other mail as the way in', () => {

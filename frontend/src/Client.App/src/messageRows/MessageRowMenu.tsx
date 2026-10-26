@@ -7,7 +7,13 @@ import { useComposing, type Composing } from '../composer/useComposing';
 import { ContextMenu, type ContextMenuItem } from '../contextMenu/ContextMenu';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { actsDrawn, actsInARowMenu, actsSaidInAMenu, flagActFor, readActFor, underway } from '../mailboxActs/drawnActs';
-import { drawnSpam, useMailboxActs, type ActedMessage, type MailboxActs } from '../mailboxActs/useMailboxActs';
+import {
+    drawnSpam,
+    useMailboxActs,
+    type ActedMessage,
+    type MailboxAct,
+    type MailboxActs,
+} from '../mailboxActs/useMailboxActs';
 import type { Translate } from '../localization/useLocalization';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadMarking, type ReadMarking } from '../readMarking/useReadMarking';
@@ -192,21 +198,23 @@ function rowItems({
     };
     const spamItems: readonly ContextMenuItem[] = acts.spamOffered && messages.length > 0 ? [spamItem] : [];
 
-    const mailbox = actsInARowMenu
-        // The read item and the flag item are the two slots that go both ways, and which way is the message's own
-        // state rather than the menu's — `mailboxActs/drawnActs.ts` holds both rules, and they are the rules a strip
-        // reads, so a row's menu and the toolbar over it never offer opposite directions for one message.
-        .map((slot) =>
-            slot === 'markUnread'
-                ? readActFor(acts, marking, messages)
-                : slot === 'flag'
-                  ? flagActFor(acts, messages)
-                  : slot,
-        )
-        .filter((act) => acts.refusalOf(act, messages) === null && !underway(acts, act, messages))
-        .flatMap((act) => [
-            ...(act === 'move' ? spamItems : []),
-            {
+    // The spam item takes *Move*'s place in the order whether or not *Move* is offered: marking spam is the flag grant
+    // rather than the move grant, so a credential that may not file mail, or a move still on its way, keeps it.
+    const spamPlace = actsInARowMenu.indexOf('move');
+    const offeredActs = (slots: readonly MailboxAct[]): readonly ContextMenuItem[] =>
+        slots
+            // The read item and the flag item are the two slots that go both ways, and which way is the message's own
+            // state rather than the menu's — `mailboxActs/drawnActs.ts` holds both rules, and they are the rules a
+            // strip reads, so a row's menu and the toolbar over it never offer opposite directions for one message.
+            .map((slot) =>
+                slot === 'markUnread'
+                    ? readActFor(acts, marking, messages)
+                    : slot === 'flag'
+                      ? flagActFor(acts, messages)
+                      : slot,
+            )
+            .filter((act) => acts.refusalOf(act, messages) === null && !underway(acts, act, messages))
+            .map((act) => ({
                 icon: actsDrawn[act].icon,
                 label: translate(actsSaidInAMenu[act]),
                 destroys: act === 'delete',
@@ -217,8 +225,13 @@ function rowItems({
                         acts.perform(act, messages);
                     }
                 },
-            },
-        ]);
+            }));
+
+    const mailbox = [
+        ...offeredActs(actsInARowMenu.slice(0, spamPlace)),
+        ...spamItems,
+        ...offeredActs(actsInARowMenu.slice(spamPlace)),
+    ];
 
     // Where a reading is checked. It stands at the foot rather than among the acts, because it changes nothing about
     // the mailbox: what it opens is an explanation of a sentence the row is drawing, and putting it beside archiving

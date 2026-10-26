@@ -54,6 +54,7 @@ interface Asked {
     readonly session: ClientSession;
     readonly question: SpamAsking;
     readonly messages: readonly ActedMessage[];
+    readonly onMarked: (() => void) | undefined;
 }
 
 /** The person's verdict as this client draws it until the deployment's next read reports the same. */
@@ -77,7 +78,7 @@ function oneOrOther(locale: string, count: number): 'one' | 'other' {
 /** What the spam control holds and does, for the provider to hand on and to draw. */
 export interface SpamMarks {
     readonly marked: ReadonlyMap<string, MarkedSpam>;
-    readonly toggle: (messages: readonly ActedMessage[]) => void;
+    readonly toggle: (messages: readonly ActedMessage[], onMarked?: () => void) => void;
 
     /** Asks for the kind of spam a move into the Spam folder has just marked, over the messages it marked. */
     readonly filedIntoJunk: (messages: readonly ActedMessage[]) => void;
@@ -162,13 +163,13 @@ export function useSpamMarks({
         });
     }
 
-    function ask(question: SpamAsking, messages: readonly ActedMessage[]): void {
+    function ask(question: SpamAsking, messages: readonly ActedMessage[], onMarked?: () => void): void {
         if (session === null) {
             return;
         }
 
         setSerial(question.serial);
-        setAsked({ session, question, messages });
+        setAsked({ session, question, messages, onMarked });
     }
 
     /** What the toast says once the deployment answered a spam mark, from what it moved rather than from a guess. */
@@ -341,7 +342,7 @@ export function useSpamMarks({
         return messages.some((message) => sitsInJunk(message) && filesJunk(message));
     }
 
-    function toggle(messages: readonly ActedMessage[]): void {
+    function toggle(messages: readonly ActedMessage[], onMarked?: () => void): void {
         if (session === null || messages.length === 0) {
             return;
         }
@@ -361,9 +362,10 @@ export function useSpamMarks({
 
             // Confirmed only where it moves something, which is the one consequence somebody has to know about first.
             if (moving > 0) {
-                ask({ kind: 'notSpam', serial: serial + 1, messages: messages.length, moving }, messages);
+                ask({ kind: 'notSpam', serial: serial + 1, messages: messages.length, moving }, messages, onMarked);
             } else {
                 mark(messages, { verdict: 'NotSpam' }, false);
+                onMarked?.();
             }
 
             return;
@@ -381,6 +383,7 @@ export function useSpamMarks({
                 moved: false,
             },
             messages,
+            onMarked,
         );
     }
 
@@ -413,11 +416,13 @@ export function useSpamMarks({
             onSpam={(subcategory) => {
                 if (asking !== null && asking.question.kind === 'spam') {
                     mark(asking.messages, { verdict: 'Spam', spamSubcategory: subcategory }, asking.question.moved);
+                    asking.onMarked?.();
                 }
             }}
             onNotSpam={() => {
                 if (asking !== null) {
                     mark(asking.messages, { verdict: 'NotSpam' }, false);
+                    asking.onMarked?.();
                 }
             }}
         />

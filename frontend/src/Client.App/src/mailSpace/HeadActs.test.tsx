@@ -185,7 +185,7 @@ describe('HeadActs, the spam control', () => {
         drawHead({ acts: { ...actsOffering(), spamOffered: true, toggleSpam } });
         fireEvent.click(screen.getByRole('button', { name: 'Mark spam' }));
 
-        expect(toggleSpam).toHaveBeenCalledWith([message]);
+        expect(toggleSpam).toHaveBeenCalledWith([message], undefined);
     });
 
     it('offers a message marked spam Not spam alone, since spam is not answered', () => {
@@ -199,6 +199,6 @@ describe('HeadActs, the spam control', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Not spam' }));
 
-        expect(toggleSpam).toHaveBeenCalledWith([spam]);
+        expect(toggleSpam).toHaveBeenCalledWith([spam], undefined);
     });
 });

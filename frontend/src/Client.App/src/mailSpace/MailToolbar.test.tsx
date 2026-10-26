@@ -368,7 +368,7 @@ describe('MailToolbar, the spam control', () => {
         drawToolbar(true, messageId, { ...actsOffering(vi.fn()), spamOffered: true, toggleSpam });
         fireEvent.click(screen.getByRole('button', { name: 'Mark spam' }));
 
-        expect(toggleSpam).toHaveBeenCalledWith([place]);
+        expect(toggleSpam).toHaveBeenCalledWith([place], undefined);
     });
 
     it('draws Not spam where the three answers would stand over an open message marked spam', () => {
@@ -382,7 +382,7 @@ describe('MailToolbar, the spam control', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Not spam' }));
 
-        expect(toggleSpam).toHaveBeenCalledWith([place]);
+        expect(toggleSpam).toHaveBeenCalledWith([place], undefined);
     });
 });
 

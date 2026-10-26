@@ -17,6 +17,7 @@ import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { drawnSpam, useMailboxActs } from '../mailboxActs/useMailboxActs';
+import { useListedMail } from '../messageList/useListedMail';
 import { useSpamRefusal } from '../spamMarking/useSpamRefusal';
 import { useSignalledChanges } from '../signals/signalledChanges';
 import { useOpenAttachment } from '../workspace/openAttachment';
@@ -190,12 +191,27 @@ function OpenMessage({
     // The body's own read, started here rather than inside the component that draws it, which is what makes the pair
     // concurrent: this component mounts when the message is opened, and the branch drawing the body exists only once
     // the description has answered.
-    const bodyRead = useMessageBody(session, transport, storedEmailId, online);
+    //
+    // A message drawn spam is read as words alone. Its verdict is the row's where a list drew it, which is known before
+    // anything is read, and the description's once that answers. A message opened from no list has its markup and its
+    // cleaning asked for until the description says it is spam, and neither is drawn.
+    const acts = useMailboxActs();
+    const listedSpam = useListedMail().placeOf(storedEmailId)?.spam ?? null;
+    const describedSpam =
+        answer?.result.outcome === 'read' && answer.read.storedEmailId === storedEmailId
+            ? answer.result.value.spam
+            : listedSpam;
+    const bodyRead = useMessageBody(
+        session,
+        transport,
+        storedEmailId,
+        online,
+        isSpam(drawnSpam(acts, { id: storedEmailId, spam: describedSpam })),
+    );
 
     // The opener is a new function on every render, so it is held rather than named as a dependency below: the effect
     // that follows a citation reacts to the citation and to the answer, and naming this would run it once per render.
     const openCitedFile = useRef(openAttachment);
-    const acts = useMailboxActs();
     const refuseSpam = useSpamRefusal();
     const refuseCitedFile = useRef(refuseSpam);
 

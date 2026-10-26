@@ -223,8 +223,11 @@ export interface MailboxActs {
      * Presses the one spam control over those messages: the subcategory chooser where none is spam, the not-spam
      * confirmation where all are and it would move something, the not-spam mark at once where it would move nothing,
      * and a refusal with nothing sent where the selection mixes the two.
+     *
+     * `onMarked` runs once a mark is sent, never on the press: a selection is let go when the question is answered, as
+     * `ActQuestions` lets it go, so a chooser cancelled or a mix refused keeps it and the control that opened it.
      */
-    readonly toggleSpam: (messages: readonly ActedMessage[]) => void;
+    readonly toggleSpam: (messages: readonly ActedMessage[], onMarked?: () => void) => void;
 
     /** Whether *Not spam* over those messages would move one of them out of the Spam folder, which it asks first. */
     readonly notSpamMoves: (messages: readonly ActedMessage[]) => boolean;

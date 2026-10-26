@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { LocalizationProvider } from '../localization/Localization';
 import type { MoveDestination, MoveDestinationGroup } from '../mailboxActs/mailboxDestinations';
@@ -190,14 +190,29 @@ describe('SelectionBar', () => {
         ).toBeDefined();
     });
 
-    it('marks everything picked out spam from the strip, and lets the selection go', () => {
-        const toggleSpam = vi.fn();
+    // The press only asks — the chooser, the not-spam question, or a refusal — so the selection stays until a mark is
+    // sent, and cancelling the chooser leaves it and the control that opened it where they were.
+    it('marks everything picked out spam from the strip, and lets the selection go only once a mark is sent', () => {
+        const pressed: (() => void)[] = [];
+        const toggleSpam = vi.fn((_: unknown, onMarked?: () => void) => {
+            if (onMarked !== undefined) {
+                pressed.push(onMarked);
+            }
+        });
 
         drawBar(['message-1', 'message-2'], { spamOffered: true, toggleSpam });
 
         fireEvent.click(screen.getByRole('button', { name: 'Spam' }));
 
-        expect(toggleSpam).toHaveBeenCalledWith(drawnRows);
+        expect(toggleSpam).toHaveBeenCalledWith(drawnRows, expect.any(Function));
+        expect(carried().selected).toStrictEqual(['message-1', 'message-2']);
+
+        act(() => {
+            pressed.forEach((marked) => {
+                marked();
+            });
+        });
+
         expect(carried().selected).toStrictEqual([]);
     });
 });

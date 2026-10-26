@@ -303,6 +303,16 @@ describe('MessageRowMenu, over a message marked spam', () => {
         expect(items[items.indexOf('Move…') - 1]).toBe('Spam…');
     });
 
+    // Marking spam is the flag grant, so a credential that may not file mail still reaches it, in Move's place.
+    it('offers the spam item where this credential may mark mail but not file it', () => {
+        menuUnder({ acts: offering({ refusalOf: (act) => (act === 'move' ? 'notOffered' : null) }) });
+
+        const items = drawn();
+
+        expect(items).not.toContain('Move…');
+        expect(items[items.indexOf('Spam…') + 1]).toBe('Delete');
+    });
+
     it('offers no spam item where this credential may not mark mail', () => {
         menuUnder();
 
