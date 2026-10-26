@@ -364,6 +364,20 @@ draws three of them.** `STD_FOLDERS` takes a `unified` flag, and the last three 
 the account they live in rather than merged across accounts. Anything under either set is a folder
 the user made. An account's Sent row may carry one more thing, the Outbox mark — § *The Outbox* below.
 
+### Listed by conversation
+
+An experiment: the list can be read by conversation rather than by message, each row recognised by a title a model
+wrote for the whole conversation and by the opening of its newest message.
+
+| State | Flag | Reveal |
+|---|---|---|
+| The mode's control | `convListTbShown` / `convListHeadShown` / `toggleConvList` | a `forum` icon button, *Group into conversations* and, while on, *Show single messages*, `aria-pressed` and drawn on `--accent-soft` in `--accent-d` inside an `--accent-line` ring. It stands in the mail toolbar's view lead, after the folder pane's control and before the rule, wherever the toolbar stands; on one pane, which has no toolbar, it stands in the list's head before the filter control. Never in the Outbox (`outboxOn`). Off by default, and the session's alone |
+| Listed by conversation | `st.convMail` / `t.convShown` | the row's first line names who took part — first names, *me* for the user, one full name where only one person wrote — beside the sender mark, the flag, the message count, the AI summary control and the time; under it the conversation's title; under that, two lines at most of its newest message. The per-message AI line (`showAi`) is not drawn |
+| A title written by AI | `t.convTitled` | the title (`conversationTitles` in `data/prototype/threads.js`) after a 15 px `auto_awesome` glyph in `--muted`, read aloud as *AI title:*. Unread, it is 700 in `--text`; read, 500 in `--text` |
+| No title yet | `!t.convTitled` | the conversation's subject in the title's place, with no glyph: a conversation not yet given one (`jacek`, `bank1`), every spam conversation, which is never given one, and every conversation while *AI hints* is off |
+| Whose message the snippet is | `t.convWho` | in Sent the newest message the user sent, prefixed *You:*; everywhere else the newest message they received, prefixed with its sender's first name only where more than one other person wrote |
+| Sent, by conversation | `convSent` | the first line reads *To* and the others' names, and only conversations the user wrote in are listed |
+
 ### The Outbox
 
 Each account has one, and it is MailFathom's own rather than a folder on the mail server — [ADR

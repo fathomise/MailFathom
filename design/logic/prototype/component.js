@@ -7,7 +7,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     me: { name: ME, address: MY_MAIL },
     app: { version: APP_VERSION, build: APP_BUILD },
     avatars: AVATARS, contacts: CONTACTS, contactInsights: CONTACT_AI, organization: ORGANIZATION,
-    threads: THREADS, earlierMessages, threadMailBodies, threadStateSources: STATE_SRC, replyTo: HDR_REPLY_TO, cc: HDR_CC,
+    threads: THREADS, earlierMessages, threadMailBodies, conversationTitles: CONV_TITLES, threadStateSources: STATE_SRC, replyTo: HDR_REPLY_TO, cc: HDR_CC,
     mailBodies, documentPreviews, composeDrafts: COMPOSE_DRAFTS, newMessageTo: NEW_MESSAGE_TO, sendLater: SEND_LATER,
     accounts: ACCOUNTS, outbox: OUTBOX, localDrafts: LOCAL_DRAFTS, changeNotices: CHANGE_NOTICES, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, defaultReplyTo: DEFAULT_REPLY_TO, mailAccounts: MAIL_ACCOUNTS,
     home: HOME, savedAnswers: SAVED_ANSWERS, suggestedQuestions: SUGGESTED_QUESTIONS, sampleText: SAMPLE_TEXT,
@@ -3834,8 +3834,32 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
          spam that sits elsewhere. The prototype's lists are otherwise one list under every folder. */
       const inSpamBox = this.inSpamFolder();
       const spamBoxAcc = (st.folderKey || "").split("·")[0];
+      /* Listed by conversation, a row reads from the newest message the folder is about: in Sent the newest one the
+         user sent, everywhere else the newest one they received - so Sent lists only conversations they wrote in. */
+      const convMail = !!st.convMail;
+      const convSent = /·Sent$/.test(st.folderKey || "");
       const listedThreads = THREADS.filter(t => (st.archived || []).indexOf(t.id) < 0 && (st.deleted || []).indexOf(t.id) < 0 &&
-        this.sitsInSpam(t.id) === inSpamBox && (!inSpamBox || this.accountOf(t.id) === spamBoxAcc));
+        this.sitsInSpam(t.id) === inSpamBox && (!inSpamBox || this.accountOf(t.id) === spamBoxAcc) &&
+        (!convMail || !convSent || msgsFor(t).some(m => m.mine)));
+      const convFirst = (n) => n === ME ? "me" : n.split(" ")[0];
+      const convRowOf = (t) => {
+        const ms = msgsFor(t);
+        const mine = ms.filter(m => m.mine), theirs = ms.filter(m => !m.mine);
+        const pick = (convSent ? mine[mine.length - 1] : theirs[theirs.length - 1]) || ms[ms.length - 1];
+        const people = ms.map(m => m.from).filter((n, i, a) => a.indexOf(n) === i);
+        const others = people.filter(n => n !== ME);
+        const named = (list) => list.length === 1 ? (list[0] === ME ? "me" : list[0]) : list.map(convFirst).join(", ");
+        const title = aiHints && !this.spamOf(t.id).spam ? CONV_TITLES[t.id] : "";
+        const who = pick.mine ? "You:" : others.length > 1 ? convFirst(pick.from) + ":" : "";
+        return {
+          convPeople: convSent ? "To " + named(others.length ? others : [t.from]) : named(people),
+          convTitled: !!title,
+          convTitle: title || t.subject,
+          convWho: who,
+          convWhoShown: !!who,
+          convSnippet: this.mdPlain((pick.paras || []).map(p => p.md || p.text || "").join(" ")).slice(0, 260),
+        };
+      };
       const threadSpam = this.spamOf(thread.id);
       /* The opened message's warning. Every spam message says it is spam and a security risk, and who judged it; a
          dangerous kind takes the strong form and says, from the record's closed values, what it asks for and whom it is written to
@@ -5820,6 +5844,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         listHeadStyle: "display:flex;align-items:center;gap:" + (touch ? 8 : 9) + "px;padding:" + (touch ? "8px 12px" : "10px 12px") + ";border-bottom:1px solid var(--line)",
         listIconBtnStyle: "flex:0 0 auto;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted)",
         toggleFilters: () => this.setState(s2 => ({ filtersOpen: !s2.filtersOpen })),
+        toggleConvList: () => this.setState(s2 => ({ convMail: !s2.convMail })),
+        convListOn: convMail,
+        convListTbShown: !outboxOn,
+        convListHeadShown: singlePane && !outboxOn,
+        convListTbStyle: "flex:0 0 auto;width:" + (touch ? 44 : 32) + "px;height:" + (touch ? 44 : 32) + "px;box-sizing:border-box;margin-left:4px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;" +
+          (convMail ? "color:var(--accent-d);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line)" : "color:var(--muted)"),
+        convListTitle: convMail ? "Show single messages" : "Group into conversations",
+        convListBtnStyle: "flex:0 0 auto;width:" + (touch ? 44 : 34) + "px;height:" + (touch ? 44 : 34) + "px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:8px;" +
+          (convMail ? "color:var(--accent-d);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line)" : "color:var(--muted)"),
         filtersOpen: !!st.filtersOpen,
         filtersActive: filterCount > 0,
         filtersCount: filterCount,
@@ -7248,6 +7281,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         fromCitation: st.fromCite || "",
         backToResult: () => this.setState({ screen: "discover", cameFrom: false }),
         threads: listedThreads.map(t => withReceipt(t, withMark(t, spamRowOf(t, {
+          ...(convMail ? convRowOf(t) : {}),
+          msgShown: !convMail,
+          convShown: convMail,
+          convPeopleStyle: (isMobile ? "flex:0 1 auto;min-width:0;font-size:15px" : "flex:0 1 auto;min-width:0;font-size:14px") + ";overflow:hidden;text-overflow:ellipsis;white-space:nowrap" +
+            (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
+          convTitleRowStyle: "display:flex;align-items:center;gap:6px;min-width:0",
+          convGlyphStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:15px;line-height:1;color:var(--muted)",
+          convTitleStyle: "flex:1 1 auto;min-width:0;font-size:" + (isMobile ? 15 : 14) + "px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" +
+            (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:500;color:var(--text)"),
+          convSnippetStyle: "font-size:13px;line-height:1.4;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere",
+          convWhoStyle: "font-weight:600;color:var(--text2);margin-right:4px",
           flagged: !!flags[t.id],
           isUnread: !!unreadMap[t.id],
           movedTo: movedMap[t.id] || "",
@@ -7277,7 +7321,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           fromStyle: (isMobile ? "flex:0 1 auto;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "flex:0 0 auto;max-width:60%;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap") + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
           subjStyle: (isMobile ? "font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:14px") + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
           orgStyle: isMobile || compact ? "display:none" : "flex:0 1 auto;min-width:0;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
-          showAi: aiHints && !!t.ai,
+          showAi: aiHints && !!t.ai && !convMail,
           openAiSum: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.openAiSum(t.id); },
           aiBtnStyle: "width:" + (touch ? 32 : 24) + "px;height:" + (touch ? 32 : 24) + "px;flex:0 0 " + (touch ? 32 : 24) + "px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:" + (touch ? 20 : 16) + "px;line-height:1",
           selected: sel.indexOf(t.id) >= 0,

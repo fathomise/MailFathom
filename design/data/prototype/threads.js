@@ -1031,3 +1031,24 @@ MailFathomDesign.data.threadStateSources = { contoso: [5, 4, 5, 3] };
 /* Reply-To and CC appear only where they make sense. */
 MailFathomDesign.data.replyTo = { contoso: "Frida Iversen <frida.iversen@contoso.example>", audyt1: "Jacek Wrona <j.wrona@company.example>" };
 MailFathomDesign.data.cc = { contoso: ["Marta Nowak"], marta: ["Jacek Wrona"], klient3: ["Anna Kowalska"] };
+
+/* The title a model writes for each conversation, from the whole of it rather than from its first subject line, so the
+   list can be read by conversation. Spam never gets one, and a conversation missing here — `jacek`, `bank1` — has not
+   been given one yet and is listed under its subject. */
+MailFathomDesign.data.conversationTitles = {
+  contoso: "Contoso SLA addendum: sign by 28.08, CPI cap still open",
+  finanse: "August hosting invoice, €1,452 net due 29.08",
+  piotr: "Phase two rollout: UAT test users due Thursday",
+  marta: "2027 CPI indexation: our reply due 27.08",
+  anna2: "Contoso 2027 terms waiting on our counter-proposal",
+  hr1: "Staff satisfaction survey closes 05.09",
+  north1: "Northwind reporting module quote, valid 30 days",
+  fabrikam1: "Fabrikam Q4 deliveries slip to November",
+  audyt1: "Audit asks for the contract register by 03.09",
+  prawnik2: "Northwind NDA draft ready to sign",
+  travel1: "Kraków-Berlin trip on 12.09, check-in from 11.09",
+  marketing1: "Trade show materials for 24.09, files by 10.09",
+  klient3: "Adventure asks about weekend SLA cover",
+  devops1: "Nightly build #2418 green with 2 warnings",
+  rekrutacja1: "Frontend hiring: 3 candidates awaiting our decision",
+};
