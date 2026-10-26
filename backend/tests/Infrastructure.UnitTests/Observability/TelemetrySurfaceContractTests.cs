@@ -29,6 +29,7 @@ using MailFathom.Application.SensitiveContent;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.SensitiveContent.Redaction;
 using MailFathom.Application.Spam.Gating;
+using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.Synchronization.Drain;
 using MailFathom.Application.Synchronization.Restore;
@@ -140,6 +141,7 @@ public sealed class TelemetrySurfaceContractTests
     private static readonly PersistenceCommitTelemetry PersistenceCommits = new();
     private static readonly SensitiveContentDerivationTelemetry Derivation = new();
     private static readonly SensitiveContentEgressTelemetry Egress = new();
+    private static readonly SpamModelStageTelemetry SpamModelStage = new();
     private static readonly ObjectStorageTelemetry ObjectStorage = new(Clock);
     private static readonly StoredContentMoveTelemetry ContentMove = new(Clock);
     private static readonly RetainedContentReleaseTelemetry ContentRelease = new();
@@ -180,6 +182,7 @@ public sealed class TelemetrySurfaceContractTests
         typeof(RetainedContentReleaseTelemetry),
         typeof(SensitiveContentDerivationTelemetry),
         typeof(SensitiveContentEgressTelemetry),
+        typeof(SpamModelStageTelemetry),
         typeof(StoredContentMoveTelemetry),
         typeof(StoredEmailContentTelemetry),
         typeof(StoredMailRederivationTelemetry),
@@ -321,6 +324,7 @@ public sealed class TelemetrySurfaceContractTests
         ContentRelease.Released(payloadCount: 3, byteCount: 61_057);
         DriveObjectStorage();
         DriveSensitiveContent();
+        DriveSpamModelStage();
         DriveStoredMailRederivation();
         DriveWorkLeases();
 
@@ -441,6 +445,17 @@ public sealed class TelemetrySurfaceContractTests
         foreach (var outcome in Enum.GetValues<ContactCollectionOutcome>())
         {
             ContactCollection.RecordOutcome(outcome);
+        }
+    }
+
+    private static void DriveSpamModelStage()
+    {
+        foreach (var job in Enum.GetValues<SpamModelJob>())
+        {
+            foreach (var outcome in Enum.GetValues<SpamModelOutcome>())
+            {
+                SpamModelStage.RecordConsultation(job, outcome);
+            }
         }
     }
 

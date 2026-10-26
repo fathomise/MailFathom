@@ -14,6 +14,7 @@ using MailFathom.AI.Enrichment;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.ReplyDrafts;
 using MailFathom.AI.Retrieval;
+using MailFathom.AI.SpamClassification;
 using MailFathom.AI.ThreadStates;
 using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.Agent.Answering;
@@ -25,6 +26,7 @@ using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Retrieval;
+using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Tasks;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
@@ -266,6 +268,15 @@ public sealed class QuotedTextContainmentTests
             ["discovery: extract"] = (
                 static text => DiscoveryCompositionInstructions.ComposeCompositionTurn(Harmless, DiscoveryIntent.FindFact, [DiscoverySource(Harmless, text)]),
                 DiscoveryCompositionInstructions.ExtractElementName),
+            ["spam model: display name"] = (
+                static text => SpamClassificationTurn.Compose(SpamModelEvidenceOf(displayName: text)),
+                SpamClassificationTurn.DisplayNameElementName),
+            ["spam model: subject"] = (
+                static text => SpamClassificationTurn.Compose(SpamModelEvidenceOf(subject: text)),
+                SpamClassificationTurn.SubjectElementName),
+            ["spam model: body"] = (
+                static text => SpamClassificationTurn.Compose(SpamModelEvidenceOf(body: text)),
+                SpamClassificationTurn.BodyElementName),
         }.ToFrozenDictionary();
 
     /// <summary>Gets every composer paired with every fixture.</summary>
@@ -323,6 +334,23 @@ public sealed class QuotedTextContainmentTests
         Kind: AttachmentTextKind.Document,
         Segment: null,
         Text: text);
+
+    private static SpamModelEvidence SpamModelEvidenceOf(
+        string displayName = Harmless,
+        string subject = Harmless,
+        string body = Harmless) => new()
+        {
+            SenderAddress = "billing@example.com",
+            SenderDisplayName = displayName,
+            DifferingReplyToAddress = "payments@example.net",
+            Subject = subject,
+            Body = body,
+            IsBodyCut = false,
+            Links = [new SpamModelLink("login.example.net", "bank.example.com", DisplayedHostDiffers: true)],
+            Attachments = [new SpamModelAttachment("application/zip", "invoice.zip")],
+            SenderAuthentication = [new SpamModelAuthenticationOutcome("dmarc", "fail", IsForwarded: false)],
+            IsSenderTrusted = false,
+        };
 
     private static GuardedDraftingTurn Drafting(
         string subject = Harmless,

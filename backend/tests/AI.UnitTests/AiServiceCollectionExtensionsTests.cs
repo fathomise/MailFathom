@@ -16,6 +16,7 @@ using MailFathom.AI.Enrichment;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.ProviderAdapters;
 using MailFathom.AI.Providers;
+using MailFathom.AI.SpamClassification;
 using MailFathom.AI.ThreadStates;
 using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.AiProviders;
@@ -33,6 +34,7 @@ using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
+using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Tasks;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
@@ -426,6 +428,45 @@ public sealed class AiServiceCollectionExtensionsTests
         using var second = provider.CreateScope();
 
         Assert.NotSame(enricher, second.ServiceProvider.GetRequiredService<IEmailEnricher>());
+    }
+
+    /// <summary>The stage counts why nothing was asked, so a deployment without a decision model still resolves a judge.</summary>
+    [Fact]
+    public void AddSpamModelJudge_NotActivated_ResolvesTheJudgeThatAsksNothing()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+
+        // Act
+        services.AddSpamModelJudge(isActivated: false);
+
+        // Assert
+        using var provider = services.BuildServiceProvider();
+
+        Assert.IsType<InactiveSpamModelJudge>(provider.GetRequiredService<ISpamModelJudge>());
+    }
+
+    /// <summary>One judge for the process, because it owns the call slots that bound every classification the replica runs at once.</summary>
+    [Fact]
+    public void AddSpamModelJudge_Activated_ResolvesOneJudgeAcrossScopes()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(SpamModelStageBounds.Default);
+        services.AddSingleton(SensitiveContentEgressGuards.Inactive());
+
+        // Act
+        services.AddSpamModelJudge(isActivated: true);
+
+        // Assert
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        using var second = provider.CreateScope();
+        var judge = scope.ServiceProvider.GetRequiredService<ISpamModelJudge>();
+
+        Assert.IsType<SpamModelJudge>(judge);
+        Assert.Same(judge, second.ServiceProvider.GetRequiredService<ISpamModelJudge>());
     }
 
     [Fact]
