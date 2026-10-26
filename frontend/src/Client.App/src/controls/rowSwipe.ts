@@ -48,9 +48,9 @@ export interface RowSwipe {
  * The gesture, bound to one row.
  *
  * @param press The row's press, which the swipe rules out as it engages and defers to once a menu is open.
- * @param acts What each direction performs, or `undefined` for a direction this list does not offer — a search result
- * cannot be filed, and a deployment that refuses a draft cannot be answered, so a row given neither answers a swipe by
- * springing back rather than by promising an act nobody would see happen.
+ * @param acts What a swipe `leftward` and one `rightward` perform, or `undefined` for a direction this list offers
+ * nothing in — a row carried that way stays where it is and springs back, rather than promising an act nobody would
+ * see happen.
  */
 export function useRowSwipe(
     press: RowPress,

@@ -138,6 +138,13 @@ export function NotificationRow({
             className={`relative shrink-0 touch-pan-y overflow-hidden shadow-raised ${
                 arrived ? 'animate-row-opening' : ''
             }`}
+            // The swipe belongs to the whole row, wherever the finger lands on it — the toggle, a pill, the padding — so
+            // it is bound here rather than on the button the press is. In the capture phase, because the lift that
+            // finishes a swipe has to be decided before the button reads that same lift as a tap.
+            onPointerDownCapture={swipe.onPointerDown}
+            onPointerMoveCapture={swipe.onPointerMove}
+            onPointerUpCapture={swipe.onPointerUp}
+            onPointerCancelCapture={swipe.onPointerCancel}
         >
             {swipe.carried === 0 ? null : (
                 // What lifting the finger will do, against the edge the row has uncovered. Hidden from the
@@ -178,7 +185,6 @@ export function NotificationRow({
                         onContextMenu={press.onContextMenu}
                         onPointerDown={(event) => {
                             press.onPointerDown(event);
-                            swipe.onPointerDown(event);
 
                             // A mouse acts as it goes down; a finger's press is not decided until it is lifted, because the
                             // same touch may become the press that opens this row's menu.
@@ -186,27 +192,18 @@ export function NotificationRow({
                                 pointed(event);
                             }
                         }}
-                        onPointerMove={(event) => {
-                            // The press first, because it gives way at a shorter travel than the swipe needs to engage.
-                            press.onPointerMove(event);
-                            swipe.onPointerMove(event);
-                        }}
+                        onPointerMove={press.onPointerMove}
                         onPointerUp={(event) => {
                             const tapped = pressedByFinger(event.pointerType) && !press.tapSuppressed();
 
                             press.onPointerUp();
-                            // Asked after the tap is read, because the lift is what finishes a swipe — and a lift that has
-                            // just changed the read state is not also a tap opening what the row is about.
-                            swipe.onPointerUp(event);
 
+                            // A lift that has just changed the read state is not also a tap opening what the row is about.
                             if (tapped && !swipe.tapSuppressed()) {
                                 pointed(event);
                             }
                         }}
-                        onPointerCancel={() => {
-                            press.onPointerCancel();
-                            swipe.onPointerCancel();
-                        }}
+                        onPointerCancel={press.onPointerCancel}
                         // The keyboard reaches the row through its own activation rather than through a pointer, so the two
                         // are separate paths to the same two acts and neither is a simulation of the other.
                         onKeyDown={(event) => {

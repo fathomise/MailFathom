@@ -329,6 +329,20 @@ describe('NotificationCentre', () => {
             expect(acts.follow).not.toHaveBeenCalled();
         });
 
+        it('answers a finger that lands anywhere on the row, not only on its title', () => {
+            panel();
+
+            const toggle = screen.getByRole('button', { name: 'Mark as read' });
+            const landed = { pointerId: 1, pointerType: 'touch', clientX: 300, clientY: 100 };
+
+            fireEvent.pointerDown(toggle, landed);
+            fireEvent.pointerMove(toggle, { ...landed, clientX: 180 });
+            fireEvent.pointerUp(toggle, { ...landed, clientX: 180 });
+
+            expect(acts.markRead).toHaveBeenCalledOnce();
+            expect(acts.markRead).toHaveBeenCalledWith(['n-mail'], true);
+        });
+
         it('marks a read notification unread again, as the toggle beside it would', () => {
             panel();
             showAll();
