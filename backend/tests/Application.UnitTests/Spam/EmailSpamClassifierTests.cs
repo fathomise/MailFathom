@@ -303,6 +303,50 @@ public sealed class EmailSpamClassifierTests
             .FindStoredContentAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// Another replica records the person's verdict after this one read the row and before it writes. The early read
+    /// cannot see it, so what keeps the verdict is the write refusing to replace it — and a refused write discards
+    /// nothing, because the message a person called not spam keeps everything derived from it.
+    /// </summary>
+    [Fact]
+    public async Task ClassifyAsync_ThePersonsVerdictRecordedAfterTheRead_KeepsItAndDiscardsNothing()
+    {
+        // Arrange
+        var personsVerdict = SpamClassification.Create(
+            Occurrence,
+            SpamVerdict.NotSpam,
+            SpamClassificationStage.Person,
+            assessment: null,
+            SpamClassificationProfile.Create(),
+            [],
+            EvaluatedAt);
+
+        this.store.HoldAfterTheNextRead(personsVerdict);
+
+        var classifier = this.Classifier(SettingsCovering(Inbox), FactsSaying("X-Spam-Flag", "YES"));
+
+        // Act
+        var result = await classifier.ClassifyAsync(
+            Account,
+            Occurrence,
+            SpamClassificationMode.Reclassify,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamClassificationOutcome.PersonsVerdictKept, result.Outcome);
+        Assert.Same(personsVerdict, result.Classification);
+        Assert.Empty(this.store.Saved);
+        await this.chunkStore.DidNotReceiveWithAnyArgs().DiscardChunksAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<StoredEmailId>(),
+            Arg.Any<CancellationToken>());
+        await this.attachmentTextStore.DidNotReceiveWithAnyArgs().DiscardAttachmentTextAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<StoredEmailId>(),
+            Arg.Any<CancellationToken>());
+        Assert.Empty(this.gateTelemetry.DiscardedPassageCounts);
+    }
+
     [Fact]
     public async Task ClassifyAsync_AnOccurrenceInTheJunkFolder_RecordsThePlacementAsTheReason()
     {

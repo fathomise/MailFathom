@@ -28,18 +28,26 @@ public interface IEmailSpamClassificationStore
     /// <returns>The classification, or <see langword="null" /> when the occurrence has never been classified.</returns>
     Task<SpamClassification?> FindAsync(StoredEmailId emailId, CancellationToken cancellationToken);
 
-    /// <summary>Stages the classification of one occurrence, replacing whatever was recorded for it.</summary>
+    /// <summary>Stages the classification of one occurrence, replacing whatever was recorded for it unless that is the person's own verdict.</summary>
     /// <param name="session">The explicit persistence session this write participates in.</param>
     /// <param name="classification">What to record.</param>
     /// <param name="cancellationToken">Cancels the lookup before anything is staged.</param>
-    /// <returns>A task that completes once the write is staged in the caller's session.</returns>
+    /// <returns>
+    /// <see langword="true" /> once the write is staged in the caller's session; <see langword="false" /> when the row
+    /// holds a verdict <paramref name="classification" /> may not replace, in which case nothing is staged.
+    /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="classification" /> is <see langword="null" />.</exception>
     /// <remarks>
     /// Staged rather than committed, so the record and the signals it rests on reach the database as one unit. Replacing
     /// an existing record replaces its signals with it: a classification is what is believed now, and keeping the
     /// signals of a superseded verdict beside the new ones would leave a record nobody could read.
+    /// <para>
+    /// The refusal is decided by <see cref="SpamClassification.MayReplace" /> against the row the session reads, so it
+    /// holds against a person's verdict committed after the caller last looked: the session's own read either sees it,
+    /// or its concurrency token makes the commit conflict and the retry read it.
+    /// </para>
     /// </remarks>
-    Task SaveAsync(
+    Task<bool> SaveAsync(
         IPersistenceSession session,
         SpamClassification classification,
         CancellationToken cancellationToken);

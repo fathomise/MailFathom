@@ -165,8 +165,8 @@ public sealed class EmailSpamClassifier
 
         var existing = await this.classificationStore.FindAsync(emailId, cancellationToken);
 
-        // The person's verdict is read here rather than inside the commit, so one recorded between this read and the write
-        // below would be replaced. Nothing records one yet; the act that does has to close that window where it writes.
+        // Read here so a person's verdict costs no read of the message. It is not what protects that verdict: the write
+        // below is conditional on the row it would replace, which catches one recorded after this read.
         if (existing is { DecidedBy: SpamClassificationStage.Person })
         {
             return SpamClassificationResult.PersonsVerdictKept(existing);
@@ -186,11 +186,17 @@ public sealed class EmailSpamClassifier
 
         var classification = await this.EvaluateAsync(email, settings, content, cancellationToken);
         var discardedPassageCount = 0;
+        var written = false;
 
         await this.retryPolicy.CommitAsync(
             async (session, attemptCancellationToken) =>
             {
-                await this.classificationStore.SaveAsync(session, classification, attemptCancellationToken);
+                written = await this.classificationStore.SaveAsync(session, classification, attemptCancellationToken);
+
+                if (!written)
+                {
+                    return;
+                }
 
                 // In the same transaction as the verdict that calls for it, so a crash never leaves a message recorded
                 // as junk while what was derived from it is still retrievable. An attempt the retry policy replays
@@ -213,6 +219,13 @@ public sealed class EmailSpamClassifier
                 }
             },
             cancellationToken);
+
+        if (!written)
+        {
+            return await this.classificationStore.FindAsync(emailId, cancellationToken) is { } kept
+                ? SpamClassificationResult.PersonsVerdictKept(kept)
+                : SpamClassificationResult.NotClassified(SpamClassificationOutcome.OccurrenceMissing);
+        }
 
         if (classification.Verdict is SpamVerdict.Spam)
         {

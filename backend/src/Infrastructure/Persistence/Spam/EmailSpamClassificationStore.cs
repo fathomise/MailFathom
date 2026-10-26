@@ -37,7 +37,7 @@ internal sealed class EmailSpamClassificationStore(MailFathomDbContext dbContext
     }
 
     /// <inheritdoc />
-    public async Task SaveAsync(
+    public async Task<bool> SaveAsync(
         IPersistenceSession session,
         SpamClassification classification,
         CancellationToken cancellationToken)
@@ -55,6 +55,10 @@ internal sealed class EmailSpamClassificationStore(MailFathomDbContext dbContext
         {
             stored = new EmailSpamClassificationEntity { StoredEmailId = storedEmailId };
             sessionContext.EmailSpamClassifications.Add(stored);
+        }
+        else if (!classification.MayReplace(stored.DecidedBy))
+        {
+            return false;
         }
         else
         {
@@ -77,5 +81,7 @@ internal sealed class EmailSpamClassificationStore(MailFathomDbContext dbContext
         {
             stored.Signals.Add(signal);
         }
+
+        return true;
     }
 }

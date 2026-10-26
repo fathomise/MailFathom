@@ -24,13 +24,16 @@ public sealed record SpamClassificationResult(
     /// <summary>Records that nothing was classified, and why.</summary>
     /// <param name="outcome">The reason.</param>
     /// <returns>The result.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="outcome" /> is <see cref="SpamClassificationOutcome.Classified" />, which records a classification instead.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="outcome" /> is <see cref="SpamClassificationOutcome.Classified" /> or
+    /// <see cref="SpamClassificationOutcome.PersonsVerdictKept" />, each of which carries a classification instead.
+    /// </exception>
     public static SpamClassificationResult NotClassified(SpamClassificationOutcome outcome) =>
-        outcome is SpamClassificationOutcome.Classified
+        outcome is SpamClassificationOutcome.Classified or SpamClassificationOutcome.PersonsVerdictKept
             ? throw new ArgumentOutOfRangeException(
                 nameof(outcome),
                 outcome,
-                "A result that classified nothing does not carry the classified outcome.")
+                "A result without a classification carries neither the classified outcome nor the person's kept verdict.")
             : new SpamClassificationResult(outcome, Classification: null);
 
     /// <summary>Records that the person's own verdict stands and nothing was classified over it.</summary>

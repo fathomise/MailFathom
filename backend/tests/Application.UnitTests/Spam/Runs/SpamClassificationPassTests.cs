@@ -178,11 +178,11 @@ public sealed class SpamClassificationPassTests
         Assert.Single(this.harness.Classifications.Saved);
     }
 
-    /// <summary>A profile change re-decides mail, and the person's own verdict is the mail it never reaches.</summary>
+    /// <summary>A profile change re-decides mail, and the person's own verdict is the mail it never reaches — but still acts on.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task RunAsync_ThePersonsVerdictUnderOtherTerms_StandsAndIsCountedAsSkipped(bool rescores)
+    public async Task RunAsync_ThePersonsVerdictUnderOtherTerms_StandsIsCountedAsSkippedAndIsStillActedOn(bool rescores)
     {
         // Arrange
         var stored = this.StoreEmail();
@@ -200,11 +200,16 @@ public sealed class SpamClassificationPassTests
         this.runs.Arrange(this.RequestedRun(rescores: rescores));
 
         // Act
-        var report = await this.CreatePass().RunAsync(Account, TestContext.Current.CancellationToken);
+        var report = await this.CreatePass(SpamActionSettings.Create(
+            filesJunk: false,
+            marksJunkRead: true)).RunAsync(Account, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(0, report.Walk?.ClassifiedEmailCount);
         Assert.Equal(1, report.Walk?.SkippedEmailCount);
+        Assert.Equal(1, report.Walk?.SpamEmailCount);
+        Assert.Equal(1, report.Walk?.ActedEmailCount);
+        Assert.Equal(1, this.harness.Mutations.OpenedRecordCount);
         Assert.Empty(this.harness.Classifications.Saved);
         Assert.Same(personsVerdict, await this.harness.Classifications.FindAsync(stored, TestContext.Current.CancellationToken));
     }

@@ -296,6 +296,29 @@ public sealed class SpamClassificationTests
             impersonatedParty: (SpamImpersonatedParty)42));
     }
 
+    /// <summary>Only the person replaces the person's own verdict; every other recorded verdict is replaced by any stage.</summary>
+    [Theory]
+    [InlineData(SpamClassificationStage.Deterministic, SpamClassificationStage.Deterministic, true)]
+    [InlineData(SpamClassificationStage.Deterministic, SpamClassificationStage.Model, true)]
+    [InlineData(SpamClassificationStage.Deterministic, SpamClassificationStage.Person, false)]
+    [InlineData(SpamClassificationStage.Person, SpamClassificationStage.Deterministic, true)]
+    [InlineData(SpamClassificationStage.Person, SpamClassificationStage.Model, true)]
+    [InlineData(SpamClassificationStage.Person, SpamClassificationStage.Person, true)]
+    public void MayReplace_AVerdictRecordedByAStage_AnswersWhetherThisStageOutranksIt(
+        SpamClassificationStage replacingStage,
+        SpamClassificationStage recordedBy,
+        bool expected)
+    {
+        // Arrange
+        var classification = Classification(verdict: SpamVerdict.NotSpam, decidedBy: replacingStage);
+
+        // Act
+        var mayReplace = classification.MayReplace(recordedBy);
+
+        // Assert
+        Assert.Equal(expected, mayReplace);
+    }
+
     private static SpamClassification Classification(
         SpamVerdict verdict = SpamVerdict.Spam,
         SpamClassificationStage decidedBy = SpamClassificationStage.Deterministic,

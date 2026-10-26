@@ -188,6 +188,17 @@ public sealed record SpamClassification
             impersonatedParty);
     }
 
+    /// <summary>Answers whether this classification may replace one the named stage decided.</summary>
+    /// <param name="recordedBy">The stage that decided the classification already recorded.</param>
+    /// <returns><see langword="false" /> only where the recorded verdict is the person's and this one is not.</returns>
+    /// <remarks>
+    /// The person's own verdict outranks every stage, so only the person replaces it. This is the predicate the write
+    /// is conditional on, read against the row inside the transaction that would replace it, so a person's verdict
+    /// recorded after a stage began cannot be overwritten by that stage's result.
+    /// </remarks>
+    public bool MayReplace(SpamClassificationStage recordedBy) =>
+        recordedBy is not SpamClassificationStage.Person || this.DecidedBy is SpamClassificationStage.Person;
+
     /// <summary>Answers which stage named a recorded subcategory, from the stage that decided the verdict it sits on.</summary>
     /// <param name="decidedBy">The stage that reached the verdict.</param>
     /// <param name="subcategory">The subcategory recorded beside it, or <see langword="null" /> where there is none.</param>
