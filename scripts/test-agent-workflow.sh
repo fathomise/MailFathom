@@ -11651,6 +11651,7 @@ deployment.ts waitingOutbox GET /api/client/folders
 deployment.ts emptyFolder GET /api/client/folders
 deployment.ts trash GET /api/client/folders
 deployment.ts filed GET /api/client/folders
+deployment.ts spamFolder GET /api/client/folders
 deployment.ts mailFolders GET /api/client/folders
 deployment.ts troubledFolders GET /api/client/folders
 deployment.ts ownTimeZone GET /api/client/time-zone
@@ -11709,6 +11710,9 @@ mail.ts conversation GET /api/client/threads/{threadId}
 mail.ts conversationEmail GET /api/client/threads/{threadId}
 mail.ts conversationContent GET /api/client/threads/{threadId}
 mail.ts conversationState GET /api/client/threads/{threadId}/state
+mail.ts spamRow GET /api/client/emails
+mail.ts spamRows GET /api/client/emails
+mail.ts spamFolderPage GET /api/client/emails
 messages.ts run GET /api/client/messages/{storedEmailId}/body
 messages.ts cell GET /api/client/messages/{storedEmailId}/body
 messages.ts newsletterBlocks GET /api/client/messages/{storedEmailId}/body
@@ -11716,6 +11720,8 @@ messages.ts newsletterBody GET /api/client/messages/{storedEmailId}/body
 messages.ts markupOnlyBody GET /api/client/messages/{storedEmailId}/body
 messages.ts newsletterMessage GET /api/client/messages/{storedEmailId}
 messages.ts markupOnlyMessage GET /api/client/messages/{storedEmailId}
+messages.ts spamMessage GET /api/client/messages/{storedEmailId}
+messages.ts spamBody GET /api/client/messages/{storedEmailId}/body
 outbox.ts waitingSend GET /api/client/outbox
 outbox.ts sendingSend GET /api/client/outbox
 outbox.ts retryingSend GET /api/client/outbox

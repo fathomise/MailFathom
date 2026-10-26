@@ -12,6 +12,8 @@ import type { MessageKey } from '../localization/en';
 import type { ListFold } from '../messageRows/listFold';
 import { useLocalization } from '../localization/useLocalization';
 import { MailboxActControls } from '../mailboxActs/MailboxActControls';
+import { allDrawnSpam, useMailboxActs } from '../mailboxActs/useMailboxActs';
+import { SpamControl } from '../spamMarking/SpamControl';
 import { actedMessages, useListedMail } from '../messageList/useListedMail';
 import { useDesktopComposition, useTwoPanes } from '../shell/useWideWorkspace';
 import { useWorkspace } from '../workspace/useWorkspace';
@@ -65,6 +67,11 @@ export function MailToolbar({
     // An Outbox is read-only, so while one stands in the list's place the strip keeps the column's control and
     // composing and drops every act on a message — and the panels toggle, which has no correspondence to give room to.
     const outboxOpen = workspace.outbox !== null;
+
+    // A message marked spam cannot be answered, so *Not spam* stands where the three answers would.
+    const acts = useMailboxActs();
+    const openMessages = open === null ? [] : actedMessages(listed, [open]);
+    const openSpam = allDrawnSpam(acts, openMessages);
 
     return (
         <div
@@ -125,34 +132,34 @@ export function MailToolbar({
             {/* Answering needs something to answer, so with nothing open each of the three is drawn as what it is
                 rather than left out: a strip whose controls appear as a message is opened is one that moves under a
                 reader's cursor. */}
-            {outboxOpen
-                ? null
-                : answers.map((answering) =>
-                      composing.offered && open !== null ? (
-                          <Control
-                              key={answering.icon}
-                              label={translate(answering.label)}
-                              icon={answering.icon}
-                              shape={actShape}
-                              onPress={() => {
-                                  composing.compose({ kind: 'answer', answers: answering.answer, storedEmailId: open });
-                              }}
-                          />
-                      ) : (
-                          <PlannedControl
-                              key={answering.icon}
-                              label={translate(answering.label)}
-                              icon={answering.icon}
-                              shape={actShape}
-                          />
-                      ),
-                  )}
+            {outboxOpen ? null : openSpam ? (
+                <SpamControl messages={openMessages} shape={actShape} wording="mark" />
+            ) : (
+                answers.map((answering) =>
+                    composing.offered && open !== null ? (
+                        <Control
+                            key={answering.icon}
+                            label={translate(answering.label)}
+                            icon={answering.icon}
+                            shape={actShape}
+                            onPress={() => {
+                                composing.compose({ kind: 'answer', answers: answering.answer, storedEmailId: open });
+                            }}
+                        />
+                    ) : (
+                        <PlannedControl
+                            key={answering.icon}
+                            label={translate(answering.label)}
+                            icon={answering.icon}
+                            shape={actShape}
+                        />
+                    ),
+                )
+            )}
 
             {/* The five that change the mailbox, over the one message that is open. With nothing open each of them
                 says so rather than being left out, for the reason the three answers above are drawn either way. */}
-            {outboxOpen ? null : (
-                <MailboxActControls messages={open === null ? [] : actedMessages(listed, [open])} shape={actShape} />
-            )}
+            {outboxOpen ? null : <MailboxActControls messages={openMessages} shape={actShape} spam="toolbar" />}
 
             {/* The one control in the strip that changes the view rather than the message, which is why the design
                 keeps it apart at the far edge and draws it as its symbol alone at every width. What it takes away is

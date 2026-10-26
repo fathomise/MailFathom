@@ -42,6 +42,7 @@ function directoryOf(accounts: Record<string, readonly MailFolder[]>): MailFolde
                 synchronizationState: 'Synchronized',
                 lastSynchronizedAt: null,
                 behind: false,
+                filesJunk: false,
             },
             folders,
         })),
@@ -59,7 +60,7 @@ const wholeMailbox = directoryOf({
 });
 
 function inWork(storedEmailId: string): ActedMessage {
-    return { storedEmailId, account: 'work', folder: 'work-inbox', unread: false, flagged: false };
+    return { storedEmailId, account: 'work', folder: 'work-inbox', unread: false, flagged: false, spam: null };
 }
 
 const atHome: ActedMessage = {
@@ -68,10 +69,11 @@ const atHome: ActedMessage = {
     folder: 'home-inbox',
     unread: false,
     flagged: false,
+    spam: null,
 };
 
 function inWorkTrash(storedEmailId: string): ActedMessage {
-    return { storedEmailId, account: 'work', folder: 'work-trash', unread: false, flagged: false };
+    return { storedEmailId, account: 'work', folder: 'work-trash', unread: false, flagged: false, spam: null };
 }
 
 describe('folderWithRole', () => {
@@ -135,11 +137,11 @@ const withDraftsAndSent = directoryOf({
 });
 
 function inWorkDrafts(storedEmailId: string): ActedMessage {
-    return { storedEmailId, account: 'work', folder: 'work-drafts', unread: false, flagged: false };
+    return { storedEmailId, account: 'work', folder: 'work-drafts', unread: false, flagged: false, spam: null };
 }
 
 function inWorkSent(storedEmailId: string): ActedMessage {
-    return { storedEmailId, account: 'work', folder: 'work-sent', unread: false, flagged: false };
+    return { storedEmailId, account: 'work', folder: 'work-sent', unread: false, flagged: false, spam: null };
 }
 
 function offeredFolders(messages: readonly ActedMessage[]): readonly string[] {
@@ -345,6 +347,7 @@ describe('refusalFor', () => {
             folder: 'work-clients',
             unread: false,
             flagged: false,
+            spam: null,
         };
 
         expect(refusalFor('move', [inWork('message-1'), filed], twoFolders, everythingOffered)).toBeNull();
@@ -404,6 +407,7 @@ describe('deletesPermanently', () => {
             folder: 'work-trash',
             unread: false,
             flagged: false,
+            spam: null,
         };
 
         expect(deletesPermanently(wholeMailbox, [elsewhere])).toBe(false);

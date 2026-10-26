@@ -293,3 +293,96 @@ export const markupOnlyBody = {
     selfContainedHtml: null,
     remoteImagesRequested: false,
 };
+
+/**
+ * What the message route answers for one of the Spam folder's messages: the row's own sender, subject, and verdict
+ * around the newsletter's shape, with no files, since the corpus has no reason to state one a spam message would refuse.
+ */
+export function spamMessage(row: {
+    readonly id: string;
+    readonly subject: string;
+    readonly receivedAt: string;
+    readonly senderAddress: string;
+    readonly senderDisplayName: string;
+    readonly unread: boolean;
+    readonly spam: unknown;
+}) {
+    return {
+        ...newsletterMessage,
+        storedEmailId: row.id,
+        folder: 'JUNK',
+        headers: {
+            ...newsletterMessage.headers,
+            subject: row.subject,
+            sentAt: row.receivedAt,
+            receivedAt: row.receivedAt,
+            participants: [
+                { role: 'From', address: row.senderAddress, displayName: row.senderDisplayName },
+                { role: 'To', address: 'reader@example.invalid', displayName: null },
+            ],
+            messageId: `${row.id}@example.invalid`,
+        },
+        attachments: [],
+        unread: row.unread,
+        spam: row.spam,
+    };
+}
+
+/** The host the phishing message's one link would have gone to, which a spam message names and never opens. */
+export const spamLinkHost = 'nordwind-support.example';
+
+/** What the body route answers for a message in the Spam folder: a short phishing text with one link in it. */
+export const spamBody = {
+    storedEmailId: newsletterId,
+    availability: 'Readable',
+    plainText: {
+        text: 'Your mailbox password expires today. Keep your current password by signing in below.',
+        originalCharacterCount: 84,
+        truncation: 'None',
+    },
+    document: {
+        schemaVersion: 1,
+        blocks: [
+            {
+                type: 'paragraph',
+                version: 1,
+                content: [
+                    run(
+                        'Your mailbox password expires today. Mail sent to you after 23:59 will be held until it is renewed.',
+                    ),
+                ],
+                alignment: 'Inherited',
+            },
+            {
+                type: 'paragraph',
+                version: 1,
+                content: [run('Keep your current password by signing in below. It takes less than a minute.')],
+                alignment: 'Inherited',
+            },
+            {
+                type: 'paragraph',
+                version: 1,
+                content: [
+                    run('Keep my current password', {
+                        link: {
+                            target: `https://${spamLinkHost}/renew`,
+                            host: spamLinkHost,
+                            asciiHost: null,
+                            deception: 'None',
+                            isWorthWarningAbout: false,
+                        },
+                    }),
+                ],
+                alignment: 'Inherited',
+            },
+        ],
+        refusal: 'None',
+        removedRemoteReferenceCount: 0,
+        retainedRemoteImageCount: 0,
+        inlineImageCount: 0,
+        undrawnInlineImageCount: 0,
+        truncated: false,
+    },
+    selfContainedHtml: null,
+    remoteImagesRequested: false,
+};

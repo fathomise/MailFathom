@@ -10,7 +10,7 @@ import { nothingActed, type ActedMessage, type AskedAct, type MailboxActs } from
 const inbox = { account: 'work', folder: 'work-inbox' };
 
 function message(storedEmailId: string, unread: boolean, flagged = false): ActedMessage {
-    return { storedEmailId, ...inbox, unread, flagged };
+    return { storedEmailId, ...inbox, unread, flagged, spam: null };
 }
 
 /** What a client that has marked exactly these messages read carries. */
@@ -141,7 +141,7 @@ describe('readActFor', () => {
 describe('underway', () => {
     /** A message drawn in the folder an act filed it into, which is where the reader meets it next. */
     function arrivedIn(folder: string): ActedMessage {
-        return { storedEmailId: 'message-1', account: 'work', folder, unread: false, flagged: false };
+        return { storedEmailId: 'message-1', account: 'work', folder, unread: false, flagged: false, spam: null };
     }
 
     /** What a client that asked for this act, out of this folder, carries. */
@@ -212,6 +212,7 @@ describe('an act asked in another folder', () => {
         folder: 'work-trash',
         unread: false,
         flagged: false,
+        spam: null,
     };
 
     function askedInTheInbox(act: AskedAct['act']): MailboxActs {

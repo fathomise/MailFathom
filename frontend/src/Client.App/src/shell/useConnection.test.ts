@@ -69,6 +69,7 @@ const oneAccount = answering({
             synchronizationState: 'Synchronized',
             lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
             behind: false,
+            filesJunk: false,
         },
     ],
 });

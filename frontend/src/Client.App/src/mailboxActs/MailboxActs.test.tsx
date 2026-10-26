@@ -42,6 +42,7 @@ const invoice: ActedMessage = {
     folder: 'work-inbox',
     unread: false,
     flagged: false,
+    spam: null,
 };
 const receipt: ActedMessage = {
     storedEmailId: 'message-2',
@@ -49,6 +50,7 @@ const receipt: ActedMessage = {
     folder: 'work-inbox',
     unread: false,
     flagged: false,
+    spam: null,
 };
 const unsent: ActedMessage = {
     storedEmailId: 'message-4',
@@ -56,6 +58,7 @@ const unsent: ActedMessage = {
     folder: 'work-drafts',
     unread: false,
     flagged: false,
+    spam: null,
 };
 
 const discarded: ActedMessage = {
@@ -64,6 +67,7 @@ const discarded: ActedMessage = {
     folder: 'work-trash',
     unread: false,
     flagged: false,
+    spam: null,
 };
 
 const folders = JSON.stringify({
@@ -76,6 +80,7 @@ const folders = JSON.stringify({
                 synchronizationState: 'Synchronized',
                 lastSynchronizedAt: null,
                 behind: false,
+                filesJunk: false,
             },
             folders: [
                 {
@@ -112,6 +117,16 @@ const folders = JSON.stringify({
                     id: 'work-trash',
                     role: 'Trash',
                     path: ['Trash'],
+                    storedEmailCount: 0,
+                    unreadEmailCount: 0,
+                    synchronizationState: 'Synchronized',
+                    lastSynchronizedAt: null,
+                    behind: false,
+                },
+                {
+                    id: 'work-junk',
+                    role: 'Junk',
+                    path: ['Junk'],
                     storedEmailCount: 0,
                     unreadEmailCount: 0,
                     synchronizationState: 'Synchronized',
@@ -351,6 +366,7 @@ const heapedInTrash: ActedMessage[] = Array.from({ length: mostMessagesPerMutati
     folder: 'work-trash',
     unread: false,
     flagged: false,
+    spam: null,
 }));
 
 /** The records each call to a delete's release route named, one list per call. */
@@ -941,6 +957,7 @@ describe('MailboxActsProvider', () => {
             folder: 'work-inbox',
             unread: false,
             flagged: false,
+            spam: null,
         }));
 
         const deployment: Deployment = {
@@ -1228,10 +1245,10 @@ describe('MailboxActsProvider', () => {
         expect(held().refusalOf('archive', [invoice])).toBe('notOffered');
     });
 
-    it('reads no folders for a credential that may neither file mail nor delete it, both acts being refused', () => {
+    it('reads no folders for a credential that may neither mark spam, file mail, nor delete it, every act being refused', () => {
         const deployment = deploymentAnswering();
 
-        acting(deployment, { moves: false, deletes: false });
+        acting(deployment, { flags: false, moves: false, deletes: false });
 
         expect(deployment.requests).toStrictEqual([]);
     });
@@ -1245,5 +1262,51 @@ describe('MailboxActsProvider', () => {
         });
 
         expect(held().refusalOf('delete', [invoice])).toBe('notOffered');
+    });
+
+    // Marking spam writes a flag-shaped mark, and *Not spam* asks whether a message sits in the Spam folder — which only
+    // the folders say.
+    it('reads the folders for a credential that may only mark, which is what says where the Spam folder is', async () => {
+        const deployment = deploymentAnswering();
+        const { held } = acting(deployment, { moves: false, deletes: false });
+
+        await waitFor(() => {
+            expect(held().folderRoleOf(invoice)).toBe('Inbox');
+        });
+
+        expect(deployment.requests.some((request) => request.path.endsWith('/folders'))).toBe(true);
+    });
+
+    // A move into the Spam folder is the same act as pressing *Spam*, so it is drawn spam from the press and asks for
+    // the kind of spam it is.
+    it('draws a message moved into the Spam folder as spam and asks what kind of spam it is', async () => {
+        const deployment = deploymentAnswering();
+        const { held } = acting(deployment);
+
+        await waitFor(() => {
+            expect(held().folderRoleOf(invoice)).toBe('Inbox');
+        });
+
+        perform(held, 'move', [invoice], { folderId: 'work-junk', name: 'Junk', role: 'Junk' });
+
+        expect(await screen.findByRole('dialog', { name: 'Moved to Spam' })).toBeDefined();
+        expect(held().spamMarked.get('message-1')?.verdict.verdict).toBe('Spam');
+    });
+
+    it('asks no kind of spam for a message moved into an ordinary folder', async () => {
+        const deployment = deploymentAnswering();
+        const { held } = acting(deployment);
+
+        await waitFor(() => {
+            expect(held().folderRoleOf(invoice)).toBe('Inbox');
+        });
+
+        perform(held, 'move', [invoice], chosen);
+
+        await waitFor(() => {
+            expect(submitted(deployment)).toHaveLength(1);
+        });
+        expect(screen.queryByRole('dialog', { name: 'Moved to Spam' })).toBeNull();
+        expect(held().spamMarked.size).toBe(0);
     });
 });

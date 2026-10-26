@@ -2018,6 +2018,9 @@
           "displayName": {
             "type": "string"
           },
+          "filesJunk": {
+            "type": "boolean"
+          },
           "id": {
             "type": "string"
           },
@@ -2037,7 +2040,8 @@
           "displayName",
           "synchronizationState",
           "lastSynchronizedAt",
-          "behind"
+          "behind",
+          "filesJunk"
         ],
         "type": "object"
       },

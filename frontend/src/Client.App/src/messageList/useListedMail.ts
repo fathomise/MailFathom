@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { createContext, useContext } from 'react';
+import type { MailSpamVerdict } from '@mailfathom/client-backend';
 import type { ActedMessage } from '../mailboxActs/useMailboxActs';
 import type { StandingView } from './listing';
 
@@ -47,6 +48,7 @@ export interface ListedMail {
             readonly folder: string;
             readonly unread: boolean;
             readonly flagged: boolean;
+            readonly spam: MailSpamVerdict | null;
         }[],
     ) => void;
 

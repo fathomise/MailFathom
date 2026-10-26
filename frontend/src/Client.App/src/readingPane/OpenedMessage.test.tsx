@@ -11,6 +11,7 @@ import type {
     MailBody,
     MailCarried,
     MailMessage,
+    MailSpamVerdict,
 } from '@mailfathom/client-backend';
 import { AttachmentExchangeContext, type AttachmentExchange } from '../deployment/attachmentExchange';
 import { LocalizationProvider } from '../localization/Localization';
@@ -56,6 +57,7 @@ const described: MailMessage = {
     unread: true,
     flagged: false,
     answered: false,
+    spam: null,
 };
 
 const said: MailBody = {
@@ -273,5 +275,66 @@ describe('OpenedMessage', () => {
         drawing();
 
         expect(screen.queryByRole('heading', { name: 'Quarterly invoice' })).toBeNull();
+    });
+});
+
+describe('OpenedMessage, marked spam', () => {
+    const phishing: MailSpamVerdict = {
+        verdict: 'Spam',
+        decidedBy: 'Model',
+        spamSubcategory: 'Phishing',
+        spamSubcategoryNamedBy: 'Model',
+        phishingRequest: 'Credentials',
+        impersonatedParty: 'Bank',
+    };
+
+    const spam: MailMessage = { ...described, spam: phishing };
+
+    it('warns over the words that the message is spam and what it asks for', () => {
+        drawing(spam);
+
+        expect(screen.getByText('Phishing. This message is spam and a security risk.')).toBeDefined();
+        expect(
+            screen.getByText('It asks for a password, and it is written to look as if it came from a bank.'),
+        ).toBeDefined();
+    });
+
+    it('carries no warning for a message that is not spam', () => {
+        drawing();
+
+        expect(screen.queryByText(/This message is spam/u)).toBeNull();
+    });
+
+    it('carries no warning for a message judged not spam', () => {
+        drawing({
+            ...described,
+            spam: { ...phishing, verdict: 'NotSpam', spamSubcategory: null, spamSubcategoryNamedBy: null },
+        });
+
+        expect(screen.queryByText(/This message is spam/u)).toBeNull();
+    });
+
+    it('opens no original, saying why, rather than asking the question that would', async () => {
+        const onShowFullHtml = vi.fn();
+
+        drawing(spam, read, nothingMarkedRead, 'reduced', onShowFullHtml);
+        fireEvent.click(screen.getByRole('button', { name: 'Show the original message' }));
+
+        expect(await screen.findByText('Its original does not open. Mark it not spam first.')).toBeDefined();
+        expect(onShowFullHtml).not.toHaveBeenCalled();
+    });
+
+    // The embedded view is not drawn for spam, so the control that says why its original stays shut stays drawn.
+    it('keeps the way to the original where the reader chose the sender’s own markup', () => {
+        drawing(spam, read, nothingMarkedRead, 'embeddedHtml');
+
+        expect(screen.getByRole('button', { name: 'Show the original message' })).toBeDefined();
+    });
+
+    it('opens none of its files, saying why', async () => {
+        drawing({ ...spam, attachments: [attached(1, 'invoice.pdf')] });
+        fireEvent.click(screen.getByRole('button', { name: 'Open invoice.pdf' }));
+
+        expect(await screen.findByText('Its attachments do not open. Mark it not spam first.')).toBeDefined();
     });
 });

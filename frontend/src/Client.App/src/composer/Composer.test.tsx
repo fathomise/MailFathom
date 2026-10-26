@@ -35,6 +35,7 @@ const work: MailAccount = {
     synchronizationState: 'Synchronized',
     lastSynchronizedAt: null,
     behind: false,
+    filesJunk: false,
 };
 
 const home: MailAccount = { ...work, id: 'home', displayName: 'Home' };

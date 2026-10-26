@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { describe, expect, it } from 'vitest';
-import type { MailEnrichment, MailTimelineEntry } from '@mailfathom/client-backend';
+import type { MailEnrichment, MailSpamVerdict, MailTimelineEntry } from '@mailfathom/client-backend';
 import { rowMark, rowWithFlags, sameRow } from './rowContents';
 
 function message(over: Partial<MailTimelineEntry> = {}): MailTimelineEntry {
@@ -27,6 +27,7 @@ function message(over: Partial<MailTimelineEntry> = {}): MailTimelineEntry {
         preview: null,
         enrichment: null,
         threadMessageCount: null,
+        spam: null,
         ...over,
     };
 }
@@ -45,6 +46,18 @@ function derivation(text: string, over: Partial<MailEnrichment> = {}): MailEnric
                 evidence: [],
             },
         ],
+        ...over,
+    };
+}
+
+function judged(over: Partial<MailSpamVerdict> = {}): MailSpamVerdict {
+    return {
+        verdict: 'Spam',
+        decidedBy: 'Deterministic',
+        spamSubcategory: null,
+        spamSubcategoryNamedBy: null,
+        phishingRequest: null,
+        impersonatedParty: null,
         ...over,
     };
 }
@@ -75,6 +88,7 @@ describe('rowMark', () => {
         { attachmentCount: 2 },
         { threadMessageCount: 3 },
         { enrichment: derivation('It asks for the minutes') },
+        { spam: judged() },
     ])('reads a row drawing %o differently as a row that changed', (moved) => {
         expect(sameRow(rowMark(message()), rowMark(message(moved)))).toBe(false);
     });
@@ -87,6 +101,23 @@ describe('rowMark', () => {
         { threadId: 'thread-4' },
     ])('reads a message whose %o moved as the same row, no row drawing it', (moved) => {
         expect(sameRow(rowMark(message()), rowMark(message(moved)))).toBe(true);
+    });
+
+    // A spam row folds or carries a badge naming its kind, so a kind named afterwards is a row drawn differently.
+    it('reads a spam verdict that gained a kind as a row that changed', () => {
+        const unnamed = rowMark(message({ spam: judged() }));
+        const named = rowMark(
+            message({ spam: judged({ spamSubcategory: 'Phishing', spamSubcategoryNamedBy: 'Model' }) }),
+        );
+
+        expect(sameRow(unnamed, named)).toBe(false);
+    });
+
+    it('reads a verdict that only changed who judged it as the same row, the row drawing no judge', () => {
+        const first = rowMark(message({ spam: judged() }));
+        const second = rowMark(message({ spam: judged({ decidedBy: 'Person' }) }));
+
+        expect(sameRow(first, second)).toBe(true);
     });
 
     it('reads a derivation that only rewrote what no row draws as the same row', () => {

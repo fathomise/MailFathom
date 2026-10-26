@@ -32,6 +32,7 @@ const context: DeveloperContext = {
             synchronizationState: 'Synchronized',
             lastSynchronizedAt: null,
             behind: false,
+            filesJunk: false,
         },
     ],
     space: 'mail',
@@ -106,6 +107,7 @@ describe('DeveloperSections', () => {
                     synchronizationState: 'Synchronized',
                     lastSynchronizedAt: 'yesterday',
                     behind: false,
+                    filesJunk: false,
                 },
             ],
         });

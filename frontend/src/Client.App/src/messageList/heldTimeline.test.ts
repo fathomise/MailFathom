@@ -52,6 +52,7 @@ function message(at: number): MailTimelineEntry {
         preview: null,
         enrichment: null,
         threadMessageCount: null,
+        spam: null,
     };
 }
 

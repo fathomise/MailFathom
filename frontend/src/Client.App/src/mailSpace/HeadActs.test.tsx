@@ -4,6 +4,7 @@
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import type { MailSpamVerdict } from '@mailfathom/client-backend';
 import { ComposingContext, type Composing } from '../composer/useComposing';
 import { LocalizationProvider } from '../localization/Localization';
 import { MailboxActsContext, nothingActed, type ActedMessage, type MailboxActs } from '../mailboxActs/useMailboxActs';
@@ -16,6 +17,7 @@ const message: ActedMessage = {
     folder: 'work-inbox',
     unread: false,
     flagged: false,
+    spam: null,
 };
 
 function drawHead({
@@ -164,5 +166,39 @@ describe('HeadActs', () => {
 
         expect(screen.queryByRole('button', { name: /Ask/u })).toBeNull();
         expect(screen.getByRole('button', { name: 'Reply' })).toBeDefined();
+    });
+});
+
+describe('HeadActs, the spam control', () => {
+    const judged: MailSpamVerdict = {
+        verdict: 'Spam',
+        decidedBy: 'Deterministic',
+        spamSubcategory: 'Marketing',
+        spamSubcategoryNamedBy: 'Person',
+        phishingRequest: null,
+        impersonatedParty: null,
+    };
+
+    it('marks the message spam from the control after its acts', () => {
+        const toggleSpam = vi.fn();
+
+        drawHead({ acts: { ...actsOffering(), spamOffered: true, toggleSpam } });
+        fireEvent.click(screen.getByRole('button', { name: 'Mark spam' }));
+
+        expect(toggleSpam).toHaveBeenCalledWith([message], undefined);
+    });
+
+    it('offers a message marked spam Not spam alone, since spam is not answered', () => {
+        const toggleSpam = vi.fn();
+        const spam = { ...message, spam: judged };
+
+        drawHead({ acting: spam, acts: { ...actsOffering(), spamOffered: true, toggleSpam } });
+
+        expect(screen.queryByRole('button', { name: 'Reply' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Forward' })).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Not spam' }));
+
+        expect(toggleSpam).toHaveBeenCalledWith([spam], undefined);
     });
 });

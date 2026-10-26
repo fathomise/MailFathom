@@ -170,6 +170,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   ];
   const spamKind = (k) => SPAM_KINDS.find(x => x.key === k) || null;
   const SPAM_JUDGE = { model: "judged by a model", server: "judged by your mail server", person: "marked by you" };
+  /* What a phishing message asks for and whom it is written to look like, by the closed value the record names. The
+     values that name nothing (`Other`, `NothingStated`, `NobodyEvident`) say nothing rather than an empty sentence. */
+  const SPAM_REQUESTS = { Credentials: "a password", PaymentDetails: "payment details", OneTimeCode: "a one-time code" };
+  const SPAM_PARTIES = { Bank: "a bank", Courier: "a courier", OnlineService: "an online service", Colleague: "a colleague",
+    Executive: "a manager", Supplier: "a supplier" };
   const SPAM_READ_ONLY = "While it is marked spam it is read-only: its images are not loaded, its links and attachments do not open, and it cannot be answered or forwarded.";
   /* A link in spam is drawn as words, never as something to press, with where it would have gone said beside it. */
   const hostOf = (href) => { try { return new URL(href).host; } catch (e) { return href; } };
@@ -1507,7 +1512,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const intoSpam = folder === "Spam";
       const marked = intoSpam ? t.filter(id => !this.spamOf(id).spam) : [];
       const leaving = t.filter(id => this.sitsInSpam(id) !== intoSpam && (intoSpam || this.inSpamFolder()));
-      const op = { kind: "move", ids: t, verdicts: Object.assign({}, this.state.verdicts || {}) };
+      const op = { kind: "move", ids: t };
       this.setState(s => {
         const verdicts = Object.assign({}, s.verdicts || {});
         marked.forEach(id => { verdicts[id] = { spam: true, judge: "person" }; });
@@ -1527,7 +1532,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.notify("Moved to “" + folder + "”" + (account ? " in " + account : "") + " - " + this.countWord(t.length), true);
     };
 
-    /* SPAM — the verdict a message carries. The person's own word, from this session, outranks what it arrived with. */
+    /* SPAM — the verdict a message carries. The person's own word, from this session, outranks what it arrived with.
+       *Undo* on a move into Spam moves the message back and leaves the mark: the deployment records the mark with the
+       move, and a move out of Spam lifts no verdict, so it lands where it came from still spam, and folds there. */
     spamOf = (id) => {
       const own = (this.state.verdicts || {})[id];
       if (own) return own;
@@ -1657,7 +1664,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       else if (op.kind === "move") this.setState(s => {
         const moved = Object.assign({}, s.moved || {});
         op.ids.forEach(id => { delete moved[id]; });
-        return { moved: moved, verdicts: op.verdicts || s.verdicts, spamAsk: null, spamPick: null, lastOp: null };
+        return { moved: moved, spamAsk: null, spamPick: null, lastOp: null };
       });
     };
 
@@ -3258,9 +3265,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         this.sitsInSpam(t.id) === inSpamBox && (!inSpamBox || this.accountOf(t.id) === spamBoxAcc));
       const threadSpam = this.spamOf(thread.id);
       /* The opened message's warning. Every spam message says it is spam and a security risk, and who judged it; a
-         dangerous kind takes the strong form and says, from the record, what it asks for and whom it is written to
+         dangerous kind takes the strong form and says, from the record's closed values, what it asks for and whom it is written to
          look like, never repeating its own claims as fact. */
-      const spamWarning = (sp, t) => {
+      const spamWarning = (sp) => {
         const k = spamKind(sp.kind);
         const strong = !!(k && k.danger);
         const judge = sp.judge === "person"
@@ -3269,9 +3276,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             ? "Your mail server judged this message spam."
             : "A model judged this message spam" + (k ? " and named it " + k.label.toLowerCase() + ". The kind is the model's judgement and can be wrong." : ".");
         const lines = [];
-        if (strong && (t.asks || t.poses)) {
-          lines.push(t.asks && t.poses ? "It asks for " + t.asks + ", and it is written to look as if it came from " + t.poses + "."
-            : t.asks ? "It asks for " + t.asks + "." : "It is written to look as if it came from " + t.poses + ".");
+        const asks = sp.kind === "phishing" ? SPAM_REQUESTS[sp.request] : null;
+        const poses = sp.kind === "phishing" || sp.kind === "bec" ? SPAM_PARTIES[sp.party] : null;
+        if (strong && (asks || poses)) {
+          lines.push(asks && poses ? "It asks for " + asks + ", and it is written to look as if it came from " + poses + "."
+            : asks ? "It asks for " + asks + "." : "It is written to look as if it came from " + poses + ".");
         }
         lines.push(judge);
         if (strong) lines.push("Do not give it anything it asks for.");
@@ -3322,7 +3331,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ...(folded ? {
             isUnread: false,
             foldedStyle: row.rowStyle + "flex-direction:row;align-items:center;justify-content:flex-start;gap:9px;padding:" + (isMobile ? "0 16px" : "0 14px") +
-              ";min-height:" + (touch ? 44 : 34) + "px;box-sizing:border-box",
+              // As tall as the three-line row beside it: the client's list is windowed at one row height.
+              ";min-height:" + (isMobile ? 111 : 93) + "px;box-sizing:border-box",
             foldGlyphStyle: "flex:0 0 " + avSz + "px;width:" + avSz + "px;display:flex;justify-content:center;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--faint)",
             foldFromStyle: "flex:0 0 auto;max-width:38%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--muted)",
             foldSubjStyle: "flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--muted)",
@@ -3475,10 +3485,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const chgUnknown = !!chg && chg.fate === "unknown";
         const chgAct = chg ? (CHANGE_ACT[chg.act] || CHANGE_ACT.move) : null;
         const chgBtn = "display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:" + (touch ? 44 : 32) + "px;padding:0 14px;border-radius:8px;font-size:13px;";
+        /* The sample data states a verdict per thread, which is every one of its messages' verdict, so each message of
+           a spam thread carries its own warning, as each message the client opens is warned from its own. */
         items.push({
           isMsg: true, isPill: false, key: k, isActive,
           ...(m.mine ? { markShown: false } : badgeOf(thread.id, m.from)),
-          ...(threadSpam.spam && i === lastIdx ? spamWarning(threadSpam, thread.spam || {}) : { spamWarn: false }),
+          ...(threadSpam.spam && !m.mine ? spamWarning(threadSpam) : { spamWarn: false }),
           changeShown: !!chg,
           changeIcon: chgUnknown ? "help" : "sync_problem",
           changeTitle: !chg ? "" : chgUnknown ? chgAct[1] + " may not have happened" : chgAct[0] + " - your mailbox did not take this change",

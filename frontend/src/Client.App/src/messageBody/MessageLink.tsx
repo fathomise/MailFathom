@@ -2,10 +2,11 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useState, type ReactNode } from 'react';
+import { useContext, useState, type ReactNode } from 'react';
 import type { MailDocumentLink } from '@mailfathom/client-backend';
 import { useLocalization, type Translate } from '../localization/useLocalization';
 import { useLinkOpener } from '../shellOperations/linkOpener';
+import { LinksNotOpened } from './linksNotOpened';
 
 // A link whose words say one thing and whose target says another is the oldest trick in mail, and a reading pane that
 // opens it without showing where it goes is participating. So where the link goes is drawn beside it rather than
@@ -32,10 +33,20 @@ export function MessageLink({ link, children }: { readonly link: MailDocumentLin
     const { translate } = useLocalization();
     const openLink = useLinkOpener();
     const [refused, setRefused] = useState(false);
+    const notOpened = useContext(LinksNotOpened);
 
     // The place the link goes, as a person recognizes it. A host is absent for the one scheme that has none, and the
     // whole target is what says where a `mailto:` link goes.
     const place = link.host ?? link.target;
+
+    if (notOpened) {
+        return (
+            <>
+                <span className="text-text-soft">{children}</span>{' '}
+                <span className="text-sm text-muted">{translate('link.notOpened', { host: place })}</span>
+            </>
+        );
+    }
 
     return (
         <>

@@ -11,7 +11,14 @@ import type { AbandonedChange } from '../pendingChanges/usePendingChanges';
 import { ToastsProvider } from '../toasts/Toasts';
 import { ChangeNotice } from './ChangeNotice';
 
-const message: ActedMessage = { storedEmailId: 'e-1', account: 'work', folder: 'INBOX', unread: false, flagged: false };
+const message: ActedMessage = {
+    storedEmailId: 'e-1',
+    account: 'work',
+    folder: 'INBOX',
+    unread: false,
+    flagged: false,
+    spam: null,
+};
 
 function drawing(abandoned: readonly AbandonedChange[]) {
     const decided = vi.fn();

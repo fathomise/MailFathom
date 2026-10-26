@@ -169,6 +169,8 @@ function covers(had: Read | undefined, wants: Read): boolean {
  * message was opened rather than at the moment something else has answered.
  *
  * @param wanted Whether a read may be made at all: this message is the one being shown, and the deployment is reachable.
+ * @param readOnly Whether the message is drawn spam, which is read as words alone: nothing asks the model to clean it
+ * and nothing asks for the sender's markup, since neither would be drawn.
  * @param carried The body the caller already holds, which a conversation hands every message of it, or `null`.
  */
 export function useMessageBody(
@@ -176,10 +178,11 @@ export function useMessageBody(
     transport: MailFathomTransport,
     storedEmailId: string,
     wanted: boolean,
+    readOnly: boolean,
     carried: MailBody | null = null,
 ): MessageBodyRead {
     const view = useMessageView();
-    const embeddedHtml = view === 'embeddedHtml';
+    const embeddedHtml = view === 'embeddedHtml' && !readOnly;
     const [read, setRead] = useState<Read>(() => opening(storedEmailId, embeddedHtml));
 
     // The answer carries the read it came from, so whether one is still in flight is computed rather than kept beside
@@ -241,7 +244,7 @@ export function useMessageBody(
     // reduced document while the model is still deciding what of it to keep.
     const [derived, setDerived] = useState<Derived | null>(null);
 
-    const wantsCleaning = wanted && view === 'cleaned';
+    const wantsCleaning = wanted && view === 'cleaned' && !readOnly;
 
     // Whether what is held answers the ask in force. Read off the three things the derivation depends on rather than
     // off an object built per render, so that the effect below depends on values rather than on an identity.

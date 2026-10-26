@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useRef, type PointerEvent, type ReactNode } from 'react';
-import type { MailTimelineEntry } from '@mailfathom/client-backend';
+import { isSpam, type MailTimelineEntry } from '@mailfathom/client-backend';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { pressedByFinger, useRowPress } from '../contextMenu/rowPress';
 import { swipeEngages } from '../controls/swipeAcross';
@@ -22,12 +22,15 @@ import {
     actPending,
     changesAFlag,
     drawnFlagged,
+    drawnSpam,
     flagPending,
     useMailboxActs,
     type AskedAct,
     type FilingAct,
 } from '../mailboxActs/useMailboxActs';
 import { drawnUnread, useReadMarking } from '../readMarking/useReadMarking';
+import { SpamBadge } from '../spamMarking/SpamBadge';
+import { spamRowName } from '../spamMarking/spamWords';
 import { correspondent } from './rowContents';
 import { useRowSwipe, type RowSwipeDirection } from '../controls/rowSwipe';
 
@@ -128,6 +131,7 @@ export function MessageRow({
     arrived,
     changed,
     note,
+    inSpamFolder = false,
     onReadings,
     onOpen,
     onPoint,
@@ -159,6 +163,12 @@ export function MessageRow({
 
     /** What the row has to say about the message beyond what it draws, in the line the height already reserves. */
     readonly note?: ReactNode;
+
+    /**
+     * Whether the list is an account's Spam folder, where a spam row keeps its shape and names its kind. Everywhere
+     * else a spam row folds to one muted line, its verdict in its accessible name and its menu rather than in a badge.
+     */
+    readonly inSpamFolder?: boolean;
 
     /**
      * Opens what MailFathom read from this message, or absent where it read nothing from it and where the list offers
@@ -237,6 +247,12 @@ export function MessageRow({
 
     // A strip of senders is too narrow to carry a row across, so folded it answers a tap and its menu alone.
     const swipe = useRowSwipe(press, folded ? {} : { leftward: onAnswer, rightward: onArchive });
+    // What spam classification concluded, with the person's own mark from this session counted first. A row of spam
+    // offers nothing that reads it for the person, so it carries no reading and no AI line.
+    const spam = drawnSpam(acts, email);
+    const spamName = spam !== null && isSpam(spam) ? spamRowName(spam, translate) : null;
+    const foldedSpam = spamName !== null && !inSpamFolder;
+
     const stripName = translate('list.stripRow', {
         sender: correspondent(email) ?? translate('list.senderUnknown'),
         subject: email.subject ?? translate('list.noSubject'),
@@ -282,7 +298,9 @@ export function MessageRow({
     // marked read is drawn read from it, which is the same rule in both directions.
     const reading = flagPending(acts, email, 'seen');
     const unread =
-        reading?.act === 'markUnread' || (reading?.act !== 'markRead' && drawnUnread(marking, email.id, email.unread));
+        !foldedSpam &&
+        (reading?.act === 'markUnread' ||
+            (reading?.act !== 'markRead' && drawnUnread(marking, email.id, email.unread)));
 
     // The flag the row draws, which is the mark either flag act reports and the whole of what it reports.
     const flagged = drawnFlagged(acts, email);
@@ -312,7 +330,10 @@ export function MessageRow({
     // would otherwise put there. Worked out here rather than in the markup, because the line is also hidden from the
     // accessibility tree where it holds nothing, and two readings of *nothing* is how one of them comes to be wrong.
     const pendingSaid = acting === null ? null : actPendingWording(acting);
-    const said = pendingSaid === null ? note : translate(pendingSaid);
+    // A spam row names its kind there instead of whatever the screen would have said about it.
+    const kind = spamName === null ? null : (spam?.spamSubcategory ?? null);
+    const spamLine = kind === null ? undefined : <SpamBadge subcategory={kind} />;
+    const said = pendingSaid !== null ? translate(pendingSaid) : spamName === null ? note : spamLine;
 
     // What is showing behind the row while a finger carries it, or nothing for a row standing where the list drew it.
     // Which of the two it is is the direction alone: what the threshold decides is how firmly it is drawn rather than
@@ -435,9 +456,19 @@ export function MessageRow({
                         selected || open ? 'bg-accent-soft ring-2 ring-accent-line ring-inset' : 'hover:bg-hover'
                     }`}
                 >
-                    <SenderAvatar displayName={email.senderDisplayName} address={email.senderAddress} place="strip" />
+                    {spamName === null ? (
+                        <SenderAvatar
+                            displayName={email.senderDisplayName}
+                            address={email.senderAddress}
+                            place="strip"
+                        />
+                    ) : (
+                        <span className="flex size-9 items-center justify-center rounded-full bg-rail text-faint">
+                            <Icon name="report" className="size-icon-md" />
+                        </span>
+                    )}
 
-                    <span className="sr-only">{stripName}</span>
+                    <span className="sr-only">{spamName === null ? stripName : `${spamName} ${stripName}`}</span>
 
                     {unread ? (
                         <>
@@ -492,94 +523,136 @@ export function MessageRow({
                 // decided rather than a decision the theme took.
                 style={swipe.carried === 0 ? undefined : { transform: `translateX(${String(swipe.carried)}px)` }}
             >
-                <div className="flex items-center gap-2">
-                    <SenderAvatar displayName={email.senderDisplayName} address={email.senderAddress} place="row" />
+                {foldedSpam ? (
+                    <FoldedSpam email={email} spamName={spamName} />
+                ) : (
+                    <>
+                        <div className="flex items-center gap-2">
+                            <SenderAvatar
+                                displayName={email.senderDisplayName}
+                                address={email.senderAddress}
+                                place="row"
+                            />
 
-                    {/* Who wrote is read before where they wrote from, so the name keeps up to half the line and the
+                            {/* Who wrote is read before where they wrote from, so the name keeps up to half the line and the
                         host is what gives way. Half rather than more because the marks and the time hold their own
                         width: a name allowed past it would push the time out of a row that clips rather than wraps. */}
-                    <span className={`max-w-1/2 shrink-0 truncate text-lg workspace:text-md ${unreadInk(unread)}`}>
-                        {correspondent(email) ?? translate('list.senderUnknown')}
-                    </span>
+                            <span
+                                className={`max-w-1/2 shrink-0 truncate text-lg workspace:text-md ${unreadInk(unread)}`}
+                            >
+                                {correspondent(email) ?? translate('list.senderUnknown')}
+                            </span>
 
-                    <Organisation address={email.senderAddress} />
+                            <Organisation address={email.senderAddress} />
 
-                    <MessageMarkers email={email} flagged={flagged} />
+                            <MessageMarkers email={email} flagged={flagged} />
 
-                    {/* Unread is drawn as the weight and ink of the sender and the subject, as the design draws it
+                            {/* Unread is drawn as the weight and ink of the sender and the subject, as the design draws it
                         and as every mail client has taught its readers to scan for, so no mark of its own stands among
                         the others. These words are what says so to a reader who is not looking at the weight. */}
-                    {unread ? <span className="sr-only">{translate('list.unread')}</span> : null}
+                            {unread ? <span className="sr-only">{translate('list.unread')}</span> : null}
 
-                    {/* How long the correspondence is, drawn where it is longer than the one message. The design
+                            {/* How long the correspondence is, drawn where it is longer than the one message. The design
                         puts it between the flag and the time and draws nothing at all for a message
                         standing alone, so the pill says this row stands for an exchange rather than repeating what
                         every row already is. The number is the deployment's count over the whole conversation — a
                         client counting the rows it holds would answer differently depending on where the page was
                         cut — and the words beside it are for a reader who is not looking at it, which the design has
                         no way to draw. */}
-                    {email.threadMessageCount !== null && email.threadMessageCount > 1 ? (
-                        <span className="shrink-0 rounded-md border border-line-soft bg-rail px-1.5 py-px text-xs text-text-soft">
-                            <span aria-hidden="true">{email.threadMessageCount}</span>
+                            {email.threadMessageCount !== null && email.threadMessageCount > 1 ? (
+                                <span className="shrink-0 rounded-md border border-line-soft bg-rail px-1.5 py-px text-xs text-text-soft">
+                                    <span aria-hidden="true">{email.threadMessageCount}</span>
 
-                            <span className="sr-only">
-                                {translate('list.threadMessages', {
-                                    count: String(email.threadMessageCount),
-                                })}
-                            </span>
-                        </span>
-                    ) : null}
+                                    <span className="sr-only">
+                                        {translate('list.threadMessages', {
+                                            count: String(email.threadMessageCount),
+                                        })}
+                                    </span>
+                                </span>
+                            ) : null}
 
-                    {/* What MailFathom read from this message, opened from the row the design draws it on and
+                            {/* What MailFathom read from this message, opened from the row the design draws it on and
                         offered only where there is a reading to open. It is a mark rather than a control, and that is
                         an accessibility obligation rather than a shortcut: a row is an `option` of a listbox and holds
                         no focusable descendant, so a button here would take the keyboard path off the list. The
                         announced path to the same surface is the row's own menu, which a pointer, a finger and a
                         keyboard each reach — this is the pointer's shortcut to it and is hidden from everything that
                         would otherwise announce a second, unreachable copy of it. */}
-                    {onReadings === undefined ? null : (
-                        <>
-                            {/* Its own press stops at it rather than reaching the row, so holding it reads its name
+                            {onReadings === undefined || spamName !== null ? null : (
+                                <>
+                                    {/* Its own press stops at it rather than reaching the row, so holding it reads its name
                                 and never also opens the row's menu or starts a swipe. */}
-                            <span
-                                {...readingsName.anchor}
-                                aria-hidden="true"
-                                className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-accent-soft hover:text-accent-deep pointer-coarse:size-8"
-                                onPointerDown={(event) => {
-                                    event.stopPropagation();
-                                    readingsName.anchor.onPointerDown(event);
-                                }}
-                                onPointerUp={(event) => {
-                                    event.stopPropagation();
-                                    readingsName.anchor.onPointerUp();
-                                }}
-                                onClick={(event) => {
-                                    event.stopPropagation();
-                                    readingsName.anchor.onClick(event);
-                                }}
-                            >
-                                <Icon name="auto_awesome" className="size-icon-sm pointer-coarse:size-icon-lg" />
-                            </span>
-                            {readingsName.tip}
-                        </>
-                    )}
+                                    <span
+                                        {...readingsName.anchor}
+                                        aria-hidden="true"
+                                        className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-accent-soft hover:text-accent-deep pointer-coarse:size-8"
+                                        onPointerDown={(event) => {
+                                            event.stopPropagation();
+                                            readingsName.anchor.onPointerDown(event);
+                                        }}
+                                        onPointerUp={(event) => {
+                                            event.stopPropagation();
+                                            readingsName.anchor.onPointerUp();
+                                        }}
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            readingsName.anchor.onClick(event);
+                                        }}
+                                    >
+                                        <Icon
+                                            name="auto_awesome"
+                                            className="size-icon-sm pointer-coarse:size-icon-lg"
+                                        />
+                                    </span>
+                                    {readingsName.tip}
+                                </>
+                            )}
 
-                    <ReceivedAt at={email.receivedAt} />
-                </div>
+                            <ReceivedAt at={email.receivedAt} />
+                        </div>
 
-                <div className={`truncate text-md ${unreadInk(unread)}`}>
-                    {email.subject ?? translate('list.noSubject')}
-                </div>
+                        <div className={`truncate text-md ${unreadInk(unread)}`}>
+                            {email.subject ?? translate('list.noSubject')}
+                        </div>
 
-                {/* The reserved line. Hidden from the accessibility tree where it holds nothing, so a row with nothing
+                        {/* The reserved line. Hidden from the accessibility tree where it holds nothing, so a row with nothing
                     to say about itself is not announced as one with an empty line in it. */}
-                <div
-                    aria-hidden={said === undefined ? 'true' : undefined}
-                    className="h-4.5 overflow-hidden text-base leading-4.5 text-muted workspace:text-sm"
-                >
-                    {said}
-                </div>
+                        <div
+                            aria-hidden={said === undefined ? 'true' : undefined}
+                            className="h-4.5 overflow-hidden text-base leading-4.5 text-muted workspace:text-sm"
+                        >
+                            {said}
+                        </div>
+                    </>
+                )}
             </div>
         </li>
+    );
+}
+
+// A spam row outside the Spam folder, folded to one muted line: the report glyph where the avatar stands, who wrote it,
+// the subject, and the time. No preview, no AI line, and no unread weight; what it is said in words to a reader who
+// cannot see the glyph, and in its menu's header to a finger.
+function FoldedSpam({ email, spamName }: { readonly email: MailTimelineEntry; readonly spamName: string }) {
+    const { translate } = useLocalization();
+
+    return (
+        <div className="flex min-w-0 items-center gap-2.25">
+            <span aria-hidden="true" className="flex w-8.5 shrink-0 justify-center workspace:w-5.5">
+                <Icon name="report" className="size-icon-sm text-faint" />
+            </span>
+
+            <span className="sr-only">{spamName}</span>
+
+            <span className="max-w-2/5 shrink-0 truncate text-base text-muted">
+                {correspondent(email) ?? translate('list.senderUnknown')}
+            </span>
+
+            <span className="min-w-0 flex-1 truncate text-base text-muted">
+                {email.subject ?? translate('list.noSubject')}
+            </span>
+
+            <ReceivedAt at={email.receivedAt} />
+        </div>
     );
 }

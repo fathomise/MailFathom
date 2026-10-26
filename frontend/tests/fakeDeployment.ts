@@ -242,6 +242,14 @@ export class FakeDeployment {
 
     private readonly flags = new Map<string, { unread?: boolean; flagged?: boolean }>();
 
+    /**
+     * The person's own spam verdicts, by message, which every later read answers in place of what the corpus states.
+     *
+     * The fake files no spam: its account's switch is off, as the corpus's `filesJunk` says, so a mark records the
+     * verdict and moves nothing — and a move into the Spam folder records the mark as the service's move route does.
+     */
+    private readonly spamMarked = new Map<string, Readonly<Record<string, unknown>>>();
+
     /** Messages a delete was written down for and not taken back, which no read answers with any more. */
     private readonly deleted = new Set<string>();
 
@@ -697,6 +705,8 @@ export class FakeDeployment {
                 return answering({ results: this.moved(request.body) });
             case 'POST /mutations/deletes':
                 return answering({ results: this.deletedNow(request.body) });
+            case 'POST /mutations/spam':
+                return answering({ results: this.spamMarkedNow(request.body) });
             case 'POST /mutations/deletes/withdrawals':
                 return answering({ changes: this.overRecords(request.body, 'cancelled') });
             case 'POST /mutations/deletes/releases':
@@ -1096,17 +1106,29 @@ export class FakeDeployment {
         }
 
         const markupOnly = id === messages.markupOnlyId;
+        const spamRow = mail.spamRows.find((row) => row.id === id);
 
         if (part === undefined) {
-            const read = markupOnly ? messages.markupOnlyMessage : messages.newsletterMessage;
+            const read =
+                spamRow === undefined
+                    ? markupOnly
+                        ? messages.markupOnlyMessage
+                        : messages.newsletterMessage
+                    : messages.spamMessage(spamRow);
             const flags = this.flags.get(id);
+            const marked = this.spamMarked.get(id);
 
             return answering({
                 ...read,
                 storedEmailId: id,
                 unread: flags?.unread ?? read.unread,
                 flagged: flags?.flagged ?? read.flagged,
+                ...(marked === undefined ? {} : { spam: marked }),
             });
+        }
+
+        if (part === 'body' && position === undefined && spamRow !== undefined) {
+            return answering({ ...messages.spamBody, storedEmailId: id });
         }
 
         if (part === 'body' && position === undefined) {
@@ -1922,10 +1944,15 @@ export class FakeDeployment {
         }
 
         if (folder !== null && folder !== 'INBOX') {
-            const emails = [...this.placed]
-                .filter(([, placedIn]) => placedIn === folder)
-                .map(([id]) => corpusRow(id))
-                .filter((row) => row !== null)
+            // The Spam folder also holds the corpus's own spam, which arrived there rather than being moved.
+            const arrivedThere = mail.spamRows.filter((row) => row.folder === folder && !this.placed.has(row.id));
+            const emails = [
+                ...arrivedThere,
+                ...[...this.placed]
+                    .filter(([, placedIn]) => placedIn === folder)
+                    .map(([id]) => corpusRow(id))
+                    .filter((row) => row !== null),
+            ]
                 .map((row) => this.shaped(row))
                 .filter(matches);
 
@@ -2009,12 +2036,14 @@ export class FakeDeployment {
         }
 
         const flags = this.flags.get(row.id);
+        const marked = this.spamMarked.get(row.id);
 
         return {
             ...row,
             folder: this.placed.get(row.id) ?? row.folder,
             unread: flags?.unread ?? row.unread,
             flagged: flags?.flagged ?? row.flagged,
+            ...(marked === undefined ? {} : { spam: marked }),
         };
     }
 
@@ -2128,9 +2157,45 @@ export class FakeDeployment {
             this.count(destinationFolder, 1, Number(facts.unread));
             this.placed.set(storedEmailId, destinationFolder);
 
+            // A move into the Spam folder is the person's own spam mark, as the service records it with the move.
+            if (destinationFolder === 'JUNK' && !this.drawnSpam(storedEmailId)) {
+                this.spamMarked.set(storedEmailId, personalVerdict('Spam', null));
+            }
+
             const change = submitted(this.recorded(storedEmailId, 'relocate', 'completed'));
 
             return { storedEmailId, outcome: 'recorded', destinationFolder, change };
+        });
+    }
+
+    /** Whether a message is spam as every read answers it now, the person's own mark first. */
+    private drawnSpam(storedEmailId: string): boolean {
+        const marked = this.spamMarked.get(storedEmailId);
+        const stated = mail.spamRows.find((row) => row.id === storedEmailId)?.spam;
+
+        return (marked ?? stated)?.verdict === 'Spam';
+    }
+
+    /**
+     * Records the person's spam or not-spam verdict on each message, moving nothing because the corpus account's
+     * switch is off — so every result is `applied`, with `moved` false and no record to follow.
+     */
+    private spamMarkedNow(body: unknown) {
+        const asked = recordIn(body);
+        const verdict = asked?.['verdict'] === 'NotSpam' ? 'NotSpam' : 'Spam';
+        const kind = typeof asked?.['spamSubcategory'] === 'string' ? asked['spamSubcategory'] : null;
+        const named = asked?.['storedEmailIds'];
+
+        return (Array.isArray(named) ? named : []).map((value) => {
+            const storedEmailId = String(value);
+
+            if (this.factsOf(storedEmailId) === null) {
+                return { storedEmailId, outcome: 'message-not-found', moved: false, changes: [] };
+            }
+
+            this.spamMarked.set(storedEmailId, personalVerdict(verdict, verdict === 'Spam' ? kind : null));
+
+            return { storedEmailId, outcome: 'applied', moved: false, changes: [] };
         });
     }
 
@@ -2359,6 +2424,12 @@ function generatedRow(position: number): FolderRow {
  * it, which is how it reads once a move has filed it somewhere.
  */
 function corpusRow(storedEmailId: string): FolderRow | null {
+    const spam = mail.spamRows.find((row) => row.id === storedEmailId);
+
+    if (spam !== undefined) {
+        return spam;
+    }
+
     const position = positionOf(storedEmailId);
 
     if (position !== null) {
@@ -2402,6 +2473,18 @@ function corpusRow(storedEmailId: string): FolderRow | null {
     };
 
     return listed;
+}
+
+/** A verdict the person reached, as the service records it: theirs alone, with the kind they named where they named one. */
+function personalVerdict(verdict: 'Spam' | 'NotSpam', subcategory: string | null): Readonly<Record<string, unknown>> {
+    return {
+        verdict,
+        decidedBy: 'Person',
+        spamSubcategory: subcategory,
+        spamSubcategoryNamedBy: subcategory === null ? null : 'Person',
+        phishingRequest: null,
+        impersonatedParty: null,
+    };
 }
 
 /** Where the corpus puts a message before anything is written to it. */

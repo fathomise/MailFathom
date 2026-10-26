@@ -24,6 +24,7 @@ import { useLocalization } from '../localization/useLocalization';
 import type { ChangeAct, ChangeSubmission } from '../pendingChanges/changeStandings';
 import { usePendingChanges } from '../pendingChanges/usePendingChanges';
 import { useReadMarking } from '../readMarking/useReadMarking';
+import { useSpamMarks } from '../spamMarking/useSpamMarks';
 import { useTelemetry } from '../telemetry/clientTelemetry';
 import { useToasts } from '../toasts/useToasts';
 import {
@@ -313,12 +314,16 @@ export function MailboxActsProvider({
         signedIn.current = session;
     }, [session]);
 
+    const spam = useSpamMarks({ session, transport, signedIn, directory: held.directory, folderRoleOf, counted });
+
     // The folders, because three of the acts are folder moves and none of them can name a destination without
     // them. Read where the credential may file mail or delete it: without either grant those three acts are refused
     // before a destination is looked for, so asking would be a request every session pays for and no screen reads.
     // Deleting needs them for a second reason — which folder an account calls its trash is what says whether *delete*
     // files a message or destroys it. Writing drafts needs them for a third: which folder an account calls its drafts
-    // is what says whether opening a message carries it on in the composer or reads it in the pane.
+    // is what says whether opening a message carries it on in the composer or reads it in the pane. Marking spam needs
+    // them for a fourth: whether a message sits in the Spam folder, and whether its account moves spam, decide whether
+    // *Not spam* is asked first.
     //
     // It is a read of its own rather than the tree's, which the mailbox column performs for what it draws: the two
     // answer the same route and neither is derived from the other, so a shared read would be one more thing to own than
@@ -334,7 +339,7 @@ export function MailboxActsProvider({
     // A folder made, renamed, moved, or deleted here reads them again, for the reason the tree does: the destinations
     // this offers are those folders, and a folder somebody has just made is one they mean to file into at once.
     useEffect(() => {
-        if (session === null || !online || !(moves || deletes || composes)) {
+        if (session === null || !online || !(flags || moves || deletes || composes)) {
             return;
         }
 
@@ -372,7 +377,7 @@ export function MailboxActsProvider({
         return () => {
             listening = false;
         };
-    }, [session, transport, online, moves, deletes, composes, attempts, foldersChanged, toasts, translate]);
+    }, [session, transport, online, flags, moves, deletes, composes, attempts, foldersChanged, toasts, translate]);
 
     function refusalOf(act: MailboxAct, messages: readonly ActedMessage[]) {
         return refusalFor(act, messages, held.directory, { flags, moves, deletes });
@@ -847,6 +852,12 @@ export function MailboxActsProvider({
                 report(act, recorded, destination, destroying);
             }
 
+            // A move into the Spam folder is the same act as pressing *Spam*: the deployment recorded the mark with the
+            // move, so what is left is to draw it and ask for the kind.
+            if (act === 'move' && destination?.role === 'Junk') {
+                spam.filedIntoJunk(recorded);
+            }
+
             // Asking again is the same act performed afresh over the same messages, naming the folder a move named, so
             // it travels the path the first attempt took and is followed again from its own answer. The claim the
             // first attempt left is taken back before it goes: an act the folders no longer allow is refused before
@@ -885,7 +896,16 @@ export function MailboxActsProvider({
                     perform,
                     carried,
                     carry,
+                    spamOffered: flags,
+                    spamMarked: spam.marked,
+                    toggleSpam: spam.toggle,
+                    notSpamMoves: spam.notSpamMoves,
                 };
 
-    return <MailboxActsContext value={acts}>{children}</MailboxActsContext>;
+    return (
+        <MailboxActsContext value={acts}>
+            {children}
+            {session === null ? null : spam.questions}
+        </MailboxActsContext>
+    );
 }

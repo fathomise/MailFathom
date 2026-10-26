@@ -21,6 +21,7 @@ const directoryBody = JSON.stringify({
             synchronizationState: 'Synchronized',
             lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
             behind: false,
+            filesJunk: false,
         },
     ],
 });
@@ -76,6 +77,7 @@ describe('readMailAccounts', () => {
                         synchronizationState: 'Synchronized',
                         lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
                         behind: false,
+                        filesJunk: false,
                     },
                 ],
             },
@@ -86,7 +88,13 @@ describe('readMailAccounts', () => {
         const body = JSON.stringify({
             synchronizationEnabled: false,
             accounts: [
-                { id: 'personal', displayName: 'Personal', synchronizationState: 'NeverSynchronized', behind: false },
+                {
+                    id: 'personal',
+                    displayName: 'Personal',
+                    synchronizationState: 'NeverSynchronized',
+                    behind: false,
+                    filesJunk: false,
+                },
             ],
         });
 
@@ -103,6 +111,7 @@ describe('readMailAccounts', () => {
                         synchronizationState: 'NeverSynchronized',
                         lastSynchronizedAt: null,
                         behind: false,
+                        filesJunk: false,
                     },
                 ],
             },
@@ -137,21 +146,59 @@ describe('readMailAccounts', () => {
             'an account with no display name',
             JSON.stringify({
                 synchronizationEnabled: true,
-                accounts: [{ id: 'work', synchronizationState: 'Synchronized', behind: false }],
+                accounts: [{ id: 'work', synchronizationState: 'Synchronized', behind: false, filesJunk: false }],
             }),
         ],
         [
             'an account whose behind flag is not a boolean',
             JSON.stringify({
                 synchronizationEnabled: true,
-                accounts: [{ id: 'work', displayName: 'Work', synchronizationState: 'Synchronized', behind: 'maybe' }],
+                accounts: [
+                    {
+                        id: 'work',
+                        displayName: 'Work',
+                        synchronizationState: 'Synchronized',
+                        behind: 'maybe',
+                        filesJunk: false,
+                    },
+                ],
+            }),
+        ],
+        [
+            'an account that does not say whether it files spam',
+            JSON.stringify({
+                synchronizationEnabled: true,
+                accounts: [{ id: 'work', displayName: 'Work', synchronizationState: 'Synchronized', behind: false }],
+            }),
+        ],
+        [
+            'an account whose spam switch is not a boolean',
+            JSON.stringify({
+                synchronizationEnabled: true,
+                accounts: [
+                    {
+                        id: 'work',
+                        displayName: 'Work',
+                        synchronizationState: 'Synchronized',
+                        behind: false,
+                        filesJunk: 'yes',
+                    },
+                ],
             }),
         ],
         [
             'an account in a synchronization state this client has no name for',
             JSON.stringify({
                 synchronizationEnabled: true,
-                accounts: [{ id: 'work', displayName: 'Work', synchronizationState: 'Rebuilding', behind: false }],
+                accounts: [
+                    {
+                        id: 'work',
+                        displayName: 'Work',
+                        synchronizationState: 'Rebuilding',
+                        behind: false,
+                        filesJunk: false,
+                    },
+                ],
             }),
         ],
         [
@@ -165,6 +212,7 @@ describe('readMailAccounts', () => {
                         synchronizationState: 'Synchronized',
                         lastSynchronizedAt: 1756633260,
                         behind: false,
+                        filesJunk: false,
                     },
                 ],
             }),
@@ -184,6 +232,7 @@ describe('readMailAccounts', () => {
                 synchronizationState: 'Synchronized',
                 lastSynchronizedAt: null,
                 behind: false,
+                filesJunk: false,
             })),
         });
 
@@ -201,6 +250,7 @@ describe('readMailAccounts', () => {
                 synchronizationState: 'Synchronized',
                 lastSynchronizedAt: null,
                 behind: false,
+                filesJunk: false,
             })),
         });
 

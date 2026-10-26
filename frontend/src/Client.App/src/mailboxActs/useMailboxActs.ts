@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { createContext, useContext } from 'react';
-import type { MailFolderRole, MailTimelineEntry } from '@mailfathom/client-backend';
+import { isSpam, type MailFolderRole, type MailSpamVerdict, type MailTimelineEntry } from '@mailfathom/client-backend';
 import type { ActRefusal, MoveDestination, MoveDestinationGroup } from './mailboxDestinations';
 
 // The things a person does to their own mailbox from the Mail space, as an operation on messages rather than as
@@ -82,6 +82,32 @@ export interface ActedMessage {
      * one place that correction belongs.
      */
     readonly flagged: boolean;
+
+    /**
+     * What spam classification last concluded about the message, as the deployment reported it.
+     *
+     * Carried for the reason the two flags are: the spam control's direction — *Spam* or *Not spam* — is the message's
+     * own state, and a strip over a selection knows nothing else about those messages. `drawnSpam` reads it against
+     * what this person has marked since.
+     */
+    readonly spam: MailSpamVerdict | null;
+}
+
+/**
+ * The person's own verdict on one message, from this session, which outranks what the deployment last reported.
+ *
+ * Held for the reason an asked act is: the verdict is recorded at once, but the list and the opened message were read
+ * before it, so a screen drawing only what was read would show mail somebody just marked as though nothing had
+ * happened.
+ */
+export interface MarkedSpam {
+    readonly verdict: MailSpamVerdict;
+
+    /** The folder the message was in when it was marked, which is the list a move takes it out of. */
+    readonly from: string;
+
+    /** Whether the mark moved the message out of that folder, by the account's own switch. */
+    readonly leaves: boolean;
 }
 
 /**
@@ -186,6 +212,25 @@ export interface MailboxActs {
 
     /** Starts carrying those messages, or ends the drag with none. */
     readonly carry: (messages: readonly ActedMessage[]) => void;
+
+    /** Whether this credential may mark mail spam or not spam, which is the flag grant. */
+    readonly spamOffered: boolean;
+
+    /** The person's own verdicts from this session, by the message they are about. */
+    readonly spamMarked: ReadonlyMap<string, MarkedSpam>;
+
+    /**
+     * Presses the one spam control over those messages: the subcategory chooser where none is spam, the not-spam
+     * confirmation where all are and it would move something, the not-spam mark at once where it would move nothing,
+     * and a refusal with nothing sent where the selection mixes the two.
+     *
+     * `onMarked` runs once a mark is sent, never on the press: a selection is let go when the question is answered, as
+     * `ActQuestions` lets it go, so a chooser cancelled or a mix refused keeps it and the control that opened it.
+     */
+    readonly toggleSpam: (messages: readonly ActedMessage[], onMarked?: () => void) => void;
+
+    /** Whether *Not spam* over those messages would move one of them out of the Spam folder, which it asks first. */
+    readonly notSpamMoves: (messages: readonly ActedMessage[]) => boolean;
 }
 
 /**
@@ -204,6 +249,10 @@ export const nothingActed: MailboxActs = {
     perform: () => undefined,
     carried: [],
     carry: () => undefined,
+    spamOffered: false,
+    spamMarked: new Map(),
+    toggleSpam: () => undefined,
+    notSpamMoves: () => false,
 };
 
 export const MailboxActsContext = createContext<MailboxActs>(nothingActed);
@@ -240,6 +289,7 @@ export function opensAsDraft(acts: MailboxActs, email: MailTimelineEntry): boole
             folder: email.folder,
             unread: email.unread,
             flagged: email.flagged,
+            spam: email.spam,
         }) === 'Drafts'
     );
 }
@@ -339,6 +389,32 @@ export function drawnFlagged(acts: MailboxActs, email: MailTimelineEntry): boole
  */
 export function actLeaving(acts: MailboxActs, email: MailTimelineEntry): boolean {
     const asked = acts.asked.get(email.id);
+    const marked = acts.spamMarked.get(email.id);
 
-    return asked !== undefined && asked.leaves && asked.from === email.folder;
+    return (
+        (asked !== undefined && asked.leaves && asked.from === email.folder) ||
+        (marked !== undefined && marked.leaves && marked.from === email.folder)
+    );
+}
+
+/**
+ * The spam verdict a message is drawn with: the person's own mark from this session where there is one, and otherwise
+ * what the deployment last reported.
+ *
+ * Read here rather than in each component, for the reason `drawnFlagged` is: a row, its menu, the strip over a
+ * selection, the toolbar, and the opened message all draw the same verdict about the same message.
+ */
+export function drawnSpam(
+    acts: MailboxActs,
+    message: { readonly id: string; readonly spam: MailSpamVerdict | null },
+): MailSpamVerdict | null {
+    return acts.spamMarked.get(message.id)?.verdict ?? message.spam;
+}
+
+/** Whether every one of the messages is drawn spam, which is what turns the spam control to *Not spam*. */
+export function allDrawnSpam(acts: MailboxActs, messages: readonly ActedMessage[]): boolean {
+    return (
+        messages.length > 0 &&
+        messages.every((message) => isSpam(drawnSpam(acts, { id: message.storedEmailId, spam: message.spam })))
+    );
 }

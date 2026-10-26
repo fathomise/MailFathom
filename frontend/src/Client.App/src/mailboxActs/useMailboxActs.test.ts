@@ -3,14 +3,17 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { describe, expect, it } from 'vitest';
-import type { MailTimelineEntry } from '@mailfathom/client-backend';
+import type { MailSpamVerdict, MailTimelineEntry } from '@mailfathom/client-backend';
 import {
     actLeaving,
     actPending,
+    allDrawnSpam,
     drawnFlagged,
+    drawnSpam,
     flagPending,
     nothingActed,
     opensAsDraft,
+    type ActedMessage,
     type MailboxAct,
     type MailboxActs,
 } from './useMailboxActs';
@@ -35,6 +38,7 @@ const email: MailTimelineEntry = {
     preview: 'The opening of the message.',
     enrichment: null,
     threadMessageCount: null,
+    spam: null,
 };
 
 function asking(
@@ -194,6 +198,89 @@ describe('actLeaving', () => {
 
     it('says a flag change leaves no list either, the message staying exactly where it is', () => {
         expect(actLeaving(asking('flag'), email)).toBe(false);
+    });
+
+    it('says a message marked spam is leaving the folder it was marked in where the mark moves it', () => {
+        expect(actLeaving(marking('Spam', email.id, email.folder, true), email)).toBe(true);
+    });
+
+    it('says nothing about a message marked spam where the mark moves nothing', () => {
+        expect(actLeaving(marking('Spam', email.id, email.folder, false), email)).toBe(false);
+    });
+
+    it('says nothing about a marked message once it is drawn in the folder the mark moved it to', () => {
+        expect(actLeaving(marking('Spam', email.id, email.folder, true), { ...email, folder: 'Junk' })).toBe(false);
+    });
+});
+
+function verdictOf(verdict: MailSpamVerdict['verdict'], decidedBy: MailSpamVerdict['decidedBy']): MailSpamVerdict {
+    return {
+        verdict,
+        decidedBy,
+        spamSubcategory: null,
+        spamSubcategoryNamedBy: null,
+        phishingRequest: null,
+        impersonatedParty: null,
+    };
+}
+
+function marking(
+    verdict: MailSpamVerdict['verdict'],
+    storedEmailId = email.id,
+    from = email.folder,
+    leaves = false,
+): MailboxActs {
+    return {
+        ...nothingActed,
+        spamMarked: new Map([[storedEmailId, { verdict: verdictOf(verdict, 'Person'), from, leaves }]]),
+    };
+}
+
+function acted(storedEmailId: string, spam: MailSpamVerdict | null): ActedMessage {
+    return { storedEmailId, account: 'work', folder: 'INBOX', unread: false, flagged: false, spam };
+}
+
+// Every surface draws one verdict about a message, so the person's own mark from this session stands over whatever the
+// deployment last reported, in either direction.
+describe('drawnSpam', () => {
+    const judged = verdictOf('Spam', 'Model');
+
+    it('draws what the deployment reported about a message nobody has marked', () => {
+        expect(drawnSpam(nothingActed, { id: email.id, spam: judged })).toBe(judged);
+    });
+
+    it('draws the person’s not-spam mark over the deployment’s spam verdict', () => {
+        expect(drawnSpam(marking('NotSpam'), { id: email.id, spam: judged })?.verdict).toBe('NotSpam');
+    });
+
+    it('draws the person’s spam mark over a message the deployment judged nothing about', () => {
+        expect(drawnSpam(marking('Spam'), { id: email.id, spam: null })?.verdict).toBe('Spam');
+    });
+
+    it('draws nothing of another message’s mark', () => {
+        expect(drawnSpam(marking('Spam', 'another-message'), { id: email.id, spam: null })).toBeNull();
+    });
+});
+
+// What turns the one spam control to *Not spam*: every message under it drawn spam, and at least one message there.
+describe('allDrawnSpam', () => {
+    it('says an empty selection is not all spam, since there is nothing to mark not spam', () => {
+        expect(allDrawnSpam(nothingActed, [])).toBe(false);
+    });
+
+    it('says a selection whose every message is drawn spam is all spam', () => {
+        const messages = [acted('message-1', verdictOf('Spam', 'Model')), acted('message-2', null)];
+
+        expect(allDrawnSpam(marking('Spam', 'message-2'), messages)).toBe(true);
+    });
+
+    it('says a selection one of whose messages the person marked not spam is not all spam', () => {
+        const messages = [
+            acted('message-1', verdictOf('Spam', 'Model')),
+            acted('message-2', verdictOf('Spam', 'Model')),
+        ];
+
+        expect(allDrawnSpam(marking('NotSpam', 'message-2'), messages)).toBe(false);
     });
 });
 

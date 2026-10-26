@@ -34,6 +34,7 @@ function message(
             preview: null,
             enrichment: null,
             threadMessageCount: null,
+            spam: null,
         },
         message: null,
         body: null,

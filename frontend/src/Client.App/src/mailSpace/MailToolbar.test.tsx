@@ -5,6 +5,7 @@
 import { useEffect } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { MailSpamVerdict } from '@mailfathom/client-backend';
 import type { Composing } from '../composer/useComposing';
 import { ComposingContext } from '../composer/useComposing';
 import { LocalizationProvider } from '../localization/Localization';
@@ -20,7 +21,14 @@ const declaredMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia')
 
 const messageId = '00000000-0000-4000-8000-000000000000';
 
-const place = { storedEmailId: messageId, account: 'work', folder: 'work-inbox', unread: false, flagged: false };
+const place = {
+    storedEmailId: messageId,
+    account: 'work',
+    folder: 'work-inbox',
+    unread: false,
+    flagged: false,
+    spam: null,
+};
 
 function Opens({ selection, outbox }: { readonly selection: string | null; readonly outbox: OpenOutbox | null }) {
     const { revise } = useWorkspace();
@@ -330,6 +338,51 @@ describe('MailToolbar', () => {
         drawToolbar(true, null, { ...nothingActed, refusalOf: asked });
 
         expect(asked).toHaveBeenCalledWith('archive', []);
+    });
+});
+
+// The person's own mark from this session is what the toolbar reads the open message's verdict through first, so the
+// harness's one listed place stays the same message whether or not it is spam.
+function actsWhereTheOpenMessageIsMarkedSpam(toggleSpam: MailboxActs['toggleSpam']): MailboxActs {
+    const verdict: MailSpamVerdict = {
+        verdict: 'Spam',
+        decidedBy: 'Person',
+        spamSubcategory: null,
+        spamSubcategoryNamedBy: null,
+        phishingRequest: null,
+        impersonatedParty: null,
+    };
+
+    return {
+        ...actsOffering(vi.fn()),
+        spamOffered: true,
+        toggleSpam,
+        spamMarked: new Map([[messageId, { verdict, from: place.folder, leaves: false }]]),
+    };
+}
+
+describe('MailToolbar, the spam control', () => {
+    it('marks the open message spam from the control after its acts', () => {
+        const toggleSpam = vi.fn();
+
+        drawToolbar(true, messageId, { ...actsOffering(vi.fn()), spamOffered: true, toggleSpam });
+        fireEvent.click(screen.getByRole('button', { name: 'Mark spam' }));
+
+        expect(toggleSpam).toHaveBeenCalledWith([place], undefined);
+    });
+
+    it('draws Not spam where the three answers would stand over an open message marked spam', () => {
+        const toggleSpam = vi.fn();
+
+        drawToolbar(true, messageId, actsWhereTheOpenMessageIsMarkedSpam(toggleSpam));
+
+        for (const name of ['Reply', 'Reply all', 'Forward', 'Mark spam']) {
+            expect(screen.queryByRole('button', { name })).toBeNull();
+        }
+
+        fireEvent.click(screen.getByRole('button', { name: 'Not spam' }));
+
+        expect(toggleSpam).toHaveBeenCalledWith([place], undefined);
     });
 });
 

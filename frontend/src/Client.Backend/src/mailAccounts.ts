@@ -21,6 +21,9 @@ export interface MailAccount {
     readonly synchronizationState: MailSynchronizationState;
     readonly lastSynchronizedAt: string | null;
     readonly behind: boolean;
+
+    /** Whether marking a message spam moves it into this account's Spam folder, and not spam moves it out again. */
+    readonly filesJunk: boolean;
 }
 
 /** The user's accounts, beside the deployment-wide switch that says whether any of them is being refreshed at all. */
@@ -119,8 +122,13 @@ export function parseMailAccount(value: unknown): MailAccount | null {
     const synchronizationState = record['synchronizationState'];
     const lastSynchronizedAt = record['lastSynchronizedAt'] ?? null;
     const behind = record['behind'];
+    const filesJunk = record['filesJunk'];
 
     if (typeof id !== 'string' || typeof displayName !== 'string' || typeof behind !== 'boolean') {
+        return null;
+    }
+
+    if (typeof filesJunk !== 'boolean') {
         return null;
     }
 
@@ -138,6 +146,7 @@ export function parseMailAccount(value: unknown): MailAccount | null {
         synchronizationState,
         lastSynchronizedAt,
         behind,
+        filesJunk,
     };
 }
 

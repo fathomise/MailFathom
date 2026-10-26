@@ -29,6 +29,7 @@ function drawn(over: Partial<RowContents> = {}): RowContents {
         attachmentCount: 0,
         threadMessageCount: null,
         reading: null,
+        spam: null,
         ...over,
     };
 }

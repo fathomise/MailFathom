@@ -431,14 +431,16 @@ It answers with the mail accounts the signed-in user owns, and how current the l
       "displayName": "Work mail",
       "synchronizationState": "Synchronized",
       "lastSynchronizedAt": "2026-08-15T10:00:00+00:00",
-      "behind": false
+      "behind": false,
+      "filesJunk": true
     },
     {
       "id": "8e3f1a6b-2c4d-4f7e-a915-7b2d0c6e1f38",
       "displayName": "Private mail",
       "synchronizationState": "Failing",
       "lastSynchronizedAt": "2026-08-14T21:12:00+00:00",
-      "behind": true
+      "behind": true,
+      "filesJunk": false
     }
   ]
 }
@@ -481,6 +483,13 @@ that was failing is not one this process is applying. A host shutting down mid-a
 supervisor counts it under none, so an account backed off for every restart would be one approached less often for being
 stopped.
 
+**`filesJunk` says whether the person's own spam marks move this account's mail**: it is the account's
+`SpamClassification:Actions:MoveToJunkFolder` switch, `false` wherever classification is off, and it is read from the
+same place [the spam mark route](#marking-mail-spam-or-not-spam) decides its moves from. Where it is `true`, *spam*
+moves a message into the junk folder and *not spam* moves one out of it to the inbox; where it is `false`, a mark
+changes the verdict and leaves the message where it is. A client reads it before the press rather than after it,
+because whether a mark will move anything is what decides whether the client asks first.
+
 **`synchronizationEnabled` is the deployment's switch rather than the user's**, and it is reported beside the accounts
 because no per-account value carries it: a copy that last moved a week ago means one thing where the deployment is still
 trying every few minutes and another where an operator switched synchronization off.
@@ -514,7 +523,8 @@ It answers with the user's mailboxes and every folder in them, which is the one 
         "displayName": "Work mail",
         "synchronizationState": "Synchronized",
         "lastSynchronizedAt": "2026-08-15T10:00:00+00:00",
-        "behind": false
+        "behind": false,
+        "filesJunk": true
       },
       "folders": [
         {

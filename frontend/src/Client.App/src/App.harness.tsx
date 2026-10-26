@@ -90,6 +90,7 @@ export const workAccount = {
     synchronizationState: 'Synchronized',
     lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
     behind: false,
+    filesJunk: false,
 };
 
 // Far enough out that nothing in a test renews a session on its own: renewal is its own file, and a fixture that

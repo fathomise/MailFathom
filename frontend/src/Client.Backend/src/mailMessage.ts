@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { failed, failureReasonForStatus, read, type ClientResult } from './failure';
+import { parseSpamVerdict, type MailSpamVerdict } from './mailSpam';
 import { headersFor, routeFor, type ClientSession } from './session';
 import { spanned } from './telemetry';
 import { send, type MailFathomTransport } from './transport';
@@ -109,6 +110,9 @@ export interface MailMessage {
     readonly unread: boolean;
     readonly flagged: boolean;
     readonly answered: boolean;
+
+    /** What spam classification concluded, read from the same summary the message's list row is, so the two agree. */
+    readonly spam: MailSpamVerdict | null;
 }
 
 // A description composes to a stated size, so the backstop written for a stranger is far looser than this answer ever
@@ -228,6 +232,11 @@ export function parseMailMessage(value: unknown): MailMessage | null {
         return null;
     }
 
+    const judged = parseSpamVerdict(record['spam']);
+    if (judged === null) {
+        return null;
+    }
+
     return {
         storedEmailId,
         account,
@@ -242,6 +251,7 @@ export function parseMailMessage(value: unknown): MailMessage | null {
         unread,
         flagged,
         answered,
+        spam: judged.spam,
     };
 }
 

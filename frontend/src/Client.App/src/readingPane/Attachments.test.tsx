@@ -113,13 +113,19 @@ function drawing(
     exchange: AttachmentExchange,
     toasts: ToastSurface = recordingToasts().surface,
     open: (opened: OpenedAttachment) => void = () => undefined,
+    readOnly = false,
 ) {
     return render(
         <LocalizationProvider>
             <ToastContext value={toasts}>
                 <AttachmentExchangeContext value={exchange}>
                     <OpenAttachmentContext value={open}>
-                        <Attachments session={session} storedEmailId={messageId} attachments={attachments} />
+                        <Attachments
+                            session={session}
+                            storedEmailId={messageId}
+                            attachments={attachments}
+                            readOnly={readOnly}
+                        />
                     </OpenAttachmentContext>
                 </AttachmentExchangeContext>
             </ToastContext>
@@ -274,5 +280,40 @@ describe('Attachments', () => {
         });
 
         expect(toasts.settled[1]).toEqual({ kind: 'success', title: 'File downloaded', body: 'photo.jpg' });
+    });
+});
+
+// A message marked spam keeps its files drawn, so a reader learns why they do not open rather than finding them gone.
+describe('Attachments, in a message marked spam', () => {
+    function refused(body: string): Toast {
+        return { kind: 'warning', title: 'This message is marked spam', body };
+    }
+
+    it('opens no file, saying why', () => {
+        const opened: OpenedAttachment[] = [];
+        const toasts = recordingToasts();
+        drawing(
+            [invoice, photograph],
+            deliveryHeldOpen().exchange,
+            toasts.surface,
+            (opening) => opened.push(opening),
+            true,
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Open photo.jpg' }));
+
+        expect(opened).toEqual([]);
+        expect(toasts.settled).toEqual([refused('Its attachments do not open. Mark it not spam first.')]);
+    });
+
+    it.each(['Download invoice.pdf', 'Download all'])('fetches nothing on %s, saying why', (control) => {
+        const held = deliveryHeldOpen();
+        const toasts = recordingToasts();
+        drawing([invoice, photograph], held.exchange, toasts.surface, () => undefined, true);
+
+        fireEvent.click(screen.getByRole('button', { name: control }));
+
+        expect(held.asked).toEqual([]);
+        expect(toasts.settled).toEqual([refused('Its attachments are not downloaded. Mark it not spam first.')]);
     });
 });

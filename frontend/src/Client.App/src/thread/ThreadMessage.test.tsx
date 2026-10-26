@@ -15,6 +15,7 @@ import type {
     MailThreadMessage,
 } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { ToastsProvider } from '../toasts/Toasts';
 import { ReadMarkingContext, nothingMarkedRead, type ReadMarking } from '../readMarking/useReadMarking';
 import { MailAccountsContext } from '../shell/accountNames';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
@@ -34,6 +35,7 @@ const work: MailAccount = {
     synchronizationState: 'Synchronized',
     lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
     behind: false,
+    filesJunk: false,
 };
 
 const asked: ClientRequest[] = [];
@@ -72,6 +74,7 @@ const described: MailMessage = {
     unread: false,
     flagged: false,
     answered: false,
+    spam: null,
 };
 
 /** The words the same answer carried, which is what makes drawing this message cost nothing on the wire. */
@@ -108,6 +111,7 @@ function message(overrides: Partial<MailThreadMessage> = {}): MailThreadMessage 
             preview: 'The figures you asked for are attached.',
             enrichment: null,
             threadMessageCount: null,
+            spam: null,
         },
         message: described,
         body: said,
@@ -133,26 +137,28 @@ function drawing(
 ): void {
     render(
         <LocalizationProvider>
-            <WorkspaceProvider>
-                <LinkOpenerContext value={() => Promise.resolve()}>
-                    <ReadMarkingContext value={marking}>
-                        <MailAccountsContext value={accounts}>
-                            <ul>
-                                <ThreadMessage
-                                    session={session}
-                                    transport={answersNothing}
-                                    message={held}
-                                    mark={mark}
-                                    motion={motion}
-                                    online
-                                    onShowFullHtml={handlers.onShowFullHtml ?? (() => undefined)}
-                                    onRegion={handlers.onRegion ?? (() => undefined)}
-                                />
-                            </ul>
-                        </MailAccountsContext>
-                    </ReadMarkingContext>
-                </LinkOpenerContext>
-            </WorkspaceProvider>
+            <ToastsProvider>
+                <WorkspaceProvider>
+                    <LinkOpenerContext value={() => Promise.resolve()}>
+                        <ReadMarkingContext value={marking}>
+                            <MailAccountsContext value={accounts}>
+                                <ul>
+                                    <ThreadMessage
+                                        session={session}
+                                        transport={answersNothing}
+                                        message={held}
+                                        mark={mark}
+                                        motion={motion}
+                                        online
+                                        onShowFullHtml={handlers.onShowFullHtml ?? (() => undefined)}
+                                        onRegion={handlers.onRegion ?? (() => undefined)}
+                                    />
+                                </ul>
+                            </MailAccountsContext>
+                        </ReadMarkingContext>
+                    </LinkOpenerContext>
+                </WorkspaceProvider>
+            </ToastsProvider>
         </LocalizationProvider>,
     );
 }

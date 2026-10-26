@@ -324,6 +324,10 @@ function answerFor(
             return answering(mail.emptyFolderPage);
         }
 
+        if (asked.get('folder') === 'JUNK') {
+            return answering(mail.spamFolderPage);
+        }
+
         const cursor = Number(asked.get('cursor') ?? '0');
 
         return answering(mail.timelinePage(asked.get('direction') === 'backward' ? cursor - mail.rowsPerPage : cursor));
@@ -377,7 +381,7 @@ function answerFor(
         agentAnswer(route, asked, request, options) ??
         calendarAnswer(route, asked, request, options) ??
         notificationAnswer(route, options) ??
-        changeAnswer(route, options) ??
+        changeAnswer(route, request, options) ??
         outboxAnswer(route, options) ??
         contactAnswer(route, asked, request, options) ??
         draftAnswer(route, asked, request) ??
@@ -666,13 +670,21 @@ function notificationAnswer(route: string, options: Readonly<FixtureDeploymentOp
 }
 
 /** What a submitted batch of changes answers with, where the caller's own changes stand, and the signal ticket. */
-function changeAnswer(route: string, options: Readonly<FixtureDeploymentOptions>): ClientResponse | null {
+function changeAnswer(
+    route: string,
+    request: ClientRequest,
+    options: Readonly<FixtureDeploymentOptions>,
+): ClientResponse | null {
     if (route === '/mutations/flags') {
         return answering(changes.flagsRecorded);
     }
 
     if (route === '/mutations/moves') {
         return answering(changes.movesPartlyRecorded);
+    }
+
+    if (route === '/mutations/spam') {
+        return answering({ results: spamMarked(request.body) });
     }
 
     if (route === '/mutations') {
@@ -768,6 +780,13 @@ function messageAnswer(route: string, asked: URLSearchParams): ClientResponse | 
 
     const storedEmailId = decodeURIComponent(route.split('/')[2] ?? '');
     const markupOnly = storedEmailId === messages.markupOnlyId;
+    const spamRow = mail.spamRows.find((row) => row.id === storedEmailId);
+
+    if (spamRow !== undefined) {
+        return answering(
+            route.endsWith('/body') ? { ...messages.spamBody, storedEmailId } : messages.spamMessage(spamRow),
+        );
+    }
 
     if (route.endsWith('/body')) {
         const body = markupOnly
@@ -816,6 +835,18 @@ function messagesIn(body: string | undefined): readonly string[] | null {
         .filter((email): email is string => typeof email === 'string');
 
     return named.length === citations.length ? named : null;
+}
+
+// Every message a spam mark named, recorded and moved nowhere, which is what a deployment whose switch is off answers.
+function spamMarked(body: string | undefined): readonly unknown[] {
+    const named = recordIn(body)?.['storedEmailIds'];
+
+    return (Array.isArray(named) ? named : []).map((storedEmailId: unknown) => ({
+        storedEmailId,
+        outcome: 'applied',
+        moved: false,
+        changes: [],
+    }));
 }
 
 /** What a request body states, where it states an object at all. */

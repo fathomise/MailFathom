@@ -26,6 +26,7 @@ export function ListedMailProvider({ children }: { readonly children: ReactNode 
                     folder: email.folder,
                     unread: email.unread,
                     flagged: email.flagged,
+                    spam: email.spam,
                 });
             }
 

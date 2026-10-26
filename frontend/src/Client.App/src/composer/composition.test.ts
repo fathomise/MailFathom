@@ -43,6 +43,7 @@ function message(subject: string | null, participants: readonly MailParticipant[
         unread: false,
         flagged: false,
         answered: false,
+        spam: null,
     };
 }
 

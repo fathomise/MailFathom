@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
 import {
+    isSpam,
     readMailThread,
     readMailThreadState,
     type ClientFailure,
@@ -19,7 +20,7 @@ import {
 import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
-import type { ActedMessage } from '../mailboxActs/useMailboxActs';
+import { drawnSpam, useMailboxActs, type ActedMessage } from '../mailboxActs/useMailboxActs';
 import { MessageWaiting } from '../messageBody/Message';
 import { MessageHeaders } from '../readingPane/MessageHeaders';
 import { animationsReported, departureFinished } from '../shell/departure';
@@ -210,6 +211,11 @@ export function Thread({
     // conversation opened at a message in the middle of its history was opened at that one.
     const opened = held.find((message) => message.email.id === arrival?.storedEmailId) ?? held.at(-1) ?? null;
     const drawn = historyShown || opened === null ? held : [opened];
+
+    // A conversation standing on a message marked spam offers nothing that reads it or answers it: no state, no agent
+    // field, and no way to reply under it, since the message is read-only and nothing about it is worth deriving.
+    const acts = useMailboxActs();
+    const standsOnSpam = opened !== null && isSpam(drawnSpam(acts, { id: opened.email.id, spam: opened.email.spam }));
 
     // What stands first in the column under the head, which is what decides whether arriving has anywhere to scroll to.
     const firstDrawnId = drawn[0]?.email.id ?? null;
@@ -427,7 +433,7 @@ export function Thread({
     const subject = held[0]?.email.subject ?? translate('message.noSubject');
     const handOver = { scope: { kind: 'thread', subject: conversation.threadId }, title: subject } as const;
     const stateBlock =
-        derivation?.outcome === 'failed' || (panelsHidden && twoPanes) ? undefined : (
+        derivation?.outcome === 'failed' || (panelsHidden && twoPanes) || standsOnSpam ? undefined : (
             <ThreadState
                 state={derived}
                 reading={derivation === null}
@@ -442,7 +448,7 @@ export function Thread({
         <Conversation
             ref={column}
             state={stateBlock}
-            foot={foot?.(handOver)}
+            foot={standsOnSpam ? undefined : foot?.(handOver)}
             header={
                 // One head rather than a second arrangement of the same three things. The design draws a conversation's
                 // head and a message's head identically — the subject with the acts beside it, and under it the one
@@ -678,6 +684,7 @@ function actedOn(message: MailThreadMessage): ActedMessage {
         folder: email.folder,
         unread: email.unread,
         flagged: email.flagged,
+        spam: email.spam,
     };
 }
 
