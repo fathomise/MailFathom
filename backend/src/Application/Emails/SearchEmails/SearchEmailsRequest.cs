@@ -37,13 +37,6 @@ public sealed record SearchEmailsRequest
     /// <remarks>A folder may be named by its alias or by the role it plays, and the use case settles which folder of which account each one means.</remarks>
     public IReadOnlyList<MailFolderReference> Folders { get; init; } = [];
 
-    /// <summary>Gets whether the account's junk folder is searched too, which it is not unless the caller asks.</summary>
-    /// <remarks>
-    /// Naming the junk folder in <see cref="Folders" /> is not asking, for the reason a listing states: the folder list
-    /// narrows the readable folders and this decides which are readable at all.
-    /// </remarks>
-    public bool IncludeJunkMail { get; init; }
-
     /// <summary>Gets the address the sender must carry, in any case, or <see langword="null" /> for any sender.</summary>
     public string? SenderAddress { get; init; }
 

@@ -208,13 +208,9 @@ public sealed class EmailAttachmentDownloadReader
 
         // A ticket outlives the configuration it was minted under and a caller names an email it read at some earlier
         // moment, so what either of them reaches is re-decided here: an account the deployment stopped serving, one
-        // belonging to another user, and — for a ticket an MCP read minted — a folder an operator withheld from AI all
-        // answer with nothing, exactly as an email that is no longer stored does.
-        if (summary is null || !await this.scopeResolver.IsReadableAsync(
-                reader,
-                summary.Account,
-                summary.Folder.Alias,
-                cancellationToken))
+        // belonging to another user, and — for a ticket an MCP read minted — a folder an operator withheld from AI and a
+        // message judged spam all answer with nothing, exactly as an email that is no longer stored does.
+        if (summary is null || !await this.scopeResolver.IsReadableAsync(reader, summary, cancellationToken))
         {
             return AttachmentDownloadOutcome.NothingToServe();
         }

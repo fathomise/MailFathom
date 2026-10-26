@@ -187,11 +187,11 @@ Two further narrowings apply underneath, and neither can widen anything:
   deployment does not serve is refused instead, and so is a folder named by a [role](imap-synchronization.md#what-a-role-says-beside-how-a-folder-is-found)
   no account in scope maps, and a folder named by its configured alias rather than its identity: each is a name the caller
   could not have meant, while an identity that matches nothing names no mail here.
-- The account's junk folder is outside retrieval, and unlike `list_emails` and `search_emails` there is **no override**.
-  An answer here is composed by a model from the mail it retrieved, so content written to deceive a reader would arrive
-  as ordinary correspondence with nothing left to notice it. Naming `role:Junk` in the scope does not reach it either.
-  [Spam classification](spam-classification.md#the-junk-folder-is-left-out-of-listing-and-search) records where that
-  folder comes from.
+- A message judged spam, in any folder, and the junk folder's mail the person did not mark not spam are outside
+  retrieval, and nothing asks for them back. An answer here is composed by a model from the mail it retrieved, so
+  content written to deceive a reader would arrive as ordinary correspondence with nothing left to notice it. Naming
+  `role:Junk` in the scope reaches only what the person marked not spam.
+  [Spam classification](spam-classification.md#no-agent-reads-a-message-judged-spam) states the rule.
 
 ## What one retrieval may hand over
 

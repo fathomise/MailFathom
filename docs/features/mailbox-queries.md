@@ -49,7 +49,6 @@ divergence neither copy would look wrong for on its own.
 | `Keyword` | One keyword the email must carry, compared without regard to case | any keyword |
 | `HasAttachments` | Whether attachments are required | either |
 | `Mark` | The reading an enrichment must have left, and the range a commitment falls due in | any reading, and mail with none |
-| `IncludeJunkMail` | Whether the account's junk folder takes part | it does not |
 | `Direction` | Which end of the timeline to read from | `NewestFirst` |
 | `PageSize` | How many emails the page returns | the default of 25 |
 | `Cursor` | The cursor a previous page returned | the first page |
@@ -218,34 +217,38 @@ agent's listing reports rather than present with a timestamp nothing may read be
 [What a mapping decides beyond where the folder is](imap-synchronization.md#what-a-mapping-decides-beyond-where-the-folder-is)
 states the switch beside the other two, what an unmapped folder is instead, and how to empty one.
 
-### The junk folder, withheld by default and reachable on request
+### Mail judged spam, withheld from every agent
 
-A folder mapped to the `Junk` special use is outside a listing and a search unless the request asks for it. The default
-is the one that matters: mail a filter already set aside is mail written to be read by somebody who did not ask for it,
-and an agent reasoning over a timeline has no way to tell it from correspondence. `IncludeJunkMail` is the caller's
-override, and the result reports which of the two answers it gave, so a reader is never left guessing whether an absent
-message was missing or withheld.
+An agent's read never reaches a message whose current verdict is spam, whichever stage reached it and whichever folder
+holds it, and never reaches the junk folder's mail unless the person marked the message not spam. A spam message is
+written by somebody hostile and an agent is a model acting on what it reads, so no request lifts this: `ListEmails` and
+`SearchEmails` carry no junk override, and naming `role:Junk` reads only what the person marked not spam.
+[Spam classification](spam-classification.md#no-agent-reads-a-message-judged-spam) states the rule and every surface
+it covers.
 
-This is not the switch above, and the difference is the point. `VisibleToAI: false` is an operator's decision that no
-AI function may read a folder; the junk exclusion is a default a caller may lift. The two are held apart and a query is handed
-their union, so asking for junk can never reveal a folder the operator withheld — a folder that is both is still outside
-every read.
+It is a property of the scope rather than of a read model. `MailboxScopeResolver` records whose read a scope answers
+for, and the one predicate every mail-returning read composes narrows an agent's scope by the stored verdict row as the
+query runs — the timeline, both search windows, the vector window `ask_mail` retrieves from, a conversation, a
+contact's correspondence. Nothing is written beside the message, so a message marked spam leaves the next read and one
+marked not spam returns to it with nothing reindexed. A read that reaches one email by its identifier asks the resolver
+the same question about that email's summary, and a withheld message is answered exactly as one that does not exist.
 
-Both sets are read from the account records when a read resolves its scope, narrowed to the accounts that read reaches,
-and the read keeps them for as long as it runs: a conversation assembled from several threads, or a page of a timeline,
-is judged by the one reading its scope was resolved with. They are held in the columns
+The person's read through the client is not an agent's. It reaches spam like any other mail, and the junk folder is a
+default it may lift: the client's browse and search requests carry their own junk override, which takes part in the
+cursor's fingerprint because including junk adds rows in the middle of an ordering.
+
+This is not the switch above, and the difference is the point. `VisibleToAI: false` is an operator's decision that no AI
+function may read a folder, and it holds whatever the folder's mail's verdicts are; the spam rule withholds individual
+messages from an agent inside the folders it may read. The two narrow a query independently, so a folder that is both
+is outside every agent read.
+
+The junk folders are read from the account records when a read resolves its scope, narrowed to the accounts that read
+reaches, and the read keeps them for as long as it runs: a conversation assembled from several threads, or a page of a
+timeline, is judged by the one reading its scope was resolved with. They are held in the columns
 [every account is asked about at once](../architecture/stored-email-schema.md#what-every-account-is-asked-about-at-once),
 written with the account's settings, so a folder withheld from AI leaves the next agent read rather than the next
-restart.
-
-The override is the caller's own filter rather than configuration, so it **does** take part in the cursor's fingerprint:
-including junk adds rows in the middle of an ordering, and a walk resumed under the other answer would skip or repeat.
-The junk folders themselves stay out of the fingerprint, exactly as the withheld folders above do, so mapping one does
-not invalidate an outstanding cursor.
-
-`get_email_content` is unaffected: a message reached by its identifier is a message somebody already has in hand.
-`ask_mail` excludes junk and offers no override, for the reason
-[spam classification](spam-classification.md#the-junk-folder-is-left-out-of-listing-and-search) gives.
+restart. They stay out of the cursor's fingerprint, exactly as the withheld folders above do, so mapping one does not
+invalidate an outstanding cursor.
 
 ### Attachment presence
 
@@ -385,9 +388,9 @@ authorship](machine-authorship.md) holds what the reading is made of and what it
 stage that reached it, and the subcategory, the stage that named it, and the phishing detail where those were named. It
 is five columns of the message's classification row, read by the same query through a join on the message's identity —
 never the classification's signals, score, or profile — and it is absent for a message no stage has reached, which is
-not the same as `NotSpam`. Every part of it is a closed value, so it reaches no sensitive-content scanner. Nothing in
-the query path filters, sorts, or ranks on it; which folders a listing reads is what keeps junk out, as
-[spam classification](spam-classification.md#the-junk-folder-is-left-out-of-listing-and-search) describes.
+not the same as `NotSpam`. Every part of it is a closed value, so it reaches no sensitive-content scanner. The person's
+query path neither filters, sorts, nor ranks on it; an agent's read is narrowed by the same row, as
+[mail judged spam, withheld from every agent](#mail-judged-spam-withheld-from-every-agent) describes.
 
 ### The remote flag snapshot
 

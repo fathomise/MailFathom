@@ -25,6 +25,7 @@ using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Spam;
 using MailFathom.TestSupport;
 using NSubstitute;
 using Xunit;
@@ -509,6 +510,30 @@ public sealed class StoredEmailResponseAuthoringTests
         // Arrange
         var summary = SyntheticEmailSummaries.Create();
         var authoring = AuthoringOver(Rendering(), summary, folderParticipation: Withholding(summary));
+
+        // Act
+        var response = await authoring.AuthorAsync(Request(), TestContext.Current.CancellationToken);
+
+        // Assert
+        AssertRefused(
+            response,
+            AuthoredResponseRefusalReason.AnsweredEmailNotFound,
+            MailFathomErrorCode.AnsweredEmailNotFound);
+    }
+
+    /// <summary>
+    /// A message judged spam is never an agent's to read, and answering or forwarding it would quote what an agent may
+    /// not read, so it is refused exactly as an email that does not exist.
+    /// </summary>
+    [Fact]
+    public async Task AuthorAsync_EmailJudgedSpamForAnAgent_IsRefusedAsNoSuchEmail()
+    {
+        // Arrange
+        var summary = SyntheticEmailSummaries.Create() with
+        {
+            Spam = new EmailSpamVerdict(SpamVerdict.Spam, SpamClassificationStage.Deterministic, Subcategory: null, PhishingRequest: null, ImpersonatedParty: null),
+        };
+        var authoring = AuthoringOver(Rendering(), summary);
 
         // Act
         var response = await authoring.AuthorAsync(Request(), TestContext.Current.CancellationToken);

@@ -9,28 +9,46 @@ the message in the junk folder. Spam classification is what keeps that decision 
 it as derived data beside the message.
 
 Five things ship here and are independent of each other: the classification record with the stage that fills it, mail
-being classified as it arrives, the two switches that let a verdict reach the mail server, the junk folder becoming a
-fact that mailbox reads act on, and junk being kept out of everything this deployment derives from mail. The fourth is
-true of a mailbox with no classification at all.
+being classified as it arrives, the two switches that let a verdict reach the mail server, spam and the junk folder
+being kept from every agent's read, and junk being kept out of everything this deployment derives from mail. The
+fourth reaches the junk folder in a mailbox with no classification at all.
 
-## The junk folder is left out of listing and search
+## No agent reads a message judged spam
 
-`list_emails` and `search_emails` leave the account's junk folder out by default and report which of the two answers
-they gave, in `includedJunkMail`. A caller that is looking for a message a filter took asks for it explicitly with
-`includeJunkMail: true`. Nothing else changes: the folder is still synchronized, still stored, and still reachable by
-identifier through `get_email_content`.
+A spam message is written by somebody hostile, and an agent is a model acting on what it reads, so a phishing message's
+instructions would otherwise reach a model acting for the mailbox's owner. **An agent never reads a message judged
+spam.** Two things are withheld from every agent's read:
 
-Which folder that is comes from configuration rather than from what a server advertised — the `Junk` special use in the
-account's folder mapping, described in [IMAP synchronization](imap-synchronization.md). A deployment that maps no junk
-folder withholds nothing, and both tools behave exactly as they did before this existed.
+- **A message whose current verdict is `Spam`**, whichever stage reached it — the deterministic one, the model, or the
+  person — and whichever folder holds it.
+- **The junk folder's mail**, unless the person marked the message not spam, which is the person saying it is ordinary
+  mail. A stage's own `NotSpam` does not lift it: the folder is where the provider or the person put the message, and
+  only the person's verdict outranks that.
 
-The override can never reveal a folder an operator withheld. A folder withheld from AI with `VisibleToAI: false` stays
-out of both tools whatever a caller asks for, because the two decisions are held apart and a query is handed their
-union. That switch withholds the folder from AI and from nothing else, and the classification described on this page is
-not AI: a deterministic verdict still reaches the folder's mail exactly as it reaches any other mirrored folder's. [Mailbox queries](mailbox-queries.md) holds the rest of what narrows a read.
+It holds on every surface through which an agent reads mail: `list_emails`, `search_emails`, `get_email_content` and the
+conversation it expands, `ask_mail` and the retrieval it answers from, the contact correspondence an agent reads, a
+conversation's state, `reply_to_email`, `forward_email`, a draft answering a message, an attachment link an MCP read
+minted, and the service's own agents — the conversation agent, Discover, reply drafting, and the acts an answer
+performs. Retrieval never ranks a passage of a withheld message into an agent's context, whether or not the index holds
+one, because the vector and the full-text windows are narrowed by the same predicate as a listing. No argument of any
+tool asks for any of it back.
 
-`ask_mail` excludes junk and offers no override. Its answer is composed by a model from the mail it retrieved, so
-content written to deceive a reader would reach the model as ordinary correspondence with nothing left to notice it.
+The rule is read from the verdict when the read is made, so a message marked spam drops out of the very next read and
+one marked not spam comes back in it, with nothing reindexed in between. A message asked for by its identifier is
+answered exactly as one that does not exist, so a refusal does not tell an agent that something is there.
+
+The person is not an agent. The client keeps showing spam — folded, badged, and read-only as the client draws it — and
+every read the person makes through it reaches the junk folder as before. Rules and automation act on the verdict as
+they always have, and an act an agent requests by an identifier — setting flags, moving, deleting — returns no message
+content and is not withheld.
+
+Which folder is the junk folder comes from configuration rather than from what a server advertised — the `Junk` special
+use in the account's folder mapping, described in [IMAP synchronization](imap-synchronization.md). A deployment that
+maps no junk folder withholds only what a verdict names. A folder withheld from AI with `VisibleToAI: false` stays out
+of every agent's read whatever its mail's verdicts are, because the two decisions are held apart and a query is handed
+both. That switch withholds the folder from AI and from nothing else, and the classification described on this page is
+not AI: a deterministic verdict still reaches the folder's mail exactly as it reaches any other mirrored folder's.
+[Mailbox queries](mailbox-queries.md) holds the rest of what narrows a read.
 
 ## What a classification records
 

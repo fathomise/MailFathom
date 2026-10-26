@@ -4,10 +4,12 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Folders;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Spam;
 
 namespace MailFathom.Application.Emails.Mailboxes;
 
@@ -64,7 +66,7 @@ public sealed class MailboxScopeResolver
     /// <param name="reader">Who the read is answering for, which decides whether folders withheld from AI are in it.</param>
     /// <param name="accountSelectors">The text a request named accounts with, or empty for every account the caller's user is assigned.</param>
     /// <param name="folders">The folders a request named, each by its folder identifier or by role, or empty for every folder.</param>
-    /// <param name="junkMail">Whether the caller asked for the account's junk folder, which defaults to it being left out.</param>
+    /// <param name="junkMail">Whether the caller asked for the account's junk folder, which defaults to it being left out. For an agent's read it decides only whether the junk folder is listed as a folder: which of its messages the read reaches is the verdict's to decide.</param>
     /// <param name="cancellationToken">Cancels the reads of which folders the accounts in scope admit.</param>
     /// <returns>The scope a query runs with.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the work in hand is acting for no user, which the deployment administrator and this process's own identity both are.</exception>
@@ -121,6 +123,12 @@ public sealed class MailboxScopeResolver
     /// under either answer, because the two lists narrow the query independently.
     /// </para>
     /// <para>
+    /// An agent's read is answered by the spam verdict on top of all of that, and no caller can ask it back: a message
+    /// whose verdict is spam is out of it in any folder, and the junk folder's mail is out of it unless the person marked
+    /// the message not spam. The rule is read from the verdict when the query runs, so a message marked either way is
+    /// out of, or back in, the very next read with nothing reindexed. <see cref="MailboxScope.Reader" /> carries it.
+    /// </para>
+    /// <para>
     /// A folder is named by the identifier MailFathom issued it or by the role it plays, never by its alias, which is
     /// configuration's name for it rather than one a caller is given. An identifier names one account's folder and is
     /// passed to the scope as it is. A role is passed as a role and read against each account's own folder rows when the
@@ -128,7 +136,8 @@ public sealed class MailboxScopeResolver
     /// multi-account read to each account's own folder. A role no account in scope maps is refused instead of narrowed away, for the
     /// reason an unserved account is: the caller asked for a folder that is not there, and an empty page would read as
     /// a folder holding no mail. Naming <c>role:Junk</c> is narrowing rather than asking — the withholding above still
-    /// applies, so a read that names it and does not also ask for junk mail returns nothing.
+    /// applies, so a person's read that names it and does not also ask for junk mail returns nothing, and an agent's
+    /// returns only what the person marked not spam.
     /// </para>
     /// </remarks>
     public async Task<MailboxScope> ReadableScopeAsync(
@@ -183,7 +192,7 @@ public sealed class MailboxScopeResolver
         // caller's own filter back to them differently is a page whose cursor no longer matches the request.
         if (accountsInScope.Length is 0)
         {
-            return MailboxScope.NothingReadable.WithJunkMail(junkMail, []);
+            return MailboxScope.NothingReadable.WithJunkMail(junkMail, []).AnsweringFor(reader, []);
         }
 
         var resolvedScope = MailboxScope.Create(
@@ -204,7 +213,8 @@ public sealed class MailboxScopeResolver
 
         return resolvedScope
             .RestrictedTo(admitted)
-            .WithJunkMail(junkMail, junkFolders);
+            .WithJunkMail(junkMail, junkFolders)
+            .AnsweringFor(reader, junkFolders);
     }
 
     /// <summary>Gets the user this unit of work is acting for, which is what decides the posture its content is scanned under.</summary>
@@ -267,7 +277,7 @@ public sealed class MailboxScopeResolver
     /// <param name="assignedAccounts">The accounts <see cref="ReadAssignedAccountsAsync" /> answered, read once for every email asked about.</param>
     /// <param name="accountId">The account the email was read from.</param>
     /// <param name="folderAlias">The alias of the folder the email is in, or <see langword="null" /> for a folder no declaration names.</param>
-    /// <returns>The same answer <see cref="IsReadableAsync" /> gives, without reading the assignments again.</returns>
+    /// <returns>The same answer <see cref="IsReadableAsync(MailboxReaderKind, MailAccountId, MailFolderAlias?, CancellationToken)" /> gives, without reading the assignments again.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="reader" /> is not a defined member.</exception>
     public bool IsReadable(
         MailboxReaderKind reader,
@@ -284,6 +294,62 @@ public sealed class MailboxScopeResolver
             && (folderAlias is not { } declared
                 || this.folderParticipation.GetParticipation(accountId, declared).Admits(reader));
     }
+
+    /// <summary>Reports whether a reader may read one stored email, its spam verdict included.</summary>
+    /// <param name="reader">Who the read is answering for.</param>
+    /// <param name="email">The email, as its summary was read.</param>
+    /// <param name="cancellationToken">Cancels the read of the user's assignments.</param>
+    /// <returns>The answer <see cref="IsReadable(MailboxReaderKind, IReadOnlyList{MailAccountId}, EmailSummary)" /> gives.</returns>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the work in hand is acting for no user.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="reader" /> is not a defined member.</exception>
+    public async Task<bool> IsReadableAsync(
+        MailboxReaderKind reader,
+        EmailSummary email,
+        CancellationToken cancellationToken) =>
+        this.IsReadable(reader, await this.ReadAssignedAccountsAsync(cancellationToken), email);
+
+    /// <summary>Reports whether a reader may read one stored email, given the accounts the user in hand was already read to be assigned.</summary>
+    /// <param name="reader">Who the read is answering for.</param>
+    /// <param name="assignedAccounts">The accounts <see cref="ReadAssignedAccountsAsync" /> answered.</param>
+    /// <param name="email">The email, as its summary was read.</param>
+    /// <returns>
+    /// <see langword="true" /> when the account and the folder admit <paramref name="reader" /> and, for an agent, the
+    /// email is not withheld as spam.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="reader" /> is not a defined member.</exception>
+    /// <remarks>
+    /// This is what a read of an email's content by its identifier asks, and it is the rule a scope applies to a query,
+    /// asked about one email: an agent never reads a message whose verdict is spam, and never reads the junk folder's
+    /// mail unless the person marked the message not spam. A message withheld that way is answered exactly as one that
+    /// does not exist, so asking about an identifier tells an agent nothing about what is there. The acts that reach an
+    /// email by its identifier ask <see cref="IsReadable(MailboxReaderKind, IReadOnlyList{MailAccountId}, MailAccountId, MailFolderAlias?)" />
+    /// instead: they return no content, and a rule acting on a verdict is not a read.
+    /// </remarks>
+    public bool IsReadable(
+        MailboxReaderKind reader,
+        IReadOnlyList<MailAccountId> assignedAccounts,
+        EmailSummary email)
+    {
+        ArgumentNullException.ThrowIfNull(email);
+
+        return this.IsReadable(reader, assignedAccounts, email.Account, email.Folder.Alias)
+            && (reader is MailboxReaderKind.Person || !this.IsWithheldAsSpam(email));
+    }
+
+    /// <summary>Reports whether an agent's read withholds one email as spam.</summary>
+    /// <remarks>
+    /// The in-process statement of the rule the stored-email predicate applies to an agent's scope, so the two have to
+    /// change together. The junk folder is read from the mapping, which agrees with the folders a scope reads within the
+    /// convergence interval the remarks on <see cref="IsReadable(MailboxReaderKind, IReadOnlyList{MailAccountId}, MailAccountId, MailFolderAlias?)" /> state.
+    /// </remarks>
+    private bool IsWithheldAsSpam(EmailSummary email) =>
+        email.Spam is { Verdict: SpamVerdict.Spam }
+        || (this.IsInJunkFolder(email)
+            && email.Spam is not { DecidedBy: SpamClassificationStage.Person, Verdict: SpamVerdict.NotSpam });
+
+    private bool IsInJunkFolder(EmailSummary email) =>
+        email.Folder.Alias is { } alias
+        && this.folderReferences.TryResolve(email.Account, MailFolderReference.ToRole(MailFolderSpecialUse.Junk))?.Alias == alias;
 
     /// <summary>Names the folders a scope answering for one kind of reader is restricted to.</summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="reader" /> is not a defined member.</exception>

@@ -1169,12 +1169,12 @@ visible to AI:
 | `GenerateEmbeddings` | What is stored is never cut into passages, its attachments are never read, and nothing of it reaches an embedding provider. |
 | `VisibleToAI` | The folder is withheld from every AI function and from nothing else: no MCP tool, agent, or model or embedding provider lists, searches, reads, answers from, or derives anything from it, and no act an agent or MCP caller asks for reaches its mail. The person still reads and acts on it in the client exactly as on any other mirrored folder. |
 
-One role decides something beyond where the folder is too. A mapping of `SpecialUse: Junk` names the folder that
-`list_emails` and `search_emails` leave out unless a caller asks for it, and that `ask_mail` leaves out with no way to
-ask — [spam classification](spam-classification.md#the-junk-folder-is-left-out-of-listing-and-search) records why. It is
+One role decides something beyond where the folder is too. A mapping of `SpecialUse: Junk` names the folder whose mail
+no agent reads unless the person marked the message not spam —
+[spam classification](spam-classification.md#no-agent-reads-a-message-judged-spam) records why. It is
 read from the configured role rather than from what a server advertised for the same reason the alias is: the role is
 what an operator decided, and a folder is withheld by their decision rather than by a `LIST` response. An account
-mapping no junk folder withholds nothing, and every mailbox read behaves as it did before this existed.
+mapping no junk folder withholds only what a verdict names.
 
 None of them changes what an **unmapped** folder is, because an unmapped folder is not a folder with its switches turned
 down. A folder no mapping names is not discovered into a binding, stores nothing, and has no alias anything can name it

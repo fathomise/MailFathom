@@ -165,9 +165,8 @@ public sealed class MailboxQuestionReader
         this.authorization.RequirePermission(MailFathomPermission.MailRead);
 
         var questionText = MailQuestionText.Create(request.QuestionText);
-        // Junk is left out with no override, unlike a listing and a search. Answering a question is exactly the path the
-        // exclusion exists for: content written to manipulate whoever reads it now has a model reading it, and a caller
-        // hunting a wrongly filed message uses the listing or the search that can ask for it.
+        // An agent's scope withholds every message judged spam and the junk folder's mail the person did not mark not
+        // spam, so content written to manipulate whoever reads it never reaches the model answering.
         var scope = await this.scopeResolver.ReadableScopeAsync(
             MailboxReaderKind.Agent,
             request.Accounts,

@@ -121,10 +121,11 @@ Paging is a cursor: pass `nextCursor` back unchanged, with the same filters and 
 filters that issued it, so changing a filter mid-walk is refused (`52002`) rather than answered with a page from a
 different question.
 
-**Junk is left out unless you ask for it.** Mail your provider or your own filter already set aside is not what a
-timeline is for, and an agent reading it cannot tell mail written to deceive it from correspondence. Set
-`includeJunkMail: true` when you are looking for a message a filter took; the result says which of the two listings you
-got, in `includedJunkMail`. The same argument and the same field are on `search_emails`.
+**Spam never reaches your agent.** A message judged spam, in any folder, and the junk folder's mail are left out of
+every listing, search, and answer, because an agent reading them cannot tell mail written to deceive it from
+correspondence. Mark a message not spam in the client and your agents read it again from the next call; nothing asks
+for spam back. [Spam classification](../features/spam-classification.md#no-agent-reads-a-message-judged-spam) states
+the rule.
 
 ## `search_emails` — ranked text search
 
@@ -498,9 +499,9 @@ the mailbox plausibly holds, which is why a Polish question reaches English mail
 would not. [Mail answering § A question in one language, mail in
 another](../features/mail-answering.md#a-question-in-one-language-mail-in-another) records both.
 
-Junk is outside every lookup a run makes, and here there is **no** way to ask for it. The answer is written by a model
-from the mail it retrieved, so a message written to deceive a reader would arrive as ordinary correspondence with
-nothing left to notice it. Use `search_emails` with `includeJunkMail` when junk is what you are looking for.
+Spam is outside every lookup a run makes. The answer is written by a model from the mail it retrieved, so a message
+written to deceive a reader would arrive as ordinary correspondence with nothing left to notice it. Look for a message a
+filter took in the client, where spam is shown.
 
 ### What leaves your instance when you ask
 

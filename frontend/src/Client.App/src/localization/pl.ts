@@ -1402,7 +1402,7 @@ export const pl: Catalogue = {
         'Limit tego serwera na bieżący okres został wyczerpany, więc pokazujemy wersję uproszczoną.',
     'body.cleaningProviderUnavailable': 'AI nie odpowiedziała, więc pokazujemy wersję uproszczoną.',
     'body.cleaningAnswerRejected': 'Odpowiedź modelu nie dała się wykorzystać, więc pokazujemy wersję uproszczoną.',
-    'body.cleaningWithheldFromAI': 'Ta wiadomość jest w folderze wyłączonym z AI, więc pokazujemy wersję uproszczoną.',
+    'body.cleaningWithheldFromAI': 'Ta wiadomość jest wyłączona z AI, więc pokazujemy wersję uproszczoną.',
     'body.cleaningNotRead': 'Nie udało się uprościć tej wiadomości, więc pokazujemy wersję uproszczoną.',
 
     'body.markupAbsent': 'Nadawca nie napisał sformatowanej wersji tej wiadomości, więc pokazujemy wersję uproszczoną.',

@@ -49,7 +49,7 @@ export function cleanedMailBodyRoute(storedEmailId: string, remoteImages: boolea
  *
  * Six of the seven say the cleaning did not happen, and each is a different sentence on the screen: a deployment that
  * never turned it on, a period whose allowance is spent, an endpoint that did not answer, an answer the service could
- * not use, a message in a folder withheld from AI, and a message with no document to clean at all. The reduced document comes back beside every one of them, where the message had one to reduce.
+ * not use, a message withheld from AI — in a folder withheld from it, or judged spam — and a message with no document to clean at all. The reduced document comes back beside every one of them, where the message had one to reduce.
  */
 export type MailBodyCleaning =
     | 'Cleaned'

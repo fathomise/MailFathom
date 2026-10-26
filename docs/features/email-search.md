@@ -104,7 +104,6 @@ the same reason. It stays distinguishable from a message whose body was genuinel
 | `IsRemotelyFlagged` | The remote `\Flagged` state to require | either state |
 | `Keyword` | One keyword the email must carry, compared without regard to case | any keyword |
 | `HasAttachments` | Whether attachments are required | either |
-| `IncludeJunkMail` | Whether the account's junk folder takes part | it does not |
 | `ResultLimit` | How many ranked results to return | the default of 20 |
 
 The structured filters are the ones `ListEmails` takes and they mean exactly the same things, because both read models
@@ -114,8 +113,8 @@ and refuses, including the attachment-presence rule and the account-scope resolu
 A folder mapped with `VisibleToAI: false`, and a folder no mapping names at all, are outside an agent's search for the
 same reason each is outside an agent's listing, and by the same single decision —
 [folders withheld from AI](mailbox-queries.md#folders-withheld-from-ai).
-The account's junk folder is left out by the same one decision and lifted by the same caller override, which the
-result reports back — [the junk folder, withheld by default](mailbox-queries.md#the-junk-folder-withheld-by-default-and-reachable-on-request).
+A message judged spam, and the junk folder's mail the person did not mark not spam, are left out by the same one
+predicate, and no argument lifts it — [mail judged spam, withheld from every agent](mailbox-queries.md#mail-judged-spam-withheld-from-every-agent).
 
 `SubjectFragment` and `QueryText` are unrelated. The fragment is a structured filter over the stored subject column that
 narrows which emails are eligible; the query text is what the eligible ones are matched and ranked against.

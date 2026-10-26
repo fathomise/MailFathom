@@ -6,6 +6,7 @@ using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.Infrastructure.Persistence;
 using MailFathom.Infrastructure.Persistence.Emails;
 using MailFathom.Infrastructure.Persistence.Entities;
@@ -110,6 +111,22 @@ public sealed class StoredEmailSelectionPredicateCommandTests
 
         // Assert
         Assert.Contains($"\"{nameof(StoredEmailEntity.Id)}\" = ANY", narrowing, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An agent's read is narrowed by the verdict row as the query runs rather than by anything written beside the
+    /// message, which is what makes a message marked spam leave the next read, and one marked not spam return to it,
+    /// with nothing reindexed in between. A scope that never said whose read it is answers for an agent.
+    /// </summary>
+    [Fact]
+    public void WithinScope_AnAgentsScope_NarrowsTheCommandByTheStoredSpamVerdict()
+    {
+        // Act
+        var narrowing = ScopeNarrowingOf(WholeMailbox);
+
+        // Assert
+        Assert.Equal(MailboxReaderKind.Agent, WholeMailbox.Reader);
+        Assert.Contains($"\"{nameof(EmailSpamClassificationEntity.Verdict)}\"", narrowing, StringComparison.Ordinal);
     }
 
     /// <summary>A scope nobody narrowed reads the mailbox, which is what keeps an ordinary listing off both columns.</summary>

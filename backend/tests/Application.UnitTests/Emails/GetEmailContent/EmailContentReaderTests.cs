@@ -679,7 +679,7 @@ public sealed class EmailContentReaderTests
 
         // Act
         var result = await reader.ReadContentAsync(
-            RequestFor([summary.StoredEmailId], includeAttachmentDownloadLinks: false),
+            RequestFor([summary.StoredEmailId], includeAttachmentDownloadLinks: false) with { Reader = MailboxReaderKind.Person },
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -918,6 +918,51 @@ public sealed class EmailContentReaderTests
         // Assert
         var failure = FailureOf(Assert.Single(result.Emails));
         Assert.Equal(MailFathomErrorCode.StoredEmailNotFound, failure.ErrorCode);
+    }
+
+    /// <summary>
+    /// A message judged spam is never an agent's to read, and asking for it by its identifier is answered exactly as
+    /// asking for one that does not exist, so the answer does not tell the agent something is there.
+    /// </summary>
+    [Fact]
+    public async Task ReadContentAsync_AMessageJudgedSpamReadForAnAgent_AnswersExactlyAsAnUnknownIdentifierDoes()
+    {
+        // Arrange
+        var spam = SyntheticEmailSummaries.Create() with { Spam = VerdictOf(SpamVerdict.Spam, SpamClassificationStage.Model) };
+        var holdingTheSpam = ReaderOver(spam, RendererReturning(RenderingOf()));
+        var holdingNothing = ReaderOver(
+            summary: null,
+            RendererReturning(RenderingOf()),
+            accountCatalog: CatalogServing(spam.Account));
+
+        // Act
+        var spamRead = await holdingTheSpam.ReadContentAsync(
+            RequestFor([spam.StoredEmailId]),
+            TestContext.Current.CancellationToken);
+        var unknownRead = await holdingNothing.ReadContentAsync(
+            RequestFor([spam.StoredEmailId]),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(FailureOf(Assert.Single(unknownRead.Emails)), FailureOf(Assert.Single(spamRead.Emails)));
+        Assert.Equal(MailFathomErrorCode.StoredEmailNotFound, FailureOf(spamRead.Emails[0]).ErrorCode);
+    }
+
+    /// <summary>The person reads a message judged spam like any other, because the client draws spam rather than hiding it.</summary>
+    [Fact]
+    public async Task ReadContentAsync_AMessageJudgedSpamReadForThePerson_ServesIt()
+    {
+        // Arrange
+        var spam = SyntheticEmailSummaries.Create() with { Spam = VerdictOf(SpamVerdict.Spam, SpamClassificationStage.Person) };
+        var reader = ReaderOver(spam, RendererReturning(RenderingOf()));
+
+        // Act
+        var result = await reader.ReadContentAsync(
+            RequestFor([spam.StoredEmailId]) with { Reader = MailboxReaderKind.Person },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(spam.StoredEmailId, ContentOf(Assert.Single(result.Emails)).StoredEmailId);
     }
 
     /// <summary>The person opening a message in a folder withheld from AI reads it like any other, because the withholding is from AI alone.</summary>
@@ -1978,6 +2023,9 @@ public sealed class EmailContentReaderTests
 
     private static EmailSummary[] SummariesOf(int count) =>
         [.. Enumerable.Range(0, count).Select(_ => SyntheticEmailSummaries.Create())];
+
+    private static EmailSpamVerdict VerdictOf(SpamVerdict verdict, SpamClassificationStage decidedBy) =>
+        new(verdict, decidedBy, Subcategory: null, PhishingRequest: null, ImpersonatedParty: null);
 
     /// <summary>The grant is the authority here rather than at the transport, so an entrypoint that passed no filter meets the same refusal.</summary>
     [Fact]
