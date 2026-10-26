@@ -99,16 +99,24 @@ public sealed record EmailSignature
     /// <remarks>
     /// A content mismatch is <see cref="EmailSignatureOutcome.Failed" /> whatever else was found, because it is the one
     /// finding that says the message is not what was signed. Otherwise a named reason makes it
-    /// <see cref="EmailSignatureOutcome.NotVerifiable" />, a content check that passed with no reason makes it
-    /// <see cref="EmailSignatureOutcome.Verified" />, and a content check nothing reached is a message that signed
-    /// nothing.
+    /// <see cref="EmailSignatureOutcome.NotVerifiable" />. <see cref="EmailSignatureOutcome.Verified" /> needs the content,
+    /// the authority, the validity, and the revocation steps all to have passed, so a producer that forgot to name a
+    /// reason still cannot publish a verified signature over a trust step that failed or never ran: content that passed
+    /// beside any other trust step is <see cref="EmailSignatureOutcome.NotVerifiable" />. A content check nothing
+    /// reached is a message that signed nothing.
     /// </remarks>
     public EmailSignatureOutcome Outcome =>
         this.ContentCheck == SignatureCheckResult.Failed ? EmailSignatureOutcome.Failed
         : this.UnverifiableReason is not null ? EmailSignatureOutcome.NotVerifiable
-        : this.ContentCheck == SignatureCheckResult.Passed ? EmailSignatureOutcome.Verified
-        : EmailSignatureOutcome.NotSigned;
+        : this.ContentCheck != SignatureCheckResult.Passed ? EmailSignatureOutcome.NotSigned
+        : this.EveryTrustStepPassed ? EmailSignatureOutcome.Verified
+        : EmailSignatureOutcome.NotVerifiable;
 
     /// <summary>Gets whether the signer names the displayed author, which is a separate fact from <see cref="Outcome" />.</summary>
     public bool SignerMatchesAuthor => this.SignerCheck == SignatureCheckResult.Passed;
+
+    private bool EveryTrustStepPassed =>
+        this.AuthorityCheck == SignatureCheckResult.Passed
+        && this.ValidityCheck == SignatureCheckResult.Passed
+        && this.RevocationCheck == SignatureCheckResult.Passed;
 }

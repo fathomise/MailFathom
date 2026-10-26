@@ -268,7 +268,9 @@ is the layer rather than something MailFathom re-implements:
   the verification already has. An answer is cached per issuer key and serial number until the next update it names,
   held for at least one minute and at most one day whatever that says, and an unavailable answer is remembered for one
   minute — so a responder that failed once leaves that minute's messages from the signer *not verifiable* until they are
-  re-derived. The cache is per replica.
+  re-derived. An answer that names no next update is believed only for one day from when it was issued. Each
+  certificate below the root of the signer's chain is checked under its own deadline, the signer first, and the walk
+  stops at the first answer that is not good. The cache is per replica.
   [Verifying a message's own
   signature](../operations/configuration-mail.md#verifying-a-messages-own-signature--signatureverification) states what a
   responder learns.

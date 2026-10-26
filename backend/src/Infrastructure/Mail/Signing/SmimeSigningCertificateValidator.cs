@@ -2,7 +2,6 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-using System.Formats.Asn1;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using MailFathom.Infrastructure.Certificates;
@@ -30,8 +29,6 @@ namespace MailFathom.Infrastructure.Mail.Signing;
 /// </remarks>
 public sealed class SmimeSigningCertificateValidator
 {
-    private const string SubjectAlternativeNameOid = "2.5.29.17";
-
     private const string ExtendedKeyUsageOid = "2.5.29.37";
 
     private const string KeyUsageOid = "2.5.29.15";
@@ -39,10 +36,6 @@ public sealed class SmimeSigningCertificateValidator
     private const string EmailProtectionOid = "1.3.6.1.5.5.7.3.4";
 
     private const string AnyExtendedKeyUsageOid = "2.5.29.37.0";
-
-    private const string EmailAddressAttributeOid = "1.2.840.113549.1.9.1";
-
-    private static readonly Asn1Tag Rfc822NameTag = new(TagClass.ContextSpecific, 1);
 
     private readonly CertificateIdentityReader identityReader;
     private readonly TimeProvider timeProvider;
@@ -118,7 +111,7 @@ public sealed class SmimeSigningCertificateValidator
             return CertificateMaterialFailure.EmailProtectionNotPermitted;
         }
 
-        return NamedAddressesOf(leaf).Contains(fromAddress, StringComparer.OrdinalIgnoreCase)
+        return CertificateMailAddresses.Of(leaf).Contains(fromAddress, StringComparer.OrdinalIgnoreCase)
             ? null
             : CertificateMaterialFailure.AddressNotCoveredByCertificate;
     }
@@ -155,65 +148,5 @@ public sealed class SmimeSigningCertificateValidator
         return new X509EnhancedKeyUsageExtension(declaredUsages, declaredUsages.Critical).EnhancedKeyUsages
             .OfType<Oid>()
             .Any(static usage => usage.Value is EmailProtectionOid or AnyExtendedKeyUsageOid);
-    }
-
-    /// <summary>Lists every mailbox address the certificate names: its <c>rfc822Name</c> alternative names, and the legacy <c>emailAddress</c> subject attribute.</summary>
-    /// <remarks>
-    /// RFC 8550 § 3 asks a receiving agent to recognize both, so both are what a recipient matches the author against.
-    /// The platform publishes no reader for an <c>rfc822Name</c>, so the extension is decoded here; a malformed one names
-    /// nothing rather than failing, and the certificate is then refused for naming no address.
-    /// </remarks>
-    private static string[] NamedAddressesOf(X509Certificate2 leaf) =>
-        [.. AlternativeAddressesOf(leaf), .. SubjectAddressesOf(leaf)];
-
-    private static string[] SubjectAddressesOf(X509Certificate2 leaf)
-    {
-        try
-        {
-            return
-            [
-                .. leaf.SubjectName.EnumerateRelativeDistinguishedNames()
-                    .Where(static name => !name.HasMultipleElements
-                        && name.GetSingleElementType().Value == EmailAddressAttributeOid)
-                    .Select(static name => name.GetSingleElementValue())
-                    .OfType<string>(),
-            ];
-        }
-        catch (CryptographicException)
-        {
-            return [];
-        }
-    }
-
-    private static string[] AlternativeAddressesOf(X509Certificate2 leaf)
-    {
-        if (leaf.Extensions[SubjectAlternativeNameOid] is not { } declaredNames)
-        {
-            return [];
-        }
-
-        var addresses = new List<string>();
-        try
-        {
-            var generalNames = new AsnReader(declaredNames.RawData, AsnEncodingRules.DER).ReadSequence();
-
-            while (generalNames.HasData)
-            {
-                if (generalNames.PeekTag() == Rfc822NameTag)
-                {
-                    addresses.Add(generalNames.ReadCharacterString(UniversalTagNumber.IA5String, Rfc822NameTag));
-                }
-                else
-                {
-                    generalNames.ReadEncodedValue();
-                }
-            }
-        }
-        catch (AsnContentException)
-        {
-            return [];
-        }
-
-        return [.. addresses];
     }
 }

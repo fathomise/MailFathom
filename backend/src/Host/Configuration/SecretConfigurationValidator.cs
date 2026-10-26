@@ -331,9 +331,13 @@ internal sealed partial class SecretConfigurationValidator
 
                 // One key configured twice — a refreshed copy added during rotation is the usual way — cannot be put
                 // into one key set, so it is refused here rather than left to fail every verification later.
-                errors.AddRange(keyIds
-                    .Where(keyId => !firstPositionOfKey.TryAdd(keyId, index))
-                    .Select(keyId => $"{configurationPath} — holds an OpenPGP key already trusted at {keysSectionPath}:{firstPositionOfKey[keyId]}; configure each key once."));
+                foreach (var keyId in keyIds)
+                {
+                    if (!firstPositionOfKey.TryAdd(keyId, index))
+                    {
+                        errors.Add($"{configurationPath} — holds an OpenPGP key already trusted at {keysSectionPath}:{firstPositionOfKey[keyId]}; configure each key once.");
+                    }
+                }
             }
         }
 

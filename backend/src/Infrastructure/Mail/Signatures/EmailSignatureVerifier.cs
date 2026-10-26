@@ -257,10 +257,11 @@ internal sealed class EmailSignatureVerifier : IEmailSignatureVerifier
                         }
                     }
                 }
-                catch (Exception exception) when (exception is PgpException or IOException)
+                catch (Exception exception) when (exception is PgpException or IOException or ArgumentException)
                 {
-                    // Startup refuses a key that does not parse, so this is material replaced underneath a running
-                    // process; the keys that still load go on vouching for their signatures.
+                    // Startup refuses a key that does not parse, and one entry holding the same key twice, so this is
+                    // material replaced underneath a running process; the keys that still load go on vouching for their
+                    // signatures.
                 }
             }
         }

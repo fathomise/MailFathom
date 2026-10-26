@@ -20,7 +20,8 @@ namespace MailFathom.Infrastructure.UnitTests.TestDoubles;
 /// Every fixture was generated once, synthetically, and is read as an embedded resource. The S/MIME signers chain to
 /// <c>root-authority.pem</c> through an issuing authority each signature carries; the two responders their certificates
 /// name, <see cref="OcspResponder" /> and <see cref="RevocationListLocation" />, are answered here by a fake transport,
-/// so nothing reaches a network.
+/// and so is <see cref="RootRevocationListLocation" />, which the one issuing authority that can be revoked names, so
+/// nothing reaches a network.
 /// </para>
 /// <para>
 /// The signatures were made on 27 August 2026 and the revocation answers were issued on 1 September 2026 and stay
@@ -34,6 +35,9 @@ internal static class SignatureFixtures
 
     /// <summary>The CRL distribution point every S/MIME signer certificate that names one names.</summary>
     public static readonly Uri RevocationListLocation = new("http://crl.signer.example.test/issuing.crl");
+
+    /// <summary>The CRL distribution point the root names for the authorities it issued that name one.</summary>
+    public static readonly Uri RootRevocationListLocation = new("http://crl.root.example.test/root.crl");
 
     /// <summary>Gets the instant every verification is judged at.</summary>
     public static DateTimeOffset Now { get; } = new(2026, 9, 1, 12, 0, 0, TimeSpan.Zero);
@@ -61,10 +65,12 @@ internal static class SignatureFixtures
     /// <summary>Answers the two responders with the named fixtures, and anything else as not found.</summary>
     /// <param name="ocspAnswer">The OCSP response fixture, or <see langword="null" /> where the responder answers nothing.</param>
     /// <param name="revocationList">The CRL fixture, or <see langword="null" /> where the distribution point serves nothing.</param>
-    public static FakeHttpMessageHandler Responders(string? ocspAnswer = null, string? revocationList = null) =>
+    /// <param name="rootRevocationList">The root's CRL fixture, or <see langword="null" /> where the root's distribution point serves nothing.</param>
+    public static FakeHttpMessageHandler Responders(string? ocspAnswer = null, string? revocationList = null, string? rootRevocationList = null) =>
         new((request, _) => Task.FromResult(
             request.RequestUri == OcspResponder && ocspAnswer is not null ? Answer(ocspAnswer)
             : request.RequestUri == RevocationListLocation && revocationList is not null ? Answer(revocationList)
+            : request.RequestUri == RootRevocationListLocation && rootRevocationList is not null ? Answer(rootRevocationList)
             : new HttpResponseMessage(HttpStatusCode.NotFound)));
 
     /// <summary>A transport on which every responder is unreachable.</summary>

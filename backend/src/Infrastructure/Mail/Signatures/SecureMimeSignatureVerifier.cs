@@ -5,6 +5,7 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using MailFathom.Domain.Emails.Signatures;
+using MailFathom.Infrastructure.Certificates;
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Cms;
 using Org.BouncyCastle.Cms;
@@ -234,19 +235,15 @@ internal sealed class SecureMimeSignatureVerifier
                 ChainEnd = chain.Chain.ChainElements.Count > 0 ? chain.Chain.ChainElements[^1].Certificate.Subject : null,
                 ValidityCheck = validityFailure is null ? SignatureCheckResult.Passed : SignatureCheckResult.Failed,
                 ValidityFailure = validityFailure,
-                SignerCheck = SignerAddressesOf(certificate)
+                SignerCheck = CertificateMailAddresses.Of(certificate)
                     .Any(address => string.Equals(address, displayedSenderAddress, StringComparison.OrdinalIgnoreCase))
                     ? SignatureCheckResult.Passed
                     : SignatureCheckResult.Failed,
             };
 
-            var revocation = authorityPassed && chain.Chain.ChainElements.Count > 1
-                ? await this.revocationChecker.CheckAsync(
-                    certificate,
-                    chain.Chain.ChainElements[1].Certificate,
-                    trust.RevocationTimeout,
-                    cancellationToken)
-                : (CertificateRevocationAnswer?)null;
+            var revocation = authorityPassed
+                ? await this.CheckChainRevocationAsync(chain.Chain, trust.RevocationTimeout, cancellationToken)
+                : null;
 
             signature = signature with
             {
@@ -270,6 +267,49 @@ internal sealed class SecureMimeSignatureVerifier
         {
             chain.Chain.Dispose();
         }
+    }
+
+    /// <summary>Asks about every certificate in the chain below its root, from the signer upwards, and stops at the first answer that is not good.</summary>
+    /// <remarks>
+    /// <para>
+    /// An authority revoked by the root above it can still sign: a leaked intermediate key issues a certificate for any
+    /// address and vouches for it in its own OCSP answers. Asking about the signer alone would miss exactly that, so each
+    /// link is asked about against the certificate that issued it. The answer returned is the signer's when every link
+    /// is good, and otherwise the first link's that is not, so a revoked authority reads as revoked.
+    /// </para>
+    /// <para>
+    /// An authority above the signer that names no OCSP responder and no CRL is passed over rather than counted as
+    /// uncheckable: nobody can revoke it, its issuer having published nowhere to say so, which is the same knowledge a
+    /// mail client has of it. The signer itself is held to having a source, as before. Stopping at the first answer that
+    /// is not good keeps the wait within one <c>RevocationTimeout</c> per certificate actually asked about.
+    /// </para>
+    /// </remarks>
+    private async Task<CertificateRevocationAnswer?> CheckChainRevocationAsync(
+        X509Chain chain,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var elements = chain.ChainElements;
+        CertificateRevocationAnswer? signerAnswer = null;
+
+        for (var index = 0; index < elements.Count - 1; index++)
+        {
+            var link = elements[index].Certificate;
+            if (index > 0 && !CertificateRevocationChecker.NamesARevocationSource(link))
+            {
+                continue;
+            }
+
+            var answer = await this.revocationChecker.CheckAsync(link, elements[index + 1].Certificate, timeout, cancellationToken);
+            if (answer.Status != CertificateRevocationStatus.Good)
+            {
+                return answer;
+            }
+
+            signerAnswer ??= answer;
+        }
+
+        return signerAnswer;
     }
 
     private static EmailSignatureUnverifiableReason? FirstUnverifiableReason(EmailSignature signature) =>
@@ -375,42 +415,18 @@ internal sealed class SecureMimeSignatureVerifier
             : null;
     }
 
-    /// <summary>Reads every address a certificate names: its RFC 822 subject alternative names, then an <c>E=</c> in its subject.</summary>
-    private static IReadOnlyList<string> SignerAddressesOf(X509Certificate2 certificate)
-    {
-        try
-        {
-            var parsed = new Org.BouncyCastle.X509.X509CertificateParser().ReadCertificate(certificate.RawData);
-            var alternativeNames = parsed.GetSubjectAlternativeNames() ?? [];
-            var subjectAddresses = parsed.SubjectDN.GetValueList(Org.BouncyCastle.Asn1.X509.X509Name.EmailAddress);
-
-            return
-            [
-                .. alternativeNames
-                    .Where(name => name.Count == 2 && name[0] is int tag && tag == Org.BouncyCastle.Asn1.X509.GeneralName.Rfc822Name)
-                    .Select(name => name[1]?.ToString())
-                    .OfType<string>(),
-                .. subjectAddresses,
-            ];
-        }
-        catch (Exception exception) when (IsUnreadableSignature(exception))
-        {
-            return [];
-        }
-    }
-
     private static EmailSigner DescribeSigner(
         X509Certificate2 certificate,
         SignerInformation signer,
         string? displayedSenderAddress)
     {
-        var addresses = SignerAddressesOf(certificate);
+        var addresses = CertificateMailAddresses.Of(certificate);
 
         return new EmailSigner
         {
             Name = certificate.Subject,
             Address = addresses.FirstOrDefault(address => string.Equals(address, displayedSenderAddress, StringComparison.OrdinalIgnoreCase))
-                ?? (addresses.Count > 0 ? addresses[0] : null),
+                ?? (addresses.Length > 0 ? addresses[0] : null),
             Issuer = certificate.Issuer,
             ValidFrom = new DateTimeOffset(certificate.NotBefore.ToUniversalTime(), TimeSpan.Zero),
             ValidUntil = new DateTimeOffset(certificate.NotAfter.ToUniversalTime(), TimeSpan.Zero),

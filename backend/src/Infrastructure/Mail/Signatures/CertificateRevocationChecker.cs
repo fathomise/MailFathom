@@ -52,6 +52,9 @@ internal sealed class CertificateRevocationChecker
     /// <summary>How far an answer's <c>thisUpdate</c> may lie in the future before it is not believed, for clocks that drift.</summary>
     private static readonly TimeSpan PermittedClockSkew = TimeSpan.FromMinutes(5);
 
+    /// <summary>How old an answer that names no <c>nextUpdate</c> may be and still be believed.</summary>
+    private static readonly TimeSpan LongestUndatedAnswerAge = TimeSpan.FromDays(1);
+
     private readonly IHttpClientFactory httpClientFactory;
     private readonly CertificateRevocationAnswerCache cache;
     private readonly TimeProvider timeProvider;
@@ -111,6 +114,18 @@ internal sealed class CertificateRevocationChecker
         this.cache.Store(certificateKey, answer, validUntil);
 
         return answer;
+    }
+
+    /// <summary>Tells whether a certificate names any OCSP responder or CRL location this checker would ask.</summary>
+    /// <param name="certificate">The certificate to read.</param>
+    /// <returns><see langword="true" /> when at least one HTTP or HTTPS location is named.</returns>
+    public static bool NamesARevocationSource(X509Certificate2 certificate)
+    {
+        ArgumentNullException.ThrowIfNull(certificate);
+
+        var parsed = new Org.BouncyCastle.X509.X509CertificateParser().ReadCertificate(certificate.RawData);
+
+        return LocationsOf(OcspLocationsOf(parsed)).Any() || LocationsOf(RevocationListLocationsOf(parsed)).Any();
     }
 
     /// <summary>Names a certificate by its issuer's key and its serial number, which is what a revocation answer is about.</summary>
@@ -210,7 +225,7 @@ internal sealed class CertificateRevocationChecker
 
             var now = this.timeProvider.GetUtcNow();
             var single = basic.Responses.FirstOrDefault(candidate => candidate.GetCertID().Equals(requestedCertificate));
-            if (single is null || !this.IsFresh(single.ThisUpdate, single.NextUpdate, now))
+            if (single is null || !IsFresh(single.ThisUpdate, single.NextUpdate, now))
             {
                 return null;
             }
@@ -304,7 +319,7 @@ internal sealed class CertificateRevocationChecker
             list.Verify(issuer.GetPublicKey());
 
             var now = this.timeProvider.GetUtcNow();
-            if (!this.IsFresh(list.ThisUpdate, list.NextUpdate, now))
+            if (!IsFresh(list.ThisUpdate, list.NextUpdate, now))
             {
                 return null;
             }
@@ -362,9 +377,21 @@ internal sealed class CertificateRevocationChecker
         };
     }
 
-    private bool IsFresh(DateTime thisUpdate, DateTime? nextUpdate, DateTimeOffset now) =>
-        new DateTimeOffset(thisUpdate, TimeSpan.Zero) <= now + PermittedClockSkew
-        && (nextUpdate is null || new DateTimeOffset(nextUpdate.Value, TimeSpan.Zero) >= now);
+    /// <summary>Judges whether an answer still speaks for the present.</summary>
+    /// <remarks>
+    /// An answer that names no <c>nextUpdate</c> says nothing about how long it holds, and it travels over plain HTTP with
+    /// no nonce, so an old one replayed by anybody on the path would otherwise vouch for a certificate revoked since. It
+    /// is believed only while its <c>thisUpdate</c> is within <see cref="LongestUndatedAnswerAge" />.
+    /// </remarks>
+    private static bool IsFresh(DateTime thisUpdate, DateTime? nextUpdate, DateTimeOffset now)
+    {
+        var issuedAt = new DateTimeOffset(thisUpdate, TimeSpan.Zero);
+
+        return issuedAt <= now + PermittedClockSkew
+            && (nextUpdate is { } until
+                ? new DateTimeOffset(until, TimeSpan.Zero) >= now
+                : issuedAt >= now - LongestUndatedAnswerAge);
+    }
 
     /// <summary>Sends one request and reads its body, or returns nothing where no usable answer arrived.</summary>
     /// <remarks>

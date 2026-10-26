@@ -315,13 +315,18 @@ never checked, so the addresses asked are always ones a trusted authority wrote.
 says it is valid, between one minute and one day, and an unreachable responder is asked again after a minute. An OCSP
 answer counts only when the certificate's issuer or a responder it delegated to signed it, about this certificate; a CRL
 counts only when the issuer signed it, it is a complete list rather than a delta, and its issuing distribution point —
-where it names one — covers every end-entity certificate from the address it was read at. Anything else is no answer. The cache
+where it names one — covers every end-entity certificate from the address it was read at. An answer that names no
+next update is believed for one day from when it was issued. Anything else is no answer. Every certificate between the
+signer and the root is asked about the same way, against the authority that issued it, so a revoked intermediate
+authority makes its signers revoked too; an intermediate that names no responder and no list is passed over, since
+nobody could revoke it, while the signer's own certificate still has to name one. The check stops at the first answer
+that is not good, so a signature waits at most `RevocationTimeout` for each certificate actually asked about. The cache
 is one per replica, so a deployment of several replicas asks each responder up to `× replicaCount` as often. Every check
 has the hard `RevocationTimeout`; one that cannot complete — no network, a timeout, every responder unreachable — makes
 the signature *not verifiable*, never verified and never failed. Verification runs at extraction — when synchronization
 stores a message, when a re-derivation or the extraction backfill reads one again, and when MailFathom writes a message
 into a mailbox itself: a copy committed to a held or restoring mailbox and the filed copy of a sent message are read the
-same way, so those acts can wait on a responder for up to `RevocationTimeout` per signer. Opening a message never waits
+same way, so those acts can wait on a responder for up to `RevocationTimeout` per certificate asked about. Opening a message never waits
 on one. A deployment that must make no such request sets `TrustSystemStore` to `false` and names no
 authority, which leaves every S/MIME signature not verifiable and asks nobody.
 

@@ -593,6 +593,140 @@ public sealed class EmailSignatureVerifierTests
         Assert.Equal(EmailSignatureOutcome.Verified, signature.Outcome);
     }
 
+    [Fact]
+    public async Task VerifyAsync_IssuingAuthorityItsRootRevoked_IsNotVerifiableBecauseRevoked()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders(
+            ocspAnswer: "ocsp-irena-good.der",
+            rootRevocationList: "crl-root-revocable-revoked.der");
+        var message = SignatureFixtures.Message("smime-detached-irena.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders)
+            .VerifyAsync(message, "irena@signer.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureUnverifiableReason.Revoked, signature.UnverifiableReason);
+        Assert.Equal(SignatureCheckResult.Failed, signature.RevocationCheck);
+        Assert.Equal(RevocationCheckMethod.Crl, signature.RevocationMethod);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_EveryLinkOfTheChainAnsweredGood_IsVerifiedAndReportsTheSignersAnswer()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders(
+            ocspAnswer: "ocsp-irena-good.der",
+            rootRevocationList: "crl-root-none-revoked.der");
+        var message = SignatureFixtures.Message("smime-detached-irena.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders)
+            .VerifyAsync(message, "irena@signer.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureOutcome.Verified, signature.Outcome);
+        Assert.Equal(RevocationCheckMethod.Ocsp, signature.RevocationMethod);
+        Assert.Equal(
+            [SignatureFixtures.OcspResponder, SignatureFixtures.RootRevocationListLocation],
+            [.. responders.RecordedRequests.Select(request => request.RequestUri)]);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_IssuingAuthorityWhoseRevocationCannotBeChecked_IsNotVerifiable()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders(ocspAnswer: "ocsp-irena-good.der");
+        var message = SignatureFixtures.Message("smime-detached-irena.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders)
+            .VerifyAsync(message, "irena@signer.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureUnverifiableReason.RevocationNotCheckable, signature.UnverifiableReason);
+    }
+
+    [Theory]
+    [InlineData("crl-ca-only.der")]
+    [InlineData("crl-elsewhere.der")]
+    [InlineData("crl-forged.der")]
+    public async Task VerifyAsync_RevocationListScopedElsewhereOrNotSignedByTheIssuer_IsNotVerifiableBecauseRevocationCannotBeChecked(string revocationList)
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders(revocationList: revocationList);
+        var message = SignatureFixtures.Message("smime-detached-celina.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders)
+            .VerifyAsync(message, "celina@signer.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureUnverifiableReason.RevocationNotCheckable, signature.UnverifiableReason);
+        Assert.Equal(SignatureCheckResult.NotChecked, signature.RevocationCheck);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_RevocationListScopedToTheLocationItWasReadAt_IsVerified()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders(revocationList: "crl-scoped-none-revoked.der");
+        var message = SignatureFixtures.Message("smime-detached-celina.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders)
+            .VerifyAsync(message, "celina@signer.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureOutcome.Verified, signature.Outcome);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_OcspAnswerNamingNoNextUpdateIssuedRecently_IsVerified()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders(ocspAnswer: "ocsp-anna-good-undated.der");
+        var message = SignatureFixtures.Message("smime-detached-anna.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders)
+            .VerifyAsync(message, "anna@signer.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureOutcome.Verified, signature.Outcome);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_OcspAnswerNamingNoNextUpdateIssuedLongAgo_IsNotVerifiableBecauseRevocationCannotBeChecked()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders(ocspAnswer: "ocsp-anna-good-undated-old.der");
+        var message = SignatureFixtures.Message("smime-detached-anna.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders)
+            .VerifyAsync(message, "anna@signer.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureUnverifiableReason.RevocationNotCheckable, signature.UnverifiableReason);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_OneEntryHoldingTheSameKeyTwice_IsPassedOverAndTheOtherKeysStillVouch()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders();
+        var message = SignatureFixtures.Message("pgp-sara.eml");
+
+        // Act
+        var signature = await SignatureFixtures.Verifier(responders, true, "pgp-robert-twice.asc", "pgp-sara.asc")
+            .VerifyAsync(message, "sara@pgp.example.test", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureOutcome.Verified, signature.Outcome);
+    }
+
     private static string OpaqueMessage(string declaredType) =>
         "From: anna@signer.example.test\r\n" +
         $"Content-Type: application/pkcs7-mime; smime-type={declaredType}; name=smime.p7m\r\n" +
