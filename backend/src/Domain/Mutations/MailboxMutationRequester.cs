@@ -108,6 +108,43 @@ public sealed record MailboxMutationRequester
         return new MailboxMutationRequester(MailboxMutationOrigin.Classification, $"{decidedBy}@none");
     }
 
+    /// <summary>Names the stage a spam classification was decided by, asking for a change to these keywords.</summary>
+    /// <param name="decidedBy">The stage that reached the verdict.</param>
+    /// <param name="keywords">The keywords the change adds or removes.</param>
+    /// <returns>A requester naming that stage and those keywords.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="keywords" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="keywords" /> is empty, or a keyword carries the <c>@</c> the identity is composed with.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="decidedBy" /> is not a defined member.</exception>
+    /// <remarks>
+    /// The keywords stand where <see cref="Classification(SpamClassificationStage)" /> writes <c>none</c>, because a verdict
+    /// asks for a keyword change more than once on one occurrence and each is a different request: <c>$Junk</c> for spam,
+    /// and <c>$Phishing</c> later, once the same stage names the phishing subcategory. Under the shorter identity the second
+    /// would read as a repeat of the first and never be written.
+    /// </remarks>
+    public static MailboxMutationRequester Classification(SpamClassificationStage decidedBy, AuthoredMailKeywords keywords)
+    {
+        ArgumentNullException.ThrowIfNull(keywords);
+
+        if (!Enum.IsDefined(decidedBy))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(decidedBy),
+                decidedBy,
+                "A classification is reached by one of the stages this system runs.");
+        }
+
+        if (keywords.IsEmpty)
+        {
+            throw new ArgumentException("A keyword change names at least one keyword.", nameof(keywords));
+        }
+
+        var named = ValidComposedPart(string.Join('+', keywords.Values), nameof(keywords));
+
+        return new MailboxMutationRequester(
+            MailboxMutationOrigin.Classification,
+            ValidIdentity($"{decidedBy}@{named}", nameof(keywords)));
+    }
+
     /// <summary>Names one invocation somebody made.</summary>
     /// <param name="invocationIdentity">The identity of the invocation, which is the same for a retry of it and different for a second one.</param>
     /// <returns>A requester naming that invocation.</returns>

@@ -154,6 +154,8 @@ internal sealed class MailFathomDbContext : DbContext
     internal DbSet<EmailSpamClassificationSignalEntity> EmailSpamClassificationSignals =>
         this.Set<EmailSpamClassificationSignalEntity>();
 
+    internal DbSet<EmailSpamVerdictActEntity> EmailSpamVerdictActs => this.Set<EmailSpamVerdictActEntity>();
+
     internal DbSet<SpamClassificationRunEntity> SpamClassificationRuns => this.Set<SpamClassificationRunEntity>();
 
     internal DbSet<EmailEnrichmentEntity> EmailEnrichments => this.Set<EmailEnrichmentEntity>();
@@ -319,6 +321,7 @@ internal sealed class MailFathomDbContext : DbContext
         modelBuilder.ApplyConfiguration(new EmailContentRepairRequestConfiguration());
         modelBuilder.ApplyConfiguration(new EmailSpamClassificationConfiguration());
         modelBuilder.ApplyConfiguration(new EmailSpamClassificationSignalConfiguration());
+        modelBuilder.ApplyConfiguration(new EmailSpamVerdictActConfiguration());
         modelBuilder.ApplyConfiguration(new EmailEnrichmentConfiguration());
         modelBuilder.ApplyConfiguration(new EmailEnrichmentMarkConfiguration());
         modelBuilder.ApplyConfiguration(new EmailThreadStateConfiguration());

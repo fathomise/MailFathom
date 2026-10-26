@@ -171,10 +171,11 @@ the deterministic stage alone: it reads what the message carried, and nothing he
 | `SpamClassification:MaxRunBatchesPerPass` | int | `4` | 1 – 1 000 | reload |
 | `SpamClassification:Actions:MoveToJunkFolder` | bool | `false` | Read by no classification: what a verdict does is each account's own, stated in that account's record | — |
 | `SpamClassification:Actions:MarkAsRead` | bool | `false` | Read by no classification, for the reason above | — |
+| `SpamClassification:Actions:MarkWithJunkKeywords` | bool | `false` | Read by no classification, for the reason above | — |
 | `SpamClassification:Actions:JunkFolder` | string | `role:Junk` | Read by no classification, for the reason above | — |
 
-**Five of those keys are one account's decision and the rest are the deployment's.** `Enabled`, `ScannedFolders`, and
-the three settings under `Actions` are what an account decides about the mail in it, and are the whole of what its
+**Six of those keys are one account's decision and the rest are the deployment's.** `Enabled`, `ScannedFolders`, and
+the four settings under `Actions` are what an account decides about the mail in it, and are the whole of what its
 record may carry. `ClassificationWait`, `RunBatchSize`, and `MaxRunBatchesPerPass` are the deployment's, because each of
 them is what the process spends rather than a judgement about anybody's mailbox — an account record naming one is
 refused. The section is bound strictly, so a key it does not declare fails startup naming itself rather than being

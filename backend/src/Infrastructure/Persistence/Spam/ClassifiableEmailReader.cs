@@ -11,11 +11,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MailFathom.Infrastructure.Persistence.Spam;
 
-/// <summary>Reads the account and folder of one stored occurrence, and nothing else about it.</summary>
+/// <summary>Reads the account, folder, and keywords of one stored occurrence, and nothing else about it.</summary>
 /// <remarks>
-/// A bounded projection rather than the entity, for the reason every read model here is one: classification needs three
+/// A bounded projection rather than the entity, for the reason every read model here is one: classification needs four
 /// values, and loading a whole email row would put its subject and its participants into memory to answer a question
-/// about where it lives.
+/// about where it lives and how it is marked.
 /// </remarks>
 [RequiresIntegrationCoverage]
 internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : IClassifiableEmailReader
@@ -36,7 +36,7 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
         var row = await dbContext.StoredEmails
             .AsNoTracking()
             .Where(email => email.Id == storedEmailId && email.MailboxAccountId == mailboxAccountId)
-            .Select(email => new { email.MailboxAccountId, email.MailFolderBinding.Alias })
+            .Select(email => new { email.MailboxAccountId, email.MailFolderBinding.Alias, email.RemoteKeywords })
             .SingleOrDefaultAsync(cancellationToken);
 
         return row is null
@@ -44,7 +44,8 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
             : new ClassifiableEmail(
                 emailId,
                 MailAccountId.Create(row.MailboxAccountId),
-                MailFolderAlias.Create(row.Alias));
+                MailFolderAlias.Create(row.Alias),
+                RemoteEmailKeywords.Create(row.RemoteKeywords));
     }
 
     /// <inheritdoc />
@@ -119,7 +120,7 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
         var rows = await emails
             .OrderBy(email => email.Id)
             .Take(batchSize)
-            .Select(email => new { email.Id, email.MailFolderBinding.Alias })
+            .Select(email => new { email.Id, email.MailFolderBinding.Alias, email.RemoteKeywords })
             .ToArrayAsync(cancellationToken);
 
         return
@@ -127,7 +128,8 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
             .. rows.Select(row => new ClassifiableEmail(
                 StoredEmailId.Create(row.Id),
                 account,
-                MailFolderAlias.Create(row.Alias))),
+                MailFolderAlias.Create(row.Alias),
+                RemoteEmailKeywords.Create(row.RemoteKeywords))),
         ];
     }
 }

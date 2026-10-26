@@ -8,6 +8,7 @@ using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Rules.Actions;
 using MailFathom.Application.Spam.Actions;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
@@ -50,6 +51,8 @@ public sealed class SpamActionRecorderTests
         trustedCertificateAuthorityReference: null);
 
     private readonly InMemoryMailboxMutationRecordStore records = new();
+
+    private readonly InMemorySpamVerdictActStore verdictActs = new();
 
     private readonly InMemoryMailFolderResolutionStore bindings = new();
 
@@ -593,13 +596,343 @@ public sealed class SpamActionRecorderTests
         await Assert.ThrowsAsync<ArgumentNullException>(refusal);
     }
 
+    /// <summary>A spam verdict on a mirrored account asks for <c>$Junk</c> under an identity naming it, and records that it did.</summary>
+    [Fact]
+    public async Task RecordAsync_TheKeywordSwitchOnASpamVerdict_AsksForJunkAndRecordsTheAct()
+    {
+        // Arrange
+        var recorder = this.Recorder(MarkingWithKeywords());
+
+        // Act
+        var result = await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.Requested, result.Outcome);
+        Assert.NotNull(result.KeywordsRecordId);
+        var request = Assert.Single(this.records.OpenedRequests);
+        Assert.Equal(MailboxMutation.AddKeywords, request.Mutation);
+        Assert.Equal(["$Junk"], request.Keywords!.Values);
+        Assert.Equal("Deterministic@$Junk", request.Requester.Identity);
+        Assert.Equal([SpamVerdictAct.MarkedJunk], this.verdictActs.Of(Email));
+    }
+
+    /// <summary>The phishing subcategory adds <c>$Phishing</c> beside <c>$Junk</c>, in the one request, never alone.</summary>
+    [Fact]
+    public async Task RecordAsync_APhishingVerdict_AsksForJunkAndPhishingTogether()
+    {
+        // Arrange
+        var recorder = this.Recorder(MarkingWithKeywords());
+
+        // Act
+        await recorder.RecordAsync(PhishingVerdict(), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        var request = Assert.Single(this.records.OpenedRequests);
+        Assert.Equal(["$Junk", "$Phishing"], request.Keywords!.Values.Order(StringComparer.Ordinal));
+        Assert.Equal(
+            [SpamVerdictAct.MarkedJunk, SpamVerdictAct.MarkedPhishing],
+            this.verdictActs.Of(Email).Order());
+    }
+
+    /// <summary>A keyword the message already carries is not written, whoever set it.</summary>
+    [Fact]
+    public async Task RecordAsync_AMessageAlreadyCarryingJunk_AsksForNoKeyword()
+    {
+        // Arrange
+        var recorder = this.Recorder(
+            MarkingWithKeywords(),
+            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$junk"]));
+
+        // Act
+        var result = await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.NothingToChange, result.Outcome);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>A <c>$Junk</c> a verdict wrote once and the person took off is not written again, and no <c>$Phishing</c> stands alone.</summary>
+    [Fact]
+    public async Task RecordAsync_AJunkKeywordThePersonRemoved_IsNotWrittenAgainAndNoPhishingStandsAlone()
+    {
+        // Arrange
+        this.verdictActs.With(Email, SpamVerdictAct.MarkedJunk);
+        var recorder = this.Recorder(MarkingWithKeywords());
+
+        // Act
+        var result = await recorder.RecordAsync(PhishingVerdict(), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.NothingToChange, result.Outcome);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>
+    /// A message later named phishing under the same stage gets <c>$Phishing</c> as a request of its own, rather than
+    /// reading as a repeat of the <c>$Junk</c> the same occurrence was given before.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_PhishingNamedAfterJunkWasWritten_AsksForPhishingAsANewRequest()
+    {
+        // Arrange
+        var recorder = this.Recorder(MarkingWithKeywords());
+        await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam, SpamClassificationStage.Model), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+        var carryingJunk = this.Recorder(
+            MarkingWithKeywords(),
+            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk"]));
+
+        // Act
+        var result = await carryingJunk.RecordAsync(PhishingVerdict(), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.Requested, result.Outcome);
+        Assert.Equal(2, this.records.OpenedRecordCount);
+        Assert.Equal(["$Phishing"], this.records.OpenedRequests[^1].Keywords!.Values);
+    }
+
+    /// <summary>The account's <c>WriteKeywords</c> governs a verdict's keywords as it governs a rule's.</summary>
+    [Fact]
+    public async Task RecordAsync_AnAccountThatPermitsNoKeywords_WritesNone()
+    {
+        // Arrange
+        var recorder = this.Recorder(
+            MarkingWithKeywords(),
+            permissions: MailRuleActionPermissions.Default with { PermitsWriteKeywords = false });
+
+        // Act
+        var result = await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.NothingToChange, result.Outcome);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>
+    /// The read change comes first and the filing last, with the keywords between, each its own record — so a folder that
+    /// refuses the keyword as <c>MailboxMutationUnsupported</c> refuses that record alone, and the keywords are aimed at
+    /// the occurrence that exists before the move.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_EverySwitchOn_MarksReadThenSetsTheKeywordsThenFilesAsSeparateRecords()
+    {
+        // Arrange
+        this.MapUnmirroredJunk("Spam");
+        var recorder = this.Recorder(SpamActionSettings.Create(
+            filesJunk: true,
+            marksJunkRead: true,
+            marksJunkWithKeywords: true));
+
+        // Act
+        var result = await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            [MailboxMutation.SetSeen, MailboxMutation.AddKeywords, MailboxMutation.Relocate],
+            this.records.OpenedRequests.Select(request => request.Mutation));
+        Assert.NotNull(result.MarkedReadRecordId);
+        Assert.NotNull(result.KeywordsRecordId);
+        Assert.NotNull(result.FiledRecordId);
+        Assert.Equal(
+            [SpamVerdictAct.FiledIntoJunk, SpamVerdictAct.MarkedJunk],
+            this.verdictActs.Of(Email).Order());
+    }
+
+    /// <summary>No verdict writes <c>$NotJunk</c>: one that is not spam asks for nothing, the keyword switch on or not.</summary>
+    [Theory]
+    [InlineData(SpamVerdict.NotSpam)]
+    [InlineData(SpamVerdict.Undetermined)]
+    public async Task RecordAsync_AVerdictThatIsNotSpamWithTheKeywordSwitchOn_WritesNoKeyword(SpamVerdict verdict)
+    {
+        // Arrange
+        var recorder = this.Recorder(MarkingWithKeywords());
+
+        // Act
+        var result = await recorder.RecordAsync(SpamVerdictOf(verdict), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.NotSpam, result.Outcome);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>A message somebody marked both <c>$Junk</c> and <c>$NotJunk</c> has both removed, as RFC 9051 asks of a client.</summary>
+    [Fact]
+    public async Task RecordAsync_AVerdictRestingOnJunkAndNotJunkTogether_RemovesBoth()
+    {
+        // Arrange
+        var recorder = this.Recorder(
+            MarkingWithKeywords(),
+            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk", "$NotJunk"]));
+
+        // Act
+        var result = await recorder.RecordAsync(CancellingVerdict(), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.Requested, result.Outcome);
+        var request = Assert.Single(this.records.OpenedRequests);
+        Assert.Equal(MailboxMutation.RemoveKeywords, request.Mutation);
+        Assert.Equal(["$Junk", "$NotJunk"], request.Keywords!.Values.Order(StringComparer.Ordinal));
+        Assert.Empty(this.verdictActs.Of(Email));
+    }
+
+    /// <summary>Removing the cancelled pair is the keyword switch's alone, so an account that left it off is told the verdict was not spam.</summary>
+    [Fact]
+    public async Task RecordAsync_JunkAndNotJunkTogetherWithTheKeywordSwitchOff_RemovesNothing()
+    {
+        // Arrange
+        var recorder = this.Recorder(
+            FilingAndMarkingRead(),
+            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk", "$NotJunk"]));
+
+        // Act
+        var result = await recorder.RecordAsync(CancellingVerdict(), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.NotSpam, result.Outcome);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>On a held account the keyword commits to the stored keyword set, and the act is recorded for the next verdict to read.</summary>
+    [Fact]
+    public async Task RecordAsync_AHeldAccount_CommitsTheJunkKeywordLocallyAndRecordsTheAct()
+    {
+        // Arrange
+        var states = StatesOfAMessageInTheInbox();
+        var recorder = this.Recorder(
+            MarkingWithKeywords(),
+            submission: MailboxChangeSubmissions.Over(
+                this.records,
+                new InMemoryLocalMailFolderStore(Account, MailAccountCustodyPhase.Held),
+                states));
+
+        // Act
+        var result = await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.Applied, result.Outcome);
+        Assert.Null(result.KeywordsRecordId);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+        Assert.Equal(["$JUNK"], states.States[Email].Keywords.Values);
+        Assert.Equal([SpamVerdictAct.MarkedJunk], this.verdictActs.Of(Email));
+    }
+
+    /// <summary>A restoring account commits the keyword locally and opens the record that carries it to the source.</summary>
+    [Fact]
+    public async Task RecordAsync_ARestoringAccount_CommitsTheJunkKeywordAndNamesTheRecordTheSourceIsOwed()
+    {
+        // Arrange
+        var states = StatesOfAMessageInTheInbox();
+        var recorder = this.Recorder(
+            MarkingWithKeywords(),
+            submission: MailboxChangeSubmissions.Over(
+                this.records,
+                new InMemoryLocalMailFolderStore(Account, MailAccountCustodyPhase.Restoring),
+                states));
+
+        // Act
+        var result = await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.Applied, result.Outcome);
+        Assert.NotNull(result.KeywordsRecordId);
+        Assert.Equal(MailboxMutation.AddKeywords, Assert.Single(this.records.OpenedRequests).Mutation);
+        Assert.Equal(["$JUNK"], states.States[Email].Keywords.Values);
+    }
+
+    /// <summary>
+    /// A held message a verdict filed and the person moved back out of the local junk folder is left alone, read from the
+    /// record of what the verdict did — a held filing leaves no mutation record to read it from.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_AHeldMessageFiledOnceAndMovedBackOut_IsLeftAlone()
+    {
+        // Arrange
+        this.MapMirroredJunk("Junk");
+        this.verdictActs.With(Email, SpamVerdictAct.FiledIntoJunk);
+        var localFolders = new InMemoryLocalMailFolderStore(Account, MailAccountCustodyPhase.Held);
+        var recorder = this.Recorder(
+            FilingAndMarkingRead(),
+            submission: MailboxChangeSubmissions.Over(this.records, localFolders, StatesOfAMessageInTheInbox()));
+
+        // Act
+        var result = await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.PreviouslyFiled, result.Outcome);
+    }
+
+    /// <summary>A dry run reaches the keyword decision the acting run would, and writes neither the change nor the act.</summary>
+    [Fact]
+    public async Task RecordAsync_ADryRunOverMailThatWouldBeMarked_ReportsTheDecisionAndRecordsNothing()
+    {
+        // Arrange
+        var recorder = this.Recorder(MarkingWithKeywords());
+
+        // Act
+        var result = await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.DryRun, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.WouldRequest, result.Outcome);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+        Assert.Empty(this.verdictActs.Of(Email));
+    }
+
+    private static SpamActionSettings MarkingWithKeywords() =>
+        SpamActionSettings.Create(filesJunk: false, marksJunkRead: false, marksJunkWithKeywords: true);
+
+    private static SpamClassification PhishingVerdict() => SpamClassification.Create(
+        Email,
+        SpamVerdict.Spam,
+        SpamClassificationStage.Model,
+        assessment: null,
+        SpamClassificationProfile.Create(),
+        [
+            SpamSignal.Create(
+                SpamSignalKind.ModelJudgement,
+                "spam_kind",
+                observation: "phishing",
+                SpamSignalProvenance.FromModel("example/decider-2026-09-01", "3f9a1c")),
+        ],
+        EvaluatedAt,
+        SpamSubcategory.Phishing);
+
+    /// <summary>A verdict the deterministic stage reached past a <c>$Junk</c> and a <c>$NotJunk</c> somebody else set.</summary>
+    private static SpamClassification CancellingVerdict() => SpamClassification.Create(
+        Email,
+        SpamVerdict.Undetermined,
+        SpamClassificationStage.Deterministic,
+        assessment: null,
+        SpamClassificationProfile.Create(),
+        [
+            SpamSignal.Create(SpamSignalKind.JunkKeyword, "$NotJunk", observation: null, SpamSignalProvenance.FromMailboxKeyword("$NotJunk")),
+            SpamSignal.Create(SpamSignalKind.JunkKeyword, "$Junk", observation: null, SpamSignalProvenance.FromMailboxKeyword("$Junk")),
+        ],
+        EvaluatedAt);
+
+    private static InMemoryLocalEmailStateStore StatesOfAMessageInTheInbox()
+    {
+        var states = new InMemoryLocalEmailStateStore(Account);
+        states.Store(
+            Email,
+            new LocalEmailState(
+                MailFolderResolution.FirstBindingOf(Inbox, RemoteFolderPath.Create("INBOX")),
+                HoldsSourceOccurrence: true,
+                Folder: null,
+                IsSeen: false,
+                IsFlagged: false,
+                RemoteEmailKeywords.Create([])));
+
+        return states;
+    }
+
     private static SpamActionSettings FilingAndMarkingRead() =>
         SpamActionSettings.Create(filesJunk: true, marksJunkRead: true);
 
-    private static SpamClassification SpamVerdictOf(SpamVerdict verdict) => SpamClassification.Create(
+    private static SpamClassification SpamVerdictOf(
+        SpamVerdict verdict,
+        SpamClassificationStage decidedBy = SpamClassificationStage.Deterministic) => SpamClassification.Create(
         Email,
         verdict,
-        SpamClassificationStage.Deterministic,
+        decidedBy,
         assessment: null,
         SpamClassificationProfile.Create(),
         [],
@@ -609,7 +942,8 @@ public sealed class SpamActionRecorderTests
         MailFolderAlias folderAlias,
         bool isRemotelySeen,
         uint uid = 4401,
-        MailAccountId? account = null) => new(
+        MailAccountId? account = null,
+        params string[] keywords) => new(
         Email,
         EmailOccurrenceId.Create(
             account ?? Account,
@@ -617,7 +951,8 @@ public sealed class SpamActionRecorderTests
             ImapUidValidity.Create(9),
             ImapUid.Create(uid)),
         folderAlias,
-        isRemotelySeen);
+        isRemotelySeen,
+        RemoteEmailKeywords.Create(keywords));
 
     /// <summary>Maps the junk role onto a folder the account does not mirror, which is the recommended arrangement.</summary>
     /// <remarks>
@@ -654,6 +989,7 @@ public sealed class SpamActionRecorderTests
     /// <param name="settingsOf">The account those switches belong to, defaulting to this class's own.</param>
     /// <param name="submission">What the changes are submitted through, defaulting to one over an account that is not held.</param>
     /// <param name="session">The session every commit is staged in, defaulting to one that commits.</param>
+    /// <param name="permissions">What the account lets a change author, defaulting to the permissions every account starts with.</param>
     /// <remarks>
     /// Configured per account rather than for any account, so a recorder forwarding a constant reads as no action taken
     /// and fails the test that expected one. Separating that constant from this class's own account needs
@@ -665,7 +1001,8 @@ public sealed class SpamActionRecorderTests
         ISpamActionOccurrenceReader? occurrences = null,
         MailAccountId? settingsOf = null,
         MailboxChangeSubmission? submission = null,
-        IPersistenceSession? session = null)
+        IPersistenceSession? session = null,
+        MailRuleActionPermissions? permissions = null)
     {
         var settingsReader = Substitute.For<ISpamActionSettingsReader>();
         settingsReader.ActionsFor(Arg.Any<MailAccountId>()).Returns(SpamActionSettings.None);
@@ -679,9 +1016,11 @@ public sealed class SpamActionRecorderTests
             settingsReader,
             occurrences ?? ReaderOf(OccurrenceIn(Inbox, isRemotelySeen: false)),
             this.records,
+            this.verdictActs,
             submission ?? MailboxChangeSubmissions.Over(this.records),
             this.DestinationResolver(sessionFactory),
             this.dispositions,
+            PermissionsOf(permissions ?? MailRuleActionPermissions.Default),
             new OptimisticConcurrencyRetryPolicy(
                 sessionFactory,
                 new PersistenceConcurrencyOptions(),
@@ -713,6 +1052,14 @@ public sealed class SpamActionRecorderTests
             Signals = ClientSignalPublishers.ReachingNobody,
             TransportPolicies = transportSecurityPolicies,
         }.Destinations;
+    }
+
+    private static IMailRuleActionPermissionReader PermissionsOf(MailRuleActionPermissions permissions)
+    {
+        var reader = Substitute.For<IMailRuleActionPermissionReader>();
+        reader.GetRuleActionPermissions(Arg.Any<MailAccountId>()).Returns(permissions);
+
+        return reader;
     }
 
     private static ISpamActionOccurrenceReader ReaderOf(SpamActionOccurrence occurrence)

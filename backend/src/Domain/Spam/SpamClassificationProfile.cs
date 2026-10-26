@@ -18,7 +18,9 @@ namespace MailFathom.Domain.Spam;
 /// </para>
 /// <para>
 /// The digest covers only what changes a verdict or a subcategory. The deterministic stage reads what a message carried
-/// and nothing an operator configures moves its answer, so its terms are its name alone. The model stage's are whether it
+/// and nothing an operator configures moves its answer, so its terms are its name and the facts it reads — the junk
+/// keywords among them, so a change to what it reads is a change of terms and a run decides existing mail once more. The
+/// model stage's are whether it
 /// is consulted, whether it names subcategories of deterministic spam, and its threshold; a setting that moves an answer
 /// joins the canonical form, and every record decided before it then reads as decided under other terms. Leaving the
 /// model unconsulted keeps the deterministic identity, so mail already decided without it is not decided again. The scanned folder
@@ -39,6 +41,9 @@ public readonly record struct SpamClassificationProfile
     /// </remarks>
     public const int LengthInCharacters = 12;
 
+    /// <summary>The canonical form of what the deterministic stage reads: the headers, the folder, and the junk keywords.</summary>
+    private const string DeterministicTerms = "deterministic;junk-keywords";
+
     private readonly string? value;
 
     private SpamClassificationProfile(string value) => this.value = value;
@@ -58,7 +63,7 @@ public readonly record struct SpamClassificationProfile
 
     /// <summary>Derives the identity of the terms a classification is reached under when no model is consulted.</summary>
     /// <returns>The profile of the deterministic stage alone.</returns>
-    public static SpamClassificationProfile Create() => FromCanonicalForm("deterministic");
+    public static SpamClassificationProfile Create() => FromCanonicalForm(DeterministicTerms);
 
     /// <summary>Derives the identity of the terms a classification is reached under when the model stage is consulted.</summary>
     /// <param name="namesSubcategoriesOfDeterministicSpam">Whether the model also names the subcategory of a verdict the deterministic stage reached.</param>
@@ -82,7 +87,7 @@ public readonly record struct SpamClassificationProfile
 
         return FromCanonicalForm(string.Create(
             CultureInfo.InvariantCulture,
-            $"deterministic;model;subcategories-of-deterministic-spam={(namesSubcategoriesOfDeterministicSpam ? "yes" : "no")};threshold={threshold:R}"));
+            $"{DeterministicTerms};model;subcategories-of-deterministic-spam={(namesSubcategoriesOfDeterministicSpam ? "yes" : "no")};threshold={threshold:R}"));
     }
 
     /// <summary>Reads back a profile this system derived earlier and recorded.</summary>

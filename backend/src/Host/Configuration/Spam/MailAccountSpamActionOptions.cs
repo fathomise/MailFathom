@@ -13,9 +13,9 @@ namespace MailFathom.Host.Configuration.Spam;
 /// <summary>What one account asks to happen to mail a classification calls its junk.</summary>
 /// <remarks>
 /// <para>
-/// The same three decisions <see cref="SpamActionOptions" /> holds for a deployment, written in an account's own record
-/// because they are acts on that account's mail server: a message moved into a junk folder and marked read is a change
-/// to one mailbox, and no other mailbox's settings may ask for it. The two types are not one, because the deployment's
+/// The same four decisions <see cref="SpamActionOptions" /> holds for a deployment, written in an account's own record
+/// because they are acts on that account's mail server: a message moved into a junk folder, marked read, or given a
+/// junk keyword is a change to one mailbox, and no other mailbox's settings may ask for it. The two types are not one, because the deployment's
 /// section is a decision an operator states for whichever mailboxes still read it, and this one is written on the
 /// mailbox itself — so each refusal names the document it was written in rather than the other one.
 /// </para>
@@ -29,6 +29,13 @@ internal sealed class MailAccountSpamActionOptions
     /// <summary>Gets or sets whether junk has its remote <c>\Seen</c> flag set.</summary>
     public bool MarkAsRead { get; set; }
 
+    /// <summary>Gets or sets whether junk is given the <c>$Junk</c> keyword, and phishing <c>$Phishing</c> beside it, on the mail server.</summary>
+    /// <remarks>
+    /// It is the account's <c>WriteKeywords</c> permission that lets a keyword be written at all, so turning this on where
+    /// that is off writes nothing.
+    /// </remarks>
+    public bool MarkWithJunkKeywords { get; set; }
+
     /// <summary>Gets or sets the folder junk is filed into, or <see langword="null" /> to take whichever folder this account maps to the junk role.</summary>
     /// <remarks>
     /// Written the way every folder is named: an alias, or <c>role:Junk</c> for the folder an account labelled with that
@@ -37,8 +44,8 @@ internal sealed class MailAccountSpamActionOptions
     /// </remarks>
     public string? JunkFolder { get; set; }
 
-    /// <summary>Gets whether either switch asks for anything.</summary>
-    internal bool IsAnyActionEnabled => this.MoveToJunkFolder || this.MarkAsRead;
+    /// <summary>Gets whether any switch asks for anything.</summary>
+    internal bool IsAnyActionEnabled => this.MoveToJunkFolder || this.MarkAsRead || this.MarkWithJunkKeywords;
 
     /// <summary>Gets the folder junk is filed into, with the junk role standing in for a destination nobody named.</summary>
     internal MailFolderReference Destination =>
@@ -51,7 +58,8 @@ internal sealed class MailAccountSpamActionOptions
     internal SpamActionSettings ToSettings() => SpamActionSettings.Create(
         this.MoveToJunkFolder,
         this.MarkAsRead,
-        this.Destination);
+        this.Destination,
+        this.MarkWithJunkKeywords);
 
     /// <summary>Finds everything about this block that would otherwise be discovered on the account's own mail.</summary>
     /// <param name="classificationEnabled">Whether the account switched classification on at all.</param>
@@ -63,7 +71,7 @@ internal sealed class MailAccountSpamActionOptions
         {
             yield return new ValidationResult(
                 $"The account record asks for junk to be acted on while {nameof(MailAccountSpamClassificationOptions.Enabled)} is false, and there is no verdict to act on. Set it to true, or remove the switches under {MailAccountSpamClassificationOptions.ActionsPath}.",
-                [nameof(this.MoveToJunkFolder), nameof(this.MarkAsRead)]);
+                [nameof(this.MoveToJunkFolder), nameof(this.MarkAsRead), nameof(this.MarkWithJunkKeywords)]);
         }
 
         if (this.JunkFolder is not null && !MailFolderReference.TryCreate(this.JunkFolder, out _))

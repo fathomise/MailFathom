@@ -39,6 +39,8 @@ public sealed class EmailSpamClassifierTests
 
     private readonly InMemoryEmailSpamClassificationStore store = new();
 
+    private readonly InMemorySpamVerdictActStore verdictActs = new();
+
     private readonly IEmailContentStore contentStore = ContentStores.Substituted();
 
     private readonly IEmailChunkStore chunkStore = Substitute.For<IEmailChunkStore>();
@@ -354,7 +356,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Junk),
             SpamHeaderFacts.None,
-            email: new ClassifiableEmail(Occurrence, Account, Junk),
+            email: new ClassifiableEmail(Occurrence, Account, Junk, RemoteEmailKeywords.None),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
 
         // Act
@@ -405,13 +407,13 @@ public sealed class EmailSpamClassifierTests
         var inTheArchive = this.Classifier(
             SettingsCovering(Inbox),
             flagged,
-            new ClassifiableEmail(Occurrence, Archive, Inbox),
+            new ClassifiableEmail(Occurrence, Archive, Inbox, RemoteEmailKeywords.None),
             classifying: Account);
 
         var inTheClassifiedMailbox = this.Classifier(
             SettingsCovering(Inbox),
             flagged,
-            new ClassifiableEmail(Occurrence, Account, Inbox),
+            new ClassifiableEmail(Occurrence, Account, Inbox, RemoteEmailKeywords.None),
             classifying: Account);
 
         // Act
@@ -479,7 +481,7 @@ public sealed class EmailSpamClassifierTests
         var emailReader = Substitute.For<IClassifiableEmailReader>();
         emailReader
             .FindAsync(Arg.Any<MailAccountId>(), Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>())
-            .Returns(withEmail ? email ?? new ClassifiableEmail(Occurrence, Account, Inbox) : null);
+            .Returns(withEmail ? email ?? new ClassifiableEmail(Occurrence, Account, Inbox, RemoteEmailKeywords.None) : null);
 
         this.contentStore
             .FindStoredContentAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>())
@@ -505,6 +507,7 @@ public sealed class EmailSpamClassifierTests
             new DeterministicSpamClassifier(),
             settingsReader,
             this.store,
+            this.verdictActs,
             this.chunkStore,
             this.attachmentTextStore,
             this.gateTelemetry,

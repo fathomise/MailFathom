@@ -94,7 +94,9 @@ internal static class CliRootCommand
         // folders, and what happens to junk are configuration for the reason a rule is, so there is deliberately no
         // command here that switches any of them — what an operator does from here is apply them to the mail they
         // already have, and find out what was decided.
-        Command spamCommand = new("spam", "Classify the mail a deployment already holds, and read what it concluded.")
+        Command spamCommand = new(
+            "spam",
+            "Classify the mail a deployment already holds, and read what it concluded. On an account MailFathom holds, whose source may only relay mail, a verdict rests on the headers and folder the source delivered a message with and on the $Junk or $NotJunk a person set.")
         {
             ClassifyMailCommand.Create(context),
             ClassificationRunStatusCommand.Create(context),

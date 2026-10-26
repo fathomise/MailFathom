@@ -38,6 +38,26 @@ public sealed class MailboxMutationRequesterTests
         Assert.Equal(MailboxMutationRequester.Classification(SpamClassificationStage.Deterministic), requester);
     }
 
+    /// <summary>A keyword change names its keywords, so a later <c>$Phishing</c> is a change of its own beside an earlier <c>$Junk</c>.</summary>
+    [Fact]
+    public void Classification_TwoKeywordChangesOfOneStage_AreDifferentRequesters()
+    {
+        // Arrange
+        var junk = MailboxMutationRequester.Classification(
+            SpamClassificationStage.Deterministic,
+            AuthoredMailKeywords.Create(["$Junk"]));
+
+        // Act
+        var phishing = MailboxMutationRequester.Classification(
+            SpamClassificationStage.Deterministic,
+            AuthoredMailKeywords.Create(["$Phishing"]));
+
+        // Assert
+        Assert.Equal("Deterministic@$Junk", junk.Identity);
+        Assert.NotEqual(junk, phishing);
+        Assert.NotEqual(MailboxMutationRequester.Classification(SpamClassificationStage.Deterministic), junk);
+    }
+
     [Fact]
     public void Classification_AStageThisSystemDoesNotRun_IsRefused()
     {

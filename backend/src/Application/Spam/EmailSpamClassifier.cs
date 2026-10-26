@@ -26,8 +26,8 @@ namespace MailFathom.Application.Spam;
 /// </para>
 /// <para>
 /// It reaches no mail server. Content comes from the local store, which already holds it, so classification never
-/// triggers an IMAP fetch and cannot affect a remote <c>\Seen</c> flag. It writes no folder, no flag, and nothing about
-/// where the message lives.
+/// triggers an IMAP fetch and cannot affect a remote <c>\Seen</c> flag. It writes no folder, no flag, no keyword, and
+/// nothing about where the message lives; the keywords it reads are the ones the last synchronization stored.
 /// </para>
 /// <para>
 /// It writes one thing besides the classification, and only when the verdict is spam: everything derived from the
@@ -51,6 +51,7 @@ public sealed class EmailSpamClassifier
     private readonly DeterministicSpamClassifier deterministicClassifier;
     private readonly ISpamClassificationSettingsReader settingsReader;
     private readonly IEmailSpamClassificationStore classificationStore;
+    private readonly ISpamVerdictActStore verdictActs;
     private readonly IEmailChunkStore chunkStore;
     private readonly IStoredEmailAttachmentTextStore attachmentTextStore;
     private readonly IDerivedWorkGateTelemetry gateTelemetry;
@@ -65,6 +66,7 @@ public sealed class EmailSpamClassifier
     /// <param name="deterministicClassifier">Reaches a verdict from what the message already carried.</param>
     /// <param name="settingsReader">Answers what the occurrence's account decided about the mail in it.</param>
     /// <param name="classificationStore">Records the classification.</param>
+    /// <param name="verdictActs">Says what this deployment's verdicts already did to the message, which is not evidence.</param>
     /// <param name="chunkStore">Removes the passages and vectors of a message the verdict calls junk.</param>
     /// <param name="attachmentTextStore">Removes the attachment readings of a message the verdict calls junk.</param>
     /// <param name="gateTelemetry">Counts what a junk verdict had to remove, without describing any of it.</param>
@@ -79,6 +81,7 @@ public sealed class EmailSpamClassifier
         DeterministicSpamClassifier deterministicClassifier,
         ISpamClassificationSettingsReader settingsReader,
         IEmailSpamClassificationStore classificationStore,
+        ISpamVerdictActStore verdictActs,
         IEmailChunkStore chunkStore,
         IStoredEmailAttachmentTextStore attachmentTextStore,
         IDerivedWorkGateTelemetry gateTelemetry,
@@ -92,6 +95,7 @@ public sealed class EmailSpamClassifier
         ArgumentNullException.ThrowIfNull(deterministicClassifier);
         ArgumentNullException.ThrowIfNull(settingsReader);
         ArgumentNullException.ThrowIfNull(classificationStore);
+        ArgumentNullException.ThrowIfNull(verdictActs);
         ArgumentNullException.ThrowIfNull(chunkStore);
         ArgumentNullException.ThrowIfNull(attachmentTextStore);
         ArgumentNullException.ThrowIfNull(gateTelemetry);
@@ -105,6 +109,7 @@ public sealed class EmailSpamClassifier
         this.deterministicClassifier = deterministicClassifier;
         this.settingsReader = settingsReader;
         this.classificationStore = classificationStore;
+        this.verdictActs = verdictActs;
         this.chunkStore = chunkStore;
         this.attachmentTextStore = attachmentTextStore;
         this.gateTelemetry = gateTelemetry;
@@ -243,10 +248,13 @@ public sealed class EmailSpamClassifier
         CancellationToken cancellationToken)
     {
         var facts = await this.headerReader.ReadAsync(content, cancellationToken);
+        var ownActs = await this.verdictActs.FindAsync(email.Id, cancellationToken);
         var reading = this.deterministicClassifier.Read(
             facts,
             email.FolderAlias,
-            this.junkFolders.IsJunkFolder(email.AccountId, email.FolderAlias));
+            this.junkFolders.IsJunkFolder(email.AccountId, email.FolderAlias),
+            email.Keywords,
+            ownActs);
 
         return SpamClassification.Create(
             email.Id,

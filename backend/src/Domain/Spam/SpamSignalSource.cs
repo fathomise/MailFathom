@@ -21,4 +21,7 @@ public enum SpamSignalSource
 
     /// <summary>A decision model asked about the message, under a revision of the instructions it was asked with.</summary>
     Model = 3,
+
+    /// <summary>A keyword the message carries in its mailbox, as the server reports it or as a person set it on a held message.</summary>
+    MailboxKeyword = 4,
 }

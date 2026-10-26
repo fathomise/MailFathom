@@ -10,6 +10,7 @@ namespace MailFathom.Application.Spam.Actions;
 /// <param name="Outcome">How the attempt ended.</param>
 /// <param name="MarkedReadRecordId">The record carrying the <c>\Seen</c> change, or <see langword="null" /> when none was asked for.</param>
 /// <param name="FiledRecordId">The record carrying the relocation, or <see langword="null" /> when none was asked for.</param>
+/// <param name="KeywordsRecordId">The record carrying the junk keyword change, or <see langword="null" /> when none was asked for.</param>
 /// <remarks>
 /// The record identifiers travel back so a caller reporting what a run did can name the changes it started rather than
 /// reading them out of the store again, and so a run over a whole mailbox can count them. Neither identifier says the
@@ -19,7 +20,8 @@ namespace MailFathom.Application.Spam.Actions;
 public sealed record SpamActionResult(
     SpamActionOutcome Outcome,
     MailboxMutationRecordId? MarkedReadRecordId,
-    MailboxMutationRecordId? FiledRecordId)
+    MailboxMutationRecordId? FiledRecordId,
+    MailboxMutationRecordId? KeywordsRecordId = null)
 {
     /// <summary>Records that no mailbox was written to, and why.</summary>
     /// <param name="outcome">The reason.</param>
@@ -31,28 +33,32 @@ public sealed record SpamActionResult(
                 nameof(outcome),
                 outcome,
                 "A result that asked for nothing does not carry the requested outcome.")
-            : new SpamActionResult(outcome, MarkedReadRecordId: null, FiledRecordId: null);
+            : new SpamActionResult(outcome, MarkedReadRecordId: null, FiledRecordId: null, KeywordsRecordId: null);
 
     /// <summary>Records changes applied to a held account's mail, with whatever record a restoring account's source is still owed.</summary>
     /// <param name="markedReadRecordId">The record carrying the <c>\Seen</c> change to the source, or <see langword="null" /> where there is none.</param>
     /// <param name="filedRecordId">The record carrying the relocation to the source, or <see langword="null" /> where there is none.</param>
+    /// <param name="keywordsRecordId">The record carrying the keyword change to the source, or <see langword="null" /> where there is none.</param>
     /// <returns>The result.</returns>
     public static SpamActionResult Applied(
         MailboxMutationRecordId? markedReadRecordId = null,
-        MailboxMutationRecordId? filedRecordId = null) =>
-        new(SpamActionOutcome.Applied, markedReadRecordId, filedRecordId);
+        MailboxMutationRecordId? filedRecordId = null,
+        MailboxMutationRecordId? keywordsRecordId = null) =>
+        new(SpamActionOutcome.Applied, markedReadRecordId, filedRecordId, keywordsRecordId);
 
     /// <summary>Records the changes that were written down.</summary>
     /// <param name="markedReadRecordId">The record carrying the <c>\Seen</c> change, or <see langword="null" /> when none was asked for.</param>
     /// <param name="filedRecordId">The record carrying the relocation, or <see langword="null" /> when none was asked for.</param>
+    /// <param name="keywordsRecordId">The record carrying the keyword change, or <see langword="null" /> when none was asked for.</param>
     /// <returns>The result.</returns>
-    /// <exception cref="ArgumentException">Thrown when neither identifier is supplied, which is <see cref="SpamActionOutcome.NothingToChange" /> rather than a request.</exception>
+    /// <exception cref="ArgumentException">Thrown when no identifier is supplied, which is <see cref="SpamActionOutcome.NothingToChange" /> rather than a request.</exception>
     public static SpamActionResult Requested(
         MailboxMutationRecordId? markedReadRecordId,
-        MailboxMutationRecordId? filedRecordId) =>
-        markedReadRecordId is null && filedRecordId is null
+        MailboxMutationRecordId? filedRecordId,
+        MailboxMutationRecordId? keywordsRecordId = null) =>
+        markedReadRecordId is null && filedRecordId is null && keywordsRecordId is null
             ? throw new ArgumentException(
-                "A requested result carries at least one of the two records it asked for.",
+                "A requested result carries at least one of the records it asked for.",
                 nameof(markedReadRecordId))
-            : new SpamActionResult(SpamActionOutcome.Requested, markedReadRecordId, filedRecordId);
+            : new SpamActionResult(SpamActionOutcome.Requested, markedReadRecordId, filedRecordId, keywordsRecordId);
 }

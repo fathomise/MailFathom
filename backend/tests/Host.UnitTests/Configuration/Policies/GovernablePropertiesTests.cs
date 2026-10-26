@@ -98,6 +98,7 @@ public sealed class GovernablePropertiesTests
                 "SpamClassification:Actions Block",
                 "SpamClassification:Actions:JunkFolder Value",
                 "SpamClassification:Actions:MarkAsRead Value",
+                "SpamClassification:Actions:MarkWithJunkKeywords Value",
                 "SpamClassification:Actions:MoveToJunkFolder Value",
                 "SpamClassification:Enabled Value",
                 "SpamClassification:ScannedFolders List",

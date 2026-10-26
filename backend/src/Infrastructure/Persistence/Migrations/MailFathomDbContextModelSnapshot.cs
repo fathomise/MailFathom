@@ -1090,6 +1090,24 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.ToTable("email_spam_classification_signals", (string)null);
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.EmailSpamVerdictActEntity", b =>
+                {
+                    b.Property<Guid>("StoredEmailId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Act")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("StoredEmailId", "Act")
+                        .HasName("pk_email_spam_verdict_acts");
+
+                    b.ToTable("email_spam_verdict_acts", (string)null);
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.EmailThreadEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4519,6 +4537,15 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_email_spam_classification_signals_classifications");
 
                     b.Navigation("Classification");
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.EmailSpamVerdictActEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.StoredEmailEntity", null)
+                        .WithMany()
+                        .HasForeignKey("StoredEmailId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.EmailThreadEntity", b =>

@@ -338,6 +338,7 @@ internal static class SynchronizationTestHost
         services.AddSingleton(classificationRunStore ?? CreateClassificationRunStoreWithNothingOutstanding());
         services.AddSingleton(Substitute.For<IClassifiableEmailReader>());
         services.AddSingleton(Substitute.For<IEmailSpamClassificationStore>());
+        services.AddSingleton(Substitute.For<ISpamVerdictActStore>());
         services.AddSingleton(Substitute.For<IEmailSpamHeaderReader>());
         // A stub rather than a substitute, because the gate resolved above enumerates the folder list: a substituted
         // IReadOnlyList happens to enumerate as empty today, which is the right answer reached by accident.

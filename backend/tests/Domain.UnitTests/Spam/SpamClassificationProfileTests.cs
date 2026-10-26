@@ -30,14 +30,14 @@ public sealed class SpamClassificationProfileTests
         var profile = SpamClassificationProfile.Create();
 
         // Assert
-        Assert.Equal("0badac3c6df4", profile.Value);
+        Assert.Equal("641d88c64a01", profile.Value);
     }
 
     /// <summary>Each model term is pinned on its own, so a change to how one is written fails here rather than rescoring silently.</summary>
     [Theory]
-    [InlineData(false, 0.5, "38440031d93c")]
-    [InlineData(true, 0.5, "247252e79840")]
-    [InlineData(false, 0.75, "6ef692a4562f")]
+    [InlineData(false, 0.5, "4269df074a2f")]
+    [InlineData(true, 0.5, "d07b98d6b38b")]
+    [InlineData(false, 0.75, "072501c00d3c")]
     public void Create_TheModelTerms_DeriveTheirPinnedIdentity(
         bool namesSubcategoriesOfDeterministicSpam,
         double threshold,

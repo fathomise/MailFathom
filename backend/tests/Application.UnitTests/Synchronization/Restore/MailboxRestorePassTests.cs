@@ -110,6 +110,22 @@ public sealed class MailboxRestorePassTests
         Assert.Equal([ArrivedAt], context.AppendedInternalDates);
     }
 
+    /// <summary>A verdict's junk marking goes back to the source with the message, in the form every other client reads.</summary>
+    [Fact]
+    public async Task RestoreAsync_MessageAVerdictMarkedAsPhishing_AppendsItCarryingBothJunkKeywords()
+    {
+        // Arrange
+        var context = new RestoreContext(Restoring)
+            .AwaitingAppendOf(Drained(Inbox.Alias, seen: true, keywords: ["$Junk", "$Phishing"]));
+
+        // Act
+        await context.Pass.RestoreAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        var state = Assert.Single(context.AppendedStates);
+        Assert.Equal(["$JUNK", "$PHISHING"], state.Keywords.Values.Order(StringComparer.Ordinal));
+    }
+
     /// <summary>The occurrence the source named is what makes the append known to have happened.</summary>
     [Fact]
     public async Task RestoreAsync_SourceNamedWhereItPutTheCopy_WritesThatOccurrenceAndSettlesTheRecord()

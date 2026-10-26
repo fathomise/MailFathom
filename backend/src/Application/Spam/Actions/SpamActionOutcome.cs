@@ -21,7 +21,7 @@ public enum SpamActionOutcome
     /// <summary>At least one change was written down for the account's convergence pass to carry out.</summary>
     Requested = 0,
 
-    /// <summary>Neither switch is on, so nothing was read and nothing was asked for.</summary>
+    /// <summary>No switch is on, so nothing was read and nothing was asked for.</summary>
     NoActionConfigured = 1,
 
     /// <summary>The verdict is not spam, which includes a classification that concluded nothing either way.</summary>
@@ -43,10 +43,10 @@ public enum SpamActionOutcome
     /// and startup validation already refuses the configuration that produces the first of them, naming the account.
     /// </para>
     /// <para>
-    /// Nothing at all is written down in this case, including a <c>\Seen</c> change asked for beside the filing. Marking
-    /// a message read while leaving it where it is takes the unread marker off spam that is still in the inbox, which is
-    /// worse than waiting: the two switches together describe one intent, and a later attempt performs it whole once the
-    /// folder is there.
+    /// Nothing at all is written down in this case, including a <c>\Seen</c> or keyword change asked for beside the
+    /// filing. Marking a message read while leaving it where it is takes the unread marker off spam that is still in the
+    /// inbox, which is worse than waiting: the switches together describe one intent, and a later attempt performs it whole
+    /// once the folder is there.
     /// </para>
     /// </remarks>
     DestinationUnresolved = 5,
@@ -54,7 +54,7 @@ public enum SpamActionOutcome
     /// <summary>Filing this message was asked for once already, and it is not in the destination.</summary>
     /// <remarks>
     /// <para>
-    /// It is the one outcome that outranks both switches, and it covers two readings that are the same decision: somebody
+    /// It is the one outcome that outranks every switch, and it covers two readings that are the same decision: somebody
     /// moved the message back out, which is the correction a false positive is meant to have, or the change is written
     /// down and the account's convergence pass has not carried it out yet. Asking again would either argue with the
     /// person whose mailbox it is or duplicate a change already in flight.

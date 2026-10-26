@@ -238,6 +238,7 @@ internal static class PersistenceConcurrencyConflicts
                 or PersistenceConstraintNames.MailRuleEvaluationRunPrimaryKeyConstraintName
                 or PersistenceConstraintNames.SpamClassificationRunPrimaryKeyConstraintName
                 or PersistenceConstraintNames.EmailSpamClassificationPrimaryKeyConstraintName
+                or PersistenceConstraintNames.EmailSpamVerdictActPrimaryKeyConstraintName
                 or PersistenceConstraintNames.EmailChunkOrdinalUniqueIndexName
                 or PersistenceConstraintNames.EmailChunkAttachmentOrdinalUniqueIndexName
                 or PersistenceConstraintNames.EmailAttachmentTextPrimaryKeyName

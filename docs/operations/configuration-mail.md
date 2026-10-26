@@ -446,6 +446,7 @@ verdict may do.
 | `…:SpamClassification:ScannedFolders:<n>` | string | unset (this account's inbox) | A folder alias, resolved within this account's own `Folders` — one only another account maps reaches no mail. Writing no key takes whichever alias this account maps to the `Inbox` role, and writing an empty list asks for no folder at all | reload; the same |
 | `…:SpamClassification:Actions:MoveToJunkFolder` | bool | `false` | Whether junk is filed into this account's junk destination. Asking for an action while `Enabled` is false is refused, there being no verdict to act on | reload; governs verdicts from then on |
 | `…:SpamClassification:Actions:MarkAsRead` | bool | `false` | Whether junk has this account's remote `\Seen` flag set; the same refusal | reload; the same |
+| `…:SpamClassification:Actions:MarkWithJunkKeywords` | bool | `false` | Whether junk is given RFC 9051's `$Junk` keyword, and `$Phishing` beside it where the verdict names phishing; `RuleActions:WriteKeywords` still governs it. With it on, a message carrying both `$Junk` and `$NotJunk` has both removed. The same refusal | reload; the same |
 | `…:SpamClassification:Actions:JunkFolder` | string | `role:Junk` | A folder alias, or one of the special uses written as `role:<name>`. Once filing is switched on, **this account** has to map it, because MailFathom creates a folder on nobody's server; the syntax is judged whatever the switches say | reload; the same |
 
 **A junk destination is judged against this account alone.** Junk is filed into the mailbox it was found in, so a

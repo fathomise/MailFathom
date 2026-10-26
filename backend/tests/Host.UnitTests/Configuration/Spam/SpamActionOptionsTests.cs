@@ -28,19 +28,32 @@ public sealed class SpamActionOptionsTests
 
     /// <summary>Acting on a verdict nothing produces is a contradiction the operator is told about rather than given the quiet answer.</summary>
     [Theory]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    public void FindErrors_AnActionAskedForWhileClassificationIsOff_IsRefused(bool moveToJunkFolder, bool markAsRead)
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, true)]
+    public void FindErrors_AnActionAskedForWhileClassificationIsOff_IsRefused(
+        bool moveToJunkFolder,
+        bool markAsRead,
+        bool markWithJunkKeywords)
     {
         // Arrange
-        var options = new SpamActionOptions { MoveToJunkFolder = moveToJunkFolder, MarkAsRead = markAsRead };
+        var options = new SpamActionOptions
+        {
+            MoveToJunkFolder = moveToJunkFolder,
+            MarkAsRead = markAsRead,
+            MarkWithJunkKeywords = markWithJunkKeywords,
+        };
 
         // Act
         var error = Assert.Single(options.FindErrors(classificationEnabled: false));
 
         // Assert
         Assert.Equal(
-            [nameof(SpamActionOptions.MoveToJunkFolder), nameof(SpamActionOptions.MarkAsRead)],
+            [
+                nameof(SpamActionOptions.MoveToJunkFolder),
+                nameof(SpamActionOptions.MarkAsRead),
+                nameof(SpamActionOptions.MarkWithJunkKeywords),
+            ],
             error.MemberNames);
     }
 

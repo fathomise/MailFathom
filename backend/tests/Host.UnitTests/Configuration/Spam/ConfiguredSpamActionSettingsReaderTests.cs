@@ -63,6 +63,29 @@ public sealed class ConfiguredSpamActionSettingsReaderTests
         Assert.Equal(MailFolderAlias.Create("quarantine"), settings.JunkFolder.Alias);
     }
 
+    /// <summary>The keyword switch is a third independent decision, carried on its own.</summary>
+    [Fact]
+    public void ActionsFor_TheKeywordSwitchAlone_MarksWithKeywordsAndNothingElse()
+    {
+        // Arrange
+        var reader = ReaderFor(Account(
+            PrimaryAccount,
+            new MailAccountSpamClassificationOptions
+            {
+                Enabled = true,
+                Actions = new MailAccountSpamActionOptions { MarkWithJunkKeywords = true },
+            }));
+
+        // Act
+        var settings = reader.ActionsFor(PrimaryAccount);
+
+        // Assert
+        Assert.True(settings.MarksJunkWithKeywords);
+        Assert.False(settings.FilesJunk);
+        Assert.False(settings.MarksJunkRead);
+        Assert.True(settings.IsAnyActionEnabled);
+    }
+
     /// <summary>Classification switched off in a record answers for its actions too, whatever the switches beside it say.</summary>
     /// <remarks>Validation refuses this combination in a record, and the reader still cannot be the path that acts on verdicts nobody reaches.</remarks>
     [Fact]

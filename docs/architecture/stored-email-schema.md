@@ -1287,6 +1287,15 @@ Both cascades point one way. A classification is deleted with the email it descr
 classification, so whatever erasure and retention already reach a message reach everything derived from it — there is no
 pass of its own to remember.
 
+`email_spam_verdict_acts` records what a verdict of this deployment did to a message: one row per act, keyed by
+`(StoredEmailId, Act)`, where `Act` is `FiledIntoJunk`, `MarkedJunk`, or `MarkedPhishing`, with the `RecordedAt` it was
+first done. It is written in the transaction that makes the act — beside the mutation record on a mirrored account, and
+beside the local commit on a held or restoring one — and is never rewritten, because what it answers outlives the
+verdict: the deterministic stage reads it so a placement or a keyword the deployment made is not taken as evidence, and
+the action recorder reads it so a message moved back out of junk, or a keyword somebody removed, is not acted on again.
+It is a table of its own rather than a reading of the mutation records because a held account's act opens none. It
+holds no folder, no keyword text, and nothing from the message, and it is deleted with the email it describes.
+
 ## Recorded mailbox mutations
 
 `mailbox_mutations` holds one row per change MailFathom has been asked to make to a remote mailbox, written **before**
