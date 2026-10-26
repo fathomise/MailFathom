@@ -238,7 +238,7 @@ internal static class SigningIdentityFixtures
     /// <summary>A key for <c>sender@example.test</c> whose unprotected primary key certifies and signs, with an encryption subkey.</summary>
     internal const string OpenPgpSigner = """
         -----BEGIN PGP PRIVATE KEY BLOCK-----
-        
+
         lFgEaVW5ABYJKwYBBAHaRw8BAQdA1st8ns5gRnDi9UPXt29Boiw1XnQOSNkpiGKF
         nBajzBAAAQDasZ4jXVhRTOsrvHQcOV0cJetfZRmmn2CSccSwEGFaQw3KtBxTZW5k
         ZXIgPHNlbmRlckBleGFtcGxlLnRlc3Q+iJAEExYKADgWIQSXozdGIGGewR0xZdRX
@@ -257,7 +257,7 @@ internal static class SigningIdentityFixtures
     /// <summary>A key for <c>sender@example.test</c> whose primary key signs, protected with <see cref="OpenPgpPassphrase" />.</summary>
     internal const string OpenPgpProtected = """
         -----BEGIN PGP PRIVATE KEY BLOCK-----
-        
+
         lIYEaVW5ABYJKwYBBAHaRw8BAQdAvxdd9ZKI5PHkfufiztcoZmBRfStpVxMAU07r
         nxLmlHL+BwMCll/mf/R8YmP/yY8D3F7QvLAqd+XO7UeVN4yeAApL9lBNJJLv7ypc
         qdjS1pJxv5UajN42y5j5zwTGpoJ4ntsIcYY2fR00zzRrf4yKsTaGwrQcU2VuZGVy
@@ -272,7 +272,7 @@ internal static class SigningIdentityFixtures
     /// <summary>A key for <c>sender@example.test</c> whose primary key only certifies and whose subkey signs.</summary>
     internal const string OpenPgpSubkeySigner = """
         -----BEGIN PGP PRIVATE KEY BLOCK-----
-        
+
         lFgEaVW5ABYJKwYBBAHaRw8BAQdAHRSa+/YGg/iB8GkeAX7G3HjjoYB5COYSPfkB
         u06je0IAAQCg+n8iyQD+Hml6MDuvrgJQjPNdQKyttTYRU2whI6I7Tg29tBxTZW5k
         ZXIgPHNlbmRlckBleGFtcGxlLnRlc3Q+iJAEExYKADgWIQSiz6uyfyxwfMxielBn
@@ -293,7 +293,7 @@ internal static class SigningIdentityFixtures
     /// <summary>A key for <c>sender@example.test</c> whose primary key only certifies and whose subkey only encrypts.</summary>
     internal const string OpenPgpNoSigningKey = """
         -----BEGIN PGP PRIVATE KEY BLOCK-----
-        
+
         lFgEaVW5ABYJKwYBBAHaRw8BAQdArEXjj07Rpn3CRsnQgcEIUNiuFSHGPP/EQUS7
         cB5e2CoAAQCB7T6x3h6vFqoD3X+htuq7MEvC01q0BPk2KZhypxC0xBDXtBxTZW5k
         ZXIgPHNlbmRlckBleGFtcGxlLnRlc3Q+iJAEExYKADgWIQSfwbMiqtEOfkikXUJE
@@ -312,7 +312,7 @@ internal static class SigningIdentityFixtures
     /// <summary>A signing key whose only user ID is <c>someone.else@example.test</c>.</summary>
     internal const string OpenPgpOtherUserId = """
         -----BEGIN PGP PRIVATE KEY BLOCK-----
-        
+
         lFgEaVW5ABYJKwYBBAHaRw8BAQdAKNOBOR2OP4JqussRaBBY6FYIIerZcB847Gi8
         y8oLowoAAQCqOzr8nssS7oB26lYoeBps3u9XyYMnrnn0pPiGizBJIhDbtChTb21l
         b25lIEVsc2UgPHNvbWVvbmUuZWxzZUBleGFtcGxlLnRlc3Q+iJAEExYKADgWIQRz
@@ -326,7 +326,7 @@ internal static class SigningIdentityFixtures
     /// <summary>A signing key for <c>sender@example.test</c> created 2026-01-01 that expired on 2026-03-01.</summary>
     internal const string OpenPgpExpired = """
         -----BEGIN PGP PRIVATE KEY BLOCK-----
-        
+
         lFgEaVW5ABYJKwYBBAHaRw8BAQdABhmVhKfEosPCH6gTfutSyMi5IrJJ/+zrztik
         8aMAY/wAAQD9badNw/b8p3QyiP8oKXftHTsrW3xzEXLTFUCDEV/nQA8vtBxTZW5k
         ZXIgPHNlbmRlckBleGFtcGxlLnRlc3Q+iJYEExYKAD4WIQRJmb+Kc1OeEIIKjPk1
@@ -340,7 +340,7 @@ internal static class SigningIdentityFixtures
     /// <summary>A signing key for <c>sender@example.test</c> carrying its own revocation.</summary>
     internal const string OpenPgpRevoked = """
         -----BEGIN PGP PRIVATE KEY BLOCK-----
-        
+
         lFgEaVW5ABYJKwYBBAHaRw8BAQdAJkV7mljNKlpXkRnGR6KCm9s3TWiSSLF5x2VU
         7Fv3LTsAAP0Qq4z24YO9TfW5M2sNMMTaWr9jBoq6BTBbuBjgtI3BphF9iHgEIBYK
         ACAWIQT+A6Ym+qfelqZfjMaIixviFlN8qAUCaVW5AAIdAAAKCRCIixviFlN8qO5E
@@ -357,7 +357,7 @@ internal static class SigningIdentityFixtures
     /// <summary>Two signing keys for <c>sender@example.test</c> in one armored block.</summary>
     internal const string OpenPgpTwoKeys = """
         -----BEGIN PGP PRIVATE KEY BLOCK-----
-        
+
         lFgEaVW5ABYJKwYBBAHaRw8BAQdAbPIBZwK/Ep240gL/ffd+EgQWe8bh7Z4hwKi3
         Ml8RWBAAAQD8z6LgyjP2vlcAaClO0AMLTLcSd8fd/ZVpiFcy3pLIExCatBxTZW5k
         ZXIgPHNlbmRlckBleGFtcGxlLnRlc3Q+iJAEExYKADgWIQTgd3I77QQnJac3VLNg
@@ -377,7 +377,7 @@ internal static class SigningIdentityFixtures
     /// <summary>The public half of <see cref="OpenPgpSigner" />, which holds nothing to sign with.</summary>
     internal const string OpenPgpPublicKey = """
         -----BEGIN PGP PUBLIC KEY BLOCK-----
-        
+
         mDMEaVW5ABYJKwYBBAHaRw8BAQdA1st8ns5gRnDi9UPXt29Boiw1XnQOSNkpiGKF
         nBajzBC0HFNlbmRlciA8c2VuZGVyQGV4YW1wbGUudGVzdD6IkAQTFgoAOBYhBJej
         N0YgYZ7BHTFl1Fck+YNqw4PdBQJpVbkAAhsDBQsJCAcCBhUKCQgLAgQWAgMBAh4B
