@@ -4,10 +4,13 @@
 
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Folders;
+using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Spam;
 using MailFathom.Domain.Synchronization;
 using MailFathom.TestSupport;
 using NSubstitute;
@@ -580,6 +583,121 @@ public sealed class MailboxScopeResolverTests
         Assert.False(scope.IncludesJunkMail);
     }
 
+    /// <summary>
+    /// An agent's scope carries every junk folder whatever the caller asked about junk, because which of the folder's
+    /// messages an agent reads is the verdict's to decide rather than the request's.
+    /// </summary>
+    [Theory]
+    [InlineData(JunkMailInclusion.Excluded)]
+    [InlineData(JunkMailInclusion.Included)]
+    public async Task ReadableScopeAsync_AnAgentsRead_AnswersForAnAgentOverEveryJunkFolder(JunkMailInclusion junkMail)
+    {
+        // Arrange
+        var junkFolder = new MailFolderIdentity(Work.Id, MailFolderAlias.Create("JUNK"));
+        var resolver = ResolverServing(StubJunkMailFolderCatalog.Naming(junkFolder), Work, Private);
+
+        // Act
+        var scope = await resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [], [], junkMail, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailboxReaderKind.Agent, scope.Reader);
+        Assert.Equal([junkFolder], scope.JunkFolders);
+    }
+
+    /// <summary>The person's scope says it is the person's, which is what keeps spam in the client's own reads.</summary>
+    [Fact]
+    public async Task ReadableScopeAsync_ThePersonsRead_AnswersForThePerson()
+    {
+        // Arrange
+        var resolver = ResolverServing(Work);
+
+        // Act
+        var scope = await resolver.ReadableScopeAsync(MailboxReaderKind.Person, [], [], JunkMailInclusion.Included, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailboxReaderKind.Person, scope.Reader);
+    }
+
+    /// <summary>A message whose verdict is spam is never an agent's to read, whichever stage reached the verdict and whichever folder holds it.</summary>
+    [Theory]
+    [InlineData(SpamClassificationStage.Deterministic)]
+    [InlineData(SpamClassificationStage.Model)]
+    [InlineData(SpamClassificationStage.Person)]
+    public void IsReadable_AMessageJudgedSpamOutsideTheJunkFolder_IsNotReadableByAnAgent(SpamClassificationStage decidedBy)
+    {
+        // Arrange
+        var resolver = ResolverOverAnInboxAndAJunkFolder();
+        var email = EmailIn("INBOX", SpamVerdict.Spam, decidedBy);
+
+        // Act
+        var readable = resolver.IsReadable(MailboxReaderKind.Agent, [Work.Id], email);
+
+        // Assert
+        Assert.False(readable);
+    }
+
+    /// <summary>The person reads spam like any other mail, because the client draws it rather than hiding it.</summary>
+    [Fact]
+    public void IsReadable_AMessageJudgedSpam_IsReadableByThePerson()
+    {
+        // Arrange
+        var resolver = ResolverOverAnInboxAndAJunkFolder();
+        var email = EmailIn("JUNK", SpamVerdict.Spam, SpamClassificationStage.Model);
+
+        // Act
+        var readable = resolver.IsReadable(MailboxReaderKind.Person, [Work.Id], email);
+
+        // Assert
+        Assert.True(readable);
+    }
+
+    /// <summary>
+    /// The junk folder's mail is withheld from an agent until the person marks the message not spam, which is the person
+    /// saying it is ordinary mail. A stage's own not-spam verdict does not lift it, and the answer follows the verdict as
+    /// it is when the read is made, so marking the message is enough on its own.
+    /// </summary>
+    [Theory]
+    [InlineData(null, null, false)]
+    [InlineData(SpamVerdict.NotSpam, SpamClassificationStage.Model, false)]
+    [InlineData(SpamVerdict.NotSpam, SpamClassificationStage.Deterministic, false)]
+    [InlineData(SpamVerdict.Spam, SpamClassificationStage.Person, false)]
+    [InlineData(SpamVerdict.NotSpam, SpamClassificationStage.Person, true)]
+    public void IsReadable_TheJunkFoldersMail_IsReadableByAnAgentOnlyOnceThePersonMarkedItNotSpam(
+        SpamVerdict? verdict,
+        SpamClassificationStage? decidedBy,
+        bool expected)
+    {
+        // Arrange
+        var resolver = ResolverOverAnInboxAndAJunkFolder();
+        var email = EmailIn("JUNK", verdict, decidedBy);
+
+        // Act
+        var readable = resolver.IsReadable(MailboxReaderKind.Agent, [Work.Id], email);
+
+        // Assert
+        Assert.Equal(expected, readable);
+    }
+
+    /// <summary>Ordinary mail outside the junk folder stays an agent's to read, judged or not.</summary>
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData(SpamVerdict.NotSpam, SpamClassificationStage.Model)]
+    [InlineData(SpamVerdict.Undetermined, SpamClassificationStage.Model)]
+    public void IsReadable_MailOutsideTheJunkFolderNotJudgedSpam_IsReadableByAnAgent(
+        SpamVerdict? verdict,
+        SpamClassificationStage? decidedBy)
+    {
+        // Arrange
+        var resolver = ResolverOverAnInboxAndAJunkFolder();
+        var email = EmailIn("INBOX", verdict, decidedBy);
+
+        // Act
+        var readable = resolver.IsReadable(MailboxReaderKind.Agent, [Work.Id], email);
+
+        // Assert
+        Assert.True(readable);
+    }
+
     /// <summary>Somebody looking for a message a filter took is the whole reason the override exists.</summary>
     [Fact]
     public async Task ReadableScopeAsync_ARequestAskingForJunk_WithholdsNoneOfItAndRecordsTheAnswer()
@@ -849,6 +967,26 @@ public sealed class MailboxScopeResolverTests
         StubMailFolderParticipation.Mapping(
             new MailFolderIdentity(Work.Id, MailFolderAlias.Create("INBOX")),
             new MailFolderIdentity(Private.Id, MailFolderAlias.Create("INBOX")));
+
+    /// <summary>Serves one account mapping an inbox and a junk folder, both admitted to every reader.</summary>
+    private static MailboxScopeResolver ResolverOverAnInboxAndAJunkFolder() =>
+        Resolver(
+            StubMailFolderParticipation.Mapping(
+                new MailFolderIdentity(Work.Id, MailFolderAlias.Create("INBOX")),
+                new MailFolderIdentity(Work.Id, MailFolderAlias.Create("JUNK"))),
+            StubJunkMailFolderCatalog.None,
+            StubMailFolderMappings.Nothing.With(
+                Work.Id,
+                MailFolderMapping.ToSpecialUse(MailFolderAlias.Create("JUNK"), MailFolderSpecialUse.Junk)),
+            Work);
+
+    private static EmailSummary EmailIn(string folderAlias, SpamVerdict? verdict, SpamClassificationStage? decidedBy) =>
+        SyntheticEmailSummaries.Create(accountId: Work.Id.Value, folderAlias: folderAlias) with
+        {
+            Spam = verdict is { } judged && decidedBy is { } stage
+                ? new EmailSpamVerdict(judged, stage, Subcategory: null, PhishingRequest: null, ImpersonatedParty: null)
+                : null,
+        };
 
     private static MailboxScopeResolver ResolverServing(params ServedMailAccount[] servedAccounts) =>
         Resolver(

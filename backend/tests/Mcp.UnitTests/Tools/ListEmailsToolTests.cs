@@ -799,9 +799,12 @@ public sealed class ListEmailsToolTests
             () => tool.ListEmailsAsync(cancellationToken: cancellation.Token));
     }
 
-    /// <summary>Junk is mail a filter already set aside, so a listing that says nothing about it leaves it out.</summary>
+    /// <summary>
+    /// A listing is an agent's read, so the query it runs withholds mail judged spam and the junk folder's mail the
+    /// person did not mark not spam — and no argument asks for it back.
+    /// </summary>
     [Fact]
-    public async Task ListEmailsAsync_NoAnswerAboutJunk_LeavesTheJunkFolderOutAndSaysSo()
+    public async Task ListEmailsAsync_AnyListing_ReadsAsAnAgentWithholdingTheJunkFolder()
     {
         // Arrange
         var timeline = new StubStoredEmailTimelineReader();
@@ -809,32 +812,12 @@ public sealed class ListEmailsToolTests
         var tool = ToolOver(timeline, junkFolders: StubJunkMailFolderCatalog.Naming(junkFolder));
 
         // Act
-        var result = await tool.ListEmailsAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await tool.ListEmailsAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         Assert.NotNull(timeline.LastFilter);
-        Assert.Equal([junkFolder], timeline.LastFilter.Selection.Scope.WithheldJunkFolders);
-        Assert.False(result.IncludedJunkMail);
-    }
-
-    /// <summary>Somebody looking for a message a filter took asks for it, and the answer says which listing they got.</summary>
-    [Fact]
-    public async Task ListEmailsAsync_JunkAskedFor_ListsItAndSaysSo()
-    {
-        // Arrange
-        var timeline = new StubStoredEmailTimelineReader();
-        var junkFolder = new MailFolderIdentity(MailAccountId.Create(ServedAccountId), MailFolderAlias.Create("JUNK"));
-        var tool = ToolOver(timeline, junkFolders: StubJunkMailFolderCatalog.Naming(junkFolder));
-
-        // Act
-        var result = await tool.ListEmailsAsync(
-            includeJunkMail: true,
-            cancellationToken: TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.NotNull(timeline.LastFilter);
-        Assert.Empty(timeline.LastFilter.Selection.Scope.WithheldJunkFolders);
-        Assert.True(result.IncludedJunkMail);
+        Assert.Equal(MailboxReaderKind.Agent, timeline.LastFilter.Selection.Scope.Reader);
+        Assert.Equal([junkFolder], timeline.LastFilter.Selection.Scope.JunkFolders);
     }
 
     private static EmailSummary SummaryReceivedAt(DateTimeOffset? receivedAt) => new()

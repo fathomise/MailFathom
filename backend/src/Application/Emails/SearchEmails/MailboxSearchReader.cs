@@ -225,8 +225,7 @@ public sealed class MailboxSearchReader
                 [],
                 EmailSearchRetrievalMode.Lexical,
                 capability,
-                [],
-                selection.Scope.IncludesJunkMail);
+                []);
         }
 
         var (ranking, retrievalMode, semanticSearchCapability) =
@@ -259,8 +258,7 @@ public sealed class MailboxSearchReader
             matches,
             retrievalMode,
             semanticSearchCapability,
-            folderFreshness,
-            selection.Scope.IncludesJunkMail);
+            folderFreshness);
     }
 
     /// <summary>Scans the mail content of a window before the window becomes somebody else's.</summary>
@@ -399,7 +397,7 @@ public sealed class MailboxSearchReader
             MailboxReaderKind.Agent,
             request.Accounts,
             request.Folders,
-            request.IncludeJunkMail ? JunkMailInclusion.Included : JunkMailInclusion.Excluded,
+            JunkMailInclusion.Excluded,
             cancellationToken),
         request.SenderAddress,
         request.RecipientAddress,

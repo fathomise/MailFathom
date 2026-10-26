@@ -74,7 +74,6 @@ public sealed class ListEmailsToolMetadataTests
             "isRemotelyFlagged",
             "keyword",
             "hasAttachments",
-            "includeJunkMail",
             "direction",
             "pageSize",
             "cursor",

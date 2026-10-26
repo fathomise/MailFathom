@@ -6,6 +6,7 @@ using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.Infrastructure.Persistence;
 using MailFathom.Infrastructure.Persistence.Emails;
 using MailFathom.Infrastructure.Persistence.Entities;
@@ -26,6 +27,8 @@ public sealed class StoredEmailSelectionPredicateCommandTests
     private static MailboxScope WholeMailbox { get; } = MailboxScope.Create(
         [MailAccountId.Create("primary")],
         []);
+
+    private static MailFolderIdentity JunkFolder { get; } = new(MailAccountId.Create("primary"), MailFolderAlias.Create("JUNK"));
 
     /// <summary>
     /// The flag is a column of its own, so the filter is a comparison rather than anything the snapshot has to be
@@ -112,6 +115,66 @@ public sealed class StoredEmailSelectionPredicateCommandTests
         Assert.Contains($"\"{nameof(StoredEmailEntity.Id)}\" = ANY", narrowing, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// An agent's read is narrowed by the verdict row as the query runs rather than by anything written beside the
+    /// message, which is what makes a message marked spam leave the next read, and one marked not spam return to it,
+    /// with nothing reindexed in between. A scope that never said whose read it is answers for an agent.
+    /// </summary>
+    [Fact]
+    public void WithinScope_AnAgentsScope_NarrowsTheCommandByTheStoredSpamVerdict()
+    {
+        // Act
+        var narrowing = ScopeNarrowingOf(WholeMailbox);
+
+        // Assert
+        Assert.Equal(MailboxReaderKind.Agent, WholeMailbox.Reader);
+        Assert.Contains($"\"{nameof(EmailSpamClassificationEntity.Verdict)}\"", narrowing, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The junk folder is admitted to an agent only for mail the person marked not spam, so the clause over it reads who
+    /// decided the verdict as well as what it is. A clause reading the verdict alone would hand an agent junk-folder mail
+    /// a model or the deterministic stage judged not spam, and it would read exactly like this one without the stage.
+    /// </summary>
+    [Fact]
+    public void WithinScope_AnAgentsScopeOverAJunkFolder_AdmitsItsMailOnlyUnderThePersonsNotSpamVerdict()
+    {
+        // Arrange
+        var scope = WholeMailbox.AnsweringFor(MailboxReaderKind.Agent, [JunkFolder]);
+
+        // Act
+        var command = ScopeCommandOf(scope);
+
+        // Assert
+        var verdict = $"\"{nameof(EmailSpamClassificationEntity.Verdict)}\"";
+        var narrowing = NarrowingIn(command);
+        Assert.Contains($"\"{nameof(EmailSpamClassificationEntity.DecidedBy)}\"", narrowing, StringComparison.Ordinal);
+        Assert.True(Occurrences(narrowing, verdict) > Occurrences(ScopeNarrowingOf(WholeMailbox), verdict));
+        Assert.Contains(JunkFolder.Alias.Value, DeclarationsIn(command), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The person reads spam: their read withholds the junk folder only where they did not ask for it, and never reads
+    /// a verdict. A person's scope narrowed by the verdict would hide spam from the one reader it is still shown to.
+    /// </summary>
+    [Fact]
+    public void WithinScope_ThePersonsScope_WithholdsTheJunkFolderWithoutReadingAnyVerdict()
+    {
+        // Arrange
+        var scope = WholeMailbox
+            .WithJunkMail(JunkMailInclusion.Excluded, [JunkFolder])
+            .AnsweringFor(MailboxReaderKind.Person, [JunkFolder]);
+
+        // Act
+        var command = ScopeCommandOf(scope);
+
+        // Assert
+        var narrowing = NarrowingIn(command);
+        Assert.DoesNotContain($"\"{nameof(EmailSpamClassificationEntity.Verdict)}\"", narrowing, StringComparison.Ordinal);
+        Assert.DoesNotContain($"\"{nameof(EmailSpamClassificationEntity.DecidedBy)}\"", narrowing, StringComparison.Ordinal);
+        Assert.Contains(JunkFolder.Alias.Value, DeclarationsIn(command), StringComparison.Ordinal);
+    }
+
     /// <summary>A scope nobody narrowed reads the mailbox, which is what keeps an ordinary listing off both columns.</summary>
     [Fact]
     public void WithinScope_AScopeNarrowedToNeither_LeavesBothNarrowingsOutOfTheCommand()
@@ -185,13 +248,16 @@ public sealed class StoredEmailSelectionPredicateCommandTests
     }
 
     /// <summary>Generates what a scope alone narrows by, without opening a connection.</summary>
-    private static string ScopeNarrowingOf(MailboxScope scope)
+    private static string ScopeNarrowingOf(MailboxScope scope) => NarrowingIn(ScopeCommandOf(scope));
+
+    /// <summary>Generates the whole command a scope alone produces, declarations included, without opening a connection.</summary>
+    private static string ScopeCommandOf(MailboxScope scope)
     {
         using var context = new MailFathomDbContextDesignTimeFactory().CreateDbContext([]);
 
-        return NarrowingIn(StoredEmailSelectionPredicate
+        return StoredEmailSelectionPredicate
             .WithinScope(context.StoredEmails.AsNoTracking(), scope)
-            .ToQueryString());
+            .ToQueryString();
     }
 
     /// <summary>Generates what the predicate narrows by, without opening a connection.</summary>

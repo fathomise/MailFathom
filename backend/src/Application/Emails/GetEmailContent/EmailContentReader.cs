@@ -246,13 +246,10 @@ public sealed class EmailContentReader
         var summary = await this.summaryReader.FindAsync(storedEmailId, cancellationToken);
 
         // An account this deployment no longer serves leaves its stored rows in place, and a folder an operator withheld
-        // from AI keeps its own, so the row existing is not enough when an agent is reading. All three cases produce one
-        // answer: telling them apart would let a caller learn which identifiers exist by asking about them.
-        if (summary is null || !this.scopeResolver.IsReadable(
-                request.Reader,
-                assignedAccounts,
-                summary.Account,
-                summary.Folder.Alias))
+        // from AI keeps its own, and a message judged spam is never an agent's to read, so the row existing is not enough
+        // when an agent is reading. Every such case produces one answer: telling them apart would let a caller learn
+        // which identifiers exist by asking about them.
+        if (summary is null || !this.scopeResolver.IsReadable(request.Reader, assignedAccounts, summary))
         {
             return EmailContentReadOutcome.NotFound(storedEmailId);
         }

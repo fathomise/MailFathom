@@ -16,8 +16,8 @@ namespace MailFathom.Mcp.Tools;
 /// Only the filters that are genuinely the same statement are here. <c>subjectFragment</c> and <c>isRemotelySeen</c>
 /// are not: the first has to say that it narrows what is eligible rather than what the ranking matches, which is a
 /// sentence a listing has nothing to say, and the second names the act that does not change the flag, which is a
-/// different act in each tool. <c>accounts</c>, <c>folders</c>, and <c>includeJunkMail</c> are not either, for the
-/// same reason — each says <em>read</em> or <em>search</em> about itself.
+/// different act in each tool. <c>accounts</c> and <c>folders</c> are not either, for the same reason — each says
+/// <em>read</em> or <em>search</em> about itself.
 /// </para>
 /// <para>
 /// The tools' signatures are untouched by this: each still declares every parameter it takes, and the published input

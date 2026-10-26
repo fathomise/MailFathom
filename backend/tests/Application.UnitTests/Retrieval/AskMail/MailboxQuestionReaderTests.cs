@@ -68,6 +68,24 @@ public sealed class MailboxQuestionReaderTests
         Assert.Equal("The invoice was attached.", result.AnswerText);
     }
 
+    /// <summary>
+    /// The answer is a model's, so the retrieval it draws on is an agent's read: no passage of a message judged spam is
+    /// ever ranked into its context, whether or not the index holds one.
+    /// </summary>
+    [Fact]
+    public async Task AnswerQuestionAsync_AnyQuestion_RetrievesAsAnAgentWithholdingSpam()
+    {
+        // Arrange
+        var answerer = new RecordingMailQuestionAnswerer().Answering("Nothing about that.");
+        var reader = ReaderOver(answerer);
+
+        // Act
+        await AnswerAsync(reader, new AskMailRequest { QuestionText = "what did the bank ask for" });
+
+        // Assert
+        Assert.Equal(MailboxReaderKind.Agent, Assert.Single(answerer.Questions).Scope.Reader);
+    }
+
     /// <summary>A period in a question means that person's days, so the anchor is their zone rather than the host's.</summary>
     /// <remarks>
     /// The host's clock reads half past nine in the evening on the ninth in the coordinated zone, which is already the

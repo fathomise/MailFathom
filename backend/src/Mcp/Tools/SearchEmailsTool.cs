@@ -78,7 +78,6 @@ internal sealed class SearchEmailsTool(
     /// <param name="keyword">The keyword an email must carry.</param>
     /// <param name="hasAttachments">Whether attachments are required.</param>
     /// <param name="resultLimit">How many ranked results to return, or none to take the default.</param>
-    /// <param name="includeJunkMail">Whether the account's junk folder takes part in the search.</param>
     /// <param name="cancellationToken">Cancels the search when the caller disconnects or the host shuts down.</param>
     /// <returns>The ranked window, how it was retrieved, and how current each covered folder is.</returns>
     /// <exception cref="MailboxQueryFilterInvalidException">Thrown when text naming an account or a folder is not a value this system could have issued.</exception>
@@ -111,7 +110,8 @@ internal sealed class SearchEmailsTool(
         + "and attachment presence. Reads the local copy only: it never contacts "
         + "a mail server, never marks mail as read, and never returns whole bodies, raw MIME, whole attachments, or a "
         + "whole attachment's text — every extract it returns is bounded. "
-        + "Mail in the account's junk folder is left out unless includeJunkMail is set. "
+        + "Never returns a message judged spam, in any folder, or mail in the account's junk folder unless its owner "
+        + "marked it not spam. "
         + "Returns one window of at most 50 results that nothing continues, so narrow the filters or write a different "
         + "query to reach other mail. Matching nothing is a normal empty result rather than an error.")]
     public async Task<SearchEmailsToolResult> SearchEmailsAsync(
@@ -141,8 +141,6 @@ internal sealed class SearchEmailsTool(
         bool? hasAttachments = null,
         [Description("How many ranked results to return, from 1 to 50. Omit to take the default of 20. A value outside the range is refused rather than clamped, so a window is never smaller than it claims to be.")]
         int? resultLimit = null,
-        [Description("Include mail in the account's junk folder, which is left out by default. Naming the junk folder in folders does not include it; only this does. The result reports which answer produced it.")]
-        bool includeJunkMail = false,
         CancellationToken cancellationToken = default)
     {
         var request = new SearchEmailsRequest
@@ -160,7 +158,6 @@ internal sealed class SearchEmailsTool(
             Keyword = keyword,
             HasAttachments = hasAttachments,
             ResultLimit = resultLimit,
-            IncludeJunkMail = includeJunkMail,
         };
 
         var result = await mailboxSearchReader.SearchEmailsAsync(request, cancellationToken);

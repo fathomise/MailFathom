@@ -134,13 +134,10 @@ public sealed class StoredEmailResponseAuthoring
         var summary = await this.summaryReader.FindAsync(request.AnsweredEmailId, cancellationToken);
 
         // An account this deployment no longer serves leaves its stored rows in place, and a folder an operator
-        // withheld from AI keeps its own, so the row existing is not enough when an agent is answering. All three cases
-        // produce one answer, because telling them apart would let a caller learn which mail exists by trying to answer it.
-        if (summary is null || !await this.scopeResolver.IsReadableAsync(
-                request.Reader,
-                summary.Account,
-                summary.Folder.Alias,
-                cancellationToken))
+        // withheld from AI keeps its own, and a message judged spam is never an agent's to read, so the row existing is
+        // not enough when an agent is answering. Every such case produces one answer, because telling them apart would
+        // let a caller learn which mail exists by trying to answer it.
+        if (summary is null || !await this.scopeResolver.IsReadableAsync(request.Reader, summary, cancellationToken))
         {
             return AuthoredResponse.Refused(AuthoredResponseRefusalReason.AnsweredEmailNotFound);
         }

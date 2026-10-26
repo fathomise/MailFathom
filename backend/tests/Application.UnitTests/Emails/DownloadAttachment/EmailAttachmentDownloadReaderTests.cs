@@ -22,6 +22,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Spam;
 using MailFathom.TestSupport;
 using NSubstitute;
 using Xunit;
@@ -196,6 +197,29 @@ public sealed class EmailAttachmentDownloadReaderTests
             folderParticipation: StubMailFolderParticipation
                 .Mapping(new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value))
                 .Hiding(new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value)));
+
+        // Act
+        await using var attachment = (await reader.OpenAsync(
+            new AttachmentDownloadTicket(summary.StoredEmailId, AttachmentPosition: 0),
+            TestContext.Current.CancellationToken)).Attachment;
+
+        // Assert
+        Assert.Null(attachment);
+    }
+
+    /// <summary>
+    /// A ticket an MCP read minted is an agent's, so a message judged spam after the link was issued opens nothing,
+    /// refused exactly as an email that is no longer stored is.
+    /// </summary>
+    [Fact]
+    public async Task OpenAsync_EmailJudgedSpam_Refuses()
+    {
+        // Arrange
+        var summary = SyntheticEmailSummaries.Create(attachmentCount: 1) with
+        {
+            Spam = new EmailSpamVerdict(SpamVerdict.Spam, SpamClassificationStage.Model, Subcategory: null, PhishingRequest: null, ImpersonatedParty: null),
+        };
+        var reader = ReaderOver(summary, contentReader: ContentReaderOpening("invoice.pdf"));
 
         // Act
         await using var attachment = (await reader.OpenAsync(

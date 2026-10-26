@@ -25,7 +25,6 @@ public sealed class EmailKnowledgeQueryTests
     [
         nameof(SearchEmailsRequest.Accounts),
         nameof(SearchEmailsRequest.Folders),
-        nameof(SearchEmailsRequest.IncludeJunkMail),
         nameof(SearchEmailsRequest.ResultLimit),
     ];
 

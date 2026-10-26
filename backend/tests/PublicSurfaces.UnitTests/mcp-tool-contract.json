@@ -2204,7 +2204,7 @@
       "readOnlyHint": true,
       "title": "List emails"
     },
-    "description": "Lists summaries of emails already synchronized into MailFathom's local mailbox copy, newest received first by default. Filters by account, folder, sender address, recipient address, subject text, received date range, remote seen state, remote flagged (starred) state, a keyword the mail server reported, and attachment presence. Reads the local copy only: it never contacts a mail server, never marks mail as read, and never returns body text, raw MIME, or attachment content. Mail in the account's junk folder is left out unless includeJunkMail is set. Returns at most 100 summaries per call, with an opaque cursor for the next page and a per-folder statement of how current the local copy is.",
+    "description": "Lists summaries of emails already synchronized into MailFathom's local mailbox copy, newest received first by default. Filters by account, folder, sender address, recipient address, subject text, received date range, remote seen state, remote flagged (starred) state, a keyword the mail server reported, and attachment presence. Reads the local copy only: it never contacts a mail server, never marks mail as read, and never returns body text, raw MIME, or attachment content. Never returns a message judged spam, in any folder, or mail in the account's junk folder unless its owner marked it not spam. Returns at most 100 summaries per call, with an opaque cursor for the next page and a per-folder statement of how current the local copy is.",
     "inputSchema": {
       "properties": {
         "accounts": {
@@ -2259,11 +2259,6 @@
             "boolean",
             "null"
           ]
-        },
-        "includeJunkMail": {
-          "default": false,
-          "description": "Include mail in the account's junk folder, which is left out by default. Naming the junk folder in folders does not include it; only this does. A cursor issued with one answer cannot be presented with the other. The result reports which answer produced it.",
-          "type": "boolean"
         },
         "isRemotelyFlagged": {
           "default": null,
@@ -2653,10 +2648,6 @@
           },
           "type": "array"
         },
-        "includedJunkMail": {
-          "description": "Whether the account's junk folder took part in this listing. False means its mail was left out and is reachable by calling again with includeJunkMail set.",
-          "type": "boolean"
-        },
         "nextCursor": {
           "description": "An opaque cursor for the next page. Pass it back unchanged as cursor, with the same filters. Null means this page ended the walk. A present cursor does not promise that the next page is non-empty, because mail can be expunged between two calls, but continuing from it never skips or repeats an email.",
           "type": [
@@ -2667,8 +2658,7 @@
       },
       "required": [
         "emails",
-        "folderFreshness",
-        "includedJunkMail"
+        "folderFreshness"
       ],
       "type": "object"
     },
@@ -3218,7 +3208,7 @@
       "readOnlyHint": true,
       "title": "Search emails"
     },
-    "description": "Searches the emails already synchronized into MailFathom's local mailbox copy for text, and returns the best matches ranked by relevance with bounded extracts of the body around the matched words. Retrieval is lexical or hybrid depending on how this server is configured, and every response says which in its retrievalMode field: lexical finds the words a query contains rather than what they mean, while hybrid also finds mail whose meaning is close and combines the two rankings. Where this server reads attachments, the text of documents attached to a message is searched on the same terms its body is — by the words themselves and, under hybrid, by meaning — and what an attachment contributed is reported in that result's attachmentMatches, naming the file and the page, slide, or sheet, rather than folded into the message's own snippets. A picture is different: where this server describes attached images, a picture is reachable only by meaning, never by matching a word, and a result reached that way is marked isDepictedMatch and always sits below every result any query word or any written text reached — so a photograph never displaces a message that contains the word you searched for. Narrows by account, folder, sender address, recipient address, subject text, received date range, remote seen state, remote flagged (starred) state, a keyword the mail server reported, and attachment presence. Reads the local copy only: it never contacts a mail server, never marks mail as read, and never returns whole bodies, raw MIME, whole attachments, or a whole attachment's text — every extract it returns is bounded. Mail in the account's junk folder is left out unless includeJunkMail is set. Returns one window of at most 50 results that nothing continues, so narrow the filters or write a different query to reach other mail. Matching nothing is a normal empty result rather than an error.",
+    "description": "Searches the emails already synchronized into MailFathom's local mailbox copy for text, and returns the best matches ranked by relevance with bounded extracts of the body around the matched words. Retrieval is lexical or hybrid depending on how this server is configured, and every response says which in its retrievalMode field: lexical finds the words a query contains rather than what they mean, while hybrid also finds mail whose meaning is close and combines the two rankings. Where this server reads attachments, the text of documents attached to a message is searched on the same terms its body is — by the words themselves and, under hybrid, by meaning — and what an attachment contributed is reported in that result's attachmentMatches, naming the file and the page, slide, or sheet, rather than folded into the message's own snippets. A picture is different: where this server describes attached images, a picture is reachable only by meaning, never by matching a word, and a result reached that way is marked isDepictedMatch and always sits below every result any query word or any written text reached — so a photograph never displaces a message that contains the word you searched for. Narrows by account, folder, sender address, recipient address, subject text, received date range, remote seen state, remote flagged (starred) state, a keyword the mail server reported, and attachment presence. Reads the local copy only: it never contacts a mail server, never marks mail as read, and never returns whole bodies, raw MIME, whole attachments, or a whole attachment's text — every extract it returns is bounded. Never returns a message judged spam, in any folder, or mail in the account's junk folder unless its owner marked it not spam. Returns one window of at most 50 results that nothing continues, so narrow the filters or write a different query to reach other mail. Matching nothing is a normal empty result rather than an error.",
     "inputSchema": {
       "properties": {
         "accounts": {
@@ -3256,11 +3246,6 @@
             "boolean",
             "null"
           ]
-        },
-        "includeJunkMail": {
-          "default": false,
-          "description": "Include mail in the account's junk folder, which is left out by default. Naming the junk folder in folders does not include it; only this does. The result reports which answer produced it.",
-          "type": "boolean"
         },
         "isRemotelyFlagged": {
           "default": null,
@@ -3398,10 +3383,6 @@
             "type": "object"
           },
           "type": "array"
-        },
-        "includedJunkMail": {
-          "description": "Whether the account's junk folder took part in this search. False means its mail was left out and is reachable by calling again with includeJunkMail set.",
-          "type": "boolean"
         },
         "matches": {
           "description": "The matched emails, most relevant first, ties broken by the newest received. Empty when nothing matched the query and the filters, which is a normal answer.",
@@ -3777,8 +3758,7 @@
         "matches",
         "retrievalMode",
         "semanticSearch",
-        "folderFreshness",
-        "includedJunkMail"
+        "folderFreshness"
       ],
       "type": "object"
     },

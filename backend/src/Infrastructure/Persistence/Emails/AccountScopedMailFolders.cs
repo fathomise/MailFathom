@@ -253,7 +253,7 @@ internal static class AccountScopedMailFolders
             .Distinct(StringComparer.Ordinal),
     ];
 
-    private static IEnumerable<(string AccountId, string[] Aliases)> AliasesByAccount(
+    internal static IEnumerable<(string AccountId, string[] Aliases)> AliasesByAccount(
         IReadOnlyList<MailFolderIdentity> excluded) => excluded
             .GroupBy(folder => folder.AccountId.Value, StringComparer.Ordinal)
             .Select(static account => (account.Key, Aliases: account.Select(static folder => folder.Alias.Value).ToArray()));

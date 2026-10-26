@@ -12,5 +12,6 @@
     <InternalsVisibleTo Include="MailFathom.Application.UnitTests" />
     <InternalsVisibleTo Include="MailFathom.Evaluations" />
     <InternalsVisibleTo Include="MailFathom.Evaluations.UnitTests" />
+    <InternalsVisibleTo Include="MailFathom.Infrastructure.UnitTests" />
   </ItemGroup>
 </Project>

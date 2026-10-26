@@ -57,6 +57,12 @@ configuration maps no folder reads as empty;
 [folders withheld from AI](mailbox-queries.md#folders-withheld-from-ai) states what a caller sees and why nothing
 says the folder exists.
 
+Mail judged spam is withheld from every tool that reads mail in the same way, on top of that: a message whose verdict
+is spam, in any folder, and the junk folder's mail unless the person marked the message not spam, are listed by no
+tool, searched by none, retrieved into no `ask_mail` answer, and an email of them reads as not found.
+[Spam classification](spam-classification.md#no-agent-reads-a-message-judged-spam) states the rule. `set_mail_flags`
+returns no message content and is not narrowed by it.
+
 Four properties hold for every tool and are proven by test rather than asserted here:
 
 - **No call reads mail from a mail server.** Nothing in a tool request fetches a message, so a read cannot wait on a
@@ -542,7 +548,6 @@ Every argument is optional.
 | `isRemotelyFlagged` | `boolean` | The remote `\Flagged` state to require, which is the star a mail client shows. Unrelated to the `Flagged` folder role, which names a folder rather than a flag |
 | `keyword` | `string` | One keyword the email must carry, matched whole and without regard to case, up to 64 characters. A value no stored keyword could be is refused with `51002` |
 | `hasAttachments` | `boolean` | Whether to match only emails with attachments or only those without |
-| `includeJunkMail` | `boolean` | Whether the account's junk folder takes part. Omitted leaves it out, and the result says which of the two answers it gave |
 | `direction` | `newestFirst` \| `oldestFirst` | Which end of the timeline to read from |
 | `pageSize` | `integer` | 1 to 100. Omitted takes the default of 25; a value outside the range is refused rather than clamped |
 | `cursor` | `string` | The `nextCursor` of a previous call, reused with the same filters and direction |
@@ -558,13 +563,11 @@ Both lists are converted to domain values at this boundary, and their counts are
 already run over a million-element array is not a ceiling. Text that could name nothing this system issues is then
 refused with `51002`, and the refusal never repeats the value.
 
-**The junk folder is left out unless it is asked for.** Mail a filter already set aside is mail written to be read by
-somebody who did not ask for it, and a model reasoning over a page of summaries cannot tell it from correspondence, so
-the default is the safe one and `includeJunkMail` is how a caller looking for a message a filter took reaches it. The
-answer is reported back in `includedJunkMail`, and it takes part in the continuation cursor, so a page and its follower
-are always one walk. Which folder that is comes from the account's `Junk` mapping;
-[spam classification](spam-classification.md#the-junk-folder-is-left-out-of-listing-and-search) records why the override
-can never reveal a folder an operator withheld.
+**No message judged spam is ever listed.** A message whose verdict is spam is left out in any folder, and the junk
+folder's mail is left out unless the person marked the message not spam, because a model reasoning over a page of
+summaries cannot tell mail written to deceive it from correspondence. No argument asks for it back, and naming
+`role:Junk` lists only what the person marked not spam. The same rule holds on every tool and agent that reads mail;
+[spam classification](spam-classification.md#no-agent-reads-a-message-judged-spam) states it and the surfaces it covers.
 
 **Which account a name refers to is not settled here.** An account may be named by its identifier or by its display
 name, and the two are matched against the served accounts inside the use case, so text naming nothing meets exactly the
@@ -579,9 +582,8 @@ would otherwise be a way to write arbitrary text into that contract and into the
 
 ### Result
 
-`emails` carries the page, `nextCursor` reads the following one and is absent on the last page, `includedJunkMail`
-states whether the account's junk folder took part, and `folderFreshness` states how current the local copy of each
-covered folder is.
+`emails` carries the page, `nextCursor` reads the following one and is absent on the last page, and `folderFreshness`
+states how current the local copy of each covered folder is.
 
 Each summary carries the stable local identifier a content read is performed by, the account identifier and the display
 name it is published under, the folder's identity and path, the message identifier, the conversation identifier, the subject, the sender address and display name, the sender verdict, the machine-authorship reading, the `To` addresses, the sent and received timestamps, the
@@ -869,7 +871,8 @@ Four things about it are worth reading before a caller writes against them:
   it answers whatever the two clocks say, because a sender's clock is not something MailFathom can check; two replies to
   one message are ordered by their sent timestamps, and messages that still tie are settled on their local identity. The
   same conversation read twice comes back in the same order.
-- **Withheld mail is absent from all of it.** A message in a folder withheld from AI appears in no `otherMessages`
+- **Withheld mail is absent from all of it.** A message in a folder withheld from AI, one judged spam, or one in the
+  junk folder that the person has not marked not spam appears in no `otherMessages`
   list, is in no `messageCount`, and is returned by no call naming its conversation — and a message whose parent is
   withheld is published as a root naming no ancestor, rather than pointing at something the caller may not see. A
   conversation whose messages are all withheld is published nowhere, so asking about its identifier returns no email
@@ -915,7 +918,6 @@ how the extracts are cut, and why there is no cursor — where those are enforce
 | `isRemotelyFlagged` | `boolean` | The remote `\Flagged` state to require |
 | `keyword` | `string` | One keyword the email must carry, matched whole and without regard to case |
 | `hasAttachments` | `boolean` | Whether to match only emails with attachments or only those without |
-| `includeJunkMail` | `boolean` | Whether the account's junk folder takes part. Omitted leaves it out, and the result says which of the two answers it gave |
 | `resultLimit` | `integer` | 1 to 50. Omitted takes the default of 20; a value outside the range is refused with `51003` rather than clamped |
 
 The structured filters are `list_emails`' own and mean exactly the same things, because both read models apply one
@@ -945,7 +947,6 @@ because an argument added later would be the one thing that quietly changes what
 | `matches` | The matched emails, most relevant first, ties broken by the newest received. Empty when nothing matched |
 | `retrievalMode` | How this call's results were ranked — `lexical` or `hybrid` |
 | `semanticSearch` | What this server can do with embeddings — `inactive`, `available`, or `degraded` |
-| `includedJunkMail` | Whether the account's junk folder took part in this search |
 | `folderFreshness` | How current the local copy of each covered folder is, exactly as a listing reports it |
 
 Each match carries `summary`, which is the same shape `list_emails` publishes and is documented above, together with
@@ -1427,9 +1428,10 @@ no permission here implies another — so a deployment that means an agent to re
 the sending grant is offered the tools and refused by the use case behind them. The sending grant is what narrows the
 listing, because that is the effect that leaves this deployment.
 
-**Four ways of naming an email that cannot be answered are one answer.** An identifier nothing is held under, an email
-of an account this deployment no longer serves, an email in a folder mapped `VisibleToAI: false`, and one whose
-stored content is no longer readable all produce `53005`, with the same message. That is deliberate and it is the whole
+**Six ways of naming an email that cannot be answered are one answer.** An identifier nothing is held under, an email
+of an account this deployment no longer serves, an email in a folder mapped `VisibleToAI: false`, an email judged spam,
+an email in the junk folder that the person has not marked not spam, and one whose stored content is no longer readable
+all produce `53005`, with the same message. That is deliberate and it is the whole
 reason the code exists: telling them apart would let a caller discover which mail this deployment holds, and which of it
 an operator withheld, by replying to identifiers one at a time. Below the boundary the distinction survives where it is
 useful — a damaged copy still records a repair request — and it stops at the answer.

@@ -738,7 +738,8 @@ message.
 
 An email the local copy holds no row for, one belonging to an account this deployment no longer serves, one stored in a
 folder no mapping names at all, and — when the read answers for an agent — one stored in a folder mapped with
-`VisibleToAI: false` are all reported as `53002 StoredEmailNotFound`. One failure covers them, for the reason
+`VisibleToAI: false`, one judged spam, and one in the account's junk folder that its owner has not marked not spam are
+all reported as `53002 StoredEmailNotFound`. One failure covers them, for the reason
 `53001 MailAccountNotAccessible` covers both of its cases: a caller that could tell them apart could learn which
 identifiers exist by asking. An attachment link an MCP read minted before the folder was withheld from AI — or before
 its mapping was removed — stops serving the same way, because the question is asked where the download is served. The

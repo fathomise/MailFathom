@@ -51,7 +51,8 @@ public sealed class EmailThreadContexts
     /// The scope is resolved once, by the first conversation assembled, rather than per conversation: it is configuration rather than a caller's
     /// filter, and one read of several emails must not be able to see two answers to the same question. Junk mail is
     /// included, because a conversation is threaded across the folders it reached and a reply that landed in junk is
-    /// part of the exchange the caller is reading rather than a listing they asked for.
+    /// part of the exchange the caller is reading rather than a listing they asked for. An agent's conversation still
+    /// leaves out every message judged spam, and the junk folder's mail the person did not mark not spam.
     /// </remarks>
     public EmailThreadContexts(
         IEmailThreadReader threadReader,
