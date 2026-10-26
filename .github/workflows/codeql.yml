@@ -237,15 +237,6 @@ jobs:
         with:
           global-json-file: global.json
 
-      # The same cache and the same key as every other job that restores, for the reason
-      # `build-test-format-and-migrations.yml` records.
-      - name: Cache NuGet packages
-        if: matrix.language == 'csharp'
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props', 'global.json', 'NuGet.config', '.config/dotnet-tools.json', '**/packages.lock.json') }}
-
       # Before CodeQL initializes, deliberately. Restore compiles nothing, so tracing it would add
       # nothing to the database; keeping it outside the traced window leaves that window holding the
       # compiler invocations alone. `--locked-mode` is what makes the analysed graph the graph the

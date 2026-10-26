@@ -1,6 +1,6 @@
 # Local development
 
-<!-- describes: scripts/**, global.json, MailFathom.code-workspace, .config/dotnet-tools.json, .config/typos.toml, .config/CodeCoverage.proj, .config/testconfig.json, backend/src/AppHost/**, backend/src/Infrastructure/Persistence/MailFathomDbContextDesignTimeFactory.cs, .github/workflows/**, backend/tests/IntegrationTests/ProviderAdapters/**, backend/tests/IntegrationTests/ObjectStorage/**, backend/tests/Evaluations/**, backend/tests/Evaluations.UnitTests/**, backend/tools/**, frontend/package.json, frontend/pnpm-workspace.yaml, frontend/.npmrc, frontend/tsconfig.base.json, frontend/tsconfig.json, frontend/eslint.config.ts, frontend/vitest.config.ts, frontend/playwright.config.ts, frontend/src-tauri/** -->
+<!-- describes: scripts/**, global.json, MailFathom.code-workspace, .config/dotnet-tools.json, .config/typos.toml, .config/CodeCoverage.proj, .config/testconfig.json, backend/src/AppHost/**, backend/src/Infrastructure/Persistence/MailFathomDbContextDesignTimeFactory.cs, .github/workflows/**, .github/actions/**, backend/tests/IntegrationTests/ProviderAdapters/**, backend/tests/IntegrationTests/ObjectStorage/**, backend/tests/Evaluations/**, backend/tests/Evaluations.UnitTests/**, backend/tools/**, frontend/package.json, frontend/pnpm-workspace.yaml, frontend/.npmrc, frontend/tsconfig.base.json, frontend/tsconfig.json, frontend/eslint.config.ts, frontend/vitest.config.ts, frontend/playwright.config.ts, frontend/src-tauri/** -->
 
 Use the .NET SDK pinned in `global.json`. Test execution is configured for Microsoft Testing Platform through the repository-level `global.json` test runner setting.
 
@@ -2139,8 +2139,9 @@ job of `repository-contracts.yml` and again locally in `scripts/verify-full.sh`,
 | `every_external_action_names_an_approved_owner` | An action from an owner outside the reviewed set: `actions`, `github`, `Krzysztof318`, `dorny`, `anthropics`, `docker`, `crate-ci`, `aquasecurity`, `oras-project`, `peter-evans`, `vegardit` |
 | `every_workflow_job_declares_its_permissions` | A job that inherits the repository default instead of declaring a `permissions:` block, at the workflow level or its own |
 | `every_workflow_job_declares_its_timeout` | A job that runs steps without declaring `timeout-minutes`, and so inherits GitHub's six-hour default |
-| `every_apt_step_declares_its_timeout` | A step that runs `apt-get`, or Playwright with `--with-deps`, without a `timeout-minutes` of its own, so a slow package mirror can spend the whole job's budget on an install that ordinarily takes half a minute |
-| `every_apt_step_follows_a_bounded_mirror_choice` | A step that runs `apt-get`, or Playwright with `--with-deps`, without `vegardit/fast-apt-mirror.sh` as the step before it, and a mirror-choosing step without a `timeout-minutes` of its own |
+| `every_apt_step_declares_its_timeout` | A step that installs from apt — running `apt-get`, a Playwright install that reaches apt itself, or a local action doing either — without a `timeout-minutes` of its own, so a slow package mirror can spend the whole job's budget on an install that ordinarily takes half a minute |
+| `every_apt_step_follows_a_bounded_mirror_choice` | A step that installs from apt, in the same sense, without `vegardit/fast-apt-mirror.sh` as the step before it, and a mirror-choosing step without a `timeout-minutes` of its own |
+| `every_cache_is_saved_from_main_alone` | A combined `actions/cache` step, or an `actions/cache/save` step whose condition does not name `main`, either of which saves an entry no other ref can read |
 | `every_write_scope_is_one_the_policy_records` | A write scope appearing anywhere the list in that contract does not already name |
 | `every_checkout_refuses_to_persist_credentials` | An `actions/checkout` step that leaves the workflow token in `.git/config` for the steps after it |
 | `only_the_recorded_workflows_use_pull_request_target` | A third `pull_request_target` trigger beside the two `fathom-review.yml` and `contributor-licence.yml` hold, and a licence workflow that checks anything out, reaches an action beyond the token mint, or runs a command fetching the contribution directly |
@@ -2196,11 +2197,16 @@ and `ai-evaluations.yml` do. When a job's healthy runs start approaching their b
 raised in the same change that made the job slower.
 
 **A step that installs from apt is bounded on its own**, at five minutes, beneath its job's bound —
-whether it runs `apt-get` or Playwright's `--with-deps`, which runs `apt-get` itself. The install
+whether it runs `apt-get`, Playwright's `install-deps` or `--with-deps`, which run `apt-get`
+themselves, or a local action doing either. The install
 waits on the runner's package mirror and nothing else, it ordinarily takes about half a minute, and a
 slow mirror has held one for its job's whole thirty minutes. A step bound ends that as
 a red step naming the install, and leaves the job's budget to the work after it. The ten-minute floor
-above is for jobs and does not reach a step.
+above is for jobs and does not reach a step. Every such install goes through
+`.github/actions/cached-apt-install`, which restores apt's downloaded `.deb` files before the install
+and runs `apt-get update` regardless, so the mirror is asked only for what the cache lacks and a stale
+entry costs a download rather than an outdated package; the desktop head's package list lives once, in
+`.github/actions/install-desktop-linux-dependencies`, for both jobs that install it.
 
 **The step before it chooses the mirror.** The runner image puts `azure.archive.ubuntu.com` first in
 `/etc/apt/apt-mirrors.txt`, and on a bad day that mirror stalls rather than fails, which apt's own
@@ -2211,9 +2217,20 @@ speed-tests ten of them with a one-megabyte sample each, and writes the fastest 
 that file. The other mirrors stay below it, so the failure fallback still holds, and which mirror
 serves the archives changes nothing about what is installed, because apt checks every archive against
 Ubuntu's signed index. The choice ordinarily takes under half a minute and is bounded at two minutes
-of its own. The desktop installs still run their own `apt-get update`, as `--with-deps` does: the
+of its own. The desktop installs still run their own `apt-get update`, as `install-deps` does: the
 action refreshes the lists on every path it takes, but a refresh that failed halfway is one it does
 not repeat, and a second one over lists that are already current costs a second or two.
+
+**Caches are restored everywhere and saved on `main` alone.** An entry saved on the default branch is
+readable by every run, while one saved by a pull request, a merge-queue entry, or a release tag is
+readable by that ref's later runs and nothing else — so every job restores with
+`actions/cache/restore`, and `actions/cache/save` runs only under `github.ref == 'refs/heads/main'`,
+which in practice is the nightly. Each key changes exactly when its content does: a lock file's hash
+where one fixes the content, the Playwright version for the browser and its system libraries, the
+proxy's version beside `Cargo.lock` for the desktop suite's crates, and the runner image beside the
+package list for apt. Where several jobs restore one key, one of them is named as its writer, so jobs
+running at once never race to save it. Nothing caches `~/.nuget/packages`: restoring 1.2 GB took as
+long as fetching the same packages from nuget.org, and the key moved with nearly every merge.
 
 **What lives in the repository settings**, which no check here can read:
 

@@ -148,12 +148,6 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props', 'global.json', 'NuGet.config', '.config/dotnet-tools.json', '**/packages.lock.json') }}
-
       # The newest store any run of this workflow uploaded, from whichever ref it ran on: a store only
       # ever gains entries keyed by what was asked, so one from another ref costs nothing here and
       # saves whatever it already answered. None at all is the first run, not a failure. A dispatch

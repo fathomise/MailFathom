@@ -1,0 +1,77 @@
+# Copyright © 2026 Krzysztof Kasprowicz
+# Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
+# Project repository: https://github.com/fathomise/MailFathom
+
+name: Install apt packages from a cache of their downloads
+description: >-
+  Runs an apt install with apt's download directory restored from the Actions cache, so the runner's package mirror is
+  asked only for what the cache does not already hold.
+
+# What is cached is the downloaded `.deb` files and never an installed tree. `apt-get update` still runs in every job,
+# and apt takes a file from its download directory only when its size and hash match the index it just fetched — so a
+# stale entry costs a download and can never install a version the current index does not name. The mirror is what has
+# held these installs for minutes at a time, while unpacking what it sends is a matter of seconds.
+#
+# The key carries the runner image, because the image decides which packages are already present and therefore which
+# ones apt downloads, and the caller's own discriminator for what is installed. The prefix restores the previous entry
+# when either moves, which leaves apt fetching only the difference.
+#
+# Only a run on `main` saves, which in practice is the nightly: an entry saved by a pull request or a merge-queue entry
+# is readable by that ref's later runs alone, and every such copy spends the repository's cache budget on nothing.
+#
+# A composite step takes no `timeout-minutes`, so the step that uses this action carries the bound.
+inputs:
+  name:
+    description: 'What the entry holds, such as `desktop`. Entries of different names never restore each other.'
+    required: true
+  content:
+    description: 'What changes exactly when the installed set does: a hash of the package list, or the version of the tool that chooses it.'
+    required: true
+  install:
+    description: 'The command that runs `apt-get update` and installs, with `sudo` where it needs it.'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Beside apt's own cache rather than in the home directory, because apt drops to its unprivileged `_apt` user to
+    # download and that user has to reach the directory. The runner owns it so the cache can restore into it.
+    - name: Prepare apt's download directory
+      id: prepare
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo install --directory --owner "$(id -u)" --group "$(id -g)" /var/cache/apt-downloads
+        # GitHub-hosted runners name their image in these two; a runner that does not still gets an entry, which apt
+        # verifies file by file like any other.
+        printf 'image=%s-%s\n' "${ImageOS:-unknown}" "${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+
+    - name: Restore apt's downloads
+      id: restore
+      uses: actions/cache/restore@v6
+      with:
+        path: /var/cache/apt-downloads
+        key: apt-${{ inputs.name }}-${{ steps.prepare.outputs.image }}-${{ inputs.content }}
+        restore-keys: apt-${{ inputs.name }}-
+
+    # The configuration reaches every apt call the command makes, including one a tool issues itself under `sudo`, which
+    # is why the directory is set here rather than passed on a command line. `autoclean` drops every file the current
+    # index no longer offers, so the entry holds what the next run can use rather than everything it ever downloaded.
+    - name: Install
+      shell: bash
+      env:
+        INSTALL: ${{ inputs.install }}
+      run: |
+        set -euo pipefail
+        mkdir -p /var/cache/apt-downloads/partial
+        printf 'Dir::Cache::Archives "/var/cache/apt-downloads/";\n' | sudo tee /etc/apt/apt.conf.d/90-cached-downloads > /dev/null
+        bash -euo pipefail -c "$INSTALL"
+        sudo apt-get autoclean
+        sudo chown -R "$(id -u):$(id -g)" /var/cache/apt-downloads
+
+    - name: Save apt's downloads
+      if: github.ref == 'refs/heads/main' && steps.restore.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: /var/cache/apt-downloads
+        key: ${{ steps.restore.outputs.cache-primary-key }}

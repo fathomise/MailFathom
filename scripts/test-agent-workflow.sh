@@ -9142,8 +9142,9 @@ every_external_action_names_an_approved_owner() {
       unapproved+="$owner "
     fi
   done < <(
-    grep -rhoE '^[[:space:]]+uses:[[:space:]]+[^./][^@[:space:]]+' "$source_repository_root/.github/workflows" |
-      sed -E 's#^[[:space:]]+uses:[[:space:]]+##; s#/.*##' |
+    grep -rhoE '^[[:space:]]+(- )?uses:[[:space:]]+[^./][^@[:space:]]+' \
+      "$source_repository_root/.github/workflows" "$source_repository_root/.github/actions" |
+      sed -E 's#^[[:space:]]+(- )?uses:[[:space:]]+##; s#/.*##' |
       sort --unique
   )
 
@@ -9200,52 +9201,101 @@ PYTHON
 }
 
 # A package install waits on the runner's mirror, which has held one for a job's whole budget while
-# the install ordinarily takes half a minute, so a step that installs from apt is bounded on its own
-# rather than left to whatever the job allows. Playwright's `--with-deps` runs `apt-get` itself, so a
-# step passing it is one of them.
-every_apt_step_declares_its_timeout() {
-  python3 - "$source_repository_root"/.github/workflows/*.yml <<'PYTHON'
+# the install ordinarily takes half a minute, and that mirror stalls rather than fails, which apt's own
+# fallback does not see. So a step that installs from apt is bounded on its own rather than left to
+# whatever the job allows, and the step before it chooses a fast mirror under a bound of its own,
+# since it waits on the mirrors it probes. Both contracts read the same steps: one running `apt-get`,
+# a Playwright install that reaches apt itself, and one using a local action that does either —
+# directly or through another — because a composite step takes no `timeout-minutes`, so the bound
+# and the mirror choice have to sit around the step that uses it.
+check_apt_install_steps() {
+  python3 - "$source_repository_root" "$1" <<'PYTHON'
+import glob
+import re
 import sys
 import yaml
 
-unbounded = [
-    f"{path.rsplit('/', 1)[-1]}:{job_id}:{step.get('name', '<unnamed>')}"
-    for path in sys.argv[1:]
-    for job_id, job in yaml.safe_load(open(path, encoding="utf-8"))["jobs"].items()
-    for step in job.get("steps", [])
-    if any(installer in step.get("run", "") for installer in ("apt-get", "--with-deps"))
-    and "timeout-minutes" not in step
-]
-if unbounded:
-    print(f"Steps install from apt on their job's timeout alone: {'; '.join(unbounded)}", file=sys.stderr)
-sys.exit(1 if unbounded else 0)
-PYTHON
+root, check = sys.argv[1], sys.argv[2]
+installs_from_apt = re.compile(r"apt-get|install-deps|--with-deps")
+mirror_action = "vegardit/fast-apt-mirror.sh@"
+
+
+def jobs_of(path):
+    document = yaml.safe_load(open(path, encoding="utf-8"))
+    if "jobs" in document:
+        return [(job_id, job.get("steps", [])) for job_id, job in document["jobs"].items()]
+    return [("runs", document.get("runs", {}).get("steps", []))]
+
+
+actions = {
+    "./" + path[len(root) + 1:].rsplit("/", 1)[0]: [step for _, steps in jobs_of(path) for step in steps]
+    for path in glob.glob(f"{root}/.github/actions/*/action.yml")
 }
+installing = set()
+while True:
+    found = {
+        action
+        for action, steps in actions.items()
+        if any(installs_from_apt.search(step.get("run", "")) or step.get("uses") in installing for step in steps)
+    }
+    if found <= installing:
+        break
+    installing |= found
 
-# The runner's own mirror stalls rather than fails, which apt's failure fallback does not see, so a
-# step installs from apt — `apt-get`, or Playwright's `--with-deps` — only after the step before it
-# has chosen a fast mirror, and that step is bounded on its own, since it waits on the mirrors it
-# probes.
-every_apt_step_follows_a_bounded_mirror_choice() {
-  python3 - "$source_repository_root"/.github/workflows/*.yml <<'PYTHON'
-import sys
-import yaml
-
-MIRROR_ACTION = "vegardit/fast-apt-mirror.sh@"
 problems = []
-for path in sys.argv[1:]:
-    for job_id, job in yaml.safe_load(open(path, encoding="utf-8"))["jobs"].items():
-        steps = job.get("steps", [])
+for path in sorted(glob.glob(f"{root}/.github/workflows/*.yml")):
+    for job_id, steps in jobs_of(path):
         for index, step in enumerate(steps):
             where = f"{path.rsplit('/', 1)[-1]}:{job_id}:{step.get('name', '<unnamed>')}"
-            if step.get("uses", "").startswith(MIRROR_ACTION) and "timeout-minutes" not in step:
-                problems.append(f"{where} chooses a mirror on its job's timeout alone")
-            if any(installer in step.get("run", "") for installer in ("apt-get", "--with-deps")):
+            installs = installs_from_apt.search(step.get("run", "")) or step.get("uses") in installing
+            if check == "timeout" and installs and "timeout-minutes" not in step:
+                problems.append(f"{where} installs from apt on its job's timeout alone")
+            if check == "mirror":
+                if step.get("uses", "").startswith(mirror_action) and "timeout-minutes" not in step:
+                    problems.append(f"{where} chooses a mirror on its job's timeout alone")
                 previous = steps[index - 1] if index > 0 else {}
-                if not previous.get("uses", "").startswith(MIRROR_ACTION):
+                if installs and not previous.get("uses", "").startswith(mirror_action):
                     problems.append(f"{where} installs from apt without choosing a mirror in the step before it")
 if problems:
     print("; ".join(problems), file=sys.stderr)
+sys.exit(1 if problems else 0)
+PYTHON
+}
+
+every_apt_step_declares_its_timeout() {
+  check_apt_install_steps timeout
+}
+
+every_apt_step_follows_a_bounded_mirror_choice() {
+  check_apt_install_steps mirror
+}
+
+# A cache entry saved on the default branch is readable by every run, and one saved on any other ref
+# by that ref's later runs alone, so an entry a pull request, a merge-queue entry, or a release tag
+# saves is read by nothing else and only spends the repository's cache budget. Every cache is therefore restored with
+# `actions/cache/restore` and saved with `actions/cache/save` under a condition naming `main`, and the
+# combined `actions/cache`, which saves wherever it runs, appears nowhere.
+every_cache_is_saved_from_main_alone() {
+  python3 - "$source_repository_root" <<'PYTHON'
+import glob
+import sys
+import yaml
+
+root = sys.argv[1]
+problems = []
+for path in sorted(glob.glob(f"{root}/.github/workflows/*.yml") + glob.glob(f"{root}/.github/actions/*/action.yml")):
+    document = yaml.safe_load(open(path, encoding="utf-8"))
+    jobs = document.get("jobs") or {"runs": document.get("runs", {})}
+    for job_id, job in jobs.items():
+        for step in job.get("steps", []):
+            uses = step.get("uses", "")
+            where = f"{path[len(root) + 1:]}:{job_id}:{step.get('name', '<unnamed>')}"
+            if uses.startswith("actions/cache@"):
+                problems.append(f"{where} saves wherever it runs")
+            elif uses.startswith("actions/cache/save@") and "github.ref == 'refs/heads/main'" not in str(step.get("if", "")):
+                problems.append(f"{where} saves off main")
+if problems:
+    print(f"Caches saved where no other run can read them: {'; '.join(problems)}", file=sys.stderr)
 sys.exit(1 if problems else 0)
 PYTHON
 }
@@ -12458,6 +12508,7 @@ run_test every_workflow_job_declares_its_permissions
 run_test every_workflow_job_declares_its_timeout
 run_test every_apt_step_declares_its_timeout
 run_test every_apt_step_follows_a_bounded_mirror_choice
+run_test every_cache_is_saved_from_main_alone
 run_test every_write_scope_is_one_the_policy_records
 run_test every_checkout_refuses_to_persist_credentials
 run_test the_release_restores_the_annotated_tag_before_asserting_it

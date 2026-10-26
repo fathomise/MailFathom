@@ -70,17 +70,14 @@ jobs:
         id: pnpm-store
         run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
-      - name: Cache the pnpm store
-        uses: actions/cache@v6
+      # Restored and never saved here: `Build and test the frontend` is where `main` saves the store and the browser
+      # below, and that workflow says why nothing else does.
+      - name: Restore the pnpm store
+        uses: actions/cache/restore@v6
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props', 'global.json', 'NuGet.config', '.config/dotnet-tools.json', '**/packages.lock.json') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
       # The schema artifact comes from `aspire publish`, so the run needs the CLI at the generation the app model's
       # hosting packages are pinned to. `scripts/build-schema-artifact.sh` reads that pin and says so when the CLI is
@@ -99,16 +96,34 @@ jobs:
       - name: Restore the client workspace
         run: pnpm --dir frontend install --frozen-lockfile
 
-      # The browser the end-to-end configuration names, and only that one. `--with-deps` is what a runner needs and a
-      # developer machine usually does not, and it installs from apt, so a mirror is chosen first and both steps carry
-      # the bounds `Build the desktop client` gives them.
+      - name: Read the Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --dir frontend exec playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the Playwright browser
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      # The browser the end-to-end configuration names, and only that one.
+      - name: Install Chromium
+        run: pnpm --dir frontend exec playwright install chromium
+
+      # The system libraries the browser needs, which a runner lacks and a developer machine usually does not, from the
+      # same cached downloads as the browser suite's, after a mirror is chosen and under the bounds `Build the desktop
+      # client` gives both steps.
       - name: Choose a fast apt mirror
         timeout-minutes: 2
         uses: vegardit/fast-apt-mirror.sh@1.4.5
 
-      - name: Install Chromium
+      - name: Install Chromium's system libraries
         timeout-minutes: 5
-        run: pnpm --dir frontend exec playwright install --with-deps chromium
+        uses: ./.github/actions/cached-apt-install
+        with:
+          name: playwright
+          content: ${{ steps.playwright.outputs.version }}
+          install: pnpm --dir frontend exec playwright install-deps chromium
 
       # The same script a person runs, so this pipeline has one way to be started rather than two that can drift. It
       # builds the bundle and the schema, starts the app model's two servers, applies the artifact, publishes and starts

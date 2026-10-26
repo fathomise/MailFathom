@@ -1,0 +1,36 @@
+# Copyright © 2026 Krzysztof Kasprowicz
+# Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
+# Project repository: https://github.com/fathomise/MailFathom
+
+name: Install the desktop head's Linux dependencies
+description: >-
+  Installs the system half of the desktop head's Linux toolchain — the WebView the shell renders in, the libraries Tauri
+  links and bundles beside it, the WebDriver for that WebView, and a display for it to open on — from cached downloads.
+
+# One list for both jobs that need it, `Build the desktop client` and `Drive the desktop head`, so the two cannot drift
+# apart and share one cache entry. The WebDriver and the virtual display are the suite's alone and cost the build a few
+# megabytes, which is cheaper than a second list and a second entry. The runner image carries none of this, and the
+# Windows runner needs none of it: WebView2 and the MSVC build tools are part of its image.
+#
+# This file's own hash is the entry's discriminator, so editing the list starts a new entry.
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/cached-apt-install
+      with:
+        name: desktop
+        content: ${{ hashFiles('.github/actions/install-desktop-linux-dependencies/action.yml') }}
+        install: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            webkit2gtk-driver \
+            xvfb

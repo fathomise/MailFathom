@@ -51,6 +51,7 @@ client_stack_filter=(
   'frontend/**'
   '.editorconfig'
   '.github/workflows/build-test-frontend.yml'
+  '.github/actions/**'
   '.github/workflows/ci.yml'
   'Version.props'
   'scripts/read-declared-version.sh'
