@@ -41,7 +41,7 @@ service_stack_filter=(
 # `ci.yml`'s `frontend:` filter. It names nothing under `backend/` and the list above names nothing
 # under `frontend/`, which is what makes a change to one stack cost nothing in the other; the three
 # entries they share are the files above both stacks that both genuinely read, and a change to one of
-# those runs both flows. `scripts/read-declared-version.sh` is in this list and not in the one above
+# those runs both flows — except `ci.yml`, which the matcher below passes over. `scripts/read-declared-version.sh` is in this list and not in the one above
 # because the two stacks read `Version.props` by different routes: MSBuild imports it for the service,
 # while `frontend/src/Client.App/vite.config.ts` and `frontend/src-tauri/run-tauri.ts` shell out to that
 # script, so the client is the one stack build it can break. `scripts/build-schema-artifact.sh` and
@@ -62,6 +62,13 @@ client_stack_filter=(
 # `dorny/paths-filter` makes of the same two forms, so a nested `.editorconfig` is reached through
 # the directory pattern above it rather than through the root entry — the same asymmetry `ci.yml`
 # has, and the reason the full gate's own shared-style-input list is a separate question.
+#
+# A workflow file is passed over, and that is the one place these gates depart from `ci.yml`. Both
+# lists name workflows because in the pipeline a changed workflow runs itself, so building the stack
+# is how its edit is verified. No gate here runs a workflow: a Release build and a unit suite over an
+# unchanged solution prove nothing about an edited YAML file, and the contract suite the full gate
+# runs is what reads one. The entries stay in the lists so they remain copies of `ci.yml`'s filters,
+# and the skip sits here so it holds for both gates and for the unit-suite resolver at once.
 change_reaches() {
   local pattern path
   local -a patterns=()
@@ -77,6 +84,8 @@ change_reaches() {
   done
 
   for path in "$@"; do
+    [[ "$path" == .github/workflows/* ]] && continue
+
     for pattern in "${patterns[@]}"; do
       if [[ "$pattern" == */'**' ]]; then
         if [[ "$path" == "${pattern%'**'}"* ]]; then
