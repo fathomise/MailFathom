@@ -112,15 +112,24 @@ public sealed class MailAccountSpamClassificationOptionsTests
 
     /// <summary>Acting on a verdict nothing produces is refused here exactly as it is in the deployment's own section.</summary>
     [Theory]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    public void FindRefusals_AnActionAskedForWhileClassificationIsOff_IsRefused(bool moveToJunkFolder, bool markAsRead)
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, true)]
+    public void FindRefusals_AnActionAskedForWhileClassificationIsOff_IsRefused(
+        bool moveToJunkFolder,
+        bool markAsRead,
+        bool markWithJunkKeywords)
     {
         // Arrange
         var options = new MailAccountSpamClassificationOptions
         {
             Enabled = false,
-            Actions = new MailAccountSpamActionOptions { MoveToJunkFolder = moveToJunkFolder, MarkAsRead = markAsRead },
+            Actions = new MailAccountSpamActionOptions
+            {
+                MoveToJunkFolder = moveToJunkFolder,
+                MarkAsRead = markAsRead,
+                MarkWithJunkKeywords = markWithJunkKeywords,
+            },
         };
 
         // Act
@@ -128,7 +137,11 @@ public sealed class MailAccountSpamClassificationOptionsTests
 
         // Assert
         Assert.Equal(
-            [nameof(MailAccountSpamActionOptions.MoveToJunkFolder), nameof(MailAccountSpamActionOptions.MarkAsRead)],
+            [
+                nameof(MailAccountSpamActionOptions.MoveToJunkFolder),
+                nameof(MailAccountSpamActionOptions.MarkAsRead),
+                nameof(MailAccountSpamActionOptions.MarkWithJunkKeywords),
+            ],
             refusal.MemberNames);
     }
 

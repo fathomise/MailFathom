@@ -21,7 +21,7 @@ public enum SpamActionOutcome
     /// <summary>At least one change was written down for the account's convergence pass to carry out.</summary>
     Requested = 0,
 
-    /// <summary>Neither switch is on, so nothing was read and nothing was asked for.</summary>
+    /// <summary>No switch is on, so nothing was read and nothing was asked for.</summary>
     NoActionConfigured = 1,
 
     /// <summary>The verdict is not spam, which includes a classification that concluded nothing either way.</summary>
@@ -43,10 +43,10 @@ public enum SpamActionOutcome
     /// and startup validation already refuses the configuration that produces the first of them, naming the account.
     /// </para>
     /// <para>
-    /// Nothing at all is written down in this case, including a <c>\Seen</c> change asked for beside the filing. Marking
-    /// a message read while leaving it where it is takes the unread marker off spam that is still in the inbox, which is
-    /// worse than waiting: the two switches together describe one intent, and a later attempt performs it whole once the
-    /// folder is there.
+    /// Nothing at all is written down in this case, including a <c>\Seen</c> or keyword change asked for beside the
+    /// filing. Marking a message read while leaving it where it is takes the unread marker off spam that is still in the
+    /// inbox, which is worse than waiting: the switches together describe one intent, and a later attempt performs it whole
+    /// once the folder is there.
     /// </para>
     /// </remarks>
     DestinationUnresolved = 5,
@@ -54,8 +54,9 @@ public enum SpamActionOutcome
     /// <summary>Filing this message was asked for once already, and it is not in the destination.</summary>
     /// <remarks>
     /// <para>
-    /// It is the one outcome that outranks both switches, and it covers two readings that are the same decision: somebody
-    /// moved the message back out, which is the correction a false positive is meant to have, or the change is written
+    /// It is the one outcome that outranks every switch but the removal of a <c>$Junk</c> and <c>$NotJunk</c> pair, which
+    /// is asked for on its own instead and reported as requested. It covers two readings that are the same decision:
+    /// somebody moved the message back out, which is the correction a false positive is meant to have, or the change is written
     /// down and the account's convergence pass has not carried it out yet. Asking again would either argue with the
     /// person whose mailbox it is or duplicate a change already in flight.
     /// </para>
@@ -73,7 +74,7 @@ public enum SpamActionOutcome
     /// <summary>A reload has withdrawn the account, so what it keeps of mail leaving the mirror is unknown.</summary>
     /// <remarks>
     /// Reachable only for an unmirrored destination, which is the one case a filing has to carry that answer. Like an
-    /// unresolved destination it withholds both changes, for the same reason: the intent is one, and it is performed
+    /// unresolved destination it withholds every change, for the same reason: the intent is one, and it is performed
     /// whole once the account is declared again.
     /// </remarks>
     AccountNoLongerConfigured = 8,
@@ -82,7 +83,7 @@ public enum SpamActionOutcome
     /// <remarks>
     /// It is reached at exactly the point <see cref="Requested" /> is: the switches, the destination, and every reason to
     /// leave the message alone have all been read by then, so a dry run reports the decision the acting run would have
-    /// taken rather than a guess at it. What is absent is the pair of record identifiers, because no record was opened.
+    /// taken rather than a guess at it. It carries no record identifier, because no record was opened.
     /// </remarks>
     WouldRequest = 9,
 

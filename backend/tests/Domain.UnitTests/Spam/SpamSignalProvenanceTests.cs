@@ -32,6 +32,17 @@ public sealed class SpamSignalProvenanceTests
     }
 
     [Fact]
+    public void FromMailboxKeyword_AKeyword_RecordsItAgainstTheKeywordSource()
+    {
+        // Arrange, Act
+        var provenance = SpamSignalProvenance.FromMailboxKeyword("$NotJunk");
+
+        // Assert
+        Assert.Equal(SpamSignalSource.MailboxKeyword, provenance.Source);
+        Assert.Equal("$NotJunk", provenance.Origin);
+    }
+
+    [Fact]
     public void FromModel_ABuildAndARevision_NamesBothAgainstTheModelSource()
     {
         // Arrange, Act

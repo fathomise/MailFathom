@@ -6,11 +6,13 @@ using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Folders;
+using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam.Gating;
 using MailFathom.Application.Spam.Signals;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Mutations;
 using MailFathom.Domain.Spam;
 
 namespace MailFathom.Application.Spam;
@@ -26,8 +28,8 @@ namespace MailFathom.Application.Spam;
 /// </para>
 /// <para>
 /// It reaches no mail server. Content comes from the local store, which already holds it, so classification never
-/// triggers an IMAP fetch and cannot affect a remote <c>\Seen</c> flag. It writes no folder, no flag, and nothing about
-/// where the message lives.
+/// triggers an IMAP fetch and cannot affect a remote <c>\Seen</c> flag. It writes no folder, no flag, no keyword, and
+/// nothing about where the message lives; the keywords it reads are the ones the last synchronization stored.
 /// </para>
 /// <para>
 /// It writes one thing besides the classification, and only when the verdict is spam: everything derived from the
@@ -51,6 +53,8 @@ public sealed class EmailSpamClassifier
     private readonly DeterministicSpamClassifier deterministicClassifier;
     private readonly ISpamClassificationSettingsReader settingsReader;
     private readonly IEmailSpamClassificationStore classificationStore;
+    private readonly ISpamVerdictActStore verdictActs;
+    private readonly IMailboxMutationRecordStore mutationRecords;
     private readonly IEmailChunkStore chunkStore;
     private readonly IStoredEmailAttachmentTextStore attachmentTextStore;
     private readonly IDerivedWorkGateTelemetry gateTelemetry;
@@ -65,6 +69,8 @@ public sealed class EmailSpamClassifier
     /// <param name="deterministicClassifier">Reaches a verdict from what the message already carried.</param>
     /// <param name="settingsReader">Answers what the occurrence's account decided about the mail in it.</param>
     /// <param name="classificationStore">Records the classification.</param>
+    /// <param name="verdictActs">Says what this deployment's verdicts already did to the message, which is not evidence.</param>
+    /// <param name="mutationRecords">Says whether a verdict asked for the message to be filed before its acts were recorded.</param>
     /// <param name="chunkStore">Removes the passages and vectors of a message the verdict calls junk.</param>
     /// <param name="attachmentTextStore">Removes the attachment readings of a message the verdict calls junk.</param>
     /// <param name="gateTelemetry">Counts what a junk verdict had to remove, without describing any of it.</param>
@@ -79,6 +85,8 @@ public sealed class EmailSpamClassifier
         DeterministicSpamClassifier deterministicClassifier,
         ISpamClassificationSettingsReader settingsReader,
         IEmailSpamClassificationStore classificationStore,
+        ISpamVerdictActStore verdictActs,
+        IMailboxMutationRecordStore mutationRecords,
         IEmailChunkStore chunkStore,
         IStoredEmailAttachmentTextStore attachmentTextStore,
         IDerivedWorkGateTelemetry gateTelemetry,
@@ -92,6 +100,8 @@ public sealed class EmailSpamClassifier
         ArgumentNullException.ThrowIfNull(deterministicClassifier);
         ArgumentNullException.ThrowIfNull(settingsReader);
         ArgumentNullException.ThrowIfNull(classificationStore);
+        ArgumentNullException.ThrowIfNull(verdictActs);
+        ArgumentNullException.ThrowIfNull(mutationRecords);
         ArgumentNullException.ThrowIfNull(chunkStore);
         ArgumentNullException.ThrowIfNull(attachmentTextStore);
         ArgumentNullException.ThrowIfNull(gateTelemetry);
@@ -105,6 +115,8 @@ public sealed class EmailSpamClassifier
         this.deterministicClassifier = deterministicClassifier;
         this.settingsReader = settingsReader;
         this.classificationStore = classificationStore;
+        this.verdictActs = verdictActs;
+        this.mutationRecords = mutationRecords;
         this.chunkStore = chunkStore;
         this.attachmentTextStore = attachmentTextStore;
         this.gateTelemetry = gateTelemetry;
@@ -235,6 +247,34 @@ public sealed class EmailSpamClassifier
         return SpamClassificationResult.Classified(classification);
     }
 
+    /// <summary>Reads what this deployment's verdicts already did to the message, so none of it is taken as evidence.</summary>
+    /// <remarks>
+    /// The record of verdict acts is the answer wherever it was written. A message filed before it was — by an earlier
+    /// build, or by an older replica during a rolling upgrade — left only the relocation a verdict asked for, so a message
+    /// in the junk folder with no recorded filing is looked up there too, which is the reading the action recorder makes
+    /// for the same gap. A message anywhere else needs no second read, because only a junk placement is in question.
+    /// </remarks>
+    private async Task<IReadOnlySet<SpamVerdictAct>> FindOwnActsAsync(
+        StoredEmailId emailId,
+        bool isJunkFolder,
+        CancellationToken cancellationToken)
+    {
+        var recorded = await this.verdictActs.FindAsync(emailId, cancellationToken);
+
+        if (!isJunkFolder
+            || recorded.Contains(SpamVerdictAct.FiledIntoJunk)
+            || !await this.mutationRecords.HasRecordAsync(
+                emailId,
+                MailboxMutation.Relocate,
+                MailboxMutationOrigin.Classification,
+                cancellationToken))
+        {
+            return recorded;
+        }
+
+        return new HashSet<SpamVerdictAct>(recorded) { SpamVerdictAct.FiledIntoJunk };
+    }
+
     /// <summary>Reads one occurrence and composes the record its verdict is kept as.</summary>
     private async Task<SpamClassification> EvaluateAsync(
         ClassifiableEmail email,
@@ -243,10 +283,14 @@ public sealed class EmailSpamClassifier
         CancellationToken cancellationToken)
     {
         var facts = await this.headerReader.ReadAsync(content, cancellationToken);
+        var isJunkFolder = this.junkFolders.IsJunkFolder(email.AccountId, email.FolderAlias);
+        var ownActs = await this.FindOwnActsAsync(email.Id, isJunkFolder, cancellationToken);
         var reading = this.deterministicClassifier.Read(
             facts,
             email.FolderAlias,
-            this.junkFolders.IsJunkFolder(email.AccountId, email.FolderAlias));
+            isJunkFolder,
+            email.Keywords,
+            ownActs);
 
         return SpamClassification.Create(
             email.Id,

@@ -199,6 +199,9 @@ internal static class PersistenceConstraintNames
     /// </remarks>
     internal const string EmailSpamClassificationPrimaryKeyConstraintName = "pk_email_spam_classifications";
 
+    /// <summary>The key that records one act per email, and which a second replica recording the same act is recognized by.</summary>
+    internal const string EmailSpamVerdictActPrimaryKeyConstraintName = "pk_email_spam_verdict_acts";
+
     /// <summary>The order one classification's signals are read back in, and what stops an ordinal being written twice.</summary>
     internal const string EmailSpamClassificationSignalOrdinalUniqueIndexName =
         "ix_email_spam_classification_signals_classification_ordinal";

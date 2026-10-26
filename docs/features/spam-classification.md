@@ -9,7 +9,7 @@ the message in the junk folder. Spam classification is what keeps that decision 
 it as derived data beside the message.
 
 Five things ship here and are independent of each other: the classification record with the stage that fills it, mail
-being classified as it arrives, the two switches that let a verdict reach the mail server, spam and the junk folder
+being classified as it arrives, the three switches that let a verdict reach the mail server, spam and the junk folder
 being kept from every agent's read, and junk being kept out of everything this deployment derives from mail. The
 fourth reaches the junk folder in a mailbox with no classification at all.
 
@@ -109,7 +109,10 @@ This build has the record and nothing that fills it: neither the model stage nor
 classification it reaches carries no subcategory and the deterministic stage's profile.
 
 **The profile covers the model's terms and no other operator setting.** The deterministic stage reads what a message
-carried, and nothing an operator configures moves its answer. The model stage's terms — whether it is consulted, whether
+carried, and nothing an operator configures moves its answer. What it reads is part of the digest all the same, so a
+build that teaches it a new fact names a new deterministic profile and the next run decides once more the mail the old
+one decided. This build reads a message's junk keywords, which is why the first run after an upgrade to it re-decides
+existing mail, and a message carrying `$Junk` or `$NotJunk` can change its verdict there once. The model stage's terms — whether it is consulted, whether
 it names the subcategory of deterministic spam, and the threshold its probability is judged against — are what the
 digest adds when the model is consulted, so a change to any of them re-decides mail on the next run, and a deployment
 that does not consult it keeps the deterministic profile. Every record this build writes names that one. The folders an account
@@ -122,7 +125,8 @@ rather than skipping it.
 
 It is the only stage this build runs, and it needs nothing deployed beside this service. It reads the stored message's
 header block —
-never its body, never its MIME tree, never an attachment — and records three kinds of fact.
+never its body, never its MIME tree, never an attachment — with the folder the message is in and the keywords it
+carries, and records four kinds of fact.
 
 **Sender authentication.** Every outcome each `Authentication-Results` header states, once per authenticating hop, with
 the properties the hop wrote beside it. `ARC-Authentication-Results` is read too and recorded as its own kind: an ARC
@@ -142,12 +146,63 @@ becomes an assessment only where the same header carries the threshold it was ju
 **Junk folder placement.** A message in the account's junk folder is spam, and the placement outranks a header saying
 otherwise: somebody's filter already acted on this message, and that action is more recent than the header.
 
-A message whose headers cannot be parsed is classified from its folder alone, which is a weaker classification and an
-honest one. One unreadable message does not stop a run.
+**Junk keywords.** RFC 9051 § 2.3.2 gives a mailbox three standard keywords for this, and other mail clients set and
+read them: `$Junk`, `$NotJunk`, and `$Phishing`. They are read from the keywords stored for the message, without regard
+to case, and each one present is recorded as a signal of its own.
+
+| The message carries | The verdict | Why |
+| --- | --- | --- |
+| `$NotJunk` alone | Not spam, over every other signal — the junk folder and a provider's header included | It is a person's correction, made in whichever client they use |
+| `$Junk`, or `$Phishing`, without `$NotJunk` | Spam, with no subcategory | Another client, the person, or the receiving server's filter marked it; `$Phishing` is read as junk, as RFC 9051 asks, and naming the kind stays a model's |
+| `$Junk` and `$NotJunk` together, both somebody else's | Neither: the verdict is reached as if no junk keyword were there | RFC 9051 reads the pair as no statement at all |
+
+A keyword is read when the message is classified — on arrival, by a run reaching a record decided under other terms, or
+by a run with `--rescore` — and setting one does not by itself classify the message again, for the reason
+[reclassifying is explicit](#classifying-is-idempotent-and-reclassifying-is-explicit). A `$NotJunk` set on a message
+already decided spam therefore turns its verdict on the next run that reaches it.
+
+**No agent sets any of the three through MailFathom.** `set_mail_flags` and every other path an agent or an MCP caller
+changes keywords through refuses an addition or a removal naming `$Junk`, `$NotJunk`, or `$Phishing`, and refuses a
+replacement outright, since a replacement takes off whatever it does not name from what the server carries when it is
+performed and could strip a mark the person set in another client. That is because an agent that has just read the mail would otherwise be steered into turning the verdict on the message
+steering it — and with the verdict, what every agent may read. The person sets them through the client, and another
+mail client sets them on the server; [ADR 0007](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0007-remote-mailbox-mutation-boundary-and-write-session.md)
+records the decision as its axis O.
+
+A message that already carries `$Junk` when it is first stored is therefore spam on arrival wherever it sits, as a
+server that marks junk without filing it can leave one in the inbox; [what an operator can let a verdict
+do](#what-an-operator-can-let-a-verdict-do) decides at once whether it is filed.
+
+A message whose headers cannot be parsed is classified from its folder and its keywords alone, which is a weaker
+classification and an honest one. One unreadable message does not stop a run.
+
+### What MailFathom did is never read back as evidence
+
+A junk folder placement that a verdict of this deployment filed, and a `$Junk` or `$Phishing` that a verdict of this
+deployment wrote, are not signals. Each act a verdict takes on a message is recorded beside the message, in every custody
+phase, and the stage reads that record before it reads the message: otherwise the next run would find the message in the
+junk folder because the last verdict put it there, and a verdict could never be undone by the terms that reached it
+changing. A message an earlier build filed, before acts were recorded, is recognized from the relocation that verdict
+asked for instead.
+
+The record answers by kind of act rather than by who made the mark the message now carries. **Once a verdict has filed a
+message, no junk folder placement of it counts again, and once a verdict has written `$Junk` or `$Phishing`, no `$Junk` or
+`$Phishing` on it counts again** — whoever moves it back into junk or sets the keyword afterwards, and also where the
+keyword was asked for and a folder that keeps no such keyword refused it. A `$NotJunk` is never one of them: beside a
+`$Junk` this deployment wrote it is the person correcting it, and it decides as it would anywhere.
+
+**Leaving the junk folder is not a correction.** Nothing re-decides a message because it moved, so a message moved out
+of junk, in MailFathom or in another client, keeps its verdict until something classifies it again. Then what stands
+depends on what the verdict rested on. The deployment's own filing and keywords are no signal either way, so a verdict
+resting on what the message itself carries — a provider's spam header — stands again and turns only on `$NotJunk`. A
+verdict resting on somebody else's placement or keyword — the receiving
+server's filter, another client's `$Junk` — is decided again on what the message carries then, so moving it out of junk
+or taking that keyword off turns it at that next classification. A first run after upgrading to this build is one such
+classification.
 
 ## Each account decides this for the mail in it
 
-Junk is a judgement about one mailbox, and both of the actions below write to that mailbox's mail server. So **the
+Junk is a judgement about one mailbox, and every action below writes to that mailbox's mail server. So **the
 posture is the account's**: whether the mail in it is classified at all, which of that account's folders are classified,
 and what becomes of the result. An account may be left unclassified entirely, and no deployment setting requires
 otherwise.
@@ -179,7 +234,7 @@ each account instead.
 
 ## What an operator can let a verdict do
 
-Two switches, independent of each other and **both off by default**. With neither on, a verdict is recorded and no
+Three switches, independent of each other and **all off by default**. With none on, a verdict is recorded and no
 mailbox is written to, which is what makes classification safe to watch for a while before it is allowed to act.
 
 **File junk in the junk folder.** The message is moved on the mail server, through the same durable mutation record and
@@ -194,23 +249,55 @@ next section says what happens when they do.
 retrieval still never do, so reading mail on the user's behalf goes on leaving the flag alone. A message the server
 already reports read is not written to at all.
 
-With both on, **the flag is set before the move**. On a server without RFC 6851 `MOVE` a relocation gives the message a
-new UID, so a flag stored afterwards would be aimed at an occurrence the source folder no longer holds.
+**Mark it junk with keywords.** `$Junk` is added, and `$Phishing` beside it where the verdict's spam subcategory is
+phishing, so every client that understands RFC 9051's junk keywords shows the message as junk and warns about phishing.
+It is a keyword addition carried by the same durable record as the other two acts, and the account's `WriteKeywords`
+permission still governs it: an account that refuses keyword changes gets none, and the other switches go on acting.
+`$Phishing` is never written without `$Junk`, because a client is asked to warn only where both are set, and **no verdict
+ever writes `$NotJunk`** — RFC 9051 reads it as *definitely not junk*, which only the person can say, and a verdict that
+found nothing is not that statement. A keyword the message already carries is not written again. A folder whose
+`PERMANENTFLAGS` keeps neither `\*` nor the keyword refuses it, which ends that change as unsupported while filing and
+`\Seen`, each a change of its own, still go ahead.
 
-Nothing else is ever done. No delete, no flag other than `\Seen`, no folder created, nothing sent —
+With the same switch on, **a message carrying `$Junk` and `$NotJunk` together has the `$Junk` taken off**, as RFC 9051
+asks of a client that finds both, whatever the verdict and on a message moved back out of junk as well. Only a filing
+withheld until its destination or its account is known again holds the removal back with it, because what the switches
+ask is then performed whole once it is. A pair somebody else set is cleared whole, a `$Phishing` beside it included —
+the pair cancelled that too, and left alone it would decide junk at the next classification — and on a spam verdict
+that removal stands in place of the `$Junk` the verdict would otherwise owe, on that run and every later one. A `$Junk` this deployment wrote is taken off
+alone, with a `$Phishing` it wrote beside it, because the `$NotJunk` next to it is the person correcting that verdict and
+is what has to stand. It is asked for once per message, read from the record of what verdicts did, so a pair somebody
+sets again after it was cleared is left to them on a mirrored, a held, and a restoring account alike.
+
+With more than one on, **flags and keywords are set before the move**. On a server without RFC 6851 `MOVE` a relocation
+gives the message a new UID, so a flag stored afterwards would be aimed at an occurrence the source folder no longer
+holds.
+
+Nothing else is ever done. No delete, no flag other than `\Seen`, no keyword added other than `$Junk` and `$Phishing`,
+none taken off but the pair above and a `$Phishing` beside it, no folder created, nothing sent.
 [ADR 0007](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0007-remote-mailbox-mutation-boundary-and-write-session.md)
-refuses the rest and this feature does not reopen that record.
+admits a spam verdict among the authors of a flag or keyword change and refuses the rest. A verdict's own acts need
+nothing new from it; this feature reopened it only for axis O, which narrows who may write the three junk keywords.
 
-**On an account whose mailbox MailFathom holds itself**, there is no server to write to, so both acts are made to the
+**On an account whose mailbox MailFathom holds itself**, there is no server to write to, so every act is made to the
 stored message as the classification commits, where the junk destination is a mapping the account mirrors: the message
-is marked read and filed into the account's local junk folder in that transaction, with an audit entry for each where
-the account keeps one. Nothing is written down to converge later, which is also why a held message moved back out of
-junk is not recognized as one already filed. **An account being restored to its source commits the same way and also
-records**: where the message still stands on the source, the same transaction opens the records the run carries there,
-so a verdict reached during the restore reaches the mailbox instead of being undone by it, and the answer names them
-beside the acts it applied. **An unmirrored junk destination resolves to nothing on a held account**,
-and so does one no local folder corresponds to, so the verdict ends as an unresolved destination and neither act is
-made — the message stays unread where it is.
+is marked read, given its keywords, and filed into the account's local junk folder in that transaction, with an audit
+entry for each where the account keeps one. Nothing is written down to converge later, but what the verdict did is: the
+same transaction records each act beside the message, which is what lets a held message moved back out of junk be
+recognized as one already filed, exactly as a mirrored one is. **An account being restored to its source commits the
+same way and also records**: where the message still stands on the source, the same transaction opens the records the
+run carries there, so a verdict reached during the restore reaches the mailbox instead of being undone by it, and the
+answer names them beside the acts it applied. The restore itself carries every keyword a held message has wherever
+the source folder keeps them, so a held mailbox goes back to its source with each verdict in the form other clients
+read; a folder whose `PERMANENTFLAGS` keeps neither `\*` nor every keyword the message holds takes it back with none. **An unmirrored junk destination
+resolves to nothing on a held account**, and so does one no local folder corresponds to, so where filing is on the
+verdict ends as an unresolved destination and no act is made — the message stays unread where it is.
+
+**What can decide on a held account whose source only relays mail** is stated rather than left to be discovered: the
+headers the source delivered a message with, the folder it delivered it into, and the `$Junk` or `$NotJunk` the person
+sets, through MailFathom's own keyword acts or in any client while the source still holds the message. A relay that runs
+no filter, writes no `X-Spam-*` header, and files nothing leaves the person's own keywords as the whole of what decides,
+and `mfctl spam` says so in its help.
 
 ### Where junk is filed, and why it need not be mirrored
 
@@ -236,11 +323,16 @@ nothing said about why.
 Two rules keep filing from becoming an argument with the person whose mailbox it is.
 
 A message already in the destination is not moved into it. And a message this feature has already asked to have filed,
-which is not in the destination, is **left alone entirely** — not filed again, and not marked read again. Either
+which is not in the destination, is **left alone** — not filed again, not marked read again, and given no keyword, the
+one removal of a `$Junk` and `$NotJunk` pair above being the only change still asked of it. Either
 somebody moved it back out, which is exactly the correction a false positive is supposed to have, or the change is
 written down and has not been carried out yet; asking again would argue with the first or duplicate the second. That is
-read from the durable mutation record rather than from the message, because the record is what survives the message
-moving.
+read from the durable mutation record, and from the record of what the verdict did that every custody phase keeps,
+rather than from the message, because those records are what survive the message moving.
+
+The same holds for a keyword. A `$Junk` or `$Phishing` a verdict already wrote, which the message no longer carries, is
+not written again: somebody removed it, and a client removing a junk keyword is exactly the kind of correction this rule
+leaves alone. `$Phishing` can still follow a `$Junk` that is there, when a later verdict names the subcategory.
 
 The two readings are deliberately not told apart. Doing so would mean treating a change that ran out of attempts as
 licence to file afresh — and a message that sat there failing to move is precisely the one somebody is most likely to
@@ -261,13 +353,15 @@ edit that stops the acting while the verdicts go on being recorded.
 ### Asking twice is one change
 
 A change is written down under an identity made of the occurrence, the mutation, and what asked for it — and what asked
-here is the **stage that decided the verdict**. Classifying the same message again therefore asks for nothing new. A
+here is the **stage that decided the verdict**, together with the keywords for a keyword change, so asking for
+`$Phishing` after `$Junk` is a change of its own rather than the first one again. Classifying the same message again
+therefore asks for nothing new. A
 rule and a classification are told apart on the record by their origin, so an operator reading a stuck change knows
 whether to look at a rule they wrote or at this section.
 
 Where a filing has nowhere to go — a mapping withdrawn while mail was being classified, a mirrored folder no run has
 bound yet, a folder the server advertises none of, or a role two folders carry — **nothing is written down at all**,
-including a `\Seen` change asked for beside it. The same holds for an account a reload stopped declaring, whose answer
+including a `\Seen` or keyword change asked for beside it. The same holds for an account a reload stopped declaring, whose answer
 about mail it files away is then nobody's to guess. Marking spam read while leaving it in the inbox takes the unread
 marker off mail that is still there, which is worse than waiting; a later attempt performs the pair whole.
 
@@ -438,7 +532,7 @@ beside it, in the job's own payload, which names the account, the folder, and th
 
 The changes an operator's switches ask of the mailbox are applied to a verdict reached this way exactly as they are to
 one a run reached; [what an operator can let a verdict do](#what-an-operator-can-let-a-verdict-do) is the whole of that
-decision, and both switches are still off by default.
+decision, and every switch is still off by default.
 [The arrival pipeline](../architecture/arrival-pipeline.md) draws where this sits among the stages it orders.
 
 ## Classifying the mail you already have
@@ -512,7 +606,7 @@ Nothing. Every switch is off by default, and the checks run in the order of what
 on at all is free, the scope and any existing record are one lookup each, and only then is a message's content read. An
 occurrence outside the configured scope therefore costs no read of its mail.
 
-The action switches are the same shape. With both off, deciding what a verdict causes is one property read and nothing
+The action switches are the same shape. With all three off, deciding what a verdict causes is one property read and nothing
 else: no mailbox is looked at, **no write session is ever obtained**, and no account holds the write connection that
 would carry a change.
 
@@ -537,7 +631,7 @@ because they bound what one pass of the process spends rather than what happens 
 schedule — how often a pass happens is the account's own synchronization interval. So is how long a message may wait on
 a verdict before derived work runs for it unclassified.
 
-`Actions` holds the two switches and the folder junk is filed into; it is read per verdict, so switching filing on
+`Actions` holds the three switches and the folder junk is filed into; it is read per verdict, so switching filing on
 reaches the next one without a restart. An account's own record carries `Actions` and the posture above it, and none of
 the engine settings — a record reaching for one is refused by the strict binding that reads it.
 
@@ -584,7 +678,8 @@ A classification is derived from mail content and inherits its classification, r
 record hangs off the stored email, whether or not a mail server still holds it, and is removed with it, so whatever erasure and retention already reach the
 message reach the record too. A change a verdict asked for is the same kind of thing and follows the same rule: the
 mutation record says where a person's mail was moved and holds a folder path, a UID, and the deciding stage — never
-anything from the message — and it is removed with the email it describes.
+anything from the message — and it is removed with the email it describes. So is the record of what a verdict did to a
+message, which holds which act it was and when, and nothing else.
 
 Nothing about a message's content reaches a log line or a telemetry attribute from any path here — not a header value,
 not an authentication detail, not a subject. What is safe to report is the occurrence identifier, the folder alias, the

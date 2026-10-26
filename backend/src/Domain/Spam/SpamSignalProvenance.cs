@@ -30,7 +30,7 @@ public sealed record SpamSignalProvenance
     /// <summary>Gets where the signal was read from.</summary>
     public SpamSignalSource Source { get; }
 
-    /// <summary>Gets what within that source named the signal: a header field name, a folder alias, or a model build and instruction revision.</summary>
+    /// <summary>Gets what within that source named the signal: a header field name, a folder alias, a mailbox keyword, or a model build and instruction revision.</summary>
     public string Origin { get; }
 
     /// <summary>Records that a signal was read out of one of the message's own headers.</summary>
@@ -46,6 +46,13 @@ public sealed record SpamSignalProvenance
     /// <exception cref="ArgumentException">Thrown when the alias is blank, over-long, or carries a control character.</exception>
     public static SpamSignalProvenance FromFolderPlacement(string folderAlias) =>
         new(SpamSignalSource.FolderPlacement, Checked(folderAlias, nameof(folderAlias)));
+
+    /// <summary>Records that a signal is a keyword the message carries in its mailbox.</summary>
+    /// <param name="keyword">The keyword, as it is stored.</param>
+    /// <returns>The provenance.</returns>
+    /// <exception cref="ArgumentException">Thrown when the keyword is blank, over-long, or carries a control character.</exception>
+    public static SpamSignalProvenance FromMailboxKeyword(string keyword) =>
+        new(SpamSignalSource.MailboxKeyword, Checked(keyword, nameof(keyword)));
 
     /// <summary>Records that a signal is a decision model's judgement, and which call produced it.</summary>
     /// <param name="model">The model build that answered, as the response named it rather than as configuration named it.</param>

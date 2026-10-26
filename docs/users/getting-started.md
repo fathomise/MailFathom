@@ -390,7 +390,7 @@ A connected client whose user holds `User`, as [step 6](#6-record-the-mailbox) a
 least fourteen tools — `list_accounts`, `list_emails`,
 `get_email_content`, `search_emails`, each advertising itself as read-only, non-destructive, and idempotent;
 `set_mail_flags`, which marks, stars, and labels a message and announces itself as neither read-only nor confined to
-this process, and as destructive because a keyword replacement states the whole set; and `send_email`,
+this process, and as destructive because a removal takes a label or a flag off; and `send_email`,
 `reply_to_email`, and `forward_email`, which announce
 themselves the same way and are destructive on the other ground — each takes nothing away and nothing takes it back.
 Beside those, `get_outgoing_email` reports what became of a message one of them queued and `list_outgoing_emails`

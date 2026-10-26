@@ -85,6 +85,91 @@ public sealed class MailFlagChangeRecorderTests
         Assert.Equal(StoredIn, result.Folder);
     }
 
+    /// <summary>
+    /// The spam verdict reads the junk keywords, so an agent adding or removing one would be turning the verdict on a
+    /// message it may just have been steered by; the refusal comes before anything is written.
+    /// </summary>
+    /// <param name="direction">Whether the agent asks to add or to remove the keyword.</param>
+    /// <param name="keyword">The junk keyword it names, in a spelling of its own.</param>
+    [Theory]
+    [InlineData(MailKeywordChangeDirection.Add, "$NotJunk")]
+    [InlineData(MailKeywordChangeDirection.Add, "$junk")]
+    [InlineData(MailKeywordChangeDirection.Add, "$Phishing")]
+    [InlineData(MailKeywordChangeDirection.Remove, "$Junk")]
+    public async Task RecordAsync_AnAgentNamingAJunkKeyword_IsRefusedWithoutWritingAnything(
+        MailKeywordChangeDirection direction,
+        string keyword)
+    {
+        // Arrange
+        var records = new InMemoryMailboxMutationRecordStore();
+        var recorder = RecorderOver(records, TargetIn(Inbox));
+        var change = AuthoredMailFlagChange.Create(LocalEmail, seen: true, null, direction, ["$Todo", keyword]);
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<MailFlagChangeInvalidException>(() =>
+            recorder.RecordAsync(change, Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomErrorCode.MailFlagChangeInvalid, refusal.ErrorCode);
+        Assert.Equal(0, records.OpenedRecordCount);
+    }
+
+    /// <summary>
+    /// A replacement takes off whatever it does not name from the set the server carries when it is performed, which may
+    /// hold a junk keyword the person set elsewhere since the last synchronization, so an agent's one is refused whatever
+    /// it names.
+    /// </summary>
+    /// <param name="keywords">The set the agent asks the message to carry.</param>
+    [Theory]
+    [InlineData("$Todo")]
+    [InlineData("$Junk", "$Waiting")]
+    [InlineData]
+    public async Task RecordAsync_AnAgentReplacement_IsRefusedWhateverItNames(params string[] keywords)
+    {
+        // Arrange
+        var records = new InMemoryMailboxMutationRecordStore();
+        var recorder = RecorderOver(records, TargetIn(Inbox));
+        var change = AuthoredMailFlagChange.Create(LocalEmail, null, null, MailKeywordChangeDirection.Replace, keywords);
+
+        // Act, Assert
+        await Assert.ThrowsAsync<MailFlagChangeInvalidException>(() =>
+            recorder.RecordAsync(change, Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
+        Assert.Equal(0, records.OpenedRecordCount);
+    }
+
+    /// <summary>The person may still replace a message's keywords, junk keywords included.</summary>
+    [Fact]
+    public async Task RecordAsync_ThePersonsReplacement_IsRecorded()
+    {
+        // Arrange
+        var records = new InMemoryMailboxMutationRecordStore();
+        var recorder = RecorderOver(records, TargetIn(Inbox));
+        var change = AuthoredMailFlagChange.Create(LocalEmail, null, null, MailKeywordChangeDirection.Replace, ["$NotJunk", "$Todo"]);
+
+        // Act
+        var result = await recorder.RecordAsync(change, Requester, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([MailboxMutation.SetKeywords], result.Recorded.Select(recorded => recorded.Mutation));
+    }
+
+    /// <summary>The person is who the junk keywords belong to, so their own change naming one is recorded as any other.</summary>
+    [Fact]
+    public async Task RecordAsync_ThePersonNamingNotJunk_IsRecorded()
+    {
+        // Arrange
+        var records = new InMemoryMailboxMutationRecordStore();
+        var recorder = RecorderOver(records, TargetIn(Inbox));
+        var change = AuthoredMailFlagChange.Create(LocalEmail, null, null, MailKeywordChangeDirection.Add, ["$NotJunk"]);
+
+        // Act
+        var result = await recorder.RecordAsync(change, Requester, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([MailboxMutation.AddKeywords], result.Recorded.Select(recorded => recorded.Mutation));
+        Assert.Equal(1, records.OpenedRecordCount);
+    }
+
     /// <summary>Reaching a mailbox at all is the grant's question, asked before the email is looked up.</summary>
     [Fact]
     public async Task RecordAsync_ACallerWithoutTheWritingGrant_IsRefusedWithoutWritingAnything()

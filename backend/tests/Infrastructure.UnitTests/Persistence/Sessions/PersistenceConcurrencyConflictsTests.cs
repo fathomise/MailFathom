@@ -26,6 +26,7 @@ public sealed class PersistenceConcurrencyConflictsTests
         PersistenceConstraintNames.MailRuleEvaluationRunPrimaryKeyConstraintName,
         PersistenceConstraintNames.SpamClassificationRunPrimaryKeyConstraintName,
         PersistenceConstraintNames.EmailSpamClassificationPrimaryKeyConstraintName,
+        PersistenceConstraintNames.EmailSpamVerdictActPrimaryKeyConstraintName,
         PersistenceConstraintNames.EmailChunkOrdinalUniqueIndexName,
         PersistenceConstraintNames.EmailEnrichmentPrimaryKeyConstraintName,
         PersistenceConstraintNames.EmailEnrichmentMarkAspectUniqueIndexName,

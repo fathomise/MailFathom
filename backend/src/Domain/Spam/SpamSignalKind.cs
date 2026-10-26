@@ -32,4 +32,12 @@ public enum SpamSignalKind
     /// questioned verdict can be traced to the exact call that produced it rather than to whatever is configured now.
     /// </remarks>
     ModelJudgement = 5,
+
+    /// <summary>A junk keyword of RFC 9051 § 2.3.2 the message carries in its mailbox: <c>$Junk</c>, <c>$NotJunk</c>, or <c>$Phishing</c>.</summary>
+    /// <remarks>
+    /// Whoever set it — the person, another mail client, or the receiving server's own filter — it is what every other
+    /// client reads a junk marking from, so a correction made anywhere reaches MailFathom through it. A keyword this
+    /// deployment's own verdict wrote is never recorded as one.
+    /// </remarks>
+    JunkKeyword = 6,
 }

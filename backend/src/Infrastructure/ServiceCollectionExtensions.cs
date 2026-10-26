@@ -861,6 +861,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEmailSpamClassificationStore, EmailSpamClassificationStore>();
         services.AddScoped<IClassifiableEmailReader, ClassifiableEmailReader>();
         services.AddScoped<ISpamActionOccurrenceReader, SpamActionOccurrenceReader>();
+        services.AddScoped<ISpamVerdictActStore, EmailSpamVerdictActStore>();
         services.AddScoped<ISpamClassificationRunStore, SpamClassificationRunStore>();
         services.AddScoped<ISpamClassificationHistoryReader, SpamClassificationHistoryReader>();
         services.AddScoped<SpamClassificationRunReader>();

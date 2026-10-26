@@ -7,6 +7,7 @@ using System.Text;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Chunking;
+using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Signals;
@@ -14,6 +15,7 @@ using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Mutations;
 using MailFathom.Domain.Spam;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
@@ -38,6 +40,10 @@ public sealed class EmailSpamClassifierTests
     private static readonly DateTimeOffset EvaluatedAt = new(2026, 8, 12, 9, 0, 0, TimeSpan.Zero);
 
     private readonly InMemoryEmailSpamClassificationStore store = new();
+
+    private readonly InMemorySpamVerdictActStore verdictActs = new();
+
+    private readonly IMailboxMutationRecordStore mutationRecords = Substitute.For<IMailboxMutationRecordStore>();
 
     private readonly IEmailContentStore contentStore = ContentStores.Substituted();
 
@@ -354,7 +360,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Junk),
             SpamHeaderFacts.None,
-            email: new ClassifiableEmail(Occurrence, Account, Junk),
+            email: new ClassifiableEmail(Occurrence, Account, Junk, RemoteEmailKeywords.None),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
 
         // Act
@@ -371,6 +377,97 @@ public sealed class EmailSpamClassifierTests
         Assert.Equal(SpamClassificationOutcome.Classified, result.Outcome);
         Assert.Equal(SpamVerdict.Spam, saved.Verdict);
         Assert.Equal(SpamSignalKind.JunkFolderPlacement, signal.Kind);
+    }
+
+    /// <summary>
+    /// A message an earlier build's verdict filed left a relocation and no recorded act, and its placement is still the
+    /// deployment's own rather than evidence a reclassification may rest on.
+    /// </summary>
+    [Fact]
+    public async Task ClassifyAsync_AMessageAnEarlierVerdictFiledBeforeItsActsWereRecorded_DoesNotReadThePlacementBack()
+    {
+        // Arrange
+        this.mutationRecords
+            .HasRecordAsync(
+                Occurrence,
+                MailboxMutation.Relocate,
+                MailboxMutationOrigin.Classification,
+                Arg.Any<CancellationToken>())
+            .Returns(true);
+        var classifier = this.Classifier(
+            SettingsCovering(Junk),
+            SpamHeaderFacts.None,
+            email: new ClassifiableEmail(Occurrence, Account, Junk, RemoteEmailKeywords.None),
+            junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
+
+        // Act
+        await classifier.ClassifyAsync(
+            Account,
+            Occurrence,
+            SpamClassificationMode.FirstTimeOnly,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var saved = Assert.Single(this.store.Saved);
+
+        Assert.Equal(SpamVerdict.Undetermined, saved.Verdict);
+        Assert.Empty(saved.Signals);
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_AJunkKeywordAnEarlierVerdictWrote_IsNotReadBackAsEvidence()
+    {
+        // Arrange
+        this.verdictActs.With(Occurrence, SpamVerdictAct.MarkedJunk);
+        var classifier = this.Classifier(
+            SettingsCovering(Inbox),
+            SpamHeaderFacts.None,
+            email: new ClassifiableEmail(Occurrence, Account, Inbox, RemoteEmailKeywords.Create(["$Junk"])));
+
+        // Act
+        await classifier.ClassifyAsync(
+            Account,
+            Occurrence,
+            SpamClassificationMode.FirstTimeOnly,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var saved = Assert.Single(this.store.Saved);
+
+        Assert.Equal(SpamVerdict.Undetermined, saved.Verdict);
+        Assert.DoesNotContain(saved.Signals, signal => signal.Kind is SpamSignalKind.JunkKeyword);
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_AJunkFolderPlacementAnEarlierVerdictRecorded_IsNotReadBackAsEvidence()
+    {
+        // Arrange
+        this.verdictActs.With(Occurrence, SpamVerdictAct.FiledIntoJunk);
+        var classifier = this.Classifier(
+            SettingsCovering(Junk),
+            SpamHeaderFacts.None,
+            email: new ClassifiableEmail(Occurrence, Account, Junk, RemoteEmailKeywords.None),
+            junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
+
+        // Act
+        await classifier.ClassifyAsync(
+            Account,
+            Occurrence,
+            SpamClassificationMode.FirstTimeOnly,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var saved = Assert.Single(this.store.Saved);
+
+        Assert.Equal(SpamVerdict.Undetermined, saved.Verdict);
+        Assert.Empty(saved.Signals);
+        await this.mutationRecords
+            .DidNotReceive()
+            .HasRecordAsync(
+                Arg.Any<StoredEmailId>(),
+                Arg.Any<MailboxMutation>(),
+                Arg.Any<MailboxMutationOrigin>(),
+                Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -405,13 +502,13 @@ public sealed class EmailSpamClassifierTests
         var inTheArchive = this.Classifier(
             SettingsCovering(Inbox),
             flagged,
-            new ClassifiableEmail(Occurrence, Archive, Inbox),
+            new ClassifiableEmail(Occurrence, Archive, Inbox, RemoteEmailKeywords.None),
             classifying: Account);
 
         var inTheClassifiedMailbox = this.Classifier(
             SettingsCovering(Inbox),
             flagged,
-            new ClassifiableEmail(Occurrence, Account, Inbox),
+            new ClassifiableEmail(Occurrence, Account, Inbox, RemoteEmailKeywords.None),
             classifying: Account);
 
         // Act
@@ -479,7 +576,7 @@ public sealed class EmailSpamClassifierTests
         var emailReader = Substitute.For<IClassifiableEmailReader>();
         emailReader
             .FindAsync(Arg.Any<MailAccountId>(), Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>())
-            .Returns(withEmail ? email ?? new ClassifiableEmail(Occurrence, Account, Inbox) : null);
+            .Returns(withEmail ? email ?? new ClassifiableEmail(Occurrence, Account, Inbox, RemoteEmailKeywords.None) : null);
 
         this.contentStore
             .FindStoredContentAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>())
@@ -505,6 +602,8 @@ public sealed class EmailSpamClassifierTests
             new DeterministicSpamClassifier(),
             settingsReader,
             this.store,
+            this.verdictActs,
+            this.mutationRecords,
             this.chunkStore,
             this.attachmentTextStore,
             this.gateTelemetry,

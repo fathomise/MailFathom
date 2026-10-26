@@ -607,6 +607,7 @@ SignalBackplane:ConnectionString:Password = <recursive ConfiguredSecret> (option
 SignalBackplane:ConnectionString:SecretReference = string (optional)
 SpamClassification:Actions:JunkFolder = string? (optional)
 SpamClassification:Actions:MarkAsRead = bool (optional)
+SpamClassification:Actions:MarkWithJunkKeywords = bool (optional)
 SpamClassification:Actions:MoveToJunkFolder = bool (optional)
 SpamClassification:ClassificationWait = TimeSpan (optional)
 SpamClassification:Enabled = bool (optional)

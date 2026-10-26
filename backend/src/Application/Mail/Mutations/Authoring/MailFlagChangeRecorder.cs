@@ -6,6 +6,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Mail.Mutations.Authoring.Failures;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Spam.Signals;
 using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Folders;
@@ -35,6 +36,15 @@ namespace MailFathom.Application.Mail.Mutations.Authoring;
 /// is the one a read does not share: a local copy retained after MailFathom deleted the message, which a listing serves
 /// because the mail is readable while the UID it carries names an occurrence the server expunged. All four produce one
 /// answer, because telling them apart would let a caller learn which identifiers exist by asking about them.
+/// </para>
+/// <para>
+/// The three junk keywords RFC 9051 defines are the person's alone among callers. The spam verdict reads them, so a
+/// <c>$NotJunk</c> decides a message is not spam and with it what every agent may read; an agent that has just read the
+/// mail would otherwise be steered into turning the verdict on the very message steering it. So any reader but the person
+/// is refused an addition or a removal naming one of them, and refused a replacement outright: a replacement takes off
+/// whatever it does not name from the set the server carries when it is performed, which nothing here can read in
+/// advance, so it cannot be told apart from one that strips a <c>$Junk</c> somebody set elsewhere. That is axis O of
+/// ADR 0007. The verdict writes the three through a requester of its own and is not a caller here.
 /// </para>
 /// <para>
 /// The records for one call are opened in one commit, so a call either writes down everything it asked for or nothing.
@@ -91,7 +101,7 @@ public sealed class MailFlagChangeRecorder
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="change" /> or <paramref name="requester" /> is <see langword="null" />.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the writing grant.</exception>
     /// <exception cref="AuthoredMailChangeTargetNotFoundException">Thrown when this deployment serves no readable email under that identity, or when the email it serves names a remote occurrence the mail server no longer holds.</exception>
-    /// <exception cref="MailFlagChangeInvalidException">Thrown when the requester identity already names one of these mutations on this occurrence with a different value.</exception>
+    /// <exception cref="MailFlagChangeInvalidException">Thrown when a reader other than the person names a junk keyword or asks for a replacement, or when the requester identity already names one of these mutations on this occurrence with a different value.</exception>
     /// <remarks>
     /// A change asked for twice under one requester identity is one change: the record store admits one record per
     /// occurrence, requester, and mutation, and the second call is answered with the record the first opened. That is
@@ -124,6 +134,16 @@ public sealed class MailFlagChangeRecorder
                 cancellationToken))
         {
             throw new AuthoredMailChangeTargetNotFoundException();
+        }
+
+        // Asked once the email is known to be readable, so the refusal says nothing about mail the reader may not reach,
+        // and of every reader but the person: an agent is the zero value, so a request that forgot to name its reader
+        // is refused rather than admitted.
+        if (reader is not MailboxReaderKind.Person
+            && change.Mutations().Any(mutation => mutation.Mutation == MailboxMutation.SetKeywords
+                || (mutation.Keywords is { } named && JunkKeywords.AreNamedIn(named))))
+        {
+            throw MailFlagChangeInvalidException.JunkKeywordsArePersons();
         }
 
         var requests = change.Mutations()

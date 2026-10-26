@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Globalization;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Spam;
 
@@ -19,7 +20,8 @@ namespace MailFathom.Application.Spam.Signals;
 /// </para>
 /// <para>
 /// What decides the verdict is deliberately narrower than what is recorded. A provider's own verdict decides, and a
-/// junk-folder placement outranks it because that is a decision somebody already acted on. An authentication failure
+/// junk-folder placement or a junk keyword outranks it because that is a decision somebody already acted on — a person's
+/// <c>$NotJunk</c> above all of them. An authentication failure
 /// does not: a DMARC failure is something the receiving server saw and chose to deliver anyway, and turning it into a
 /// spam verdict here would file mail the operator's own provider decided to accept. It is recorded as its own signal so
 /// a reader can see it, which is what the record is for.
@@ -46,37 +48,99 @@ public sealed class DeterministicSpamClassifier
 
     private const string ThresholdProperty = "required=";
 
-    /// <summary>Reads a verdict out of one message's headers and where the mailbox filed it.</summary>
+    /// <summary>Reads a verdict out of one message's headers, its junk keywords, and where the mailbox filed it.</summary>
     /// <param name="facts">What the message's headers carried.</param>
     /// <param name="folderAlias">MailFathom's own name for the folder the occurrence was stored from.</param>
     /// <param name="isJunkFolder">Whether that folder is the one the account advertises as its junk folder.</param>
+    /// <param name="keywords">The keywords the message carries in its mailbox.</param>
+    /// <param name="ownActs">What this deployment's own verdicts already did to the message, none of which is evidence.</param>
     /// <returns>The verdict, the assessment when a source carried both numbers, and every observed fact.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="facts" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="facts" />, <paramref name="keywords" />, or <paramref name="ownActs" /> is <see langword="null" />.</exception>
     /// <remarks>
-    /// Nothing here reads the body, and nothing here writes. The same headers produce the same reading whenever it runs,
+    /// <para>
+    /// Nothing here reads the body, and nothing here writes. The same facts produce the same reading whenever it runs,
     /// which is what lets a classification be recomputed for an occurrence without the message being fetched again.
+    /// </para>
+    /// <para>
+    /// The order is the order of who said it. <c>$NotJunk</c> is the person's own correction and decides
+    /// <see cref="SpamVerdict.NotSpam" /> over everything else. <c>$Junk</c> or <c>$Phishing</c> somebody else set, and a
+    /// junk-folder placement somebody else made, decide <see cref="SpamVerdict.Spam" />, because each is a decision already
+    /// acted on. A provider's header decides only where none of those spoke. <c>$Junk</c> and <c>$NotJunk</c> together
+    /// cancel, as RFC 9051 requires, and the verdict is reached as if no junk keyword were there.
+    /// </para>
+    /// <para>
+    /// A keyword or a placement this deployment's verdict produced is left out entirely, signal and all. Counting it would
+    /// turn a model's verdict into a deterministic one on the next run, and changing the model, its threshold, or its
+    /// instructions could then never undo it.
+    /// </para>
     /// </remarks>
     public DeterministicSpamReading Read(
         SpamHeaderFacts facts,
         MailFolderAlias folderAlias,
-        bool isJunkFolder)
+        bool isJunkFolder,
+        RemoteEmailKeywords keywords,
+        IReadOnlySet<SpamVerdictAct> ownActs)
     {
         ArgumentNullException.ThrowIfNull(facts);
+        ArgumentNullException.ThrowIfNull(keywords);
+        ArgumentNullException.ThrowIfNull(ownActs);
 
         var providerVerdict = ProviderVerdict(facts.ProviderHeaders);
+        var marks = MarksSetByOthers(keywords, ownActs);
+        var isPlacedByOthers = isJunkFolder && !ownActs.Contains(SpamVerdictAct.FiledIntoJunk);
 
         IReadOnlyList<SpamSignal> signals =
         [
-            .. PlacementSignals(folderAlias, isJunkFolder),
+            .. marks.Select(static keyword => SpamSignal.Create(
+                SpamSignalKind.JunkKeyword,
+                keyword,
+                observation: null,
+                SpamSignalProvenance.FromMailboxKeyword(keyword))),
+            .. PlacementSignals(folderAlias, isPlacedByOthers),
             .. AuthenticationSignals(facts.AuthenticationResults),
             .. ProviderSignals(facts.ProviderHeaders),
         ];
 
-        // The placement outranks the header because it is a decision already acted on: the message is in the folder the
-        // operator's own provider files junk into, whatever any header of it says.
-        var verdict = isJunkFolder ? SpamVerdict.Spam : providerVerdict.Verdict;
+        var verdict = KeywordVerdict(marks) switch
+        {
+            SpamVerdict.Undetermined when isPlacedByOthers => SpamVerdict.Spam,
+            SpamVerdict.Undetermined => providerVerdict.Verdict,
+            var decided => decided,
+        };
 
         return new DeterministicSpamReading(verdict, providerVerdict.Assessment, signals);
+    }
+
+    /// <summary>Reads the junk keywords the message carries that somebody other than this deployment's verdict set.</summary>
+    private static IReadOnlyList<string> MarksSetByOthers(RemoteEmailKeywords keywords, IReadOnlySet<SpamVerdictAct> ownActs)
+    {
+        (string Keyword, SpamVerdictAct? WrittenAs)[] junkKeywords =
+        [
+            (JunkKeywords.NotJunk, null),
+            (JunkKeywords.Junk, SpamVerdictAct.MarkedJunk),
+            (JunkKeywords.Phishing, SpamVerdictAct.MarkedPhishing),
+        ];
+
+        return
+        [
+            .. junkKeywords
+                .Where(candidate => JunkKeywords.Carries(keywords, candidate.Keyword))
+                .Where(candidate => candidate.WrittenAs is not { } act || !ownActs.Contains(act))
+                .Select(static candidate => candidate.Keyword),
+        ];
+    }
+
+    /// <summary>Reads what the junk keywords somebody else set decide, which is nothing where they cancel or are absent.</summary>
+    private static SpamVerdict KeywordVerdict(IReadOnlyList<string> marks)
+    {
+        var junk = marks.Contains(JunkKeywords.Junk);
+
+        if (marks.Contains(JunkKeywords.NotJunk))
+        {
+            return junk ? SpamVerdict.Undetermined : SpamVerdict.NotSpam;
+        }
+
+        return junk || marks.Contains(JunkKeywords.Phishing) ? SpamVerdict.Spam : SpamVerdict.Undetermined;
     }
 
     private static IEnumerable<SpamSignal> PlacementSignals(MailFolderAlias folderAlias, bool isJunkFolder)

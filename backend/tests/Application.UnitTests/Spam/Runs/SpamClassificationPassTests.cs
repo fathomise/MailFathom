@@ -366,7 +366,8 @@ public sealed class SpamClassificationPassTests
         this.harness.Emails.Add(new ClassifiableEmail(
             StoredEmailId.Create(Guid.Parse($"0199a0c0-0000-7000-8000-{++this.storedEmailCount:D12}")),
             accountId ?? Account,
-            folderAlias ?? Inbox));
+            folderAlias ?? Inbox,
+            RemoteEmailKeywords.None));
 
     private SpamClassificationRun RequestedRun(
         SpamActionPosture posture = SpamActionPosture.Acting,

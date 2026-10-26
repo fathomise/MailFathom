@@ -125,7 +125,8 @@ public sealed class OccurrenceSpamClassificationHandlerTests
         var emailId = this.harness.Emails.Add(new ClassifiableEmail(
             StoredEmailId.Create(Guid.Parse("0199a0c0-0000-7000-8000-000000000001")),
             Account,
-            Inbox));
+            Inbox,
+            RemoteEmailKeywords.None));
 
         this.harness.Emails.AddOccurrence(Occurrence, emailId);
 
