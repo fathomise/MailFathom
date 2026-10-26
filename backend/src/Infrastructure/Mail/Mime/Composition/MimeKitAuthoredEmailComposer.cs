@@ -560,9 +560,10 @@ internal sealed class MimeKitAuthoredEmailComposer(
         // Replaced rather than added, because an occasion is serialized from a stored draft that may already carry it.
         message.Headers.Replace(HeaderId.UserAgent, UserAgent);
 
-        message.Prepare(
-            capabilities.AcceptsEightBitContent ? EncodingConstraint.EightBit : EncodingConstraint.SevenBit,
-            format.MaxLineLength);
+        // Seven bits whatever this server advertises: 8BITMIME is one hop's promise, a later relay may re-encode an
+        // eight-bit body, and a re-encoded body breaks every signature over it — the organization's, S/MIME's, and
+        // PGP/MIME's alike. Headers are untouched, so an internationalized address still needs SMTPUTF8.
+        message.Prepare(EncodingConstraint.SevenBit, format.MaxLineLength);
 
         using var composed = new MemoryStream();
         message.WriteTo(format, composed);

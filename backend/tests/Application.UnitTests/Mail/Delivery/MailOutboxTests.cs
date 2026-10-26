@@ -11,6 +11,7 @@ using MailFathom.Application.Mail.Delivery.Governance;
 using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Delivery.Screening;
+using MailFathom.Application.Mail.Delivery.Signing;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.SensitiveContent;
 using MailFathom.Application.SensitiveContent.Detection;
@@ -68,6 +69,55 @@ public sealed class MailOutboxTests
             record.Id,
             Arg.Is<PlacedEmailContent>(placed => placed!.RawMime.ToArray().SequenceEqual(RawMime.ToArray())),
             Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// The signed bytes are what is stored and what the record measures, because every attempt sends and every filing
+    /// appends what was stored here.
+    /// </summary>
+    [Fact]
+    public async Task EnqueueAsync_AnAccountItsOrganizationSignsFor_StoresTheSignedMessage()
+    {
+        // Arrange
+        const string signature = "MailFathom-Organization-Signature: v=1; a=ed25519-sha256\r\n";
+        var signer = OrganizationMailSigners.Adding(signature);
+        var contentStore = ContentStores.Substituted();
+        var stagedSessions = new List<IPersistenceSession>();
+        var outbox = CreateOutbox(new InMemoryOutgoingEmailStore(), contentStore, stagedSessions, signer: signer);
+        byte[] signedMime = [.. Encoding.ASCII.GetBytes(signature), .. RawMime.ToArray()];
+
+        // Act
+        var record = (await outbox.EnqueueAsync(CreateRequest("mfctl-4f2a"), RawMime, CancellationToken.None)).Record;
+
+        // Assert
+        var (signedFor, handedOver) = Assert.Single(signer.Requests);
+        Assert.Equal(Account, signedFor);
+        Assert.Equal(RawMime.ToArray(), handedOver);
+        Assert.Equal(signedMime.Length, record.MimeByteLength);
+        await contentStore.Received(1).PlaceContentAsync(
+            EmailContentKind.OutgoingMessage,
+            Arg.Is<ReadOnlyMemory<byte>>(placed => placed.ToArray().SequenceEqual(signedMime)),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A send the deployment refuses is never signed, because a refusal leaves nothing behind and spends nothing on a key.</summary>
+    [Fact]
+    public async Task EnqueueAsync_ASendTheDeploymentRefuses_IsNeverSigned()
+    {
+        // Arrange
+        var signer = OrganizationMailSigners.Adding("MailFathom-Organization-Signature: v=1\r\n");
+        var outbox = CreateOutbox(
+            new InMemoryOutgoingEmailStore(),
+            ContentStores.Substituted(),
+            governor: OutgoingMailGovernors.Governing(refusal: OutgoingSendRefusalReason.AccountNotEnabled),
+            signer: signer);
+
+        // Act
+        var refusal = () => outbox.EnqueueAsync(CreateRequest("mfctl-4f2a"), RawMime, CancellationToken.None);
+
+        // Assert
+        await Assert.ThrowsAsync<OutgoingMailRefusedException>(refusal);
+        Assert.Empty(signer.Requests);
     }
 
     /// <summary>The same authored request arriving twice is one record, which is what makes it one delivery.</summary>
@@ -162,6 +212,7 @@ public sealed class MailOutboxTests
             AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend),
             OutgoingMailGovernors.Permitting(),
             OutgoingMailScreenings.Inactive(),
+            OrganizationMailSigners.SigningNothing(),
             TimeProvider.System,
             ClientSignalPublishers.ReachingNobody);
 
@@ -959,7 +1010,8 @@ public sealed class MailOutboxTests
         OutgoingMailScreening? screening = null,
         TimeProvider? timeProvider = null,
         ClientSignals? clientSignals = null,
-        int conflictingAttempts = 0)
+        int conflictingAttempts = 0,
+        IOrganizationMailSigner? signer = null)
     {
         var conflictsLeft = conflictingAttempts;
         var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
@@ -983,6 +1035,7 @@ public sealed class MailOutboxTests
             authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend),
             governor ?? OutgoingMailGovernors.Permitting(),
             screening ?? OutgoingMailScreenings.Inactive(),
+            signer ?? OrganizationMailSigners.SigningNothing(),
             timeProvider ?? TimeProvider.System,
             clientSignals ?? ClientSignalPublishers.ReachingNobody);
     }

@@ -51,6 +51,7 @@
     <Compile Include="..\shared\SensitiveContentEgressGuards.cs" Link="SensitiveContentEgressGuards.cs" />
     <Compile Include="..\shared\ScanningSensitiveContentEgress.cs" Link="ScanningSensitiveContentEgress.cs" />
     <Compile Include="..\shared\OutgoingMailScreenings.cs" Link="OutgoingMailScreenings.cs" />
+    <Compile Include="..\shared\OrganizationMailSigners.cs" Link="OrganizationMailSigners.cs" />
 
     <!-- Every boundary that publishes instruments asserts them the same way, through a listener over the one
          process-wide meter, so the recorder is built once rather than per suite. -->

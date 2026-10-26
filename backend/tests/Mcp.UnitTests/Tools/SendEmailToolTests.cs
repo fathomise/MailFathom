@@ -460,6 +460,7 @@ public sealed class SendEmailToolTests
                 granted,
                 OutgoingMailGovernors.Permitting(),
                 screening ?? OutgoingMailScreenings.Inactive(),
+                OrganizationMailSigners.SigningNothing(),
                 new FakeTimeProvider(Recorded),
                 ClientSignalPublishers.ReachingNobody),
             AuthoredSendGovernors.Permitting(granted),

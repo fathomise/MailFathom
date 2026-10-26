@@ -1,15 +1,16 @@
 # Organization signing keys
 
-<!-- describes: backend/src/Application/Access/Organizations/SigningKeys/**, backend/src/Infrastructure/Security/SigningKeys/**, backend/src/Infrastructure/Persistence/Users/*OrganizationSigningKey*.cs, backend/src/Infrastructure/Persistence/Users/PersistedOrganizations.cs, backend/src/Infrastructure/Observability/*OrganizationSigningKey*.cs, backend/src/Host/Api/OrganizationSigningKey*.cs, backend/src/Host/Hosting/Workers/OrganizationSigningKeyRenewalWorker.cs, backend/src/Host/Configuration/Access/OrganizationSigningOptions.cs, backend/src/Cli/Commands/Organizations/*SigningKey*.cs, backend/src/Cli/Administration/Organizations/OrganizationSigningKeys.cs -->
+<!-- describes: backend/src/Application/Access/Organizations/SigningKeys/**, backend/src/Infrastructure/Security/SigningKeys/**, backend/src/Infrastructure/Persistence/Users/*OrganizationSigningKey*.cs, backend/src/Infrastructure/Persistence/Users/PersistedOrganizations.cs, backend/src/Infrastructure/Observability/*OrganizationSigningKey*.cs, backend/src/Host/Api/OrganizationSigningKey*.cs, backend/src/Host/Hosting/Workers/OrganizationSigningKeyRenewalWorker.cs, backend/src/Host/Configuration/Access/OrganizationSigningOptions.cs, backend/src/Cli/Commands/Organizations/*SigningKey*.cs, backend/src/Cli/Administration/Organizations/OrganizationSigningKeys.cs, backend/src/Application/Mail/Delivery/Signing/**, backend/src/Infrastructure/Mail/Dkim/OrganizationMailSigner.cs, backend/src/Infrastructure/Persistence/Users/PersistedAccountSigningKeys.cs -->
 
-Every [organization](admin-endpoint.md#organizations) holds an Ed25519 signing key: the key its accounts' mail is to be
+Every [organization](admin-endpoint.md#organizations) holds an Ed25519 signing key: the key its accounts' mail is
 signed with, so that a receiving account of the same organization can tell a colleague's message from somebody writing
-their name. **This release keeps the keys and nothing signs or verifies mail with them yet** — signing outgoing mail and
-trusting a verified signature arrive in later releases, so everything this page says about what a signature or a
-revocation means describes the decision those releases implement rather than anything a deployment does today.
+their name. **Every message an organization's account sends is signed with it** — *What is signed, and when* below.
+**Nothing verifies those signatures yet**: trusting a verified signature arrives in a later release, so everything this
+page says about what a revocation means for a receiving account describes the decision that release implements rather
+than anything a deployment does today.
 [ADR 0042](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0042-signing-an-organizations-mail-and-trusting-a-sender-its-signature-proves.md)
 records how a signature is written and what it must hold before it grants trust; this page is about the keys themselves:
-where they come from, how long one is used, how one is withdrawn, and what an operator owes them.
+where they come from, what they sign, how long one is used, how one is withdrawn, and what an operator owes them.
 
 Nobody creates a key. The deployment mints one for every organization on its own, rotates it on a schedule, and keeps
 the public half of every key it ever minted. What an operator decides is the rotation interval, whether to rotate or
@@ -51,6 +52,38 @@ and one whose active key was revoked while no replacement could be sealed.
 The pass takes [a lease](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0031-dividing-singleton-work-between-replicas-with-a-leased-scope.md) per organization, so two replicas never renew one
 organization at once, and the unique index stands behind the lease: whichever of two writers lost — two replicas, or
 the pass and an administrator rotating by hand — reads back the key the winner minted instead of minting a second.
+
+## What is signed, and when
+
+**Every message sent from a mail account that belongs to an organization is signed with that organization's active
+key**, whoever its recipients are. A message is signed once, when the outbox first stores it as a send — a composed
+message, a reply, each occasion of a recurring send, and a draft promoted to a send alike — and the stored, signed bytes
+are what every submission attempt sends and what is filed into the sent folder, so the sent copy is byte for byte the
+message the recipients received, whether the account is mirrored, held, or restoring. A draft that is only saved is
+never signed: it is not sent. A send asked for again with the same identity keeps the bytes it stored the first time.
+
+The organization is the one the sending account belongs to when the message is stored, and the key is that
+organization's active key at that moment, so a scheduled send is signed when it is queued rather than when it leaves.
+**An account in no organization signs nothing.**
+
+The signature is one header added above the message, `MailFathom-Organization-Signature`, carrying a DKIM signature
+value (RFC 6376) made with Ed25519-SHA256 and relaxed canonicalization. `d=` is the domain of the message's author, in
+its ASCII form, and
+`s=` is the key's identifier; it signs `From`, `Reply-To`, `To`, `Cc`, `Subject`, `Date`, `Message-ID`, `In-Reply-To`,
+and `References`, each listed twice so a second instance inserted later breaks it, and carries no expiry and no body
+length. Nothing already in the message is changed or removed, and MailFathom writes no `DKIM-Signature` of its own:
+every server ignores a header it does not know, so recipients outside the organization judge the message exactly as
+before, and a provider that signs the message after MailFathom submits it signs beside it. Nothing identifying the
+account or the organization is written beyond what the signature carries. Every message is sent
+[seven-bit](../features/mail-delivery.md), which is what keeps the signature intact past a relay that would re-encode
+an eight-bit body.
+
+**A send is never refused for want of a signature.** Where the organization holds no active key — no key ring, a mint
+that has not run yet, or a sealed private half the ring can no longer open — the message leaves unsigned and
+[`mailfathom.organization.mail.unsigned`](telemetry.md#organizations-left-without-a-signing-key) counts it. So does a
+message composed within a few hundred bytes of
+[`MailDelivery:MaxMessageBytes`](configuration-mail.md#maildelivery), which the signature header would carry past the
+bound: the bound is the operator's ceiling on what is stored and sent, and the signature never stretches it.
 
 ## Rotation
 
@@ -108,6 +141,8 @@ signing key**. It is still a supported deployment: organizations are recorded ex
 nothing to sign with.
 
 - Recording an organization records it without a key.
+- Its accounts' mail leaves unsigned, and each message is counted in
+  [`mailfathom.organization.mail.unsigned`](telemetry.md#organizations-left-without-a-signing-key).
 - The hourly pass finds such organizations, a hundred at most per pass, mints nothing, logs one warning naming how
   many it could not serve, and counts each in
   [`mailfathom.organization.signing_key.unminted`](telemetry.md#organizations-left-without-a-signing-key).
@@ -125,4 +160,6 @@ existing rule for retiring a ring key applies to it as it does to every sealed v
 configured** until nothing sealed under it remains. Every signing key minted after `ActiveKeyId` moves is sealed under
 the new ring key, and retiring or revoking a signing key deletes its sealed half outright, so the signing keys move off
 an old ring key on their own as they rotate. To move them sooner, rotate each organization's key by hand once the new
-ring key is active. [Secret rotation](secret-rotation.md) holds the rest of what a ring rotation owes.
+ring key is active. A ring key removed while an active signing key is still sealed under it does not stop mail: that
+organization's messages leave unsigned and are counted in `mailfathom.organization.mail.unsigned` until its key is
+rotated. [Secret rotation](secret-rotation.md) holds the rest of what a ring rotation owes.

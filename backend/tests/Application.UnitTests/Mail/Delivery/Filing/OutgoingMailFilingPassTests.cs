@@ -33,8 +33,10 @@ public sealed class OutgoingMailFilingPassTests
 
     private static readonly DateTimeOffset RanAt = new(2026, 8, 19, 9, 0, 0, TimeSpan.Zero);
 
+    /// <summary>The message as the outbox stored it, carrying the organization's signature, which the filed copy has to keep.</summary>
     private static readonly byte[] StoredMime = Encoding.ASCII.GetBytes(
-        "Message-ID: <mint-1@mailfathom.invalid>\r\nSubject: synthetic\r\n\r\nbody\r\n");
+        "MailFathom-Organization-Signature: v=1; a=ed25519-sha256; b=AAAA\r\n"
+        + "Message-ID: <mint-1@mailfathom.invalid>\r\nSubject: synthetic\r\n\r\nbody\r\n");
 
     private static readonly ReadOnlyMemory<byte> RawMime = StoredMime;
 
@@ -121,6 +123,34 @@ public sealed class OutgoingMailFilingPassTests
         Assert.Equal(OutgoingMailFilingStage.Confirmed, filed.Stage);
         Assert.Equal(ImapUid.Create(7), filed.Placement.Uid);
         Assert.Equal("mint-1@mailfathom.invalid", filed.InternetMessageId);
+    }
+
+    /// <summary>A restoring account files its sent copy on the source as a mirrored one does, from the same stored, signed bytes.</summary>
+    [Fact]
+    public async Task SettleFiledCopiesAsync_ARestoringAccount_AppendsTheStoredMimeToTheSentFolder()
+    {
+        // Arrange
+        var context = new FilingContext(holdsAccount: true);
+        context.Held!.Folders.Phase = MailAccountCustodyPhase.Restoring;
+        context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
+        context.Filing.FileSentCopies(Account);
+        context.Filing.AppendAnswer = new AppendedMailCopy(
+            RemoteEmailPlacement.Reported(ImapUidValidity.Create(42), ImapUid.Create(7)),
+            "mint-1@mailfathom.invalid");
+        var delivered = await context.DeliverAsync();
+
+        // Act
+        var results = await context.Filing.Pass.SettleFiledCopiesAsync(
+            delivered,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OutgoingMailFilingOutcome.Filed, Assert.Single(results).Outcome);
+        await context.Filing.WriteSession.Received(1).AppendAsync(
+            Arg.Is<ReadOnlyMemory<byte>>(mime => mime.ToArray().SequenceEqual(StoredMime)),
+            AppendedMailFlags.Seen,
+            RanAt,
+            Arg.Any<CancellationToken>());
     }
 
     /// <summary>

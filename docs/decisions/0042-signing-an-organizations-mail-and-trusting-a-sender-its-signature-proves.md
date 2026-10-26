@@ -244,6 +244,8 @@ Every occasion of a recurring send is composed on its own, with its own `Date` a
 
 **Nothing else is added to the message.** The header carries a domain the message already names and an identifier that is not secret. The organization's name and identifier are never written, as the owner decided.
 
+**The signature relies on every message being sent seven-bit.** Relaxed canonicalization survives what relays do to whitespace and header folding, but not a change of transfer encoding: a body re-encoded from `8bit` to quoted-printable or base64 hashes differently, and the signature fails. `8BITMIME` is a promise one hop makes and says nothing about the servers after it, and a gateway that rescans or converts a message may re-encode an eight-bit body on the way. So the composer prepares every message from every account with a seven-bit constraint, whatever the submission server advertises: every text part is quoted-printable or base64, and no part is `8bit` or `binary`. That is one rule for every message rather than one per signing path, and S/MIME (RFC 8551) and PGP/MIME (RFC 3156) signatures need the same. Headers are untouched, so an internationalized address still needs `SMTPUTF8`. A draft an earlier build stored keeps the encoding it was stored with, and its signature is only as durable as that encoding.
+
 ### Verifying, and what a valid signature must hold to grant trust
 
 Verification runs at extraction, beside the local DKIM verification, for a receiving account that belongs to an organization. It reads at most `LocalSenderAuthenticationReading.MaximumVerifiedSignaturesPerMessage` headers of this name, because their number is written by whoever sent the message. It locates keys among **the receiving account's own organization's keys and nowhere else**, so a selector naming any other key answers *no key*, and nothing is asked of DNS.
@@ -329,7 +331,8 @@ That organization is also part of the receiving account's policy revision, so a 
   - that the signature verifies against the organization's public key through the rename;
   - that a promoted draft is signed like a composed message, and a draft that is only stored is not;
   - that an account in no organization signs nothing;
-  - that the sent copy is byte-identical to the stored MIME in each custody phase.
+  - that the sent copy is byte-identical to the stored MIME in each custody phase;
+  - that no composed message carries an `8bit` or `binary` part, even against a server advertising `8BITMIME`.
 - **Issue 2718** tests each of the three conditions failing alone, and each half of the third, a second `From` header field inserted above the signed one, a `Reply-To` inserted after signing, a key of another organization, a revoked key, a retired key, a message altered after signing (not trusted, no warning), a receiving account in no organization, a member whose IMAP user name is a bare login (still trusted through the sender identity), and an extraction backfill after a revocation (the stored verdict loses `OrganizationMember`).
 - Review holds a change to the header name, the tag set, the algorithm, or the trust conditions against this record. Changing any of them is a new ADR.
 

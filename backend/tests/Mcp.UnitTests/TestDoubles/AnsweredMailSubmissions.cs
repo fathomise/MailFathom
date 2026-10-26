@@ -281,6 +281,7 @@ internal static class AnsweredMailSubmissions
             granted,
             OutgoingMailGovernors.Permitting(),
             OutgoingMailScreenings.Inactive(),
+            OrganizationMailSigners.SigningNothing(),
             new FakeTimeProvider(RecordedAt),
             ClientSignalPublishers.ReachingNobody);
     }
