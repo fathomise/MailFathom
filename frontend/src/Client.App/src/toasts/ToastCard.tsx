@@ -7,7 +7,7 @@ import { Confirmation } from '../confirmation/Confirmation';
 import { Icon } from '../controls/Icon';
 import { useTip } from '../controls/useTip';
 import type { IconName } from '../controls/icons';
-import { swipeSoFar } from '../controls/swipeAcross';
+import { swipeCarriesTo, swipeCarry, swipeSoFar } from '../controls/swipeAcross';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { toastLeaving, type StandingToast, type ToastAction, type ToastKind } from './useToasts';
@@ -16,10 +16,17 @@ import { toastLeaving, type StandingToast, type ToastAction, type ToastKind } fr
 // close control that is on every card in every composition. The bar along the bottom edge is the lifetime running out,
 // which is why the toast that is still following an operation has none — nothing is running out for it.
 //
+// A toast that stands for something that can be opened — a notification raised while the client is open — is that
+// thing on the screen, so the card itself is what is pressed to open it and it draws no button. Its words are one
+// button stretched over the whole card, with the close control standing above it, so a press anywhere but the close
+// control opens and a press on the close control only closes.
+//
 // Two ways to get rid of one, and both are here because both have to be. The close control is the design's and
-// it never gives way to the gesture: a card whose only dismissal is a swipe is a card a mouse and a keyboard cannot
-// reach. The swipe is beside it where a finger is what is being used, and it is the same threshold and the same
-// vertical cancellation the rest of the client's swipes answer to, stated once in `controls/swipeAcross.ts`.
+// it never gives way to the gesture: a card whose only dismissal is a drag is a card a keyboard cannot reach. The drag
+// is beside it for every pointer, a mouse included — the close control is always there, so nothing is reachable only by
+// the gesture. The card follows the pointer across, and it answers to the threshold and the vertical cancellation the
+// rest of the client's swipes answer to, stated once in `controls/swipeAcross.ts`. The pointer is captured only once
+// the card is moving, so a press that lands on the close control is still the close control's.
 //
 // Neither way is quieter than the other. Where the card is following an operation, both ask the same question and stop
 // it only on the same answer — a gesture that aborted something a button would have asked about would be the fastest
@@ -76,9 +83,16 @@ export function ToastCard({
     const { translate } = useLocalization();
     const asked = useRef<HTMLDialogElement>(null);
 
-    // The gesture in flight: which pointer started it and where it landed. A ref rather than state, because nothing on
-    // the screen is drawn from it and a moving finger would otherwise render the card for every pixel of its travel.
-    const swiping = useRef<{ pointer: number; from: number; top: number } | null>(null);
+    // The gesture in flight: which pointer started it, where it landed, and whether the card has started following it.
+    // Where the card is drawn is state, because it is on the screen; the rest is not.
+    const swiping = useRef<{ pointer: number; from: number; top: number; engaged: boolean } | null>(null);
+    const [carried, setCarried] = useState(0);
+    const [following, setFollowing] = useState(false);
+    const [flung, setFlung] = useState<-1 | 1 | null>(null);
+
+    // Whether the last pointer gesture on the card travelled, so the press its release ends is not also taken as a
+    // press on the card. A key pressing the card has travelled nowhere, which is what `detail` being `0` says.
+    const travelled = useRef(false);
 
     // What stopping would leave behind, kept here from the moment the question is asked rather than read off the toast
     // while it stands: the operation goes on running while somebody decides, so it may settle mid-question and take
@@ -88,6 +102,7 @@ export function ToastCard({
     // Bound once rather than read inside the handler: the handler runs after this render, and a property read there
     // is no longer the one the markup decided to draw a control for.
     const action = toast.action;
+    const opens = toast.opens;
     const running = 'operation' in toast.stands;
     const mark = running ? toastMarks.running : toastMarks[toast.stands.kind];
     const closing = running ? translate('toast.stopOperation') : translate('toast.close');
@@ -121,22 +136,28 @@ export function ToastCard({
         action.take();
     }
 
-    function beginSwipe(event: PointerEvent<HTMLDivElement>): void {
-        // A mouse drags nothing away: the close control is what a pointer that can hover already has, and a card that
-        // vanished under a slipped mouse button would be a statement lost to a twitch.
-        if (event.pointerType === 'mouse' || swiping.current !== null) {
+    function open(opening: ToastAction, pressedBy: number): void {
+        if (travelled.current && pressedBy !== 0) {
             return;
         }
 
-        swiping.current = { pointer: event.pointerId, from: event.clientX, top: event.clientY };
+        take(opening);
+    }
 
-        try {
-            event.currentTarget.setPointerCapture(event.pointerId);
-        } catch {
-            // A runtime not tracking this pointer refuses to hand its capture over, which is what a synthesised event
-            // is. The gesture then follows the handlers on the card instead, which is everything but the part where it
-            // keeps following a finger that has left it.
+    function springBack(): void {
+        swiping.current = null;
+        setFollowing(false);
+        setCarried(0);
+    }
+
+    function beginSwipe(event: PointerEvent<HTMLDivElement>): void {
+        // Only the primary button: a right-click opens what a right-click opens, never a drag.
+        if (swiping.current !== null || event.button > 0 || flung !== null) {
+            return;
         }
+
+        travelled.current = false;
+        swiping.current = { pointer: event.pointerId, from: event.clientX, top: event.clientY, engaged: false };
     }
 
     function followSwipe(event: PointerEvent<HTMLDivElement>): void {
@@ -146,40 +167,124 @@ export function ToastCard({
             return;
         }
 
-        const verdict = swipeSoFar(event.clientX - swipe.from, event.clientY - swipe.top);
+        const across = event.clientX - swipe.from;
 
-        if (verdict === 'travelling') {
+        if (swipeSoFar(across, event.clientY - swipe.top) === 'cancelled') {
+            travelled.current = true;
+            springBack();
+
             return;
         }
 
-        swiping.current = null;
+        const carry = swipeCarry(across);
 
-        if (verdict === 'committed') {
-            close();
+        if (carry === 0) {
+            return;
         }
+
+        if (!swipe.engaged) {
+            swipe.engaged = true;
+            travelled.current = true;
+            setFollowing(true);
+
+            try {
+                event.currentTarget.setPointerCapture(event.pointerId);
+            } catch {
+                // A runtime not tracking this pointer refuses to hand its capture over, which is what a synthesised
+                // event is. The gesture then follows the handlers on the card instead, which is everything but the part
+                // where it keeps following a pointer that has left it.
+            }
+        }
+
+        setCarried(carry);
     }
 
     function endSwipe(event: PointerEvent<HTMLDivElement>): void {
-        if (swiping.current?.pointer === event.pointerId) {
+        const swipe = swiping.current;
+
+        if (swipe?.pointer !== event.pointerId) {
+            return;
+        }
+
+        const across = event.clientX - swipe.from;
+        const committed = swipe.engaged && swipeSoFar(across, event.clientY - swipe.top) === 'committed';
+
+        springBack();
+
+        if (!committed) {
+            return;
+        }
+
+        // A card following an operation asks first, exactly as its close control does, so it comes back to be asked
+        // about; any other leaves the way it was carried.
+        if (!running) {
+            setFlung(across < 0 ? -1 : 1);
+        }
+
+        close();
+    }
+
+    function abandonSwipe(): void {
+        if (swiping.current !== null) {
+            springBack();
+        }
+    }
+
+    // A pointer that leaves the card before the card has started following it is not captured, so its release lands
+    // somewhere else and would leave the gesture standing for the next pointer that merely passes over the card. A
+    // gesture already engaged holds the capture and never leaves.
+    function leaveSwipe(): void {
+        if (swiping.current?.engaged === false) {
             swiping.current = null;
         }
     }
+
+    // How far the card is drawn from where it stands, and how faint, while a pointer carries it and once it has been
+    // carried far enough to go. `translate` rather than `transform`, so the leaving animation, which moves the card by
+    // `transform`, composes with it instead of throwing it back to where it started.
+    const carriedTo = flung === null ? (carried === 0 ? undefined : `${String(carried)}px`) : `${String(flung * 110)}%`;
+    const carriedOpacity =
+        flung === null ? (carried === 0 ? undefined : 1 - (Math.abs(carried) / swipeCarriesTo) * 0.6) : 0;
+
+    const words = (
+        <>
+            <span className="block text-md/snug font-semibold text-text text-pretty wide:text-lg">
+                {/* What the symbol and its colour say to everybody else. Said before the title rather than after it, so
+                    somebody hearing the card knows what kind of news it is before they hear the news. */}
+                <span className="sr-only">{translate(mark.said)}</span> {toast.title}
+            </span>
+
+            {/* Spaces between the lines, so the name a card pressed as a whole is given reads as words rather than
+                as one run of text. */}
+            {toast.body === undefined ? null : ' '}
+            {toast.body === undefined ? null : (
+                <span className="line-clamp-2 block text-base/snug text-text-soft text-pretty wide:line-clamp-none wide:text-base">
+                    {toast.body}
+                </span>
+            )}
+        </>
+    );
 
     return (
         <div
             // An error is the one thing said here that cannot wait for a gap in what a screen reader is already
             // reading, so it announces where it stands rather than politely with the rest of the surface.
             role={!running && toast.stands.kind === 'error' ? 'alert' : undefined}
-            className={`pointer-events-auto relative flex touch-none items-center gap-2.5 overflow-hidden rounded-lg border border-line bg-panel py-1.5 ps-2 pe-1 shadow-overlay transition wide:items-start wide:gap-3 wide:ps-3.25 wide:pe-3 wide:pt-3.25 wide:pb-3.75 wide:opacity-80 wide:hover:opacity-100 ${
-                toast.leaving ? 'animate-toast-leaving' : 'animate-toast-arriving'
-            }`}
+            className={`pointer-events-auto relative flex touch-pan-y items-center select-none gap-2.5 overflow-hidden rounded-lg border border-line bg-panel py-1.5 ps-2 pe-1 shadow-overlay wide:items-start wide:gap-3 wide:ps-3.25 wide:pe-3 wide:pt-3.25 wide:pb-3.75 wide:opacity-80 wide:hover:opacity-100 ${
+                following ? 'transition-none' : 'motion-spring'
+            } ${toast.leaving ? 'animate-toast-leaving' : 'animate-toast-arriving'}`}
             // How long leaving takes is how long the surface waits before the card is gone, which is one number in
             // `useToasts.ts` and is handed to the animation here rather than written into the stylesheet a second time.
-            style={toast.leaving ? { animationDuration: `${String(toastLeaving)}ms` } : undefined}
+            style={{
+                animationDuration: toast.leaving ? `${String(toastLeaving)}ms` : undefined,
+                translate: carriedTo,
+                opacity: carriedOpacity,
+            }}
             onPointerDown={beginSwipe}
             onPointerMove={followSwipe}
             onPointerUp={endSwipe}
-            onPointerCancel={endSwipe}
+            onPointerCancel={abandonSwipe}
+            onPointerLeave={leaveSwipe}
         >
             <span
                 className={`flex size-7 shrink-0 items-center justify-center rounded-md border border-line wide:size-8 ${mark.tint}`}
@@ -190,19 +295,21 @@ export function ToastCard({
             {/* On a phone or a fold the card is one slim row with its action beside the words; wider, the action
                 stands under them. One control either way, moved by the layout rather than drawn twice. */}
             <div className="flex min-w-0 flex-1 items-center gap-2.5 wide:flex-col wide:items-stretch wide:gap-1">
-                <div className="flex min-w-0 flex-1 flex-col gap-px py-0.5 wide:gap-1 wide:pt-0.5 wide:pb-0">
-                    <p className="text-md/snug font-semibold text-text text-pretty wide:text-lg">
-                        {/* What the symbol and its colour say to everybody else. Said before the title rather than after
-                        it, so somebody hearing the card knows what kind of news it is before they hear the news. */}
-                        <span className="sr-only">{translate(mark.said)}</span> {toast.title}
-                    </p>
-
-                    {toast.body === undefined ? null : (
-                        <p className="line-clamp-2 text-base/snug text-text-soft text-pretty wide:line-clamp-none wide:text-base">
-                            {toast.body}
-                        </p>
-                    )}
-                </div>
+                {opens === undefined ? (
+                    <div className="flex min-w-0 flex-1 flex-col gap-px py-0.5 wide:gap-1 wide:pt-0.5 wide:pb-0">
+                        {words}
+                    </div>
+                ) : (
+                    <button
+                        type="button"
+                        className="flex min-w-0 flex-1 cursor-pointer flex-col gap-px py-0.5 text-start after:absolute after:inset-0 after:content-[''] wide:gap-1 wide:pt-0.5 wide:pb-0"
+                        onClick={(event) => {
+                            open(opens, event.detail);
+                        }}
+                    >
+                        {words} <span className="sr-only">{opens.label}</span>
+                    </button>
+                )}
 
                 {action === undefined ? null : (
                     <button
@@ -224,7 +331,7 @@ export function ToastCard({
                 {...closerName.anchor}
                 type="button"
                 aria-label={closing}
-                className="flex size-7.5 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-hover hover:text-text"
+                className="relative flex size-7.5 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-hover hover:text-text"
             >
                 <Icon name="close" className="size-icon-lg" />
             </button>

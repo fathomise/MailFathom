@@ -35,7 +35,7 @@ export const mostToastsShown = 4;
  */
 export type ToastKind = 'neutral' | 'success' | 'error' | 'warning' | 'info';
 
-/** The one thing a toast may offer beyond being read: undo, retry, show. Never two. */
+/** The one thing a toast may offer beyond being read: undo or retry, or the way to what it is about. Never two. */
 export interface ToastAction {
     readonly label: string;
     readonly take: () => void;
@@ -47,6 +47,13 @@ export interface Toast {
     readonly title: string;
     readonly body?: string;
     readonly action?: ToastAction;
+
+    /**
+     * The way to what the toast is about, where the toast stands for something that can be opened — a notification
+     * raised while the client is open. The card is pressed as a whole to take it and draws no button for it, and its
+     * label is what a screen reader hears pressing does. A toast offers this or an `action`, never both.
+     */
+    readonly opens?: ToastAction;
 
     /**
      * Called once when the card goes, whether it took itself away or somebody closed it.
@@ -102,6 +109,7 @@ export interface StandingToast {
     // names, so a toast that has just settled cannot keep the body of the operation it used to be.
     readonly body: string | undefined;
     readonly action: ToastAction | undefined;
+    readonly opens: ToastAction | undefined;
     readonly leaving: boolean;
     readonly stands: { readonly kind: ToastKind } | { readonly operation: Operation };
 

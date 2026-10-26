@@ -4,7 +4,7 @@
 
 import { expect, type Locator, type Page } from '@playwright/test';
 
-import { holdTheClock, messageRegion, openSignedIn, test } from './client.harness';
+import { holdTheClock, messageRegion, openSignedIn, settled, test } from './client.harness';
 import * as notifications from './fixtures/notifications';
 
 // The notification centre as a person uses it: a notification arriving while they work, opening one to what it is
@@ -64,7 +64,8 @@ test('draws a notification that arrives while somebody works, and opens the mess
         hasText: notifications.arrivingNotification.body,
     });
 
-    await notice.getByRole('button', { name: 'Show' }).click();
+    // The notice is pressed as a whole, which is the one control it draws besides closing it.
+    await notice.getByRole('button', { name: /Show$/u }).click();
 
     // Opened to what it is about, which is a message — and a message is read in the Mail space, whichever space the
     // notice was raised over.
@@ -78,6 +79,60 @@ test('draws a notification that arrives while somebody works, and opens the mess
     await openCentre(page);
     await showAll(page);
     await expect(row(page, notifications.arrivingNotification.body)).not.toContainText('Unread');
+});
+
+test('carries a notice dragged aside, brings it back let go short, and lets it go past that without opening it', async ({
+    page,
+    deployment,
+}) => {
+    await page.clock.install();
+    await openSignedIn(page);
+    await expect(bell(page)).toHaveAccessibleName('5 unread notifications');
+
+    deployment.raiseNotification();
+    await holdTheClock(page);
+    await page.clock.runFor(unreadCountInterval);
+
+    await expect(bell(page)).toHaveAccessibleName('6 unread notifications');
+
+    const notice = page.getByRole('list', { name: 'Notices' }).getByRole('listitem').filter({
+        hasText: notifications.arrivingNotification.body,
+    });
+    // The card is what moves, and the notice it stands in does not: it is read through the one control it draws, once
+    // it has finished arriving, since it slides in from the side.
+    const card = notice.getByRole('button', { name: /Show$/u });
+
+    await expect(card).toBeVisible();
+    await settled(page);
+
+    const standing = await card.boundingBox();
+
+    expect(standing).not.toBeNull();
+
+    const left = standing?.x ?? 0;
+    const across = { x: left + 40, y: (standing?.y ?? 0) + (standing?.height ?? 0) / 2 };
+
+    // Short of the threshold the card follows the pointer, and let go there it comes back to where it stood.
+    await page.mouse.move(across.x, across.y);
+    await page.mouse.down();
+    await page.mouse.move(across.x + 60, across.y, { steps: 6 });
+    await expect.poll(async () => (await card.boundingBox())?.x ?? left).toBeGreaterThan(left + 50);
+    await page.mouse.up();
+    await settled(page);
+    await expect.poll(async () => Math.round((await card.boundingBox())?.x ?? 0)).toBe(Math.round(left));
+
+    // Past it the card goes, and the notification it stood for is neither opened nor read.
+    await page.mouse.move(across.x, across.y);
+    await page.mouse.down();
+    await page.mouse.move(across.x + 130, across.y, { steps: 8 });
+    await page.mouse.up();
+    await page.clock.runFor(1_000);
+
+    await expect(notice).toHaveCount(0);
+    await expect(bell(page)).toHaveAccessibleName('6 unread notifications');
+    expect(deployment.requests('POST', `/notifications/${notifications.arrivingNotification.id}/read-state`)).toEqual(
+        [],
+    );
 });
 
 test('goes to the space a notification names, and the centre and the bell agree it was read, after a reload too', async ({

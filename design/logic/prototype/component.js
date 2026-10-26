@@ -776,8 +776,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const n = this.notifAll().find(x => x.failure === which);
       if (!n || !n.toast) return;
       let tid;
-      tid = this.notify(n.toast.body, { kind: n.toast.kind, title: n.title, actionLabel: n.toast.action, ms: 8000,
-        onAction: () => { this.dismissToast(tid); this.openNotif(n); } });
+      tid = this.notify(n.toast.body, { kind: n.toast.kind, title: n.title, ms: 8000,
+        opens: () => { this.dismissToast(tid); this.openNotif(n); } });
     };
 
     pickThread = (id, e) => {
@@ -962,6 +962,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         undo: !!o.undo,
         actionLabel: o.actionLabel || (o.undo ? "Undo" : ""),
         onAction: o.onAction || null,
+        opens: o.opens || null,
         ms: o.ms || 5000,
         sticky: o.kind === "loading" || !!o.sticky,
         cancelText: o.cancelText || "",
@@ -982,6 +983,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       clearTimeout(this._tT[id]);
       this.setState(s => ({ toasts: (s.toasts || []).map(x => (x.id === id ? Object.assign({}, x, { out: true }) : x)) }));
       setTimeout(() => this.setState(s => ({ toasts: (s.toasts || []).filter(x => x.id !== id) })), 200);
+    };
+
+    removeToast = (id) => {
+      this._tT = this._tT || {};
+      clearTimeout(this._tT[id]);
+      this.setState(s => ({ toasts: (s.toasts || []).filter(x => x.id !== id) }));
     };
 
     hideToast = () => { (this.state.toasts || []).forEach(t => this.dismissToast(t.id)); };
@@ -2155,8 +2162,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const kind = (NKIND[it.kind] || NKIND.system).toast;
       let tid;
       tid = this.notify(it.body, {
-        kind: kind, title: it.title, actionLabel: "Show",
-        onAction: () => { this.dismissToast(tid); this.openNotif(n); },
+        kind: kind, title: it.title,
+        opens: () => { this.dismissToast(tid); this.openNotif(n); },
       });
       return n;
     };
@@ -5568,8 +5575,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         notifScrimStyle: "position:fixed;inset:0;z-index:88;background:var(--scrim);" +
           (notifDragging ? "transition:none;" : "transition:opacity " + (st.notifSpring ? NG.springMs + "ms " + NG.springEase : "260ms ease") + ";") +
           "opacity:" + (isMobile ? notifProg : notifIn ? 1 : 0),
+        /* On the phone the panel comes up over the bottom bar and covers it, as the whole screen. */
         notifPanelStyle: "position:fixed;z-index:89;top:0;" +
-          (isMobile ? "left:0;right:0;bottom:" + this.barH() + "px;" : "bottom:0;left:" + railW + "px;width:min(400px,calc(100vw - " + (railW + 24) + "px));border-right:1px solid var(--line);") +
+          (isMobile ? "left:0;right:0;bottom:0;padding-bottom:env(safe-area-inset-bottom);" : "bottom:0;left:" + railW + "px;width:min(400px,calc(100vw - " + (railW + 24) + "px));border-right:1px solid var(--line);") +
           "display:flex;flex-direction:column;background:var(--panel);box-shadow:26px 0 60px var(--sh-3);" +
           (isMobile
             ? "touch-action:pan-y;transform:translateY(" + (notifIn ? notifDrag + "px" : "100%") + ");" +
@@ -5643,9 +5651,16 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             loading: ["progress_activity", "var(--accent-2)", "var(--accent-soft)", "var(--accent)"],
           }[t.kind] || ["info", "var(--text2)", "var(--hover)", "var(--border2)"];
           const loading = t.kind === "loading";
+          /* A toast raised for a notification is the notification on the screen, so the whole card opens it and it
+             draws no button; any toast is dragged aside to dismiss it, beside its close control. */
+          const drag = MailFathomDesign.toastDrag(loading ? () => this.askCancelToast(t.id) : () => this.removeToast(t.id), loading);
           return {
             id: t.id,
             icon: K[0],
+            open: (e) => { if (t.opens && !drag.dragged(e)) t.opens(); },
+            dragDown: drag.down,
+            dragMove: drag.move,
+            dragUp: drag.up,
             title: t.title,
             body: t.body,
             hasBody: !!t.body,
@@ -5653,13 +5668,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             actionInline: !!t.actionLabel && toastCompact,
             actionLabel: t.actionLabel,
             action: t.onAction || this.undoOp,
-            close: loading ? () => this.askCancelToast(t.id) : () => this.dismissToast(t.id),
+            close: (e) => { if (e && e.stopPropagation) e.stopPropagation(); if (loading) this.askCancelToast(t.id); else this.dismissToast(t.id); },
             closeTitle: loading ? "Abort operation" : "Close",
             hasBar: !t.sticky && !t.out,
             barStyle: "position:absolute;left:0;right:0;bottom:0;height:2px;transform-origin:left;opacity:0.55;background:" + K[3] + ";animation:mftbar " + (t.ms || 5000) + "ms linear both",
             iconWrapStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:" + K[2] + ";" + (toastCompact ? "width:28px;height:28px;border-radius:8px;" : "width:34px;height:34px;border-radius:12px;"),
             iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;line-height:1;font-size:" + (toastCompact ? 18 : 22) + "px;color:" + K[1] + (loading ? ";animation:mfspin 1.1s linear infinite" : ""),
-            style: "pointer-events:auto;position:relative;overflow:hidden;display:flex;align-items:flex-start;" + (toastCompact ? "align-items:center;gap:10px;padding:6px 4px 6px 8px;border-radius:12px;" : "gap:12px;padding:13px 12px 15px 13px;border-radius:16px;") + "background:var(--panel);border:1px solid var(--line);box-shadow:0 16px 38px var(--sh-2),0 2px 6px var(--sh-1);opacity:" + (toastCompact ? 1 : 0.8) + ";transition:opacity .15s ease;animation:" + (t.out ? "mftout .2s ease forwards" : "mftin .24s cubic-bezier(.2,.85,.3,1) backwards"),
+            style: "pointer-events:auto;position:relative;overflow:hidden;display:flex;align-items:flex-start;touch-action:pan-y;user-select:none;" + (t.opens ? "cursor:pointer;" : "") + (toastCompact ? "align-items:center;gap:10px;padding:6px 4px 6px 8px;border-radius:12px;" : "gap:12px;padding:13px 12px 15px 13px;border-radius:16px;") + "background:var(--panel);border:1px solid var(--line);box-shadow:0 16px 38px var(--sh-2),0 2px 6px var(--sh-1);opacity:" + (toastCompact ? 1 : 0.8) + ";transition:opacity .15s ease;animation:" + (t.out ? "mftout .2s ease forwards" : "mftin .24s cubic-bezier(.2,.85,.3,1) backwards"),
           };
         }),
         cancelAskOpen: !!st.cancelAsk,

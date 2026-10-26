@@ -347,8 +347,8 @@ export function NotificationCentre({
             aria-label={translate('notifications.title')}
             tabIndex={-1}
             style={swipe.offset === null ? undefined : { transform: `translateY(${String(swipe.offset)}px)` }}
-            // The two compositions are the design's own: a sheet that stops above the bottom navigation in a
-            // narrow window, and a panel standing beside the rail in a wide one. Where it comes from differs with it,
+            // The two compositions are the design's own: a sheet that covers the whole window, the bottom navigation
+            // it came out of included, in a narrow one, and a panel standing beside the rail in a wide one. Where it comes from differs with it,
             // which is what the two motions and the two closed positions below say.
             //
             // Each closed position is written under the composition it belongs to rather than one of them under the
@@ -356,10 +356,10 @@ export function NotificationCentre({
             // `translate` property, so a vertical offset left standing outside the breakpoint composes with the
             // horizontal one above it and the panel travels diagonally out of the corner instead of in from the side.
             // `max-workspace:` and `workspace:` never both apply, which is what keeps each composition to one axis.
-            // The panel is in the platform's top layer, where the frame's safe-area padding is not around it: the top
-            // inset is padded away inside it, and the bottom one is a margin because what the sheet stops above is the
-            // bottom navigation, which the frame has already lifted clear of the gesture bar.
-            className={`fixed inset-x-0 top-0 bottom-navigation m-0 mb-safe-bottom hidden h-auto max-h-none w-auto max-w-none open:flex flex-col overflow-visible rounded-t-xl border-line bg-panel pt-safe-top text-text shadow-dialog backdrop:bg-scrim workspace:end-auto workspace:bottom-0 workspace:start-rail workspace:w-notifications workspace:rounded-none workspace:border-e ${
+            // The panel is in the platform's top layer, where the frame's safe-area padding is not around it, so both
+            // insets are padded away inside it: the sheet reaches the screen's edges and its content stays clear of the
+            // status bar and the gesture bar.
+            className={`fixed inset-x-0 top-0 bottom-0 m-0 hidden h-auto max-h-none w-auto max-w-none open:flex flex-col overflow-visible rounded-t-xl border-line bg-panel pt-safe-top pb-safe-bottom text-text shadow-dialog backdrop:bg-scrim workspace:end-auto workspace:start-rail workspace:w-notifications workspace:rounded-none workspace:border-e ${
                 swipe.dragging
                     ? 'transition-none'
                     : swipe.springing

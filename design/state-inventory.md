@@ -103,7 +103,7 @@ three axes already give.
 keeps a mouse's sizes and panels, and a 1366 px touch tablet keeps a finger's. The framed previews say which they are —
 the `layout` property's `phone`, `fold` and `tablet` frames are touch devices, `desktop` is a mouse, and `auto` asks
 the browser (`st.coarse`, kept current by a `matchMedia` listener). Under `touch`: every target meets § *What every
-touch composition holds to* below; sheets and drawers follow the finger; a row swipes and holds; what stands under tabs swipes between them; the message list pulled down from its top refreshes; and nothing exists
+touch composition holds to* below; sheets and drawers follow the finger; a row swipes and holds; what stands under tabs swipes between them; the message list pulled down from its top refreshes; a toast is dragged aside to dismiss it; and nothing exists
 only under a hover — not a control's name, not the reason a control cannot act, not a fact a row folds away (*A control's name* under
 § *What every artboard shares*). Without it: the desktop's sizes, hover affordances, and the two resizers (`showResizer`,
 `showSideResizer`), which are drag handles and so a fine pointer's alone.
@@ -888,16 +888,16 @@ to a folder and marking as read stay a one-line `Suggested action`.
 | Own photo | `meHasPhoto` | a photo was uploaded |
 | **Photo rejected** | `photoError` | a file over 1 MB — a real file has to be chosen, so **no click reaches this** |
 | Telemetry off | `telemetryOptOut` | the telemetry switch |
-| Notification centre | `notifCenterOpen` | the bell, or the phone's upward gesture |
+| Notification centre | `notifCenterOpen` | the bell, or the phone's upward gesture; on the phone it covers the whole screen, the bottom bar included (§ *The notification gesture*) |
 | Unread notifications | `notifHasUnread` | the unread count; it gates three regions including the rail badge. The panel's own badge is one composed string, `notifNewLabel`, reading *1 new* or *N new* |
 | The centre's filter | `notifFilter` / `notifTabs` | **it opens on *Unread*** — the first of the two, *Unread* then *All*; `st.notifFilter` falls back to `"unread"` |
 | **No notifications** | `notifEmpty` | the shown list is empty — *Nothing new. All read.*, reached by opening the centre with nothing unread |
-| A new message | `notifItems` | **one row per arrived message** while an account has five or fewer unread arrivals: the sender's name as the headline (their address where the message names none), the subject as the second line — *No subject* where it has none — and *Mail · \<account\>* as the source; opening it opens that message. A toast arriving with it says the same two lines |
+| A new message | `notifItems` | **one row per arrived message** while an account has five or fewer unread arrivals: the sender's name as the headline (their address where the message names none), the subject as the second line — *No subject* where it has none — and *Mail · \<account\>* as the source; opening it opens that message. A toast arriving with it says the same two lines, and pressing that toast anywhere opens the message as the row does (`pushNotif`) |
 | **Merged arrivals** | `n.merged` | the sixth unread arrival of one account folds all of them into **one row**, *\<N\> new messages* over *More than five arrived unread, so they are gathered here.*, and later arrivals fold into it while it stays unread; once it is read the next arrival starts a row of its own again. It names no sender and no subject. Opening it opens the mail list; reached in the sample as *8 new messages* from Fabrikam |
 | Summarize | `n.summarize` / `summarizeNotif` | the merged row's only extra control, an `auto_awesome` pill reading *Summarize* under the source line (30 px, 44 px under a finger), and *Summarize* in that row's menu. It marks the row read, closes the centre, and opens the Agent space on a new conversation under the chip *\<N\> new messages · \<account\>*, asking *Summarize these \<N\> new messages* at once — the summary covers exactly the messages the row gathered |
 | A failure after the answer | `n.failure` / `NKIND.failure` | three failures land after the request was already answered, and each is a durable row — unread, counted in the badge and under *Unread* like any other, with the shared menu. A refused send and an abandoned change take the `failure` kind (`error` on `--err-soft` in `--err-text`); a draft out of step takes `draftcopy` (`cloud_off` on `--warn-soft` in `--warn-text`), matching its toast's warning. **A refused send**: *Not sent - it waits in the Outbox* over the entry's subject, *Outbox · \<account\>*; opening it opens that Outbox with the entry picked, as *Show in Outbox* does. **An abandoned change**: *A change did not reach your mailbox* over *Move - the mail server would not take it, so the message is still where the server holds it.* — the act the change record names, never its destination or its message, which the durable row does not carry —, *Mail · \<account\>*; opening it opens the thread, whose message carries the notice (`m.changeShown`). **A draft out of step**: *Draft out of step with your server* over the draft's subject, *Drafts · \<account\>*; opening it opens that account's Drafts and the composer on the draft (`composeNoServerCopy`) |
 | Its decisions | `n.pills` / `n.hasPills` | under the source line, in the *Summarize* pill's style and size (30 px, 44 under a finger), always drawn rather than on a hover, and repeated in the row's menu. The refused send: *Send again* (`send`) and *Edit* (`edit`) — each marks the row read, closes the centre, and does the Outbox's own decision on that entry there, so its decision under way is seen (`decideRefusedNotif`). The abandoned change: *Ask again* (`refresh`) — *Move again…* for a move, as on its message — and *Let it go* (`close`) — the centre stays open, the row is marked read and loses its pills, the message's notice goes, and *Ask again* raises *Asked again* (`decideChange`). The draft row has none: pressing it is the whole act |
-| Raised while the client is open | `raiseFailure` / the `raise` property | the open client raises the durable row's own toast (`n.toast`), held 8 s: the refused send as `error`, *Not sent - it waits in the Outbox* — *“…” is in the Outbox of \<account\>. Send it again or edit it there.* — with *Show in Outbox*; the abandoned change as `error`, *A change did not reach your mailbox* — the row's own sentence, *Move - the mail server would not take it, so the message is still where the server holds it.* — with *Show message*; the draft as `warning`, *Draft out of step with your server* — *“…” is kept in MailFathom, but your mail server's copy may be missing or out of date.* — with *Open draft*. Each action opens what the row opens and marks it read |
+| Raised while the client is open | `raiseFailure` / the `raise` property | the open client raises the durable row's own toast (`n.toast`), held 8 s: the refused send as `error`, *Not sent - it waits in the Outbox* — *“…” is in the Outbox of \<account\>. Send it again or edit it there.*; the abandoned change as `error`, *A change did not reach your mailbox* — the row's own sentence, *Move - the mail server would not take it, so the message is still where the server holds it.*; the draft as `warning`, *Draft out of step with your server* — *“…” is kept in MailFathom, but your mail server's copy may be missing or out of date.* None draws a button: the card pressed anywhere opens what the row opens and marks it read (§ *Toasts*, which also says what the client names it) |
 | One failure, one voice | — | **when the open tab is already following a change** — its pending-change line in the connection summary (`m_pending` in the Client States file) — that line and its toast stand for the failure, and no second toast is raised for the durable row. Deciding it there, *Ask again* or *Let it go*, marks the durable row read, so one failure is never shown as two. The durable row is still listed in the centre. The prototype draws no pending-change line, so it always raises |
 | Connection summary | — | a green dot and *Every account is up to date.* at the foot of the folder column while it is expanded (`sideExpanded`; a collapsed column draws none), and always in the Discover head — and nowhere else: Agent, Tasks, Calendar and People draw none, because how current the mailboxes are is said where mail is read and asked about rather than on every screen. **When every account is current it is green and nothing more** — no disclosure, no per-account rows, no times. The prototype draws only that state; an account behind or stopped is `m_sync` in the Client States file, and changes on their way are `m_pending` |
 | Refresh | `refreshAll` / `refreshBusy` | the `refresh` control in the rail, titled *Refresh* (44 px under a finger), and on the phone the *Refresh* row of the *More* sheet (`moreRefresh`), which closes the sheet as it starts, and under a finger the Mail message list pulled down from its top (*Pulling the list to refresh* under § *What every touch composition holds to*) — it re-reads the mail in front of the reader and the notification centre, pulses its glyph (`mfpulse`, 1 s) rather than spinning while it waits, and refuses a second press until the re-read lands |
@@ -1055,10 +1055,25 @@ glyph, the colour and the bar. What is worth reading in the source rather than i
   the operation, and aborting posts a `warning` toast saying what was and was not saved.
 - **A failure toast names where the thing stands and the way to it, never a status code.** The error sample is the
   refused send — *Not sent - it waits in the Outbox*, *“…” is in the Outbox of \<account\>. Send it again or edit it
-  there.*, *Show in Outbox* — and so is the end of *Running operation → error*, whose abort says only that it stops
-  the send (*Aborting stops it here, so it is not sent.*), never that it saves a draft. Two samples beside it are the
-  other failures a notification raises: *A change did not reach your mailbox* (`error`, *Show message*) and *Draft
-  out of step with your server* (`warning`, *Open draft*).
+  there.* — and so is the end of *Running operation → error*, whose abort says only that it stops the send
+  (*Aborting stops it here, so it is not sent.*), never that it saves a draft. Two samples beside it are the other
+  failures a notification raises: *A change did not reach your mailbox* (`error`) and *Draft out of step with your
+  server* (`warning`), and a fourth is a new message's (`info`, the sender over the subject).
+- **A toast raised for a notification is pressed as a whole** (`t.opens` / `t.open`). It is the notification on the
+  screen, so it draws no action button: a press anywhere on the card opens what the notification's row opens and marks
+  it read — the message, the Outbox entry, the thread whose change did not land, the draft — and the card goes. It
+  carries `cursor:pointer`. Its close control only closes. The artboards draw the pointer's press and nothing more: in
+  the client the card is one button, reached by a key like any other, named by its kind, its words and what pressing
+  does — *Show*, *Show in Outbox*, *Show message*, *Open draft*. A toast whose action is an act rather than a way somewhere —
+  *Undo*, *Retry*, *Ask again*, and an operation's own toast such as *Message sent* with *Show in Outbox* — keeps its
+  button, and pressing beside that button does nothing.
+- **Any toast is dragged aside to dismiss it** (`MailFathomDesign.toastDrag` in `design.js`, `t.dragDown` /
+  `t.dragMove` / `t.dragUp`), beside its close control and never instead of it. Once the pointer has travelled 14 px
+  across, the card follows it and fades — carried at most 148 px, at 40% opacity there — and let go past 96 px it slides
+  out that way and is gone; short of that, or once the pointer has gone more than 26 px up or down and more down than
+  across, it springs back on `--ease-sheet`. Every pointer drags, a mouse included. A drag never also counts as a press
+  on the card, and a press on the close control stays the close control's. A `loading` toast springs back and asks its
+  abort question, exactly as its close control does.
 - The stack is newest-first and capped at `maxStack` (4 by default); past it the oldest is dropped.
 - Resting opacity is 0.8 and 1.0 under the pointer, so the content beneath stays readable.
 - The **blocking overlay** is a separate thing from a toast: determinate (a percentage) or
@@ -1080,6 +1095,11 @@ mutually exclusive, and the navigation bar hands over past 12 px and cancels its
 
 **Phone composition and `pointer: coarse` only.** The fold, the tablet and the desktop keep the panel
 they draw today, and there is no drag gesture there at all.
+
+**On the phone the panel covers the bottom navigation bar.** It runs from the top of the screen to its bottom edge,
+over the bar it came out of rather than stopping above it (`notifPanelStyle`, `bottom:0` with the safe-area inset as
+padding), and the scrim beneath it covers the bar too — so while the panel stands, or travels under a finger, no bar
+item can be pressed. It is the same panel whether the gesture or the bell opened it.
 
 ## Mail search — `mail-search.html`
 

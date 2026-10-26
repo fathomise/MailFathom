@@ -66,8 +66,13 @@ Project repository: https://github.com/fathomise/MailFathom
           <div style="height:44px;border-radius:8px;background:var(--panel);border:1px solid var(--line)"></div>
           <div style="height:44px;border-radius:8px;background:var(--panel);border:1px solid var(--line)"></div>
         </div>
+        <div style="position:absolute;left:0;right:0;bottom:0;height:64px;display:flex;align-items:center;gap:2px;background:var(--rail);border-top:1px solid var(--line);padding:6px">
+          <sc-for list="{{ barIcons }}" as="b" hint-placeholder-count="6">
+            <div style="{{ b.style }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">{{ b.icon }}</span></div>
+          </sc-for>
+        </div>
         <div style="position:absolute;inset:0;background:var(--scrim);opacity:0.54"></div>
-        <div style="position:absolute;left:0;right:0;top:0;bottom:64px;display:flex;flex-direction:column;background:var(--panel);box-shadow:0 -10px 30px var(--sh-2);transform:translateY(46%)">
+        <div style="position:absolute;left:0;right:0;top:0;bottom:0;display:flex;flex-direction:column;background:var(--panel);box-shadow:0 -10px 30px var(--sh-2);transform:translateY(46%)">
           <div style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;padding:8px 0 2px"><span style="width:38px;height:4px;border-radius:4px;background:var(--border2)"></span></div>
           <div style="flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:12px 12px 10px 14px;border-bottom:1px solid var(--line2)">
             <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)">notifications</span>
@@ -88,25 +93,25 @@ Project repository: https://github.com/fathomise/MailFathom
             </div>
           </sc-for>
         </div>
-        <div style="position:absolute;left:0;right:0;bottom:0;height:64px;display:flex;align-items:center;gap:2px;background:var(--rail);border-top:1px solid var(--line);padding:6px">
-          <sc-for list="{{ barIcons }}" as="b" hint-placeholder-count="6">
-            <div style="{{ b.style }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">{{ b.icon }}</span></div>
-          </sc-for>
-        </div>
         <div style="position:absolute;left:50%;top:246px;width:34px;height:34px;margin-left:-17px;border-radius:50%;background:var(--accent);opacity:0.30"></div>
         <div style="position:absolute;left:50%;top:280px;width:2px;height:150px;margin-left:-1px;background:var(--accent);opacity:0.45"></div>
         <div style="position:absolute;left:50%;top:222px;margin-left:-9px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--accent)">keyboard_arrow_up</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:3px">
         <div style="font-size:14px;font-weight:600">2 · Gesture halfway</div>
-        <div style="font-size:13px;color:var(--muted);line-height:1.45;text-wrap:pretty">The panel sits exactly where the finger is: 0.54 of the panel height travelled, scrim opacity 0.54. No smoothing and no delay - releasing here opens the panel, because 0.54 &gt; 0.32.</div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.45;text-wrap:pretty">The panel sits exactly where the finger is, over the bar it came out of: 0.54 of the panel height travelled, scrim opacity 0.54. No smoothing and no delay - releasing here opens the panel, because 0.54 &gt; 0.32.</div>
       </div>
     </div>
 
     <div style="display:flex;flex-direction:column;gap:10px;width:264px">
       <div style="position:relative;width:264px;height:520px;border-radius:24px;border:1px solid var(--border2);background:var(--sub);overflow:hidden;box-shadow:0 14px 34px var(--sh-1)">
+        <div style="position:absolute;left:0;right:0;bottom:0;height:64px;display:flex;align-items:center;gap:2px;background:var(--rail);border-top:1px solid var(--line);padding:6px">
+          <sc-for list="{{ barIconsOpen }}" as="b" hint-placeholder-count="6">
+            <div style="{{ b.style }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">{{ b.icon }}</span></div>
+          </sc-for>
+        </div>
         <div style="position:absolute;inset:0;background:var(--scrim)"></div>
-        <div style="position:absolute;left:0;right:0;top:0;bottom:64px;display:flex;flex-direction:column;background:var(--panel);box-shadow:0 -10px 30px var(--sh-2)">
+        <div style="position:absolute;left:0;right:0;top:0;bottom:0;display:flex;flex-direction:column;background:var(--panel);box-shadow:0 -10px 30px var(--sh-2)">
           <div style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;padding:8px 0 2px"><span style="width:38px;height:4px;border-radius:4px;background:var(--border2)"></span></div>
           <div style="flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:12px 12px 10px 14px;border-bottom:1px solid var(--line2)">
             <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)">notifications</span>
@@ -129,15 +134,10 @@ Project repository: https://github.com/fathomise/MailFathom
             </div>
           </sc-for>
         </div>
-        <div style="position:absolute;left:0;right:0;bottom:0;height:64px;display:flex;align-items:center;gap:2px;background:var(--rail);border-top:1px solid var(--line);padding:6px">
-          <sc-for list="{{ barIconsOpen }}" as="b" hint-placeholder-count="6">
-            <div style="{{ b.style }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">{{ b.icon }}</span></div>
-          </sc-for>
-        </div>
       </div>
       <div style="display:flex;flex-direction:column;gap:3px">
         <div style="font-size:14px;font-weight:600">3 · Panel open</div>
-        <div style="font-size:13px;color:var(--muted);line-height:1.45;text-wrap:pretty">Gesture committed: distance 1.0, scrim full, the bar stays visible under the panel. The same state a tap on the bell leads to.</div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.45;text-wrap:pretty">Gesture committed: distance 1.0, scrim full, and the panel covers the whole screen, the nav bar included - it comes out over the bar rather than stopping above it, so nothing beneath it can be pressed while it stands. The same state a tap on the bell leads to.</div>
       </div>
     </div>
 
@@ -147,8 +147,13 @@ Project repository: https://github.com/fathomise/MailFathom
           <div style="height:12px;width:52%;border-radius:4px;background:var(--line)"></div>
           <div style="height:44px;border-radius:8px;background:var(--panel);border:1px solid var(--line)"></div>
         </div>
+        <div style="position:absolute;left:0;right:0;bottom:0;height:64px;display:flex;align-items:center;gap:2px;background:var(--rail);border-top:1px solid var(--line);padding:6px">
+          <sc-for list="{{ barIconsOpen }}" as="b" hint-placeholder-count="6">
+            <div style="{{ b.style }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">{{ b.icon }}</span></div>
+          </sc-for>
+        </div>
         <div style="position:absolute;inset:0;background:var(--scrim);opacity:0.76"></div>
-        <div style="position:absolute;left:0;right:0;top:0;bottom:64px;display:flex;flex-direction:column;background:var(--panel);box-shadow:0 -10px 30px var(--sh-2);transform:translateY(24%)">
+        <div style="position:absolute;left:0;right:0;top:0;bottom:0;display:flex;flex-direction:column;background:var(--panel);box-shadow:0 -10px 30px var(--sh-2);transform:translateY(24%)">
           <div style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;padding:8px 0 2px"><span style="width:38px;height:4px;border-radius:4px;background:var(--border2)"></span></div>
           <div style="flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:12px 12px 10px 14px;border-bottom:1px solid var(--line2)">
             <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)">notifications</span>
@@ -167,11 +172,6 @@ Project repository: https://github.com/fathomise/MailFathom
                 <div style="height:8px;width:58%;border-radius:4px;background:var(--line2)"></div>
               </div>
             </div>
-          </sc-for>
-        </div>
-        <div style="position:absolute;left:0;right:0;bottom:0;height:64px;display:flex;align-items:center;gap:2px;background:var(--rail);border-top:1px solid var(--line);padding:6px">
-          <sc-for list="{{ barIconsOpen }}" as="b" hint-placeholder-count="6">
-            <div style="{{ b.style }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">{{ b.icon }}</span></div>
           </sc-for>
         </div>
         <div style="position:absolute;left:20px;top:60px;width:34px;height:34px;border-radius:50%;border:2px dashed var(--accent);opacity:0.7"></div>

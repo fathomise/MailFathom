@@ -152,6 +152,7 @@ export function ToastsProvider({ children }: { readonly children: ReactNode }) {
                 title: said.title,
                 body: said.body,
                 action: said.action,
+                opens: said.opens,
                 leaving: false,
                 stands: { kind: said.kind },
                 standFor,
@@ -176,6 +177,7 @@ export function ToastsProvider({ children }: { readonly children: ReactNode }) {
                 title: operation.title,
                 body: operation.body,
                 action: undefined,
+                opens: undefined,
                 leaving: false,
                 stands: { operation },
                 standFor,
@@ -200,6 +202,7 @@ export function ToastsProvider({ children }: { readonly children: ReactNode }) {
                                   title: outcome.title,
                                   body: outcome.body,
                                   action: outcome.action,
+                                  opens: outcome.opens,
                                   stands: { kind: outcome.kind },
                               }
                             : toast,
