@@ -312,7 +312,7 @@ export function NotificationRow({
                         aria-label={translate(
                             notification.read ? 'notifications.markUnread' : 'notifications.markRead',
                         )}
-                        className={`flex size-8 cursor-pointer items-center justify-center rounded-lg border transition pointer-coarse:size-11 ${
+                        className={`flex size-8 cursor-pointer items-center justify-center rounded-lg border transition ${
                             notification.read
                                 ? 'border-line bg-panel text-muted'
                                 : 'border-accent-line bg-accent-soft text-accent-deep'
