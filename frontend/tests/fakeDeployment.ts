@@ -716,7 +716,10 @@ export class FakeDeployment {
             case 'POST /outbox/reopening':
                 return answering(this.sendReopened(request.body));
             case 'GET /drafts':
-                return answering(drafts.draftList);
+                return answering({
+                    ...drafts.draftList,
+                    drafts: drafts.draftList.drafts.filter(({ account }) => account === request.query.get('account')),
+                });
             case 'GET /replies/drafting':
                 return answering(drafts.draftsReplies);
             case 'POST /replies/drafting':
