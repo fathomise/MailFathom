@@ -106,11 +106,6 @@ function swipe(swiped: HTMLElement, across: number, down: number, pointerType = 
     fireEvent.pointerUp(swiped, { pointerId: 1, pointerType, clientX: across, clientY: down });
 }
 
-/** How far the card is drawn from where it stands, as its own style says. */
-function carriedTo(): string {
-    return screen.getByRole('listitem').querySelector<HTMLElement>('div')?.style.translate ?? '';
-}
-
 /** A toast standing for a notification, which is pressed as a whole to open what it is about. */
 function raiseOpening(opened: () => void): void {
     raise({ kind: 'info', title: 'Ada Lovelace', body: 'About the engine', opens: { label: 'Show', take: opened } });
@@ -337,22 +332,37 @@ describe('ToastsProvider', () => {
         expect(standing()).toHaveLength(0);
     });
 
-    it('follows the pointer across while it is held, and springs back where it is let go short of the threshold', () => {
+    it('stays where it is let go short of the threshold', () => {
+        drawSurface();
+
+        raise({ kind: 'neutral', title: 'Three threads archived' });
+        swipe(screen.getByText('Three threads archived'), swipeDistance - 1, 0, 'mouse');
+        pass(toastLeaving);
+
+        expect(standing()).toHaveLength(1);
+    });
+
+    it('forgets a press whose pointer left the card before it moved, so passing over the card later drags nothing', () => {
         drawSurface();
 
         raise({ kind: 'neutral', title: 'Three threads archived' });
 
         const card = screen.getByText('Three threads archived');
 
-        carry(card, swipeDistance - 1, 0, 'mouse');
-
-        expect(carriedTo()).toBe(`${String(swipeDistance - 1)}px`);
-
-        fireEvent.pointerUp(card, { pointerId: 1, pointerType: 'mouse', clientX: swipeDistance - 1, clientY: 0 });
+        // Pressed, then let go somewhere else: the release never reaches the card.
+        fireEvent.pointerDown(card, { pointerId: 1, pointerType: 'mouse', clientX: 0, clientY: 0 });
+        fireEvent.pointerLeave(card, { pointerId: 1, pointerType: 'mouse', clientX: -5, clientY: 0 });
+        fireEvent.pointerMove(card, { pointerId: 1, pointerType: 'mouse', clientX: swipeDistance, clientY: 0 });
+        fireEvent.pointerUp(card, { pointerId: 1, pointerType: 'mouse', clientX: swipeDistance, clientY: 0 });
         pass(toastLeaving);
 
-        expect(carriedTo()).toBe('');
         expect(standing()).toHaveLength(1);
+
+        // And the next press is a press like any other.
+        swipe(card, swipeDistance, 0, 'mouse');
+        pass(toastLeaving);
+
+        expect(standing()).toHaveLength(0);
     });
 
     it('stays where a right button was dragged across it, which is not a drag', () => {

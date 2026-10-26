@@ -230,6 +230,15 @@ export function ToastCard({
         }
     }
 
+    // A pointer that leaves the card before the card has started following it is not captured, so its release lands
+    // somewhere else and would leave the gesture standing for the next pointer that merely passes over the card. A
+    // gesture already engaged holds the capture and never leaves.
+    function leaveSwipe(): void {
+        if (swiping.current?.engaged === false) {
+            swiping.current = null;
+        }
+    }
+
     // How far the card is drawn from where it stands, and how faint, while a pointer carries it and once it has been
     // carried far enough to go. `translate` rather than `transform`, so the leaving animation, which moves the card by
     // `transform`, composes with it instead of throwing it back to where it started.
@@ -275,6 +284,7 @@ export function ToastCard({
             onPointerMove={followSwipe}
             onPointerUp={endSwipe}
             onPointerCancel={abandonSwipe}
+            onPointerLeave={leaveSwipe}
         >
             <span
                 className={`flex size-7 shrink-0 items-center justify-center rounded-md border border-line wide:size-8 ${mark.tint}`}

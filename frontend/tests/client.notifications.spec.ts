@@ -81,6 +81,54 @@ test('draws a notification that arrives while somebody works, and opens the mess
     await expect(row(page, notifications.arrivingNotification.body)).not.toContainText('Unread');
 });
 
+test('carries a notice dragged aside, brings it back let go short, and lets it go past that without opening it', async ({
+    page,
+    deployment,
+}) => {
+    await page.clock.install();
+    await openSignedIn(page);
+    await expect(bell(page)).toHaveAccessibleName('5 unread notifications');
+
+    deployment.raiseNotification();
+    await holdTheClock(page);
+    await page.clock.runFor(unreadCountInterval);
+
+    await expect(bell(page)).toHaveAccessibleName('6 unread notifications');
+
+    const notice = page.getByRole('list', { name: 'Notices' }).getByRole('listitem').filter({
+        hasText: notifications.arrivingNotification.body,
+    });
+    // The card is what moves, and the notice it stands in does not: it is read through the one control it draws.
+    const card = notice.getByRole('button', { name: /Show$/u });
+    const standing = await card.boundingBox();
+
+    expect(standing).not.toBeNull();
+
+    const left = standing?.x ?? 0;
+    const across = { x: left + 40, y: (standing?.y ?? 0) + (standing?.height ?? 0) / 2 };
+
+    // Short of the threshold the card follows the pointer, and let go there it comes back to where it stood.
+    await page.mouse.move(across.x, across.y);
+    await page.mouse.down();
+    await page.mouse.move(across.x + 60, across.y, { steps: 6 });
+    await expect.poll(async () => (await card.boundingBox())?.x ?? left).toBeGreaterThan(left + 50);
+    await page.mouse.up();
+    await expect.poll(async () => Math.round((await card.boundingBox())?.x ?? 0)).toBe(Math.round(left));
+
+    // Past it the card goes, and the notification it stood for is neither opened nor read.
+    await page.mouse.move(across.x, across.y);
+    await page.mouse.down();
+    await page.mouse.move(across.x + 130, across.y, { steps: 8 });
+    await page.mouse.up();
+    await page.clock.runFor(1_000);
+
+    await expect(notice).toHaveCount(0);
+    await expect(bell(page)).toHaveAccessibleName('6 unread notifications');
+    expect(deployment.requests('POST', `/notifications/${notifications.arrivingNotification.id}/read-state`)).toEqual(
+        [],
+    );
+});
+
 test('goes to the space a notification names, and the centre and the bell agree it was read, after a reload too', async ({
     page,
     deployment,
