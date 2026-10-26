@@ -7,6 +7,7 @@ using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Domain.Folders;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -107,6 +108,7 @@ internal static class ClientMailMessageEndpoint
 /// <param name="Headers">What the message displays above its body.</param>
 /// <param name="Body">Whether there is a body to draw, and which forms of it the sender wrote.</param>
 /// <param name="Sender">What this deployment established about the author the message displays.</param>
+/// <param name="Signature">What verifying the message's own S/MIME or OpenPGP signature found, beside the verdict and never folded into it.</param>
 /// <param name="Attachments">One entry per file the message carries, described and carrying none of what it holds.</param>
 /// <param name="Carried">The counts for everything the message carries besides its body, or <see langword="null" /> where nothing has ever read its parts.</param>
 /// <param name="Unread">Whether the mail server last showed the message as unseen.</param>
@@ -126,6 +128,7 @@ internal sealed record ClientMailMessageResponse(
     ClientMailMessageHeadersResponse Headers,
     ClientMailMessageBodyResponse Body,
     ClientMailSenderVerdictResponse Sender,
+    ClientMailSignatureResponse Signature,
     IReadOnlyList<ClientMailAttachmentResponse> Attachments,
     ClientMailCarriedResponse? Carried,
     bool Unread,
@@ -150,6 +153,7 @@ internal sealed record ClientMailMessageResponse(
             ClientMailMessageHeadersResponse.For(message.Headers),
             ClientMailMessageBodyResponse.For(message.Body),
             ClientMailSenderVerdictResponse.For(message.SenderVerification, message.SenderAuthenticationEvidence),
+            ClientMailSignatureResponse.For(message.SenderVerification.Signature),
             [.. message.Attachments.Select((attachment, position) =>
                 ClientMailAttachmentResponse.For(attachment, position))],
             message.AttachmentSummary is { } carried ? ClientMailCarriedResponse.For(carried) : null,
@@ -283,6 +287,139 @@ internal sealed record ClientMailSenderVerdictResponse(
     }
 }
 
+/// <summary>What verifying one message's own S/MIME or OpenPGP signature found, step by step.</summary>
+/// <param name="Outcome">The verdict the steps add up to — <c>NotSigned</c>, <c>Verified</c>, <c>Failed</c>, or <c>NotVerifiable</c> — as the outcome's own name.</param>
+/// <param name="Format">How the message is signed — <c>SecureMimeDetached</c>, <c>SecureMimeOpaque</c>, or <c>OpenPgpMime</c> — or <see langword="null" /> where it is not.</param>
+/// <param name="SecureMimeType">The <c>smime-type</c> an opaque S/MIME body declared, or <see langword="null" /> for any other format.</param>
+/// <param name="UnverifiableReason">Why the signature is not verifiable here, or <see langword="null" /> where it is not that outcome.</param>
+/// <param name="SignedAt">When the signer says they signed, or <see langword="null" /> where the signature does not say.</param>
+/// <param name="Steps">Each step's own result, in the order a reader is shown them.</param>
+/// <param name="TrustAnchor">What the signer is trusted through — the system store, a configured authority, or a configured key — or <see langword="null" /> where nothing vouched for them.</param>
+/// <param name="ChainEnd">The subject of the certificate an S/MIME chain ended at, or <see langword="null" /> where none was built.</param>
+/// <param name="ValidityFailure">Which validity or purpose rule the signer's certificate or key broke, or <see langword="null" /> where none.</param>
+/// <param name="RevocationMethod">How revocation was established — <c>Ocsp</c>, <c>Crl</c>, or <c>KeyRevocationSignature</c> — or <see langword="null" /> where it was not.</param>
+/// <param name="RevocationCheckedAt">When a responder answered the revocation check, or <see langword="null" /> where none did.</param>
+/// <param name="RevokedAt">When the signer's certificate or key was revoked, or <see langword="null" /> where it is not.</param>
+/// <param name="SignerMatchesAuthor">Whether the signer is the author the message displays, which is a fact of its own rather than part of the outcome.</param>
+/// <param name="Signer">Who signed, as their certificate or key names them, or <see langword="null" /> where neither was reached.</param>
+/// <remarks>
+/// <para>
+/// It sits beside the sender verdict and is never folded into it: the verdict is what the receiving server established
+/// about the domain the message came from, and this is what the message's own cryptography proves about who signed it
+/// and whether the signed content changed since. Neither says the message is safe. A verified signature by somebody
+/// other than the displayed author is published as verified with <paramref name="SignerMatchesAuthor" /> false, because
+/// the signature itself is sound and the mismatch is the fact a reader needs.
+/// </para>
+/// <para>
+/// It is read back as extraction stored it. Opening a message verifies nothing and reaches no responder, so a revocation
+/// answer is the one extraction received and <paramref name="RevocationCheckedAt" /> says when. The signer's identity is
+/// personal data like the rest of this response, and the signer's certificate or key itself is not published.
+/// </para>
+/// </remarks>
+internal sealed record ClientMailSignatureResponse(
+    string Outcome,
+    string? Format,
+    string? SecureMimeType,
+    string? UnverifiableReason,
+    DateTimeOffset? SignedAt,
+    ClientMailSignatureStepsResponse Steps,
+    string? TrustAnchor,
+    string? ChainEnd,
+    string? ValidityFailure,
+    string? RevocationMethod,
+    DateTimeOffset? RevocationCheckedAt,
+    DateTimeOffset? RevokedAt,
+    bool SignerMatchesAuthor,
+    ClientMailSignerResponse? Signer)
+{
+    /// <summary>Describes one message's signature verification for the wire.</summary>
+    /// <param name="signature">The verification the read carried.</param>
+    /// <returns>The response body, which is present with <c>NotSigned</c> for a message that carries no signature.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="signature" /> is <see langword="null" />.</exception>
+    internal static ClientMailSignatureResponse For(EmailSignature signature)
+    {
+        ArgumentNullException.ThrowIfNull(signature);
+
+        return new ClientMailSignatureResponse(
+            signature.Outcome.ToString(),
+            signature.Format?.ToString(),
+            signature.SecureMimeType?.ToString(),
+            signature.UnverifiableReason?.ToString(),
+            signature.SignedAt,
+            new ClientMailSignatureStepsResponse(
+                signature.ContentCheck.ToString(),
+                signature.AuthorityCheck.ToString(),
+                signature.ValidityCheck.ToString(),
+                signature.RevocationCheck.ToString(),
+                signature.SignerCheck.ToString()),
+            signature.TrustAnchor?.ToString(),
+            signature.ChainEnd,
+            signature.ValidityFailure?.ToString(),
+            signature.RevocationMethod?.ToString(),
+            signature.RevocationCheckedAt,
+            signature.RevokedAt,
+            signature.SignerMatchesAuthor,
+            signature.Signer is { } signer ? ClientMailSignerResponse.For(signer) : null);
+    }
+}
+
+/// <summary>The result of each step a signature verification takes, each as the result's own name.</summary>
+/// <param name="Content">Whether the signed content is unchanged since it was signed.</param>
+/// <param name="Authority">Whether a trusted certificate authority or a configured key vouches for the signer.</param>
+/// <param name="Validity">Whether the signer's certificate or key was valid at signing time and fit for signing mail.</param>
+/// <param name="Revocation">Whether the signer's certificate or key is not revoked.</param>
+/// <param name="Signer">Whether the signer is the author the message displays.</param>
+/// <remarks>
+/// Each takes <c>Passed</c>, <c>Failed</c>, <c>NotChecked</c> where the step was reached and could not be completed, or
+/// <c>Skipped</c> where an earlier step stopped the verification before it, so a screen draws the steps not reached as
+/// well as those that were.
+/// </remarks>
+internal sealed record ClientMailSignatureStepsResponse(
+    string Content,
+    string Authority,
+    string Validity,
+    string Revocation,
+    string Signer);
+
+/// <summary>Who signed one message, as their certificate or OpenPGP key names them.</summary>
+/// <param name="Name">The certificate's subject or the key's first user ID, or <see langword="null" /> where neither names one.</param>
+/// <param name="Address">The address the certificate or key names, preferring the one matching the displayed author, or <see langword="null" /> where none.</param>
+/// <param name="Issuer">The certificate's issuer, or <see langword="null" /> for an OpenPGP key.</param>
+/// <param name="ValidFrom">When the certificate or key became valid, or <see langword="null" /> where that is unknown.</param>
+/// <param name="ValidUntil">When the certificate or key stops being valid, or <see langword="null" /> where it does not expire or that is unknown.</param>
+/// <param name="SerialNumber">The certificate's serial number, or <see langword="null" /> for an OpenPGP key.</param>
+/// <param name="Fingerprint">The certificate's or key's fingerprint in hexadecimal, or <see langword="null" /> where it was not reached.</param>
+/// <param name="KeyId">The OpenPGP key ID in hexadecimal, or <see langword="null" /> for a certificate.</param>
+/// <param name="PublicKeyAlgorithm">The signer's public-key algorithm, or <see langword="null" /> where it was not read.</param>
+/// <param name="DigestAlgorithm">The digest the signature was computed over, or <see langword="null" /> where it was not read.</param>
+internal sealed record ClientMailSignerResponse(
+    string? Name,
+    string? Address,
+    string? Issuer,
+    DateTimeOffset? ValidFrom,
+    DateTimeOffset? ValidUntil,
+    string? SerialNumber,
+    string? Fingerprint,
+    string? KeyId,
+    string? PublicKeyAlgorithm,
+    string? DigestAlgorithm)
+{
+    /// <summary>Describes one signer for the wire.</summary>
+    /// <param name="signer">The signer the verification recorded.</param>
+    /// <returns>The response body.</returns>
+    internal static ClientMailSignerResponse For(EmailSigner signer) => new(
+        signer.Name,
+        signer.Address,
+        signer.Issuer,
+        signer.ValidFrom,
+        signer.ValidUntil,
+        signer.SerialNumber,
+        signer.Fingerprint,
+        signer.KeyId,
+        signer.PublicKeyAlgorithm,
+        signer.DigestAlgorithm);
+}
+
 /// <summary>What spam classification concluded about one message, and who concluded it.</summary>
 /// <param name="Verdict">What was concluded — <c>Spam</c>, <c>NotSpam</c>, or <c>Undetermined</c> — as the verdict's own name.</param>
 /// <param name="DecidedBy">Which stage reached it — <c>Deterministic</c> for what the mail server and the message itself established, <c>Model</c>, or <c>Person</c> — as the stage's own name.</param>
@@ -379,7 +516,7 @@ internal sealed record ClientMailAttachmentResponse(
 /// <param name="TotalSizeOctets">The decoded octets of those files together.</param>
 /// <param name="InlineResourceCount">How many parts are resources the body embeds, which the body route draws inside the message rather than listing here.</param>
 /// <param name="Encrypted">Whether the message carries encrypted content somewhere.</param>
-/// <param name="UnverifiedSignature">Whether it carries a signature part, verified by nothing.</param>
+/// <param name="UnverifiedSignature">Whether it carries a signature part anywhere, which says nothing about whether the message's own signature verified; <c>signature</c> says that.</param>
 /// <param name="UnexpandedTnefPart">Whether it carries a TNEF <c>winmail.dat</c> part that was recorded without being expanded.</param>
 /// <remarks>
 /// The counts are separate values because a message whose only non-body parts are inline resources or a signature

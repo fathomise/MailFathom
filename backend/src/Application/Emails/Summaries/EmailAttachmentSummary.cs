@@ -50,10 +50,12 @@ public sealed record EmailAttachmentSummary
     /// <remarks>Decrypting it is out of scope; the marker exists so a reader can say why a body is absent instead of recording an empty one.</remarks>
     public bool IsEncrypted { get; }
 
-    /// <summary>Gets whether the message carries a signature part whose authenticity nothing has checked.</summary>
+    /// <summary>Gets whether the message carries a signature part anywhere, which states nothing about its authenticity.</summary>
     /// <remarks>
-    /// The name states presence only, deliberately. Anyone can attach a signature-typed part, and no verification runs
-    /// here, so a marker named after signing would be read downstream as an authenticity result this never established.
+    /// The name states presence only, deliberately. Anyone can attach a signature-typed part, and this marker is set by
+    /// the part's type alone — on a forwarded message's signature as readily as on the message's own — so a marker named
+    /// after signing would be read downstream as an authenticity result it never established. What verifying the
+    /// message's own signature found is a separate fact, <see cref="SenderVerification.Signature" />.
     /// </remarks>
     public bool CarriesUnverifiedSignature { get; }
 
@@ -73,7 +75,7 @@ public sealed record EmailAttachmentSummary
     /// <param name="attachments">The parts classified as attachments.</param>
     /// <param name="inlineResourceCount">How many parts an HTML body embeds.</param>
     /// <param name="isEncrypted">Whether the body arrived inside a cryptographic envelope.</param>
-    /// <param name="carriesUnverifiedSignature">Whether a signature part is present, verified by nothing.</param>
+    /// <param name="carriesUnverifiedSignature">Whether a signature part is present anywhere in the message, which states nothing about whether it verified.</param>
     /// <param name="containsUnexpandedTnefPart">Whether a TNEF part was recorded without being expanded.</param>
     /// <returns>The summary.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="attachments" /> is <see langword="null" />.</exception>

@@ -123,7 +123,7 @@ fact whether it named one email or ten.
 | `Attachments` | One entry per attachment, re-derived from the stored raw MIME, each carrying a link to fetch it or the reason it carries none |
 | `RemoteFlags` | The flags a server last showed, and when they were read |
 | `Thread` | The conversation this email belongs to, with the other messages named rather than reproduced, or absent when nothing has assembled one |
-| `SenderVerification` | What was established about the author the message displays, and what this deployment made of them |
+| `SenderVerification` | What was established about the author the message displays, what this deployment made of them, and what the message's own S/MIME or OpenPGP signature proves |
 | `SenderAuthenticationEvidence` | What that conclusion was reached from: the authenticated domain, the displayed author's domain, the check that established the first, the DMARC result, and which reading produced all of it |
 | `Spam` | What spam classification concluded and who concluded it, taken from the same summary a listing carries, or absent when nothing has classified the email |
 

@@ -6,6 +6,7 @@ using MailFathom.Application.Emails.Summaries;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
+using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Domain.Spam;
 using MailFathom.Infrastructure.Persistence.Emails;
 using Xunit;
@@ -111,10 +112,98 @@ public sealed class StoredEmailSummaryRowTests
         Assert.Null(summary.Spam);
     }
 
+    /// <summary>A stored verification reaches the summary step by step, with the signer it named.</summary>
+    [Fact]
+    public void ToSummary_ARowWithAVerifiedSignature_CarriesEveryStepAndTheSigner()
+    {
+        // Arrange
+        var signedAt = new DateTimeOffset(2026, 8, 27, 9, 13, 0, TimeSpan.Zero);
+        var checkedAt = new DateTimeOffset(2026, 9, 1, 12, 0, 0, TimeSpan.Zero);
+        var row = RowWith(MachineAuthorshipBand.NotAssessed, 0, signature: new StoredEmailSignatureRow(
+            EmailSignatureFormat.SecureMimeDetached,
+            SecureMimeType: null,
+            UnverifiableReason: null,
+            signedAt,
+            SignatureCheckResult.Passed,
+            SignatureCheckResult.Passed,
+            SignatureTrustAnchor.ConfiguredAuthority,
+            "CN=MailFathom Test Root CA",
+            SignatureCheckResult.Passed,
+            ValidityFailure: null,
+            SignatureCheckResult.Passed,
+            RevocationCheckMethod.Ocsp,
+            checkedAt,
+            RevokedAt: null,
+            SignatureCheckResult.Failed,
+            "CN=Anna Kowalska",
+            "anna@signer.example.test",
+            "CN=MailFathom Test Issuing CA",
+            SignerValidFrom: null,
+            SignerValidUntil: null,
+            "1001",
+            "AB12",
+            SignerKeyId: null,
+            "ECDSA P-256",
+            "SHA-256"));
+
+        // Act
+        var signature = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>()).SenderVerification.Signature;
+
+        // Assert
+        Assert.Equal(EmailSignatureOutcome.Verified, signature.Outcome);
+        Assert.False(signature.SignerMatchesAuthor);
+        Assert.Equal(RevocationCheckMethod.Ocsp, signature.RevocationMethod);
+        Assert.Equal(checkedAt, signature.RevocationCheckedAt);
+        Assert.Equal("anna@signer.example.test", signature.Signer?.Address);
+        Assert.True(signature.Signer?.KeyMaterial.IsEmpty);
+    }
+
+    /// <summary>A row no verification found a signature on reads as not signed, with no signer.</summary>
+    [Fact]
+    public void ToSummary_ARowWithNoSignature_IsReadAsNotSigned()
+    {
+        // Arrange
+        var row = RowWith(MachineAuthorshipBand.NotAssessed, 0);
+
+        // Act
+        var signature = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>()).SenderVerification.Signature;
+
+        // Assert
+        Assert.Equal(EmailSignature.NotSigned, signature);
+    }
+
+    private static StoredEmailSignatureRow NotSignedRow() => new(
+        Format: null,
+        SecureMimeType: null,
+        UnverifiableReason: null,
+        SignedAt: null,
+        SignatureCheckResult.Skipped,
+        SignatureCheckResult.Skipped,
+        TrustAnchor: null,
+        ChainEnd: null,
+        SignatureCheckResult.Skipped,
+        ValidityFailure: null,
+        SignatureCheckResult.Skipped,
+        RevocationMethod: null,
+        RevocationCheckedAt: null,
+        RevokedAt: null,
+        SignatureCheckResult.Skipped,
+        SignerName: null,
+        SignerAddress: null,
+        SignerIssuer: null,
+        SignerValidFrom: null,
+        SignerValidUntil: null,
+        SignerSerialNumber: null,
+        SignerFingerprint: null,
+        SignerKeyId: null,
+        SignerPublicKeyAlgorithm: null,
+        SignerDigestAlgorithm: null);
+
     private static StoredEmailSummaryRow RowWith(
         MachineAuthorshipBand band,
         double likelihood,
-        EmailSpamVerdict? spam = null) => new(
+        EmailSpamVerdict? spam = null,
+        StoredEmailSignatureRow? signature = null) => new(
         Guid.CreateVersion7(),
         "primary",
         Guid.CreateVersion7(),
@@ -153,6 +242,7 @@ public sealed class StoredEmailSummaryRowTests
         likelihood,
         MachineAuthorshipSignals.HiddenCharacters,
         MachineAuthorshipProfile.Standard.Revision.Value,
+        signature ?? NotSignedRow(),
         spam?.Verdict,
         spam?.DecidedBy,
         spam?.Subcategory,

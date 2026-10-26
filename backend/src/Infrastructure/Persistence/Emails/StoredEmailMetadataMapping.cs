@@ -8,6 +8,7 @@ using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
+using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Infrastructure.Persistence.Entities;
 
 namespace MailFathom.Infrastructure.Persistence.Emails;
@@ -74,6 +75,7 @@ internal static class StoredEmailMetadataMapping
         ApplySenderAuthentication(entity, metadata.SenderAuthentication);
         ApplySenderTrust(entity, metadata.SenderTrust);
         ApplyMachineAuthorship(entity, metadata.MachineAuthorship);
+        ApplySignature(entity, metadata.Signature);
     }
 
     /// <summary>Records what the receiving mail server established about who sent the message.</summary>
@@ -127,6 +129,45 @@ internal static class StoredEmailMetadataMapping
         entity.MachineAuthorshipProfileRevision = authorship.ProfileRevision.NamesAProfile
             ? authorship.ProfileRevision.Value
             : null;
+    }
+
+    /// <summary>Records what verifying the message's own signature found, step by step.</summary>
+    /// <remarks>
+    /// Written whole on every extraction, including the not-signed answer, so a re-derivation that reaches a revocation
+    /// responder it could not reach before replaces the whole group rather than leaving one step from the earlier
+    /// reading. The text fields need no length guard of their own: the domain value already cut each to its column.
+    /// </remarks>
+    private static void ApplySignature(StoredEmailEntity entity, EmailSignature signature)
+    {
+        entity.SignatureOutcome = signature.Outcome;
+        entity.SignatureFormat = signature.Format;
+        entity.SignatureSecureMimeType = signature.SecureMimeType;
+        entity.SignatureUnverifiableReason = signature.UnverifiableReason;
+        entity.SignatureSignedAt = signature.SignedAt;
+        entity.SignatureContentCheck = signature.ContentCheck;
+        entity.SignatureAuthorityCheck = signature.AuthorityCheck;
+        entity.SignatureTrustAnchor = signature.TrustAnchor;
+        entity.SignatureChainEnd = signature.ChainEnd;
+        entity.SignatureValidityCheck = signature.ValidityCheck;
+        entity.SignatureValidityFailure = signature.ValidityFailure;
+        entity.SignatureRevocationCheck = signature.RevocationCheck;
+        entity.SignatureRevocationMethod = signature.RevocationMethod;
+        entity.SignatureRevocationCheckedAt = signature.RevocationCheckedAt;
+        entity.SignatureRevokedAt = signature.RevokedAt;
+        entity.SignatureSignerCheck = signature.SignerCheck;
+
+        var signer = signature.Signer;
+        entity.SignerName = signer?.Name;
+        entity.SignerAddress = signer?.Address;
+        entity.SignerIssuer = signer?.Issuer;
+        entity.SignerValidFrom = signer?.ValidFrom;
+        entity.SignerValidUntil = signer?.ValidUntil;
+        entity.SignerSerialNumber = signer?.SerialNumber;
+        entity.SignerFingerprint = signer?.Fingerprint;
+        entity.SignerKeyId = signer?.KeyId;
+        entity.SignerPublicKeyAlgorithm = signer?.PublicKeyAlgorithm;
+        entity.SignerDigestAlgorithm = signer?.DigestAlgorithm;
+        entity.SignerKeyMaterial = signer is { KeyMaterial.IsEmpty: false } ? signer.KeyMaterial.ToArray() : null;
     }
 
     /// <summary>Records the one participant a timeline names as the message's sender.</summary>

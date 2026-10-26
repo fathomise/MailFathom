@@ -48,6 +48,10 @@ budget or the coordinator loop itself are marked *restart* below.
 | `MailSynchronization:MaxSubscribedFolders` | int | `20` | 1 – 100; how many folders one push subscription may name on a server supporting `NOTIFY`, the rest synchronizing on the account's interval | reload |
 | `MailSynchronization:TrustOwnAccountDomains` | bool | `true` | Whether an author writing from a domain one of the configured accounts uses counts as trusted on the other accounts of the person who owns it. The set is read from each account's `UserName` where that is an address, so it needs no list of its own, and it is read per user rather than across the deployment: two people this deployment serves are two correspondents, so one's mail domain is not somebody the other recognizes | reload; the next extraction judges against it |
 | `MailSynchronization:VerifyDkimLocally` | bool | `true` | Whether extraction verifies a message's own DKIM signatures where no trusted `Authentication-Results` header was found. A fallback and never a supplement: an account whose server writes the header verifies nothing locally. It is the only path that makes an outbound DNS query | reload; the next extraction verifies against it |
+| `MailSynchronization:SignatureVerification:TrustSystemStore` | bool | `true` | Whether an S/MIME signer certificate chaining to the operating system's trust store can verify. Off trusts only the authorities named below | reload; the next extraction verifies against it |
+| `MailSynchronization:SignatureVerification:TrustedAuthorities` | list of named secret blocks | empty | Certificate authorities an S/MIME signer may chain to beside the system store, each loaded and validated as a certificate without a private key at startup and on every reload. Several entries rotate an authority by overlap | reload |
+| `MailSynchronization:SignatureVerification:TrustedOpenPgpKeys` | list of named secret blocks | empty | The OpenPGP public keys whose signatures can verify — armored or binary, one or several per entry, each validated when read. Nothing else is trusted for OpenPGP | reload |
+| `MailSynchronization:SignatureVerification:RevocationTimeout` | TimeSpan | `00:00:10` | 1 s – 1 min; how long establishing one signer certificate's revocation status may take over every responder it names. A check that runs out of time makes the signature not verifiable rather than verified | reload |
 | `MailSynchronization:AssessMachineAuthorship` | bool | `true` | Whether extraction reads how much each message's own text reads as machine written. What the reading weighs is the project's and is not configurable; this decides only whether it runs | reload; the next extraction reads against it |
 
 ### One account — a mailbox in a user's record
@@ -266,6 +270,58 @@ schedules it.
 [What a mapping decides beyond where the folder is](../features/imap-synchronization.md#what-a-mapping-decides-beyond-where-the-folder-is)
 states all three switches together, what an unmapped folder is instead, and what becomes of the local copy of a message
 relocated into a folder nothing mirrors.
+
+### Verifying a message's own signature — `SignatureVerification`
+
+Every received message's own S/MIME or PGP/MIME signature is verified when the message is stored, whatever this block
+says; what it decides is which signers a verification can end in *verified* for. The result and every step behind it are
+stored with the message and published to the client and to the MCP tools as described in [the client
+endpoint](client-endpoint.md#the-message-route) and [the MCP tools](../features/mcp-tools.md). Inline PGP, decrypting an
+encrypted message, and verifying a signature on a forwarded message are not done, and a verification failing for any
+reason never stops a message from being stored.
+
+```jsonc
+"MailSynchronization": {
+  "SignatureVerification": {
+    "TrustSystemStore": true,
+    "TrustedAuthorities": [
+      { "Name": "company-mail-ca", "SecretReference": "file:/run/secrets/company-mail-ca.pem" }
+    ],
+    "TrustedOpenPgpKeys": [
+      { "Name": "release-signing-key", "SecretReference": "file:/run/secrets/release-signing-key.asc" }
+    ],
+    "RevocationTimeout": "00:00:10"
+  }
+}
+```
+
+**S/MIME is verified the way a mail client verifies it.** The signer's certificate must chain to the system trust store
+or to a configured authority using only the certificates the signature carries — no missing intermediate is fetched —
+be valid at the time the message says it was signed, name the `emailProtection` extended key usage where it names any,
+and carry the digital-signature or non-repudiation key usage. The system store is consulted first, so a certificate a
+public authority issued is reported as the public authority's whatever else is configured. **OpenPGP has no
+authorities**, so with nothing configured every OpenPGP signature is not verifiable here; a key a message carries about
+itself — an attached key, an `Autocrypt` header — is never consulted, and nothing is fetched from a key server. A
+configured key's expiry and revocation are read off the key itself.
+
+**Revocation is checked online, and this is outbound traffic the deployment did not make before.** For a signer whose
+chain is trusted, MailFathom asks the OCSP responder the certificate names and, where none answers, reads the CRL its
+distribution point names — at most two of each, over plain HTTP or HTTPS, through the bounded and retried outbound
+client the service uses for every other dependency. A responder learns that this deployment checked that certificate,
+and when; nothing about the message, the mailbox, or the recipient is sent. A certificate whose chain is not trusted is
+never checked, so the addresses asked are always ones a trusted authority wrote. An answer is cached for as long as it
+says it is valid, between one minute and one day, and an unreachable responder is asked again after a minute. The cache
+is one per replica, so a deployment of several replicas asks each responder up to `× replicaCount` as often. Every check
+has the hard `RevocationTimeout`; one that cannot complete — no network, a timeout, every responder unreachable — makes
+the signature *not verifiable*, never verified and never failed. Verification runs at extraction, so opening a message
+never waits on a responder. A deployment that must make no such request sets `TrustSystemStore` to `false` and names no
+authority, which leaves every S/MIME signature not verifiable and asks nobody.
+
+**Changing the trust re-judges stored mail only when it is re-derived.** A message is verified once, when it is
+stored; `mfctl mailbox rederive` verifies the stored mail again against the trust and the revocation answers of that
+moment, and is also what brings mail stored before signatures were verified from *not signed* to its actual result.
+The signer's name, address, and certificate or key are personal data and are stored with the message, inheriting its
+retention and erasure.
 
 ### How a settings policy resolves a mail account
 

@@ -175,7 +175,7 @@
                 ]
               },
               "senderVerification": {
-                "description": "What was established about the author this email displays. Two independent answers: whether the displayed author was authenticated, and whether this deployment recognizes them. Neither is a judgement about whether the email is wanted or unwanted.",
+                "description": "What was established about the author this email displays. Three independent answers: whether the displayed author was authenticated, whether this deployment recognizes them, and what the email's own signature proves about who signed it. None is a judgement about whether the email is wanted, unwanted, or safe.",
                 "properties": {
                   "authorAuthentication": {
                     "description": "What the receiving mail server established about the author shown in the From header: 'authenticated' when it confirmed the displayed author, 'failed' when it evaluated the displayed domain under that domain's own published policy and the email did not satisfy it, and 'notEstablished' when nothing trusted was enough to conclude either way — which is also what an email carries when the mailbox trusts no authentication-reporting server, and what mail stored before this deployment recorded the answer carries until it is re-read. It is not derived from senderAddress, which is a claim the email wrote about itself.",
@@ -193,11 +193,86 @@
                       "trusted"
                     ],
                     "type": "string"
+                  },
+                  "signature": {
+                    "description": "What verifying this email's own S/MIME or OpenPGP signature found. It says who signed and whether the signed content is unchanged, never that the email is safe or that what it says is true.",
+                    "properties": {
+                      "format": {
+                        "description": "How the email is signed, or absent when it is not.",
+                        "enum": [
+                          "secureMimeDetached",
+                          "secureMimeOpaque",
+                          "openPgpMime",
+                          null
+                        ],
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "outcome": {
+                        "description": "'verified' when the signature is sound, its signer is trusted by this deployment, valid, not revoked, and the signed content is unchanged; 'failed' when the content does not match the signature, so it changed after signing; 'notVerifiable' when it could not be verified here, for the reason in unverifiableReason; 'notSigned' when the email carries no signature of its own, which is also what mail stored before signatures were verified carries until it is re-read.",
+                        "enum": [
+                          "notSigned",
+                          "verified",
+                          "failed",
+                          "notVerifiable"
+                        ],
+                        "type": "string"
+                      },
+                      "signedAt": {
+                        "description": "When the signer says they signed, or absent when the signature does not say. It is the signer's own claim.",
+                        "format": "date-time",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "signerAddress": {
+                        "description": "The address the signer's certificate or key names, or absent when neither was reached. Vouched for by a trusted authority or a configured key only when outcome is 'verified'.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "signerMatchesAuthor": {
+                        "description": "Whether the signer's certificate or key names the address in the From header. A verified signature with this false was made by somebody other than the displayed author, which is worth telling the person.",
+                        "type": "boolean"
+                      },
+                      "unverifiableReason": {
+                        "description": "Why the signature could not be verified here, present only when outcome is 'notVerifiable'. 'untrustedRoot' and 'unknownKey' mean only that this deployment does not trust the signer, not that the signature is forged.",
+                        "enum": [
+                          "noCertificate",
+                          "untrustedRoot",
+                          "outsideValidityPeriod",
+                          "wrongKeyUsage",
+                          "revoked",
+                          "revocationNotCheckable",
+                          "unknownKey",
+                          "expiredKey",
+                          "revokedKey",
+                          "unsupportedAlgorithm",
+                          "malformedSignature",
+                          "contentNotOpened",
+                          null
+                        ],
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "outcome",
+                      "signerMatchesAuthor"
+                    ],
+                    "type": "object"
                   }
                 },
                 "required": [
                   "authorAuthentication",
-                  "deploymentTrust"
+                  "deploymentTrust",
+                  "signature"
                 ],
                 "type": "object"
               },
@@ -1059,7 +1134,7 @@
                         "type": "integer"
                       },
                       "carriesUnverifiedSignature": {
-                        "description": "Whether a cryptographic signature part is present. MailFathom does not verify it, so this states presence and nothing about authenticity.",
+                        "description": "Whether a cryptographic signature part is present anywhere in the email. It states presence and nothing about authenticity: what verifying the email's own signature found is senderVerification.signature, and a signature on a forwarded or attached message is not verified.",
                         "type": "boolean"
                       },
                       "containsUnexpandedTnefPart": {
@@ -1498,7 +1573,7 @@
                     "type": "object"
                   },
                   "senderVerification": {
-                    "description": "What was established about the author this email displays. Two independent answers: whether the displayed author was authenticated, and whether this deployment recognizes them. Neither is a judgement about whether the email is wanted or unwanted.",
+                    "description": "What was established about the author this email displays. Three independent answers: whether the displayed author was authenticated, whether this deployment recognizes them, and what the email's own signature proves about who signed it. None is a judgement about whether the email is wanted, unwanted, or safe.",
                     "properties": {
                       "authorAuthentication": {
                         "description": "What the receiving mail server established about the author shown in the From header: 'authenticated' when it confirmed the displayed author, 'failed' when it evaluated the displayed domain under that domain's own published policy and the email did not satisfy it, and 'notEstablished' when nothing trusted was enough to conclude either way — which is also what an email carries when the mailbox trusts no authentication-reporting server, and what mail stored before this deployment recorded the answer carries until it is re-read. It is not derived from senderAddress, which is a claim the email wrote about itself.",
@@ -1516,11 +1591,86 @@
                           "trusted"
                         ],
                         "type": "string"
+                      },
+                      "signature": {
+                        "description": "What verifying this email's own S/MIME or OpenPGP signature found. It says who signed and whether the signed content is unchanged, never that the email is safe or that what it says is true.",
+                        "properties": {
+                          "format": {
+                            "description": "How the email is signed, or absent when it is not.",
+                            "enum": [
+                              "secureMimeDetached",
+                              "secureMimeOpaque",
+                              "openPgpMime",
+                              null
+                            ],
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "outcome": {
+                            "description": "'verified' when the signature is sound, its signer is trusted by this deployment, valid, not revoked, and the signed content is unchanged; 'failed' when the content does not match the signature, so it changed after signing; 'notVerifiable' when it could not be verified here, for the reason in unverifiableReason; 'notSigned' when the email carries no signature of its own, which is also what mail stored before signatures were verified carries until it is re-read.",
+                            "enum": [
+                              "notSigned",
+                              "verified",
+                              "failed",
+                              "notVerifiable"
+                            ],
+                            "type": "string"
+                          },
+                          "signedAt": {
+                            "description": "When the signer says they signed, or absent when the signature does not say. It is the signer's own claim.",
+                            "format": "date-time",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "signerAddress": {
+                            "description": "The address the signer's certificate or key names, or absent when neither was reached. Vouched for by a trusted authority or a configured key only when outcome is 'verified'.",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "signerMatchesAuthor": {
+                            "description": "Whether the signer's certificate or key names the address in the From header. A verified signature with this false was made by somebody other than the displayed author, which is worth telling the person.",
+                            "type": "boolean"
+                          },
+                          "unverifiableReason": {
+                            "description": "Why the signature could not be verified here, present only when outcome is 'notVerifiable'. 'untrustedRoot' and 'unknownKey' mean only that this deployment does not trust the signer, not that the signature is forged.",
+                            "enum": [
+                              "noCertificate",
+                              "untrustedRoot",
+                              "outsideValidityPeriod",
+                              "wrongKeyUsage",
+                              "revoked",
+                              "revocationNotCheckable",
+                              "unknownKey",
+                              "expiredKey",
+                              "revokedKey",
+                              "unsupportedAlgorithm",
+                              "malformedSignature",
+                              "contentNotOpened",
+                              null
+                            ],
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "outcome",
+                          "signerMatchesAuthor"
+                        ],
+                        "type": "object"
                       }
                     },
                     "required": [
                       "authorAuthentication",
-                      "deploymentTrust"
+                      "deploymentTrust",
+                      "signature"
                     ],
                     "type": "object"
                   },
@@ -2362,7 +2512,7 @@
                     "type": "integer"
                   },
                   "carriesUnverifiedSignature": {
-                    "description": "Whether a cryptographic signature part is present. MailFathom does not verify it, so this states presence and nothing about authenticity.",
+                    "description": "Whether a cryptographic signature part is present anywhere in the email. It states presence and nothing about authenticity: what verifying the email's own signature found is senderVerification.signature, and a signature on a forwarded or attached message is not verified.",
                     "type": "boolean"
                   },
                   "containsUnexpandedTnefPart": {
@@ -2517,7 +2667,7 @@
                 ]
               },
               "senderVerification": {
-                "description": "What was established about the author this email displays. Two independent answers: whether the displayed author was authenticated, and whether this deployment recognizes them. Neither is a judgement about whether the email is wanted or unwanted.",
+                "description": "What was established about the author this email displays. Three independent answers: whether the displayed author was authenticated, whether this deployment recognizes them, and what the email's own signature proves about who signed it. None is a judgement about whether the email is wanted, unwanted, or safe.",
                 "properties": {
                   "authorAuthentication": {
                     "description": "What the receiving mail server established about the author shown in the From header: 'authenticated' when it confirmed the displayed author, 'failed' when it evaluated the displayed domain under that domain's own published policy and the email did not satisfy it, and 'notEstablished' when nothing trusted was enough to conclude either way — which is also what an email carries when the mailbox trusts no authentication-reporting server, and what mail stored before this deployment recorded the answer carries until it is re-read. It is not derived from senderAddress, which is a claim the email wrote about itself.",
@@ -2535,11 +2685,86 @@
                       "trusted"
                     ],
                     "type": "string"
+                  },
+                  "signature": {
+                    "description": "What verifying this email's own S/MIME or OpenPGP signature found. It says who signed and whether the signed content is unchanged, never that the email is safe or that what it says is true.",
+                    "properties": {
+                      "format": {
+                        "description": "How the email is signed, or absent when it is not.",
+                        "enum": [
+                          "secureMimeDetached",
+                          "secureMimeOpaque",
+                          "openPgpMime",
+                          null
+                        ],
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "outcome": {
+                        "description": "'verified' when the signature is sound, its signer is trusted by this deployment, valid, not revoked, and the signed content is unchanged; 'failed' when the content does not match the signature, so it changed after signing; 'notVerifiable' when it could not be verified here, for the reason in unverifiableReason; 'notSigned' when the email carries no signature of its own, which is also what mail stored before signatures were verified carries until it is re-read.",
+                        "enum": [
+                          "notSigned",
+                          "verified",
+                          "failed",
+                          "notVerifiable"
+                        ],
+                        "type": "string"
+                      },
+                      "signedAt": {
+                        "description": "When the signer says they signed, or absent when the signature does not say. It is the signer's own claim.",
+                        "format": "date-time",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "signerAddress": {
+                        "description": "The address the signer's certificate or key names, or absent when neither was reached. Vouched for by a trusted authority or a configured key only when outcome is 'verified'.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "signerMatchesAuthor": {
+                        "description": "Whether the signer's certificate or key names the address in the From header. A verified signature with this false was made by somebody other than the displayed author, which is worth telling the person.",
+                        "type": "boolean"
+                      },
+                      "unverifiableReason": {
+                        "description": "Why the signature could not be verified here, present only when outcome is 'notVerifiable'. 'untrustedRoot' and 'unknownKey' mean only that this deployment does not trust the signer, not that the signature is forged.",
+                        "enum": [
+                          "noCertificate",
+                          "untrustedRoot",
+                          "outsideValidityPeriod",
+                          "wrongKeyUsage",
+                          "revoked",
+                          "revocationNotCheckable",
+                          "unknownKey",
+                          "expiredKey",
+                          "revokedKey",
+                          "unsupportedAlgorithm",
+                          "malformedSignature",
+                          "contentNotOpened",
+                          null
+                        ],
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "outcome",
+                      "signerMatchesAuthor"
+                    ],
+                    "type": "object"
                   }
                 },
                 "required": [
                   "authorAuthentication",
-                  "deploymentTrust"
+                  "deploymentTrust",
+                  "signature"
                 ],
                 "type": "object"
               },
@@ -3489,7 +3714,7 @@
                         "type": "integer"
                       },
                       "carriesUnverifiedSignature": {
-                        "description": "Whether a cryptographic signature part is present. MailFathom does not verify it, so this states presence and nothing about authenticity.",
+                        "description": "Whether a cryptographic signature part is present anywhere in the email. It states presence and nothing about authenticity: what verifying the email's own signature found is senderVerification.signature, and a signature on a forwarded or attached message is not verified.",
                         "type": "boolean"
                       },
                       "containsUnexpandedTnefPart": {
@@ -3644,7 +3869,7 @@
                     ]
                   },
                   "senderVerification": {
-                    "description": "What was established about the author this email displays. Two independent answers: whether the displayed author was authenticated, and whether this deployment recognizes them. Neither is a judgement about whether the email is wanted or unwanted.",
+                    "description": "What was established about the author this email displays. Three independent answers: whether the displayed author was authenticated, whether this deployment recognizes them, and what the email's own signature proves about who signed it. None is a judgement about whether the email is wanted, unwanted, or safe.",
                     "properties": {
                       "authorAuthentication": {
                         "description": "What the receiving mail server established about the author shown in the From header: 'authenticated' when it confirmed the displayed author, 'failed' when it evaluated the displayed domain under that domain's own published policy and the email did not satisfy it, and 'notEstablished' when nothing trusted was enough to conclude either way — which is also what an email carries when the mailbox trusts no authentication-reporting server, and what mail stored before this deployment recorded the answer carries until it is re-read. It is not derived from senderAddress, which is a claim the email wrote about itself.",
@@ -3662,11 +3887,86 @@
                           "trusted"
                         ],
                         "type": "string"
+                      },
+                      "signature": {
+                        "description": "What verifying this email's own S/MIME or OpenPGP signature found. It says who signed and whether the signed content is unchanged, never that the email is safe or that what it says is true.",
+                        "properties": {
+                          "format": {
+                            "description": "How the email is signed, or absent when it is not.",
+                            "enum": [
+                              "secureMimeDetached",
+                              "secureMimeOpaque",
+                              "openPgpMime",
+                              null
+                            ],
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "outcome": {
+                            "description": "'verified' when the signature is sound, its signer is trusted by this deployment, valid, not revoked, and the signed content is unchanged; 'failed' when the content does not match the signature, so it changed after signing; 'notVerifiable' when it could not be verified here, for the reason in unverifiableReason; 'notSigned' when the email carries no signature of its own, which is also what mail stored before signatures were verified carries until it is re-read.",
+                            "enum": [
+                              "notSigned",
+                              "verified",
+                              "failed",
+                              "notVerifiable"
+                            ],
+                            "type": "string"
+                          },
+                          "signedAt": {
+                            "description": "When the signer says they signed, or absent when the signature does not say. It is the signer's own claim.",
+                            "format": "date-time",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "signerAddress": {
+                            "description": "The address the signer's certificate or key names, or absent when neither was reached. Vouched for by a trusted authority or a configured key only when outcome is 'verified'.",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "signerMatchesAuthor": {
+                            "description": "Whether the signer's certificate or key names the address in the From header. A verified signature with this false was made by somebody other than the displayed author, which is worth telling the person.",
+                            "type": "boolean"
+                          },
+                          "unverifiableReason": {
+                            "description": "Why the signature could not be verified here, present only when outcome is 'notVerifiable'. 'untrustedRoot' and 'unknownKey' mean only that this deployment does not trust the signer, not that the signature is forged.",
+                            "enum": [
+                              "noCertificate",
+                              "untrustedRoot",
+                              "outsideValidityPeriod",
+                              "wrongKeyUsage",
+                              "revoked",
+                              "revocationNotCheckable",
+                              "unknownKey",
+                              "expiredKey",
+                              "revokedKey",
+                              "unsupportedAlgorithm",
+                              "malformedSignature",
+                              "contentNotOpened",
+                              null
+                            ],
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "outcome",
+                          "signerMatchesAuthor"
+                        ],
+                        "type": "object"
                       }
                     },
                     "required": [
                       "authorAuthentication",
-                      "deploymentTrust"
+                      "deploymentTrust",
+                      "signature"
                     ],
                     "type": "object"
                   },

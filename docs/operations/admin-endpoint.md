@@ -1398,7 +1398,10 @@ refreshes and what neither touches; this is what the endpoint serves.
 **`mfctl mailbox rederive` is the cheap one, and the one to reach for first.** Everything the stored payload itself
 carries — the sender identity the receiving server authenticated is today's example — is already on the deployment's
 own disk, so it is a local read, a parse, and an update of the message's own columns. It opens no mailbox session, so
-it cannot set `\Seen`, and it rewrites no stored content:
+it cannot set `\Seen`, and it rewrites no stored content. The one request it may make is the one extraction makes: a
+signed message's signer certificate is checked for revocation again, against the responders it names, as
+[verifying a message's own signature](configuration-mail.md#verifying-a-messages-own-signature--signatureverification)
+describes:
 
 ```console
 $ mfctl mailbox rederive --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10

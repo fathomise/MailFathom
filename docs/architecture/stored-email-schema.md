@@ -168,6 +168,30 @@ every extraction so a re-derivation never leaves a likelihood beside signals a d
 [Machine authorship](../features/machine-authorship.md#what-is-recorded) states what each value means and what the
 reading deliberately does not claim.
 
+### The message's own signature
+
+Twenty-seven columns record what verifying the message's own S/MIME or OpenPGP signature found, on the email for the
+reason the groups above are: every message extraction reached carries an answer, the not-signed one included.
+`SignatureOutcome` is the verdict the steps add up to, stored beside them so a query can select on it, and defaults to
+`NotSigned`; `SignatureFormat`, `SignatureSecureMimeType`, and `SignatureUnverifiableReason` are nullable text. The five
+step results — `SignatureContentCheck`, `SignatureAuthorityCheck`, `SignatureValidityCheck`, `SignatureRevocationCheck`,
+and `SignatureSignerCheck` — are text defaulting to `Skipped`, so the migration that adds them fills every stored
+message in with the not-signed answer its row then truly holds until a re-derivation verifies it. Each step's detail
+sits beside it: `SignatureTrustAnchor` and `SignatureChainEnd`, `SignatureValidityFailure`, and
+`SignatureRevocationMethod`, `SignatureRevocationCheckedAt`, and `SignatureRevokedAt`, with `SignatureSignedAt` the time
+the signer claims.
+
+The `Signer*` columns are who signed, as their certificate or key names them — name, address, issuer, validity, serial
+number, fingerprint, OpenPGP key ID, and algorithms — each bounded by the value it is written from, and
+`SignerKeyMaterial` is the certificate's DER or the key ring's transferable form, `bytea` and dropped above 64 KiB. It is
+kept so a later feature can encrypt to the signer, and nothing reads it back today: no summary projection selects it. All
+of it is personal data, inherits the message's classification, and is erased with it.
+
+The whole group is written by extraction and written whole on every extraction, so a re-derivation that reaches a
+revocation responder it could not reach before replaces every step rather than one. [Verifying a message's own
+signature](../operations/configuration-mail.md#verifying-a-messages-own-signature--signatureverification) states what
+each verification trusts and what it asks the network.
+
 ### Bounds on what a header may contribute
 
 Nothing between the mail server and a row bounds a header's length or how many addresses it names. The MIME reader bounds a message's *structure* — part count and nesting depth — but not the width of a single header, so the persistence mapping applies its own ceilings: 320 octets per address, 998 per message identifier, 256 addresses per recipient array, and 64 thread ancestors.

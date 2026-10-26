@@ -599,7 +599,7 @@ untested. [Mailbox queries](mailbox-queries.md#what-a-summary-carries) records w
 
 Six parts of it are worth reading before a caller writes against them:
 
-- **`senderVerification` is two answers, never one.** `senderAddress` beside it is a claim the email wrote about itself,
+- **`senderVerification` is three answers, never one.** `senderAddress` beside it is a claim the email wrote about itself,
   and nothing on the way to a listing verified it. `authorAuthentication` is what was established about the author the
   email displays — by the receiving mail server, or, where that server wrote nothing, by this deployment verifying the
   message's own DKIM signatures — `authenticated`, `failed`, or `notEstablished`, and `deploymentTrust` is
@@ -609,7 +609,18 @@ Six parts of it are worth reading before a caller writes against them:
   is also what an email whose author failed carries, which is why the pair is read together. Both values are read from
   what synchronization stored; a listing evaluates nothing and contacts no mail server. [Sender
   authentication](sender-authentication.md#what-the-read-tools-publish) records what each value means and what it
-  deliberately does not claim.
+  deliberately does not claim. **`signature` is the third**: what verifying the email's own S/MIME or OpenPGP signature
+  found, as provenance. `outcome` is `verified` where the signature is sound, its signer is trusted by this deployment,
+  valid, not revoked, and the signed content is unchanged; `failed` where the content does not match the signature;
+  `notVerifiable` with an `unverifiableReason` where it could not be verified here — `untrustedRoot` and `unknownKey`
+  mean only that this deployment does not trust the signer, not that anything is forged; and `notSigned` for an email
+  carrying no signature of its own, which is also what mail stored before signatures were verified carries until a
+  re-derivation reaches it. `signerMatchesAuthor` is a fact beside the outcome rather than part of it — a verified
+  signature by somebody other than the displayed author is worth telling the person — and `signerAddress`, `format`, and
+  `signedAt` say who signed and how. It says what the cryptography said and **never that the email is safe**: a verified
+  signature proves who signed and that the content is unchanged, not that what it says is true. The step-by-step answer
+  and the signer's certificate are not published here; the first is the client's, and the second is published by
+  neither. The same object reaches every tool that publishes `senderVerification`, an answer's citations included.
 - **`machineAuthorship` is about the text, not about the sender.** `state` is how much the email's own text reads as
   machine written — `likely`, `possible`, `unlikely`, or `notAssessed` — and `likelihood` is the number that reading
   came from. It is **a heuristic estimate rather than a measured probability, and it is informational rather than a
@@ -627,7 +638,9 @@ Six parts of it are worth reading before a caller writes against them:
 - **`attachments` as a group rather than one flag.** `attachmentCount` and `inlineResourceCount` are separate values
   beside the total size and the encrypted, unverified-signature, and unexpanded-TNEF markers, because MailFathom's
   classification rule does not count an embedded logo or a signature part as an attachment. Without the second count a
-  caller could not tell an email carrying a document from one carrying a picture in its signature block.
+  caller could not tell an email carrying a document from one carrying a picture in its signature block. The
+  unverified-signature marker states that a signature part is present anywhere in the email and nothing about whether it
+  verified; `senderVerification.signature` is that.
 - **`threadId`, or nothing.** The conversation the message belongs to, which
   [`get_email_content`](#the-conversation-a-message-belongs-to) reads a whole exchange by. It is absent for a message no
   pass has assembled yet, which is what a mailbox synchronized before this release holds until `mfctl mailbox rederive`
@@ -748,7 +761,7 @@ in it.
 |---|---|
 | `accountId`, `folderId`, `folderPath` | Where the email is: the account, the identity of the folder, and its place in the account's hierarchy |
 | `sizeBytes` | The size of the whole email as the mail server reported it |
-| `senderVerification` | The same verdict pair a listing publishes: what was established about the displayed author, and what this deployment made of them |
+| `senderVerification` | The same verdict a listing publishes: what was established about the displayed author, what this deployment made of them, and what the email's own signature proves |
 | `machineAuthorship` | The same reading a listing publishes: how much the email's own text reads as machine written, as a band and a number |
 | `authorshipEvidence` | What that reading was computed from — the signals the text carried, strongest first, and the weighting they were judged under |
 | `headers` | Subject, sent and received timestamps, every participant with its header role, the three threading identifiers, and `senderAuthentication` — the evidence the verdict was reached from |
@@ -1951,8 +1964,8 @@ the place, so a claim can be checked against the words rather than against the m
 `source` is `imageDescription` is a claim resting on a model's account of a picture rather than on words anybody wrote,
 which is worth saying when reporting it.
 
-`senderVerification` is the same pair a listing publishes, in the same shape and without the evidence, so an answer says
-what was established about the author of each message it was drawn from. It is what a reader weighs a claim by: an
+`senderVerification` is the same object a listing publishes, in the same shape and without the evidence, so an answer
+says what was established about the author of each message it was drawn from and what its signature proves. It is what a reader weighs a claim by: an
 answer is worth what the mail behind it is worth, and a claim traced to a message whose displayed author failed
 authentication is worth reading differently from one traced to a correspondent this deployment recognizes. The evidence
 behind the verdict stays with the single-email read the citation points at.

@@ -141,6 +141,7 @@ using MailFathom.Infrastructure.Mail.MailKit.Writes;
 using MailFathom.Infrastructure.Mail.Mime;
 using MailFathom.Infrastructure.Mail.Mime.Composition;
 using MailFathom.Infrastructure.Mail.OAuth;
+using MailFathom.Infrastructure.Mail.Signatures;
 using MailFathom.Infrastructure.Mail.Signing;
 using MailFathom.Infrastructure.ObjectStorage;
 using MailFathom.Infrastructure.Observability;
@@ -971,6 +972,29 @@ public static class ServiceCollectionExtensions
             DnsDkimPublicKeyRecordResolver.CreateLookupClient(),
             provider.GetRequiredService<DkimPublicKeyRecordCache>(),
             provider.GetRequiredService<TimeProvider>()));
+        // The revocation answers and the client they are fetched through are process-wide for the reason the DKIM cache
+        // is: a cache per scope would ask the same responder about the same certificate once per folder run. The
+        // client keeps the standard resilience handler the service defaults add, so an OCSP request or a CRL download
+        // is retried and bounded like any other idempotent outbound read, and the checker holds the whole check to the
+        // configured deadline on top of that. Redirects are followed a short way because CRLs are commonly served from
+        // a content network behind the address an authority wrote into its certificates; only an address a trusted
+        // authority wrote ever reaches the client.
+        services.AddHttpClient(CertificateRevocationChecker.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(static () => new SocketsHttpHandler
+            {
+                AllowAutoRedirect = true,
+                MaxAutomaticRedirections = CertificateRevocationChecker.MaximumRedirections,
+            })
+            .ConfigureHttpClient(static client =>
+                client.MaxResponseContentBufferSize = CertificateRevocationChecker.MaximumAnswerBytes);
+        services.AddSingleton(provider => new CertificateRevocationAnswerCache(provider.GetRequiredService<TimeProvider>()));
+        services.AddSingleton(provider => new CertificateRevocationChecker(
+            provider.GetRequiredService<IHttpClientFactory>(),
+            provider.GetRequiredService<CertificateRevocationAnswerCache>(),
+            provider.GetRequiredService<TimeProvider>()));
+        services.AddSingleton(provider => new SecureMimeSignatureVerifier(
+            provider.GetRequiredService<CertificateRevocationChecker>(),
+            provider.GetRequiredService<TimeProvider>()));
         services.AddScoped<IEmailMimeReader>(provider =>
         {
             // The local verification is handed to the parse only where this deployment verifies for itself, so a
@@ -988,7 +1012,12 @@ public static class ServiceCollectionExtensions
                     new MimeKitEmailMimeReader(
                         extractionOptions,
                         provider.GetRequiredService<ITrustedAuthenticationAuthorityReader>(),
-                        localSenderVerifier),
+                        localSenderVerifier,
+                        new EmailSignatureVerifier(
+                            provider.GetRequiredService<EmailSignatureTrustOptions>(),
+                            provider.GetRequiredService<TrustAnchorLoader>(),
+                            provider.GetRequiredService<ISecretReferenceResolver>(),
+                            provider.GetRequiredService<SecureMimeSignatureVerifier>())),
                     provider.GetRequiredService<ISenderTrustPolicyReader>()),
                 provider.GetRequiredService<MachineAuthorshipProfile>());
 

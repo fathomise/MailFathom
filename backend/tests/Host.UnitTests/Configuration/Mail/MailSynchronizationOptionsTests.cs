@@ -96,6 +96,55 @@ public sealed class MailSynchronizationOptionsTests
         Assert.Equal([nameof(MailSynchronizationOptions.LeaseRenewalInterval)], result.MemberNames);
     }
 
+    /// <summary>A revocation timeout outside its range is refused under the nested key an operator wrote.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(61)]
+    public void ValidateForSynchronization_RevocationTimeoutOutsideItsRange_IsRejected(int seconds)
+    {
+        // Arrange
+        var options = new MailSynchronizationOptions();
+        options.SignatureVerification.RevocationTimeout = TimeSpan.FromSeconds(seconds);
+
+        // Act
+        var results = options.ValidateForSynchronization().ToArray();
+
+        // Assert
+        var result = Assert.Single(results);
+        Assert.Equal(["SignatureVerification.RevocationTimeout"], result.MemberNames);
+        Assert.StartsWith("MailSynchronization:SignatureVerification:", result.ErrorMessage, StringComparison.Ordinal);
+    }
+
+    /// <summary>The trust a verification reads is the section as bound, so the system store is trusted unless turned off.</summary>
+    [Fact]
+    public void SignatureVerification_BoundFromConfiguration_MapsOntoTheTrustAVerificationReads()
+    {
+        // Arrange
+        var options = new MailSynchronizationOptions();
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SignatureVerification:TrustSystemStore"] = "false",
+                ["SignatureVerification:TrustedAuthorities:0:Name"] = "company-mail-ca",
+                ["SignatureVerification:TrustedAuthorities:0:SecretReference"] = "env:COMPANY_MAIL_CA",
+                ["SignatureVerification:TrustedOpenPgpKeys:0:Name"] = "release-key",
+                ["SignatureVerification:TrustedOpenPgpKeys:0:SecretReference"] = "env:RELEASE_KEY",
+                ["SignatureVerification:RevocationTimeout"] = "00:00:05",
+            })
+            .Build()
+            .Bind(options);
+
+        // Act
+        var trust = options.SignatureVerification.ToTrustOptions();
+
+        // Assert
+        Assert.False(trust.TrustSystemStore);
+        Assert.Equal(["company-mail-ca"], trust.TrustedAuthorities.Select(authority => authority.Name));
+        Assert.Equal(["release-key"], trust.TrustedOpenPgpKeys.Select(key => key.Name));
+        Assert.Equal(TimeSpan.FromSeconds(5), trust.RevocationTimeout);
+        Assert.True(new MailSynchronizationOptions().SignatureVerification.TrustSystemStore);
+    }
+
     /// <summary>A storage ceiling that cannot hold one message would leave nothing storable at all.</summary>
     [Fact]
     public void ValidateForSynchronization_StoredContentCeilingBelowTheMessageSizeLimit_IsRejected()

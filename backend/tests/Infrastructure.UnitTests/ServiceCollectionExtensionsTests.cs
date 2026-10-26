@@ -26,6 +26,7 @@ using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Folders;
+using MailFathom.Infrastructure.Mail.Signatures;
 using MailFathom.Infrastructure.Persistence;
 using MailFathom.Infrastructure.Persistence.Connections;
 using MailFathom.Infrastructure.Persistence.Users;
@@ -425,6 +426,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(new EmailMimeExtractionOptions());
+        services.AddSingleton(new EmailSignatureTrustOptions());
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(Substitute.For<ISenderTrustPolicyReader>());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
@@ -464,6 +466,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ISensitiveContentPostures>(FixedSensitiveContentPostures.ScanningNothing());
         services.AddSingleton(new EmailMimeExtractionOptions());
+        services.AddSingleton(new EmailSignatureTrustOptions());
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(policies);
         services.AddSingleton(MachineAuthorshipProfile.Standard);
@@ -510,6 +513,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ISensitiveContentPostures>(FixedSensitiveContentPostures.ScanningNothing());
         services.AddSingleton(new EmailMimeExtractionOptions());
+        services.AddSingleton(new EmailSignatureTrustOptions());
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(policies);
         services.AddSingleton(MachineAuthorshipProfile.Standard);
@@ -551,6 +555,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ISensitiveContentPostures>(FixedSensitiveContentPostures.ScanningNothing());
         services.AddSingleton(new EmailMimeExtractionOptions { VerifyDkimLocally = true });
+        services.AddSingleton(new EmailSignatureTrustOptions());
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
@@ -590,6 +595,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ISensitiveContentPostures>(FixedSensitiveContentPostures.ScanningNothing());
         services.AddSingleton(new EmailMimeExtractionOptions { VerifyDkimLocally = false });
+        services.AddSingleton(new EmailSignatureTrustOptions());
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
@@ -631,6 +637,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ISensitiveContentPostures>(FixedSensitiveContentPostures.ScanningNothing());
         services.AddSingleton(new EmailMimeExtractionOptions());
+        services.AddSingleton(new EmailSignatureTrustOptions());
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
@@ -667,6 +674,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ISensitiveContentPostures>(FixedSensitiveContentPostures.ScanningNothing());
         services.AddSingleton(new EmailMimeExtractionOptions());
+        services.AddSingleton(new EmailSignatureTrustOptions());
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Disabled);
@@ -709,6 +717,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(new EmailMimeExtractionOptions());
+        services.AddSingleton(new EmailSignatureTrustOptions());
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(policies);
         services.AddSingleton(MachineAuthorshipProfile.Standard);
@@ -747,6 +756,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(new EmailMimeExtractionOptions());
+        services.AddSingleton(new EmailSignatureTrustOptions());
         services.AddSingleton(Substitute.For<ITrustedAuthenticationAuthorityReader>());
         services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Standard);

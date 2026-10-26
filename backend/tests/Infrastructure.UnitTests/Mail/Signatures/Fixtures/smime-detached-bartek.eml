@@ -1,0 +1,49 @@
+From: Signer <bartek@signer.example.test>
+To: bob@example.test
+Subject: Quarterly invoice
+Date: Thu, 27 Aug 2026 09:13:00 +0000
+Message-ID: <smime-detached-bartek@example.test>
+MIME-Version: 1.0
+Content-Type: multipart/signed; protocol="application/pkcs7-signature"; micalg=sha-256; boundary="----=_signed_9f1c"
+
+This is a cryptographically signed message in MIME format.
+
+------=_signed_9f1c
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Dzie=C5=84 dobry,
+
+The quarterly invoice is attached to the next message.
+
+------=_signed_9f1c
+Content-Type: application/pkcs7-signature; name="smime.p7s"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="smime.p7s"
+
+MIIFWQYJKoZIhvcNAQcCoIIFSjCCBUYCAQExDTALBglghkgBZQMEAgEwCwYJKoZIhvcNAQcBoIID
+1zCCAdMwggF4oAMCAQICAQIwCgYIKoZIzj0EAwIwPTEgMB4GA1UEAwwXTWFpbEZhdGhvbSBUZXN0
+IFJvb3QgQ0ExGTAXBgNVBAoMEE1haWxGYXRob20gVGVzdHMwHhcNMjYwMTAxMDAwMDAwWhcNMzQw
+MTAxMDAwMDAwWjBAMSMwIQYDVQQDDBpNYWlsRmF0aG9tIFRlc3QgSXNzdWluZyBDQTEZMBcGA1UE
+CgwQTWFpbEZhdGhvbSBUZXN0czBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJ7e3aqTkZ4ftZkZ
+5eMkHvXCyd3VcOIBnnhz7aGoJLafThHG7xZiwTrl9T1dTO/Uq5/dAXc+6nif0u/60jzIe0ajZjBk
+MBIGA1UdEwEB/wQIMAYBAf8CAQAwDgYDVR0PAQH/BAQDAgEGMB0GA1UdDgQWBBQ6uvqDBoWR7dc9
+Ezg8z3IPqOgR0jAfBgNVHSMEGDAWgBSA6Iqicf0fAkWjIfVuIZ+1Cio+jDAKBggqhkjOPQQDAgNJ
+ADBGAiEAt0OgZTqNh11duyNZmdKHwCiGZMTggcA6D3p2x2Ug6VkCIQDkjdE5lUzMmPufX/lR2f4e
++Ro7jdLJcijacu44tVfFuzCCAfwwggGioAMCAQICAhADMAoGCCqGSM49BAMCMEAxIzAhBgNVBAMM
+Gk1haWxGYXRob20gVGVzdCBJc3N1aW5nIENBMRkwFwYDVQQKDBBNYWlsRmF0aG9tIFRlc3RzMB4X
+DTI2MDEwMTAwMDAwMFoXDTI4MDEwMTAwMDAwMFowLjETMBEGA1UEAwwKQmFydGVrIExpczEXMBUG
+A1UECgwOU2lnbmVyIEV4YW1wbGUwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAT9qL23sQbv5JCV
+bI7E0vxgsEDBjrIpA9lL7dDnuPL9ckX2Fp5YU8Cg1nUZjPMqUICDBhWFL2GrKo43ZyfbyAEgo4Gd
+MIGaMAwGA1UdEwEB/wQCMAAwDgYDVR0PAQH/BAQDAgbAMB0GA1UdDgQWBBQ43Mar16OlStDI7nEq
+4IeU3+mK/jAfBgNVHSMEGDAWgBQ6uvqDBoWR7dc9Ezg8z3IPqOgR0jATBgNVHSUEDDAKBggrBgEF
+BQcDBDAlBgNVHREEHjAcgRpiYXJ0ZWtAc2lnbmVyLmV4YW1wbGUudGVzdDAKBggqhkjOPQQDAgNI
+ADBFAiEAnZ3R0n79mzWf2YKe10xWj8oQiWDQaOnYJJnsmL63btICIAnSq2acgrNE5aGT3qCO5wDh
+sVTjlWd1FGLMQbYHrxJqMYIBSDCCAUQCAQEwRjBAMSMwIQYDVQQDDBpNYWlsRmF0aG9tIFRlc3Qg
+SXNzdWluZyBDQTEZMBcGA1UECgwQTWFpbEZhdGhvbSBUZXN0cwICEAMwCwYJYIZIAWUDBAIBoIGT
+MBgGCSqGSIb3DQEJAzELBgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI2MDgyNzA5MTMwMFow
+KAYJKoZIhvcNAQk0MRswGTALBglghkgBZQMEAgGhCgYIKoZIzj0EAwIwLwYJKoZIhvcNAQkEMSIE
+IEFaLnrgLbfO2KZ2clXA6ePMtEuhrWXzc/VLoboj08SXMAoGCCqGSM49BAMCBEgwRgIhAN89Pnmx
+vRIH1kkDfNksw1DYbtI4voLBV119swF3CJGSAiEAvSB8ocowUbMDBToVhWgdIYk/Ej/Ska6tvsPr
+bo8SyFU=
+------=_signed_9f1c--

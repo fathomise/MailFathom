@@ -537,6 +537,14 @@ internal sealed class MailSynchronizationOptions : IValidatableObject
     /// </remarks>
     public bool VerifyDkimLocally { get; set; } = true;
 
+    /// <summary>Gets what a received message's S/MIME or OpenPGP signer is trusted against.</summary>
+    /// <remarks>
+    /// Deployment-wide rather than per account, because which certificate authorities and which OpenPGP keys a
+    /// deployment trusts is the operator's statement about the world, not about one mailbox. Its own remarks say what
+    /// every key in it decides.
+    /// </remarks>
+    public MailSignatureVerificationOptions SignatureVerification { get; } = new();
+
     /// <summary>Gets or sets whether extraction assesses how much each message's own text reads as machine written.</summary>
     /// <remarks>
     /// <para>
@@ -741,6 +749,11 @@ internal sealed class MailSynchronizationOptions : IValidatableObject
             yield return new ValidationResult(
                 $"The in-flight content budget of {this.MaxInFlightRawMimeBytes} bytes is below the {this.MaxRawMimeBytes} bytes one message may occupy, so a work unit fetching a message of that size would wait for room that can never exist.",
                 [nameof(this.MaxInFlightRawMimeBytes)]);
+        }
+
+        foreach (var result in this.SignatureVerification.FindConfigurationErrors())
+        {
+            yield return result;
         }
     }
 

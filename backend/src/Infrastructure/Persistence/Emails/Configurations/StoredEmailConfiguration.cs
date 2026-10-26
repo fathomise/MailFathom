@@ -5,6 +5,7 @@
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
+using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -135,6 +136,36 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
         entity.Property(email => email.MachineAuthorshipProfileRevision)
             .HasMaxLength(MachineAuthorshipProfileRevision.Length);
 
+        // What verifying the message's own signature found. Every enum is text like the rest, and the outcome and the
+        // five step results default to what a row written before this deployment verified anything holds: a message
+        // nothing verified a signature on, with every step unreached. Everything else in the group is nullable,
+        // because its absence is what a message with no signature, or a signer nothing could read, carries.
+        entity.Property(email => email.SignatureOutcome)
+            .HasConversion<string>()
+            .HasMaxLength(64)
+            .HasDefaultValue(EmailSignatureOutcome.NotSigned)
+            .IsRequired();
+        entity.Property(email => email.SignatureFormat).HasConversion<string>().HasMaxLength(64);
+        entity.Property(email => email.SignatureSecureMimeType).HasConversion<string>().HasMaxLength(64);
+        entity.Property(email => email.SignatureUnverifiableReason).HasConversion<string>().HasMaxLength(64);
+        entity.Property(email => email.SignatureTrustAnchor).HasConversion<string>().HasMaxLength(64);
+        entity.Property(email => email.SignatureValidityFailure).HasConversion<string>().HasMaxLength(64);
+        entity.Property(email => email.SignatureRevocationMethod).HasConversion<string>().HasMaxLength(64);
+        ConfigureSignatureCheck(entity.Property(email => email.SignatureContentCheck));
+        ConfigureSignatureCheck(entity.Property(email => email.SignatureAuthorityCheck));
+        ConfigureSignatureCheck(entity.Property(email => email.SignatureValidityCheck));
+        ConfigureSignatureCheck(entity.Property(email => email.SignatureRevocationCheck));
+        ConfigureSignatureCheck(entity.Property(email => email.SignatureSignerCheck));
+        entity.Property(email => email.SignatureChainEnd).HasMaxLength(EmailSigner.MaximumNameLength);
+        entity.Property(email => email.SignerName).HasMaxLength(EmailSigner.MaximumNameLength);
+        entity.Property(email => email.SignerAddress).HasMaxLength(EmailSigner.MaximumAddressLength);
+        entity.Property(email => email.SignerIssuer).HasMaxLength(EmailSigner.MaximumNameLength);
+        entity.Property(email => email.SignerSerialNumber).HasMaxLength(EmailSigner.MaximumIdentifierLength);
+        entity.Property(email => email.SignerFingerprint).HasMaxLength(EmailSigner.MaximumIdentifierLength);
+        entity.Property(email => email.SignerKeyId).HasMaxLength(EmailSigner.MaximumIdentifierLength);
+        entity.Property(email => email.SignerPublicKeyAlgorithm).HasMaxLength(EmailSigner.MaximumIdentifierLength);
+        entity.Property(email => email.SignerDigestAlgorithm).HasMaxLength(EmailSigner.MaximumIdentifierLength);
+
         ConfigureIndexes(entity);
 
         entity.HasOne(email => email.MailFolderBinding)
@@ -180,6 +211,13 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
     /// scan. A B-tree over an array would only serve equality against a whole array, which no query asks for.
     /// </para>
     /// </remarks>
+    private static void ConfigureSignatureCheck(PropertyBuilder<SignatureCheckResult> property) =>
+        property
+            .HasConversion<string>()
+            .HasMaxLength(64)
+            .HasDefaultValue(SignatureCheckResult.Skipped)
+            .IsRequired();
+
     private static void ConfigureIndexes(EntityTypeBuilder<StoredEmailEntity> entity)
     {
         entity.HasIndex(email => new { email.MailFolderBindingId, email.UidValidity, email.Uid })

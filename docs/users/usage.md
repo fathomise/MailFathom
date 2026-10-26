@@ -97,7 +97,10 @@ common misreadings:
   `failed`, or `notEstablished` — and `deploymentTrust` is whether your own trusted-sender configuration names that
   sender — `trusted` or `unknown`. **Read the two together.** `authenticated` beside `unknown` is ordinary mail from
   somebody you have never listed and says nothing against it; `unknown` on its own says only that this deployment does
-  not recognize the sender, and it is what an email whose sender failed authentication carries too.
+  not recognize the sender, and it is what an email whose sender failed authentication carries too. Its third part,
+  `signature`, is what the message's own S/MIME or OpenPGP signature proves: `verified`, `failed`, `notVerifiable` with
+  a reason, or `notSigned`, with `signerMatchesAuthor` beside it. A verified signature says who signed and that the
+  text is unchanged — **never that the message is safe or true**.
 - `machineAuthorship` is about the text rather than the sender: `state` says how much the message's own wording reads as
   machine written — `likely`, `possible`, `unlikely`, or `notAssessed` — and `likelihood` is the number behind it.
   **It is a hint, not a verdict.** It is a heuristic estimate rather than a measured probability, and `likely` is not a
@@ -177,7 +180,7 @@ two; a call carrying both, or neither, is refused rather than guessed at.
 
 Ten parts of the result exist so that an agent does not misreport a message:
 
-- **The sender verdict comes with the evidence behind it.** `senderVerification` is the same pair a listing carries, and
+- **The sender verdict comes with the evidence behind it.** `senderVerification` is the same verdict a listing carries, and
   `headers.senderAuthentication` adds what it was reached from: the domain that actually authenticated, the domain the
   `From` header displayed, which check established the first (`dkim`, `spf`, or `none`), the DMARC result your
   server reported, and `verdictSource`, which says whether that server reached the verdict or MailFathom verified the
@@ -534,7 +537,7 @@ neither can the model.
 Five parts of the result are worth reading before an agent presents it:
 
 - **`citations` is what makes the answer checkable.** Each entry carries the `storedEmailId` you pass straight to
-  `get_email_content`, plus the account, folder, subject, received time, the same `senderVerification` pair a listing
+  `get_email_content`, plus the account, folder, subject, received time, the same `senderVerification` a listing
   carries, and `inJunkFolder` and `firstContact` — so a claim drawn from a message whose sender failed authentication,
   that sat in junk, or that came from somebody who never wrote to you before reads differently from one drawn from a
   correspondent you recognize. The answer itself was asked to say so, and these fields are why it did. An answer without the messages behind it is something to believe; with them it is

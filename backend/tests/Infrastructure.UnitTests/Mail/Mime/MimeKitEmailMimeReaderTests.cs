@@ -8,6 +8,7 @@ using MailFathom.Application.Mail;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
+using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Infrastructure.Mail.Dkim;
 using MailFathom.Infrastructure.Mail.Mime;
 using MailFathom.Infrastructure.UnitTests.TestDoubles;
@@ -748,6 +749,43 @@ public sealed class MimeKitEmailMimeReaderTests
 
         // Assert
         Assert.Equal(EmailMimeExtractionOutcome.Extracted, result.Outcome);
+    }
+
+    /// <summary>A signed message's verification is recorded with its metadata, judged against the author its From header displays.</summary>
+    [Fact]
+    public async Task ReadMetadataAsync_SignedMessage_RecordsItsSignatureVerification()
+    {
+        // Arrange
+        using var responders = SignatureFixtures.Responders(ocspAnswer: "ocsp-anna-good.der");
+        var reader = new MimeKitEmailMimeReader(
+            new EmailMimeExtractionOptions { MaxPartCount = 10, MaxNestingDepth = 4 },
+            TrustedAuthorities(identifier: null),
+            localSenderVerifier: null,
+            SignatureFixtures.Verifier(responders));
+
+        // Act
+        var result = await reader.ReadMetadataAsync(
+            MimeFixtures.Account,
+            SignatureFixtures.Bytes("smime-detached-anna.eml"),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignatureOutcome.Verified, result.Metadata?.Signature.Outcome);
+        Assert.True(result.Metadata?.Signature.SignerMatchesAuthor);
+    }
+
+    /// <summary>A reader composed without a verifier records every message as not signed rather than guessing.</summary>
+    [Fact]
+    public async Task ReadMetadataAsync_NoSignatureVerifier_RecordsTheMessageAsNotSigned()
+    {
+        // Act
+        var result = await CreateReader().ReadMetadataAsync(
+            MimeFixtures.Account,
+            SignatureFixtures.Bytes("smime-detached-anna.eml"),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(EmailSignature.NotSigned, result.Metadata?.Signature);
     }
 
     /// <summary>Badly formed mail produces a failure result rather than an exception, so one message never stops a batch.</summary>
