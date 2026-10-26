@@ -36,9 +36,10 @@ namespace MailFathom.Application.Mail.Delivery.Authoring;
 /// local copy at all.
 /// </para>
 /// <para>
-/// The stored email is a permission boundary as well as a source. A folder an operator withheld from AI is outside
-/// every mailbox read, and a reply must not become the path by which its content leaves — so an email nothing may read
-/// is an email nothing may answer, and the refusal is the same not-found answer a read of it gives.
+/// The stored email is a permission boundary as well as a source, judged for the request's reader. A folder an
+/// operator withheld from AI is outside every agent's read, and an agent's reply must not become the path by which its
+/// content leaves — so an email an agent may not read is one it may not answer, and the refusal is the same not-found
+/// answer a read of it gives. The person answers from any mirrored folder, that one included.
 /// </para>
 /// <para>
 /// Whoever the author copies in may be named out of the contact book rather than by an address, and is resolved here

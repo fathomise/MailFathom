@@ -53,7 +53,7 @@ public sealed class MailFlagChangeRecorder
 
     /// <summary>Initializes the use case over the grant it asks first and the submission it writes through.</summary>
     /// <param name="authorization">Answers which principal reached this use case.</param>
-    /// <param name="scopeResolver">Answers whether a tool may reach the mailbox an email was stored from.</param>
+    /// <param name="scopeResolver">Answers whether the request's reader may reach the mailbox an email was stored from.</param>
     /// <param name="targets">Answers where the named email currently is.</param>
     /// <param name="submission">Records one change, or commits it where the account is held.</param>
     /// <param name="commitPolicy">Commits a call's changes together, retrying an optimistic conflict.</param>

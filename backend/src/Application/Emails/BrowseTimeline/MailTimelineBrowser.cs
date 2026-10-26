@@ -21,10 +21,11 @@ namespace MailFathom.Application.Emails.BrowseTimeline;
 /// <remarks>
 /// <para>
 /// It is the timeline read a screen is drawn from, beside <see cref="ListEmails.MailboxTimelineReader" />, which is the
-/// one a tool calls. The two share the scope, the filters, the ordering, the page bound and the cursor codec — a list
-/// and a listing are the same walk over the same rows — and differ in the two things a screen needs and a tool does
-/// not: a row carries the opening of the message so a list can be drawn from what one request returned, and the walk
-/// runs in both directions so somebody who scrolled down can scroll back.
+/// one a tool calls. The two share the filters, the ordering, the page bound and the cursor codec, and differ in the
+/// scope and in two things a screen needs and a tool does not. The scope is the person's here, which covers every
+/// mirrored folder, and an agent's there, which covers only folders visible to AI. A row carries the opening of the
+/// message so a list can be drawn from what one request returned, and the walk runs in both directions so somebody who
+/// scrolled down can scroll back.
 /// </para>
 /// <para>
 /// Scrolling back is a second walk over the same list rather than a second list. The order the rows are sorted in is

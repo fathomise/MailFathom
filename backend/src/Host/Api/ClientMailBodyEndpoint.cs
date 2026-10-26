@@ -30,8 +30,9 @@ namespace MailFathom.Host.Api;
 /// </para>
 /// <para>
 /// It speaks to no mail server, so a request from a browser cannot wait on IMAP and cannot set the remote <c>\Seen</c>
-/// flag. The body is read from the local copy exactly as the tool surface reads it, through the same use case and under
-/// the same grant, so nothing about this transport widens what a caller may see.
+/// flag. The body is read from the local copy through the same use case and under the same grant as the tool surface,
+/// but for the person: it reaches every mirrored folder, a folder withheld from AI included, which the tool surface
+/// does not.
 /// </para>
 /// </remarks>
 internal static class ClientMailBodyEndpoint

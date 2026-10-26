@@ -49,7 +49,7 @@ public sealed class MailAccountDirectoryReader
     /// <param name="accountCatalog">Describes the accounts the caller's user is assigned.</param>
     /// <param name="freshnessReader">Reads how current the local copy of each folder is.</param>
     /// <param name="storedFolders">Reads every folder of each account, whichever copy of the mailbox is the truth.</param>
-    /// <param name="scopeResolver">Answers which folders of those accounts a tool may see.</param>
+    /// <param name="scopeResolver">Answers which folders of those accounts the reader may see.</param>
     /// <param name="readTelemetry">Publishes the read as the operation it is, beside the call it happened inside.</param>
     /// <param name="authorization">Answers which principal reached this use case.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>

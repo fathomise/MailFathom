@@ -323,6 +323,10 @@ public sealed class MailFolderDirectoryReaderTests
     }
 
     /// <summary>The folder tree is the person's own, so a folder withheld from AI is among the folders it is drawn from.</summary>
+    /// <remarks>
+    /// The account directory the tree is composed over reads folders through a reader of its own here, so only the tree's
+    /// own read can be the one the assertion finds.
+    /// </remarks>
     [Fact]
     public async Task ReadAsync_AFolderWithheldFromAI_IsInTheScopeTheTreeIsDrawnFrom()
     {
@@ -334,7 +338,8 @@ public sealed class MailFolderDirectoryReaderTests
             Freshness(),
             OwningAccounts(account),
             storedFolders,
-            folderParticipation: StubMailFolderParticipation.Mapping(withheld).Hiding(withheld));
+            folderParticipation: StubMailFolderParticipation.Mapping(withheld).Hiding(withheld),
+            accountStoredFolders: StoredFolders());
 
         // Act
         await reader.ReadAsync(TestContext.Current.CancellationToken);
@@ -416,7 +421,8 @@ public sealed class MailFolderDirectoryReaderTests
         IStoredMailFolderReader storedFolders,
         StubMailFolderMappings? mappings = null,
         MailSynchronizationRunLedger? runLedger = null,
-        StubMailFolderParticipation? folderParticipation = null) =>
+        StubMailFolderParticipation? folderParticipation = null,
+        IStoredMailFolderReader? accountStoredFolders = null) =>
         ReaderOver(
             freshnessReader,
             catalog,
@@ -424,7 +430,8 @@ public sealed class MailFolderDirectoryReaderTests
             mappings ?? StubMailFolderMappings.Nothing,
             runLedger ?? Ledger(),
             AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
-            folderParticipation: folderParticipation);
+            folderParticipation: folderParticipation,
+            accountStoredFolders: accountStoredFolders);
 
     private static MailFolderDirectoryReader ReaderOver(
         ISynchronizationFreshnessReader freshnessReader,
@@ -434,7 +441,8 @@ public sealed class MailFolderDirectoryReaderTests
         MailSynchronizationRunLedger runLedger,
         AccessAuthorization authorization,
         IOutboxOperationStore? outboxOperations = null,
-        StubMailFolderParticipation? folderParticipation = null)
+        StubMailFolderParticipation? folderParticipation = null,
+        IStoredMailFolderReader? accountStoredFolders = null)
     {
         var participation = folderParticipation ?? StubMailFolderParticipation.Nothing;
         var scopeResolver = new MailboxScopeResolver(
@@ -448,7 +456,7 @@ public sealed class MailFolderDirectoryReaderTests
                 new MailAccountDirectoryReader(
                     catalog,
                     freshnessReader,
-                    storedFolders,
+                    accountStoredFolders ?? storedFolders,
                     scopeResolver,
                     new RecordingMailboxReadTelemetry(),
                     authorization),

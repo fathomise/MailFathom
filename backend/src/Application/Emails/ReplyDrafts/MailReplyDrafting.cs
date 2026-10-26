@@ -29,10 +29,11 @@ namespace MailFathom.Application.Emails.ReplyDrafts;
 /// read a language out of, and no mailbox is involved on either branch.
 /// </para>
 /// <para>
-/// The correspondence is read under the same scope the conversation screen reads it under — every account this user
-/// holds, no folder narrowing, junk included — because a reply is answered across the exchange rather than inside a
-/// folder. A message the scope does not admit is a message this use case has none of, so the drafting answers exactly
-/// as it does for a message nobody holds — and so does a context of several messages any one of which it does not
+/// The correspondence is read as an agent's read — every account this user holds, no folder narrowing, junk included,
+/// but only folders visible to AI — because a reply is answered across the exchange rather than inside a folder, and
+/// what is read goes to a model. That is narrower than the conversation screen, which reads for the person: a message
+/// in a folder withheld from AI is drawn there and is one this use case has none of. A message the scope does not admit
+/// is answered exactly as one nobody holds — and so is a context of several messages any one of which it does not
 /// admit, because answering with the rest would report that the missing one exists somewhere else.
 /// </para>
 /// <para>
