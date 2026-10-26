@@ -18,7 +18,7 @@ namespace MailFathom.AI.Decisions;
 /// whole response instead of filling the gap, so a missing option is never read as a probability of zero.
 /// </para>
 /// </remarks>
-public sealed class DecisionAnswer
+internal sealed class DecisionAnswer
 {
     /// <summary>Initializes an answer.</summary>
     /// <param name="questionId">The identifier of the question this answers.</param>

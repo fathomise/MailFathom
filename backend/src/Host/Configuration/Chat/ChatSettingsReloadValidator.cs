@@ -4,6 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using MailFathom.Host.Configuration.Answering;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Embeddings;
 
 namespace MailFathom.Host.Configuration.Chat;
@@ -26,6 +27,7 @@ internal sealed class ChatSettingsReloadValidator(
     SecretConfigurationValidator secretValidator,
     ChatModelOptions composedSettings,
     EmbeddingOptions? declaredEmbeddings,
+    DecisionModelOptions? declaredDecisions,
     MailAnsweringOptions declaredAnswering)
 {
     /// <summary>Finds everything an operator must fix before a reloaded chat declaration can be published.</summary>
@@ -51,7 +53,7 @@ internal sealed class ChatSettingsReloadValidator(
                 null,
                 cancellationToken));
 
-        errors.AddRange(ChatDeclarationRules.FindDeclarationErrors(candidate, declaredEmbeddings, declaredAnswering));
+        errors.AddRange(ChatDeclarationRules.FindDeclarationErrors(candidate, declaredEmbeddings, declaredAnswering, declaredDecisions));
         errors.AddRange(ChatDeclarationRules.FindChangesNeedingRestart(candidate, composedSettings));
 
         return errors;

@@ -10,15 +10,16 @@ namespace MailFathom.Host.Hosting;
 /// <summary>Reports what the last call to one declared AI provider established about it.</summary>
 /// <remarks>
 /// <para>
-/// One registration per declared provider rather than one covering both, which is what makes the two states
+/// One registration per declared provider role rather than one covering them all, which is what makes the states
 /// independently observable: each carries its own check name, so a probe report and the health-check metrics tell an
-/// unreachable chat provider from an unreachable embedding provider without either hiding the other. A deployment that
-/// declared only one registers only one.
+/// unreachable chat provider from an unreachable embedding or decision provider without one hiding another. A
+/// deployment registers a check only for the roles it declared.
 /// </para>
 /// <para>
-/// It never reports unhealthy, and that is the posture rather than a softened verdict. Both providers are optional and
-/// neither serves a request path: an instance with a failing embedding provider still answers every search lexically,
-/// and an instance with a failing chat provider still answers every search at all. Reporting unhealthy on the readiness
+/// It never reports unhealthy, and that is the posture rather than a softened verdict. Every provider is optional and
+/// none serves a request path: an instance with a failing embedding provider still answers every search lexically, an
+/// instance with a failing chat provider still answers every search at all, and a decision provider is
+/// asked by background work rather than by any request. Reporting unhealthy on the readiness
 /// probe would take an instance out of traffic for a capability the traffic was not asking for, and reporting it on the
 /// liveness probe would restart a process that is working.
 /// </para>
@@ -61,7 +62,7 @@ internal sealed class AiProviderHealthCheck : IHealthCheck
     /// <returns>The registration, carrying the name, the probe tag, and the status a thrown check reports.</returns>
     /// <remarks>
     /// Built here rather than at each call site, so the three decisions that make this check what it is — which probe it
-    /// reaches, what it is called, and that it never reports worse than degraded — are made once for both roles.
+    /// reaches, what it is called, and that it never reports worse than degraded — are made once for every role.
     /// </remarks>
     internal static HealthCheckRegistration RegistrationFor(AiProviderRole role) => new(
         NameOf(role),

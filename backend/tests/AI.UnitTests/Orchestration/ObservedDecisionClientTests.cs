@@ -2,9 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Diagnostics.Metrics;
 using System.Globalization;
 using MailFathom.AI.DecisionModels;
 using MailFathom.AI.Decisions;
@@ -36,7 +34,7 @@ public sealed class ObservedDecisionClientTests
     public async Task DecideAsync_AnAnsweredCall_PublishesTheModelTheOutcomeTheTokensAndTheLatency()
     {
         // Arrange
-        using var published = new PublishedTelemetry();
+        using var published = new PublishedDecisionTelemetry();
         using var inner = ScriptedDecisionClient.AnsweringFirstOption(inputTokens: 412, outputTokens: 3, modelId: "vendor/decider-2026-10-01:b2");
         using var client = new ObservedDecisionClient(inner, published.Telemetry, Plan, new FakeTimeProvider());
 
@@ -63,7 +61,7 @@ public sealed class ObservedDecisionClientTests
     public async Task DecideAsync_AFailedCall_PublishesWhichFailureEndedItAsAnError()
     {
         // Arrange
-        using var published = new PublishedTelemetry();
+        using var published = new PublishedDecisionTelemetry();
         using var inner = ScriptedDecisionClient.Throwing(new DecisionFailedException("decider", DecisionFailure.RateLimited));
         using var client = new ObservedDecisionClient(inner, published.Telemetry, Plan, new FakeTimeProvider());
 
@@ -80,12 +78,77 @@ public sealed class ObservedDecisionClientTests
         Assert.Empty(published.Measurements("mailfathom.decisions.tokens"));
     }
 
+    /// <summary>The model ran and the provider billed it, so the counter states those tokens whatever the reader made of the answer.</summary>
+    [Fact]
+    public async Task DecideAsync_AnUnreadableAnswerThatReportedUsage_CountsTheTokensItWasBilled()
+    {
+        // Arrange
+        using var published = new PublishedDecisionTelemetry();
+        using var inner = ScriptedDecisionClient.Throwing(new DecisionFailedException("decider", DecisionFailure.AnswerUnreadable)
+        {
+            Usage = new UsageDetails { InputTokenCount = 90, OutputTokenCount = 0 },
+        });
+        using var client = new ObservedDecisionClient(inner, published.Telemetry, Plan, new FakeTimeProvider());
+
+        // Act
+        await Assert.ThrowsAsync<DecisionFailedException>(
+            () => client.DecideAsync(Input, Questions, cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(nameof(DecisionFailure.AnswerUnreadable), Assert.Single(published.Spans).GetTagItem(DecisionTelemetry.FailureTagName));
+        Assert.Equal([90L, 0L], published.Measurements("mailfathom.decisions.tokens").Select(measurement => (long)measurement.Value));
+    }
+
+    /// <summary>A request refused before it was sent is a failed call, so long mail over the bound does not vanish from the figures.</summary>
+    [Fact]
+    public async Task DecideAsync_ARequestRefusedBeforeItWasSent_PublishesAnUnclassifiedFailureAsAnError()
+    {
+        // Arrange
+        using var published = new PublishedDecisionTelemetry();
+        using var inner = ScriptedDecisionClient.Throwing(new ArgumentException("The request is over its bound.", "input"));
+        using var client = new ObservedDecisionClient(inner, published.Telemetry, Plan, new FakeTimeProvider());
+
+        // Act
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => client.DecideAsync(Input, Questions, cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        var span = Assert.Single(published.Spans);
+        Assert.Equal(ActivityStatusCode.Error, span.Status);
+        Assert.Equal("failed", span.GetTagItem(DecisionTelemetry.OutcomeTagName));
+        Assert.Equal(DecisionTelemetry.UnclassifiedFailure, span.GetTagItem(DecisionTelemetry.FailureTagName));
+        Assert.Equal("failed", Assert.Single(published.Measurements("mailfathom.decisions.duration")).Tags[DecisionTelemetry.OutcomeTagName]);
+    }
+
+    /// <summary>A caller that stopped waiting is this system stopping the work, which is not the provider failing.</summary>
+    [Fact]
+    public async Task DecideAsync_ACallTheCallerCancelled_PublishesItAsCancelledRatherThanAsAnError()
+    {
+        // Arrange
+        using var published = new PublishedDecisionTelemetry();
+        using var inner = ScriptedDecisionClient.Stalling();
+        using var client = new ObservedDecisionClient(inner, published.Telemetry, Plan, new FakeTimeProvider());
+        using var caller = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+
+        var call = client.DecideAsync(Input, Questions, cancellationToken: caller.Token);
+        await caller.CancelAsync();
+
+        // Act
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
+
+        // Assert
+        var span = Assert.Single(published.Spans);
+        Assert.NotEqual(ActivityStatusCode.Error, span.Status);
+        Assert.Equal("cancelled", span.GetTagItem(DecisionTelemetry.OutcomeTagName));
+        Assert.Null(span.GetTagItem(DecisionTelemetry.FailureTagName));
+    }
+
     /// <summary>The mail, the question, and the verdict are personal data, so none of them may become a span attribute or a dimension.</summary>
     [Fact]
     public async Task DecideAsync_AnyCall_PublishesNoInputNoQuestionAndNoProbability()
     {
         // Arrange
-        using var published = new PublishedTelemetry();
+        using var published = new PublishedDecisionTelemetry();
         using var inner = ScriptedDecisionClient.AnsweringFirstOption(inputTokens: 5);
         using var client = new ObservedDecisionClient(inner, published.Telemetry, Plan, new FakeTimeProvider());
 
@@ -102,65 +165,4 @@ public sealed class ObservedDecisionClientTests
         Assert.DoesNotContain(values, value => value is Evidence or Instruction or DecisionQuestion.Yes);
     }
 
-    private sealed record Measured(string Instrument, double Value, IReadOnlyDictionary<string, object?> Tags);
-
-    private sealed class PublishedTelemetry : IDisposable
-    {
-        private readonly string name = $"MailFathom.Tests.Decisions.{Guid.NewGuid():N}";
-        private readonly ActivitySource source;
-        private readonly Meter meter;
-        private readonly ActivityListener activityListener;
-        private readonly MeterListener meterListener;
-        private readonly ConcurrentQueue<Activity> spans = new();
-        private readonly ConcurrentQueue<Measured> measurements = new();
-
-        public PublishedTelemetry()
-        {
-            this.activityListener = new ActivityListener
-            {
-                ShouldListenTo = candidate => candidate.Name == this.name,
-                Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
-                ActivityStopped = this.spans.Enqueue,
-            };
-            ActivitySource.AddActivityListener(this.activityListener);
-
-            this.meterListener = new MeterListener
-            {
-                InstrumentPublished = (instrument, subscription) =>
-                {
-                    if (instrument.Meter.Name == this.name)
-                    {
-                        subscription.EnableMeasurementEvents(instrument);
-                    }
-                },
-            };
-            this.meterListener.SetMeasurementEventCallback<long>((instrument, value, tags, _) => this.Record(instrument, value, tags));
-            this.meterListener.SetMeasurementEventCallback<double>((instrument, value, tags, _) => this.Record(instrument, value, tags));
-            this.meterListener.Start();
-
-            this.source = new ActivitySource(this.name);
-            this.meter = new Meter(this.name);
-            this.Telemetry = new DecisionTelemetry(this.source, this.meter);
-        }
-
-        public DecisionTelemetry Telemetry { get; }
-
-        public IReadOnlyList<Activity> Spans => [.. this.spans];
-
-        public IReadOnlyList<Measured> AllMeasurements => [.. this.measurements];
-
-        public IReadOnlyList<Measured> Measurements(string instrument) =>
-            [.. this.measurements.Where(measurement => measurement.Instrument == instrument)];
-
-        public void Dispose()
-        {
-            this.meterListener.Dispose();
-            this.activityListener.Dispose();
-            this.meter.Dispose();
-            this.source.Dispose();
-        }
-
-        private void Record(Instrument instrument, double value, ReadOnlySpan<KeyValuePair<string, object?>> tags) =>
-            this.measurements.Enqueue(new Measured(instrument.Name, value, tags.ToArray().ToDictionary(tag => tag.Key, tag => tag.Value)));
-    }
 }

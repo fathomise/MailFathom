@@ -11,7 +11,7 @@ namespace MailFathom.AI.Decisions;
 /// <param name="providerName">The provider's name, as telemetry reports it.</param>
 /// <param name="providerUri">The address requests are sent to.</param>
 /// <param name="defaultModelId">The model a request asks for when its options name none.</param>
-public sealed class DecisionClientMetadata(string? providerName = null, Uri? providerUri = null, string? defaultModelId = null)
+internal sealed class DecisionClientMetadata(string? providerName = null, Uri? providerUri = null, string? defaultModelId = null)
 {
     /// <summary>Gets the provider's name, as telemetry reports it.</summary>
     public string? ProviderName { get; } = providerName;

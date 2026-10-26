@@ -38,6 +38,9 @@ internal sealed class DecisionTelemetry
     /// <summary>The dimension naming which failure ended a call that failed.</summary>
     internal const string FailureTagName = "mailfathom.decision.failure";
 
+    /// <summary>The failure dimension's value for a call that failed without being classified, refused before it was sent.</summary>
+    internal const string UnclassifiedFailure = "Unclassified";
+
     /// <summary>The dimension naming whether counted tokens were sent or produced: <c>input</c> or <c>output</c>.</summary>
     internal const string DirectionTagName = "mailfathom.decision.direction";
 

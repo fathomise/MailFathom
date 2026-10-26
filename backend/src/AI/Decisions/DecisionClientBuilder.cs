@@ -11,7 +11,7 @@ namespace MailFathom.AI.Decisions;
 /// Shaped after <see cref="ChatClientBuilder" />, and composed in the same order: the first middleware added is the
 /// outermost, so a call meets the middleware in the order they were written and the adapter last.
 /// </remarks>
-public sealed class DecisionClientBuilder
+internal sealed class DecisionClientBuilder
 {
     private readonly Func<IServiceProvider, IDecisionClient> innerClientFactory;
     private readonly List<Func<IDecisionClient, IServiceProvider, IDecisionClient>> middleware = [];

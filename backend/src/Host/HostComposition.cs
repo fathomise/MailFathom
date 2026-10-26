@@ -943,6 +943,7 @@ internal static class HostComposition
             provider.GetRequiredService<SecretConfigurationValidator>(),
             declaredChat ?? new ChatModelOptions(),
             declaredEmbeddings,
+            declaredDecisions,
             declaredAnswering));
         builder.Services.AddSingleton(provider => new ValidatedSettingsSnapshot<ChatModelOptions>(
             provider.GetRequiredService<IOptionsMonitor<ChatModelOptions>>(),

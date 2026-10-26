@@ -16,7 +16,7 @@ namespace MailFathom.AI.Decisions;
 /// the same way — a value and a probability per option — and a caller reads all three kinds through one shape.
 /// </para>
 /// </remarks>
-public sealed class DecisionQuestion
+internal sealed class DecisionQuestion
 {
     /// <summary>The value a yes-or-no question's affirmative option is named by.</summary>
     public const string Yes = "yes";

@@ -20,7 +20,7 @@ namespace MailFathom.AI.Decisions;
 /// beneath them would move.
 /// </para>
 /// </remarks>
-public interface IDecisionClient : IDisposable
+internal interface IDecisionClient : IDisposable
 {
     /// <summary>Asks every question about the input in one request.</summary>
     /// <param name="input">The evidence the questions are about: text, and JSON object data whose members name what they hold.</param>

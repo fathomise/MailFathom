@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace MailFathom.AI.Decisions;
 
 /// <summary>Registers a composed decision client, in the style of Microsoft.Extensions.AI's <c>AddChatClient</c>.</summary>
-public static class DecisionClientServiceCollectionExtensions
+internal static class DecisionClientServiceCollectionExtensions
 {
     /// <summary>Registers a decision client and returns the builder its middleware is added to.</summary>
     /// <param name="services">The collection to register in.</param>

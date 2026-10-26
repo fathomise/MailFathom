@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Failures;
+using Microsoft.Extensions.AI;
 
 namespace MailFathom.AI.DecisionModels;
 
@@ -49,6 +50,14 @@ public sealed class DecisionFailedException : MailFathomException
 
     /// <summary>Gets what ended the request.</summary>
     public DecisionFailure Failure { get; }
+
+    /// <summary>Gets the tokens the provider reported for the request, when it reported any before the failure.</summary>
+    /// <remarks>
+    /// Present only on an answer refused as unreadable whose usage could still be read: the model ran and the provider
+    /// billed it, so the period and the run are charged for it as they would be for a readable answer. Absent on every
+    /// other failure, because a request that never reached a model was never billed.
+    /// </remarks>
+    public UsageDetails? Usage { get; init; }
 
     /// <summary>Gets whether the same request may succeed if it is sent again later.</summary>
     /// <remarks>An unreadable answer is not, because the same model asked the same question answers in the same shape.</remarks>

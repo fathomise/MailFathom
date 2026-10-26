@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.AI.DecisionModels;
 using MailFathom.AI.Decisions;
 using MailFathom.Application.Chat;
 using MailFathom.Application.Retrieval.AskMail;
@@ -47,18 +48,36 @@ internal sealed class SpendReportingDecisionClient : DelegatingDecisionClient
         DecisionOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        var response = await base.DecideAsync(input, questions, options, cancellationToken);
+        DecisionResponse response;
 
-        if (response.Usage is { } reported
-            && (reported.InputTokenCount ?? 0) + (reported.OutputTokenCount ?? 0) > 0)
+        try
         {
-            // Uncancellable, because the tokens were already spent: a caller that stops waiting now does not make the
-            // provider's count untrue, and a period that missed it would admit more than its ceiling allows.
-            await this.spendLedger.RecordSpendAsync(
-                new ChatTokenUsage(reported.InputTokenCount ?? 0, reported.OutputTokenCount ?? 0),
-                CancellationToken.None);
+            response = await base.DecideAsync(input, questions, options, cancellationToken);
+        }
+        catch (DecisionFailedException failure) when (failure.Usage is not null)
+        {
+            // An answer refused as unreadable was still run and billed, so it is charged exactly as a readable one is.
+            await this.ChargeAsync(failure.Usage);
+
+            throw;
         }
 
+        await this.ChargeAsync(response.Usage);
+
         return response;
+    }
+
+    private async Task ChargeAsync(Microsoft.Extensions.AI.UsageDetails? reported)
+    {
+        if (reported is null || (reported.InputTokenCount ?? 0) + (reported.OutputTokenCount ?? 0) <= 0)
+        {
+            return;
+        }
+
+        // Uncancellable, because the tokens were already spent: a caller that stops waiting now does not make the
+        // provider's count untrue, and a period that missed it would admit more than its ceiling allows.
+        await this.spendLedger.RecordSpendAsync(
+            new ChatTokenUsage(reported.InputTokenCount ?? 0, reported.OutputTokenCount ?? 0),
+            CancellationToken.None);
     }
 }

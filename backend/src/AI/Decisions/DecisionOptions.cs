@@ -8,7 +8,7 @@ namespace MailFathom.AI.Decisions;
 
 /// <summary>What one decision request is sent with, beyond its input and its questions.</summary>
 /// <remarks>Shaped after <see cref="ChatOptions" />: everything is optional, and a client fills what the caller left unset from its own defaults.</remarks>
-public sealed class DecisionOptions
+internal sealed class DecisionOptions
 {
     /// <summary>Gets or sets the model the request asks for, or <see langword="null" /> for the client's default.</summary>
     public string? ModelId { get; set; }

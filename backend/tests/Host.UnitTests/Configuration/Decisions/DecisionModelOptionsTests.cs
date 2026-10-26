@@ -4,6 +4,7 @@
 
 using MailFathom.AI.DecisionModels;
 using MailFathom.Host.Configuration;
+using MailFathom.Host.Configuration.Chat;
 using MailFathom.Host.Configuration.Decisions;
 using Microsoft.Extensions.Configuration;
 using Xunit;
@@ -124,8 +125,9 @@ public sealed class DecisionModelOptionsTests
         Assert.Contains(refusal.Errors, error => error.StartsWith("Decisions:DefaultModel — names 'answering', which is a chat model.", StringComparison.Ordinal));
     }
 
+    /// <summary>Refused from the chat side, because that is the section a reload changes, and once rather than from both sides.</summary>
     [Fact]
-    public void FindProviderRefusals_AnAliasAChatModelAlsoDeclares_IsRefused()
+    public void FindProviderRefusals_AnAliasAChatModelAlsoDeclares_IsRefusedAsTheChatModels()
     {
         // Arrange
         var configuration = Configuration(new Dictionary<string, string?>(ModelBlock(0, "shared"))
@@ -139,8 +141,29 @@ public sealed class DecisionModelOptionsTests
         var refusal = Assert.Single(ComposedSettings.FindProviderRefusals(configuration));
 
         // Assert
+        Assert.Equal(ChatModelOptions.SectionName, refusal.SectionName);
+        Assert.Contains(refusal.Errors, error => error.Contains("A chat model and a decision model both declare the alias 'shared'", StringComparison.Ordinal));
+    }
+
+    /// <summary>The credential source searches the embedding chain first, so a shared alias would present that endpoint's credential at the decision model's address.</summary>
+    [Fact]
+    public void FindProviderRefusals_AnAliasAnEmbeddingEndpointAlsoDeclares_IsRefused()
+    {
+        // Arrange
+        var configuration = Configuration(new Dictionary<string, string?>(ModelBlock(0, "shared"))
+        {
+            ["Embeddings:Endpoints:0:Alias"] = "shared",
+            ["Embeddings:Endpoints:0:Model"] = "an-embedding-model",
+            ["Embeddings:Endpoints:0:Dimension"] = "4",
+            ["Embeddings:Endpoints:0:Unauthenticated"] = "true",
+        });
+
+        // Act
+        var refusal = Assert.Single(ComposedSettings.FindProviderRefusals(configuration));
+
+        // Assert
         Assert.Equal(DecisionModelOptions.SectionName, refusal.SectionName);
-        Assert.Contains(refusal.Errors, error => error.Contains("the alias 'shared' is declared by a chat model or an embedding endpoint", StringComparison.Ordinal));
+        Assert.Contains(refusal.Errors, error => error.Contains("the alias 'shared' is declared by an embedding endpoint as well", StringComparison.Ordinal));
     }
 
     /// <summary>A router alias moves to a new build, and the threshold calibrated against the old one moves with it unannounced.</summary>

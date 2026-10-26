@@ -104,6 +104,46 @@ public sealed class DecisionSpendTests
         await spendLedger.DidNotReceive().RecordSpendAsync(Arg.Any<ChatTokenUsage>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>The model ran and the provider billed it, so a reader refusing the shape does not make the tokens free.</summary>
+    [Fact]
+    public async Task SpendReportingDecideAsync_AnUnreadableAnswerThatReportedUsage_ChargesThePeriodAndStillFails()
+    {
+        // Arrange
+        using var inner = ScriptedDecisionClient.Throwing(UnreadableReporting(inputTokens: 90));
+        var spendLedger = Substitute.For<IMailAnsweringSpendLedger>();
+        using var client = new SpendReportingDecisionClient(inner, spendLedger);
+
+        // Act
+        var failure = await Assert.ThrowsAsync<DecisionFailedException>(
+            () => client.DecideAsync(Input, Questions, cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(DecisionFailure.AnswerUnreadable, failure.Failure);
+        await spendLedger.Received(1).RecordSpendAsync(new ChatTokenUsage(90, 0), CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task BudgetedDecideAsync_AnUnreadableAnswerThatReportedUsage_ChargesItToTheRun()
+    {
+        // Arrange
+        using var inner = ScriptedDecisionClient.Throwing(UnreadableReporting(inputTokens: 90));
+        var runLedger = LedgerAllowing(tokens: 1_000);
+        using var client = new BudgetedDecisionClient(inner, runLedger);
+
+        // Act
+        await Assert.ThrowsAsync<DecisionFailedException>(
+            () => client.DecideAsync(Input, Questions, cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(90L, runLedger.Read().Tokens);
+    }
+
+    private static DecisionFailedException UnreadableReporting(long inputTokens) =>
+        new("decider", DecisionFailure.AnswerUnreadable)
+        {
+            Usage = new Microsoft.Extensions.AI.UsageDetails { InputTokenCount = inputTokens, OutputTokenCount = 0 },
+        };
+
     private static MailAnsweringRunLedger LedgerAllowing(int providerCalls = 8, long tokens = 80_000) =>
         new(MailAnsweringRunBounds.Create(20_000, providerCalls, tokens));
 }

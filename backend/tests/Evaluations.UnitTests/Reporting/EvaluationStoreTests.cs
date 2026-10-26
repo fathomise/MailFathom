@@ -295,6 +295,33 @@ public sealed class EvaluationStoreTests : IDisposable
         Assert.Equal([true, false, true], reached);
     }
 
+    /// <summary>
+    /// The model, the address it is reached at, and the run's repetition count each decide which answer a key stands for,
+    /// so changing any of them asks the model again rather than reading back what another configuration answered.
+    /// </summary>
+    [Fact]
+    public async Task CacheDecisionsOverAsync_AChangedModelAddressOrRepetitionCount_AsksTheModelAgain()
+    {
+        // Arrange
+        DecisionQuestion[] asked = [DecisionQuestion.YesNo("spam", "Is this spam?")];
+        var reporting = EvaluationStore.OpenUnjudgedAt(this.store.FullName, "only", []);
+        var declaringTwo = EvaluationStore.OpenUnjudgedAt(this.store.FullName, "two", [], repetitions: 2);
+        var plan = DeciderPlan();
+
+        // Act
+        bool[] reached =
+        [
+            await DecisionReachesTheModelAsync(reporting, asked, plan),
+            await DecisionReachesTheModelAsync(reporting, asked, plan with { Model = "vendor/decider-2026-11-01" }),
+            await DecisionReachesTheModelAsync(reporting, asked, plan with { Address = new Uri("https://eu.openrouter.ai") }),
+            await DecisionReachesTheModelAsync(declaringTwo, asked, plan),
+            await DecisionReachesTheModelAsync(reporting, asked, plan),
+        ];
+
+        // Assert
+        Assert.Equal([true, true, true, true, false], reached);
+    }
+
     /// <summary>A decision an earlier run paid for is read back and tallied the way a chat answer is.</summary>
     [Fact]
     public async Task CacheDecisionsOverAsync_ADecisionAnEarlierRunAsked_TalliesItAsReplayed()
@@ -321,14 +348,16 @@ public sealed class EvaluationStoreTests : IDisposable
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "Disposing the caching wrapper would dispose the model, which this method already disposes.")]
-    private static async Task<bool> DecisionReachesTheModelAsync(ReportingConfiguration reporting, DecisionQuestion[] questions)
+    private static async Task<bool> DecisionReachesTheModelAsync(
+        ReportingConfiguration reporting,
+        DecisionQuestion[] questions,
+        DecisionModelPlan? plan = null)
     {
         using var model = new CountingDecisionClient();
-        var plan = new DecisionModelPlan("decider", Address: null, "vendor/decider-2026-10-01", TimeSpan.FromSeconds(30), 32_000);
         var cached = await EvaluationStore.CacheDecisionsOverAsync(
             reporting,
             model,
-            plan,
+            plan ?? DeciderPlan(),
             Held,
             "decider",
             repetition: 1,
@@ -338,6 +367,9 @@ public sealed class EvaluationStoreTests : IDisposable
 
         return model.Requests > 0;
     }
+
+    private static DecisionModelPlan DeciderPlan() =>
+        new("decider", Address: null, "vendor/decider-2026-10-01", TimeSpan.FromSeconds(30), 32_000);
 
     /// <summary>Asks one scenario through the run's cache and says whether the question reached the model.</summary>
     [SuppressMessage(

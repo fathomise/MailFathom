@@ -1085,9 +1085,12 @@ them is never read, because no other spend MailFathom records is in money.
 
 A failure is classified by what the provider answered: `401` and `403` as a rejected credential, `429` as a rate limit,
 `408` and `504` as a timeout, any other `5xx` — `524` and `529` included — as a transport failure worth repeating, and
-every other refusal, `402` among them, as a request refused. An answer that does not have the contract's shape — a
-question missing, a value no option names, a probability out of range — is refused as unreadable rather than read
-generously, because the contract is alpha and a shape that changed is better reported than half understood. The
+every other refusal, `402` among them, as a request refused. An answer that does not have the contract's shape — an
+answer of another type, a value no option names, a distribution that does not name exactly the options offered, a
+probability out of range, a token count below zero — is refused as unreadable rather than read generously, because the
+contract is alpha and a shape that changed is better reported than half understood. Its tokens are still charged
+wherever the provider reported them, since the model ran and was billed. A question the answer carries no key for is
+not unreadable: it comes back unanswered, which is the one gap the contract names on purpose. The
 `AiProviderInvocation` resilience budget repeats only the failures worth repeating, keyed by the alias, so one failing
 model does not open another's circuit.
 

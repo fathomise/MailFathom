@@ -119,10 +119,13 @@ without depending on Polly. `Infrastructure` implements it per protocol family:
   question from a status this side never sees would produce a second opinion for the pipeline to disagree with. The
   adapter's own rule is the same one: `408`, `429`, and the `5xx` class are worth repeating, an absent status means the
   response never arrived, and everything else — a refused credential, a rejected request, an answer of the wrong shape
-  — is terminal. One classifier reads a status for every provider role, because what a status says about the remote
+  — is terminal. The decision adapter is the one that speaks HTTP itself rather than through a client library, so it
+  raises a refusal as an `HttpRequestException` carrying the status and nothing from the body, and the same classifier
+  reads that status. One classifier reads a status for every provider role, because what a status says about the remote
   party does not depend on what was asked of it; each role then publishes a table of its own, in [embedding
-  generation](../features/embedding-generation.md#what-a-failing-call-is-classified-as) and [chat
-  generation](../features/chat-generation.md#what-a-failing-call-is-classified-as).
+  generation](../features/embedding-generation.md#what-a-failing-call-is-classified-as), [chat
+  generation](../features/chat-generation.md#what-a-failing-call-is-classified-as), and [the decision
+  configuration](../operations/configuration-ai.md#decisions).
 
 - **Object storage** — the adapter has already classified the endpoint's own answer and this defers to its verdict, for
   the reason the provider families do. Its own rule reads the endpoint's error code before the status, because S3

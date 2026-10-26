@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
@@ -27,7 +28,11 @@ namespace MailFathom.AI.Decisions;
 /// each answer came from.
 /// </para>
 /// </remarks>
-public class DistributedCachingDecisionClient : DelegatingDecisionClient
+[SuppressMessage(
+    "Performance",
+    "CA1852:Seal internal types",
+    Justification = "Inherited by the evaluation suite's tallying cache, which reaches it through InternalsVisibleTo, so it has a subtype the analyzer cannot see.")]
+internal class DistributedCachingDecisionClient : DelegatingDecisionClient
 {
     private readonly IDistributedCache storage;
 

@@ -192,6 +192,85 @@ public sealed class OpenRouterDecisionClientTests
         Assert.Equal(DecisionFailure.AnswerUnreadable, failure.Failure);
     }
 
+    /// <summary>The model ran and was billed, so an answer refused for its shape still says what it cost in tokens.</summary>
+    [Fact]
+    public async Task DecideAsync_AnUnreadableAnswerWithReadableUsage_CarriesTheUsageOnTheFailure()
+    {
+        // Arrange
+        using var handler = FakeHttpMessageHandler.AlwaysResponding(
+            () => Json(HttpStatusCode.OK, AnswerOf("spam", """{ "type": "noul", "noul": 1.5 }""")));
+        using var client = ClientOver(handler);
+
+        // Act
+        var failure = await Assert.ThrowsAsync<DecisionFailedException>(
+            () => client.DecideAsync(Input, [Questions[0]], cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(DecisionFailure.AnswerUnreadable, failure.Failure);
+        Assert.Equal(9, failure.Usage?.InputTokenCount);
+        Assert.Equal(0, failure.Usage?.OutputTokenCount);
+    }
+
+    /// <summary>A negative count would be subtracted from the ledgers, and a sum past the range would wrap into one.</summary>
+    [Theory]
+    [InlineData("""{ "input_tokens": -5, "output_tokens": 0 }""", "a negative input count")]
+    [InlineData("""{ "input_tokens": 5, "output_tokens": -1 }""", "a negative output count")]
+    [InlineData("""{ "input_tokens": 9223372036854775807, "output_tokens": 1 }""", "a sum past the range")]
+    public async Task DecideAsync_UsageNoProviderCouldHaveMeant_IsUnreadableAndChargesNothing(string usage, string because)
+    {
+        // Arrange
+        var body = $$"""{ "model": "vendor/decider-2026-10-01", "answers": { "spam": { "type": "noul", "noul": 0.1 } }, "usage": {{usage}} }""";
+        using var handler = FakeHttpMessageHandler.AlwaysResponding(() => Json(HttpStatusCode.OK, body));
+        using var client = ClientOver(handler);
+
+        // Act
+        var failure = await Assert.ThrowsAsync<DecisionFailedException>(
+            () => client.DecideAsync(Input, [Questions[0]], cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.True(failure.Failure is DecisionFailure.AnswerUnreadable, because);
+        Assert.Null(failure.Usage);
+    }
+
+    [Fact]
+    public async Task DecideAsync_MoreQuestionsThanOneRequestAsks_IsRefusedBeforeAnythingIsSent()
+    {
+        // Arrange
+        using var handler = FakeHttpMessageHandler.AlwaysResponding(() => Json(HttpStatusCode.OK, WellFormedAnswer));
+        using var client = ClientOver(handler);
+        DecisionQuestion[] tooMany =
+        [
+            .. Enumerable.Range(0, OpenRouterDecisionClient.MaximumQuestionsPerRequest + 1)
+                .Select(index => DecisionQuestion.YesNo($"question-{index}", "Is this spam?")),
+        ];
+
+        // Act
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => client.DecideAsync(Input, tooMany, cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Empty(handler.RecordedRequests);
+    }
+
+    [Fact]
+    public async Task DecideAsync_AQuestionOfferingMoreOptionsThanAllowed_IsRefusedBeforeAnythingIsSent()
+    {
+        // Arrange
+        using var handler = FakeHttpMessageHandler.AlwaysResponding(() => Json(HttpStatusCode.OK, WellFormedAnswer));
+        using var client = ClientOver(handler);
+        var tooManyOptions = DecisionQuestion.Choice(
+            "kind",
+            "What kind of mail is it?",
+            [.. Enumerable.Range(0, OpenRouterDecisionClient.MaximumOptionsPerQuestion + 1).Select(index => new DecisionQuestionOption($"kind-{index}", string.Empty))]);
+
+        // Act
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => client.DecideAsync(Input, [tooManyOptions], cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Empty(handler.RecordedRequests);
+    }
+
     /// <summary>The body of a refusal can quote the request, and the request carries somebody's mail.</summary>
     [Fact]
     public async Task DecideAsync_ARefusedRequest_RaisesTheStatusAndNothingFromTheBody()

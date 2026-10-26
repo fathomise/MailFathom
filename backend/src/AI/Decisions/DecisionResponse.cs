@@ -13,7 +13,7 @@ namespace MailFathom.AI.Decisions;
 /// response — the model that answered, the tokens counted, the provider's own object — it reads off a decision the same
 /// way.
 /// </remarks>
-public sealed class DecisionResponse
+internal sealed class DecisionResponse
 {
     /// <summary>Initializes a response over its answers.</summary>
     /// <param name="answers">One answer per question asked, in the order the questions were given.</param>

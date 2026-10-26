@@ -5,7 +5,7 @@
 namespace MailFathom.AI.Decisions;
 
 /// <summary>Names the shape of answer a question asks for.</summary>
-public enum DecisionQuestionKind
+internal enum DecisionQuestionKind
 {
     /// <summary>A yes-or-no question, answered with the probability of each.</summary>
     YesNo = 0,

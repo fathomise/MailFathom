@@ -80,13 +80,24 @@ internal sealed class ObservedDecisionClient : DelegatingDecisionClient
         }
         catch (DecisionFailedException failure)
         {
-            this.Record(span, startedAt, asked, "failed", failure.Failure);
+            this.Record(span, startedAt, asked, "failed", failure.Failure.ToString());
+
+            // An answer refused as unreadable was still billed, and the counter states what the provider counted.
+            this.CountTokens(asked, failure.Usage);
+
+            throw;
+        }
+        catch (Exception)
+        {
+            // A request refused before it was sent — larger than its bound, an input the adapter cannot carry — is a
+            // failed call too, and leaving it out would make exactly the mail that was too long vanish from the figures.
+            this.Record(span, startedAt, asked, "failed", DecisionTelemetry.UnclassifiedFailure);
 
             throw;
         }
     }
 
-    private void Record(Activity? span, long startedAt, string model, string outcome, DecisionFailure? failure)
+    private void Record(Activity? span, long startedAt, string model, string outcome, string? failure)
     {
         TagList tags = new()
         {
@@ -96,9 +107,9 @@ internal sealed class ObservedDecisionClient : DelegatingDecisionClient
             { DecisionTelemetry.OutcomeTagName, outcome },
         };
 
-        if (failure is { } failed)
+        if (failure is not null)
         {
-            tags.Add(DecisionTelemetry.FailureTagName, failed.ToString());
+            tags.Add(DecisionTelemetry.FailureTagName, failure);
         }
 
         this.telemetry.Duration.Record(this.timeProvider.GetElapsedTime(startedAt).TotalSeconds, tags);

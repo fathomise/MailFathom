@@ -8,7 +8,7 @@ using Microsoft.Extensions.AI;
 namespace MailFathom.AI.Decisions;
 
 /// <summary>What every decision client offers without implementing it itself.</summary>
-public static class DecisionClientExtensions
+internal static class DecisionClientExtensions
 {
     /// <summary>Finds an object of the requested type in the client or in any client it wraps.</summary>
     /// <typeparam name="TService">The type wanted.</typeparam>

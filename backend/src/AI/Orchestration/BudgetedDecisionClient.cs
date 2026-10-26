@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.AI.DecisionModels;
 using MailFathom.AI.Decisions;
 using MailFathom.Application.Chat;
 using MailFathom.Application.Retrieval.AskMail;
@@ -47,13 +48,30 @@ internal sealed class BudgetedDecisionClient : DelegatingDecisionClient
     {
         this.runLedger.RequireAllowanceForNextCall();
 
-        var response = await base.DecideAsync(input, questions, options, cancellationToken);
+        DecisionResponse response;
 
-        if (response.Usage is { } reported)
+        try
+        {
+            response = await base.DecideAsync(input, questions, options, cancellationToken);
+        }
+        catch (DecisionFailedException failure) when (failure.Usage is not null)
+        {
+            // An answer refused as unreadable was still run and billed, so the run's ceiling counts it.
+            this.Charge(failure.Usage);
+
+            throw;
+        }
+
+        this.Charge(response.Usage);
+
+        return response;
+    }
+
+    private void Charge(Microsoft.Extensions.AI.UsageDetails? reported)
+    {
+        if (reported is not null)
         {
             this.runLedger.RecordSpend(new ChatTokenUsage(reported.InputTokenCount ?? 0, reported.OutputTokenCount ?? 0));
         }
-
-        return response;
     }
 }

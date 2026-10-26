@@ -102,27 +102,8 @@ it builds the client, and an explicit value takes precedence, so **that variable
 is no configuration key for it either: a collector holding every question and answer would be a second copy of the mail,
 under a retention nobody chose and an access rule the mail store never granted, and this is not a trade an operator is
 offered. What remains is metadata — which operation ran, against which model and endpoint, how long it took, how many
-tokens it consumed, and whether it failed.
-
-### What a decision emits
-
-A decision model is reached through no provider library, so none of the decorators above wrap it, and what it emits is
-MailFathom's own. Each call opens one span, `decide`, on the host's own source, and records two instruments on its
-meter. The span sits outside the resilience pipeline, so it measures the call as the caller waited for it, retries
-included; the pipeline's own telemetry is what separates the attempts.
-
-| Signal | Unit | What it records | Across replicas |
-| --- | --- | --- | --- |
-| `mailfathom.decisions.duration` | `s` | How long one call took, by model and outcome | aggregated as a histogram, so the replicas' buckets add |
-| `mailfathom.decisions.tokens` | `{token}` | The tokens the provider reported for an answered call, by model and direction | summed |
-
-Both carry `mailfathom.decision.endpoint`, the declared alias; `mailfathom.decision.model`, the dated build that
-answered, or the one declared where none answered; and `mailfathom.decision.provider`. The duration and the span add
-`mailfathom.decision.outcome` — `answered`, `failed`, or `cancelled` — and, on a failure,
-`mailfathom.decision.failure`, which names the class the failure was classified as; the token counter adds
-`mailfathom.decision.direction`, `input` or `output`. A failed call sets the span's status to error. **Nothing about
-the mail reaches either**: no subject, body, address, question, criterion, answer, or probability, and not the money
-figure the provider sends beside the tokens.
+tokens it consumed, and whether it failed. A decision model is reached through no provider library, so none of these
+decorators wrap it; [what a decision emits](#what-a-decision-emits) is MailFathom's own.
 
 ## The build every record names
 
@@ -1217,6 +1198,32 @@ same ledgers as a question asked over MCP. So these four report what this deploy
 than what one surface spends: a client asking on the client endpoint and an agent asking over MCP are both counted here,
 and neither is separable from the other in these instruments.
 
+### What a decision emits
+
+A decision model is reached through no provider library, so none of the [decorators a call to a model
+carries](#what-a-call-to-a-model-emits-and-what-it-never-does) wrap it, and what it emits is MailFathom's own. Each call
+opens one span, `decide`, on the host's own source, and records two instruments on its meter. The span sits outside the
+resilience pipeline, so it measures the call as the caller waited for it, retries included; the pipeline's own telemetry
+is what separates the attempts.
+
+| Signal | Unit | What it records | Across replicas |
+| --- | --- | --- | --- |
+| `mailfathom.decisions.duration` | `s` | How long one call took, by model and outcome | aggregated as a histogram, so the replicas' buckets add |
+| `mailfathom.decisions.tokens` | `{token}` | The tokens the provider reported for a call it billed, by model and direction | summed |
+
+Both carry `mailfathom.decision.endpoint`, the declared alias; `mailfathom.decision.model`, the dated build that
+answered, or the one declared where none answered; and `mailfathom.decision.provider`. The duration and the span add
+`mailfathom.decision.outcome` — `answered`, `failed`, or `cancelled` — and, on a failure,
+`mailfathom.decision.failure`, which names the class the failure was classified as, or `Unclassified` for a call refused
+before it was sent, such as a request over its model's character bound. The token counter adds
+`mailfathom.decision.direction`, `input` or `output`, and counts an answer refused as unreadable as well, whenever the
+provider still reported what it billed for it. A failed call sets the span's status to error; a call its caller
+cancelled does not, because the provider did not fail. **Nothing about the mail reaches either**: no subject, body,
+address, question, criterion, answer, or probability, and not the money figure the provider sends beside the tokens.
+
+Those tokens are charged to the same [answering spend](#answering-spend) ledgers a question is, so the period figures
+above include what decisions consumed.
+
 ### What a run records
 
 Those instruments describe what answering costs across a deployment. One span describes a single run, and it is the only
@@ -1859,8 +1866,10 @@ is bounded by the size of somebody's configuration, and a dashboard without it c
 
 What makes it a contract rather than a convention is that it is asserted over the emitted surface as a whole rather
 than per feature. A rule checked once per publisher is a rule the next publisher is not covered by, and a telemetry
-surface grows one publisher at a time — so the unit-test suite drives **every** publisher the two boundaries that own
-one hold, through a listener over MailFathom's activity source and meter, and holds what came out against four claims:
+surface grows one publisher at a time — so the unit-test suite drives **every** publisher the three boundaries that own
+one hold, through a listener over MailFathom's activity source and meter, and holds what came out against four claims.
+The AI boundary's decision telemetry is handed its source and meter rather than reaching MailFathom's, so its suite drives
+that publisher over a pair of its own and holds it to the same claims:
 
 - No span name, instrument name, or dimension key is named after a word from the refused list, matched whole segment by
   whole segment. That is what separates `token`, which names a credential, from `tokens`, which is how many a model
@@ -1872,7 +1881,7 @@ one hold, through a listener over MailFathom's activity source and meter, and ho
   sent, text read out of a message — and the assertion is where each was allowed to surface. A caller's text and
   anything mail-derived may reach nothing at all; an alias may reach the dimensions named for it and no others.
 
-Two things keep that from decaying quietly. Within each of those two boundaries a publisher is found by what it holds —
+Two things keep that from decaying quietly. Within each of those three boundaries a publisher is found by what it holds —
 an instrument field, or a declared span name — rather than by where it lives, so a publisher nobody added to the drive
 fails the suite instead of going unasserted. And the names every assembly of this deployment *declares*, the host's own
 included, are read and held against the same vocabulary, which reaches what no drive does: the span the extraction

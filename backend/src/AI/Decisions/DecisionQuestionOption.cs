@@ -7,4 +7,4 @@ namespace MailFathom.AI.Decisions;
 /// <summary>One answer a question offers: the value an answer names it by, and what choosing it means.</summary>
 /// <param name="Value">The value an answer names this option by, unique within its question.</param>
 /// <param name="Description">What the model is told choosing this option means; empty where the value says it alone.</param>
-public sealed record DecisionQuestionOption(string Value, string Description);
+internal sealed record DecisionQuestionOption(string Value, string Description);

@@ -103,9 +103,12 @@ public sealed class OrchestratedDecisionPipelineTests(MailFathomOrchestrationFix
         Assert.Equal(before, tracker.Read().Tokens);
     }
 
-    /// <summary>An answer that is not the contract's shape is the model having answered, so repeating it would pay for the same answer again.</summary>
+    /// <summary>
+    /// An answer that is not the contract's shape is the model having answered, so repeating it would pay for the same
+    /// answer again — and the tokens it was billed are charged to the period row exactly as a readable answer's are.
+    /// </summary>
     [Fact]
-    public async Task DecideAsync_AnUnreadableAnswer_IsNotRepeated()
+    public async Task DecideAsync_AnUnreadableAnswer_IsNotRepeatedAndChargesWhatItWasBilled()
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -114,6 +117,10 @@ public sealed class OrchestratedDecisionPipelineTests(MailFathomOrchestrationFix
             HttpStatusCode.OK,
             """{ "model": "vendor/decider-2026-10-01", "answers": { "spam": { "type": "noul", "noul": 7 } }, "usage": { "input_tokens": 9, "output_tokens": 0 } }""");
         await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken, decisionEndpoint: endpoint);
+        var tracker = await services.InScopeAsync((scope, _) => Task.FromResult(scope.GetRequiredService<MailAnsweringSpendTracker>()), cancellationToken);
+
+        await tracker.RecordSpendAsync(new ChatTokenUsage(0, 0), cancellationToken);
+        var before = tracker.Read().Tokens;
 
         // Act
         var failure = await Assert.ThrowsAsync<DecisionFailedException>(() => services.InScopeAsync(
@@ -124,6 +131,7 @@ public sealed class OrchestratedDecisionPipelineTests(MailFathomOrchestrationFix
         // Assert
         Assert.Equal(DecisionFailure.AnswerUnreadable, failure.Failure);
         Assert.Equal(1, endpoint.Requests);
+        Assert.Equal(before + 9, tracker.Read().Tokens);
     }
 
     private static DecisionModelPlan Plan(string alias) =>

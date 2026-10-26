@@ -119,12 +119,13 @@ internal sealed class DecisionModelOptions : IValidatableObject
                 ? $"{SectionName}:{member} — {result.ErrorMessage}"
                 : $"{SectionName} — {result.ErrorMessage}");
 
-        var otherAliases = chatAliases
-            .Concat(embeddings?.Endpoints.Select(endpoint => endpoint.Alias.Trim()) ?? [])
+        // A chat model reusing a decision alias is refused by the chat rules, which a reload runs as well; what is left
+        // here is the embedding chain, which neither section reloads.
+        var embeddingAliases = (embeddings?.Endpoints.Select(endpoint => endpoint.Alias.Trim()) ?? [])
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var reused = declared
-            .Where(otherAliases.Contains)
-            .Select(alias => $"{SectionName}:{nameof(Models)} — the alias '{alias}' is declared by a chat model or an embedding endpoint as well. An alias names one endpoint, because it is what a credential, a resilience circuit, and a log line are keyed by.");
+            .Where(embeddingAliases.Contains)
+            .Select(alias => $"{SectionName}:{nameof(Models)} — the alias '{alias}' is declared by an embedding endpoint as well. An alias names one endpoint, because it is what a credential, a resilience circuit, and a log line are keyed by.");
 
         return [.. namingChatModels, .. sectionErrors, .. reused];
     }

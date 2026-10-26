@@ -8,7 +8,7 @@ namespace MailFathom.AI.Decisions;
 
 /// <summary>The base every decision middleware derives from: it passes each call to the client it wraps unless it overrides it.</summary>
 /// <remarks>Shaped after <see cref="DelegatingChatClient" />, including that it owns the client it wraps and disposes it.</remarks>
-public abstract class DelegatingDecisionClient : IDecisionClient
+internal abstract class DelegatingDecisionClient : IDecisionClient
 {
     /// <summary>Initializes the middleware over the client it wraps.</summary>
     /// <param name="innerClient">The client every call is passed to.</param>
