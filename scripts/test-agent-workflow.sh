@@ -9131,7 +9131,7 @@ workflow_files() {
 # Adding a name here is a supply-chain decision, so it fails here first and is argued in the pull
 # request rather than discovered in a run.
 every_external_action_names_an_approved_owner() {
-  local approved_owners=' actions github Krzysztof318 dorny anthropics docker crate-ci aquasecurity oras-project peter-evans '
+  local approved_owners=' actions github Krzysztof318 dorny anthropics docker crate-ci aquasecurity oras-project peter-evans vegardit '
   local owner
   local unapproved=''
 
@@ -9217,6 +9217,33 @@ unbounded = [
 if unbounded:
     print(f"Steps run apt-get on their job's timeout alone: {'; '.join(unbounded)}", file=sys.stderr)
 sys.exit(1 if unbounded else 0)
+PYTHON
+}
+
+# The runner's own mirror stalls rather than fails, which apt's failure fallback does not see, so a
+# job installs from apt only after the step before it has chosen a fast mirror — and that step is
+# bounded on its own, since it waits on the mirrors it probes.
+every_apt_step_follows_a_bounded_mirror_choice() {
+  python3 - "$source_repository_root"/.github/workflows/*.yml <<'PYTHON'
+import sys
+import yaml
+
+MIRROR_ACTION = "vegardit/fast-apt-mirror.sh@"
+problems = []
+for path in sys.argv[1:]:
+    for job_id, job in yaml.safe_load(open(path, encoding="utf-8"))["jobs"].items():
+        steps = job.get("steps", [])
+        for index, step in enumerate(steps):
+            where = f"{path.rsplit('/', 1)[-1]}:{job_id}:{step.get('name', '<unnamed>')}"
+            if step.get("uses", "").startswith(MIRROR_ACTION) and "timeout-minutes" not in step:
+                problems.append(f"{where} chooses a mirror on its job's timeout alone")
+            if "apt-get" in step.get("run", ""):
+                previous = steps[index - 1] if index > 0 else {}
+                if not previous.get("uses", "").startswith(MIRROR_ACTION):
+                    problems.append(f"{where} runs apt-get without choosing a mirror in the step before it")
+if problems:
+    print("; ".join(problems), file=sys.stderr)
+sys.exit(1 if problems else 0)
 PYTHON
 }
 
@@ -12427,6 +12454,7 @@ run_test every_external_action_names_an_approved_owner
 run_test every_workflow_job_declares_its_permissions
 run_test every_workflow_job_declares_its_timeout
 run_test every_apt_step_declares_its_timeout
+run_test every_apt_step_follows_a_bounded_mirror_choice
 run_test every_write_scope_is_one_the_policy_records
 run_test every_checkout_refuses_to_persist_credentials
 run_test the_release_restores_the_annotated_tag_before_asserting_it

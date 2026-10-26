@@ -2136,10 +2136,11 @@ job of `repository-contracts.yml` and again locally in `scripts/verify-full.sh`,
 
 | Contract | What it refuses |
 |---|---|
-| `every_external_action_names_an_approved_owner` | An action from an owner outside the reviewed set: `actions`, `github`, `Krzysztof318`, `dorny`, `anthropics`, `docker`, `crate-ci`, `aquasecurity`, `oras-project`, `peter-evans` |
+| `every_external_action_names_an_approved_owner` | An action from an owner outside the reviewed set: `actions`, `github`, `Krzysztof318`, `dorny`, `anthropics`, `docker`, `crate-ci`, `aquasecurity`, `oras-project`, `peter-evans`, `vegardit` |
 | `every_workflow_job_declares_its_permissions` | A job that inherits the repository default instead of declaring a `permissions:` block, at the workflow level or its own |
 | `every_workflow_job_declares_its_timeout` | A job that runs steps without declaring `timeout-minutes`, and so inherits GitHub's six-hour default |
 | `every_apt_step_declares_its_timeout` | A step that runs `apt-get` without a `timeout-minutes` of its own, so a slow package mirror can spend the whole job's budget on an install that ordinarily takes half a minute |
+| `every_apt_step_follows_a_bounded_mirror_choice` | A step that runs `apt-get` without `vegardit/fast-apt-mirror.sh` as the step before it, and a mirror-choosing step without a `timeout-minutes` of its own |
 | `every_write_scope_is_one_the_policy_records` | A write scope appearing anywhere the list in that contract does not already name |
 | `every_checkout_refuses_to_persist_credentials` | An `actions/checkout` step that leaves the workflow token in `.git/config` for the steps after it |
 | `only_the_recorded_workflows_use_pull_request_target` | A third `pull_request_target` trigger beside the two `fathom-review.yml` and `contributor-licence.yml` hold, and a licence workflow that checks anything out, reaches an action beyond the token mint, or runs a command fetching the contribution directly |
@@ -2199,6 +2200,19 @@ install waits on the runner's package mirror and nothing else, it ordinarily tak
 minute, and a slow mirror has held one for its job's whole thirty minutes. A step bound ends that as
 a red step naming the install, and leaves the job's budget to the work after it. The ten-minute floor
 above is for jobs and does not reach a step.
+
+**The step before it chooses the mirror.** The runner image puts `azure.archive.ubuntu.com` first in
+`/etc/apt/apt-mirrors.txt`, and on a bad day that mirror stalls rather than fails, which apt's own
+fallback to the next mirror in that file does not see. So every job that installs from apt first runs
+`vegardit/fast-apt-mirror.sh` with the defaults its author recommends: it health-checks twenty mirrors
+from the list `mirrors.ubuntu.com` returns for the runner's location, the current one among them,
+speed-tests ten of them with a one-megabyte sample each, and writes the fastest over the first line of
+that file. The other mirrors stay below it, so the failure fallback still holds, and which mirror
+serves the archives changes nothing about what is installed, because apt checks every archive against
+Ubuntu's signed index. The choice ordinarily takes under half a minute and is bounded at two minutes
+of its own. The install still runs its own `apt-get update`: the action refreshes the lists on every
+path it takes, but a refresh that failed halfway is one it does not repeat, and a second one over
+lists that are already current costs a second or two.
 
 **What lives in the repository settings**, which no check here can read:
 
