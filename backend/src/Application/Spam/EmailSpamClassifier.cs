@@ -285,10 +285,9 @@ public sealed class EmailSpamClassifier
         var facts = await this.headerReader.ReadAsync(content, cancellationToken);
         var isJunkFolder = this.junkFolders.IsJunkFolder(email.AccountId, email.FolderAlias);
         var ownActs = await this.FindOwnActsAsync(email.Id, isJunkFolder, cancellationToken);
-        var reading = this.deterministicClassifier.Read(
-            facts,
-            email.FolderAlias,
-            isJunkFolder,
+        var reading = this.deterministicClassifier.LiftToFloor(
+            this.deterministicClassifier.Read(facts, email.FolderAlias, isJunkFolder, email.Keywords, ownActs),
+            isJunkFolder ? email.FolderAlias : null,
             email.Keywords,
             ownActs);
 

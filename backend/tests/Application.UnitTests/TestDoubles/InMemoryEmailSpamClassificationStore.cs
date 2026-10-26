@@ -65,4 +65,21 @@ internal sealed class InMemoryEmailSpamClassificationStore : IEmailSpamClassific
 
         return Task.FromResult(true);
     }
+
+    /// <inheritdoc />
+    public Task<bool> LiftToSpamAsync(
+        IPersistenceSession session,
+        SpamClassification classification,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(classification);
+
+        if (this.classificationsByEmail.TryGetValue(classification.EmailId, out var recorded)
+            && recorded.Verdict is SpamVerdict.Spam)
+        {
+            return Task.FromResult(false);
+        }
+
+        return this.SaveAsync(session, classification, cancellationToken);
+    }
 }

@@ -22,6 +22,7 @@ using MailFathom.Application.Retrieval.AskMail.Audit;
 using MailFathom.Application.Rules.Evaluation;
 using MailFathom.Application.Rules.History;
 using MailFathom.Application.Signals;
+using MailFathom.Application.Spam.Floor;
 using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.Synchronization.Administration;
@@ -410,6 +411,7 @@ internal sealed partial class AccountSynchronizationSupervisor
                     token => this.RestoreHeldMailboxAsync(runSettings, token),
                     token => this.DeliverOutstandingMailAsync(runSettings, token),
                     token => this.EraseExpiredDerivedRecordsAsync(runSettings, token),
+                    token => this.LiftMailToSpamFloorAsync(runSettings, token),
                     token => this.ClassifyRequestedMailAsync(runSettings, token),
                     token => this.EvaluateMailRulesAsync(runSettings, token),
                     token => this.CutPassagesOfEvaluatedMailAsync(runSettings, token),
@@ -872,6 +874,50 @@ internal sealed partial class AccountSynchronizationSupervisor
         catch (Exception exception)
         {
             this.LogUserNotificationFailed(exception, this.account.Value);
+        }
+    }
+
+    /// <summary>Gives every message of this account in its junk folder or carrying <c>$Junk</c> at least a spam verdict.</summary>
+    /// <remarks>
+    /// <para>
+    /// After the folders, so a message this run read from the server — a new arrival, one another client moved into the
+    /// junk folder, one whose keyword another client set — is raised in the same run, and ahead of the classification
+    /// run, the rules, and the cut, so none of them reaches a message below the floor. It runs whatever the account's
+    /// classification says, in every custody phase, because the floor is not classification.
+    /// </para>
+    /// <para>
+    /// A failure never fails the run, for the reason the classification run's does not: the pass reads only stored mail
+    /// and writes only its verdict, so it says nothing about the mailbox, and what it did not reach the next run's pass
+    /// reaches.
+    /// </para>
+    /// </remarks>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "A pass that failed is logged and repeated by the next run rather than putting the account into backoff; it reaches no mail server.")]
+    private async Task LiftMailToSpamFloorAsync(
+        MailSynchronizationOptions runSettings,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = this.scopeFactory.CreateScope();
+
+            scope.ServiceProvider.GetRequiredService<ScopedMailSynchronizationSettings>().UseRunSnapshot(runSettings);
+
+            var raisedEmailCount = await scope.ServiceProvider
+                .GetRequiredService<SpamVerdictFloorPass>()
+                .RunAsync(this.account, cancellationToken);
+
+            if (raisedEmailCount > 0)
+            {
+                this.LogSpamFloorRaised(this.account.Value, raisedEmailCount);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            this.LogSpamFloorFailed(exception, this.account.Value);
         }
     }
 
@@ -2068,6 +2114,16 @@ internal sealed partial class AccountSynchronizationSupervisor
         Level = LogLevel.Warning,
         Message = "Deriving the states of the changed conversations of account {AccountId} ended unexpectedly; the account is not backed off for it, and what was not derived stays outstanding for the next run.")]
     private partial void LogThreadStateDerivationFailed(Exception exception, string accountId);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Gave {RaisedEmailCount} messages of account {AccountId} in its junk folder or marked $Junk a spam verdict they did not carry.")]
+    private partial void LogSpamFloorRaised(string accountId, int raisedEmailCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Raising the mail of account {AccountId} to the spam floor ended unexpectedly; the account is not backed off for it and its next run reaches what this one did not.")]
+    private partial void LogSpamFloorFailed(Exception exception, string accountId);
 
     /// <summary>Reports one account run's share of a whole-mailbox classification run, in counts and the profile alone.</summary>
     [LoggerMessage(

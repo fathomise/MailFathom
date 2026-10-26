@@ -91,11 +91,7 @@ public sealed class DeterministicSpamClassifier
 
         IReadOnlyList<SpamSignal> signals =
         [
-            .. marks.Select(static keyword => SpamSignal.Create(
-                SpamSignalKind.JunkKeyword,
-                keyword,
-                observation: null,
-                SpamSignalProvenance.FromMailboxKeyword(keyword))),
+            .. marks.Select(KeywordSignal),
             .. PlacementSignals(folderAlias, isPlacedByOthers),
             .. AuthenticationSignals(facts.AuthenticationResults),
             .. ProviderSignals(facts.ProviderHeaders),
@@ -110,6 +106,73 @@ public sealed class DeterministicSpamClassifier
 
         return new DeterministicSpamReading(verdict, providerVerdict.Assessment, signals);
     }
+
+    /// <summary>Raises a verdict below spam to spam where the message sits in its junk folder or carries <c>$Junk</c>.</summary>
+    /// <param name="reading">What every stage concluded before the floor, or <see cref="DeterministicSpamReading.Nothing" /> where no stage read the message.</param>
+    /// <param name="junkFolder">The junk folder the message sits in, or <see langword="null" /> when it sits in none.</param>
+    /// <param name="keywords">The keywords the message carries in its mailbox.</param>
+    /// <param name="ownActs">What this deployment's own verdicts already did to the message.</param>
+    /// <returns>The reading unchanged where it is spam already or the floor does not reach the message; otherwise spam, with the placement or the keyword as its signal.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="reading" />, <paramref name="keywords" />, or <paramref name="ownActs" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// <para>
+    /// It is a floor beneath the stages rather than a signal weighed among them, so it counts the placement and the
+    /// keyword whoever made them — this deployment's own filing and its own <c>$Junk</c> included, which
+    /// <see cref="Read" /> leaves out so a model's verdict is never promoted by its own act. That is the one thing the
+    /// floor narrows: an own act still decides nothing, and it can no longer let a message in junk fall below spam.
+    /// </para>
+    /// <para>
+    /// The person's correction is the exception. A <c>$NotJunk</c> standing alone among the marks somebody else set
+    /// raises nothing, and a <c>$Junk</c> beside a <c>$NotJunk</c> counts as neither, as RFC 9051 reads the pair, so only
+    /// the junk-folder placement raises such a message. The person's own verdict is never handed here at all.
+    /// </para>
+    /// </remarks>
+    public DeterministicSpamReading LiftToFloor(
+        DeterministicSpamReading reading,
+        MailFolderAlias? junkFolder,
+        RemoteEmailKeywords keywords,
+        IReadOnlySet<SpamVerdictAct> ownActs)
+    {
+        ArgumentNullException.ThrowIfNull(reading);
+        ArgumentNullException.ThrowIfNull(keywords);
+        ArgumentNullException.ThrowIfNull(ownActs);
+
+        if (reading.Verdict is SpamVerdict.Spam
+            || KeywordVerdict(MarksSetByOthers(keywords, ownActs)) is SpamVerdict.NotSpam)
+        {
+            return reading;
+        }
+
+        var carriesJunkAlone = JunkKeywords.Carries(keywords, JunkKeywords.Junk)
+            && !JunkKeywords.Carries(keywords, JunkKeywords.NotJunk);
+        IReadOnlyList<SpamSignal> floorSignals =
+        [
+            .. junkFolder is { } folder ? PlacementSignals(folder, isJunkFolder: true) : [],
+            .. carriesJunkAlone ? [KeywordSignal(JunkKeywords.Junk)] : Array.Empty<SpamSignal>(),
+        ];
+
+        if (floorSignals.Count == 0)
+        {
+            return reading;
+        }
+
+        return reading with
+        {
+            Verdict = SpamVerdict.Spam,
+            Signals =
+            [
+                .. floorSignals.Where(floor => !reading.Signals.Any(signal =>
+                    signal.Kind == floor.Kind && signal.Name == floor.Name)),
+                .. reading.Signals,
+            ],
+        };
+    }
+
+    private static SpamSignal KeywordSignal(string keyword) => SpamSignal.Create(
+        SpamSignalKind.JunkKeyword,
+        keyword,
+        observation: null,
+        SpamSignalProvenance.FromMailboxKeyword(keyword));
 
     /// <summary>Reads the junk keywords the message carries that somebody other than this deployment's verdict set.</summary>
     private static IReadOnlyList<string> MarksSetByOthers(RemoteEmailKeywords keywords, IReadOnlySet<SpamVerdictAct> ownActs)

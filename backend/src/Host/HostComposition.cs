@@ -46,6 +46,7 @@ using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Actions;
+using MailFathom.Application.Spam.Floor;
 using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Application.Synchronization;
@@ -426,11 +427,13 @@ internal static class HostComposition
         // bounds read from the bound section when the scope is built rather than captured once at startup. Both are
         // registered whatever the switches say, because a run is asked for through the administrative endpoint and an
         // instance that has classification switched off must be able to answer that rather than fail to resolve it.
+        // The spam floor's pass is a step of the same run, takes the same bounds, and runs whatever the switches say.
         builder.Services.AddScoped(provider => provider
             .GetRequiredService<IOptionsMonitor<SpamClassificationOptions>>()
             .CurrentValue
             .ToRunOptions());
         builder.Services.AddScoped<SpamClassificationPass>();
+        builder.Services.AddScoped<SpamVerdictFloorPass>();
         builder.Services.AddScoped<SpamClassificationRunRequests>();
     }
 

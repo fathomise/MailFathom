@@ -380,11 +380,11 @@ public sealed class EmailSpamClassifierTests
     }
 
     /// <summary>
-    /// A message an earlier build's verdict filed left a relocation and no recorded act, and its placement is still the
-    /// deployment's own rather than evidence a reclassification may rest on.
+    /// A message an earlier build's verdict filed left a relocation and no recorded act. Its placement is still the
+    /// deployment's own rather than evidence, so it decides nothing, and the floor still holds the message at spam.
     /// </summary>
     [Fact]
-    public async Task ClassifyAsync_AMessageAnEarlierVerdictFiledBeforeItsActsWereRecorded_DoesNotReadThePlacementBack()
+    public async Task ClassifyAsync_AMessageAnEarlierVerdictFiledBeforeItsActsWereRecorded_IsHeldAtSpamByTheFloor()
     {
         // Arrange
         this.mutationRecords
@@ -409,13 +409,16 @@ public sealed class EmailSpamClassifierTests
 
         // Assert
         var saved = Assert.Single(this.store.Saved);
+        var signal = Assert.Single(saved.Signals);
 
-        Assert.Equal(SpamVerdict.Undetermined, saved.Verdict);
-        Assert.Empty(saved.Signals);
+        Assert.Equal(SpamVerdict.Spam, saved.Verdict);
+        Assert.Equal(SpamClassificationStage.Deterministic, saved.DecidedBy);
+        Assert.Equal(SpamSignalKind.JunkFolderPlacement, signal.Kind);
+        Assert.Null(saved.Subcategory);
     }
 
     [Fact]
-    public async Task ClassifyAsync_AJunkKeywordAnEarlierVerdictWrote_IsNotReadBackAsEvidence()
+    public async Task ClassifyAsync_AJunkKeywordAnEarlierVerdictWrote_IsHeldAtSpamByTheFloor()
     {
         // Arrange
         this.verdictActs.With(Occurrence, SpamVerdictAct.MarkedJunk);
@@ -433,13 +436,15 @@ public sealed class EmailSpamClassifierTests
 
         // Assert
         var saved = Assert.Single(this.store.Saved);
+        var signal = Assert.Single(saved.Signals);
 
-        Assert.Equal(SpamVerdict.Undetermined, saved.Verdict);
-        Assert.DoesNotContain(saved.Signals, signal => signal.Kind is SpamSignalKind.JunkKeyword);
+        Assert.Equal(SpamVerdict.Spam, saved.Verdict);
+        Assert.Equal(SpamSignalKind.JunkKeyword, signal.Kind);
+        Assert.Equal("$Junk", signal.Name);
     }
 
     [Fact]
-    public async Task ClassifyAsync_AJunkFolderPlacementAnEarlierVerdictRecorded_IsNotReadBackAsEvidence()
+    public async Task ClassifyAsync_AJunkFolderPlacementAnEarlierVerdictRecorded_IsHeldAtSpamByTheFloor()
     {
         // Arrange
         this.verdictActs.With(Occurrence, SpamVerdictAct.FiledIntoJunk);
@@ -458,9 +463,10 @@ public sealed class EmailSpamClassifierTests
 
         // Assert
         var saved = Assert.Single(this.store.Saved);
+        var signal = Assert.Single(saved.Signals);
 
-        Assert.Equal(SpamVerdict.Undetermined, saved.Verdict);
-        Assert.Empty(saved.Signals);
+        Assert.Equal(SpamVerdict.Spam, saved.Verdict);
+        Assert.Equal(SpamSignalKind.JunkFolderPlacement, signal.Kind);
         await this.mutationRecords
             .DidNotReceive()
             .HasRecordAsync(
@@ -468,6 +474,38 @@ public sealed class EmailSpamClassifierTests
                 Arg.Any<MailboxMutation>(),
                 Arg.Any<MailboxMutationOrigin>(),
                 Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A reclassification asked for explicitly reaches a header saying no, and the floor still holds the message at spam.</summary>
+    [Fact]
+    public async Task ClassifyAsync_ReclassifyingAMessageInJunkWhoseHeaderSaysNo_KeepsItAtSpam()
+    {
+        // Arrange
+        this.verdictActs.With(Occurrence, SpamVerdictAct.FiledIntoJunk);
+        this.store.Hold(SpamClassification.Create(
+            Occurrence,
+            SpamVerdict.Spam,
+            SpamClassificationStage.Deterministic,
+            assessment: null,
+            SpamClassificationProfile.Create(),
+            [],
+            EvaluatedAt.AddDays(-1)));
+        var classifier = this.Classifier(
+            SettingsCovering(Junk),
+            FactsSaying("X-Spam-Flag", "NO"),
+            email: new ClassifiableEmail(Occurrence, Account, Junk, RemoteEmailKeywords.None),
+            junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
+
+        // Act
+        var result = await classifier.ClassifyAsync(
+            Account,
+            Occurrence,
+            SpamClassificationMode.Reclassify,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamClassificationOutcome.Classified, result.Outcome);
+        Assert.Equal(SpamVerdict.Spam, Assert.Single(this.store.Saved).Verdict);
     }
 
     [Fact]

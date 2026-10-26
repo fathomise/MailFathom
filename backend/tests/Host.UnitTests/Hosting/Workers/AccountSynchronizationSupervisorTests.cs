@@ -13,6 +13,7 @@ using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Rules.Evaluation;
 using MailFathom.Application.Signals;
+using MailFathom.Application.Spam.Floor;
 using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.Synchronization.Administration;
@@ -1207,7 +1208,8 @@ public sealed class AccountSynchronizationSupervisorTests
     }
 
     /// <summary>
-    /// The arrival pipeline's order, asserted where it is composed. Classification runs first so that every later stage
+    /// The arrival pipeline's order, asserted where it is composed. The spam floor runs first, so nothing after it meets
+    /// a message in the junk folder or carrying <c>$Junk</c> below spam. Classification runs next so that every later stage
     /// reads a verdict instead of deciding without one, the rules run over what it did not settle, the cut runs behind
     /// them because a rule may still move the message into a folder mapped differently from the one it arrived in, and
     /// the attachment reading runs behind the cut because it is the one stage that parses octets a stranger composed.
@@ -1219,11 +1221,25 @@ public sealed class AccountSynchronizationSupervisorTests
     /// that ships now.
     /// </remarks>
     [Fact]
-    public async Task RunAsync_EveryRun_ClassifiesThenEvaluatesRulesThenCutsPassagesThenReadsAttachments()
+    public async Task RunAsync_EveryRun_LiftsToTheSpamFloorThenClassifiesThenEvaluatesRulesThenCutsPassagesThenReadsAttachments()
     {
         // Arrange
         var localSteps = new ConcurrentQueue<string>();
         var readingReached = new TaskCompletionSource();
+        var floorCandidateReader = Substitute.For<ISpamVerdictFloorCandidateReader>();
+        floorCandidateReader
+            .GetCandidatesAsync(
+                Arg.Any<MailAccountId>(),
+                Arg.Any<SpamVerdictFloorTerms>(),
+                Arg.Any<StoredEmailId?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                localSteps.Enqueue("floor");
+
+                return Task.FromResult<IReadOnlyList<SpamVerdictFloorCandidate>>([]);
+            });
         var classificationRunStore = Substitute.For<ISpamClassificationRunStore>();
         classificationRunStore
             .FindOutstandingAsync(Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>())
@@ -1275,13 +1291,14 @@ public sealed class AccountSynchronizationSupervisorTests
             ruleEvaluationStore: ruleStore,
             classificationRunStore: classificationRunStore,
             chunkingStore: chunkingStore,
-            attachmentTextStore: attachmentTextStore);
+            attachmentTextStore: attachmentTextStore,
+            floorCandidateReader: floorCandidateReader);
 
         // Act
         await harness.SuperviseUntilAsync(readingReached.Task);
 
         // Assert
-        Assert.Equal(["classification", "rules", "cut", "attachments"], localSteps.Take(4));
+        Assert.Equal(["floor", "classification", "rules", "cut", "attachments"], localSteps.Take(5));
     }
 
     /// <summary>The reading reaches no mail server either, so failing one must not make the account fetch its mail less often.</summary>
@@ -1603,6 +1620,7 @@ public sealed class AccountSynchronizationSupervisorTests
         ISpamClassificationRunStore? classificationRunStore = null,
         IStoredEmailChunkingStore? chunkingStore = null,
         IStoredEmailAttachmentTextStore? attachmentTextStore = null,
+        ISpamVerdictFloorCandidateReader? floorCandidateReader = null,
         params string[] unadvertisedAliases)
     {
         var clock = new FakeTimeProvider();
@@ -1620,6 +1638,7 @@ public sealed class AccountSynchronizationSupervisorTests
             classificationRunStore,
             chunkingStore,
             attachmentTextStore,
+            floorCandidateReader: floorCandidateReader,
             unadvertisedAliases: unadvertisedAliases);
 
         return new SupervisorHarness(

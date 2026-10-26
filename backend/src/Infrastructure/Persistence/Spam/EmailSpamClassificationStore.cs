@@ -37,13 +37,41 @@ internal sealed class EmailSpamClassificationStore(MailFathomDbContext dbContext
     }
 
     /// <inheritdoc />
-    public async Task<bool> SaveAsync(
+    public Task<bool> SaveAsync(
         IPersistenceSession session,
         SpamClassification classification,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(classification);
 
+        return this.SaveUnlessRefusedAsync(
+            session,
+            classification,
+            stored => classification.MayReplace(stored.DecidedBy),
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> LiftToSpamAsync(
+        IPersistenceSession session,
+        SpamClassification classification,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(classification);
+
+        return this.SaveUnlessRefusedAsync(
+            session,
+            classification,
+            stored => stored.Verdict is not SpamVerdict.Spam && classification.MayReplace(stored.DecidedBy),
+            cancellationToken);
+    }
+
+    private async Task<bool> SaveUnlessRefusedAsync(
+        IPersistenceSession session,
+        SpamClassification classification,
+        Func<EmailSpamClassificationEntity, bool> mayReplace,
+        CancellationToken cancellationToken)
+    {
         var sessionContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
         var storedEmailId = classification.EmailId.Value;
 
@@ -56,7 +84,7 @@ internal sealed class EmailSpamClassificationStore(MailFathomDbContext dbContext
             stored = new EmailSpamClassificationEntity { StoredEmailId = storedEmailId };
             sessionContext.EmailSpamClassifications.Add(stored);
         }
-        else if (!classification.MayReplace(stored.DecidedBy))
+        else if (!mayReplace(stored))
         {
             return false;
         }

@@ -18,4 +18,8 @@ namespace MailFathom.Application.Spam.Signals;
 public sealed record DeterministicSpamReading(
     SpamVerdict Verdict,
     SpamAssessment? Assessment,
-    IReadOnlyList<SpamSignal> Signals);
+    IReadOnlyList<SpamSignal> Signals)
+{
+    /// <summary>Gets the reading of a message no stage read, which is where the floor starts from when classification does not reach it.</summary>
+    public static DeterministicSpamReading Nothing { get; } = new(SpamVerdict.Undetermined, Assessment: null, []);
+}

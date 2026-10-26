@@ -8,10 +8,11 @@ decided what it thought of it — in an `Authentication-Results` header, in a pr
 the message in the junk folder. Spam classification is what keeps that decision rather than discarding it, and records
 it as derived data beside the message.
 
-Five things ship here and are independent of each other: the classification record with the stage that fills it, mail
+Six things ship here and are independent of each other: the classification record with the stage that fills it, mail
 being classified as it arrives, the three switches that let a verdict reach the mail server, spam and the junk folder
-being kept from every agent's read, and junk being kept out of everything this deployment derives from mail. The
-fourth reaches the junk folder in a mailbox with no classification at all.
+being kept from every agent's read, junk being kept out of everything this deployment derives from mail, and the floor
+that gives every message in the junk folder or carrying `$Junk` at least a spam verdict. The fourth and the sixth reach a
+mailbox with no classification at all.
 
 ## No agent reads a message judged spam
 
@@ -199,6 +200,62 @@ verdict resting on somebody else's placement or keyword — the receiving
 server's filter, another client's `$Junk` — is decided again on what the message carries then, so moving it out of junk
 or taking that keyword off turns it at that next classification. A first run after upgrading to this build is one such
 classification.
+
+None of this can take a message still in the junk folder, or still carrying `$Junk`, below spam: the deployment's own act
+decides nothing, and [the floor](#junk-mail-is-never-below-spam) beneath every stage holds such a message at spam all
+the same.
+
+### Junk mail is never below spam
+
+**Every message that sits in the account's junk folder, or that carries `$Junk`, carries at least a `Spam` verdict, in
+whatever folder it is.** It may carry a subcategory as well, but never less. This is a floor beneath classification
+rather than a widening of it, so it needs no classification switched on and no folder in the classified set — the Inbox
+default stays as it is — and it reads where a message is and which keywords it carries, nothing of its content.
+
+A message below the floor is given a `Spam` verdict with no subcategory, recorded as the deterministic stage with the
+placement or the keyword as its signal and under the deterministic stage's own profile. A classification run under terms
+that consult a model therefore reaches it again and may name a subcategory above the floor, while a run under the
+deterministic terms counts it as decided. Where the account classifies, what was already derived from the message is
+removed in the same transaction, as for any spam verdict; where it does not, nothing gates the cut, so nothing is.
+
+| The message | What the floor does |
+| --- | --- |
+| In the junk folder, or carrying `$Junk` without `$NotJunk`, with no verdict or a verdict below spam | Raises it to `Spam`, whoever filed it or set the keyword — this deployment's own verdict included |
+| Already `Spam`, with or without a subcategory | Nothing: the floor only raises, and never takes a subcategory away |
+| Carrying the person's own verdict, `NotSpam` included | Nothing: the person's verdict outranks every stage. A message marked not spam can sit in the junk folder — on an account whose `MoveToJunkFolder` is off, while its move to the Inbox is on its way, when the server refused it, or when another client moved it back |
+| Carrying `$NotJunk` alone among the marks somebody else set | Nothing: it is the person's correction from another client, and decides `NotSpam` as above |
+| Carrying `$Junk` beside `$NotJunk` | The keyword counts as neither, as RFC 9051 reads the pair, so only the junk-folder placement raises it |
+
+It is the one place this deployment's own act still counts. The rule above keeps a model's verdict from being promoted
+into a deterministic one by its own filing or its own keyword, and it still does: an own act decides nothing in any
+stage. What the floor narrows is that such a message can no longer fall below spam while it sits in the junk folder or
+carries `$Junk` — a reclassification, a profile change, and the model stage all end at spam at least. Leaving the junk
+folder does not lift the floor's verdict either, for the reason [above](#what-mailfathom-did-is-never-read-back-as-evidence):
+it stays until something classifies the message again or the person marks it not spam.
+
+**Only the verdict is raised.** The floor writes nothing to the mail server: whether a keyword is written, whether the
+message is marked read, and whether it is filed stay with the account's switches, which act on a floor's verdict exactly
+as on any other when a classification acts on it. It is not an AI function either, so a folder withheld from AI with
+`VisibleToAI: false` is covered exactly like any other, and the junk folder is the one the account maps to the `Junk`
+role, the one agent reads are withheld from.
+
+**It is applied in two places.** A classification applies it after every stage, so a message classification reaches is
+recorded at the floor or above with every signal it carried. Every account's synchronization run applies it too, as a
+step after the folders and ahead of the classification run, the rules, and the cut, in every custody phase and whether or
+not the account classifies — so a new arrival, a message another client moved into the junk folder, and a keyword
+another client set are raised in the run that read them, and a held account's mail is read against its local junk
+folder and its stored keywords. A message classification still awaits is left to it until the
+[wait](#waiting-is-bounded-and-running-out-of-patience-is-not-a-failure) a verdict is allowed runs out, so a stalled or
+unqueued classification leaves nothing below the floor for longer than that. The step reads at most
+`SpamClassification:RunBatchSize` × `SpamClassification:MaxRunBatchesPerPass` messages per run, in identity order, and
+the run after an upgrade reaches the mail stored before the floor existed, so the rule holds for every message rather
+than only for new ones. A message it raised is no candidate afterwards, so a mailbox already at the floor costs one
+bounded query per run.
+
+A second replica finding the work done is the ordinary case. The write is conditional on the record holding neither spam
+nor the person's verdict when it is read, and a record written after that read conflicts and is read again, so two
+replicas reaching one message leave one verdict. A run that raised anything logs how many messages it raised, and
+nothing about any of them.
 
 ## Each account decides this for the mail in it
 
@@ -613,6 +670,9 @@ would carry a change.
 So is the gate over derived work. Whether classification is on at all is the first thing it asks, and the answer being
 no ends it: no folder is resolved, no query is narrowed, and every walk that would otherwise be narrowed is handed back
 unchanged rather than wrapped in a predicate that admits everything.
+
+The [floor](#junk-mail-is-never-below-spam) is the one part that runs with classification off, because it is not
+classification: one bounded query per account run, which finds nothing once the mailbox is at the floor.
 
 ## Configuration
 
