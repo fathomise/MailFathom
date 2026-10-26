@@ -64,7 +64,7 @@ behind switches of its own — described in [what an operator can let a verdict 
 | The stage that decided it — the deterministic stage below, a decision model, or the person | Which of them a verdict rests on is the first thing anybody questioning it needs. The person's act does not ship in this build, so every verdict it reaches is the deterministic stage's or the model's |
 | What kind of spam it is, when a stage named one, and the phishing detail beside it | A phishing message needs a warning and marketing needs filing; [what kind of spam it is](#what-kind-of-spam-it-is) holds what may be named and by whom |
 | The score and the threshold it was judged against, when the message stated both | A score without its threshold cannot be read: the same number is spam under one configuration and ordinary mail under another |
-| The signals the verdict rests on, in the order the stage produced them | An operator diagnosing a wrong verdict asks *which* authentication method failed and *what* the provider header said |
+| The signals the verdict rests on: the deterministic stage's in the order it produced them, then, where a model answered, the model's own judgement | An operator diagnosing a wrong verdict asks *which* authentication method failed and *what* the provider header said |
 | The profile the verdict was reached under | A short digest of the terms the verdict was decided under. It is what makes *this message was already decided under the terms now in force* a question somebody can ask of a record that already exists |
 | When it was evaluated | |
 
@@ -72,8 +72,10 @@ A signal is one fact: its kind, its name, what was observed, and where it came f
 placement, or a decision model, named by the build that answered and the instruction revision it was asked under. The signals stay separable rather than being merged into one opaque number, which is what makes the record
 answerable rather than merely present.
 
-The record is bounded: at most 64 signals, the first the stage produced, and an observation longer than 512 characters
-is shortened.
+The record is bounded: at most 64 signals, and an observation longer than 512 characters is shortened. A record the
+deterministic stage alone decided keeps the first 64 it produced. A record a model answered for always keeps the model's
+judgement signals, after the deterministic ones, and drops the deterministic stage's tail to make room for them — so a
+message carrying many headers cannot push out the judgement its verdict rests on.
 
 ### What kind of spam it is
 
@@ -298,11 +300,19 @@ deterministic spam while naming its kind is off.
 - for each followable link, the host it leads to, the host its words name, and whether the two differ — the same reading
   that makes the reading pane warn about a link;
 - the declared type and name of each attachment, never its content;
-- each authentication outcome the message's headers state — the method, the result, and whether a relay claimed it — and
-  whether this deployment trusts the authenticated sender.
+- what the account's trusted receiving server established about the displayed author — authenticated, failed, or not
+  established — as the message's [provenance](../operations/configuration-mail.md) records it, and whether this
+  deployment trusts the authenticated sender.
 
 Nothing else is: no other recipient, no other header, no HTML, no picture, no attachment's words, and nothing the
-person decided. The message is handed over inside an envelope that escapes its markup, under instructions that say its
+person decided. The `Authentication-Results` headers themselves are not shown: a message can carry any number of them
+in its own hand, and only the one the account's trusted server wrote is believed, so the model is told the verdict read
+from that one rather than every claim the message makes about itself.
+
+The body's bound is in characters, and the decision model's own `MaxRequestCharacters` is measured on the request as it
+is sent, where a character outside ASCII travels as a longer escape. So the input is cut further where that is what it
+takes for the request to fit — the body first, since it is written last — and mail in another script is asked about
+rather than refused as too large. The message is handed over inside an envelope that escapes its markup, under instructions that say its
 text is data to judge rather than instructions to follow, so a message telling the classifier what to answer is one more
 thing to judge it by. The answer is a choice among fixed options, and the model writes no text that is kept.
 
@@ -330,7 +340,8 @@ deterministic profile — so the next classification run asks again. Each is cou
 
 A deployment that declares no decision model for spam classification asks nothing. A record switching the stage on is
 refused when it is written there, naming `Decisions:Models`. A record that asked for it before the model was taken away
-is classified deterministically: startup logs a warning naming the account, and each message it would have asked about
+is classified deterministically: startup reads the served account records and logs a warning naming each such
+account, and each message it would have asked about
 is counted as `not_activated`. A message whose stored content cannot be rendered has nothing to
 show a model and is recorded under the account's own terms, since reading it again reads the same bytes.
 
@@ -343,7 +354,8 @@ stage reaches spam the second time.
 
 ### Folders withheld from AI
 
-The model stage is an AI function, so it never reads a folder mapped `VisibleToAI: false`. An account record that
+The model stage is an AI function, so it never reads a folder withheld from AI — one mapped `VisibleToAI: false`, or
+one mapped `Synchronize: false`, which keeps nothing AI may read. An account record that
 switches the stage on while any folder it classifies — its `ScannedFolders`, or its inbox where it names none — is
 withheld from AI is refused, naming the account and the folder, and so is a record that withholds such a folder while
 the stage is on. The deterministic stage is not AI and keeps classifying that folder's mail either way.

@@ -41,6 +41,7 @@ internal sealed class SpamModelJudge : ISpamModelJudge, IDisposable
 {
     private readonly IServiceScopeFactory scopeFactory;
     private readonly SensitiveContentEgressGuard egressGuard;
+    private readonly int maximumRequestCharacters;
     private readonly SemaphoreSlim callSlots;
     private readonly ILogger<SpamModelJudge> logger;
 
@@ -48,21 +49,26 @@ internal sealed class SpamModelJudge : ISpamModelJudge, IDisposable
     /// <param name="scopeFactory">Opens the scope one judgement's client, ceiling, and period charge belong to.</param>
     /// <param name="egressGuard">Withholds from the provider whatever the account's posture withholds.</param>
     /// <param name="bounds">How many calls one replica runs at once.</param>
+    /// <param name="maximumRequestCharacters">The most characters a request body to the declared model may hold, which the input is cut to fit.</param>
     /// <param name="logger">Records how a judgement ended, never what it was about.</param>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maximumRequestCharacters" /> is not positive.</exception>
     public SpamModelJudge(
         IServiceScopeFactory scopeFactory,
         SensitiveContentEgressGuard egressGuard,
         SpamModelStageBounds bounds,
+        int maximumRequestCharacters,
         ILogger<SpamModelJudge> logger)
     {
         ArgumentNullException.ThrowIfNull(scopeFactory);
         ArgumentNullException.ThrowIfNull(egressGuard);
         ArgumentNullException.ThrowIfNull(bounds);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumRequestCharacters);
         ArgumentNullException.ThrowIfNull(logger);
 
         this.scopeFactory = scopeFactory;
         this.egressGuard = egressGuard;
+        this.maximumRequestCharacters = maximumRequestCharacters;
         this.callSlots = new SemaphoreSlim(bounds.MaximumConcurrentCalls, bounds.MaximumConcurrentCalls);
         this.logger = logger;
     }
@@ -90,7 +96,12 @@ internal sealed class SpamModelJudge : ISpamModelJudge, IDisposable
 
         try
         {
-            input = await SpamClassificationTurn.ComposeAsync(evidence, this.egressGuard, cancellationToken);
+            input = await SpamClassificationTurn.ComposeAsync(
+                evidence,
+                this.egressGuard,
+                this.maximumRequestCharacters,
+                job,
+                cancellationToken);
         }
         catch (SensitiveContentScannerUnavailableException)
         {

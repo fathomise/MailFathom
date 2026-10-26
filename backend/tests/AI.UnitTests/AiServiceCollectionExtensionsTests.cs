@@ -438,7 +438,7 @@ public sealed class AiServiceCollectionExtensionsTests
         var services = new ServiceCollection();
 
         // Act
-        services.AddSpamModelJudge(isActivated: false);
+        services.AddSpamModelJudge(plan: null);
 
         // Assert
         using var provider = services.BuildServiceProvider();
@@ -457,7 +457,12 @@ public sealed class AiServiceCollectionExtensionsTests
         services.AddSingleton(SensitiveContentEgressGuards.Inactive());
 
         // Act
-        services.AddSpamModelJudge(isActivated: true);
+        services.AddSpamModelJudge(new DecisionModelPlan(
+            "spam",
+            Address: null,
+            "example-provider/spam-model",
+            TimeSpan.FromSeconds(30),
+            MaximumRequestCharacters: 32_000));
 
         // Assert
         using var provider = services.BuildServiceProvider();

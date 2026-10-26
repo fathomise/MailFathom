@@ -27,6 +27,9 @@ namespace MailFathom.AI.UnitTests.SpamClassification;
 /// </remarks>
 public sealed class SpamModelJudgeTests
 {
+    /// <summary>The request bound a decision model is declared with by default, which no evidence here comes near.</summary>
+    private const int DeclaredRequestCharacters = 32_000;
+
     private static readonly string[] MessageFragments = ["kestrel", "heron", "HERON-4417", "remittance"];
 
     [Fact]
@@ -409,6 +412,7 @@ public sealed class SpamModelJudgeTests
             provider.GetRequiredService<IServiceScopeFactory>(),
             egressGuard,
             new SpamModelStageBounds(maximumConcurrentCalls, SpamModelStageBounds.DefaultMaximumBodyCharacters),
+            DeclaredRequestCharacters,
             logger);
 
     /// <summary>The judge as the container holds it, a singleton disposed with the container its scopes come from.</summary>

@@ -1116,7 +1116,7 @@ model does not open another's circuit.
 | `…:Model` | string | — | required; the dated build or versioned identifier a request is routed to. One of the router's moving aliases, which begin with `~`, is refused, because a threshold is calibrated against one build and an alias moves to the next one without anybody being told | restart |
 | `…:Address` | string | *(empty)* | absolute HTTP or HTTPS; a plain `http` one only for a model declaring `…:Unauthenticated`. Empty is `https://openrouter.ai`, and a regional host is written here. The adapter appends `/api/alpha/decisions` itself, so this is the host and never the API path | restart |
 | `…:RequestTimeout` | TimeSpan | `00:00:30` | positive; one request. Shorter than a chat request's, because a decision is a handful of probabilities rather than an answer the model writes out | restart |
-| `…:MaxRequestCharacters` | int | `32000` | 1 – 1000000; what one request body may hold as it is sent — the mail, the questions, and their criteria together. Refused rather than truncated | restart |
+| `…:MaxRequestCharacters` | int | `32000` | 1 – 1000000; what one request body may hold as it is sent — the mail, the questions, and their criteria together. The adapter refuses a request past it rather than truncating it; the spam model stage cuts its input to fit first, so a long message is asked about rather than refused | restart |
 | `…:ApiKey` | secret block | *(absent)* | the OpenRouter key. Exactly one of this and `Unauthenticated` is declared | restart, value read per request |
 | `…:Unauthenticated` | bool | `false` | that this model asks for no credential, so a request presents none. Written rather than inferred from an absent key, because that is what a forgotten key reference looks like | restart |
 

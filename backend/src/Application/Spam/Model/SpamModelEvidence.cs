@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Emails.Authentication;
+
 namespace MailFathom.Application.Spam.Model;
 
 /// <summary>Everything the model stage reads about one message, and nothing more.</summary>
@@ -9,10 +11,11 @@ namespace MailFathom.Application.Spam.Model;
 /// <para>
 /// The minimised input ADR 0041 decides: the sender and a <c>Reply-To</c> that differs from it, the subject, the
 /// plain-text body cut to the deployment's bound, the host each link goes to beside the host its words name, each
-/// attachment's declared type and name, and the facts the deterministic stage read that a message cannot forge — each
-/// sender-authentication outcome, and whether the sender is one this deployment trusts. The <c>To</c> and <c>Cc</c>
-/// lists, the link paths and queries, attachment content, and the deterministic verdict itself are not here, so no
-/// adapter can send them.
+/// attachment's declared type and name, and the two facts about the sender a message cannot forge — what the account's
+/// trusted receiving server established about the displayed author, and whether the sender is one this deployment
+/// trusts. The <c>To</c> and <c>Cc</c> lists, the link paths and queries, attachment content, the raw
+/// <c>Authentication-Results</c> headers, and the deterministic verdict itself are not here, so no adapter can send
+/// them.
 /// </para>
 /// <para>
 /// It is somebody's mail and leaves the deployment once the egress guard has read it, so it is never logged.
@@ -54,8 +57,14 @@ public sealed record SpamModelEvidence
     /// <summary>Gets each attachment's declared type and name, at most <see cref="MaximumAttachments" /> of them.</summary>
     public required IReadOnlyList<SpamModelAttachment> Attachments { get; init; }
 
-    /// <summary>Gets each sender-authentication outcome the receiving server recorded, as the deterministic stage read it.</summary>
-    public required IReadOnlyList<SpamModelAuthenticationOutcome> SenderAuthentication { get; init; }
+    /// <summary>Gets what the account's trusted receiving server established about the displayed author, as the message's provenance records it.</summary>
+    /// <remarks>
+    /// The recorded verdict rather than the headers it was read from: a message can carry any number of
+    /// <c>Authentication-Results</c> headers of its own writing, and only the one the account's trusted authority produced
+    /// is believed, so a list read header by header would hand the model the sender's own claims as facts this service
+    /// vouches for.
+    /// </remarks>
+    public required AuthorAuthenticationOutcome AuthorAuthentication { get; init; }
 
     /// <summary>Gets whether this deployment recognizes the message's authenticated author.</summary>
     public required bool IsSenderTrusted { get; init; }
@@ -72,10 +81,3 @@ public sealed record SpamModelLink(string TargetHost, string? DisplayedHost, boo
 /// <param name="MediaType">The content type the message declared.</param>
 /// <param name="FileName">The file name the message declared, cut to <see cref="SpamModelEvidence.MaximumFileNameLength" />, or <see langword="null" /> where it declared none.</param>
 public sealed record SpamModelAttachment(string MediaType, string? FileName);
-
-/// <summary>One sender-authentication outcome the receiving server recorded.</summary>
-/// <param name="Method">The method, such as <c>spf</c>, <c>dkim</c>, or <c>dmarc</c>.</param>
-/// <param name="Result">The result the server recorded, such as <c>pass</c> or <c>fail</c>.</param>
-/// <param name="IsForwarded">Whether the result was preserved across a forwarding hop rather than recorded by the receiving server.</param>
-/// <remarks>The property detail the server wrote beside a result is not here, because it can name a sending address.</remarks>
-public sealed record SpamModelAuthenticationOutcome(string Method, string Result, bool IsForwarded);

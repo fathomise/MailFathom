@@ -5,6 +5,10 @@
 using System.Security.Cryptography;
 using System.Text;
 using MailFathom.Application.EmailContent.Storage;
+using MailFathom.Application.SensitiveContent;
+using MailFathom.Application.SensitiveContent.Derivation;
+using MailFathom.Application.SensitiveContent.Egress;
+using MailFathom.Application.SensitiveContent.Redaction;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Spam.Signals;
@@ -13,6 +17,7 @@ using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Spam;
+using MailFathom.TestSupport;
 using Xunit;
 
 namespace MailFathom.Application.UnitTests.Spam.Model;
@@ -265,6 +270,46 @@ public sealed class SpamModelStageTests
             InstructionRevision,
             [new SpamModelChoice("spam_kind", "scam")]));
 
+    [Fact]
+    public async Task DecideAsync_AccountWhosePostureScans_IsJudgedUnderThatAccountsPostureAndNoOther()
+    {
+        // Arrange
+        const string marker = "AKIAEXAMPLEKEY";
+
+        var scannedAccount = MailAccountId.Create("acct-scanned");
+        var scanner = new MarkerSensitiveContentScanner(marker, SensitiveContentScannerKind.Secrets, TimeProvider.System);
+        var plan = SensitiveContentPlan.Create(
+            SensitiveContentScanBounds.Default,
+            [SensitiveContentScannerPlan.Create(scanner.Scanner, [MarkerSensitiveContentScanner.Category], [])]);
+        using var permits = new SensitiveContentScanConcurrency(plan.Bounds.MaximumConcurrentScans);
+        var egressGuard = new SensitiveContentEgressGuard(
+            FixedSensitiveContentPostures.Of(
+                SensitiveContentPosture.ScanningNothing,
+                (scannedAccount, SensitiveContentPosture.Scanning(
+                    [scanner.Scanner],
+                    new SensitiveContentRedactor(plan, [scanner], TimeProvider.System, permits),
+                    SensitiveContentScreeningPolicy.ScreeningNothing(),
+                    SensitiveContentDerivationStamp.Compute(plan, [scanner])))),
+            new RecordingSensitiveContentEgressTelemetry(),
+            TimeProvider.System);
+        var judge = new GuardingSpamModelJudge(egressGuard);
+        var stage = SpamModelStages.Over(
+            judge,
+            this.telemetry,
+            renderer: new BoundedBodyEmailContentRenderer($"The deploy key is {marker}."),
+            egressGuard: egressGuard);
+        var settings = Settings(SpamModelStageSettings.Consulted(false, 0.5));
+
+        // Act
+        await stage.DecideAsync(Email with { AccountId = scannedAccount }, SomeContent(), NotSpamReading, settings, EvaluatedAt, TestContext.Current.CancellationToken);
+        await stage.DecideAsync(Email, SomeContent(), NotSpamReading, settings, EvaluatedAt, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(2, judge.GuardedBodies.Count);
+        Assert.DoesNotContain(marker, judge.GuardedBodies[0], StringComparison.Ordinal);
+        Assert.Contains(marker, judge.GuardedBodies[1], StringComparison.Ordinal);
+    }
+
     private static StoredEmailContent SomeContent()
     {
         var rawMime = Encoding.ASCII.GetBytes("Subject: synthetic\r\n\r\nA synthetic body.\r\n");
@@ -279,9 +324,29 @@ public sealed class SpamModelStageTests
         SpamModelStages.Over(judge, this.telemetry).DecideAsync(
             Email,
             SomeContent(),
-            SpamHeaderFacts.Create([], []),
             reading,
             settings,
             EvaluatedAt,
             TestContext.Current.CancellationToken);
+
+    /// <summary>Guards the body it is asked about the way the real judge does, under whatever scope the stage entered, and keeps what came back.</summary>
+    private sealed class GuardingSpamModelJudge(SensitiveContentEgressGuard egressGuard) : ISpamModelJudge
+    {
+        public List<string> GuardedBodies { get; } = [];
+
+        public bool IsActive => true;
+
+        public async Task<SpamModelJudgement> JudgeAsync(
+            SpamModelEvidence evidence,
+            SpamModelJob job,
+            CancellationToken cancellationToken)
+        {
+            this.GuardedBodies.Add(await egressGuard.GuardAsync(
+                SensitiveContentEgressPoint.SpamClassificationInput,
+                evidence.Body,
+                cancellationToken));
+
+            return SpamModelJudgement.Unanswered(SpamModelOutcome.ProviderUnavailable);
+        }
+    }
 }

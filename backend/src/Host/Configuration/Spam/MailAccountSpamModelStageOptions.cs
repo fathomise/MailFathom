@@ -99,7 +99,7 @@ internal sealed class MailAccountSpamModelStageOptions
             .Select(static folder => folder.Alias.Value))
         {
             yield return new ValidationResult(
-                $"The account record switches {EnabledPath} on while folder '{withheld}' of account '{account.AccountId}', which its mail is classified over, is mapped with VisibleToAI false. The model stage is an AI function and never reads a folder withheld from AI: map the folder VisibleToAI true, take it out of ScannedFolders, or switch the model stage off.",
+                $"The account record switches {EnabledPath} on while folder '{withheld}' of account '{account.AccountId}', which its mail is classified over, is withheld from AI — mapped with VisibleToAI false, or with Synchronize false, which keeps nothing AI may read. The model stage is an AI function and never reads a folder withheld from AI: map the folder so AI may read it, take it out of ScannedFolders, or switch the model stage off.",
                 [nameof(this.Enabled)]);
         }
     }

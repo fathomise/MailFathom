@@ -262,7 +262,7 @@ public static class AiServiceCollectionExtensions
 
     /// <summary>Registers the one way the spam model stage asks a model, in whichever of its two states the deployment is in.</summary>
     /// <param name="services">The service collection to add to.</param>
-    /// <param name="isActivated">Whether a decision model serves <see cref="DecisionFunction.SpamClassification" />, which <see cref="AddDecisionProviderAdapter" /> registered.</param>
+    /// <param name="plan">The plan of the decision model that serves <see cref="DecisionFunction.SpamClassification" />, which <see cref="AddDecisionProviderAdapter" /> registered, or <see langword="null" /> where none does.</param>
     /// <returns>The same service collection, so registration reads as one expression.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="services" /> is <see langword="null" />.</exception>
     /// <remarks>
@@ -273,22 +273,27 @@ public static class AiServiceCollectionExtensions
     /// </para>
     /// <para>
     /// A singleton when it is active, because it owns the replica's call slots, which bound every classification the
-    /// process runs at once; each judgement opens the scope its own client is resolved in. The caller registers the
-    /// <see cref="SpamModelStageBounds" /> it reads.
+    /// process runs at once; each judgement opens the scope its own client is resolved in, and cuts its input to the
+    /// plan's request bound. The caller registers the <see cref="SpamModelStageBounds" /> it reads.
     /// </para>
     /// </remarks>
-    public static IServiceCollection AddSpamModelJudge(this IServiceCollection services, bool isActivated)
+    public static IServiceCollection AddSpamModelJudge(this IServiceCollection services, DecisionModelPlan? plan)
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        if (!isActivated)
+        if (plan is null)
         {
             services.AddSingleton<ISpamModelJudge>(InactiveSpamModelJudge.Instance);
 
             return services;
         }
 
-        services.AddSingleton<ISpamModelJudge, SpamModelJudge>();
+        services.AddSingleton<ISpamModelJudge>(provider => new SpamModelJudge(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            provider.GetRequiredService<SensitiveContentEgressGuard>(),
+            provider.GetRequiredService<SpamModelStageBounds>(),
+            plan.MaximumRequestCharacters,
+            provider.GetRequiredService<ILogger<SpamModelJudge>>()));
 
         return services;
     }

@@ -2,9 +2,11 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Text.Json;
 using MailFathom.AI.Orchestration;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.Spam.Model;
+using MailFathom.Domain.Emails.Authentication;
 
 namespace MailFathom.AI.SpamClassification;
 
@@ -12,12 +14,15 @@ namespace MailFathom.AI.SpamClassification;
 /// <remarks>
 /// <para>
 /// Only this service names elements and attributes, and every value is escaped by <see cref="AgentTurnDocument" />, so a
-/// message that closes its envelope and writes a forged <c>authentication</c> element of its own arrives as that text,
-/// visible and inert. What the message cannot forge — each authentication outcome, the deployment's trust in its
-/// author, and whether a link's words name another host — is written as attributes, from values the deployment read.
+/// message that closes its envelope and writes a forged <c>message</c> element of its own arrives as that text, visible
+/// and inert. What the message cannot forge — what the account's trusted receiving server established about its author,
+/// the deployment's trust in that author, and whether a link's words name another host — is written as attributes, from
+/// values the deployment recorded. No <c>Authentication-Results</c> header is written as such, because the message can
+/// carry any number of them in its own hand.
 /// </para>
 /// <para>
-/// The body is written last, so the one value a budget would cut is the one already cut to the deployment's bound.
+/// The body is written last, so the value a cut to the request bound reaches first is the one already cut to the
+/// deployment's body bound.
 /// </para>
 /// </remarks>
 internal static class SpamClassificationTurn
@@ -26,7 +31,6 @@ internal static class SpamClassificationTurn
     internal const string SenderElementName = "sender";
     internal const string DisplayNameElementName = "display-name";
     internal const string ReplyToElementName = "reply-to";
-    internal const string AuthenticationElementName = "authentication";
     internal const string SubjectElementName = "subject";
     internal const string LinkElementName = "link";
     internal const string AttachmentElementName = "attachment";
@@ -34,9 +38,6 @@ internal static class SpamClassificationTurn
 
     internal const string AddressAttributeName = "address";
     internal const string SenderTrustedAttributeName = "sender-trusted";
-    internal const string MethodAttributeName = "method";
-    internal const string ResultAttributeName = "result";
-    internal const string ForwardedAttributeName = "forwarded";
     internal const string HostAttributeName = "host";
     internal const string DisplayedHostAttributeName = "displayed-host";
     internal const string DisplayedHostDiffersAttributeName = "displayed-host-differs";
@@ -45,9 +46,11 @@ internal static class SpamClassificationTurn
 
     private const string TrueValue = "true";
 
-    /// <summary>Guards every value the account's posture reads and writes the input from what the guard returned.</summary>
+    /// <summary>Guards every value the account's posture reads and writes the input from what the guard returned, cut so the request fits the model's bound.</summary>
     /// <param name="evidence">The evidence, as the stage read it.</param>
     /// <param name="egressGuard">Withholds from the provider whatever the account's posture withholds.</param>
+    /// <param name="maximumRequestCharacters">The most characters a request body to the declared model may hold.</param>
+    /// <param name="job">The job whose questions share the request with the input.</param>
     /// <param name="cancellationToken">Withdraws the scan.</param>
     /// <returns>The input text.</returns>
     /// <exception cref="Application.SensitiveContent.Detection.SensitiveContentScannerUnavailableException">Thrown when a switched-on scanner could not read a value.</exception>
@@ -59,22 +62,55 @@ internal static class SpamClassificationTurn
     internal static async Task<string> ComposeAsync(
         SpamModelEvidence evidence,
         SensitiveContentEgressGuard egressGuard,
+        int maximumRequestCharacters,
+        SpamModelJob job,
         CancellationToken cancellationToken) =>
-        Compose(await GuardedAsync(evidence, egressGuard, cancellationToken));
+        Compose(
+            await GuardedAsync(evidence, egressGuard, cancellationToken),
+            Math.Max(0, maximumRequestCharacters - SpamClassificationQuestions.ReservedCharactersFor(job)));
 
-    /// <summary>Writes evidence whose values are already guarded.</summary>
+    /// <summary>Writes evidence whose values are already guarded, with no bound of its own.</summary>
     /// <param name="evidence">The guarded evidence.</param>
     /// <returns>The input text.</returns>
-    internal static string Compose(SpamModelEvidence evidence)
+    internal static string Compose(SpamModelEvidence evidence) => Compose(evidence, int.MaxValue);
+
+    /// <summary>Writes evidence whose values are already guarded, cut until the request body carries no more than an allowance of it.</summary>
+    /// <param name="evidence">The guarded evidence.</param>
+    /// <param name="allowance">The most characters the input may take in the request body, as JSON escapes it there.</param>
+    /// <returns>The input text.</returns>
+    /// <remarks>
+    /// The request bound is checked on the body as it is sent, where JSON writes a character outside ASCII, and the
+    /// <c>&lt;</c> and <c>&amp;</c> the envelope's own escaping produced, as an escape several characters long. So a body
+    /// cut to its bound in characters can still arrive several times longer, and mail in another script would be refused
+    /// on every attempt. Each pass cuts the document by what the escaped text overran, which shortens the escaped text by
+    /// at least as much, so the passes end; only a structure larger than the whole allowance is returned past it.
+    /// </remarks>
+    internal static string Compose(SpamModelEvidence evidence, int allowance)
     {
         ArgumentNullException.ThrowIfNull(evidence);
 
-        return AgentTurnDocument.Compose(int.MaxValue, document => Write(document, evidence));
+        var budget = allowance;
+
+        while (true)
+        {
+            var input = AgentTurnDocument.Compose(budget, document => Write(document, evidence));
+            var carried = JsonEncodedText.Encode(input).Value.Length;
+
+            if (carried <= allowance || budget == 0)
+            {
+                return input;
+            }
+
+            budget = Math.Max(0, budget - (carried - allowance));
+        }
     }
 
     private static void Write(AgentTurnDocument document, SpamModelEvidence evidence)
     {
         document.StartElement(MessageElementName);
+        document.WriteAttribute(
+            AgentTurnDocument.SenderAuthenticationAttributeName,
+            SenderAuthenticationValue(evidence.AuthorAuthentication));
 
         if (evidence.IsSenderTrusted)
         {
@@ -98,20 +134,6 @@ internal static class SpamClassificationTurn
         {
             document.StartElement(ReplyToElementName);
             document.WriteAttribute(AddressAttributeName, replyTo);
-            document.EndElement();
-        }
-
-        foreach (var outcome in evidence.SenderAuthentication)
-        {
-            document.StartElement(AuthenticationElementName);
-            document.WriteAttribute(MethodAttributeName, outcome.Method);
-            document.WriteAttribute(ResultAttributeName, outcome.Result);
-
-            if (outcome.IsForwarded)
-            {
-                document.WriteAttribute(ForwardedAttributeName, TrueValue);
-            }
-
             document.EndElement();
         }
 
@@ -154,6 +176,14 @@ internal static class SpamClassificationTurn
         document.WriteQuoted(BodyElementName, evidence.Body, evidence.IsBodyCut);
         document.EndElement();
     }
+
+    /// <summary>Names an outcome in the words every turn document publishes it under.</summary>
+    private static string SenderAuthenticationValue(AuthorAuthenticationOutcome outcome) => outcome switch
+    {
+        AuthorAuthenticationOutcome.Authenticated => AgentTurnDocument.AuthenticatedSender,
+        AuthorAuthenticationOutcome.Failed => AgentTurnDocument.FailedSender,
+        _ => AgentTurnDocument.NotEstablishedSender,
+    };
 
     /// <summary>Returns the evidence with every value but the two addresses replaced by what the guard let through.</summary>
     private static async Task<SpamModelEvidence> GuardedAsync(

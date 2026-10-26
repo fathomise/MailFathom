@@ -8,7 +8,7 @@ using MailFathom.Application.EmailContent.Rendering.Document.Blocks;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.Provenance;
-using MailFathom.Application.Spam.Signals;
+using MailFathom.Application.Emails.Summaries;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 
@@ -34,7 +34,7 @@ public sealed class SpamModelEvidenceReader
 
     /// <summary>Initializes the reader.</summary>
     /// <param name="renderer">Renders the stored message into its plain text, its document, and its attachments.</param>
-    /// <param name="provenanceReader">Answers whether this deployment trusts the message's author.</param>
+    /// <param name="provenanceReader">Answers what the account's trusted receiving server established about the message's author, and whether this deployment trusts them.</param>
     /// <param name="bounds">How much of a body one call carries.</param>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
     public SpamModelEvidenceReader(
@@ -54,18 +54,15 @@ public sealed class SpamModelEvidenceReader
     /// <summary>Reads one message's evidence.</summary>
     /// <param name="emailId">The stored message.</param>
     /// <param name="content">Its stored content.</param>
-    /// <param name="facts">The headers the deterministic stage read, whose authentication outcomes the model is told.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>The evidence, or <see langword="null" /> where the stored content cannot be rendered at all.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="content" /> or <paramref name="facts" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="content" /> is <see langword="null" />.</exception>
     public async Task<SpamModelEvidence?> ReadAsync(
         StoredEmailId emailId,
         StoredEmailContent content,
-        SpamHeaderFacts facts,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(content);
-        ArgumentNullException.ThrowIfNull(facts);
 
         var renderingBounds = new EmailContentRenderingBounds(
             IncludeSanitizedHtml: false,
@@ -83,6 +80,9 @@ public sealed class SpamModelEvidenceReader
         }
 
         var provenance = await this.provenanceReader.ReadAsync([emailId], cancellationToken);
+        var verification = provenance.TryGetValue(emailId, out var recorded)
+            ? recorded.Sender
+            : SenderVerification.NotEstablished;
         var sender = AddressOf(rendering.Headers, EmailAddressRole.From) ?? AddressOf(rendering.Headers, EmailAddressRole.Sender);
         var replyTo = AddressOf(rendering.Headers, EmailAddressRole.ReplyTo);
 
@@ -98,15 +98,8 @@ public sealed class SpamModelEvidenceReader
             IsBodyCut = rendering.PlainTextBody.WasTruncated,
             Links = LinksOf(rendering.Document),
             Attachments = [.. rendering.Attachments.Take(SpamModelEvidence.MaximumAttachments).Select(AttachmentOf)],
-            SenderAuthentication =
-            [
-                .. facts.AuthenticationResults.Select(static result => new SpamModelAuthenticationOutcome(
-                    result.Method,
-                    result.Result,
-                    result.IsForwarded)),
-            ],
-            IsSenderTrusted = provenance.TryGetValue(emailId, out var recorded)
-                && recorded.Sender.DeploymentTrust is SenderTrustLevel.Trusted,
+            AuthorAuthentication = verification.AuthorAuthentication,
+            IsSenderTrusted = verification.DeploymentTrust is SenderTrustLevel.Trusted,
         };
     }
 

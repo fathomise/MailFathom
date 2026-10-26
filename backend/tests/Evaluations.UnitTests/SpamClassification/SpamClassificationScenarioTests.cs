@@ -130,6 +130,7 @@ public sealed partial class SpamClassificationScenarioTests : IDisposable
 
         // Assert
         Assert.True(hostile.Length >= 3, $"{hostile.Length} hostile message(s).");
+        Assert.Equal(Enum.GetValues<SpamModelJob>(), hostile.Select(static scenario => scenario.Job).Distinct().Order());
         Assert.All(hostile, static scenario =>
         {
             Assert.False(scenario.IsLegitimate);

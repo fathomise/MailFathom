@@ -1044,6 +1044,26 @@ public sealed class UserAccountDocumentBinderTests
         Assert.Equal(!bound, binding.Refusals.Any(static refusal => refusal.Contains("Decisions:Models", StringComparison.Ordinal)));
     }
 
+    /// <summary>A record that asked for the model stage before its model was taken away is still served, and classified deterministically, rather than refusing its whole user.</summary>
+    [Fact]
+    public void Bind_AHeldRecordAskingForAModelNobodyDeclaresAnyMore_IsStillBound()
+    {
+        // Arrange
+        var binder = CreateBinder(decisions: new DecisionModelOptions());
+
+        // Act
+        var binding = binder.Bind(
+            DocumentDeclaringAccountCarrying("""
+                "Folders": [ { "Alias": "inbox", "SpecialUse": "Inbox" } ],
+                "SpamClassification": { "Enabled": true, "ModelStage": { "Enabled": true } }
+                """),
+            UserRecordArrival.AlreadyHeld);
+
+        // Assert
+        Assert.True(binding.IsBound);
+        Assert.Empty(binding.Refusals);
+    }
+
     /// <summary>Builds the binder, over a deployment that scans nothing and declares no decision model unless a test says otherwise.</summary>
     /// <param name="deployment">The deployment's own scanning section, which a record's scanning block is judged against.</param>
     /// <param name="decisions">The deployment's decision models, which a record's spam model stage is judged against.</param>

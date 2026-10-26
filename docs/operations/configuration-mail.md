@@ -449,7 +449,7 @@ verdict may do.
 | `…:SpamClassification:Actions:MarkAsRead` | bool | `false` | Whether junk has this account's remote `\Seen` flag set; the same refusal | reload; the same |
 | `…:SpamClassification:Actions:MarkWithJunkKeywords` | bool | `false` | Whether junk is given RFC 9051's `$Junk` keyword, and `$Phishing` beside it where the verdict names phishing; `RuleActions:WriteKeywords` still governs it. With it on, a message carrying both `$Junk` and `$NotJunk` has the `$Junk` taken off once: the pair whole, with a `$Phishing` beside it, where somebody else set both, the deployment's own `$Junk` (and `$Phishing`) alone where the `$NotJunk` is a person's correction of it. The same refusal | reload; the same |
 | `…:SpamClassification:Actions:JunkFolder` | string | `role:Junk` | A folder alias, or one of the special uses written as `role:<name>`. Once filing is switched on, **this account** has to map it, because MailFathom creates a folder on nobody's server; the syntax is judged whatever the switches say | reload; the same |
-| `…:SpamClassification:ModelStage:Enabled` | bool | `false` | Whether a decision model is asked about this account's mail after the deterministic stage. **Switching it on sends this mailbox's mail to two third parties**, the router and the provider it picks, as [what the model is shown](../features/spam-classification.md#what-the-model-is-shown) lists. Refused while `Enabled` is false, while any folder this account classifies is mapped `VisibleToAI: false`, and while the deployment declares no decision model that `Decisions:SpamClassification:Model` reaches | reload; the next classification reads it |
+| `…:SpamClassification:ModelStage:Enabled` | bool | `false` | Whether a decision model is asked about this account's mail after the deterministic stage. **Switching it on sends this mailbox's mail to two third parties**, the router and the provider it picks, as [what the model is shown](../features/spam-classification.md#what-the-model-is-shown) lists. Refused while `Enabled` is false, while any folder this account classifies is withheld from AI (`VisibleToAI: false` or `Synchronize: false`), and while the deployment declares no decision model that `Decisions:SpamClassification:Model` reaches | reload; the next classification reads it |
 | `…:SpamClassification:ModelStage:NameSubcategoriesOfDeterministicSpam` | bool | `false` | Whether the model also names the kind of mail the deterministic stage already called spam. Off, such a verdict carries no kind and costs no call, which matters because junk is often most of a mailbox | reload; the same |
 | `…:SpamClassification:ModelStage:Threshold` | double | `0.5` | Above 0 and at most 1; the spam probability at or above which the model's judgement is a spam verdict. A threshold belongs to one model build, so move it with the model, and set it from the evaluation's false-positive rate on legitimate mail | reload; the same |
 
@@ -459,8 +459,8 @@ same thing. That is what the block being the account's buys over one held on the
 map a folder some other mailbox of the same user wanted junk filed into.
 
 **The model stage reads only what AI may read.** It is an AI function, so a record that switches it on while a folder
-it classifies — the `ScannedFolders`, or this account's inbox where none are written — is mapped `VisibleToAI: false`
-is refused naming the account and the folder, and so is a record that withholds such a folder while the stage is on.
+it classifies — the `ScannedFolders`, or this account's inbox where none are written — is withheld from AI, mapped
+`VisibleToAI: false` or `Synchronize: false`, is refused naming the account and the folder, and so is a record that withholds such a folder while the stage is on.
 The deterministic stage is not AI and is not affected. Each of the three keys joins the profile a verdict is recorded
 under, so changing one re-decides this account's mail on the next classification run.
 

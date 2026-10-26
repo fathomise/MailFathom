@@ -315,7 +315,6 @@ public sealed class EmailSpamClassifier
         return await this.modelStage.DecideAsync(
             email,
             content,
-            facts,
             reading,
             settings,
             this.timeProvider.GetUtcNow(),

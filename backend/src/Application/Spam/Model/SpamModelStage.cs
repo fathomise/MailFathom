@@ -67,7 +67,6 @@ public sealed class SpamModelStage
     /// <summary>Composes the classification of one message from the deterministic reading and, where it is asked, the model.</summary>
     /// <param name="email">The occurrence being classified.</param>
     /// <param name="content">Its stored content.</param>
-    /// <param name="facts">The headers the deterministic stage read.</param>
     /// <param name="reading">What the deterministic stage concluded.</param>
     /// <param name="settings">What the occurrence's account decided.</param>
     /// <param name="evaluatedAt">When the classification is evaluated.</param>
@@ -77,7 +76,6 @@ public sealed class SpamModelStage
     public async Task<SpamClassification> DecideAsync(
         ClassifiableEmail email,
         StoredEmailContent content,
-        SpamHeaderFacts facts,
         DeterministicSpamReading reading,
         SpamClassificationSettings settings,
         DateTimeOffset evaluatedAt,
@@ -85,7 +83,6 @@ public sealed class SpamModelStage
     {
         ArgumentNullException.ThrowIfNull(email);
         ArgumentNullException.ThrowIfNull(content);
-        ArgumentNullException.ThrowIfNull(facts);
         ArgumentNullException.ThrowIfNull(reading);
         ArgumentNullException.ThrowIfNull(settings);
 
@@ -103,7 +100,7 @@ public sealed class SpamModelStage
 
         // A message whose stored content no renderer can read has nothing the model could be shown, and reading it again
         // later reads the same bytes, so it is recorded as decided under the account's terms rather than left for a run.
-        if (await this.evidenceReader.ReadAsync(email.Id, content, facts, cancellationToken) is not { } evidence)
+        if (await this.evidenceReader.ReadAsync(email.Id, content, cancellationToken) is not { } evidence)
         {
             return Deterministic(email, reading, settings.Profile, evaluatedAt);
         }

@@ -79,7 +79,7 @@ internal static class DeclaredMailAccounts
     private static IReadOnlyCollection<DeclaredMailFolder> ReadMappedFolders(MailSynchronizationAccountOptions account) =>
     [
         .. account.EffectiveFolders
-            .Select(folder => TryReadFolder(folder.Alias, folder.DeclaredRole, folder.VisibleToAI ?? true))
+            .Select(folder => TryReadFolder(folder.Alias, folder.DeclaredRole, folder.Participation.IsVisibleToAI))
             .OfType<DeclaredMailFolder>(),
     ];
 

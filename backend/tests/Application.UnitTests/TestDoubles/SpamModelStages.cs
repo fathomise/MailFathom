@@ -4,6 +4,7 @@
 
 using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.Emails.Provenance;
+using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.Spam.Model;
 using MailFathom.TestSupport;
 
@@ -17,18 +18,20 @@ internal static class SpamModelStages
     /// <param name="telemetry">Where consultations are counted, defaulting to a recorder nobody reads.</param>
     /// <param name="renderer">What renders the message, defaulting to a short plain-text body.</param>
     /// <param name="provenance">What the deployment knows of the sender, defaulting to a known correspondent.</param>
+    /// <param name="egressGuard">The guard whose account scope the stage enters, defaulting to one scanning nothing.</param>
     /// <returns>The stage.</returns>
     internal static SpamModelStage Over(
         ISpamModelJudge? judge = null,
         ISpamModelStageTelemetry? telemetry = null,
         IEmailContentRenderer? renderer = null,
-        IEmailProvenanceReader? provenance = null) =>
+        IEmailProvenanceReader? provenance = null,
+        SensitiveContentEgressGuard? egressGuard = null) =>
         new(
             judge ?? ScriptedSpamModelJudge.Unused(),
             new SpamModelEvidenceReader(
                 renderer ?? new BoundedBodyEmailContentRenderer("A short synthetic body."),
                 provenance ?? StubEmailProvenanceReader.AllKnownCorrespondents,
                 SpamModelStageBounds.Default),
-            SensitiveContentEgressGuards.Inactive(),
+            egressGuard ?? SensitiveContentEgressGuards.Inactive(),
             telemetry ?? new RecordingSpamModelStageTelemetry());
 }

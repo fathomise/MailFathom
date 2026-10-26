@@ -30,6 +30,7 @@ using Microsoft.Extensions.AI.Evaluation;
 using Microsoft.Extensions.AI.Evaluation.Reporting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using MimeKit;
 
 namespace MailFathom.Evaluations.SpamClassification;
 
@@ -46,9 +47,12 @@ namespace MailFathom.Evaluations.SpamClassification;
 /// </para>
 /// <para>
 /// What is the scenario's own is what a deployment reads from its database: the provenance a message was recorded with,
-/// an account that holds every message in its inbox, and a period ledger that admits every call. The model is reached
-/// through the run's response cache, so a run that changed neither the questions, the input, nor the model asks it
-/// nothing, and the messages are classified at once, bounded by the judge's own call slots as a deployment's backlog is.
+/// an account that holds every message in its inbox, and a period ledger that admits every call. The provenance's
+/// author verdict is still the deployment's own reading — the message's <c>Authentication-Results</c> read by the
+/// production header reader and judged by <see cref="SenderAuthenticationReading" /> under the receiving server the
+/// account trusts — so a header a message wrote for itself counts here exactly as little as it does there. The model is
+/// reached through the run's response cache, so a run that changed neither the questions, the input, nor the model asks
+/// it nothing, and the messages are classified one after another.
 /// </para>
 /// </remarks>
 internal static class SpamClassificationScenario
@@ -69,16 +73,9 @@ internal static class SpamClassificationScenario
         [Inbox],
         SpamModelStageSettings.Consulted(namesSubcategoriesOfDeterministicSpam: true, SpamModelStageSettings.DefaultThreshold));
 
-    private static readonly EmailProvenance TrustedAuthor = new()
-    {
-        Sender = new SenderVerification
-        {
-            AuthorAuthentication = AuthorAuthenticationOutcome.Authenticated,
-            DeploymentTrust = SenderTrustLevel.Trusted,
-        },
-        IsInJunkFolder = false,
-        IsFirstContact = false,
-    };
+    private static readonly TrustedAuthenticationAuthority Authority = TrustedAuthenticationAuthority.TryCreate(SpamClassificationCase.Receiver, out var authority)
+        ? authority
+        : throw new InvalidOperationException($"'{SpamClassificationCase.Receiver}' is not an authority an account can trust.");
 
     /// <summary>Gets what every run of this scenario is measured on.</summary>
     public static IReadOnlyList<IEvaluator> Evaluators => [new SpamClassificationEvaluator()];
@@ -124,10 +121,16 @@ internal static class SpamClassificationScenario
             services.GetRequiredService<IServiceScopeFactory>(),
             egressGuard,
             SpamModelStageBounds.Default,
+            plan.MaximumRequestCharacters,
             NullLogger<SpamModelJudge>.Instance);
 
-        SpamCaseOutcome[] outcomes = await Task.WhenAll(
-            SpamClassificationCase.All.Select(scenario => ClassifyAsync(judge, egressGuard, scenario, cancellationToken)));
+        var outcomes = new List<SpamCaseOutcome>(SpamClassificationCase.All.Count);
+
+        foreach (var scenario in SpamClassificationCase.All)
+        {
+            outcomes.Add(await ClassifyAsync(judge, egressGuard, scenario, cancellationToken));
+        }
+
         var measurement = new SpamClassificationMeasurement(outcomes);
 
         var verdict = await scenarioRun.EvaluateAsync(
@@ -162,13 +165,13 @@ internal static class SpamClassificationScenario
         CancellationToken cancellationToken)
     {
         var content = scenario.Content();
-        var (facts, reading) = await ReadDeterministicallyAsync(content, cancellationToken);
+        var (_, reading) = await ReadDeterministicallyAsync(content, cancellationToken);
         var consultation = new RecordedConsultation();
         var stage = new SpamModelStage(
             judge,
             new SpamModelEvidenceReader(
                 new MimeKitEmailContentRenderer(new EmailMimeExtractionOptions()),
-                StubEmailProvenanceReader.Answering(scenario.Mail.IsSenderTrusted ? TrustedAuthor : StubEmailProvenanceReader.KnownCorrespondent),
+                StubEmailProvenanceReader.Answering(await ProvenanceOfAsync(scenario, content, cancellationToken)),
                 SpamModelStageBounds.Default),
             egressGuard,
             consultation);
@@ -176,7 +179,6 @@ internal static class SpamClassificationScenario
         var recorded = await stage.DecideAsync(
             new ClassifiableEmail(scenario.Id, Account, Inbox, NoKeywords),
             content,
-            facts,
             reading,
             Settings,
             EvaluatedAt,
@@ -189,6 +191,33 @@ internal static class SpamClassificationScenario
             recorded.Verdict,
             recorded.Subcategory,
             recorded.DecidedBy is SpamClassificationStage.Model ? recorded.Assessment?.Score : null);
+    }
+
+    /// <summary>Composes the provenance a deployment would have recorded for one message when it stored it.</summary>
+    /// <remarks>
+    /// The author verdict is read from the stored message's own headers by the deployment's reader and judged under the
+    /// authority the account trusts, so a forged header carries no more weight here than in a deployment.
+    /// </remarks>
+    private static async Task<EmailProvenance> ProvenanceOfAsync(
+        SpamClassificationCase scenario,
+        StoredEmailContent content,
+        CancellationToken cancellationToken)
+    {
+        await using var stream = RawMimeStream.Open(content.RawMime);
+        using var message = await MimeMessage.LoadAsync(ParserOptions.Default, stream, persistent: true, cancellationToken);
+
+        return new EmailProvenance
+        {
+            Sender = new SenderVerification
+            {
+                AuthorAuthentication = SenderAuthenticationReading
+                    .Read(AuthenticationResultsHeaderReader.Read(message), Authority, scenario.Mail.SenderAddress)
+                    .AuthorAuthentication,
+                DeploymentTrust = scenario.Mail.IsSenderTrusted ? SenderTrustLevel.Trusted : SenderTrustLevel.Unknown,
+            },
+            IsInJunkFolder = false,
+            IsFirstContact = false,
+        };
     }
 
     private static string DescribeCases() =>

@@ -3,9 +3,11 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Diagnostics.CodeAnalysis;
-using MailFathom.Host.Configuration;
+using MailFathom.Application.Spam.Model;
 using MailFathom.Host.Configuration.Mail;
 using MailFathom.Host.Configuration.Spam;
+using MailFathom.Host.Configuration.UserSettings;
+using MailFathom.Infrastructure.Persistence.Users.AccountSettings;
 
 namespace MailFathom.Host.Hosting.Warnings;
 
@@ -18,34 +20,49 @@ namespace MailFathom.Host.Hosting.Warnings;
 /// deterministically is what the stage would have left anyway had its model been unreachable.
 /// </para>
 /// <para>
-/// Registered only where no decision model serves spam classification, so a deployment that declares one pays nothing
-/// here.
+/// The accounts are the served records themselves, read whole, because a mailbox is a user's own record and the
+/// published settings carry no user. That read grows with the deployment, so it is made only where no model serves the
+/// stage — a deployment that declares one asks the judge and stops — and it runs behind the schema gate, since the
+/// records live in a table that migration creates.
 /// </para>
 /// </remarks>
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "The dependency injection container materializes this hosted service.")]
 internal sealed partial class SpamModelStageWithoutModelWarning : IHostedService
 {
-    private readonly ISettingsSnapshot<MailSynchronizationOptions> mailSettings;
+    private readonly ISpamModelJudge judge;
+    private readonly IServedMailAccountReader servedAccounts;
     private readonly ILogger<SpamModelStageWithoutModelWarning> logger;
 
     /// <summary>Initializes a new startup warning.</summary>
-    /// <param name="mailSettings">The published account roster, which is the one in force when this runs.</param>
+    /// <param name="judge">Answers whether a model serves the stage, in which case nothing is read.</param>
+    /// <param name="servedAccounts">Reads the account records this deployment serves.</param>
     /// <param name="logger">The startup logger.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="mailSettings" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
     public SpamModelStageWithoutModelWarning(
-        ISettingsSnapshot<MailSynchronizationOptions> mailSettings,
+        ISpamModelJudge judge,
+        IServedMailAccountReader servedAccounts,
         ILogger<SpamModelStageWithoutModelWarning> logger)
     {
-        ArgumentNullException.ThrowIfNull(mailSettings);
+        ArgumentNullException.ThrowIfNull(judge);
+        ArgumentNullException.ThrowIfNull(servedAccounts);
+        ArgumentNullException.ThrowIfNull(logger);
 
-        this.mailSettings = mailSettings;
+        this.judge = judge;
+        this.servedAccounts = servedAccounts;
         this.logger = logger;
     }
 
     /// <inheritdoc />
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        var askingAccounts = this.mailSettings.Current.DeclaredAccounts
+        if (this.judge.IsActive)
+        {
+            return;
+        }
+
+        var askingAccounts = (await this.servedAccounts.ReadServedRecordsAsync(cancellationToken))
+            .Select(MailAccountQueryableSettingsReading.TryBind)
+            .OfType<MailSynchronizationAccountOptions>()
             .Where(static account => account.SpamClassification is { Enabled: true, ModelStage.Enabled: true })
             .Select(static account => account.AccountId);
 
@@ -53,8 +70,6 @@ internal sealed partial class SpamModelStageWithoutModelWarning : IHostedService
         {
             this.LogModelStageWithoutModel(accountId);
         }
-
-        return Task.CompletedTask;
     }
 
     /// <inheritdoc />

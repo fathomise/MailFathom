@@ -12,7 +12,6 @@ using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Spam.Model;
-using MailFathom.Application.Spam.Signals;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.TestSupport;
@@ -27,16 +26,21 @@ public sealed class SpamModelEvidenceReaderTests
         StoredEmailId.Create(Guid.Parse("0199a0c0-0000-7000-8000-00000000e1de"));
 
     [Fact]
-    public async Task ReadAsync_RenderedMessage_CarriesTheSenderSubjectBodyAndAuthenticationOutcomes()
+    public async Task ReadAsync_RenderedMessage_CarriesTheSenderSubjectBodyAndTheRecordedAuthorAuthentication()
     {
         // Arrange
-        var reader = Reader(Rendering(Participants(From("Parcel Desk", "desk@example.com"))));
-        var facts = SpamHeaderFacts.Create(
-            [new MessageAuthenticationResult("dkim", "fail", "header.d=example.net", IsForwarded: false)],
-            []);
+        var failed = StubEmailProvenanceReader.Answering(StubEmailProvenanceReader.KnownCorrespondent with
+        {
+            Sender = new SenderVerification
+            {
+                AuthorAuthentication = AuthorAuthenticationOutcome.Failed,
+                DeploymentTrust = SenderTrustLevel.Unknown,
+            },
+        });
+        var reader = Reader(Rendering(Participants(From("Parcel Desk", "desk@example.com"))), failed);
 
         // Act
-        var evidence = await reader.ReadAsync(Email, SomeContent(), facts, TestContext.Current.CancellationToken);
+        var evidence = await reader.ReadAsync(Email, SomeContent(), TestContext.Current.CancellationToken);
 
         // Assert
         Assert.NotNull(evidence);
@@ -45,8 +49,90 @@ public sealed class SpamModelEvidenceReaderTests
         Assert.Equal("Your parcel is waiting", evidence.Subject);
         Assert.Equal("Pay the customs fee today.", evidence.Body);
         Assert.False(evidence.IsBodyCut);
-        Assert.Equal([new SpamModelAuthenticationOutcome("dkim", "fail", false)], evidence.SenderAuthentication);
+        Assert.Equal(AuthorAuthenticationOutcome.Failed, evidence.AuthorAuthentication);
         Assert.False(evidence.IsSenderTrusted);
+    }
+
+    [Fact]
+    public async Task ReadAsync_MessageWithNoRecordedProvenance_SaysNothingEstablishedTheAuthorAndNothingTrustsThem()
+    {
+        // Arrange
+        var unrecorded = Substitute.For<IEmailProvenanceReader>();
+        unrecorded
+            .ReadAsync(Arg.Any<IReadOnlyCollection<StoredEmailId>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<StoredEmailId, EmailProvenance>());
+        var reader = Reader(Rendering(Participants(From("Parcel Desk", "desk@example.com"))), unrecorded);
+
+        // Act
+        var evidence = await reader.ReadAsync(Email, SomeContent(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(AuthorAuthenticationOutcome.NotEstablished, evidence?.AuthorAuthentication);
+        Assert.False(evidence?.IsSenderTrusted);
+    }
+
+    [Fact]
+    public async Task ReadAsync_MoreDistinctLinkHostsThanTheBound_CarriesOnlyTheFirstOnes()
+    {
+        // Arrange
+        var runs = Enumerable.Range(0, SpamModelEvidence.MaximumLinks + 8)
+            .Select(static position => new MailInlineRun(
+                $"Offer {position}",
+                MailTextEmphasis.None,
+                Foreground: null,
+                MailLinkReader.Read($"https://offer{position}.example.net/", $"Offer {position}")))
+            .ToArray();
+        var document = MailDocument.Reduced(
+            [new MailParagraphBlock(runs, MailBlockAlignment.Inherited)],
+            removedRemoteReferenceCount: 0,
+            retainedRemoteImageCount: 0,
+            inlineImageCount: 0,
+            undrawnInlineImageCount: 0,
+            truncated: false);
+        var reader = Reader(Rendering(Participants(From("Deals", "deals@example.com")), document: document));
+
+        // Act
+        var evidence = await reader.ReadAsync(Email, SomeContent(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            [.. Enumerable.Range(0, SpamModelEvidence.MaximumLinks).Select(static position => $"offer{position}.example.net")],
+            evidence?.Links.Select(static link => link.TargetHost));
+    }
+
+    [Fact]
+    public async Task ReadAsync_MoreAttachmentsThanTheBound_DescribesOnlyTheFirstOnes()
+    {
+        // Arrange
+        var attachments = Enumerable.Range(0, SpamModelEvidence.MaximumAttachments + 4)
+            .Select(static position => new ExtractedEmailAttachment(FileNamed($"scan-{position}.pdf"), "application/pdf", 1024))
+            .ToArray();
+        var reader = Reader(Rendering(Participants(From("Scanner", "scanner@example.com")), attachments: attachments));
+
+        // Act
+        var evidence = await reader.ReadAsync(Email, SomeContent(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            [.. Enumerable.Range(0, SpamModelEvidence.MaximumAttachments).Select(static position => $"scan-{position}.pdf")],
+            evidence?.Attachments.Select(static attachment => attachment.FileName));
+    }
+
+    [Fact]
+    public async Task ReadAsync_AttachmentNameLongerThanTheBound_CutsTheName()
+    {
+        // Arrange
+        var longName = string.Concat(new string('n', SpamModelEvidence.MaximumFileNameLength * 2), ".pdf");
+        var reader = Reader(Rendering(
+            Participants(From("Scanner", "scanner@example.com")),
+            attachments: [new ExtractedEmailAttachment(FileNamed(longName), "application/pdf", 1024)]));
+
+        // Act
+        var evidence = await reader.ReadAsync(Email, SomeContent(), TestContext.Current.CancellationToken);
+
+        // Assert
+        var attachment = Assert.Single(evidence?.Attachments ?? []);
+        Assert.Equal(SpamModelEvidence.MaximumFileNameLength, attachment.FileName?.Length);
     }
 
     [Fact]
@@ -57,8 +143,8 @@ public sealed class SpamModelEvidenceReaderTests
         var same = Reader(Rendering(Participants(From("Billing", "billing@example.com"), ReplyTo("Billing@Example.com"))));
 
         // Act
-        var withDiffering = await differing.ReadAsync(Email, SomeContent(), NoFacts(), TestContext.Current.CancellationToken);
-        var withSame = await same.ReadAsync(Email, SomeContent(), NoFacts(), TestContext.Current.CancellationToken);
+        var withDiffering = await differing.ReadAsync(Email, SomeContent(), TestContext.Current.CancellationToken);
+        var withSame = await same.ReadAsync(Email, SomeContent(), TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal("collect@example.net", withDiffering?.DifferingReplyToAddress);
@@ -89,7 +175,7 @@ public sealed class SpamModelEvidenceReaderTests
         var reader = Reader(Rendering(Participants(From("Bank", "notice@example.com")), document: document));
 
         // Act
-        var evidence = await reader.ReadAsync(Email, SomeContent(), NoFacts(), TestContext.Current.CancellationToken);
+        var evidence = await reader.ReadAsync(Email, SomeContent(), TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(
@@ -120,7 +206,7 @@ public sealed class SpamModelEvidenceReaderTests
         var reader = Reader(Rendering(Participants(From("Supplier", "orders@example.com")), attachments: attachments), trusted);
 
         // Act
-        var evidence = await reader.ReadAsync(Email, SomeContent(), NoFacts(), TestContext.Current.CancellationToken);
+        var evidence = await reader.ReadAsync(Email, SomeContent(), TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(
@@ -149,7 +235,7 @@ public sealed class SpamModelEvidenceReaderTests
             new SpamModelStageBounds(1, 500));
 
         // Act
-        var evidence = await reader.ReadAsync(Email, SomeContent(), NoFacts(), TestContext.Current.CancellationToken);
+        var evidence = await reader.ReadAsync(Email, SomeContent(), TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(500, evidence?.Body.Length);
@@ -167,7 +253,7 @@ public sealed class SpamModelEvidenceReaderTests
         var reader = new SpamModelEvidenceReader(renderer, StubEmailProvenanceReader.AllKnownCorrespondents, SpamModelStageBounds.Default);
 
         // Act
-        var evidence = await reader.ReadAsync(Email, SomeContent(), NoFacts(), TestContext.Current.CancellationToken);
+        var evidence = await reader.ReadAsync(Email, SomeContent(), TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Null(evidence);
@@ -240,8 +326,6 @@ public sealed class SpamModelEvidenceReaderTests
         AttachmentFileName.TryNormalize(name, out var fileName)
             ? fileName
             : throw new InvalidOperationException("The synthetic file name does not normalize.");
-
-    private static SpamHeaderFacts NoFacts() => SpamHeaderFacts.Create([], []);
 
     private static StoredEmailContent SomeContent()
     {

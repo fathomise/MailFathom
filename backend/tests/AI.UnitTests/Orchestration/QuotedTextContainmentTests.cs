@@ -30,6 +30,7 @@ using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Tasks;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Tasks;
 using Xunit;
 
@@ -348,7 +349,7 @@ public sealed class QuotedTextContainmentTests
             IsBodyCut = false,
             Links = [new SpamModelLink("login.example.net", "bank.example.com", DisplayedHostDiffers: true)],
             Attachments = [new SpamModelAttachment("application/zip", "invoice.zip")],
-            SenderAuthentication = [new SpamModelAuthenticationOutcome("dmarc", "fail", IsForwarded: false)],
+            AuthorAuthentication = AuthorAuthenticationOutcome.Failed,
             IsSenderTrusted = false,
         };
 
