@@ -8,10 +8,16 @@ namespace MailFathom.Infrastructure.Certificates;
 
 /// <summary>A certificate paired with its private key and the certificates supplied beside it, or why the material produced none.</summary>
 /// <remarks>
+/// <para>
 /// Nothing here has been judged for a purpose yet: whether the leaf can serve a domain or sign as a mailbox is the
 /// question of whichever loader asked, so the supplied certificates arrive unordered and unchecked.
+/// </para>
+/// <para>
+/// The result owns every certificate it carries until a caller takes them: disposing it releases the leaf's private
+/// key and every supplied certificate, and a caller that hands them on to an identity of its own does not dispose it.
+/// </para>
 /// </remarks>
-internal sealed record CertificateIdentityReadResult
+internal sealed record CertificateIdentityReadResult : IDisposable
 {
     private CertificateIdentityReadResult(
         X509Certificate2? leaf,
@@ -23,16 +29,16 @@ internal sealed record CertificateIdentityReadResult
         this.Failure = failure;
     }
 
-    /// <summary>Gets the certificate carrying the private key, owned by the caller, or <see langword="null" /> when reading failed.</summary>
+    /// <summary>Gets the certificate carrying the private key, or <see langword="null" /> when reading failed.</summary>
     internal X509Certificate2? Leaf { get; }
 
-    /// <summary>Gets the other certificates the material carried, owned by the caller, in the order they were read.</summary>
+    /// <summary>Gets the other certificates the material carried, in the order they were read.</summary>
     internal X509Certificate2[] Supplied { get; }
 
     /// <summary>Gets why no identity was read, or <see langword="null" /> when reading succeeded.</summary>
     internal CertificateMaterialFailure? Failure { get; }
 
-    /// <summary>Creates a successful result that hands ownership of every certificate to the caller.</summary>
+    /// <summary>Creates a successful result that owns every certificate it carries.</summary>
     /// <param name="leaf">The certificate carrying the private key.</param>
     /// <param name="supplied">The other certificates the material carried.</param>
     /// <returns>The successful result.</returns>
@@ -44,4 +50,15 @@ internal sealed record CertificateIdentityReadResult
     /// <returns>The failed result.</returns>
     internal static CertificateIdentityReadResult Failed(CertificateMaterialFailure failure) =>
         new(leaf: null, [], failure);
+
+    /// <summary>Releases the leaf and every supplied certificate.</summary>
+    public void Dispose()
+    {
+        this.Leaf?.Dispose();
+
+        foreach (var supplied in this.Supplied)
+        {
+            supplied.Dispose();
+        }
+    }
 }

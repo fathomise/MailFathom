@@ -75,7 +75,7 @@ public sealed class SmimeSigningCertificateValidator
         ArgumentNullException.ThrowIfNull(configuredCertificate);
         ArgumentException.ThrowIfNullOrWhiteSpace(fromAddress);
 
-        var read = await this.identityReader.ReadAsync(
+        using var read = await this.identityReader.ReadAsync(
             configuredCertificate.Bundle,
             configuredCertificate.CertificateChain,
             configuredCertificate.PrivateKey,
@@ -86,22 +86,10 @@ public sealed class SmimeSigningCertificateValidator
             return read.Failure;
         }
 
-        try
-        {
-            var evaluatedAt = this.timeProvider.GetUtcNow();
+        var evaluatedAt = this.timeProvider.GetUtcNow();
 
-            return TlsServerCertificateSuitability.OrderTowardsRoot(leaf, read.Supplied, evaluatedAt).Unsuitability
-                ?? FindUnsuitability(leaf, fromAddress.Trim(), evaluatedAt);
-        }
-        finally
-        {
-            leaf.Dispose();
-
-            foreach (var supplied in read.Supplied)
-            {
-                supplied.Dispose();
-            }
-        }
+        return TlsServerCertificateSuitability.OrderTowardsRoot(leaf, read.Supplied, evaluatedAt).Unsuitability
+            ?? FindUnsuitability(leaf, fromAddress.Trim(), evaluatedAt);
     }
 
     /// <summary>Finds the first reason a certificate cannot sign as an address, in the order an operator would fix them.</summary>

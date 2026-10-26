@@ -679,9 +679,9 @@ password, the passphrase, or anything read out of the certificate or the key:
 | S/MIME | Neither an `rfc822Name` alternative name nor the subject's `emailAddress` is the sending address, compared without regard to case | `AddressNotCoveredByCertificate` |
 | OpenPGP | The reference or its passphrase resolves nothing | `SecretNotResolvable` |
 | OpenPGP | The material is not an ASCII-armored private key block — an armored public key is refused here too — or does not parse as one | `NotAnArmoredSecretKey`, `MaterialNotReadable` |
-| OpenPGP | The block holds more than one key | `MaterialCarriesSeveralKeys` |
+| OpenPGP | The material holds more than one key, whether in one armored block or in several concatenated | `MaterialCarriesSeveralKeys` |
 | OpenPGP | The key, or every signing-capable key in it, carries a revocation or has passed its expiry | `KeyRevoked`, `KeyExpired` |
-| OpenPGP | No user ID of the key is the sending address | `UserIdDoesNotMatchAddress` |
+| OpenPGP | No user ID of the key is the sending address, counting only one whose latest self-certification no later revocation of it withdrew | `UserIdDoesNotMatchAddress` |
 | OpenPGP | Neither the primary key nor a subkey has an algorithm that signs, key flags that permit signing where its self-signatures state any, and its secret part present | `SigningKeyMissing` |
 | OpenPGP | A signing key is protected and no passphrase is configured, or the configured one does not open it | `PassphraseMissing`, `PassphraseIncorrect` |
 

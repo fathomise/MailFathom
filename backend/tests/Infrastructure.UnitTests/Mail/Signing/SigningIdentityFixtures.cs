@@ -354,6 +354,70 @@ internal static class SigningIdentityFixtures
         -----END PGP PRIVATE KEY BLOCK-----
         """;
 
+    /// <summary>A key for <c>sender@example.test</c> whose primary key only certifies and whose one signing subkey was revoked on 2026-01-02.</summary>
+    internal const string OpenPgpRevokedSigningSubkey = """
+        -----BEGIN PGP PRIVATE KEY BLOCK-----
+
+        lFgEaVW5ABYJKwYBBAHaRw8BAQdAUVnCJUZVP5seprjejz+lULxNyoQ+Ubt5Wnt0
+        6UGoGYsAAQDkyoMtLAO8sGQl15UYd8FXEMecr13iulESPRCyqrT/mRAJtBxTZW5k
+        ZXIgPHNlbmRlckBleGFtcGxlLnRlc3Q+iJAEExYKADgWIQTYT0O1/G5i01w6cjN1
+        CUCcrXgurQUCaVW5AAIbAQULCQgHAgYVCgkICwIEFgIDAQIeAQIXgAAKCRB1CUCc
+        rXgurbhRAQDW1gj0wszPu/jNpVqCPM+SCp71/WCgjOPsjrAoh+ximAEAzaPJLEGl
+        /ya3e2g0yM02+4G6R4PiE0wqSnZvPNtexAicWARpVbkAFgkrBgEEAdpHDwEBB0Dw
+        cZzDAbg/5pWXFZfdqQ5wG3Bv5uLz8mVnWxdo2W7KIAAA/1ZK1Z6tgFBG/fh/AnmG
+        srbkIqVVxlCbv/6iN71MQAYqEXKIeAQoFgoAIBYhBNhPQ7X8bmLTXDpyM3UJQJyt
+        eC6tBQJpVwqAAh0AAAoJEHUJQJyteC6t0BEA/j7XSzKG2DVQTtG9QppRhFCPeY6C
+        btBrTwl1KqCqiHYQAQCyBg0Qx3hDNdayUNyPKx2nEITjQDf6UinfqXmSNgWZA4jv
+        BBgWCgAgFiEE2E9DtfxuYtNcOnIzdQlAnK14Lq0FAmlVuQACGwIAgQkQdQlAnK14
+        Lq12IAQZFgoAHRYhBAaG11tJqc9LNutRf5yRsnbIqwxOBQJpVbkAAAoJEJyRsnbI
+        qwxOYGIA/3yB6cQhmm2bZOLMeZci3MQEHhBVOc9yRKB74hVWjnxbAP4+FaZpb9bJ
+        3pZhpHrZiGtHb0P86H5SsA6JQgMML8HrBZXIAPwNSPmzTIoonS0ZJrKC4I/jXQq9
+        NFLzFmlCRkfguZcUvwD+J+hDEdVOBB310X0wTkPyLBjpPERurVlwXTqFVFfmxAw=
+        =w3oo
+        -----END PGP PRIVATE KEY BLOCK-----
+        """;
+
+    /// <summary>A key for <c>sender@example.test</c> whose primary key only certifies and whose one signing subkey expired on 2026-03-01.</summary>
+    internal const string OpenPgpExpiredSigningSubkey = """
+        -----BEGIN PGP PRIVATE KEY BLOCK-----
+
+        lFgEaVW5ABYJKwYBBAHaRw8BAQdA/TC6jLwgCI7jqw1SdNV6xTS6BbTC+dSuJzh5
+        gt287TAAAQDqErnUSbTIPDVtldhXnIGtI0X/1ROzWOrzQ4twWqhYjBEWtBxTZW5k
+        ZXIgPHNlbmRlckBleGFtcGxlLnRlc3Q+iJAEExYKADgWIQTAvg/1W7J6MZ3UEB95
+        mtuM+r9EXQUCaVW5AAIbAQULCQgHAgYVCgkICwIEFgIDAQIeAQIXgAAKCRB5mtuM
+        +r9EXedjAP9xRyXRrudmAS+RnCe7oSiPL1vGyPhFWnJd5tQWJ7yQawD8C9nHtbff
+        tg4BojmgLhSjaYSVAU0EUk+dz/h98wJgOAycWARpVbkAFgkrBgEEAdpHDwEBB0BK
+        vSGVyLFg/GtMw6RRONjN3DJk/oKd7ucvNGGaRcuzMQAA/i/e8COUaA0Vg6XQKGC3
+        3jy5DmgG2UDhcXY26MIhnBvuEEmI9QQYFgoAJhYhBMC+D/VbsnoxndQQH3ma24z6
+        v0RdBQJpVbkAAhsCBQkATmMwAIEJEHma24z6v0RddiAEGRYKAB0WIQQbrVF+j550
+        JFYAKHBVqlHi9DzNiAUCaVW5AAAKCRBVqlHi9DzNiOdSAQDy4iQnU9qbc9rOnpIr
+        AZvdpfV6NYUsN2mLWuDXYiwNxQEAwZ2aBQLcBQGYur4ZY0xqeGGiMDUs8Ghs/uwn
+        NcEB5Q07mAD/VpWvoGaLj9mPjX58mcsKXQF9ZSnEFph02EK2dCc24VUBALCR21S8
+        znDiBSQFpJhZiAQiwRL5mYqKkqvFAiPHk7AM
+        =aOgh
+        -----END PGP PRIVATE KEY BLOCK-----
+        """;
+
+    /// <summary>A signing key whose user ID for <c>sender@example.test</c> was revoked on 2026-01-02, leaving only <c>someone.else@example.test</c>.</summary>
+    internal const string OpenPgpRevokedUserId = """
+        -----BEGIN PGP PRIVATE KEY BLOCK-----
+
+        lFgEaVW5ABYJKwYBBAHaRw8BAQdAqmG/wZakG/RVDmML1D5nv6JeLbmi0x0eVwbV
+        0ZLbZoUAAQDtuhXA04tXPcI8T45Ut94XoLrufVMLeZp3ELkUoO5RpRBYtBxTZW5k
+        ZXIgPHNlbmRlckBleGFtcGxlLnRlc3Q+iHgEMBYKACAWIQQjs/CvSUZuts2yLN3l
+        /BQUQelQoAUCaVcKgAIdIAAKCRDl/BQUQelQoPDeAP4/TrJ38lcJNwNiEFmiTgNn
+        3shoL9p43YNRg6Tdjjxc8AEAnEM/kDhzVzYJ16qCibmpuTxIwWB8nC92EjR3mmGq
+        GAWIkAQTFgoAOBYhBCOz8K9JRm62zbIs3eX8FBRB6VCgBQJpVbkAAhsDBQsJCAcC
+        BhUKCQgLAgQWAgMBAh4BAheAAAoJEOX8FBRB6VCg09MBANIj20C/MzplchihGsP8
+        lVbng8oxUaSZhh1vmYRUCRmPAPwNKRMYAb109mkITeahBKHnLIJedKPbZlic+IHX
+        CQHGB7QoU29tZW9uZSBFbHNlIDxzb21lb25lLmVsc2VAZXhhbXBsZS50ZXN0PoiQ
+        BBMWCgA4FiEEI7Pwr0lGbrbNsizd5fwUFEHpUKAFAmlVuQACGwMFCwkIBwIGFQoJ
+        CAsCBBYCAwECHgECF4AACgkQ5fwUFEHpUKDZgwD/bBD/nWtU9Op4hhIrRm9bBH/f
+        DyANWp4G3PyneQPkTEUBALKxeQCA/U0i9O7I/FkDpSzlLPs81icxV54F212SJPMF
+        =k+0h
+        -----END PGP PRIVATE KEY BLOCK-----
+        """;
+
     /// <summary>Two signing keys for <c>sender@example.test</c> in one armored block.</summary>
     internal const string OpenPgpTwoKeys = """
         -----BEGIN PGP PRIVATE KEY BLOCK-----

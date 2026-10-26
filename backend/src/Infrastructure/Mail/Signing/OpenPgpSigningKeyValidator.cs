@@ -32,14 +32,15 @@ namespace MailFathom.Infrastructure.Mail.Signing;
 /// </remarks>
 public sealed class OpenPgpSigningKeyValidator
 {
-    private static readonly int[] PrimaryKeySelfSignatureTypes =
+    private static readonly int[] UserIdCertificationTypes =
     [
         PgpSignature.PositiveCertification,
         PgpSignature.CasualCertification,
         PgpSignature.NoCertification,
         PgpSignature.DefaultCertification,
-        PgpSignature.DirectKey,
     ];
+
+    private static readonly int[] PrimaryKeySelfSignatureTypes = [.. UserIdCertificationTypes, PgpSignature.DirectKey];
 
     private static readonly int[] SubkeySelfSignatureTypes = [PgpSignature.SubkeyBinding];
 
@@ -123,6 +124,15 @@ public sealed class OpenPgpSigningKeyValidator
             return null;
         }
 
+        // The armored stream ends at the first block's footer, so a second block concatenated after it would never be
+        // parsed and the material would read as the first key alone.
+        if (material.Count("-----BEGIN PGP "u8) > 1)
+        {
+            failure = OpenPgpSigningKeyFailure.MaterialCarriesSeveralKeys;
+
+            return null;
+        }
+
         var buffer = GC.AllocateArray<byte>(material.Length, pinned: true);
 
         try
@@ -176,7 +186,7 @@ public sealed class OpenPgpSigningKeyValidator
             return OpenPgpSigningKeyFailure.KeyExpired;
         }
 
-        if (!primaryKey.GetUserIds().Any(userId => NamesAddress(userId, fromAddress)))
+        if (!primaryKey.GetUserIds().Any(userId => NamesAddress(userId, fromAddress) && IsCurrentlyCertified(primaryKey, userId)))
         {
             return OpenPgpSigningKeyFailure.UserIdDoesNotMatchAddress;
         }
@@ -237,6 +247,30 @@ public sealed class OpenPgpSigningKeyValidator
         var validSeconds = key.GetValidSeconds();
 
         return validSeconds > 0 && now >= key.CreationTime.AddSeconds(validSeconds);
+    }
+
+    /// <summary>Decides whether the primary key still certifies a user ID: a self-certification newer than any self-revocation of it.</summary>
+    /// <remarks>
+    /// A recipient attributes a signature to a user ID only while the key binds it, so one the key never certified, or
+    /// whose latest certification a later revocation withdrew, names nobody. A certification issued after a revocation
+    /// binds the user ID again, which is how an implementation reinstates one.
+    /// </remarks>
+    private static bool IsCurrentlyCertified(PgpPublicKey primaryKey, string userId)
+    {
+        PgpSignature[] selfSignatures =
+        [
+            .. primaryKey.GetSignaturesForId(userId).Where(signature => signature.KeyId == primaryKey.KeyId),
+        ];
+        var latestCertification = selfSignatures
+            .Where(static signature => UserIdCertificationTypes.Contains(signature.SignatureType))
+            .Select(static signature => (DateTime?)signature.CreationTime)
+            .Max();
+        var latestRevocation = selfSignatures
+            .Where(static signature => signature.SignatureType == PgpSignature.CertificationRevocation)
+            .Select(static signature => (DateTime?)signature.CreationTime)
+            .Max();
+
+        return latestCertification is { } certifiedAt && (latestRevocation is not { } revokedAt || certifiedAt > revokedAt);
     }
 
     /// <summary>Matches a user ID such as <c>Name &lt;address&gt;</c>, or a bare address, against the sending address.</summary>

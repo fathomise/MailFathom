@@ -187,6 +187,24 @@ public sealed class SmimeSigningCertificateValidatorTests
         Assert.Equal(CertificateMaterialFailure.PrivateKeyDoesNotMatchCertificate, failure);
     }
 
+    /// <summary>The certificates supplied beside the signer travel with every signature, so they are held to the rules a chain is.</summary>
+    [Fact]
+    public async Task FindUnusabilityAsync_ChainCarryingAnotherEndEntityCertificate_RefusesTheChain()
+    {
+        // Arrange
+        var material = new ProvisionedMaterialResolver();
+        ProvidePem(
+            material,
+            SigningIdentityFixtures.SignerCertificate + "\n" + SigningIdentityFixtures.OtherAddressCertificate,
+            SigningIdentityFixtures.SignerPrivateKey);
+
+        // Act
+        var failure = await ValidatorFor(material).FindUnusabilityAsync(PemOf(), FromAddress, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(CertificateMaterialFailure.ChainCarriesNonAuthorityCertificate, failure);
+    }
+
     [Fact]
     public async Task FindUnusabilityAsync_KeyUsagePermittingNoSignature_RefusesTheCertificate()
     {

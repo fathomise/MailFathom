@@ -63,6 +63,7 @@ public sealed class TlsServerCertificateLoader
             configuredMaterial?.PrivateKey,
             cancellationToken);
 
+        // Not disposed: Accept takes every certificate the read carried, and either publishes or releases them.
         return read.Leaf is { } leaf
             ? this.Accept(leaf, read.Supplied, domain)
             : TlsServerCertificateLoadResult.Failed(read.Failure!.Value);

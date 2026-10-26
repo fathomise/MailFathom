@@ -161,6 +161,53 @@ public sealed class OpenPgpSigningKeyValidatorTests
         Assert.Equal(OpenPgpSigningKeyFailure.MaterialCarriesSeveralKeys, failure);
     }
 
+    /// <summary>The armored stream ends at the first block's footer, so a second key concatenated after it would otherwise go unread.</summary>
+    [Fact]
+    public async Task FindUnusabilityAsync_TwoSeparatelyArmoredKeys_RefusesTheMaterialAsAmbiguous()
+    {
+        // Arrange
+        var material = new ProvisionedMaterialResolver();
+        material.ProvisionText(KeyReference, SigningIdentityFixtures.OpenPgpSigner + "\n" + SigningIdentityFixtures.OpenPgpOtherUserId);
+
+        // Act
+        var failure = await ValidatorFor(material).FindUnusabilityAsync(KeyOf(), FromAddress, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OpenPgpSigningKeyFailure.MaterialCarriesSeveralKeys, failure);
+    }
+
+    /// <summary>A recipient does not attribute a signature to a user ID the key itself revoked, so that user ID names nobody.</summary>
+    [Fact]
+    public async Task FindUnusabilityAsync_UserIdForTheAddressRevoked_RefusesTheKey()
+    {
+        // Arrange
+        var material = new ProvisionedMaterialResolver();
+        material.ProvisionText(KeyReference, SigningIdentityFixtures.OpenPgpRevokedUserId);
+
+        // Act
+        var failure = await ValidatorFor(material).FindUnusabilityAsync(KeyOf(), FromAddress, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OpenPgpSigningKeyFailure.UserIdDoesNotMatchAddress, failure);
+    }
+
+    /// <summary>A valid primary key that signs only through subkeys signs nothing once each of them is revoked or expired.</summary>
+    [Theory]
+    [InlineData(SigningIdentityFixtures.OpenPgpRevokedSigningSubkey, nameof(OpenPgpSigningKeyFailure.KeyRevoked))]
+    [InlineData(SigningIdentityFixtures.OpenPgpExpiredSigningSubkey, nameof(OpenPgpSigningKeyFailure.KeyExpired))]
+    public async Task FindUnusabilityAsync_OnlySigningSubkeyUnusable_RefusesTheKey(string configuredMaterial, string expected)
+    {
+        // Arrange
+        var material = new ProvisionedMaterialResolver();
+        material.ProvisionText(KeyReference, configuredMaterial);
+
+        // Act
+        var failure = await ValidatorFor(material).FindUnusabilityAsync(KeyOf(), FromAddress, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(Enum.Parse<OpenPgpSigningKeyFailure>(expected), failure);
+    }
+
     [Fact]
     public async Task FindUnusabilityAsync_KeyThatOnlyCertifiesAndEncrypts_RefusesTheKeyAsUnableToSign()
     {
