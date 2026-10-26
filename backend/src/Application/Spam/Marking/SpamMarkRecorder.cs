@@ -14,6 +14,7 @@ using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam.Actions;
 using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
@@ -45,8 +46,11 @@ namespace MailFathom.Application.Spam.Marking;
 /// <para>
 /// Each message is one transaction, so a batch over mail that changed since the screen drew it reports exactly which
 /// messages did not take the mark. The grant is <see cref="MailFathomPermission.MailFlagsWrite" />, since a verdict and
-/// its keywords are marks on mail; a mark that moves a message asks for <see cref="MailFathomPermission.MailMove" /> as
-/// well, because the move puts mail somewhere else whichever act asked for it.
+/// its keywords are marks on mail; a mark on mail of an account whose switch files junk asks for
+/// <see cref="MailFathomPermission.MailMove" /> as well, because the move puts mail somewhere else whichever act asked for
+/// it. <see cref="RequireGrantsAsync" /> asks both for a whole batch before any message of it is written, so a refusal is
+/// the request's and never arrives after part of it committed. A mark's move passes the checks a person's own move
+/// does: a destination the person may not read, or one across the edge of the drafts or the sent tree, is no move.
 /// </para>
 /// </remarks>
 public sealed class SpamMarkRecorder
@@ -63,6 +67,7 @@ public sealed class SpamMarkRecorder
     private readonly MailboxChangeSubmission submission;
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
     private readonly MailAccountRunSignal runSignal;
+    private readonly KeptMailTrees keptTrees;
 
     /// <summary>Initializes the use case over the grant it asks first, what decides a move, and the writer the verdict goes through.</summary>
     /// <param name="authorization">Answers which principal reached this use case.</param>
@@ -77,6 +82,8 @@ public sealed class SpamMarkRecorder
     /// <param name="submission">Records or commits the move through the account's custodian.</param>
     /// <param name="commitPolicy">Commits one message's mark, retrying an optimistic conflict.</param>
     /// <param name="runSignal">Brings the account's next synchronization run forward, which carries what was written down to the mail server.</param>
+    /// <param name="folderReferences">Answers which folder of the account plays the drafts role and which the sent role.</param>
+    /// <param name="bindings">Answers where on the server those two folders were last found.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
     public SpamMarkRecorder(
         AccessAuthorization authorization,
@@ -90,7 +97,9 @@ public sealed class SpamMarkRecorder
         SpamMarkWriter writer,
         MailboxChangeSubmission submission,
         OptimisticConcurrencyRetryPolicy commitPolicy,
-        MailAccountRunSignal runSignal)
+        MailAccountRunSignal runSignal,
+        MailFolderReferenceResolver folderReferences,
+        IMailFolderResolutionStore bindings)
     {
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(scopeResolver);
@@ -104,6 +113,8 @@ public sealed class SpamMarkRecorder
         ArgumentNullException.ThrowIfNull(submission);
         ArgumentNullException.ThrowIfNull(commitPolicy);
         ArgumentNullException.ThrowIfNull(runSignal);
+        ArgumentNullException.ThrowIfNull(folderReferences);
+        ArgumentNullException.ThrowIfNull(bindings);
 
         this.authorization = authorization;
         this.scopeResolver = scopeResolver;
@@ -117,6 +128,37 @@ public sealed class SpamMarkRecorder
         this.submission = submission;
         this.commitPolicy = commitPolicy;
         this.runSignal = runSignal;
+        this.keptTrees = new KeptMailTrees(folderReferences, bindings);
+    }
+
+    /// <summary>Asks for every grant a batch of marks needs, before any message of it is written.</summary>
+    /// <param name="storedEmailIds">The messages the batch names.</param>
+    /// <param name="cancellationToken">Cancels the reads.</param>
+    /// <returns>A task that completes once every grant is held.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="storedEmailIds" /> is <see langword="null" />.</exception>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller lacks the flag grant, or the moving grant while a message of the batch is on an account whose switch files junk.</exception>
+    /// <remarks>
+    /// The moving grant follows the account's switch rather than whether a given message would move, so the answer
+    /// costs no folder resolution and reads the same for a caller who holds the grant and one who does not.
+    /// </remarks>
+    public async Task RequireGrantsAsync(IReadOnlyList<StoredEmailId> storedEmailIds, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(storedEmailIds);
+
+        this.authorization.RequirePermission(MailFathomPermission.MailFlagsWrite);
+
+        if (this.authorization.Permits(MailFathomPermission.MailMove))
+        {
+            return;
+        }
+
+        foreach (var storedEmailId in storedEmailIds)
+        {
+            if (await this.ReadableTargetAsync(storedEmailId, cancellationToken) is { } target)
+            {
+                this.RequireMoveGrantWhereTheAccountFilesJunk(target.Occurrence.AccountId);
+            }
+        }
     }
 
     /// <summary>Records the person's mark on one message, with the keywords and the move it carries.</summary>
@@ -144,25 +186,14 @@ public sealed class SpamMarkRecorder
 
         this.authorization.RequirePermission(MailFathomPermission.MailFlagsWrite);
 
-        var target = await this.targets.FindAsync(storedEmailId, cancellationToken);
-
-        if (target is null
-            || !await this.scopeResolver.IsReadableAsync(
-                MailboxReaderKind.Person,
-                target.Occurrence.AccountId,
-                target.Folder.Alias,
-                cancellationToken))
+        if (await this.ReadableTargetAsync(storedEmailId, cancellationToken) is not { } target)
         {
             return SpamMarkResult.NotRecorded(storedEmailId, SpamMarkOutcome.MessageNotFound);
         }
 
         var account = target.Occurrence.AccountId;
-        var move = await this.PlanMoveAsync(target, mark, cancellationToken);
-
-        if (move is not null)
-        {
-            this.authorization.RequirePermission(MailFathomPermission.MailMove);
-        }
+        var settings = this.RequireMoveGrantWhereTheAccountFilesJunk(account);
+        var move = await this.PlanMoveAsync(target, mark, settings, cancellationToken);
 
         var prepared = await this.writer.PrepareAsync(storedEmailId, account, mark, cancellationToken);
 
@@ -225,16 +256,18 @@ public sealed class SpamMarkRecorder
     /// <remarks>
     /// Spam is filed into the account's junk destination unless the message is already in the junk folder; not spam takes
     /// a message in the junk folder back to the inbox and leaves every other message where it is. A destination that
-    /// resolves to nothing, or an unmirrored one the account no longer declares what to keep of, moves nothing, and the
-    /// verdict is recorded all the same: the mark is the person's whether or not the mailbox can be reorganized for it.
+    /// resolves to nothing, one the person may not read, one across the edge of the drafts or the sent tree, and an
+    /// unmirrored one the account no longer declares what to keep of each move nothing, exactly as the person's own move
+    /// would be refused, and the verdict is recorded all the same: the mark is the person's whether or not the mailbox can
+    /// be reorganized for it.
     /// </remarks>
     private async Task<PlannedMove?> PlanMoveAsync(
         AuthoredMailboxTarget target,
         SpamMark mark,
+        SpamActionSettings settings,
         CancellationToken cancellationToken)
     {
         var account = target.Occurrence.AccountId;
-        var settings = this.settingsReader.ActionsFor(account);
 
         if (!settings.FilesJunk)
         {
@@ -253,7 +286,9 @@ public sealed class SpamMarkRecorder
 
         var resolved = await this.destinations.ResolveAsync(account, [destinationReference], cancellationToken);
 
-        if (resolved.Find(destinationReference).Destination is not { } destination)
+        if (resolved.Find(destinationReference).Destination is not { } destination
+            || !await this.scopeResolver.IsReadableAsync(MailboxReaderKind.Person, account, destination.Alias, cancellationToken)
+            || await this.keptTrees.CrossesAsync(account, target.Folder, destination, cancellationToken))
         {
             return null;
         }
@@ -271,6 +306,31 @@ public sealed class SpamMarkRecorder
         {
             return null;
         }
+    }
+
+    /// <summary>Finds where the message is, or nothing where this deployment serves the person no readable message under that identity.</summary>
+    private async Task<AuthoredMailboxTarget?> ReadableTargetAsync(StoredEmailId storedEmailId, CancellationToken cancellationToken) =>
+        await this.targets.FindAsync(storedEmailId, cancellationToken) is { } target
+        && await this.scopeResolver.IsReadableAsync(
+            MailboxReaderKind.Person,
+            target.Occurrence.AccountId,
+            target.Folder.Alias,
+            cancellationToken)
+            ? target
+            : null;
+
+    /// <summary>Reads the switches of the message's account, asking for the moving grant where they file junk.</summary>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the account files junk and the caller cannot move mail.</exception>
+    private SpamActionSettings RequireMoveGrantWhereTheAccountFilesJunk(MailAccountId account)
+    {
+        var settings = this.settingsReader.ActionsFor(account);
+
+        if (settings.FilesJunk)
+        {
+            this.authorization.RequirePermission(MailFathomPermission.MailMove);
+        }
+
+        return settings;
     }
 
     /// <summary>Answers whether the message is in its account's junk folder, read from the folder it is in rather than the one it was stored under.</summary>

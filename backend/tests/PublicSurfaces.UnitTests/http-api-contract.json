@@ -2953,6 +2953,12 @@
           "outcome": {
             "type": "string"
           },
+          "spamMarkChanges": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailRecordedChangeResponse"
+            },
+            "type": "array"
+          },
           "storedEmailId": {
             "format": "uuid",
             "type": "string"
@@ -2962,7 +2968,8 @@
           "storedEmailId",
           "outcome",
           "destinationFolder",
-          "change"
+          "change",
+          "spamMarkChanges"
         ],
         "type": "object"
       },

@@ -816,6 +816,32 @@ public sealed class ClientMailMutationsEndpointTests
         Assert.Equal(MailboxMutationLifecycle.Pending.Name, response.Change?.State);
     }
 
+    /// <summary>The person's move into the junk folder also wrote their verdict's keywords, and those records reach the client beside the move's own.</summary>
+    [Fact]
+    public void MoveResult_APersonsMoveIntoJunk_CarriesTheSpamMarksRecords()
+    {
+        // Arrange
+        var keywords = RecordOf(MailboxMutationRequest.AddKeywords(
+            StoredEmailId.Create(Message),
+            TargetInInbox().Occurrence,
+            Requester,
+            AuthoredMailKeywords.Create(["$Junk"])));
+        var recorded = AuthoredMailRelocationResult.Recorded(
+            MailFolderAlias.Create("Junk"),
+            MailboxMutationRecordId.Create(Guid.CreateVersion7()),
+            MailboxMutationLifecycle.Pending) with
+        {
+            SpamMarkRecords = [keywords],
+        };
+
+        // Act
+        var response = ClientMailMoveResultResponse.For(Message, ArchiveId, recorded);
+
+        // Assert
+        var change = Assert.Single(response.SpamMarkChanges);
+        Assert.Equal((MailboxMutation.AddKeywords.Name, keywords.Id.Value), (change.Mutation, change.RecordId));
+    }
+
     /// <summary>A move that was not written down names no folder and no record, so nothing on the response invites a client to poll for one.</summary>
     [Fact]
     public void MoveResult_AMoveThatWasNotRecorded_NamesNeitherAFolderNorARecord()
@@ -1202,7 +1228,9 @@ public sealed class ClientMailMutationsEndpointTests
             this.SpamMarks(),
             this.Submission(held: false),
             CommitPolicy(),
-            new MailAccountRunSignal());
+            new MailAccountRunSignal(),
+            StubMailFolderMappings.Nothing.Resolver,
+            Substitute.For<IMailFolderResolutionStore>());
     }
 
     /// <summary>Builds what writes the person's verdict and its keywords, over an account that permits keywords.</summary>

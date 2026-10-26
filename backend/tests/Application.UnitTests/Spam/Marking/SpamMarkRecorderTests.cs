@@ -41,9 +41,13 @@ public sealed class SpamMarkRecorderTests
 
     private static readonly MailFolderAlias Junk = MailFolderAlias.Create("JUNK");
 
+    private static readonly MailFolderAlias Sent = MailFolderAlias.Create("Sent");
+
     private static readonly MailFolderId InboxFolder = MailFolderId.Create(Guid.Parse("0199a0c0-0000-7000-8000-0000000000a1"));
 
     private static readonly MailFolderId JunkFolder = MailFolderId.Create(Guid.Parse("0199a0c0-0000-7000-8000-0000000000a2"));
+
+    private static readonly MailFolderId SentFolder = MailFolderId.Create(Guid.Parse("0199a0c0-0000-7000-8000-0000000000a3"));
 
     private static readonly StoredEmailId Email = StoredEmailId.Create(Guid.Parse("0199a0c0-0000-7000-8000-0000000090b0"));
 
@@ -79,9 +83,11 @@ public sealed class SpamMarkRecorderTests
     {
         this.mappings
             .With(Account, MailFolderMapping.ToSpecialUse(Inbox, MailFolderSpecialUse.Inbox, MailFolderParticipation.Full))
-            .With(Account, MailFolderMapping.ToSpecialUse(Junk, MailFolderSpecialUse.Junk, MailFolderParticipation.Full));
+            .With(Account, MailFolderMapping.ToSpecialUse(Junk, MailFolderSpecialUse.Junk, MailFolderParticipation.Full))
+            .With(Account, MailFolderMapping.ToSpecialUse(Sent, MailFolderSpecialUse.Sent, MailFolderParticipation.Full));
         this.bindings.Bind(Account, Inbox, "INBOX");
         this.bindings.Bind(Account, Junk, "Junk");
+        this.bindings.Bind(Account, Sent, "Sent");
     }
 
     /// <summary>The person's verdict is recorded as theirs, with the subcategory they named, and the keywords follow it into the mailbox.</summary>
@@ -358,6 +364,97 @@ public sealed class SpamMarkRecorderTests
         Assert.Equal(0, this.records.OpenedRecordCount);
     }
 
+    /// <summary>A message in a folder withheld from the person is one they may not learn about, so marking it records nothing.</summary>
+    [Fact]
+    public async Task RecordAsync_AMessageInAFolderWithheldFromThePerson_ReportsItAsNotFoundAndRecordsNothing()
+    {
+        // Arrange
+        var recorder = this.Recorder(
+            Filing(off: true),
+            participation: StubMailFolderParticipation.Mapping(new MailFolderIdentity(Account, Junk)));
+
+        // Act
+        var result = await recorder.RecordAsync(Email, SpamMark.Spam(subcategory: null), Requester, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamMarkOutcome.MessageNotFound, result.Outcome);
+        Assert.Empty(this.classifications.Saved);
+        Assert.Empty(this.verdictActs.Of(Email));
+        Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>A junk folder the person may not read is no destination for them, so the verdict is recorded and the message stays.</summary>
+    [Fact]
+    public async Task RecordAsync_SpamWithFilingOnWhereTheJunkFolderIsWithheldFromThePerson_RecordsTheVerdictWithoutAMove()
+    {
+        // Arrange
+        var recorder = this.Recorder(
+            Filing(off: false),
+            participation: StubMailFolderParticipation.Mapping(new MailFolderIdentity(Account, Inbox)));
+
+        // Act
+        var result = await recorder.RecordAsync(Email, SpamMark.Spam(subcategory: null), Requester, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(result.IsMoved);
+        Assert.Equal(MailboxMutation.AddKeywords, Assert.Single(this.records.OpenedRequests).Mutation);
+        Assert.Equal(SpamClassificationStage.Person, Assert.Single(this.classifications.Saved).DecidedBy);
+    }
+
+    /// <summary>The sent folder keeps its own mail, so a mark on a message there records the verdict and never files it into junk.</summary>
+    [Fact]
+    public async Task RecordAsync_SpamWithFilingOnForAMessageInTheSentFolder_RecordsTheVerdictWithoutAMove()
+    {
+        // Arrange
+        var recorder = this.Recorder(Filing(off: false), folder: Sent);
+
+        // Act
+        var result = await recorder.RecordAsync(Email, SpamMark.Spam(subcategory: null), Requester, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(result.IsMoved);
+        Assert.Equal(MailboxMutation.AddKeywords, Assert.Single(this.records.OpenedRequests).Mutation);
+        Assert.DoesNotContain(SpamVerdictAct.FiledIntoJunk, this.verdictActs.Of(Email));
+    }
+
+    /// <summary>
+    /// Every grant a batch needs is asked for before anything of it is written, so a caller without the moving grant on an
+    /// account whose switch files junk is refused as a whole rather than after part of the batch committed.
+    /// </summary>
+    [Fact]
+    public async Task RequireGrantsAsync_ACallerHoldingOnlyTheFlagGrantOnAnAccountThatFilesJunk_IsRefusedBeforeAnythingIsWritten()
+    {
+        // Arrange
+        var recorder = this.Recorder(
+            Filing(off: false),
+            authorization: AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailFlagsWrite));
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
+            recorder.RequireGrantsAsync([Email], TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomPermission.MailMove, refusal.RequiredPermission);
+        Assert.Empty(this.classifications.Saved);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>An account whose switch files nothing needs no moving grant, so the flag grant alone admits the batch.</summary>
+    [Fact]
+    public async Task RequireGrantsAsync_ACallerHoldingOnlyTheFlagGrantOnAnAccountThatFilesNothing_IsAdmitted()
+    {
+        // Arrange
+        var recorder = this.Recorder(
+            Filing(off: true),
+            authorization: AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailFlagsWrite));
+
+        // Act
+        var admitted = await Record.ExceptionAsync(() => recorder.RequireGrantsAsync([Email], TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Null(admitted);
+    }
+
     /// <summary>A mark that moves mail asks for the moving grant on top of the flag grant, because the move puts mail somewhere else.</summary>
     [Fact]
     public async Task RecordAsync_ACallerHoldingOnlyTheFlagGrantWhereTheMarkMoves_IsRefusedWithoutRecordingAnything()
@@ -469,12 +566,15 @@ public sealed class SpamMarkRecorderTests
 
     private static AuthoredMailboxTarget TargetIn(MailFolderAlias folderAlias)
     {
-        var binding = MailFolderResolution.FirstBindingOf(folderAlias, RemoteFolderPath.Create(folderAlias == Junk ? "Junk" : "INBOX"));
+        var (remotePath, folder) = folderAlias == Junk ? ("Junk", JunkFolder)
+            : folderAlias == Sent ? ("Sent", SentFolder)
+            : ("INBOX", InboxFolder);
+        var binding = MailFolderResolution.FirstBindingOf(folderAlias, RemoteFolderPath.Create(remotePath));
 
         return new AuthoredMailboxTarget(
             EmailOccurrenceId.Create(Account, binding.Id, ImapUidValidity.Create(9), ImapUid.Create(4401)),
             binding,
-            folderAlias == Junk ? JunkFolder : InboxFolder);
+            folder);
     }
 
     private MailboxCustodianComposition Composition(
@@ -514,7 +614,8 @@ public sealed class SpamMarkRecorderTests
         InMemoryLocalEmailStateStore? states = null,
         MailRuleActionPermissions? permissions = null,
         AccessAuthorization? authorization = null,
-        bool target = true)
+        bool target = true,
+        StubMailFolderParticipation? participation = null)
     {
         var folderAlias = folder ?? Inbox;
         var composition = this.Composition(localFolders, states);
@@ -528,16 +629,17 @@ public sealed class SpamMarkRecorderTests
         var settingsReader = Substitute.For<ISpamActionSettingsReader>();
         settingsReader.ActionsFor(Account).Returns(settings);
 
-        var participation = StubMailFolderParticipation.Mapping(
+        var readable = participation ?? StubMailFolderParticipation.Mapping(
             new MailFolderIdentity(Account, Inbox),
-            new MailFolderIdentity(Account, Junk));
+            new MailFolderIdentity(Account, Junk),
+            new MailFolderIdentity(Account, Sent));
 
         return new SpamMarkRecorder(
             caller,
             new MailboxScopeResolver(
                 AssignedMailAccountCatalogs.For(caller, SyntheticServedAccount.Of(Account)),
-                participation,
-                StubDeploymentMailFolders.Of(participation),
+                readable,
+                StubDeploymentMailFolders.Of(readable),
                 StubMailFolderMappings.ResolvingNothing),
             targets,
             settingsReader,
@@ -548,7 +650,9 @@ public sealed class SpamMarkRecorderTests
             this.Writer(composition, folderAlias, keywords ?? [], permissions ?? MailRuleActionPermissions.Default),
             composition.Submission,
             CommitPolicyOver(composition),
-            new MailAccountRunSignal());
+            new MailAccountRunSignal(),
+            this.mappings.Resolver,
+            this.bindings);
     }
 
     private static OptimisticConcurrencyRetryPolicy CommitPolicyOver(MailboxCustodianComposition composition) =>

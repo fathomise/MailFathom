@@ -88,6 +88,12 @@ internal static class ClientMailSpamMarksEndpoint
                 + $"{MailboxMutationRequester.MaximumIdentityLength} characters and carries no control character.");
         }
 
+        // Every grant the batch needs is asked for before any message is written, so a refusal is the request's answer
+        // rather than one arriving after part of the batch committed.
+        await recorder.RequireGrantsAsync(
+            [.. storedEmailIds.Where(static id => id != Guid.Empty).Select(StoredEmailId.Create)],
+            cancellationToken);
+
         var results = new List<ClientMailSpamMarkResultResponse>(storedEmailIds.Count);
 
         foreach (var storedEmailId in storedEmailIds)

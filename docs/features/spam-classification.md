@@ -555,13 +555,17 @@ spam is moved into the account's junk destination after its keywords and recorde
 verdict's filing, [a message moved back out is never filed again](#a-message-the-user-moved-back-is-never-filed-again) —
 and not spam moves a message in the junk folder to the inbox. With it off, nothing moves. A destination that resolves to
 nothing leaves the verdict and its keywords recorded and the message where it was, and the answer says it did not move.
-A mark that moves mail asks for the `mailfathom.mail.move` grant beside `mailfathom.mail.flags.write`; the client asks the
-person before an act that moves, so the call is taken as confirmed. `Actions:MarkAsRead` is never applied: the person
+A mark on mail of an account whose switch files junk asks for the `mailfathom.mail.move` grant beside
+`mailfathom.mail.flags.write`, for the whole batch before any of it is written, and a mark's move passes the checks a
+person's own move does — a junk folder withheld from them, or one across the edge of the drafts or the sent tree, is no
+move, and the verdict stands where the message is; the client asks the person before an act that moves, so the call is
+taken as confirmed. `Actions:MarkAsRead` is never applied: the person
 said what the message is, not that they have read it.
 
 **Moving a message into the junk folder through the client is marking it spam**, in the same act and whatever the switch
-says — with no subcategory, or the one the person already named. Moving it out changes no verdict; marking it not spam
-does. A move an agent or an MCP caller asks for is a move and nothing else.
+says — with no subcategory, or the one the person already named. The mark is committed with the move or not at all, so
+a move into junk that is not made — the message is already there, or the move is not allowed — marks nothing. Moving
+it out changes no verdict; marking it not spam does. A move an agent or an MCP caller asks for is a move and nothing else.
 
 A message marked spam loses its passages and attachment text in the same transaction, as
 [a junk verdict does](#what-a-junk-verdict-removes). One marked not spam is admitted again: once it is outside a junk

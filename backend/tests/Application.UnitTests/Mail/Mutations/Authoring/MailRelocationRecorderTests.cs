@@ -14,6 +14,7 @@ using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Authoring;
 using MailFathom.Application.Mail.Mutations.Destinations;
+using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam.Gating;
 using MailFathom.Application.Spam.Marking;
@@ -92,6 +93,8 @@ public sealed class MailRelocationRecorderTests
     private readonly List<RemoteFolder> advertisedFolders = [];
 
     private readonly List<LocalMailFolder> extraFolders = [];
+
+    private int commits;
 
     private readonly IAuthoredDeleteEmailDispositionReader dispositions =
         Substitute.For<IAuthoredDeleteEmailDispositionReader>();
@@ -550,6 +553,124 @@ public sealed class MailRelocationRecorderTests
             (SpamVerdict.Spam, SpamClassificationStage.Person, (SpamSubcategory?)null),
             (verdict.Verdict, verdict.DecidedBy, verdict.Subcategory));
         Assert.Equal([SpamVerdictAct.FiledIntoJunk, SpamVerdictAct.MarkedJunk], this.verdictActs.Of(LocalEmail).Order());
+        Assert.Equal(MailboxMutation.AddKeywords, Assert.Single(result.SpamMarkRecords).Request.Mutation);
+    }
+
+    /// <summary>
+    /// A move the service refuses commits nothing, so the spam mark staged in front of it goes with it: a message in the
+    /// sent folder stays out of the junk folder and keeps no verdict, no act, and no keyword record.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_ThePersonMovingAMessageFromTheSentFolderIntoJunk_IsRefusedAndCommitsNoMark()
+    {
+        // Arrange
+        var sent = this.MapMirrored(Sent, "Sent", MailFolderSpecialUse.Sent);
+        this.MapMirrored(Junk, "Junk");
+        var recorder = this.Recorder(TargetIn(sent.Alias, sent.RemotePath.Value));
+
+        // Act
+        var result = await recorder.RecordAsync(LocalEmail, IdOf(Junk), Requester, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRelocationOutcome.DestinationNotAllowed, result.Outcome);
+        Assert.Empty(result.SpamMarkRecords);
+        Assert.Equal(0, this.commits);
+    }
+
+    /// <summary>A message already in the junk folder is not moved, so the person's move marks nothing either.</summary>
+    [Fact]
+    public async Task RecordAsync_ThePersonMovingAMessageAlreadyInJunkIntoJunk_ReportsItThereAndCommitsNoMark()
+    {
+        // Arrange
+        var junk = this.MapMirrored(Junk, "Junk");
+        var recorder = this.Recorder(TargetIn(junk.Alias, junk.RemotePath.Value));
+
+        // Act
+        var result = await recorder.RecordAsync(LocalEmail, IdOf(Junk), Requester, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRelocationOutcome.AlreadyInDestination, result.Outcome);
+        Assert.Empty(result.SpamMarkRecords);
+        Assert.Equal(0, this.commits);
+    }
+
+    /// <summary>Moving a message out of the junk folder is a move and nothing else: only <i>not spam</i> lifts a verdict.</summary>
+    [Fact]
+    public async Task RecordAsync_ThePersonMovingAMessageOutOfJunk_ChangesNoVerdict()
+    {
+        // Arrange
+        var junk = this.MapMirrored(Junk, "Junk");
+        this.MapMirrored(Inbox, "INBOX", MailFolderSpecialUse.Inbox);
+        var recorder = this.Recorder(TargetIn(junk.Alias, junk.RemotePath.Value));
+
+        // Act
+        var result = await recorder.RecordAsync(LocalEmail, IdOf(Inbox), Requester, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRelocationOutcome.Recorded, result.Outcome);
+        Assert.Equal(MailboxMutation.Relocate, Assert.Single(this.records.OpenedRequests).Mutation);
+        Assert.Empty(this.classifications.Saved);
+        Assert.Empty(this.verdictActs.Of(LocalEmail));
+    }
+
+    /// <summary>
+    /// On an account MailFathom holds or restores, the person's move into its junk folder commits locally with their
+    /// verdict and its keyword, and a restoring account also opens the keyword record its source is still owed.
+    /// </summary>
+    [Theory]
+    [InlineData(MailAccountCustodyPhase.Held)]
+    [InlineData(MailAccountCustodyPhase.Restoring)]
+    public async Task RecordAsync_ThePersonMovingAHeldMessageIntoJunk_CommitsTheMoveWithTheirVerdict(MailAccountCustodyPhase phase)
+    {
+        // Arrange
+        this.MapMirrored(Junk, "Junk", MailFolderSpecialUse.Junk);
+        var states = new InMemoryLocalEmailStateStore(Account);
+        states.Store(
+            LocalEmail,
+            new LocalEmailState(
+                MailFolderResolution.FirstBindingOf(Inbox, RemoteFolderPath.Create(Inbox.Value)),
+                HoldsSourceOccurrence: true,
+                IdOf(Inbox),
+                IsSeen: false,
+                IsFlagged: false,
+                RemoteEmailKeywords.Create([])));
+        var recorder = this.Recorder(TargetIn(Inbox), phase: phase, states: states);
+
+        // Act
+        var result = await recorder.RecordAsync(LocalEmail, IdOf(Junk), Requester, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRelocationOutcome.Applied, result.Outcome);
+        Assert.Equal(IdOf(Junk), states.States[LocalEmail].Folder);
+        Assert.Equal(["$JUNK"], states.States[LocalEmail].Keywords.Values);
+        Assert.Equal(SpamClassificationStage.Person, Assert.Single(this.classifications.Saved).DecidedBy);
+        Assert.Equal([SpamVerdictAct.FiledIntoJunk, SpamVerdictAct.MarkedJunk], this.verdictActs.Of(LocalEmail).Order());
+        Assert.Equal(phase is MailAccountCustodyPhase.Restoring ? 1 : 0, result.SpamMarkRecords.Count);
+    }
+
+    /// <summary>A request identity that already asked for other keywords is answered as an unusable request, never as a message that has gone.</summary>
+    [Fact]
+    public async Task RecordAsync_AMoveIntoJunkUnderARequestIdThatAskedForOtherKeywords_ReportsTheRequestAsUnusable()
+    {
+        // Arrange
+        this.MapMirrored(Junk, "Junk");
+        var recorder = this.Recorder(TargetIn(Inbox));
+        await recorder.RecordAsync(LocalEmail, IdOf(Junk), Requester, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+        this.classifications.Hold(SpamClassification.Create(
+            LocalEmail,
+            SpamVerdict.Spam,
+            SpamClassificationStage.Person,
+            assessment: null,
+            SpamClassificationProfile.Create(),
+            [],
+            RecordedAt,
+            SpamSubcategory.Phishing));
+
+        // Act
+        var result = await recorder.RecordAsync(LocalEmail, IdOf(Junk), Requester, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRelocationOutcome.RequestIdAlreadyAskedForAnother, result.Outcome);
     }
 
     /// <summary>A person who already named the kind of spam keeps it when they file the message themselves, and its keyword follows.</summary>
@@ -637,7 +758,9 @@ public sealed class MailRelocationRecorderTests
     private MailRelocationRecorder Recorder(
         AuthoredMailboxTarget? target,
         AccessAuthorization? authorization = null,
-        MailAccountRunSignal? runSignal = null)
+        MailAccountRunSignal? runSignal = null,
+        MailAccountCustodyPhase? phase = null,
+        InMemoryLocalEmailStateStore? states = null)
     {
         var callerAuthorization =
             authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailMove);
@@ -647,7 +770,7 @@ public sealed class MailRelocationRecorderTests
         targets.FindAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(target));
 
         var sessions = Substitute.For<IPersistenceSessionFactory>();
-        sessions.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(_ => new CommittingSession());
+        sessions.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(_ => new CommittingSession(() => this.commits++));
 
         var participation = StubMailFolderParticipation
             .Mapping(
@@ -662,7 +785,9 @@ public sealed class MailRelocationRecorderTests
                 new MailFolderIdentity(Account, Junk))
             .Hiding(new MailFolderIdentity(Account, Withheld));
 
-        var submission = MailboxChangeSubmissions.Over(this.records);
+        var submission = phase is { } custody
+            ? MailboxChangeSubmissions.Over(this.records, LocalFoldersOf(custody), states)
+            : MailboxChangeSubmissions.Over(this.records);
         var clock = new FakeTimeProvider(RecordedAt);
 
         return new MailRelocationRecorder(
@@ -715,6 +840,16 @@ public sealed class MailRelocationRecorderTests
         return folders;
     }
 
+    /// <summary>Gives a held or restoring account its own inbox and junk folder, which is where its moves are committed.</summary>
+    private static InMemoryLocalMailFolderStore LocalFoldersOf(MailAccountCustodyPhase phase)
+    {
+        var folders = new InMemoryLocalMailFolderStore(Account, phase);
+        folders.Add(new LocalMailFolder(IdOf(Inbox), ParentId: null, LocalMailFolderName.Create(Inbox.Value), MailFolderSpecialUse.Inbox, Inbox));
+        folders.Add(new LocalMailFolder(IdOf(Junk), ParentId: null, LocalMailFolderName.Create(Junk.Value), MailFolderSpecialUse.Junk, Junk));
+
+        return folders;
+    }
+
     private static MailFolderId IdOf(MailFolderAlias alias) =>
         MailFolderId.Create(new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(alias.Value)).AsSpan(0, 16)));
 
@@ -756,10 +891,15 @@ public sealed class MailRelocationRecorderTests
             IdOf(folderAlias));
     }
 
-    private sealed class CommittingSession : IPersistenceSession
+    /// <summary>Commits whatever it is asked to and counts it, because the stores beside it write through and a refused commit shows only here.</summary>
+    private sealed class CommittingSession(Action committed) : IPersistenceSession
     {
-        public Task<PersistenceCommitResult> CommitAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(PersistenceCommitResult.Committed);
+        public Task<PersistenceCommitResult> CommitAsync(CancellationToken cancellationToken)
+        {
+            committed();
+
+            return Task.FromResult(PersistenceCommitResult.Committed);
+        }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
