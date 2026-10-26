@@ -120,8 +120,8 @@ Turning `TrustOwnAccountDomains` off is the right move for a deployment whose ac
 since every user of that provider writes from the same domain; the same page states what an address entry rests on and
 what it deliberately does not establish. Neither is consulted for an author the receiving account's [organization
 signature](../features/sender-authentication.md#a-colleague-in-the-receiving-accounts-organization) proves a member,
-which needs no setting and no authenticated domain, so a colleague on that shared provider is recognized once their
-mail carries one; nothing signs outgoing mail yet, so no message does.
+which needs no setting and no authenticated domain, so a colleague on that shared provider is recognized by the
+signature their organization's accounts sign their mail with.
 Both lists are unreachable where no trusted header is read at all — an account
 that names no authority, and equally one whose receiving server records no results — because a message with no
 established author reaches unknown without either being consulted. [Whether your server says who sent a

@@ -254,8 +254,9 @@ is the one exception, because what it proves is the author's address rather than
 ### A colleague in the receiving account's organization
 
 A receiving account that belongs to an organization verifies, locally and when the message is extracted, a signature
-made with a key that organization holds, wherever a message carries one. Nothing signs outgoing mail yet, so until
-signing arrives in a later release no message carries such a signature and this recognizes nobody. [ADR
+made with a key that organization holds, wherever a message carries one — and the outbox signs what an organization's
+accounts send, as [what is signed, and when](../operations/organization-signing-keys.md#what-is-signed-and-when)
+states. [ADR
 0042](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0042-signing-an-organizations-mail-and-trusting-a-sender-its-signature-proves.md)
 records the format and the reasoning; [Organization signing keys](../operations/organization-signing-keys.md) is where
 the keys are minted, rotated, and revoked.

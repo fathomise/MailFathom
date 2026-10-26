@@ -19,7 +19,7 @@ namespace MailFathom.Infrastructure.Mail.Dkim;
 /// <remarks>
 /// <para>
 /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0042-signing-an-organizations-mail-and-trusting-a-sender-its-signature-proves.md">ADR 0042</see>
-/// decides every rule here. The signature is a DKIM value written under <see cref="HeaderName" />, which MimeKit's
+/// decides every rule here. The signature is a DKIM value written under <see cref="OrganizationMailSigner.SignatureHeaderName" />, which MimeKit's
 /// verifier refuses, so each value is handed to it as a <c>DKIM-Signature</c> header rebuilt in memory from the exact
 /// bytes the message carried; the message itself is never modified. The key locator resolves a selector to a key of the
 /// receiving account's organization and to nothing else: <c>d=</c> is never read and no DNS is asked.
@@ -41,9 +41,6 @@ namespace MailFathom.Infrastructure.Mail.Dkim;
 /// </remarks>
 internal sealed class OrganizationSignatureVerifier
 {
-    /// <summary>The header an organization's signature is written under, which no server outside the deployment reads.</summary>
-    internal const string HeaderName = "MailFathom-Organization-Signature";
-
     /// <summary>The only algorithm an organization signs with.</summary>
     private const string Algorithm = "ed25519-sha256";
 
@@ -98,7 +95,7 @@ internal sealed class OrganizationSignatureVerifier
     private async Task<bool> VerifiesAsync(Guid organizationId, MimeMessage message, CancellationToken cancellationToken)
     {
         var signatures = message.Headers
-            .Where(static header => header.Field.Equals(HeaderName, StringComparison.OrdinalIgnoreCase))
+            .Where(static header => header.Field.Equals(OrganizationMailSigner.SignatureHeaderName, StringComparison.OrdinalIgnoreCase))
             .Where(static header => DkimSignatureTags.NamesAlgorithm(header.Value, Algorithm))
             .Take(LocalSenderAuthenticationReading.MaximumVerifiedSignaturesPerMessage)
             .ToArray();

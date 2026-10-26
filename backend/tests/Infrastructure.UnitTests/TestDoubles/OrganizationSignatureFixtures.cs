@@ -5,7 +5,6 @@
 using System.Text;
 using MailFathom.Infrastructure.Mail.Dkim;
 using MimeKit;
-using MimeKit.Cryptography;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
 
@@ -13,18 +12,11 @@ namespace MailFathom.Infrastructure.UnitTests.TestDoubles;
 
 /// <summary>Signs messages the way an organization's account does, so verification is proved against real signatures.</summary>
 /// <remarks>
-/// The format is ADR 0042's: Ed25519-SHA256, <c>relaxed/relaxed</c>, the nine headers each listed twice, the selector the
-/// key's identifier, and the resulting <c>DKIM-Signature</c> renamed to the organization's header in place. Keys are
-/// drawn per call and never leave the process.
+/// The signature is made by the production signer, so the format is exactly the one ADR 0042 decides and the outbox
+/// writes. Keys are drawn per call and never leave the process.
 /// </remarks>
 internal static class OrganizationSignatureFixtures
 {
-    private static readonly string[] SignedHeaders =
-    [
-        "From", "From", "Reply-To", "Reply-To", "To", "To", "Cc", "Cc", "Subject", "Subject",
-        "Date", "Date", "Message-ID", "Message-ID", "In-Reply-To", "In-Reply-To", "References", "References",
-    ];
-
     /// <summary>Draws a fresh organization key.</summary>
     /// <returns>The key.</returns>
     public static OrganizationKey CreateKey()
@@ -65,24 +57,29 @@ internal static class OrganizationSignatureFixtures
         return message;
     }
 
-    /// <summary>Signs a message with an organization key and renames the signature to the organization's header.</summary>
+    /// <summary>Signs a message as the outbox does, and puts the signature header on it in place.</summary>
     /// <param name="message">The message, which is signed in place.</param>
     /// <param name="key">The key.</param>
+    /// <remarks>
+    /// The signature is <see cref="OrganizationMailSigner.Sign" />'s own, over the message's CRLF serialization, so what the
+    /// verifier is proved against is exactly what the outbox stores and sends.
+    /// </remarks>
     public static void Sign(MimeMessage message, OrganizationKey key)
     {
-        var signer = new DkimSigner(key.PrivateKey, "org.example.test", key.KeyId.ToString("D"), DkimSignatureAlgorithm.Ed25519Sha256)
-        {
-            HeaderCanonicalizationAlgorithm = DkimCanonicalizationAlgorithm.Relaxed,
-            BodyCanonicalizationAlgorithm = DkimCanonicalizationAlgorithm.Relaxed,
-        };
-        signer.Sign(message, SignedHeaders);
+        var format = FormatOptions.Default.Clone();
+        format.NewLineFormat = NewLineFormat.Dos;
+        using var unsigned = new MemoryStream();
+        message.WriteTo(format, unsigned);
 
-        var signature = message.Headers.First(static header => header.Id == HeaderId.DkimSignature);
-        var index = message.Headers.IndexOf(signature);
-        var renamed = new Header(OrganizationSignatureVerifier.HeaderName, signature.Value);
-        renamed.SetRawValue(signature.RawValue);
-        message.Headers.RemoveAt(index);
-        message.Headers.Insert(index, renamed);
+        var signed = OrganizationMailSigner.Sign(unsigned.ToArray(), key.KeyId, key.PrivateKey.GetEncoded())
+            ?? throw new InvalidOperationException("The message names no author to sign for.");
+        using var source = new MemoryStream(signed, writable: false);
+        using var parsed = MimeMessage.Load(source);
+
+        var signature = parsed.Headers[0];
+        var copied = new Header(signature.Field, signature.Value);
+        copied.SetRawValue(signature.RawValue);
+        message.Headers.Insert(0, copied);
     }
 
     /// <summary>Serializes a message and parses it back, as a transport and a mailbox would.</summary>
