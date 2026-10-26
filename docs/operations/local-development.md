@@ -2222,7 +2222,7 @@ not repeat, and a second one over lists that are already current costs a second 
 | Default workflow token | `read` | A job that needs more says so in its own `permissions:` block, which is reviewable; a permissive default is not |
 | Actions may create or approve pull requests | disabled | A workflow approving its own change would satisfy the ruleset's review requirement without a person |
 | Allowed actions | `all` today; #160 owns narrowing it | The allowlist is the settings-side twin of the owner contract above. The contract suite already refuses an owner outside the reviewed set on every pull request, so what the setting adds is coverage of a workflow that reaches the repository some other way |
-| Require actions pinned to a full-length commit SHA | off, and deliberately | Turning it on would refuse every reference this repository makes. Actions are referenced by major tag so that an upstream fix arrives without a commit, which is the whole update mechanism now that nothing proposes one; a commit SHA freezes that and makes each patch a pull request somebody has to open. Two references are exact versions for reasons their own workflows state, and neither is a supply-chain one. `THIRD_PARTY_LICENSES.md` records each version and the argument for allowing it, which is where the trust in a reference actually comes from, and [Keeping the pinned actions current](#keeping-the-pinned-actions-current) carries the rest |
+| Require actions pinned to a full-length commit SHA | off, and deliberately | Turning it on would refuse every reference this repository makes. Actions are referenced by major tag so that an upstream fix arrives without a commit, which is the whole update mechanism now that nothing proposes one; a commit SHA freezes that and makes each patch a pull request somebody has to open. Three references are exact versions, and only one of them for a supply-chain reason: `vegardit/fast-apt-mirror.sh` runs as root on the runner. `THIRD_PARTY_LICENSES.md` records each version and the argument for allowing it, which is where the trust in a reference actually comes from, and [Keeping the pinned actions current](#keeping-the-pinned-actions-current) carries the rest |
 | Artifact and log retention | 30 days | The REST API exposes no retention field, so the settings page is both where it is set and the only evidence it was |
 | Cache retention and size | 7 days, 10 GB | Unchanged unless measured eviction pressure argues otherwise |
 | Fork pull request approval | `Require approval for all external contributors` | Every pull request from a fork waits for a maintainer to release its run, whoever opened it. The workflows such a push can start hold a read-only token and no repository secret either way, so what the wider setting buys is that no run starts before a person has looked at the change. `gh api repos/fathomise/MailFathom/actions/permissions/fork-pr-contributor-approval` reads it |
@@ -2249,12 +2249,14 @@ Every action a workflow runs is referenced by its major tag — `actions/checkou
 executes whatever the newest release under that major is, so an upstream fix reaches this repository
 without a commit on either side, and what a version bump costs here is a major.
 
-Two references are exact versions instead, each for a reason of its own. `crate-ci/typos@v1.48.0` is
+Three references are exact versions instead, each for a reason of its own. `crate-ci/typos@v1.48.0` is
 pinned because the action's entrypoint hard-codes the `typos` binary it downloads, which makes the
 reference decide the dictionary a pull request is judged against; a moving tag there turns a green
 pull request red with no commit anywhere. `aquasecurity/trivy-action@v0.36.0` is pinned because the
 project publishes no moving major tag at all — its `v0` line is exact versions only — so there is
-nothing else to follow.
+nothing else to follow. `vegardit/fast-apt-mirror.sh@1.4.5` is pinned because the action runs with
+`sudo` and rewrites the runner's apt sources, so the reference decides which code holds root on the
+runner, and a moving `v1` would change that with no commit here.
 
 Nothing in this repository proposes an update automatically, and that is the deliberate half. A bump
 is a licensing review before it is a diff: `THIRD_PARTY_LICENSES.md` records every action's version,

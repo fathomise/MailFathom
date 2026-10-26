@@ -261,8 +261,11 @@ crate_latest() {
 # `crate-ci/typos` with 355 — so the flag costs one request today exactly as its absence did. It is here because the
 # newest major is computed from this list, and a page boundary appearing upstream would not fail: it would quietly
 # report a pin as current.
+#
+# The second argument is the prefix the tags carry, which is read off the pin rather than assumed: most actions tag
+# `v1.2.3`, but `vegardit/fast-apt-mirror.sh` tags a bare `1.4.5`, and asking for `tags/v` there returns nothing.
 github_version_tags() {
-  gh api --paginate "repos/$1/git/matching-refs/tags/v" --jq '.[].ref' 2> /dev/null | sed 's|^refs/tags/||' || true
+  gh api --paginate "repos/$1/git/matching-refs/tags/$2" --jq '.[].ref' 2> /dev/null | sed 's|^refs/tags/||' || true
 }
 
 ### The register side. Both readers are pattern reads over prose and are reported as such.
@@ -460,7 +463,7 @@ survey_sdk_pins() {
 }
 
 survey_action_references() {
-  local reference action_repository pinned latest licence recorded note tags exact_tags
+  local reference action_repository pinned tag_prefix latest licence recorded note tags exact_tags
 
   [[ -d "$workflow_directory" ]] || return 0
 
@@ -469,8 +472,10 @@ survey_action_references() {
 
     action_repository="$(printf '%s' "${reference%@*}" | cut -d/ -f1-2)"
     pinned="${reference#*@}"
+    tag_prefix=''
+    [[ "$pinned" == v* ]] && tag_prefix='v'
 
-    tags="$(github_version_tags "$action_repository")"
+    tags="$(github_version_tags "$action_repository" "$tag_prefix")"
     licence="$(github_licence "$action_repository")"
     recorded="$(register_recorded_licences "$action_repository")"
 
@@ -485,7 +490,7 @@ survey_action_references() {
       # not on.
       exact_tags="$(printf '%s\n' "$tags" | grep -E "^${pinned}\.[0-9]+\.[0-9]+$" | sort -V | tail -1)" || true
     else
-      exact_tags="$(printf '%s\n' "$tags" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)" || true
+      exact_tags="$(printf '%s\n' "$tags" | grep -E "^${tag_prefix}[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -1)" || true
     fi
 
     if [[ "$pinned" =~ ^v[0-9]+$ ]]; then
