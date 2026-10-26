@@ -103,7 +103,7 @@ three axes already give.
 keeps a mouse's sizes and panels, and a 1366 px touch tablet keeps a finger's. The framed previews say which they are —
 the `layout` property's `phone`, `fold` and `tablet` frames are touch devices, `desktop` is a mouse, and `auto` asks
 the browser (`st.coarse`, kept current by a `matchMedia` listener). Under `touch`: every target meets § *What every
-touch composition holds to* below; sheets and drawers follow the finger; a row swipes and holds; what stands under tabs swipes between them; the message list pulled down from its top refreshes; and nothing exists
+touch composition holds to* below; sheets and drawers follow the finger; a row swipes and holds; what stands under tabs swipes between them; the message list pulled down from its top refreshes; a toast is dragged aside to dismiss it; and nothing exists
 only under a hover — not a control's name, not the reason a control cannot act, not a fact a row folds away (*A control's name* under
 § *What every artboard shares*). Without it: the desktop's sizes, hover affordances, and the two resizers (`showResizer`,
 `showSideResizer`), which are drag handles and so a fine pointer's alone.
