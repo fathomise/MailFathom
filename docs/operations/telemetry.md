@@ -1070,6 +1070,17 @@ It is a counter and it is additive: each replica counts the organizations its ow
 deployment of several replicas rises by up to one per organization per replica each hour, and a panel sums it across
 them. No organization identity, name, or key reaches the instrument or the log.
 
+The same absence reaches the mail itself. `mailfathom.organization.mail.unsigned` counts each message an organization's
+account sent [without the organization's signature](organization-signing-keys.md#what-is-signed-and-when), in
+`{message}`, with no dimension: the organization held no active key, its active key's private half did not open under
+the key ring — a ring key removed while a signing key was still sealed under it — or the message named no author whose
+domain the signature could carry. The message is sent all the same, because a signature is never a condition of
+delivery, so this counter is the only place the gap shows. A deployment whose organizations all hold an openable key
+reads zero; a rise is mail colleagues will not be able to verify, and the fix is the key ring or the key rather than
+anything about the mail. It is additive like the counter above — each replica counts the messages it queued — and mail
+from an account in no organization never moves it. Nothing identifying the account, the organization, the message, or
+the key reaches it.
+
 ### What delivering the outbox emits
 
 Sending is the other direction of the same absence: the mail library publishes nothing of its own here either, and a

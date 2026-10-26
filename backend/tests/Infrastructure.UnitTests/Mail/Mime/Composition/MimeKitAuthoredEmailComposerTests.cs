@@ -1118,6 +1118,39 @@ public sealed class MimeKitAuthoredEmailComposerTests
         Assert.Equal("Zażółć gęślą", Parse(composition).TextBody?.Trim());
     }
 
+    /// <summary>
+    /// 8BITMIME is one hop's promise, and a relay that re-encodes an eight-bit body breaks every signature over it, so
+    /// even a server that would take eight bits is handed every part seven-bit.
+    /// </summary>
+    [Fact]
+    public void Compose_ServerAdvertisingEightBitContent_TransferEncodesEveryPartToSevenBits()
+    {
+        // Arrange
+        var composer = CreateComposer();
+        var authored = Authored() with
+        {
+            PlainTextBody = "Zażółć gęślą",
+            HtmlBody = "<p>Zażółć gęślą</p>",
+            Attachments = [new AuthoredEmailAttachment("notatka.txt", "text/plain", Encoding.UTF8.GetBytes("jaźń"))],
+        };
+
+        // Act
+        var composition = composer.Compose(
+            Account,
+            SyntheticUser.Deployment,
+            Requester(),
+            authored,
+            Capabilities(acceptsEightBitContent: true));
+
+        // Assert
+        using var message = Parse(composition);
+        Assert.DoesNotContain(composition.Email!.RawMime.ToArray(), static octet => octet > 127);
+        Assert.All(
+            message.BodyParts.OfType<MimePart>(),
+            part => Assert.DoesNotContain(part.ContentTransferEncoding, new[] { ContentEncoding.EightBit, ContentEncoding.Binary }));
+        Assert.Equal("Zażółć gęślą", message.TextBody?.Trim());
+    }
+
     /// <summary>The stored bytes are transmitted verbatim, so they carry the line ending SMTP requires.</summary>
     [Fact]
     public void Compose_ComposedMessage_IsWrittenWithNetworkLineEndings()

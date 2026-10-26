@@ -11,6 +11,7 @@ using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Delivery.Governance;
 using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Outbox;
+using MailFathom.Application.Mail.Delivery.Signing;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
@@ -58,6 +59,54 @@ public sealed class MailDraftPromotionTests
             Arg.Is<PlacedEmailContent>(placed => placed!.RawMime.ToArray().SequenceEqual(stored)),
             Arg.Any<CancellationToken>());
         Assert.Equal(record.Id, harness.Drafts.Peek(draft.Id)!.PromotedTo);
+    }
+
+    /// <summary>
+    /// A promoted draft is not composed again, so it reaches the signer through the outbox like any composed message: the
+    /// draft's own bytes are signed and the signed bytes are what is queued.
+    /// </summary>
+    [Fact]
+    public async Task PromoteAsync_ADraftOfAnAccountItsOrganizationSignsFor_QueuesTheDraftSigned()
+    {
+        // Arrange
+        const string signature = "MailFathom-Organization-Signature: v=1; a=ed25519-sha256\r\n";
+        var harness = Harness();
+        var draft = await SaveAsync(harness, "the message as written");
+        var contentStore = ContentStores.Substituted();
+        var signer = OrganizationMailSigners.Adding(signature);
+        var promotion = PromotionOver(harness, contentStore: contentStore, signer: signer);
+        var stored = harness.Contents.Peek(draft.Id).ToArray();
+        byte[] signed = [.. Encoding.ASCII.GetBytes(signature), .. stored];
+
+        // Act
+        var record = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+
+        // Assert
+        var (account, handedOver) = Assert.Single(signer.Requests);
+        Assert.Equal(Account, account);
+        Assert.Equal(stored, handedOver);
+        await contentStore.Received(1).SaveOutgoingContentAsync(
+            Arg.Any<IPersistenceSession>(),
+            record.Id,
+            Arg.Is<PlacedEmailContent>(placed => placed!.RawMime.ToArray().SequenceEqual(signed)),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A draft that is only stored is not sent, so it is never signed: the copy in the drafts folder is not the message that leaves.</summary>
+    [Fact]
+    public async Task SaveAsync_ADraftOnlyStored_IsNeverSigned()
+    {
+        // Arrange
+        var harness = Harness();
+        var signer = OrganizationMailSigners.Adding("MailFathom-Organization-Signature: v=1\r\n");
+        _ = PromotionOver(harness, signer: signer);
+
+        // Act
+        var draft = await SaveAsync(harness, "the message as written");
+
+        // Assert
+        Assert.Empty(signer.Requests);
+        Assert.StartsWith("Subject: a draft", Encoding.ASCII.GetString(harness.Contents.Peek(draft.Id).Span), StringComparison.Ordinal);
     }
 
     /// <summary>Asking twice queues one message, because the draft already names the record the first ask wrote.</summary>
@@ -480,7 +529,8 @@ public sealed class MailDraftPromotionTests
         OutgoingEmailBounds? bounds = null,
         OutgoingMailGovernor? governor = null,
         AuthoredSendGovernor? sendGovernor = null,
-        OptimisticConcurrencyRetryPolicy? draftMarkPolicy = null)
+        OptimisticConcurrencyRetryPolicy? draftMarkPolicy = null,
+        IOrganizationMailSigner? signer = null)
     {
         var store = outgoingEmails ?? new InMemoryOutgoingEmailStore();
         var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
@@ -507,6 +557,7 @@ public sealed class MailDraftPromotionTests
             AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend),
             governor ?? OutgoingMailGovernors.Permitting(),
             OutgoingMailScreenings.Inactive(),
+            signer ?? OrganizationMailSigners.SigningNothing(),
             new FakeTimeProvider(Moment),
             ClientSignalPublishers.ReachingNobody);
 

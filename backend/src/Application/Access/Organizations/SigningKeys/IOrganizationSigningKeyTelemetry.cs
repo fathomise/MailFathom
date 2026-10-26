@@ -4,10 +4,14 @@
 
 namespace MailFathom.Application.Access.Organizations.SigningKeys;
 
-/// <summary>Publishes what the background pass over organization signing keys could not do.</summary>
+/// <summary>Publishes what organization signing keys could not do: be minted by the background pass, or sign a message.</summary>
 public interface IOrganizationSigningKeyTelemetry
 {
     /// <summary>Records that an organization due a key got none because the deployment configures no key ring.</summary>
     /// <remarks>Counted once per organization per pass, so it keeps rising for as long as the ring stays absent rather than recording the fact once.</remarks>
     void MintRefusedWithoutKeyRing();
+
+    /// <summary>Records that a message an organization's account sent left unsigned, because the organization held no key that could sign it.</summary>
+    /// <remarks>Counted once per message, so it rises with the mail an organization sends for as long as nothing signs it.</remarks>
+    void MessageSentUnsigned();
 }

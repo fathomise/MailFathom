@@ -154,6 +154,7 @@ public sealed class UserMailDraftsTests
             AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend),
             OutgoingMailGovernors.Permitting(),
             OutgoingMailScreenings.Inactive(),
+            OrganizationMailSigners.SigningNothing(),
             new FakeTimeProvider(Moment),
             ClientSignalPublishers.ReachingNobody);
 

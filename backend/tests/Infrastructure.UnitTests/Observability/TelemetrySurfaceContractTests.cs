@@ -325,6 +325,7 @@ public sealed class TelemetrySurfaceContractTests
         DriveContentMove();
         ContentRelease.Released(payloadCount: 3, byteCount: 61_057);
         OrganizationSigningKeys.MintRefusedWithoutKeyRing();
+        OrganizationSigningKeys.MessageSentUnsigned();
         DriveObjectStorage();
         DriveSensitiveContent();
         DriveSpamModelStage();

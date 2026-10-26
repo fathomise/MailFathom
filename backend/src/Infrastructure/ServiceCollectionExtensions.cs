@@ -79,6 +79,7 @@ using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Delivery.Scheduling;
 using MailFathom.Application.Mail.Delivery.Screening;
+using MailFathom.Application.Mail.Delivery.Signing;
 using MailFathom.Application.Mail.Delivery.Submission;
 using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Application.Mail.Export;
@@ -1462,6 +1463,10 @@ public static class ServiceCollectionExtensions
             provider.GetRequiredService<EmailAttachmentTextBounds>(),
             provider.GetRequiredService<TimeProvider>()));
         services.AddScoped<OutgoingMailScreening>();
+        // What signs a message for its account's organization before the outbox stores it. Scoped because the reading of
+        // the account's organization and its key goes through the request's own context.
+        services.AddScoped<IAccountSigningKeyReader, PersistedAccountSigningKeys>();
+        services.AddScoped<IOrganizationMailSigner, OrganizationMailSigner>();
         services.AddScoped<MailOutbox>();
         // The operator's view of the same records, registered beside the outbox rather than with the administrative
         // endpoint that serves it today: the grant is asked in the use case, so a second entrypoint reaching it is

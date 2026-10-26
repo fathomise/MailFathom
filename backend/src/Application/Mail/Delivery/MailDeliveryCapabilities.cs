@@ -10,15 +10,14 @@ namespace MailFathom.Application.Mail.Delivery;
 /// server that advertises the size extension without a number is stating that it has no fixed maximum, which is the
 /// same absence.
 /// </param>
-/// <param name="AcceptsEightBitContent">Whether the server accepts a body whose bytes are not restricted to seven bits.</param>
+/// <param name="AcceptsEightBitContent">Whether the server accepts content whose bytes are not restricted to seven bits, which decides whether it can carry an address outside ASCII; every body is sent seven-bit regardless.</param>
 /// <param name="AcceptsInternationalizedAddresses">Whether the server accepts an envelope address outside ASCII.</param>
 /// <remarks>
 /// <para>
 /// These three decide whether a message can be sent at all rather than how it is sent, which is why they are the ones
-/// a session reports. A message beyond the declared size is refused after its whole body has crossed the network; an
-/// internationalized address the server cannot carry is refused outright; and a body the server cannot take
-/// unencoded has to be encoded before it is transmitted. A caller left to guess at any of the three pays for the guess
-/// in a transmission that was never going to be accepted.
+/// a session reports. A message beyond the declared size is refused after its whole body has crossed the network, and
+/// an internationalized address the server cannot carry — which takes both of the other two answers — is refused
+/// outright. A caller left to guess at either pays for the guess in a transmission that was never going to be accepted.
 /// </para>
 /// <para>
 /// Everything else a server advertises is absent on purpose. Pipelining, chunking, and delivery status notifications
@@ -44,12 +43,8 @@ public sealed record MailDeliveryCapabilities(
     /// message a server would have taken without protecting one it would not.
     /// </para>
     /// <para>
-    /// Eight-bit content is not assumed, so the message is transfer-encoded to seven bits. That is accepted by every
-    /// submission server, including the ones that would have taken it unencoded, and costs a fraction of the size;
-    /// composing eight-bit and meeting a server that takes none would be a message that can never be delivered.
-    /// </para>
-    /// <para>
-    /// Internationalized addresses are not assumed either, and that one is a refusal rather than a cost: an address
+    /// Neither eight-bit content nor internationalized addresses are assumed, and together they are a refusal rather
+    /// than a cost — the body is seven-bit whatever a server says, so only an address depends on them: an address
     /// outside ASCII is refused while the caller is still there to be told, instead of being queued and failing against
     /// the server hours later with nobody to answer for it.
     /// </para>

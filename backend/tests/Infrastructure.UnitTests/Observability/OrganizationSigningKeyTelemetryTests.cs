@@ -8,10 +8,12 @@ using Xunit;
 
 namespace MailFathom.Infrastructure.UnitTests.Observability;
 
-/// <summary>Covers the counter that tells an operator their organizations are going unsigned for want of a key ring.</summary>
+/// <summary>Covers the counters that tell an operator their organizations, and their mail, are going unsigned.</summary>
 public sealed class OrganizationSigningKeyTelemetryTests
 {
     private const string UnmintedInstrument = "mailfathom.organization.signing_key.unminted";
+
+    private const string UnsignedInstrument = "mailfathom.organization.mail.unsigned";
 
     [Fact]
     public void MintRefusedWithoutKeyRing_EachOrganizationLeftWithoutAKey_CountsOneWithNoDimension()
@@ -26,6 +28,22 @@ public sealed class OrganizationSigningKeyTelemetryTests
 
         // Assert
         Assert.Equal([1d, 1d], measurements.ValuesOf(UnmintedInstrument));
+        Assert.All(measurements.Recorded, measurement => Assert.Empty(measurement.Tags));
+    }
+
+    [Fact]
+    public void MessageSentUnsigned_EachMessageLeftUnsigned_CountsOneWithNoDimension()
+    {
+        // Arrange
+        var telemetry = new OrganizationSigningKeyTelemetry();
+        using var measurements = new RecordedMailFathomMeasurements(UnsignedInstrument);
+
+        // Act
+        telemetry.MessageSentUnsigned();
+        telemetry.MessageSentUnsigned();
+
+        // Assert
+        Assert.Equal([1d, 1d], measurements.ValuesOf(UnsignedInstrument));
         Assert.All(measurements.Recorded, measurement => Assert.Empty(measurement.Tags));
     }
 }

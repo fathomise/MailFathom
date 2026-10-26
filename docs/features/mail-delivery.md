@@ -45,7 +45,7 @@ capability flags:
 | Fact | Read from | Absent means |
 | --- | --- | --- |
 | Maximum message bytes | `SIZE` | The server declared no bound, and the session reports none. |
-| Eight-bit content accepted | `8BITMIME` | Content has to be transfer-encoded to seven bits. |
+| Eight-bit content accepted | `8BITMIME` | An address outside ASCII cannot be carried. The body is seven-bit either way. |
 | Internationalized addresses accepted | `SMTPUTF8` | Addresses have to be all-ASCII. |
 
 `PermitsMessageOfSize` answers the size question in one place, so no caller re-derives what a missing `SIZE` means: a
@@ -361,6 +361,15 @@ prevent — and an alternative present but blank is refused for the same reason 
 carries the media type its author declared it as, because deriving one from the octets would be this system asserting
 what somebody else's file is.
 
+**Every message is sent seven-bit**, from every account and whatever the submission server advertises: every text part
+goes as quoted-printable or base64, and no part carries an `8bit` or `binary` transfer encoding. `8BITMIME` is one hop's
+promise and says nothing about the servers after it, and a relay that rescans or converts a message may re-encode an
+eight-bit body on the way. A re-encoded body breaks every signature made over it — the
+[organization's signature](../operations/organization-signing-keys.md), S/MIME, and PGP/MIME alike — so one rule holds
+for every message rather than one per signing path. Headers are not affected, so an internationalized address still needs
+`SMTPUTF8`, and the size bound is checked after the encoding, so a message it grows past the bound is refused as any
+other is. A draft an earlier build stored keeps the encoding it was stored with.
+
 **And some are bounds.** A recipient count, a body length, an attachment count, a per-file size, and a whole-message
 size are all the deployment's numbers rather than whatever a caller passed, and each is checked before a connection is
 worth opening. `MailDelivery` in [the mail configuration](../operations/configuration-mail.md#maildelivery)
@@ -621,6 +630,12 @@ scanning § outgoing mail is screened rather than
 redacted](sensitive-content-scanning.md#outgoing-mail-is-screened-rather-than-redacted) holds the whole of it. With no
 scanner switched on nothing here runs, and an enqueue costs exactly what it did before.
 
+**A message that clears the screen is signed before it is stored** when the sending account belongs to an organization:
+the outbox adds the organization's signature above the composed bytes, and the signed bytes are the ones stored, sent on
+every attempt, and filed into the sent folder. A refused message is never signed, and nothing about signing can refuse
+one. [Organization signing keys § what is signed, and when](../operations/organization-signing-keys.md#what-is-signed-and-when)
+holds the whole of it.
+
 ## Asking for a message to be sent
 
 `AuthoredMailSubmission` is the one use case a boundary reaches to send a message that answers nothing, and it composes
@@ -649,7 +664,7 @@ and each of its three values is the answer that stays correct whatever the serve
 | Fact | Value | Why that one |
 | --- | --- | --- |
 | Maximum message bytes | None declared | The deployment's own bound is applied at composition regardless, and the server's is checked against the stored length before the message is offered, so assuming a number here would refuse a message a server would have taken without protecting one it would not. |
-| Eight-bit content accepted | No | Content encoded to seven bits is accepted by a server that would also have taken it unencoded, at a fraction more size. Composing eight-bit and meeting a server that takes none produces a message that can never be delivered. |
+| Eight-bit content accepted | No | The body is seven-bit whatever the server says, so this decides only, with the row below, whether an address outside ASCII can be carried. |
 | Internationalized addresses accepted | No | This one is a refusal rather than a cost. An address outside ASCII is refused while the caller is still there to be told, instead of being queued to fail against the server hours later with nobody to answer for it. |
 
 **The grant is asked for twice on the way in, and neither ask is the duplicate.** The use case asks first, so a caller
@@ -1319,7 +1334,7 @@ Composition is settled entirely in the unit suite, because it reaches nothing: t
 bytes back with the same parser this system reads arriving mail with. What they establish is each refusal against the
 field it names, the sending address and the minted identity against an account that supplied neither, one mailbox named
 in two headers becoming one offer in the more visible one, a blind recipient appearing in the envelope and in none of
-the transmitted bytes, an eight-bit body transfer-encoded when the server takes none, the two threading headers written
+the transmitted bytes, every body transfer-encoded to seven bits even against a server advertising `8BITMIME`, the two threading headers written
 together or not at all, one `User-Agent` naming the product on a send, a draft, and an occasion recomposed from a draft
 that carried it already or carried another, and the line ending a stored message carries — which matters precisely because the bytes are
 transmitted verbatim rather than re-serialized.
