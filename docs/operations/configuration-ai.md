@@ -226,7 +226,9 @@ schedule: a pass is a step of the account's synchronization run, so how often on
 these decide is how much of a mailbox one pass takes in hand — raising them walks a mailbox nobody has classified in
 fewer account runs, and lowering them shortens the stretch an interrupted pass has to cover again and leaves more of
 each run for the folders it exists to fetch. Both defaults are smaller than the rule pass's, because a classification
-reads the stored message out of the content store and parses its headers.
+reads the stored message out of the content store and parses its headers. The same two bound the pass that holds every
+message in the junk folder or carrying `$Junk` at [no less than spam](../features/spam-classification.md#junk-mail-is-never-below-spam),
+which runs in every account's synchronization run whether or not the account classifies.
 
 ## `Embeddings`
 

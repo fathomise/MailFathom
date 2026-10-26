@@ -45,7 +45,7 @@ MailFathom synchronizes mailboxes read-only, on a bounded schedule, and — for 
 starts one `AccountSynchronizationSupervisor` per served account and supervises those supervisors; everything a
 run actually does belongs to the supervisor of the account it runs for.
 [The arrival pipeline](../architecture/arrival-pipeline.md) draws what a run does after its folders have finished — the
-classification pass, the rules, the cut that produces a message's passages, the reading of what its attachments say,
+spam floor, the classification pass, the rules, the cut that produces a message's passages, the reading of what its attachments say,
 and the derivation of what a message is about — and in what order. A run also drains
 the account's outbox there, which is what makes sending correct without anything watching for it;
 [mail delivery](mail-delivery.md#how-a-written-down-send-reaches-a-server) states why that step can never fail the run.
@@ -690,7 +690,7 @@ a change to the interval rather than dropping it. One arriving while the account
 than a corner, since the record is usually written while a run is under way, so it is kept until something answers it.
 
 **A run under way answers it at its next stage boundary.** A run converges before it reads its folders and again between
-each of the passes that follow them — the delivery, the retention sweep, the classification, the rules, the cut, the
+each of the passes that follow them — the delivery, the retention sweep, the spam floor, the classification, the rules, the cut, the
 attachment reading, the two derivations, and the report — so a change recorded while any one of those is running is
 carried at the boundary after it rather than waiting out the stages left. That matters because those stages are where a
 run spends its time: the folders of a settled account take a couple of seconds and the derivations behind them take tens

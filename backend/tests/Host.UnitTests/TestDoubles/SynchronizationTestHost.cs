@@ -42,6 +42,7 @@ using MailFathom.Application.SensitiveContent;
 using MailFathom.Application.SensitiveContent.Derivation;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Actions;
+using MailFathom.Application.Spam.Floor;
 using MailFathom.Application.Spam.Gating;
 using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.Spam.Signals;
@@ -129,6 +130,7 @@ internal static class SynchronizationTestHost
     /// <param name="folderMirrorStore">Replaces the store an unmirrored folder's local copy would be erased through, which no run reaches.</param>
     /// <param name="ruleEvaluationStore">Replaces the store a rule pass reads its candidates from; one with nothing to evaluate is the default.</param>
     /// <param name="classificationRunStore">Replaces the store the classification pass reads its outstanding run from; one with nothing outstanding is the default.</param>
+    /// <param name="floorCandidateReader">Replaces the reader the spam floor finds mail below it through; one finding nothing is the default.</param>
     /// <param name="chunkingStore">Replaces the store the cut reads its candidates from; one with nothing awaiting passages is the default.</param>
     /// <param name="attachmentTextStore">
     /// Replaces the store the attachment reading reads its candidates from. Supplying one also turns attachment reading
@@ -152,6 +154,7 @@ internal static class SynchronizationTestHost
         IStoredEmailChunkingStore? chunkingStore = null,
         IStoredEmailAttachmentTextStore? attachmentTextStore = null,
         IWorkLeaseStore? workLeaseStore = null,
+        ISpamVerdictFloorCandidateReader? floorCandidateReader = null,
         params string[] unadvertisedAliases)
     {
         var services = new ServiceCollection();
@@ -356,6 +359,10 @@ internal static class SynchronizationTestHost
         services.AddScoped<EmailSpamClassifier>();
         services.AddScoped<SpamActionRecorder>();
         services.AddScoped<SpamClassificationPass>();
+        // The spam floor rides the same run, one step before the classification walk, whatever classification says. No
+        // mail these tests store sits below it, so the default reader answers with nothing and the pass writes nothing.
+        services.AddSingleton(floorCandidateReader ?? CreateFloorCandidateReaderWithNothingBelowTheFloor());
+        services.AddScoped<SpamVerdictFloorPass>();
         // The arrival trigger the run reaches after each message it commits, and the queue it writes through. Every
         // account these tests configure runs with classification off, so the trigger reads one property per stored
         // message and the substituted queue is never asked for anything.
@@ -543,6 +550,22 @@ internal static class SynchronizationTestHost
     private sealed class EnglishForEveryAccount : IMailAccountLanguages
     {
         public MailAccountLanguage LanguageOf(MailAccountId account) => MailAccountLanguage.English;
+    }
+
+    /// <summary>Answers that no message sits below the floor.</summary>
+    private static ISpamVerdictFloorCandidateReader CreateFloorCandidateReaderWithNothingBelowTheFloor()
+    {
+        var reader = Substitute.For<ISpamVerdictFloorCandidateReader>();
+        reader
+            .GetCandidatesAsync(
+                Arg.Any<MailAccountId>(),
+                Arg.Any<SpamVerdictFloorTerms>(),
+                Arg.Any<StoredEmailId?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<SpamVerdictFloorCandidate>>([]));
+
+        return reader;
     }
 
     /// <summary>Answers with classification switched off, which is what a deployment configuring none of it runs with.</summary>

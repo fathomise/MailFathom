@@ -12,6 +12,7 @@ using MailFathom.Application.Spam.Gating;
 using MailFathom.Application.Spam.Signals;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
 using MailFathom.Domain.Spam;
 
@@ -275,6 +276,17 @@ public sealed class EmailSpamClassifier
         return new HashSet<SpamVerdictAct>(recorded) { SpamVerdictAct.FiledIntoJunk };
     }
 
+    /// <summary>Answers the junk folder the message is in now, if it is in one.</summary>
+    /// <remarks>
+    /// The folder it is in now rather than the one it was stored from, because a held or restoring account moves a message
+    /// locally without its binding following, and the spam floor reads the same folder: a classification reading the
+    /// binding instead would write a verdict below spam over the floor's on a message the person put into junk.
+    /// </remarks>
+    private MailFolderAlias? JunkFolderHolding(ClassifiableEmail email) =>
+        email.CurrentFolderAlias is { } current && this.junkFolders.IsJunkFolder(email.AccountId, current)
+            ? current
+            : null;
+
     /// <summary>Reads one occurrence and composes the record its verdict is kept as.</summary>
     private async Task<SpamClassification> EvaluateAsync(
         ClassifiableEmail email,
@@ -283,12 +295,12 @@ public sealed class EmailSpamClassifier
         CancellationToken cancellationToken)
     {
         var facts = await this.headerReader.ReadAsync(content, cancellationToken);
-        var isJunkFolder = this.junkFolders.IsJunkFolder(email.AccountId, email.FolderAlias);
+        var junkFolder = this.JunkFolderHolding(email);
+        var isJunkFolder = junkFolder is not null;
         var ownActs = await this.FindOwnActsAsync(email.Id, isJunkFolder, cancellationToken);
-        var reading = this.deterministicClassifier.Read(
-            facts,
-            email.FolderAlias,
-            isJunkFolder,
+        var reading = this.deterministicClassifier.LiftToFloor(
+            this.deterministicClassifier.Read(facts, junkFolder ?? email.FolderAlias, isJunkFolder, email.Keywords, ownActs),
+            junkFolder,
             email.Keywords,
             ownActs);
 

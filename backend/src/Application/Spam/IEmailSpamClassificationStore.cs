@@ -52,4 +52,20 @@ public interface IEmailSpamClassificationStore
         IPersistenceSession session,
         SpamClassification classification,
         CancellationToken cancellationToken);
+
+    /// <summary>Stages the spam floor's verdict for one occurrence, unless the row already holds spam or the person's own verdict.</summary>
+    /// <param name="session">The explicit persistence session this write participates in.</param>
+    /// <param name="classification">The floor's spam verdict.</param>
+    /// <param name="cancellationToken">Cancels the lookup before anything is staged.</param>
+    /// <returns><see langword="true" /> once the write is staged; <see langword="false" /> when the row holds a verdict the floor leaves alone.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="classification" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// The floor only ever raises. A spam verdict already recorded may carry a subcategory a stage named, which the
+    /// floor's bare spam would take away, so it is refused against the row the session reads exactly as
+    /// <see cref="SaveAsync" /> refuses to replace the person's verdict, and a row written after that read conflicts.
+    /// </remarks>
+    Task<bool> LiftToSpamAsync(
+        IPersistenceSession session,
+        SpamClassification classification,
+        CancellationToken cancellationToken);
 }

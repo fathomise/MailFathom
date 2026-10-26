@@ -1,6 +1,6 @@
 # The arrival pipeline
 
-<!-- describes: backend/src/Application/Synchronization/MailboxSynchronizer.cs, backend/src/Application/Emails/Chunking/MailChunkingPass.cs, backend/src/Infrastructure/Persistence/Emails/StoredEmailChunkingStore.cs, backend/src/Application/Emails/Extraction/RedactingEmailMimeReader.cs, backend/src/Application/Emails/Extraction/SenderTrustEvaluatingEmailMimeReader.cs, backend/src/Application/Emails/Extraction/MachineAuthorshipEvaluatingEmailMimeReader.cs, backend/src/Application/Emails/Threads/EmailThreadAssembly.cs, backend/src/Application/Spam/Gating/**, backend/src/Application/Spam/Runs/SpamClassificationPass.cs, backend/src/Application/Spam/SpamClassificationArrivals.cs, backend/src/Application/Contacts/Collection/MailContactCollector.cs, backend/src/Application/Spam/EmailSpamClassificationHandler.cs, backend/src/Application/Rules/Evaluation/MailRuleEvaluationPass.cs, backend/src/Application/Emails/Enrichment/MailEnrichmentPass.cs, backend/src/Application/Emails/ThreadStates/ThreadStateDerivationPass.cs, backend/src/Host/Hosting/Workers/AccountSynchronizationSupervisor.cs, backend/src/Host/Hosting/Workers/MailEmbeddingWorker.cs -->
+<!-- describes: backend/src/Application/Synchronization/MailboxSynchronizer.cs, backend/src/Application/Emails/Chunking/MailChunkingPass.cs, backend/src/Infrastructure/Persistence/Emails/StoredEmailChunkingStore.cs, backend/src/Application/Emails/Extraction/RedactingEmailMimeReader.cs, backend/src/Application/Emails/Extraction/SenderTrustEvaluatingEmailMimeReader.cs, backend/src/Application/Emails/Extraction/MachineAuthorshipEvaluatingEmailMimeReader.cs, backend/src/Application/Emails/Threads/EmailThreadAssembly.cs, backend/src/Application/Spam/Gating/**, backend/src/Application/Spam/Runs/SpamClassificationPass.cs, backend/src/Application/Spam/Floor/SpamVerdictFloorPass.cs, backend/src/Application/Spam/SpamClassificationArrivals.cs, backend/src/Application/Contacts/Collection/MailContactCollector.cs, backend/src/Application/Spam/EmailSpamClassificationHandler.cs, backend/src/Application/Rules/Evaluation/MailRuleEvaluationPass.cs, backend/src/Application/Emails/Enrichment/MailEnrichmentPass.cs, backend/src/Application/Emails/ThreadStates/ThreadStateDerivationPass.cs, backend/src/Host/Hosting/Workers/AccountSynchronizationSupervisor.cs, backend/src/Host/Hosting/Workers/MailEmbeddingWorker.cs -->
 
 Nine features decide what happens to a message between the moment synchronization fetches it and the moment
 everything derived from it exists. Each of them documents its own half, and none of them can state the order, because
@@ -24,6 +24,7 @@ flowchart TD
         commit[("Commit: metadata, the conversation it joins, raw MIME, search document, and the folder it lands in")]
         ask(["Ask for the message to be classified"])
         collect["Record the correspondent — only where the account collects contacts"]
+        floor["Raise junk mail to the spam floor — every account, classifying or not"]
         classify["Classification pass — only when somebody asked for a run over the whole mailbox"]
         rules["Rule evaluation pass"]
         cut["Cut the passages"]
@@ -56,7 +57,7 @@ flowchart TD
     commit --> ask
     commit --> collect
     ask -. "one job per stored email; a full queue refuses rather than waits" .-> job
-    ask --> classify
+    ask --> floor --> classify
     job -. "records the verdict" .-> gate
     classify --> gate{"What does classification say?"}
     gate -- "junk" --> withheld["Nothing further runs, and passages already cut are removed"]
@@ -95,6 +96,15 @@ The pass inside the run is the second place, and it is the operator's:
 [classifying the mail you already have](../features/spam-classification.md#classifying-the-mail-you-already-have) walks
 a mailbox that was stored before any of this, or stored while the feature was off. Both reach the same use case and
 record the same record; what differs is which mail they cover.
+
+A step just before that pass is not classification at all: [the spam
+floor](../features/spam-classification.md#junk-mail-is-never-below-spam) gives every message in the junk folder or
+carrying `$Junk` at least a spam verdict, on every account whether or not it classifies, so the classification run, the
+rules, and the cut after it meet such a message below spam only while a backlog larger than the step's per-run bound is
+still being worked through, which the first run after an upgrade over a large junk folder is. That verdict outlives the placement: on an account
+that classifies, a message the floor raised stays withheld after MailFathom moves it out of the junk folder, or the
+person moves it out locally on a held account, until the person marks it not spam or a later classification that
+reaches it decides otherwise.
 
 Four things can become of one classification, and the gate below reads what was recorded rather than what happened to
 the job. A verdict of junk withholds the message; a verdict of anything else admits it; a scan that could not answer
@@ -177,8 +187,12 @@ derived store. Classification reads none of the body, so redaction has nothing t
 
 ## What each classification outcome permits
 
-The gate reads where the message is now and what was decided about it, and it writes nothing down — which is what makes
-mail a user drags out of the junk folder ordinary mail from that moment.
+The gate reads where the message is now and what was decided about it, and it writes nothing down. What was decided
+includes the verdict the spam floor gives mail in the junk folder, so on an account that classifies, a message MailFathom
+moves out of junk, or one the person moves out locally on a held account, keeps its row and is withheld on that verdict
+rather than admitted the moment it leaves. A drag in another client on a mirrored account arrives as a new occurrence
+with no classification of its own and is decided afresh, and an account that classifies nothing admits its mail
+whatever it carries.
 
 | Outcome | Rules | Passages | Vectors |
 | --- | --- | --- | --- |
@@ -196,8 +210,9 @@ withholding it is an ordering behind a verdict rather than a rule of its own —
 walk goes on waiting on its own.
 
 A held message is held rather than dropped. The same four facts are read again by the next account run and by both
-sweeps, so a verdict that arrives late, a wait that runs out, and a message moved out of the junk folder all admit it
-without any stored state having to say it was once withheld. What the outcome does reach is a counter: the run records
+sweeps, so a verdict that arrives late, a wait that runs out, and a message with no spam verdict moved out of the junk
+folder — one carrying the person's not spam, say — all admit it without any stored state having to say it was once
+withheld. What the outcome does reach is a counter: the run records
 the gate's answer as each message arrives, because work that never starts leaves no other trace and a mailbox held
 behind classification would otherwise read exactly like a mailbox with no mail in it.
 
