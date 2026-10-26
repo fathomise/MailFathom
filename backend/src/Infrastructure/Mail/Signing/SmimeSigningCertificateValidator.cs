@@ -175,15 +175,26 @@ public sealed class SmimeSigningCertificateValidator
     /// The platform publishes no reader for an <c>rfc822Name</c>, so the extension is decoded here; a malformed one names
     /// nothing rather than failing, and the certificate is then refused for naming no address.
     /// </remarks>
-    private static string[] NamedAddressesOf(X509Certificate2 leaf)
-    {
-        var subjectAddresses = leaf.SubjectName.EnumerateRelativeDistinguishedNames()
-            .Where(static name => !name.HasMultipleElements
-                && name.GetSingleElementType().Value == EmailAddressAttributeOid)
-            .Select(static name => name.GetSingleElementValue())
-            .OfType<string>();
+    private static string[] NamedAddressesOf(X509Certificate2 leaf) =>
+        [.. AlternativeAddressesOf(leaf), .. SubjectAddressesOf(leaf)];
 
-        return [.. AlternativeAddressesOf(leaf), .. subjectAddresses];
+    private static string[] SubjectAddressesOf(X509Certificate2 leaf)
+    {
+        try
+        {
+            return
+            [
+                .. leaf.SubjectName.EnumerateRelativeDistinguishedNames()
+                    .Where(static name => !name.HasMultipleElements
+                        && name.GetSingleElementType().Value == EmailAddressAttributeOid)
+                    .Select(static name => name.GetSingleElementValue())
+                    .OfType<string>(),
+            ];
+        }
+        catch (CryptographicException)
+        {
+            return [];
+        }
     }
 
     private static string[] AlternativeAddressesOf(X509Certificate2 leaf)
