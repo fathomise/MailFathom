@@ -2057,9 +2057,8 @@ do](#what-a-credential-may-do) is what decides it, and `mfctl credential list` s
 `readOnlyHint` false with `openWorldHint` true: it changes the user's mailbox rather than MailFathom's copy of it, so
 its effect leaves this process. It is `idempotentHint` true because each value it writes is stated rather than
 adjusted, so a second identical call asks for what the first one asked for, and `destructiveHint` true because that
-annotation asks whether a tool performs only additive updates: a keyword replacement states the whole set and so takes
-off a label the caller did not list, a removal takes named labels off, and clearing either flag removes a value the
-message carried. Every one of those is reversible, which is a separate fact the annotation does not answer. A credential
+annotation asks whether a tool performs only additive updates: a keyword removal takes named labels off, and clearing
+either flag removes a value the message carried. Every one of those is reversible, which is a separate fact the annotation does not answer. A credential
 granting
 `mailfathom.mail.flags.write` is what puts it in the listing, and a credential provisioned with no permission named
 narrows nothing, so it is listed wherever its user's roles grant it.

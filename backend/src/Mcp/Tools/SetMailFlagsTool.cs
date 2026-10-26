@@ -40,8 +40,8 @@ namespace MailFathom.Mcp.Tools;
 /// <para>
 /// It changes state, reaches outside this process eventually rather than during the call, and is destructive in the
 /// sense the protocol gives that word: <c>destructiveHint</c> asks whether the tool performs only additive updates, and
-/// this one does not. A keyword replacement states the whole set, so a label the caller never listed comes off; a
-/// removal takes named labels off; and clearing <c>\Seen</c> or <c>\Flagged</c> removes a flag the message carried. The
+/// this one does not. A keyword removal takes named labels off, and clearing <c>\Seen</c> or <c>\Flagged</c> removes a
+/// flag the message carried. The
 /// annotation is what a client reads before deciding whether a call needs a person, so it says that rather than saying
 /// the change is easy to reverse — which it is, and which the description states separately.
 /// </para>
@@ -95,7 +95,7 @@ internal sealed class SetMailFlagsTool(MailFlagChangeRecorder flagChangeRecorder
         OpenWorld = true,
         UseStructuredContent = true)]
     [Description(
-        "Marks one email read or unread, stars or unstars it, and adds, removes, or replaces its keywords — the labels "
+        "Marks one email read or unread, stars or unstars it, and adds or removes its keywords — the labels "
         + "a mail client shows as tags. Every value is optional and at least one is required; a call that names none is "
         + "refused. The change is written down durably and issued to the mail server by the account's next "
         + "synchronization run, so the result reports the records rather than a mailbox that has already changed: each "
@@ -120,7 +120,7 @@ internal sealed class SetMailFlagsTool(MailFlagChangeRecorder flagChangeRecorder
         bool? flagged = null,
         [Description("What to do with keywords: add puts the listed ones on beside whatever the email already carries, and remove takes the listed ones off and leaves the rest. replace, which would make the keywords exactly the listed ones, is refused on this surface. Send it together with keywords; either one alone is refused.")]
         SetMailFlagsKeywordChange? keywordChange = null,
-        [Description("The keywords the change names, at most 64, each at most 64 characters. A keyword is an IMAP atom: no space, no control character, none of ( ) { % * \" \\ ], nothing above plain ASCII, and no leading backslash, which is how system flags are spelled. Two spellings differing only in case are one keyword. An empty list is accepted only with replace, where it clears every keyword.")]
+        [Description("The keywords the change names, at most 64, each at most 64 characters. A keyword is an IMAP atom: no space, no control character, none of ( ) { % * \" \\ ], nothing above plain ASCII, and no leading backslash, which is how system flags are spelled. Two spellings differing only in case are one keyword. An empty list is refused.")]
         IReadOnlyList<string>? keywords = null,
         [Description("Your own identifier for this request, at most 128 characters. Send the same one when retrying a call that may have gone through: the change is then the same request and is not made twice. A call with a new value, or with none, is a new request — which is what lets you star a message, unstar it, and star it again. Reusing one to ask for a different value is refused, so send a new identifier whenever you mean a new change. These guarantees hold for a change written down as a record; on a held account, where the result says applied, nothing is matched and every call applies the change it names.")]
         string? requestId = null,

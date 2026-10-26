@@ -281,7 +281,7 @@ tools; a user no role is assigned to is listed none. Four of them — `list_acco
 `list_emails`, `get_email_content`, and `search_emails` — advertise themselves as read-only, non-destructive, and
 idempotent. Four of the rest are not read-only. `set_mail_flags`
 changes your mailbox on the mail server rather than MailFathom's copy of it, and it advertises itself as destructive too
-— a keyword replacement states the whole set, so a label the caller did not list comes off. `send_email` sends a real
+— a keyword removal takes a label off, and clearing a flag takes the flag off. `send_email` sends a real
 message and advertises itself as destructive for the opposite reason: it takes nothing away, and nothing takes it back,
 so a client that asks before a destructive call asks before this one. `reply_to_email` and `forward_email` answer mail
 this deployment already holds and carry exactly the same four annotations, for exactly the same reasons. All four also
