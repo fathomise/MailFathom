@@ -84,6 +84,8 @@ jobs:
         if: runner.os == 'Linux'
         timeout-minutes: 5
         uses: ./.github/actions/install-desktop-linux-dependencies
+        with:
+          save: true
 
       # `engines.node` in the client's manifest is where the Node version is decided, so it is read from there rather
       # than restated here — the same arrangement the client's own gate uses.

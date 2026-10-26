@@ -13,12 +13,18 @@ description: >-
 # Windows runner needs none of it: WebView2 and the MSVC build tools are part of its image.
 #
 # This file's own hash is the entry's discriminator, so editing the list starts a new entry.
+inputs:
+  save:
+    description: "`true` on the one job that writes the entry on `main`, which is the desktop build."
+    default: 'false'
+
 runs:
   using: composite
   steps:
     - uses: ./.github/actions/cached-apt-install
       with:
         name: desktop
+        save: ${{ inputs.save }}
         content: ${{ hashFiles('.github/actions/install-desktop-linux-dependencies/action.yml') }}
         install: |
           sudo apt-get update

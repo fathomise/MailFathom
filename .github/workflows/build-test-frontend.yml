@@ -205,6 +205,7 @@ jobs:
           name: playwright
           content: ${{ steps.playwright.outputs.version }}
           install: pnpm --dir frontend exec playwright install-deps chromium
+          save: true
 
       # `pnpm test:browser` is `pnpm build` and then Playwright, so this is the build step as well as the browser one
       # and nothing here builds the bundle twice. Nothing is uploaded afterwards, by design rather than by omission: a
