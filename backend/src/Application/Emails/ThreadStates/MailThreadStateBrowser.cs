@@ -16,10 +16,11 @@ namespace MailFathom.Application.Emails.ThreadStates;
 /// <remarks>
 /// <para>
 /// It exists so the two questions a thread screen asks — what the exchange says, and where it stands — are scoped by
-/// one decision rather than by two that could drift. The scope is
-/// <see cref="BrowseThread.MailThreadBrowser" />'s own: every account this user holds, no folder narrowing, and
-/// junk included, because a conversation is read by membership and a reply that landed in junk is still part of the
-/// exchange. A state published under a wider scope than the conversation it describes would report a withheld folder's
+/// one decision rather than by two that could drift. The scope is the one the reader's own conversation read uses:
+/// every account this user holds, no folder narrowing, and junk included, because a conversation is read by membership
+/// and a reply that landed in junk is still part of the exchange. For the person that is
+/// <see cref="BrowseThread.MailThreadBrowser" />'s scope; for an agent it is the same scope narrowed to folders visible
+/// to AI. A state published under a wider scope than the conversation it describes would report a withheld folder's
 /// contents one derived sentence at a time.
 /// </para>
 /// <para>
