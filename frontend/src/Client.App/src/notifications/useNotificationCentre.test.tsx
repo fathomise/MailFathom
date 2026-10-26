@@ -517,7 +517,7 @@ describe('useNotificationCentre', () => {
 
         expect(screen.getByText('Ada Lovelace wrote')).toBeDefined();
         expect(screen.getByText('About the engine')).toBeDefined();
-        expect(screen.getByRole('button', { name: 'Show' })).toBeDefined();
+        expect(screen.getByRole('button', { name: /About the engine Show$/u })).toBeDefined();
     });
 
     it('says the first arrival of a session out loud, the panel never having been opened', async () => {
@@ -1144,7 +1144,7 @@ describe('useNotificationCentre', () => {
             await polled();
 
             expect(result.current.notifications).toHaveLength(1);
-            expect(screen.queryByRole('button', { name: 'Show message' })).toBeNull();
+            expect(screen.queryByRole('button', { name: /Show message$/u })).toBeNull();
             expect(head.said).toEqual([]);
         });
 
@@ -1159,7 +1159,7 @@ describe('useNotificationCentre', () => {
             hold(1, [abandoned]);
             await polled();
 
-            expect(screen.getByRole('button', { name: 'Show message' })).toBeDefined();
+            expect(screen.getByRole('button', { name: /Show message$/u })).toBeDefined();
             expect(head.said).toEqual(['1 failure in your mail']);
         });
     });

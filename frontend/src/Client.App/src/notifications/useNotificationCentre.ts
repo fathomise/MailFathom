@@ -412,7 +412,7 @@ export function useNotificationCentre(
                     kind: toastKindOf(notification),
                     title: said.title,
                     body: said.body,
-                    action: {
+                    opens: {
                         label: said.action,
                         take: () => {
                             follow(notification);

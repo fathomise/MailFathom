@@ -64,7 +64,8 @@ test('draws a notification that arrives while somebody works, and opens the mess
         hasText: notifications.arrivingNotification.body,
     });
 
-    await notice.getByRole('button', { name: 'Show' }).click();
+    // The notice is pressed as a whole, which is the one control it draws besides closing it.
+    await notice.getByRole('button', { name: /Show$/u }).click();
 
     // Opened to what it is about, which is a message — and a message is read in the Mail space, whichever space the
     // notice was raised over.
