@@ -5,6 +5,7 @@
 using System.Globalization;
 using MailFathom.AI;
 using MailFathom.AI.Chat;
+using MailFathom.AI.DecisionModels;
 using MailFathom.AI.Providers;
 using MailFathom.Application.Access;
 using MailFathom.Application.Access.Grants;
@@ -432,6 +433,11 @@ internal static class HostComposition
             .GetRequiredService<IOptionsMonitor<SpamClassificationOptions>>()
             .CurrentValue
             .ToRunOptions());
+        builder.Services.AddSingleton(provider => provider
+            .GetRequiredService<IOptions<SpamClassificationOptions>>()
+            .Value
+            .ModelStage
+            .ToBounds());
         builder.Services.AddScoped<SpamClassificationPass>();
         builder.Services.AddScoped<SpamVerdictFloorPass>();
         builder.Services.AddScoped<SpamClassificationRunRequests>();
@@ -1084,6 +1090,12 @@ internal static class HostComposition
         // who said mail may be read into marks — so an instance missing either derives nothing and says which.
         builder.Services.AddEmailEnrichmentAgent(
             declaredChat?.IsConfigured is true && declaredChat.Enrichment.Enabled);
+
+        // And again for the spam model stage, which answers through the decision model routed to spam classification
+        // rather than through the chat endpoint. Which account consults it is that account's own switch; what this
+        // decides is only whether there is a model to consult.
+        builder.Services.AddSpamModelJudge(
+            declaredDecisions?.Models.Count > 0 && declaredDecisions.ToPlans().ContainsKey(DecisionFunction.SpamClassification));
 
         // And again for a conversation's state, which needs the same two decisions and reports the absence of either
         // the same way.

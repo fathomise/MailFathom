@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Spam.Model;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Spam;
 
@@ -14,14 +15,24 @@ namespace MailFathom.Application.Spam;
 /// </remarks>
 public sealed record SpamClassificationSettings
 {
-    private SpamClassificationSettings(bool isEnabled, IReadOnlyList<MailFolderAlias> scannedFolderAliases)
+    private SpamClassificationSettings(
+        bool isEnabled,
+        IReadOnlyList<MailFolderAlias> scannedFolderAliases,
+        SpamModelStageSettings modelStage)
     {
         this.IsEnabled = isEnabled;
         this.ScannedFolderAliases = scannedFolderAliases;
+        this.ModelStage = modelStage;
+        this.Profile = modelStage.IsConsulted
+            ? SpamClassificationProfile.Create(modelStage.NamesSubcategoriesOfDeterministicSpam, modelStage.Threshold)
+            : SpamClassificationProfile.Create();
     }
 
     /// <summary>Gets the settings a deployment that configured nothing runs with.</summary>
-    public static SpamClassificationSettings Disabled { get; } = new(isEnabled: false, []);
+    public static SpamClassificationSettings Disabled { get; } = new(
+        isEnabled: false,
+        [],
+        SpamModelStageSettings.NotConsulted);
 
     /// <summary>Gets whether classification runs at all.</summary>
     public bool IsEnabled { get; }
@@ -39,11 +50,15 @@ public sealed record SpamClassificationSettings
     /// <remarks>
     /// What it covers and what it deliberately leaves out is <see cref="SpamClassificationProfile" />'s own contract.
     /// </remarks>
-    public SpamClassificationProfile Profile { get; } = SpamClassificationProfile.Create();
+    public SpamClassificationProfile Profile { get; }
+
+    /// <summary>Gets whether and how the model is asked about mail these settings classify.</summary>
+    public SpamModelStageSettings ModelStage { get; }
 
     /// <summary>Builds the settings an operator's answers describe.</summary>
     /// <param name="isEnabled">Whether classification runs.</param>
     /// <param name="scannedFolderAliases">The folder aliases to classify, already resolved to the inbox where the operator named none.</param>
+    /// <param name="modelStage">Whether and how the model is asked, or <see langword="null" /> where it is not consulted.</param>
     /// <returns>The settings, with the alias list deduplicated and ordered.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="scannedFolderAliases" /> is <see langword="null" />.</exception>
     /// <remarks>
@@ -51,7 +66,10 @@ public sealed record SpamClassificationSettings
     /// how long the index may be held back by a verdict that has not arrived, which is a cost the process bears.
     /// <see cref="SpamClassificationScope.MaximumClassificationWait" /> is where the deployment states it.
     /// </remarks>
-    public static SpamClassificationSettings Create(bool isEnabled, IEnumerable<MailFolderAlias> scannedFolderAliases)
+    public static SpamClassificationSettings Create(
+        bool isEnabled,
+        IEnumerable<MailFolderAlias> scannedFolderAliases,
+        SpamModelStageSettings? modelStage = null)
     {
         ArgumentNullException.ThrowIfNull(scannedFolderAliases);
 
@@ -61,7 +79,8 @@ public sealed record SpamClassificationSettings
                 .. scannedFolderAliases
                     .DistinctBy(static alias => alias.Value, StringComparer.Ordinal)
                     .OrderBy(static alias => alias.Value, StringComparer.Ordinal),
-            ]);
+            ],
+            modelStage ?? SpamModelStageSettings.NotConsulted);
     }
 
     /// <summary>Reports whether classification runs over one folder.</summary>

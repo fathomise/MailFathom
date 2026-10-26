@@ -110,6 +110,7 @@ using MailFathom.Application.Spam.Actions;
 using MailFathom.Application.Spam.Floor;
 using MailFathom.Application.Spam.Gating;
 using MailFathom.Application.Spam.History;
+using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.Spam.Signals;
 using MailFathom.Application.StoredFiles;
@@ -1132,6 +1133,12 @@ public static class ServiceCollectionExtensions
         // Registered for every deployment rather than only where it is switched on: what the switch decides is whether the
         // classifier does anything, and the classifier asks the settings reader that.
         services.AddScoped<DeterministicSpamClassifier>();
+        // The model stage is composed for every deployment too: whether it asks anything is the account's switch and the
+        // judge the AI boundary registers, so with neither it reads one property and returns the deterministic record.
+        services.AddSingleton<ISpamModelStageTelemetry, SpamModelStageTelemetry>();
+        services.TryAddSingleton(SpamModelStageBounds.Default);
+        services.AddScoped<SpamModelEvidenceReader>();
+        services.AddScoped<SpamModelStage>();
         services.AddScoped<EmailSpamClassifier>();
         // The ordering that puts classification in front of chunking, embedding, and rule evaluation. Registered for
         // every deployment because the paths that obey it are unconditional: with classification off the gate admits

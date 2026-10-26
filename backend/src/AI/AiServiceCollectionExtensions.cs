@@ -23,6 +23,7 @@ using MailFathom.AI.Providers;
 using MailFathom.AI.ReplyDrafts;
 using MailFathom.AI.Retrieval;
 using MailFathom.AI.Search;
+using MailFathom.AI.SpamClassification;
 using MailFathom.AI.ThreadStates;
 using MailFathom.Application.Access;
 using MailFathom.Application.Agent.Answering;
@@ -45,6 +46,7 @@ using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
+using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -254,6 +256,39 @@ public static class AiServiceCollectionExtensions
         }
 
         AddDecisionProviderTransport(services, [.. plans.Values]);
+
+        return services;
+    }
+
+    /// <summary>Registers the one way the spam model stage asks a model, in whichever of its two states the deployment is in.</summary>
+    /// <param name="services">The service collection to add to.</param>
+    /// <param name="isActivated">Whether a decision model serves <see cref="DecisionFunction.SpamClassification" />, which <see cref="AddDecisionProviderAdapter" /> registered.</param>
+    /// <returns>The same service collection, so registration reads as one expression.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="services" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// <para>
+    /// Called unconditionally and always registering something, on the terms enrichment is: the stage counts and records
+    /// why nothing was asked rather than resolving nothing, and a deployment that declared no decision model never opens a
+    /// scope, a transport, or a turn for it.
+    /// </para>
+    /// <para>
+    /// A singleton when it is active, because it owns the replica's call slots, which bound every classification the
+    /// process runs at once; each judgement opens the scope its own client is resolved in. The caller registers the
+    /// <see cref="SpamModelStageBounds" /> it reads.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddSpamModelJudge(this IServiceCollection services, bool isActivated)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        if (!isActivated)
+        {
+            services.AddSingleton<ISpamModelJudge>(InactiveSpamModelJudge.Instance);
+
+            return services;
+        }
+
+        services.AddSingleton<ISpamModelJudge, SpamModelJudge>();
 
         return services;
     }

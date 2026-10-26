@@ -9,7 +9,8 @@ namespace MailFathom.Host.Configuration.Rules;
 /// <summary>One folder as a rule set is judged against it: the name it carries and the role it plays.</summary>
 /// <param name="Alias">MailFathom's own name for the folder.</param>
 /// <param name="Role">The role the folder plays, or <see langword="null" /> when configuration labelled it with none.</param>
-internal readonly record struct DeclaredMailFolder(MailFolderAlias Alias, MailFolderSpecialUse? Role)
+/// <param name="IsVisibleToAI">Whether the folder is one an AI function may read, which the spam model stage is judged against.</param>
+internal readonly record struct DeclaredMailFolder(MailFolderAlias Alias, MailFolderSpecialUse? Role, bool IsVisibleToAI = true)
 {
     /// <summary>Reports whether a reference names this folder.</summary>
     /// <param name="reference">The alias or role something wrote.</param>

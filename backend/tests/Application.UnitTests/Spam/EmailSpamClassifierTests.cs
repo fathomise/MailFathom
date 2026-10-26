@@ -693,6 +693,7 @@ public sealed class EmailSpamClassifierTests
             headerReader,
             junkFolders ?? StubJunkMailFolderCatalog.None,
             new DeterministicSpamClassifier(),
+            SpamModelStages.Over(),
             settingsReader,
             this.store,
             this.verdictActs,

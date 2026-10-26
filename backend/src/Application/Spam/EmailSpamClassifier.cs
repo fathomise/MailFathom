@@ -9,6 +9,7 @@ using MailFathom.Application.Folders;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam.Gating;
+using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Spam.Signals;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
@@ -30,7 +31,9 @@ namespace MailFathom.Application.Spam;
 /// <para>
 /// It reaches no mail server. Content comes from the local store, which already holds it, so classification never
 /// triggers an IMAP fetch and cannot affect a remote <c>\Seen</c> flag. It writes no folder, no flag, no keyword, and
-/// nothing about where the message lives; the keywords it reads are the ones the last synchronization stored.
+/// nothing about where the message lives; the keywords it reads are the ones the last synchronization stored. The one
+/// thing that may leave the deployment is the model stage's minimised input, and only for an account that consults it —
+/// <see cref="SpamModelStage" /> holds when, and what happens when the model cannot answer.
 /// </para>
 /// <para>
 /// It writes one thing besides the classification, and only when the verdict is spam: everything derived from the
@@ -52,6 +55,7 @@ public sealed class EmailSpamClassifier
     private readonly IEmailSpamHeaderReader headerReader;
     private readonly IJunkMailFolderCatalog junkFolders;
     private readonly DeterministicSpamClassifier deterministicClassifier;
+    private readonly SpamModelStage modelStage;
     private readonly ISpamClassificationSettingsReader settingsReader;
     private readonly IEmailSpamClassificationStore classificationStore;
     private readonly ISpamVerdictActStore verdictActs;
@@ -68,6 +72,7 @@ public sealed class EmailSpamClassifier
     /// <param name="headerReader">Reads the spam-relevant headers out of that content.</param>
     /// <param name="junkFolders">Answers whether the occurrence's folder is its account's junk folder.</param>
     /// <param name="deterministicClassifier">Reaches a verdict from what the message already carried.</param>
+    /// <param name="modelStage">Asks a decision model about the message, where the account consults one.</param>
     /// <param name="settingsReader">Answers what the occurrence's account decided about the mail in it.</param>
     /// <param name="classificationStore">Records the classification.</param>
     /// <param name="verdictActs">Says what this deployment's verdicts already did to the message, which is not evidence.</param>
@@ -84,6 +89,7 @@ public sealed class EmailSpamClassifier
         IEmailSpamHeaderReader headerReader,
         IJunkMailFolderCatalog junkFolders,
         DeterministicSpamClassifier deterministicClassifier,
+        SpamModelStage modelStage,
         ISpamClassificationSettingsReader settingsReader,
         IEmailSpamClassificationStore classificationStore,
         ISpamVerdictActStore verdictActs,
@@ -99,6 +105,7 @@ public sealed class EmailSpamClassifier
         ArgumentNullException.ThrowIfNull(headerReader);
         ArgumentNullException.ThrowIfNull(junkFolders);
         ArgumentNullException.ThrowIfNull(deterministicClassifier);
+        ArgumentNullException.ThrowIfNull(modelStage);
         ArgumentNullException.ThrowIfNull(settingsReader);
         ArgumentNullException.ThrowIfNull(classificationStore);
         ArgumentNullException.ThrowIfNull(verdictActs);
@@ -114,6 +121,7 @@ public sealed class EmailSpamClassifier
         this.headerReader = headerReader;
         this.junkFolders = junkFolders;
         this.deterministicClassifier = deterministicClassifier;
+        this.modelStage = modelStage;
         this.settingsReader = settingsReader;
         this.classificationStore = classificationStore;
         this.verdictActs = verdictActs;
@@ -304,13 +312,13 @@ public sealed class EmailSpamClassifier
             email.Keywords,
             ownActs);
 
-        return SpamClassification.Create(
-            email.Id,
-            reading.Verdict,
-            SpamClassificationStage.Deterministic,
-            reading.Assessment,
-            settings.Profile,
-            reading.Signals,
-            this.timeProvider.GetUtcNow());
+        return await this.modelStage.DecideAsync(
+            email,
+            content,
+            facts,
+            reading,
+            settings,
+            this.timeProvider.GetUtcNow(),
+            cancellationToken);
     }
 }
