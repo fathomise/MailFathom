@@ -35,6 +35,7 @@ const email: MailTimelineEntry = {
     preview: 'The opening of the message.',
     enrichment: null,
     threadMessageCount: null,
+    spam: null,
 };
 
 function asking(

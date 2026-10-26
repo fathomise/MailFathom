@@ -7,6 +7,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { ToastsProvider } from '../toasts/Toasts';
 import {
     ReadMarkingContext,
     nothingMarkedRead,
@@ -255,23 +256,25 @@ function inTheFrame(
 ): ReactElement {
     return (
         <LocalizationProvider>
-            <WorkspaceProvider>
-                <HidesThePanels hidden={panelsHidden} />
-                {selection === null ? null : <Selecting selection={selection} />}
-                <LinkOpenerContext value={() => Promise.resolve()}>
-                    <ReadMarkingContext value={marking}>
-                        <Thread
-                            session={session}
-                            transport={transport}
-                            conversation={conversation}
-                            online={online}
-                            expandWholeThread={expandWholeThread}
-                            onShowFullHtml={() => undefined}
-                            foot={foot}
-                        />
-                    </ReadMarkingContext>
-                </LinkOpenerContext>
-            </WorkspaceProvider>
+            <ToastsProvider>
+                <WorkspaceProvider>
+                    <HidesThePanels hidden={panelsHidden} />
+                    {selection === null ? null : <Selecting selection={selection} />}
+                    <LinkOpenerContext value={() => Promise.resolve()}>
+                        <ReadMarkingContext value={marking}>
+                            <Thread
+                                session={session}
+                                transport={transport}
+                                conversation={conversation}
+                                online={online}
+                                expandWholeThread={expandWholeThread}
+                                onShowFullHtml={() => undefined}
+                                foot={foot}
+                            />
+                        </ReadMarkingContext>
+                    </LinkOpenerContext>
+                </WorkspaceProvider>
+            </ToastsProvider>
         </LocalizationProvider>
     );
 }

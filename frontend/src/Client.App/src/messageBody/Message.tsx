@@ -88,6 +88,9 @@ interface MessageToDraw {
     /** Whether the conversation this message quoted is folded away until a reader asks for it, which a thread does. */
     readonly quotedHistoryOnRequest?: boolean;
 
+    /** Whether the message is marked spam, which `MessageBody` reads it under. */
+    readonly readOnly?: boolean;
+
     /**
      * Said once, when this message's words are on the screen, which is what opening a message means.
      *
@@ -108,7 +111,13 @@ interface MessageToDraw {
 // message's content and ranges it left against the list it was opened from, and a conversation binds a whole message —
 // head and words together — and centres the column in the pane. A ceiling stated here would have made the second of
 // those unreachable, since a ceiling inside a narrower one is the narrower one.
-export function Message({ body, storedEmailId, quotedHistoryOnRequest = false, onBodyDrawn }: MessageToDraw) {
+export function Message({
+    body,
+    storedEmailId,
+    quotedHistoryOnRequest = false,
+    readOnly = false,
+    onBodyDrawn,
+}: MessageToDraw) {
     const { translate } = useLocalization();
 
     // Which message's words are actually on the screen, which is the whole of what opening one means here — `null`
@@ -179,6 +188,7 @@ export function Message({ body, storedEmailId, quotedHistoryOnRequest = false, o
             cleaned={body.cleaned}
             cleaning={body.cleaning}
             quotedHistoryOnRequest={quotedHistoryOnRequest}
+            readOnly={readOnly}
             onShowRemotePictures={body.showRemotePictures}
         />
     );

@@ -3,9 +3,12 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Spam.Actions;
+using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Folders;
 using MailFathom.Host.Api;
 using MailFathom.TestSupport;
+using NSubstitute;
 using Xunit;
 
 namespace MailFathom.Host.UnitTests.Api;
@@ -24,6 +27,8 @@ public sealed class ClientMailAccountsEndpointTests
 
     private static readonly ServedMailAccount Private = SyntheticServedAccount.Of("private");
 
+    private static readonly ISpamActionSettingsReader NoSpamActions = SpamActionsFor(filingAccount: null);
+
     /// <summary>The path a client appends to the address it was configured with, pinned because the client composes it from a constant of its own.</summary>
     [Fact]
     public void MailAccountsRoute_IsThePathAClientComposes() =>
@@ -37,7 +42,7 @@ public sealed class ClientMailAccountsEndpointTests
         var directory = Directory(Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions);
 
         // Assert
         Assert.True(response.SynchronizationEnabled);
@@ -47,7 +52,8 @@ public sealed class ClientMailAccountsEndpointTests
                 Work.DisplayName.Value,
                 nameof(MailSynchronizationState.Synchronized),
                 SynchronizedAt,
-                Behind: false),
+                Behind: false,
+                FilesJunk: false),
             Assert.Single(response.Accounts));
     }
 
@@ -63,7 +69,7 @@ public sealed class ClientMailAccountsEndpointTests
         var directory = Directory(Freshness(Work, state, SynchronizedAt));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions);
 
         // Assert
         Assert.Equal(state.ToString(), Assert.Single(response.Accounts).SynchronizationState);
@@ -80,7 +86,7 @@ public sealed class ClientMailAccountsEndpointTests
             Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt, behind));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions);
 
         // Assert
         Assert.Equal(behind, Assert.Single(response.Accounts).Behind);
@@ -95,7 +101,7 @@ public sealed class ClientMailAccountsEndpointTests
             Freshness(Work, MailSynchronizationState.NeverSynchronized, lastSynchronizedAt: null));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions);
 
         // Assert
         Assert.Null(Assert.Single(response.Accounts).LastSynchronizedAt);
@@ -111,7 +117,7 @@ public sealed class ClientMailAccountsEndpointTests
             Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions);
 
         // Assert
         Assert.Equal(
@@ -127,7 +133,7 @@ public sealed class ClientMailAccountsEndpointTests
         var directory = new MailAccountFreshnessDirectory(SynchronizationEnabled: true, []);
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions);
 
         // Assert
         Assert.Empty(response.Accounts);
@@ -156,7 +162,7 @@ public sealed class ClientMailAccountsEndpointTests
             ]));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions);
 
         // Assert
         Assert.Equal(
@@ -165,8 +171,25 @@ public sealed class ClientMailAccountsEndpointTests
                 Work.DisplayName.Value,
                 nameof(MailSynchronizationState.Synchronized),
                 SynchronizedAt,
-                Behind: false),
+                Behind: false,
+                FilesJunk: false),
             Assert.Single(response.Accounts));
+    }
+
+    /// <summary>Each account says whether its spam verdicts move its mail, read per account, because a client confirms a not-spam mark only where it will move something.</summary>
+    [Fact]
+    public void For_AnAccountWhoseSwitchFilesJunk_SaysSoAndAnAccountWhoseSwitchDoesNotSaysNot()
+    {
+        // Arrange
+        var directory = Directory(
+            Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt),
+            Freshness(Private, MailSynchronizationState.Synchronized, SynchronizedAt));
+
+        // Act
+        var response = ClientMailAccountsResponse.For(directory, SpamActionsFor(filingAccount: Work));
+
+        // Assert
+        Assert.Equal([true, false], response.Accounts.Select(account => account.FilesJunk));
     }
 
     /// <summary>The deployment-wide switch is reported beside the accounts, because no per-account value carries it.</summary>
@@ -181,7 +204,7 @@ public sealed class ClientMailAccountsEndpointTests
             [Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt)]);
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions);
 
         // Assert
         Assert.Equal(synchronizationEnabled, response.SynchronizationEnabled);
@@ -196,4 +219,16 @@ public sealed class ClientMailAccountsEndpointTests
         DateTimeOffset? lastSynchronizedAt,
         bool isBehind = false) =>
         new(account, state, lastSynchronizedAt, isBehind, []);
+
+    private static ISpamActionSettingsReader SpamActionsFor(ServedMailAccount? filingAccount)
+    {
+        var reader = Substitute.For<ISpamActionSettingsReader>();
+        reader.ActionsFor(Arg.Any<MailAccountId>()).Returns(SpamActionSettings.None);
+        if (filingAccount is not null)
+        {
+            reader.ActionsFor(filingAccount.Id).Returns(SpamActionSettings.Create(filesJunk: true, marksJunkRead: false));
+        }
+
+        return reader;
+    }
 }

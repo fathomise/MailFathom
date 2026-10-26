@@ -2,16 +2,18 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { MailTimelineEntry } from '@mailfathom/client-backend';
+import { isSpam, type MailTimelineEntry } from '@mailfathom/client-backend';
 import { useComposing, type Composing } from '../composer/useComposing';
 import { ContextMenu, type ContextMenuItem } from '../contextMenu/ContextMenu';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { actsDrawn, actsInARowMenu, actsSaidInAMenu, flagActFor, readActFor, underway } from '../mailboxActs/drawnActs';
-import { useMailboxActs, type ActedMessage, type MailboxActs } from '../mailboxActs/useMailboxActs';
+import { drawnSpam, useMailboxActs, type ActedMessage, type MailboxActs } from '../mailboxActs/useMailboxActs';
 import type { Translate } from '../localization/useLocalization';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadMarking, type ReadMarking } from '../readMarking/useReadMarking';
 import { useAgentHandOver } from '../routing/agentHandOver';
+import { spamMenuDetail } from '../spamMarking/spamWords';
+import { useSpamRefusal, type SpamRefused } from '../spamMarking/useSpamRefusal';
 import { correspondent } from './rowContents';
 
 // What a message row offers, which is the design's own menu for it: picking messages out, answering the
@@ -31,6 +33,10 @@ import { correspondent } from './rowContents';
 // ***Ask the agent* hands the conversation this message belongs to over to the agent**, second as the design draws it,
 // and only where there is both an agent to reach and a conversation to name: a message the deployment has not placed
 // in one has nothing the question could be scoped to.
+//
+// **A message marked spam offers nothing that reads it for the person** — neither the agent nor its readings — and its
+// answers stay in the menu but are refused when chosen, saying why. Its verdict joins the header's detail, since a folded
+// row draws no badge and a finger has no hover to ask with.
 //
 // **The two acts that stand behind a question are asked outside this menu**, because the question outlives it: the
 // menu is gone the moment an item is chosen, and a dialog inside it would go with it.
@@ -76,10 +82,13 @@ export function MessageRowMenu({
     const marking = useReadMarking();
     const composing = useComposing();
     const handToAgent = useAgentHandOver();
+    const refuse = useSpamRefusal();
     const thread = email.threadId;
+    const spam = drawnSpam(acts, email);
+    const marked = isSpam(spam);
 
     const askAgent =
-        handToAgent === null || thread === null
+        marked || handToAgent === null || thread === null
             ? null
             : () => {
                   handToAgent({
@@ -92,7 +101,9 @@ export function MessageRowMenu({
         <ContextMenu
             header={email.subject ?? translate('list.noSubject')}
             // Who wrote it, which the row folded to a strip of avatars no longer says in words.
-            detail={correspondent(email)}
+            detail={
+                spam !== null && marked ? spamMenuDetail(correspondent(email), spam, translate) : correspondent(email)
+            }
             at={at}
             items={rowItems({
                 email,
@@ -104,7 +115,8 @@ export function MessageRowMenu({
                 onSelect,
                 askAgent,
                 onAsk,
-                onCheckReadings,
+                onCheckReadings: marked ? undefined : onCheckReadings,
+                refusing: marked ? refuse : null,
             })}
             onClose={onClose}
         />
@@ -123,6 +135,7 @@ function rowItems({
     askAgent,
     onAsk,
     onCheckReadings,
+    refusing,
 }: {
     readonly email: MailTimelineEntry;
     readonly messages: readonly ActedMessage[];
@@ -134,6 +147,9 @@ function rowItems({
     readonly askAgent: (() => void) | null;
     readonly onAsk: (act: ActAsked, messages: readonly ActedMessage[]) => void;
     readonly onCheckReadings: (() => void) | undefined;
+
+    /** Answers a press on what a message marked spam refuses, or `null` where the message is not spam. */
+    readonly refusing: ((refused: SpamRefused) => void) | null;
 }): readonly ContextMenuItem[] {
     const answering: readonly ContextMenuItem[] = composing.offered
         ? [
@@ -141,18 +157,40 @@ function rowItems({
                   icon: 'reply',
                   label: translate('mail.reply'),
                   choose: () => {
-                      composing.compose({ kind: 'answer', answers: 'senderOnly', storedEmailId: email.id });
+                      if (refusing === null) {
+                          composing.compose({ kind: 'answer', answers: 'senderOnly', storedEmailId: email.id });
+                      } else {
+                          refusing('spam.refusedAnswer');
+                      }
                   },
               },
               {
                   icon: 'forward',
                   label: translate('mail.forward'),
                   choose: () => {
-                      composing.compose({ kind: 'answer', answers: 'forward', storedEmailId: email.id });
+                      if (refusing === null) {
+                          composing.compose({ kind: 'answer', answers: 'forward', storedEmailId: email.id });
+                      } else {
+                          refusing('spam.refusedForward');
+                      }
                   },
               },
           ]
         : [];
+
+    // The spam control, before *Move* as the design draws it. *Not spam* says it asks first where it would move the
+    // message out of the Spam folder, and *Spam* always does, since it opens the chooser.
+    const out = refusing !== null;
+    const spamItem: ContextMenuItem = {
+        icon: out ? 'report_off' : 'report',
+        label: translate(
+            out ? (acts.notSpamMoves(messages) ? 'spam.notSpamAsking' : 'spam.notSpam') : 'spam.spamAsking',
+        ),
+        choose: () => {
+            acts.toggleSpam(messages);
+        },
+    };
+    const spamItems: readonly ContextMenuItem[] = acts.spamOffered && messages.length > 0 ? [spamItem] : [];
 
     const mailbox = actsInARowMenu
         // The read item and the flag item are the two slots that go both ways, and which way is the message's own
@@ -166,18 +204,21 @@ function rowItems({
                   : slot,
         )
         .filter((act) => acts.refusalOf(act, messages) === null && !underway(acts, act, messages))
-        .map((act) => ({
-            icon: actsDrawn[act].icon,
-            label: translate(actsSaidInAMenu[act]),
-            destroys: act === 'delete',
-            choose: () => {
-                if (act === 'delete' || act === 'move') {
-                    onAsk(act, messages);
-                } else {
-                    acts.perform(act, messages);
-                }
+        .flatMap((act) => [
+            ...(act === 'move' ? spamItems : []),
+            {
+                icon: actsDrawn[act].icon,
+                label: translate(actsSaidInAMenu[act]),
+                destroys: act === 'delete',
+                choose: () => {
+                    if (act === 'delete' || act === 'move') {
+                        onAsk(act, messages);
+                    } else {
+                        acts.perform(act, messages);
+                    }
+                },
             },
-        }));
+        ]);
 
     // Where a reading is checked. It stands at the foot rather than among the acts, because it changes nothing about
     // the mailbox: what it opens is an explanation of a sentence the row is drawing, and putting it beside archiving

@@ -590,3 +590,101 @@ export const phraseReading = {
     criteria: ['racking quotation'],
     unaccounted: 'urgent',
 };
+
+/**
+ * One message the corpus mailbox's Spam folder holds, as the folder lists it.
+ *
+ * Each carries the verdict the deployment publishes on every row: who reached it, the kind of spam where one was
+ * named, and — for the two dangerous kinds that carry them — what it asks for and whom it is written to look like, as
+ * the closed values the record names rather than anything the message wrote. They are the design's own sample spam, so
+ * the Spam folder can be held against the artboard that draws it.
+ */
+function spamRow(
+    id: string,
+    subject: string,
+    sender: { readonly address: string; readonly name: string },
+    receivedAt: string,
+    spam: Readonly<Record<string, string | null>>,
+) {
+    return {
+        ...folderRow(0),
+        id,
+        folder: 'JUNK',
+        subject,
+        receivedAt,
+        senderAddress: sender.address,
+        senderDisplayName: sender.name,
+        unread: true,
+        hasAttachments: false,
+        attachmentCount: 0,
+        preview: `${subject}.`,
+        enrichment: null,
+        spam: {
+            verdict: 'Spam',
+            decidedBy: 'Model',
+            spamSubcategory: null,
+            spamSubcategoryNamedBy: null,
+            phishingRequest: null,
+            impersonatedParty: null,
+            ...spam,
+        },
+    };
+}
+
+/** The phishing message the Spam folder leads with, which is the one its parity pairing opens. */
+export const phishingSubject = 'Your mailbox password expires today';
+
+/** What the corpus mailbox's Spam folder holds before anything is marked or moved into it. */
+export const spamRows = [
+    spamRow(
+        'message-spam-desk',
+        phishingSubject,
+        { address: 'it-desk@nordwind-support.example', name: 'Nordwind IT Service Desk' },
+        '2026-08-31T08:31:00+00:00',
+        {
+            spamSubcategory: 'Phishing',
+            spamSubcategoryNamedBy: 'Model',
+            phishingRequest: 'Credentials',
+            impersonatedParty: 'OnlineService',
+        },
+    ),
+    spamRow(
+        'message-spam-supplier',
+        'Updated bank details for our invoices',
+        { address: 'accounts@halvard-logistlcs.example', name: 'Halvard Logistics' },
+        '2026-08-31T07:58:00+00:00',
+        {
+            spamSubcategory: 'BusinessEmailCompromise',
+            spamSubcategoryNamedBy: 'Model',
+            impersonatedParty: 'Supplier',
+        },
+    ),
+    {
+        ...spamRow(
+            'message-spam-parcel',
+            'Your parcel could not be delivered - open the attached form',
+            { address: 'notice@parcel-track.example', name: 'Parcel Notice' },
+            '2026-08-30T19:20:00+00:00',
+            { decidedBy: 'Person', spamSubcategory: 'MalwareLure', spamSubcategoryNamedBy: 'Person' },
+        ),
+        unread: false,
+    },
+    {
+        ...spamRow(
+            'message-spam-threat',
+            'Pay within 48 hours',
+            { address: 'noreply@mail-relay.example', name: 'No Reply' },
+            '2026-08-24T22:40:00+00:00',
+            { spamSubcategory: 'Extortion', spamSubcategoryNamedBy: 'Model' },
+        ),
+        unread: false,
+    },
+];
+
+/** The Spam folder as one page, which is all of it. */
+export const spamFolderPage = {
+    emails: spamRows,
+    nextCursor: null,
+    previousCursor: null,
+    pageSize: rowsPerPage,
+};

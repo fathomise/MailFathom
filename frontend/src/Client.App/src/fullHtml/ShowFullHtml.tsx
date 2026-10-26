@@ -28,7 +28,15 @@ import { useTopLayerSurface } from '../shell/screenLayers';
 
 const markupShows = 'show-the-markup';
 
-export function ShowFullHtml({ onShow }: { readonly onShow: () => void }) {
+export function ShowFullHtml({
+    onShow,
+    onRefused,
+}: {
+    readonly onShow: () => void;
+
+    /** Answers the press instead of asking, for a message marked spam, whose original never opens. */
+    readonly onRefused?: () => void;
+}) {
     const { translate } = useLocalization();
     const closesOnBack = useTopLayerSurface();
     const asked = useRef<HTMLDialogElement>(null);
@@ -39,7 +47,11 @@ export function ShowFullHtml({ onShow }: { readonly onShow: () => void }) {
                 label={translate('fullHtml.show')}
                 icon="code"
                 onActivate={() => {
-                    asked.current?.showModal();
+                    if (onRefused === undefined) {
+                        asked.current?.showModal();
+                    } else {
+                        onRefused();
+                    }
                 }}
             />
 

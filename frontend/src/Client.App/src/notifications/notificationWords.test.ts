@@ -188,6 +188,7 @@ const work: MailAccount = {
     synchronizationState: 'Synchronized',
     lastSynchronizedAt: null,
     behind: false,
+    filesJunk: false,
 };
 
 const refusal: ClientNotification = {

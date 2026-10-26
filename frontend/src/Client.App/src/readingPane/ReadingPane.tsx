@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
+    isSpam,
     readMailMessage,
     type ClientFailureReason,
     type ClientResult,
@@ -15,6 +16,8 @@ import {
 import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { drawnSpam, useMailboxActs } from '../mailboxActs/useMailboxActs';
+import { useSpamRefusal } from '../spamMarking/useSpamRefusal';
 import { useSignalledChanges } from '../signals/signalledChanges';
 import { useOpenAttachment } from '../workspace/openAttachment';
 import { useWorkspace } from '../workspace/useWorkspace';
@@ -192,6 +195,9 @@ function OpenMessage({
     // The opener is a new function on every render, so it is held rather than named as a dependency below: the effect
     // that follows a citation reacts to the citation and to the answer, and naming this would run it once per render.
     const openCitedFile = useRef(openAttachment);
+    const acts = useMailboxActs();
+    const refuseSpam = useSpamRefusal();
+    const refuseCitedFile = useRef(refuseSpam);
 
     const opened = useRef<HTMLElement>(null);
     // The message focus was last placed on, which starts as the one this pane mounted with so that landing on a message
@@ -201,6 +207,7 @@ function OpenMessage({
 
     useEffect(() => {
         openCitedFile.current = openAttachment;
+        refuseCitedFile.current = refuseSpam;
     });
 
     // A message changing under this component invalidates what is being read, which React answers by adjusting state
@@ -297,7 +304,10 @@ function OpenMessage({
 
         const file = answer.result.value.attachments.find((held) => held.position === cited.position);
 
-        if (file !== undefined) {
+        // A file inside spam is refused like a press on it would be, since it is the same file opened another way.
+        if (file !== undefined && isSpam(answer.result.value.spam)) {
+            refuseCitedFile.current('spam.refusedAttachmentOpen');
+        } else if (file !== undefined) {
             openCitedFile.current({ storedEmailId: cited.storedEmailId, attachment: file });
         }
     }, [workspace.citedAttachment, answer, storedEmailId, revise]);
@@ -469,14 +479,16 @@ function OpenMessage({
                 />
             </div>
 
-            {foot?.(
-                message.threadId === null
-                    ? null
-                    : {
-                          scope: { kind: 'thread', subject: message.threadId },
-                          title: message.headers.subject ?? translate('message.noSubject'),
-                      },
-            )}
+            {isSpam(drawnSpam(acts, { id: message.storedEmailId, spam: message.spam }))
+                ? null
+                : foot?.(
+                      message.threadId === null
+                          ? null
+                          : {
+                                scope: { kind: 'thread', subject: message.threadId },
+                                title: message.headers.subject ?? translate('message.noSubject'),
+                            },
+                  )}
         </article>
     );
 }

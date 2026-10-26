@@ -252,14 +252,14 @@ describe('ListSettings', () => {
         renderSettings(openingListing, () => undefined, true);
         openFilters();
 
-        expect(screen.getByLabelText('Include junk')).toBeTruthy();
+        expect(screen.getByLabelText('Include spam')).toBeTruthy();
     });
 
     it('does not offer junk where the reader has pointed at one folder, which would change nothing', () => {
         renderSettings();
         openFilters();
 
-        expect(screen.queryByLabelText('Include junk')).toBeNull();
+        expect(screen.queryByLabelText('Include spam')).toBeNull();
     });
 
     it.each([

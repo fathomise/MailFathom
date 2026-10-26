@@ -38,6 +38,7 @@ const message: ActedMessage = {
     folder: 'INBOX',
     unread: false,
     flagged: false,
+    spam: null,
 };
 
 // Found by the words a person reads and then read as the element it is, because whether a disclosure is open is a

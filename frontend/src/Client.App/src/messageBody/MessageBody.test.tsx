@@ -4,7 +4,15 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { MailBody, MailBodyText, MailDocument, MailDocumentBlock } from '@mailfathom/client-backend';
+import type {
+    CleanedMailBody,
+    ClientResult,
+    MailBody,
+    MailBodyText,
+    MailDocument,
+    MailDocumentBlock,
+    MailDocumentLink,
+} from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import { MessageBody } from './MessageBody';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
@@ -384,6 +392,95 @@ describe('MessageBody', () => {
             );
 
             expect(screen.getByText(/^Some of the pictures this message carried/u)).toBeDefined();
+        });
+    });
+
+    describe('read-only, as a message marked spam is read', () => {
+        const prize: MailDocumentLink = {
+            target: 'https://offers.invalid/claim',
+            host: 'offers.invalid',
+            asciiHost: null,
+            deception: 'None',
+            worthWarningAbout: false,
+        };
+
+        function readOnly(
+            body: MailBody,
+            {
+                embeddedHtml = false,
+                cleaned = null,
+            }: { embeddedHtml?: boolean; cleaned?: ClientResult<CleanedMailBody> | null } = {},
+        ) {
+            return render(
+                <LocalizationProvider>
+                    <LinkOpenerContext value={() => Promise.resolve()}>
+                        <MessageBody
+                            body={body}
+                            asking={false}
+                            embeddedHtml={embeddedHtml}
+                            cleaned={cleaned}
+                            readOnly
+                            onShowRemotePictures={() => undefined}
+                        />
+                    </LinkOpenerContext>
+                </LocalizationProvider>,
+            );
+        }
+
+        it('draws a link the message carries as words naming where it goes rather than as a link', () => {
+            const linked: MailDocumentBlock = {
+                type: 'paragraph',
+                content: [
+                    {
+                        text: 'Claim your prize',
+                        emphasis: {
+                            bold: false,
+                            italic: false,
+                            underline: false,
+                            strikethrough: false,
+                            monospace: false,
+                        },
+                        foreground: null,
+                        link: prize,
+                    },
+                ],
+                alignment: 'Inherited',
+            };
+
+            readOnly({ ...readable, document: { ...drawnDocument, blocks: [linked] } });
+
+            expect(screen.queryByRole('link')).toBeNull();
+            expect(screen.getByText('(a link to offers.invalid, not opened)')).toBeDefined();
+        });
+
+        it('offers nothing to load from another server, though the message asked for it', () => {
+            readOnly({ ...readable, document: { ...drawnDocument, removedRemoteReferenceCount: 3 } });
+
+            expect(screen.queryByRole('button', { name: 'Load images from the sender' })).toBeNull();
+            expect(screen.queryByText('Removed references: 3')).toBeNull();
+        });
+
+        it('draws the reduced tree rather than a cleaning that arrived for it', () => {
+            readOnly(readable, {
+                cleaned: {
+                    outcome: 'read',
+                    value: {
+                        storedEmailId: 'a-message',
+                        cleaning: 'Cleaned',
+                        document: { ...drawnDocument, blocks: [written('The cleaned words.')] },
+                    },
+                },
+            });
+
+            expect(screen.getByText('A drawn message.')).toBeDefined();
+            expect(screen.queryByText('The cleaned words.')).toBeNull();
+        });
+
+        it('draws the reduced tree where the reader chose the sender’s own markup', () => {
+            readOnly(withMarkup, { embeddedHtml: true });
+
+            expect(screen.getByText('A drawn message.')).toBeDefined();
+            expect(screen.queryByTitle("The sender's own markup, drawn in isolation")).toBeNull();
         });
     });
 });

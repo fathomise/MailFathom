@@ -355,7 +355,9 @@ export {
     mailFlagMutationsRoute,
     mailMoveMutationsRoute,
     mailMutationRecordsRoute,
+    mailSpamMarksRoute,
     markMailRead,
+    markMailSpam,
     moveMail,
     mostMessagesPerMutation,
     mostRecordsPerRead,
@@ -368,7 +370,22 @@ export {
     type MailMutationRecord,
     type MailMutationRecordState,
     type MailMutationResult,
+    type MailSpamMark,
+    type MailSpamMarkResult,
 } from './mailMutations';
+export {
+    isSpam,
+    mailSpamSubcategories,
+    parseSpamVerdict,
+    type MailImpersonatedParty,
+    type MailPhishingRequest,
+    type MailSpamJudge,
+    type MailSpamSubcategory,
+    type MailSpamSubcategoryNamer,
+    type MailSpamVerdict,
+    type MailSpamVerdictValue,
+    type ParsedSpamVerdict,
+} from './mailSpam';
 export {
     longestSearchPage,
     longestSearchText,

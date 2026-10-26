@@ -16,6 +16,7 @@ const work: MailAccount = {
     synchronizationState: 'Synchronized',
     lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
     behind: false,
+    filesJunk: false,
 };
 
 const anywhere = askIn(everything, 'invoice');
@@ -236,7 +237,7 @@ describe('SearchFilters', () => {
         ['Only unread', { unread: true }],
         ['Only flagged', { flagged: true }],
         ['Only with attachments', { hasAttachments: true }],
-        ['Including junk', { includeJunk: true }],
+        ['Including spam', { includeJunk: true }],
     ])('narrows a search to %s', (label, narrowing_) => {
         const narrowed = vi.fn();
 

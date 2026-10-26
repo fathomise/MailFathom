@@ -2,15 +2,16 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useRef } from 'react';
+import { Fragment, useRef } from 'react';
 import { Control } from '../controls/Control';
 import type { ControlShape } from '../controls/controlShapes';
 import { PlannedControl } from '../controls/PlannedControl';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadMarking } from '../readMarking/useReadMarking';
+import { SpamControl } from '../spamMarking/SpamControl';
 import { ActQuestions } from './ActQuestions';
 import { actsDrawn, actsOnAStrip, flagActFor, readActFor, refusalSaid, standsInTheWay } from './drawnActs';
-import { useMailboxActs, type ActedMessage, type MailboxAct } from './useMailboxActs';
+import { allDrawnSpam, useMailboxActs, type ActedMessage, type MailboxAct } from './useMailboxActs';
 
 // The five things a person does to a mailbox, drawn once for the two strips that offer them: the toolbar, over the
 // message that is open, and the selection bar, over everything picked out. One component rather than two rows of
@@ -26,6 +27,7 @@ import { useMailboxActs, type ActedMessage, type MailboxAct } from './useMailbox
 export function MailboxActControls({
     messages,
     shape,
+    spam = null,
     onActed,
 }: {
     /** The messages every one of these acts is about, in the order the list draws them. */
@@ -33,6 +35,12 @@ export function MailboxActControls({
 
     /** How the strip these stand in draws a control. */
     readonly shape: ControlShape;
+
+    /**
+     * Where the spam control stands among these: a selection bar draws it before *Move* as *Spam* or *Not spam*, and the
+     * toolbar draws *Mark spam* after the others, leaving *Not spam* to stand where the answers would.
+     */
+    readonly spam?: 'strip' | 'toolbar' | null;
 
     /** What the strip does once an act has been asked for, which is where a selection is let go. */
     readonly onActed?: () => void;
@@ -69,34 +77,46 @@ export function MailboxActControls({
                 // would answer for each message that it is already there.
                 const inTheWay = standsInTheWay(acts, asked, messages);
 
-                return inTheWay === null ? (
-                    <Control
-                        key={slot}
-                        label={translate(label)}
-                        icon={icon}
-                        shape={shape}
-                        onPress={() => {
-                            if (asked === 'delete') {
-                                deleting.current?.showModal();
-                            } else if (asked === 'move') {
-                                filing.current?.showModal();
-                            } else {
-                                act(asked);
-                            }
-                        }}
-                    />
-                ) : (
-                    <PlannedControl
-                        key={slot}
-                        label={translate(label)}
-                        icon={icon}
-                        shape={shape}
-                        why={translate(inTheWay === 'underway' ? 'act.underway' : refusalSaid[inTheWay], {
-                            control: translate(label),
-                        })}
-                    />
+                const control =
+                    inTheWay === null ? (
+                        <Control
+                            label={translate(label)}
+                            icon={icon}
+                            shape={shape}
+                            onPress={() => {
+                                if (asked === 'delete') {
+                                    deleting.current?.showModal();
+                                } else if (asked === 'move') {
+                                    filing.current?.showModal();
+                                } else {
+                                    act(asked);
+                                }
+                            }}
+                        />
+                    ) : (
+                        <PlannedControl
+                            label={translate(label)}
+                            icon={icon}
+                            shape={shape}
+                            why={translate(inTheWay === 'underway' ? 'act.underway' : refusalSaid[inTheWay], {
+                                control: translate(label),
+                            })}
+                        />
+                    );
+
+                return (
+                    <Fragment key={slot}>
+                        {spam === 'strip' && slot === 'move' ? (
+                            <SpamControl messages={messages} shape={shape} wording="strip" onActed={onActed} />
+                        ) : null}
+                        {control}
+                    </Fragment>
                 );
             })}
+
+            {spam === 'toolbar' && !allDrawnSpam(acts, messages) ? (
+                <SpamControl messages={messages} shape={shape} wording="mark" onActed={onActed} />
+            ) : null}
 
             <ActQuestions messages={messages} deleting={deleting} filing={filing} onActed={onActed} />
         </>

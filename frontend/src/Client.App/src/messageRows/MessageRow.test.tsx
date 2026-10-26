@@ -4,11 +4,12 @@
 
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { MailTimelineEntry } from '@mailfathom/client-backend';
+import type { MailSpamVerdict, MailTimelineEntry } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { pressDrift, pressOpensAfter } from '../contextMenu/rowPress';
 import { swipeCarriesTo, swipeDistance, swipeDrift, swipeEngages } from '../controls/swipeAcross';
+import { glyphOf } from '../controls/icons';
 import { tipRestsFor } from '../controls/useTip';
 import { ListFoldContext } from './listFold';
 import { MailboxActsContext, nothingActed, type MailboxAct, type MailboxActs } from '../mailboxActs/useMailboxActs';
@@ -35,6 +36,7 @@ const email: MailTimelineEntry = {
     preview: 'The opening of the message.',
     enrichment: null,
     threadMessageCount: null,
+    spam: null,
 };
 
 function drawMoved(moved: {
@@ -862,6 +864,102 @@ describe('MessageRow, the mark that opens what was read', () => {
     });
 });
 
+function spamVerdict(over: Partial<MailSpamVerdict> = {}): MailSpamVerdict {
+    return {
+        verdict: 'Spam',
+        decidedBy: 'Model',
+        spamSubcategory: null,
+        spamSubcategoryNamedBy: null,
+        phishingRequest: null,
+        impersonatedParty: null,
+        ...over,
+    };
+}
+
+function spamRow(spam: MailSpamVerdict, { inSpamFolder = false, unread = false } = {}): HTMLElement {
+    render(
+        <LocalizationProvider>
+            <ul>
+                <MessageRow
+                    email={{ ...email, unread, spam }}
+                    position={1}
+                    open={false}
+                    selected={false}
+                    focusable
+                    inSpamFolder={inSpamFolder}
+                    note="Found by what it means."
+                    onOpen={() => undefined}
+                    onPoint={() => undefined}
+                    onElement={() => undefined}
+                />
+            </ul>
+        </LocalizationProvider>,
+    );
+
+    return screen.getByRole('option');
+}
+
+/** The kind a row names in the line it reserves, which is where the Spam folder draws its badge. */
+function badgeIn(row: HTMLElement, kind: string): HTMLElement {
+    const reserved = reservedLine(row);
+
+    if (!(reserved instanceof HTMLElement)) {
+        throw new Error('The row drew no reserved line.');
+    }
+
+    return within(reserved).getByText(kind);
+}
+
+describe('MessageRow, a message marked spam', () => {
+    // In the Spam folder every row is spam, so the row keeps its shape and its third line names the kind instead.
+    it('names a dangerous kind in the Spam folder with the warning glyph beside it', () => {
+        const row = spamRow(spamVerdict({ spamSubcategory: 'Phishing', spamSubcategoryNamedBy: 'Model' }), {
+            inSpamFolder: true,
+        });
+        const badge = badgeIn(row, 'Phishing');
+
+        expect(badge.querySelector('path')?.getAttribute('d')).toBe(glyphOf('warning')?.outline);
+    });
+
+    it('names a kind that informs rather than warns in the Spam folder without a glyph', () => {
+        const row = spamRow(spamVerdict({ spamSubcategory: 'Extortion', spamSubcategoryNamedBy: 'Person' }), {
+            inSpamFolder: true,
+        });
+        const badge = badgeIn(row, 'Extortion');
+
+        expect(badge.querySelector('svg')).toBeNull();
+    });
+
+    it('draws no badge in the Spam folder for spam nobody named a kind of, nor what the screen would have said', () => {
+        const reserved = reservedLine(spamRow(spamVerdict(), { inSpamFolder: true }));
+
+        expect(reserved?.textContent).toBe('');
+        expect(reserved?.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    // Outside the Spam folder the row folds to one muted line, so the verdict is said in words a screen reader reads.
+    it('folds to one line elsewhere, announcing the verdict before who wrote and about what', () => {
+        const row = spamRow(spamVerdict({ spamSubcategory: 'Scam', spamSubcategoryNamedBy: 'Model' }));
+
+        expect(row.textContent).toMatch(/^Spam: Scam, judged by a model\.Writer/u);
+        expect(within(row).getByText('The quarter is closed')).toBeDefined();
+        expect(within(row).queryByText('Found by what it means.')).toBeNull();
+    });
+
+    it('draws a folded spam row without the unread weight, though the deployment reports it unread', () => {
+        spamRow(spamVerdict(), { unread: true });
+
+        expect(screen.queryByText('Unread')).toBeNull();
+    });
+
+    it('folds no row whose verdict is that it is not spam', () => {
+        spamRow(spamVerdict({ verdict: 'NotSpam' }));
+
+        expect(screen.queryByText(/^Spam/u)).toBeNull();
+        expect(screen.getByText('Found by what it means.')).toBeDefined();
+    });
+});
+
 describe('MessageRow, dragged towards a folder', () => {
     function draggedRow(acts: MailboxActs, onCarry?: () => void): HTMLElement {
         render(
@@ -907,7 +1005,16 @@ describe('MessageRow, dragged towards a folder', () => {
     it('is drawn faded for as long as a drag is carrying it', () => {
         const acts: MailboxActs = {
             ...nothingActed,
-            carried: [{ storedEmailId: 'message-1', account: 'work', folder: 'INBOX', unread: false, flagged: false }],
+            carried: [
+                {
+                    storedEmailId: 'message-1',
+                    account: 'work',
+                    folder: 'INBOX',
+                    unread: false,
+                    flagged: false,
+                    spam: null,
+                },
+            ],
         };
 
         expect(draggedRow(acts, () => undefined).className).toContain('opacity-45');
@@ -916,7 +1023,16 @@ describe('MessageRow, dragged towards a folder', () => {
     it('is drawn as it was while the drag is carrying other messages', () => {
         const acts: MailboxActs = {
             ...nothingActed,
-            carried: [{ storedEmailId: 'message-2', account: 'work', folder: 'INBOX', unread: false, flagged: false }],
+            carried: [
+                {
+                    storedEmailId: 'message-2',
+                    account: 'work',
+                    folder: 'INBOX',
+                    unread: false,
+                    flagged: false,
+                    spam: null,
+                },
+            ],
         };
 
         expect(draggedRow(acts, () => undefined).className).not.toContain('opacity-45');

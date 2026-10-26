@@ -7,6 +7,7 @@ import {
     changeMailFlags,
     deleteMail,
     markMailRead,
+    markMailSpam,
     mostMessagesPerMutation,
     mostRecordsPerRead,
     moveMail,
@@ -377,6 +378,99 @@ describe('moveMail', () => {
     it('says the credential may not move mail where the deployment refused it', async () => {
         const answer = await moveMail(session, answering({ status: 403, body: '' }), [
             { storedEmailId, destinationFolder: 'work-archive' },
+        ]);
+
+        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unauthorized', status: 403 } });
+    });
+});
+
+describe('markMailSpam', () => {
+    it('states the verdict and the kind on the client surface’s spam route for each message named', async () => {
+        const { transport, requests } = recording(recorded());
+
+        await markMailSpam(session, transport, { verdict: 'Spam', spamSubcategory: 'Phishing' }, [storedEmailId]);
+
+        expect(requests[0]?.method).toBe('POST');
+        expect(requests[0]?.path).toBe('https://mail.example.invalid/api/client/mutations/spam');
+        expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({
+            verdict: 'Spam',
+            spamSubcategory: 'Phishing',
+            storedEmailIds: [storedEmailId],
+        });
+    });
+
+    it('names no kind on a not-spam mark', async () => {
+        const { transport, requests } = recording(recorded());
+
+        await markMailSpam(session, transport, { verdict: 'NotSpam' }, [storedEmailId]);
+
+        expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({
+            verdict: 'NotSpam',
+            spamSubcategory: null,
+            storedEmailIds: [storedEmailId],
+        });
+    });
+
+    it('answers whether each mark moved its message, beside the record the move became', async () => {
+        const answer = await markMailSpam(
+            session,
+            answering({
+                status: 200,
+                body: JSON.stringify({
+                    results: [
+                        {
+                            storedEmailId,
+                            outcome: 'recorded',
+                            moved: true,
+                            changes: [{ recordId, mutation: 'relocate', state: 'pending' }],
+                        },
+                        { storedEmailId: 'kept', outcome: 'applied', moved: false, changes: [] },
+                        { storedEmailId: 'gone', outcome: 'message-not-found', moved: false, changes: [] },
+                    ],
+                }),
+            }),
+            { verdict: 'Spam', spamSubcategory: null },
+            [storedEmailId, 'kept', 'gone'],
+        );
+
+        expect(answer).toStrictEqual({
+            outcome: 'read',
+            value: [
+                { storedEmailId, outcome: 'recorded', moved: true, changes: [{ recordId, state: 'pending' }] },
+                { storedEmailId: 'kept', outcome: 'applied', moved: false, changes: [] },
+                { storedEmailId: 'gone', outcome: 'message-not-found', moved: false, changes: [] },
+            ],
+        });
+    });
+
+    it('refuses a mark that does not say whether it moved the message', async () => {
+        const answer = await markMailSpam(
+            session,
+            answering({
+                status: 200,
+                body: JSON.stringify({ results: [{ storedEmailId, outcome: 'applied', changes: [] }] }),
+            }),
+            { verdict: 'NotSpam' },
+            [storedEmailId],
+        );
+
+        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
+    });
+
+    it('names no more messages than one submission may carry', async () => {
+        const asked = Array.from({ length: mostMessagesPerMutation + 5 }, (_, at) => `message-${String(at)}`);
+        const { transport, requests } = recording(recorded());
+
+        await markMailSpam(session, transport, { verdict: 'NotSpam' }, asked);
+
+        const sent = JSON.parse(requests[0]?.body ?? '') as { storedEmailIds: readonly unknown[] };
+
+        expect(sent.storedEmailIds).toHaveLength(mostMessagesPerMutation);
+    });
+
+    it('says the credential may not mark mail where the deployment refused it', async () => {
+        const answer = await markMailSpam(session, answering({ status: 403, body: '' }), { verdict: 'NotSpam' }, [
+            storedEmailId,
         ]);
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unauthorized', status: 403 } });

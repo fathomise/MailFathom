@@ -10,6 +10,7 @@ import { ComposingContext, type Composing } from '../composer/useComposing';
 import { swipeDistance } from '../controls/swipeAcross';
 import { MailboxActsContext, nothingActed, type AskedAct, type MailboxActs } from '../mailboxActs/useMailboxActs';
 import { LocalizationProvider } from '../localization/Localization';
+import { ToastsProvider } from '../toasts/Toasts';
 import { ListedMailProvider } from './ListedMail';
 import {
     SignalledChangesContext,
@@ -35,6 +36,7 @@ const work: MailAccount = {
     synchronizationState: 'Synchronized',
     lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
     behind: false,
+    filesJunk: false,
 };
 
 function message(at: number, carried: Record<string, unknown> = {}): Record<string, unknown> {
@@ -166,23 +168,25 @@ function listUnder(
 ): ReactElement {
     return (
         <LocalizationProvider>
-            <ComposingContext value={composing}>
-                <MailboxActsContext value={acts}>
-                    <WorkspaceProvider>
-                        <SignalledChangesContext value={changes}>
-                            <ListOpeningIntoTheWorkspace
-                                session={session}
-                                transport={transport}
-                                scope={scope}
-                                accounts={accounts}
-                                online={online}
-                            />
-                        </SignalledChangesContext>
+            <ToastsProvider>
+                <ComposingContext value={composing}>
+                    <MailboxActsContext value={acts}>
+                        <WorkspaceProvider>
+                            <SignalledChangesContext value={changes}>
+                                <ListOpeningIntoTheWorkspace
+                                    session={session}
+                                    transport={transport}
+                                    scope={scope}
+                                    accounts={accounts}
+                                    online={online}
+                                />
+                            </SignalledChangesContext>
 
-                        <SelectionProbe />
-                    </WorkspaceProvider>
-                </MailboxActsContext>
-            </ComposingContext>
+                            <SelectionProbe />
+                        </WorkspaceProvider>
+                    </MailboxActsContext>
+                </ComposingContext>
+            </ToastsProvider>
         </LocalizationProvider>
     );
 }
@@ -803,7 +807,7 @@ describe('MessageList', () => {
 
         await rows();
 
-        expect(screen.queryByLabelText('Include junk')).toBeNull();
+        expect(screen.queryByLabelText('Include spam')).toBeNull();
     });
 
     it('opens a message when it is pointed at, and picks nothing out, so the toolbar stays over the list', async () => {
@@ -1206,7 +1210,7 @@ describe('MessageList', () => {
     it.each([
         ['Only flagged', 'flagged=true'],
         ['Only with attachments', 'hasAttachments=true'],
-        ['Include junk', 'includeJunk=true'],
+        ['Include spam', 'includeJunk=true'],
     ])('reads the folder again under %s', async (control, asked) => {
         const { transport, requests } = recording(wholeFolder);
 
@@ -1669,6 +1673,7 @@ describe('MessageList, under a finger carried across a row', () => {
             folder: 'INBOX',
             unread: false,
             flagged: false,
+            spam: null,
         }),
     };
 
@@ -1695,7 +1700,7 @@ describe('MessageList, under a finger carried across a row', () => {
         carry(row(0), swipeDistance);
 
         expect(performed).toHaveBeenCalledWith('archive', [
-            { storedEmailId: 'message-0', account: 'work', folder: 'INBOX', unread: false, flagged: false },
+            { storedEmailId: 'message-0', account: 'work', folder: 'INBOX', unread: false, flagged: false, spam: null },
         ]);
     });
 

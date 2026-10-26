@@ -14,6 +14,7 @@ function drawn(at: number): {
     readonly folder: string;
     readonly unread: boolean;
     readonly flagged: boolean;
+    readonly spam: null;
 } {
     return {
         id: `message-${String(at)}`,
@@ -21,6 +22,7 @@ function drawn(at: number): {
         folder: 'work-inbox',
         unread: at % 2 === 0,
         flagged: at % 3 === 0,
+        spam: null,
     };
 }
 
@@ -44,6 +46,7 @@ describe('ListedMailProvider', () => {
             folder: 'work-inbox',
             unread: false,
             flagged: false,
+            spam: null,
         });
     });
 

@@ -43,6 +43,7 @@ const tree = {
                 synchronizationState: 'Synchronized',
                 lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
                 behind: false,
+                filesJunk: false,
             },
             folders: [
                 {
@@ -94,6 +95,7 @@ const tree = {
                 synchronizationState: 'Unreachable',
                 lastSynchronizedAt: '2026-08-30T21:00:00+00:00',
                 behind: false,
+                filesJunk: false,
             },
             folders: [
                 {
@@ -1076,7 +1078,7 @@ describe('FolderTree', () => {
 
 describe('FolderTree, under a drag carrying messages', () => {
     const fromWorkInbox: readonly ActedMessage[] = [
-        { storedEmailId: 'message-1', account: 'work', folder: 'INBOX', unread: false, flagged: false },
+        { storedEmailId: 'message-1', account: 'work', folder: 'INBOX', unread: false, flagged: false, spam: null },
     ];
 
     // What the move dialog would offer those messages, which is where a drop is allowed to land.

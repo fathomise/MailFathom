@@ -102,6 +102,7 @@ export const workAccount = {
     synchronizationState: 'Synchronized',
     lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
     behind: false,
+    filesJunk: false,
 };
 
 /** A mailbox whose synchronization is failing, which is what a screen draws its own failure sentence from. */
@@ -111,6 +112,7 @@ export const failingAccount = {
     synchronizationState: 'Failing',
     lastSynchronizedAt: '2026-08-30T18:12:00+00:00',
     behind: true,
+    filesJunk: false,
 };
 
 /**
@@ -125,6 +127,7 @@ export const accountBehind = {
     synchronizationState: 'Synchronized',
     lastSynchronizedAt: '2026-08-31T06:02:00+00:00',
     behind: true,
+    filesJunk: false,
 };
 
 /** What the accounts route answers at rest: one mailbox, up to date, with nothing to report. */
@@ -227,6 +230,19 @@ const trash = {
     behind: false,
 };
 
+// The account's Spam folder, which a mail server calls *Junk* and the client names by its role. It holds the corpus's
+// sample spam from the start, because spam arrives there rather than being filed by anybody here.
+const spamFolder = {
+    id: 'JUNK',
+    role: 'Junk',
+    path: ['Junk'],
+    storedEmailCount: 4,
+    unreadEmailCount: 2,
+    synchronizationState: 'Synchronized',
+    lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
+    behind: false,
+};
+
 const filed = {
     id: 'FILED',
     role: 'Archive',
@@ -240,14 +256,14 @@ const filed = {
 
 /**
  * What the folders route answers at rest: one mailbox with an inbox, its drafts, what it sent, a folder nested under
- * another, and the archive and the trash its acts file into, with sends still waiting in its Outbox.
+ * another, the archive and the trash its acts file into, and its Spam folder, with sends still waiting in its Outbox.
  */
 export const mailFolders = {
     synchronizationEnabled: true,
     accounts: [
         {
             account: workAccount,
-            folders: [inbox, draftsFolder, sentFolder, archive2024, filed, trash],
+            folders: [inbox, draftsFolder, sentFolder, archive2024, filed, spamFolder, trash],
             outbox: waitingOutbox,
         },
     ],
@@ -264,7 +280,7 @@ export const troubledFolders = {
     accounts: [
         {
             account: workAccount,
-            folders: [inbox, draftsFolder, sentFolder, archive2024, emptyFolder],
+            folders: [inbox, draftsFolder, sentFolder, archive2024, emptyFolder, spamFolder],
             outbox: waitingOutbox,
         },
         {
@@ -323,6 +339,7 @@ export const managedFolders = {
             allowedActs: ['Rename', 'Move', 'Delete'],
         },
         { id: 'FILED', parentId: null, name: 'Filed', role: 'Archive', allowedActs: [] },
+        { id: 'JUNK', parentId: null, name: 'Junk', role: 'Junk', allowedActs: [] },
         { id: 'TRASH', parentId: null, name: 'Trash', role: 'Trash', allowedActs: [] },
     ],
 };

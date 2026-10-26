@@ -12,6 +12,7 @@ import {
     type ReactNode,
 } from 'react';
 import {
+    isSpam,
     readMailTimeline,
     type ClientFailure,
     type ClientFailureReason,
@@ -28,12 +29,14 @@ import { useLocalization } from '../localization/useLocalization';
 import { ActQuestions } from '../mailboxActs/ActQuestions';
 import {
     actLeaving,
+    drawnSpam,
     opensAsDraft,
     useMailboxActs,
     type ActedMessage,
     type AskedAct,
     type MailboxActs,
 } from '../mailboxActs/useMailboxActs';
+import { useSpamRefusal } from '../spamMarking/useSpamRefusal';
 import { DraftsOutOfStep } from './DraftsOutOfStep';
 import { useComposing } from '../composer/useComposing';
 import { MessageReading } from '../messageRows/MessageReading';
@@ -128,9 +131,29 @@ function draftsAccountsOf(scope: MailScope, accounts: readonly MailAccount[], ac
         folder: scope.folderId,
         unread: false,
         flagged: false,
+        spam: null,
     });
 
     return role === 'Drafts' ? [scope.accountId] : [];
+}
+
+// Whether this list is a Spam folder, where a spam row keeps its shape and names its kind rather than folding away.
+function spamFolderOf(scope: MailScope, acts: MailboxActs): boolean {
+    if (scope.kind === 'role') {
+        return scope.role === 'Junk';
+    }
+
+    return (
+        scope.kind === 'folder' &&
+        acts.folderRoleOf({
+            storedEmailId: '',
+            account: scope.accountId,
+            folder: scope.folderId,
+            unread: false,
+            flagged: false,
+            spam: null,
+        }) === 'Junk'
+    );
 }
 
 export function MessageList({
@@ -166,6 +189,8 @@ export function MessageList({
     // held finger is the row's menu — which a platform starting a drag on that same hold would take away.
     const coarse = useCoarsePointer();
     const draftsAccounts = draftsAccountsOf(scope, accounts, acts);
+    const inSpamFolder = spamFolderOf(scope, acts);
+    const refuseSpam = useSpamRefusal();
     const composing = useComposing();
     const signalledChanges = useSignalledChanges();
     // Where this list opens: how the folder was last read and where in it the reader was. State rather than a value
@@ -828,6 +853,13 @@ export function MessageList({
             return undefined;
         }
 
+        // Spam cannot be answered, so the swipe is answered with why rather than with a composer.
+        if (isSpam(drawnSpam(acts, email))) {
+            return () => {
+                refuseSpam('spam.refusedAnswer');
+            };
+        }
+
         return () => {
             // The message is opened as well as answered, which is the design's own: an answer written over a
             // list nobody chose a message from would be a composition with no message behind it on the screen.
@@ -1054,6 +1086,7 @@ export function MessageList({
                                             }
                                         }}
                                         note={readingOn(email)}
+                                        inSpamFolder={inSpamFolder}
                                         onReadings={
                                             hasReadings(email)
                                                 ? () => {

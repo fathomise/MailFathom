@@ -6,9 +6,12 @@ using System.Security.Cryptography;
 using System.Text;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Folders;
+using MailFathom.Application.Spam.Actions;
+using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Folders;
 using MailFathom.Host.Api;
 using MailFathom.TestSupport;
+using NSubstitute;
 using Xunit;
 
 namespace MailFathom.Host.UnitTests.Api;
@@ -28,6 +31,8 @@ public sealed class ClientMailFoldersEndpointTests
 
     private static readonly ServedMailAccount Private = SyntheticServedAccount.Of("private");
 
+    private static readonly ISpamActionSettingsReader NoSpamActions = SpamActionsFor(filingAccount: null);
+
     /// <summary>The path a client appends to the address it was configured with, pinned because the client composes it from a constant of its own.</summary>
     [Fact]
     public void MailFoldersRoute_IsThePathAClientComposes() =>
@@ -43,7 +48,7 @@ public sealed class ClientMailFoldersEndpointTests
             Folder("inbox", MailFolderSpecialUse.Inbox, ["INBOX"], storedEmailCount: 12, unreadEmailCount: 3)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
 
         // Assert
         var folder = Assert.Single(Assert.Single(response.Accounts).Folders);
@@ -70,11 +75,11 @@ public sealed class ClientMailFoldersEndpointTests
             []);
 
         // Act
-        var response = ClientMailFoldersResponse.For(Directory(new MailAccountFolders(freshness, [])));
+        var response = ClientMailFoldersResponse.For(Directory(new MailAccountFolders(freshness, [])), NoSpamActions);
 
         // Assert
         Assert.Equal(
-            ClientMailAccountResponse.For(freshness),
+            ClientMailAccountResponse.For(freshness, NoSpamActions),
             Assert.Single(response.Accounts).Account);
     }
 
@@ -88,7 +93,7 @@ public sealed class ClientMailFoldersEndpointTests
             Folder("2024", role: null, ["Archiwum", "2024"], storedEmailCount: 0, unreadEmailCount: 0)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
 
         // Assert
         Assert.Null(Assert.Single(Assert.Single(response.Accounts).Folders).Role);
@@ -107,7 +112,7 @@ public sealed class ClientMailFoldersEndpointTests
             Folder("inbox", role, ["INBOX"], storedEmailCount: 0, unreadEmailCount: 0)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
 
         // Assert
         Assert.Equal(role.ToString(), Assert.Single(Assert.Single(response.Accounts).Folders).Role);
@@ -133,7 +138,7 @@ public sealed class ClientMailFoldersEndpointTests
                 UnreadEmailCount: 0)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
 
         // Assert
         Assert.Equal(
@@ -163,7 +168,7 @@ public sealed class ClientMailFoldersEndpointTests
                 UnreadEmailCount: 0)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
 
         // Assert
         Assert.Equal(behind, Assert.Single(Assert.Single(response.Accounts).Folders).Behind);
@@ -179,7 +184,7 @@ public sealed class ClientMailFoldersEndpointTests
             new DescribedMailFolder(IdOf("projects"), Freshness: null, Role: null, ["Projects"], 4, 1)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
 
         // Assert
         var folder = Assert.Single(Assert.Single(response.Accounts).Folders);
@@ -198,7 +203,7 @@ public sealed class ClientMailFoldersEndpointTests
             Folder("inbox", MailFolderSpecialUse.Inbox, [], storedEmailCount: 0, unreadEmailCount: 0)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
 
         // Assert
         Assert.Empty(Assert.Single(Assert.Single(response.Accounts).Folders).Path);
@@ -217,7 +222,7 @@ public sealed class ClientMailFoldersEndpointTests
                 Folder("inbox", MailFolderSpecialUse.Inbox, ["INBOX"], 2, 2)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
 
         // Assert
         Assert.Equal([Private.Id.Value, Work.Id.Value], response.Accounts.Select(account => account.Account.Id));
@@ -234,7 +239,7 @@ public sealed class ClientMailFoldersEndpointTests
         var directory = new MailFolderDirectory(SynchronizationEnabled: true, []);
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
 
         // Assert
         Assert.Empty(response.Accounts);
@@ -252,7 +257,7 @@ public sealed class ClientMailFoldersEndpointTests
             [Account(Work, Folder("inbox", MailFolderSpecialUse.Inbox, ["INBOX"], 1, 0))]);
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions);
 
         // Assert
         Assert.Equal(synchronizationEnabled, response.SynchronizationEnabled);
@@ -291,4 +296,16 @@ public sealed class ClientMailFoldersEndpointTests
 
     private static MailFolderId IdOf(string alias) =>
         MailFolderId.Create(new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(alias)).AsSpan(0, 16)));
+
+    private static ISpamActionSettingsReader SpamActionsFor(ServedMailAccount? filingAccount)
+    {
+        var reader = Substitute.For<ISpamActionSettingsReader>();
+        reader.ActionsFor(Arg.Any<MailAccountId>()).Returns(SpamActionSettings.None);
+        if (filingAccount is not null)
+        {
+            reader.ActionsFor(filingAccount.Id).Returns(SpamActionSettings.Create(filesJunk: true, marksJunkRead: false));
+        }
+
+        return reader;
+    }
 }

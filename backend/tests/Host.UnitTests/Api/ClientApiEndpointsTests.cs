@@ -14,6 +14,7 @@ using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Screening;
 using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Application.Observability;
+using MailFathom.Application.Spam.Actions;
 using MailFathom.Application.Synchronization.Administration;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Application.Tasks;
@@ -846,6 +847,7 @@ public sealed class ClientApiEndpointsTests
         services.AddScoped(_ => granted);
         services.AddSingleton(Substitute.For<IAuthorizationRefusalTelemetry>());
         services.AddSingleton(Options.Create(new MailDeliveryOptions()));
+        services.AddSingleton(Substitute.For<ISpamActionSettingsReader>());
         services.AddScoped(_ => UnreachedFreshnessReader(granted));
         services.AddScoped(_ => new OwnTasks(
             granted,

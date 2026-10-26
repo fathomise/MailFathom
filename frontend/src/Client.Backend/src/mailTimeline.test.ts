@@ -191,7 +191,7 @@ describe('readMailTimeline', () => {
         expect(result).toStrictEqual({
             outcome: 'read',
             value: {
-                emails: [{ ...message, enrichment: null }],
+                emails: [{ ...message, enrichment: null, spam: null }],
                 nextCursor: 'after',
                 previousCursor: 'before',
                 pageSize: 50,

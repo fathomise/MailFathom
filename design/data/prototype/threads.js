@@ -602,8 +602,9 @@ Notes and recordings: [hiring/frontend-2026](https://company.example/hiring/fron
   },
 
   // Spam. `spam` is the verdict a message arrived with: `judge` is who reached it (`model`, `server`, or `person`),
-  // `kind` its spam subcategory where one was named, and `asks` and `poses` what a dangerous one asks for and whom it
-  // is written to look like, where the record says so. `box: "spam"` puts a thread in an account's Spam folder; every
+  // `kind` its spam subcategory where one was named, and `request` and `party` what a phishing message asks for and whom
+  // a phishing or business email compromise message is written to look like, where the record names one. Both are the
+  // closed values the deployment publishes rather than words the message wrote, so a warning never repeats its claims. `box: "spam"` puts a thread in an account's Spam folder; every
   // other spam thread sits in the folder the rest of the list stands for. `acc` names the account where it is not the
   // work one, which is what decides whether *Spam* and *Not spam* move it.
   // Spam carries no AI reading (`ai`, `state`), because nothing that reads mail for the person reads spam.
@@ -616,7 +617,7 @@ Notes and recordings: [hiring/frontend-2026](https://company.example/hiring/fron
     ai: "",
     meta: "payroll@nordwlnd-hr.example · yesterday 17:42 · thread: 1 message",
     state: [],
-    spam: { judge: "model", kind: "phishing", asks: "the login to your bank account", poses: "the Nordwind payroll team" },
+    spam: { judge: "model", kind: "phishing", request: "Credentials", party: "Colleague" },
     body: [
       { text: "Our records show that your salary account could not be verified for the September payroll run." },
       { text: "To avoid a delay in your payment, sign in through the secure payroll portal below and confirm your bank details before 18:00 today." },
@@ -650,7 +651,7 @@ Notes and recordings: [hiring/frontend-2026](https://company.example/hiring/fron
     meta: "it-desk@nordwind-support.example · today 08:31 · thread: 1 message",
     state: [],
     unread: true,
-    spam: { judge: "model", kind: "phishing", asks: "your mailbox password", poses: "the Nordwind IT service desk" },
+    spam: { judge: "model", kind: "phishing", request: "Credentials", party: "OnlineService" },
     body: [
       { text: "Your mailbox password expires today. Mail sent to you after 23:59 will be held until it is renewed." },
       { text: "Keep your current password by signing in below. It takes less than a minute." },
@@ -668,7 +669,7 @@ Notes and recordings: [hiring/frontend-2026](https://company.example/hiring/fron
     meta: "accounts@halvard-logistlcs.example · today 07:58 · thread: 1 message",
     state: [],
     unread: true,
-    spam: { judge: "model", kind: "bec", asks: "a change to the account our invoices are paid into", poses: "Halvard Logistics, a supplier" },
+    spam: { judge: "model", kind: "bec", party: "Supplier" },
     body: [
       { text: "Hello, following an audit we have moved our banking. Please pay the open invoices and every future one into the new account below." },
       { text: "Please do not call our office about this, the line is being moved as well. Reply here once the change is made." },
@@ -684,7 +685,7 @@ Notes and recordings: [hiring/frontend-2026](https://company.example/hiring/fron
     ai: "",
     meta: "notice@parcel-track.example · yesterday 19:20 · thread: 1 message",
     state: [],
-    spam: { judge: "person", kind: "malware", asks: "the attached file to be opened", poses: "a courier" },
+    spam: { judge: "person", kind: "malware" },
     body: [
       { text: "We tried to deliver your parcel today but nobody was home." },
       { text: "Open the attached delivery form, fill it in, and we deliver again tomorrow." },

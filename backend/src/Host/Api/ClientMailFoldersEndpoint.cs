@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Folders;
 using MailFathom.Application.Mail.Delivery.Tracking;
+using MailFathom.Application.Spam.Actions;
 using MailFathom.Domain.Access;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -56,18 +57,20 @@ internal static class ClientMailFoldersEndpoint
 
     /// <summary>Reports the acting user's mailboxes, their folders, and how current each of them is.</summary>
     /// <param name="reader">Reads the user's accounts and the folders a screen may draw beneath them.</param>
+    /// <param name="spamActions">Reads whether each account's spam verdicts move its mail.</param>
     /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
     /// <returns><c>200</c> with the user's tree, empty where they own no account, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.mail.read</c>.</returns>
     /// <remarks>It speaks to no mail server, so a client request cannot wait on IMAP and cannot set the remote <c>\Seen</c> flag.</remarks>
     internal static async Task<Ok<ClientMailFoldersResponse>> ReadFoldersAsync(
         [FromServices] MailFolderDirectoryReader reader,
+        [FromServices] ISpamActionSettingsReader spamActions,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(reader);
 
         var directory = await reader.ReadAsync(cancellationToken);
 
-        return TypedResults.Ok(ClientMailFoldersResponse.For(directory));
+        return TypedResults.Ok(ClientMailFoldersResponse.For(directory, spamActions));
     }
 }
 
@@ -85,15 +88,17 @@ internal sealed record ClientMailFoldersResponse(
 {
     /// <summary>Describes the user's tree on the wire.</summary>
     /// <param name="directory">What the use case answered.</param>
+    /// <param name="spamActions">Reads whether each account's spam verdicts move its mail.</param>
     /// <returns>The response body.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="directory" /> is <see langword="null" />.</exception>
-    internal static ClientMailFoldersResponse For(MailFolderDirectory directory)
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="directory" /> or <paramref name="spamActions" /> is <see langword="null" />.</exception>
+    internal static ClientMailFoldersResponse For(MailFolderDirectory directory, ISpamActionSettingsReader spamActions)
     {
         ArgumentNullException.ThrowIfNull(directory);
+        ArgumentNullException.ThrowIfNull(spamActions);
 
         return new ClientMailFoldersResponse(
             directory.SynchronizationEnabled,
-            [.. directory.Accounts.Select(ClientMailFolderAccountResponse.For)]);
+            [.. directory.Accounts.Select(account => ClientMailFolderAccountResponse.For(account, spamActions))]);
     }
 }
 
@@ -105,7 +110,7 @@ internal sealed record ClientMailFoldersResponse(
 /// <para>
 /// The account is the accounts route's own type rather than a copy of its fields, so the two routes cannot come to
 /// disagree about what an account is. That is why it is nested rather than flattened: a copy flattened for the
-/// convenience of one screen would be four field names to keep in step with another route forever.
+/// convenience of one screen would be six field names to keep in step with another route forever.
 /// </para>
 /// <para>
 /// The outbox is a member of the account and not one of its folders: it has no folder identity, so no route that
@@ -120,9 +125,10 @@ internal sealed record ClientMailFolderAccountResponse(
 {
     /// <summary>Describes one account and its folders on the wire.</summary>
     /// <param name="account">The account's folders.</param>
+    /// <param name="spamActions">Reads whether the account's spam verdicts move its mail.</param>
     /// <returns>The response body.</returns>
-    internal static ClientMailFolderAccountResponse For(MailAccountFolders account) => new(
-        ClientMailAccountResponse.For(account.Account),
+    internal static ClientMailFolderAccountResponse For(MailAccountFolders account, ISpamActionSettingsReader spamActions) => new(
+        ClientMailAccountResponse.For(account.Account, spamActions),
         [.. account.Folders.Select(ClientMailFolderResponse.For)],
         account.Outbox is { } outbox ? ClientOutboxCountResponse.For(outbox) : null);
 }

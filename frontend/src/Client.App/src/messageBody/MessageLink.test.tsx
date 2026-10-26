@@ -6,6 +6,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { MailDocumentLink } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { LinksNotOpened } from './linksNotOpened';
 import { MessageLink } from './MessageLink';
 import { LinkOpenerContext, type OpenLink } from '../shellOperations/linkOpener';
 
@@ -115,5 +116,35 @@ describe('MessageLink', () => {
         fireEvent.click(screen.getByRole('link', { name: 'example.invalid' }));
 
         expect(await screen.findByText('This link could not be opened.')).toBeDefined();
+    });
+});
+
+describe('MessageLink, in a message marked spam', () => {
+    const words = 'Claim your prize';
+
+    function notOpened(link: MailDocumentLink) {
+        return render(
+            <LocalizationProvider>
+                <LinkOpenerContext value={() => Promise.resolve()}>
+                    <LinksNotOpened value>
+                        <MessageLink link={link}>{words}</MessageLink>
+                    </LinksNotOpened>
+                </LinkOpenerContext>
+            </LocalizationProvider>,
+        );
+    }
+
+    it('draws the words of the link and where it would have gone, with nothing to press', () => {
+        notOpened(honest);
+
+        expect(screen.getByText(words)).toBeDefined();
+        expect(screen.getByText('(a link to example.invalid, not opened)')).toBeDefined();
+        expect(screen.queryByRole('link')).toBeNull();
+    });
+
+    it('names the whole target of a link whose scheme has no host', () => {
+        notOpened({ ...honest, target: 'mailto:someone@example.invalid', host: null, deception: 'NotApplicable' });
+
+        expect(screen.getByText('(a link to mailto:someone@example.invalid, not opened)')).toBeDefined();
     });
 });

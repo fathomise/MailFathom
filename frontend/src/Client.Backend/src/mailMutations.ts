@@ -4,6 +4,7 @@
 
 import { failed, failureReasonForStatus, read, type ClientResult } from './failure';
 import { asRecord } from './json';
+import type { MailSpamSubcategory } from './mailSpam';
 import { headersFor, routeFor, type ClientSession } from './session';
 import { spanned } from './telemetry';
 import { send, type ClientResponse, type MailFathomTransport } from './transport';
@@ -47,6 +48,14 @@ export const mailDeleteMutationsRoute = '/mutations/deletes';
  * costs a wait rather than a delete, and asking twice or asking late is the same as asking once.
  */
 export const mailDeleteReleasesRoute = '/mutations/deletes/releases';
+
+/**
+ * The route the person's own spam verdict on a batch is recorded at, relative to the client prefix.
+ *
+ * A route of its own because the verdict is not a flag a mail server keeps: it is MailFathom's record, recorded at once,
+ * which the junk keywords and — where the account's switch says so — a move follow into the mailbox.
+ */
+export const mailSpamMarksRoute = '/mutations/spam';
 
 /** The route the caller's own change records are read back at, relative to the client prefix. */
 export const mailMutationRecordsRoute = '/mutations';
@@ -153,6 +162,22 @@ export interface MailMutationResult {
     readonly changes: readonly MailMutationChange[];
 }
 
+/** What marking one message spam or not spam produced. */
+export interface MailSpamMarkResult extends MailMutationResult {
+    /** Whether the mark moved the message, which the account's switch for filing junk decides. */
+    readonly moved: boolean;
+}
+
+/**
+ * The person's verdict on a batch: spam, with one subcategory for all of it or none, or not spam.
+ *
+ * One direction per request, because that is the one choice a person made; a selection that would need two is refused
+ * before anything is sent.
+ */
+export type MailSpamMark =
+    | { readonly verdict: 'Spam'; readonly spamSubcategory: MailSpamSubcategory | null }
+    | { readonly verdict: 'NotSpam' };
+
 /** Where one change this caller asked for stands, as the read route reports it. */
 export interface MailMutationRecord {
     readonly recordId: string;
@@ -256,6 +281,38 @@ export function moveMail(
 }
 
 /**
+ * Records the person's own spam or not-spam verdict on the named messages.
+ *
+ * @param session Who is asking and where.
+ * @param transport How a request reaches the deployment.
+ * @param mark The verdict, and for spam the subcategory every message takes.
+ * @param storedEmailIds The messages, at most {@link mostMessagesPerMutation} of them.
+ * @returns One result per message the deployment answered for, or an expected failure as a value.
+ */
+export async function markMailSpam(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    mark: MailSpamMark,
+    storedEmailIds: readonly string[],
+): Promise<ClientResult<readonly MailSpamMarkResult[]>> {
+    const answered = await submit(
+        session,
+        transport,
+        mailSpamMarksRoute,
+        {
+            verdict: mark.verdict,
+            spamSubcategory: mark.verdict === 'Spam' ? mark.spamSubcategory : null,
+            storedEmailIds: storedEmailIds.slice(0, mostMessagesPerMutation),
+        },
+        'marks',
+    );
+
+    return answered.outcome === 'read'
+        ? read(answered.value.map((result) => ({ ...result, moved: result.moved === true })))
+        : answered;
+}
+
+/**
  * Writes down that the named messages are to be deleted from the mail server, as one batch their reader's act authored.
  *
  * Nothing here names a folder or says what becomes of MailFathom's own copy: the first is not part of the act and the
@@ -324,9 +381,13 @@ function overRecords(
  * Where a route's answer names the records one message's change became.
  *
  * The flag route answers a list, because one change there may write both flags and each is a record of its own. A move
- * and a delete each write one record, and their routes answer it alone, as `null` where nothing was written down.
+ * and a delete each write one record, and their routes answer it alone, as `null` where nothing was written down. A
+ * spam mark answers a list beside whether it moved the message.
  */
-type RecordsNamedIn = 'changes' | 'change';
+type RecordsNamedIn = 'changes' | 'change' | 'marks';
+
+/** One result as read off the wire, carrying whether it moved the message where the route says so. */
+type ReadResult = MailMutationResult & { readonly moved?: boolean };
 
 /** Puts one batch on the wire and reads what came back, which is the same exchange whichever act asked for it. */
 function submit(
@@ -335,7 +396,7 @@ function submit(
     route: string,
     body: object,
     recordsNamedIn: RecordsNamedIn,
-): Promise<ClientResult<readonly MailMutationResult[]>> {
+): Promise<ClientResult<readonly ReadResult[]>> {
     return spanned(`POST ${route}`, async () =>
         answerOf(
             await send(transport, {
@@ -450,7 +511,7 @@ function parseRecord(entry: unknown): MailMutationRecord | null {
 function answerOf(
     response: ClientResponse | null,
     recordsNamedIn: RecordsNamedIn,
-): ClientResult<readonly MailMutationResult[]> {
+): ClientResult<readonly ReadResult[]> {
     if (response === null) {
         return failed('unavailable', null);
     }
@@ -481,14 +542,14 @@ function parsedArray(body: string, named: string, bound: number): readonly unkno
     return Array.isArray(answered) && answered.length <= bound ? answered : null;
 }
 
-function parseResults(body: string, recordsNamedIn: RecordsNamedIn): readonly MailMutationResult[] | null {
+function parseResults(body: string, recordsNamedIn: RecordsNamedIn): readonly ReadResult[] | null {
     const answered = parsedArray(body, 'results', mostMessagesPerMutation);
 
     if (answered === null) {
         return null;
     }
 
-    const results: MailMutationResult[] = [];
+    const results: ReadResult[] = [];
 
     for (const entry of answered) {
         const result = parseResult(entry, recordsNamedIn);
@@ -503,7 +564,7 @@ function parseResults(body: string, recordsNamedIn: RecordsNamedIn): readonly Ma
     return results;
 }
 
-function parseResult(entry: unknown, recordsNamedIn: RecordsNamedIn): MailMutationResult | null {
+function parseResult(entry: unknown, recordsNamedIn: RecordsNamedIn): ReadResult | null {
     const record = asRecord(entry);
 
     if (record === null) {
@@ -515,6 +576,13 @@ function parseResult(entry: unknown, recordsNamedIn: RecordsNamedIn): MailMutati
 
     if (typeof storedEmailId !== 'string' || !isMutationOutcome(outcome)) {
         return null;
+    }
+
+    if (recordsNamedIn === 'marks') {
+        const moved = record['moved'];
+        const changes = parseChanges(record['changes']);
+
+        return typeof moved !== 'boolean' || changes === null ? null : { storedEmailId, outcome, changes, moved };
     }
 
     const named = record[recordsNamedIn];

@@ -660,6 +660,7 @@ Project repository: https://github.com/fathomise/MailFathom
             <div style="flex:1;min-width:0;font-size:16px;font-weight:600;text-wrap:pretty">{{ notSpamAskTitle }}</div>
           </div>
           <div style="font-size:13px;color:var(--muted);line-height:1.5;text-wrap:pretty">{{ notSpamAskText }}</div>
+          <div style="font-size:13px;color:var(--muted);line-height:1.5;text-wrap:pretty">Marking it spam again takes this back.</div>
           <div style="display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap;margin-top:2px">
             <div role="button" tabindex="0" onClick="{{ closeNotSpamAsk }}" style="{{ notSpamCancelStyle }}" style-hover="cursor:pointer;background:var(--hover)">Cancel</div>
             <div role="button" tabindex="0" onClick="{{ confirmNotSpam }}" style="{{ notSpamBtnStyle }}" style-hover="cursor:pointer;opacity:0.9">{{ notSpamConfirmLabel }}</div>

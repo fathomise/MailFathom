@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useRef } from 'react';
-import type { ClientSession, MailCarried, MailMessage } from '@mailfathom/client-backend';
+import { isSpam, type ClientSession, type MailCarried, type MailMessage } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import { ReceivedAt } from '../controls/ReceivedAt';
 import { SenderAvatar } from '../controls/SenderAvatar';
@@ -13,9 +13,12 @@ import { sizeOf } from '../localization/octets';
 import { useLocalization } from '../localization/useLocalization';
 import { Message } from '../messageBody/Message';
 import type { MessageBodyRead } from '../messageBody/useMessageBody';
+import { drawnSpam, useMailboxActs } from '../mailboxActs/useMailboxActs';
 import { useMessageView } from '../preferences/messageView';
 import { usePendingChanges } from '../pendingChanges/usePendingChanges';
 import { useReadMarking } from '../readMarking/useReadMarking';
+import { SpamWarning } from '../spamMarking/SpamWarning';
+import { useSpamRefusal } from '../spamMarking/useSpamRefusal';
 import { useWorkspace } from '../workspace/useWorkspace';
 import { Attachments } from './Attachments';
 import { ChangeNotice } from './ChangeNotice';
@@ -65,6 +68,12 @@ export function OpenedMessage({
     const { revise } = useWorkspace();
     const { markRead } = useReadMarking();
     const words = useRef<HTMLDivElement>(null);
+    const refuse = useSpamRefusal();
+
+    // A message marked spam is read-only: a warning stands over its words, and its original, its remote content, its
+    // links, and its files open nothing. The person's own mark from this session counts before the next read says so.
+    const spam = drawnSpam(useMailboxActs(), { id: message.storedEmailId, spam: message.spam });
+    const readOnly = isSpam(spam);
 
     const storedEmailId = message.storedEmailId;
     const author = message.headers.participants.find((participant) => participant.role === 'From') ?? null;
@@ -126,10 +135,22 @@ export function OpenedMessage({
                     {/* Drawn in the reduced view and in no other. With the embedded HTML view chosen the markup is
                         already on the screen under this line, so a control offering to open it would open a second
                         copy of what is being read — which is why it goes rather than being disabled. */}
-                    {embeddedHtml ? null : <ShowFullHtml onShow={onShowFullHtml} />}
+                    {/* Spam keeps the control whatever view is chosen, and the press says why its original stays shut. */}
+                    {embeddedHtml && !readOnly ? null : (
+                        <ShowFullHtml
+                            onShow={onShowFullHtml}
+                            {...(readOnly && {
+                                onRefused: () => {
+                                    refuse('spam.refusedOriginal');
+                                },
+                            })}
+                        />
+                    )}
 
                     <ReceivedAt at={message.headers.receivedAt} />
                 </div>
+
+                {spam !== null && readOnly ? <SpamWarning spam={spam} /> : null}
 
                 {/* A change the mailbox did not take stands over the words it is about, until it is answered. */}
                 {asked ? <ChangeNotice message={message} /> : null}
@@ -147,6 +168,7 @@ export function OpenedMessage({
                     <Message
                         body={body}
                         storedEmailId={storedEmailId}
+                        readOnly={readOnly}
                         onBodyDrawn={() => {
                             markRead({
                                 storedEmailId,
@@ -159,7 +181,12 @@ export function OpenedMessage({
                 </div>
 
                 {message.attachments.length === 0 ? null : (
-                    <Attachments session={session} storedEmailId={storedEmailId} attachments={message.attachments} />
+                    <Attachments
+                        session={session}
+                        storedEmailId={storedEmailId}
+                        attachments={message.attachments}
+                        readOnly={readOnly}
+                    />
                 )}
             </div>
 

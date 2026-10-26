@@ -6,6 +6,7 @@ import { useState } from 'react';
 import type { ClientSession, MailAttachment } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
+import { useSpamRefusal } from '../spamMarking/useSpamRefusal';
 import { useOpenAttachment } from '../workspace/openAttachment';
 import { Attachment } from './Attachment';
 import { useAttachmentDownloads } from './downloadingAttachment';
@@ -28,12 +29,17 @@ export function Attachments({
     session,
     storedEmailId,
     attachments,
+    readOnly = false,
 }: {
     readonly session: ClientSession;
     readonly storedEmailId: string;
     readonly attachments: readonly MailAttachment[];
+
+    /** Whether the message is marked spam, whose files neither open nor download. */
+    readonly readOnly?: boolean;
 }) {
     const { translate } = useLocalization();
+    const refuse = useSpamRefusal();
     const open = useOpenAttachment();
     const downloads = useAttachmentDownloads(session, storedEmailId);
     const [downloadingAll, setDownloadingAll] = useState(false);
@@ -60,10 +66,18 @@ export function Attachments({
                     attachment={attachment}
                     arriving={downloads.arriving(attachment.position)}
                     onOpen={() => {
-                        open({ storedEmailId, attachment });
+                        if (readOnly) {
+                            refuse('spam.refusedAttachmentOpen');
+                        } else {
+                            open({ storedEmailId, attachment });
+                        }
                     }}
                     onDownload={() => {
-                        void downloads.start(attachment);
+                        if (readOnly) {
+                            refuse('spam.refusedAttachmentDownload');
+                        } else {
+                            void downloads.start(attachment);
+                        }
                     }}
                 />
             ))}
@@ -77,7 +91,9 @@ export function Attachments({
                         className="flex cursor-pointer items-center gap-1.5 rounded-md bg-accent-soft px-3 py-2.25 text-sm text-accent-deep transition hover:bg-accent-strong hover:text-on-accent aria-disabled:opacity-60"
                         type="button"
                         onClick={() => {
-                            if (!downloadingAll) {
+                            if (readOnly) {
+                                refuse('spam.refusedAttachmentDownload');
+                            } else if (!downloadingAll) {
                                 void startAll();
                             }
                         }}

@@ -42,6 +42,7 @@ const invoice: ActedMessage = {
     folder: 'work-inbox',
     unread: false,
     flagged: false,
+    spam: null,
 };
 const receipt: ActedMessage = {
     storedEmailId: 'message-2',
@@ -49,6 +50,7 @@ const receipt: ActedMessage = {
     folder: 'work-inbox',
     unread: false,
     flagged: false,
+    spam: null,
 };
 const unsent: ActedMessage = {
     storedEmailId: 'message-4',
@@ -56,6 +58,7 @@ const unsent: ActedMessage = {
     folder: 'work-drafts',
     unread: false,
     flagged: false,
+    spam: null,
 };
 
 const discarded: ActedMessage = {
@@ -64,6 +67,7 @@ const discarded: ActedMessage = {
     folder: 'work-trash',
     unread: false,
     flagged: false,
+    spam: null,
 };
 
 const folders = JSON.stringify({
@@ -76,6 +80,7 @@ const folders = JSON.stringify({
                 synchronizationState: 'Synchronized',
                 lastSynchronizedAt: null,
                 behind: false,
+                filesJunk: false,
             },
             folders: [
                 {
@@ -351,6 +356,7 @@ const heapedInTrash: ActedMessage[] = Array.from({ length: mostMessagesPerMutati
     folder: 'work-trash',
     unread: false,
     flagged: false,
+    spam: null,
 }));
 
 /** The records each call to a delete's release route named, one list per call. */
@@ -941,6 +947,7 @@ describe('MailboxActsProvider', () => {
             folder: 'work-inbox',
             unread: false,
             flagged: false,
+            spam: null,
         }));
 
         const deployment: Deployment = {
@@ -1228,10 +1235,10 @@ describe('MailboxActsProvider', () => {
         expect(held().refusalOf('archive', [invoice])).toBe('notOffered');
     });
 
-    it('reads no folders for a credential that may neither file mail nor delete it, both acts being refused', () => {
+    it('reads no folders for a credential that may neither mark spam, file mail, nor delete it, every act being refused', () => {
         const deployment = deploymentAnswering();
 
-        acting(deployment, { moves: false, deletes: false });
+        acting(deployment, { flags: false, moves: false, deletes: false });
 
         expect(deployment.requests).toStrictEqual([]);
     });

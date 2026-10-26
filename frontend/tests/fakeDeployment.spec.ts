@@ -129,12 +129,21 @@ test('takes a deleted folder out of both folder routes, the mail filed in it out
     const folders = ask(deployment, 'GET', '/folders') as { accounts: { folders: { id: string }[] }[] };
     const searchedAgain = ask(deployment, 'GET', '/emails/search?query=renewal') as { results: { id: string }[] };
 
-    expect(managed.folders.map(({ id }) => id)).toStrictEqual(['INBOX', 'DRAFTS', 'SENT', 'ARCHIVE', 'FILED', 'TRASH']);
+    expect(managed.folders.map(({ id }) => id)).toStrictEqual([
+        'INBOX',
+        'DRAFTS',
+        'SENT',
+        'ARCHIVE',
+        'FILED',
+        'JUNK',
+        'TRASH',
+    ]);
     expect(folders.accounts.flatMap((account) => account.folders.map(({ id }) => id))).toStrictEqual([
         'INBOX',
         'DRAFTS',
         'SENT',
         'FILED',
+        'JUNK',
         'TRASH',
     ]);
     expect(searchedAgain.results.map(({ id }) => id)).not.toContain(searched);
@@ -221,6 +230,57 @@ test('answers a later read with the flags a change left, and filters on them', (
 
     expect(page.emails[0]).toMatchObject({ id: 'message-0', unread: false, flagged: true });
     expect(listed(deployment, 'folder=INBOX&flagged=true')).toStrictEqual(['message-0']);
+});
+
+test('answers every later read with the spam verdict a mark left, the Spam folder listing what arrived there', () => {
+    const deployment = new FakeDeployment('0.0.0');
+
+    expect(listed(deployment, 'folder=JUNK')).toStrictEqual([
+        'message-spam-desk',
+        'message-spam-supplier',
+        'message-spam-parcel',
+        'message-spam-threat',
+    ]);
+
+    const marked = ask(deployment, 'POST', '/mutations/spam', {
+        verdict: 'Spam',
+        spamSubcategory: 'Scam',
+        storedEmailIds: ['message-0', 'message-gone'],
+    }) as { results: { storedEmailId: string; outcome: string; moved: boolean }[] };
+
+    expect(marked.results).toMatchObject([
+        { storedEmailId: 'message-0', outcome: 'applied', moved: false },
+        { storedEmailId: 'message-gone', outcome: 'message-not-found', moved: false },
+    ]);
+
+    const inbox = ask(deployment, 'GET', '/emails?folder=INBOX') as { emails: { id: string; spam?: unknown }[] };
+
+    expect(inbox.emails[0]).toMatchObject({
+        id: 'message-0',
+        spam: { verdict: 'Spam', decidedBy: 'Person', spamSubcategory: 'Scam', spamSubcategoryNamedBy: 'Person' },
+    });
+    expect(ask(deployment, 'GET', '/messages/message-0')).toMatchObject({ spam: { verdict: 'Spam' } });
+
+    ask(deployment, 'POST', '/mutations/spam', {
+        verdict: 'NotSpam',
+        spamSubcategory: null,
+        storedEmailIds: ['message-0'],
+    });
+
+    expect(ask(deployment, 'GET', '/messages/message-0')).toMatchObject({
+        spam: { verdict: 'NotSpam', spamSubcategory: null },
+    });
+});
+
+test('records a move into the Spam folder as the person’s own spam mark, with no kind', () => {
+    const deployment = new FakeDeployment('0.0.0');
+
+    ask(deployment, 'POST', '/mutations/moves', { moves: [{ storedEmailId: 'message-4', destinationFolder: 'JUNK' }] });
+
+    expect(listed(deployment, 'folder=JUNK')).toContain('message-4');
+    expect(ask(deployment, 'GET', '/messages/message-4')).toMatchObject({
+        spam: { verdict: 'Spam', decidedBy: 'Person', spamSubcategory: null },
+    });
 });
 
 test('answers an inbox marked read past the count it states with nothing unread rather than fewer than nothing', () => {

@@ -14,8 +14,8 @@ import { useWorkspace, type Workspace } from '../workspace/useWorkspace';
 import { SelectionBar } from './SelectionBar';
 
 const drawnRows: readonly ActedMessage[] = [
-    { storedEmailId: 'message-1', account: 'work', folder: 'work-inbox', unread: false, flagged: false },
-    { storedEmailId: 'message-2', account: 'work', folder: 'work-inbox', unread: false, flagged: false },
+    { storedEmailId: 'message-1', account: 'work', folder: 'work-inbox', unread: false, flagged: false, spam: null },
+    { storedEmailId: 'message-2', account: 'work', folder: 'work-inbox', unread: false, flagged: false, spam: null },
 ];
 
 const clients: MoveDestination = { folderId: 'work-clients', name: 'Projects / Clients', role: null };
@@ -188,5 +188,16 @@ describe('SelectionBar', () => {
                 name: 'Move - messages from several accounts cannot be filed into one folder.',
             }),
         ).toBeDefined();
+    });
+
+    it('marks everything picked out spam from the strip, and lets the selection go', () => {
+        const toggleSpam = vi.fn();
+
+        drawBar(['message-1', 'message-2'], { spamOffered: true, toggleSpam });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Spam' }));
+
+        expect(toggleSpam).toHaveBeenCalledWith(drawnRows);
+        expect(carried().selected).toStrictEqual([]);
     });
 });
