@@ -1412,6 +1412,45 @@ public sealed class AccountSynchronizationSupervisorTests
     }
 
     /// <summary>
+    /// The floor reaches no mail server either, so failing it must not make the account fetch its mail less often, and
+    /// the stages behind it still run.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_SpamFloorFails_DoesNotDeferTheAccountsNextRun()
+    {
+        // Arrange
+        var ruleEvaluationReached = new TaskCompletionSource();
+        var floorCandidateReader = Substitute.For<ISpamVerdictFloorCandidateReader>();
+        floorCandidateReader
+            .GetCandidatesAsync(
+                Arg.Any<MailAccountId>(),
+                Arg.Any<SpamVerdictFloorTerms>(),
+                Arg.Any<StoredEmailId?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns<Task<IReadOnlyList<SpamVerdictFloorCandidate>>>(_ =>
+                throw new InvalidOperationException("The floor candidates could not be read."));
+        await using var harness = CreateHarness(
+            SynchronizationTestHost.CreateSingleAccountOptions(enabled: true),
+            Substitute.For<IMailboxSessionFactory>(),
+            ruleEvaluationStore: CreateRuleStoreReporting(ruleEvaluationReached),
+            floorCandidateReader: floorCandidateReader);
+
+        // Act
+        await harness.SuperviseUntilAsync(ruleEvaluationReached.Task);
+
+        // Assert
+        Assert.Contains(
+            harness.Logger.Messages,
+            message => message.Contains(
+                "Raising the mail of account primary to the spam floor ended unexpectedly",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            harness.Logger.Messages,
+            message => message.Contains("runs in a row", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// Reports that a run has reached its rule pass, which is the signal a test waits on when what it asserts is that
     /// something did not happen: every folder the run scheduled is behind it by then.
     /// </summary>

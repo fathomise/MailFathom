@@ -146,6 +146,8 @@ internal sealed class SyntheticMailAccount(
         "rule-evaluation-parked",
         "seen-state-provenance",
         "spam-classifications",
+        "spam-floor-archive",
+        "spam-floor-junk",
         "spam-scan",
         "stale-derived-data",
         "stored-content-move-hold",

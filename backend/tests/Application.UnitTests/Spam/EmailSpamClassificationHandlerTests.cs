@@ -258,6 +258,7 @@ public sealed class EmailSpamClassificationHandlerTests
         StoredEmailId.Create(Guid.Parse("0199a0c0-0000-7000-8000-000000000001")),
         Account,
         Inbox,
+        Inbox,
         RemoteEmailKeywords.Create(keywords)));
 
     private EmailSpamClassificationHandler CreateHandler(

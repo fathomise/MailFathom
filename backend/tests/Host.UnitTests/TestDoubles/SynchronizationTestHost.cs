@@ -552,7 +552,7 @@ internal static class SynchronizationTestHost
         public MailAccountLanguage LanguageOf(MailAccountId account) => MailAccountLanguage.English;
     }
 
-    /// <summary>Answers with classification switched off, which is what a deployment configuring none of it runs with.</summary>
+    /// <summary>Answers that no message sits below the floor.</summary>
     private static ISpamVerdictFloorCandidateReader CreateFloorCandidateReaderWithNothingBelowTheFloor()
     {
         var reader = Substitute.For<ISpamVerdictFloorCandidateReader>();
@@ -568,6 +568,7 @@ internal static class SynchronizationTestHost
         return reader;
     }
 
+    /// <summary>Answers with classification switched off, which is what a deployment configuring none of it runs with.</summary>
     private static ISpamClassificationSettingsReader CreateClassificationSettingsReader()
     {
         var reader = Substitute.For<ISpamClassificationSettingsReader>();

@@ -36,7 +36,13 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
         var row = await dbContext.StoredEmails
             .AsNoTracking()
             .Where(email => email.Id == storedEmailId && email.MailboxAccountId == mailboxAccountId)
-            .Select(email => new { email.MailboxAccountId, email.MailFolderBinding.Alias, email.RemoteKeywords })
+            .Select(email => new
+            {
+                email.MailboxAccountId,
+                email.MailFolderBinding.Alias,
+                CurrentAlias = email.Folder.Alias,
+                email.RemoteKeywords,
+            })
             .SingleOrDefaultAsync(cancellationToken);
 
         return row is null
@@ -45,6 +51,7 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
                 emailId,
                 MailAccountId.Create(row.MailboxAccountId),
                 MailFolderAlias.Create(row.Alias),
+                CurrentFolderAliasOf(row.CurrentAlias),
                 RemoteEmailKeywords.Create(row.RemoteKeywords));
     }
 
@@ -120,7 +127,13 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
         var rows = await emails
             .OrderBy(email => email.Id)
             .Take(batchSize)
-            .Select(email => new { email.Id, email.MailFolderBinding.Alias, email.RemoteKeywords })
+            .Select(email => new
+            {
+                email.Id,
+                email.MailFolderBinding.Alias,
+                CurrentAlias = email.Folder.Alias,
+                email.RemoteKeywords,
+            })
             .ToArrayAsync(cancellationToken);
 
         return
@@ -129,7 +142,11 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
                 StoredEmailId.Create(row.Id),
                 account,
                 MailFolderAlias.Create(row.Alias),
+                CurrentFolderAliasOf(row.CurrentAlias),
                 RemoteEmailKeywords.Create(row.RemoteKeywords))),
         ];
     }
+
+    private static MailFolderAlias? CurrentFolderAliasOf(string? alias) =>
+        alias is null ? null : MailFolderAlias.Create(alias);
 }

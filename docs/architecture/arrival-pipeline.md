@@ -24,6 +24,7 @@ flowchart TD
         commit[("Commit: metadata, the conversation it joins, raw MIME, search document, and the folder it lands in")]
         ask(["Ask for the message to be classified"])
         collect["Record the correspondent — only where the account collects contacts"]
+        floor["Raise junk mail to the spam floor — every account, classifying or not"]
         classify["Classification pass — only when somebody asked for a run over the whole mailbox"]
         rules["Rule evaluation pass"]
         cut["Cut the passages"]
@@ -56,7 +57,7 @@ flowchart TD
     commit --> ask
     commit --> collect
     ask -. "one job per stored email; a full queue refuses rather than waits" .-> job
-    ask --> classify
+    ask --> floor --> classify
     job -. "records the verdict" .-> gate
     classify --> gate{"What does classification say?"}
     gate -- "junk" --> withheld["Nothing further runs, and passages already cut are removed"]
@@ -99,7 +100,9 @@ record the same record; what differs is which mail they cover.
 A step just before that pass is not classification at all: [the spam
 floor](../features/spam-classification.md#junk-mail-is-never-below-spam) gives every message in the junk folder or
 carrying `$Junk` at least a spam verdict, on every account whether or not it classifies, so the classification run, the
-rules, and the cut after it never meet such a message below spam.
+rules, and the cut after it never meet such a message below spam. That verdict outlives the placement: on an account
+that classifies, a message the floor raised stays withheld after it leaves the junk folder, until the person marks it
+not spam or a later classification that reaches it decides otherwise.
 
 Four things can become of one classification, and the gate below reads what was recorded rather than what happened to
 the job. A verdict of junk withholds the message; a verdict of anything else admits it; a scan that could not answer
@@ -182,8 +185,9 @@ derived store. Classification reads none of the body, so redaction has nothing t
 
 ## What each classification outcome permits
 
-The gate reads where the message is now and what was decided about it, and it writes nothing down — which is what makes
-mail a user drags out of the junk folder ordinary mail from that moment.
+The gate reads where the message is now and what was decided about it, and it writes nothing down. What was decided
+includes the verdict the spam floor gives mail in the junk folder, so mail a user drags out of it is withheld on that
+verdict rather than admitted the moment it leaves.
 
 | Outcome | Rules | Passages | Vectors |
 | --- | --- | --- | --- |
@@ -201,8 +205,9 @@ withholding it is an ordering behind a verdict rather than a rule of its own —
 walk goes on waiting on its own.
 
 A held message is held rather than dropped. The same four facts are read again by the next account run and by both
-sweeps, so a verdict that arrives late, a wait that runs out, and a message moved out of the junk folder all admit it
-without any stored state having to say it was once withheld. What the outcome does reach is a counter: the run records
+sweeps, so a verdict that arrives late, a wait that runs out, and a message with no spam verdict moved out of the junk
+folder — one carrying the person's not spam, say — all admit it without any stored state having to say it was once
+withheld. What the outcome does reach is a counter: the run records
 the gate's answer as each message arrives, because work that never starts leaves no other trace and a mailbox held
 behind classification would otherwise read exactly like a mailbox with no mail in it.
 

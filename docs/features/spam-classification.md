@@ -243,8 +243,9 @@ role, the one agent reads are withheld from.
 recorded at the floor or above with every signal it carried. Every account's synchronization run applies it too, as a
 step after the folders and ahead of the classification run, the rules, and the cut, in every custody phase and whether or
 not the account classifies — so a new arrival, a message another client moved into the junk folder, and a keyword
-another client set are raised in the run that read them, and a held account's mail is read against its local junk
-folder and its stored keywords. A message classification still awaits is left to it until the
+another client set are raised in the run that read them. Both places read the folder the message is in now rather than
+the one it was synchronized from, so on a held or restoring account a message the person moved into the local junk folder
+is held at spam by a classification run as well as by the step. A message classification still awaits is left to it until the
 [wait](#waiting-is-bounded-and-running-out-of-patience-is-not-a-failure) a verdict is allowed runs out, so a stalled or
 unqueued classification leaves nothing below the floor for longer than that. The step reads at most
 `SpamClassification:RunBatchSize` × `SpamClassification:MaxRunBatchesPerPass` messages per run, in identity order, and

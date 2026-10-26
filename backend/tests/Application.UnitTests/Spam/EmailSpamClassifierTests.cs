@@ -360,7 +360,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Junk),
             SpamHeaderFacts.None,
-            email: new ClassifiableEmail(Occurrence, Account, Junk, RemoteEmailKeywords.None),
+            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
 
         // Act
@@ -377,6 +377,61 @@ public sealed class EmailSpamClassifierTests
         Assert.Equal(SpamClassificationOutcome.Classified, result.Outcome);
         Assert.Equal(SpamVerdict.Spam, saved.Verdict);
         Assert.Equal(SpamSignalKind.JunkFolderPlacement, signal.Kind);
+    }
+
+    /// <summary>
+    /// A held account moves a message locally and its binding stays where it was synchronized from. A run over the
+    /// Inbox still reaches it by that binding, and must read the junk folder it is in now, as the floor does, or it would
+    /// write a verdict below spam over the floor's.
+    /// </summary>
+    [Fact]
+    public async Task ClassifyAsync_AHeldMessageMovedLocallyIntoJunk_ReadsTheFolderItIsInNow()
+    {
+        // Arrange
+        var classifier = this.Classifier(
+            SettingsCovering(Inbox),
+            FactsSaying("X-Spam-Flag", "NO"),
+            email: new ClassifiableEmail(Occurrence, Account, Inbox, Junk, RemoteEmailKeywords.None),
+            junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
+
+        // Act
+        await classifier.ClassifyAsync(
+            Account,
+            Occurrence,
+            SpamClassificationMode.Reclassify,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var saved = Assert.Single(this.store.Saved);
+
+        Assert.Equal(SpamVerdict.Spam, saved.Verdict);
+        Assert.Contains(
+            saved.Signals,
+            signal => signal.Kind is SpamSignalKind.JunkFolderPlacement && signal.Name == Junk.Value);
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_AHeldMessageMovedLocallyOutOfJunk_IsNotReadAsPlacedInJunk()
+    {
+        // Arrange
+        var classifier = this.Classifier(
+            SettingsCovering(Junk),
+            SpamHeaderFacts.None,
+            email: new ClassifiableEmail(Occurrence, Account, Junk, Inbox, RemoteEmailKeywords.None),
+            junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
+
+        // Act
+        await classifier.ClassifyAsync(
+            Account,
+            Occurrence,
+            SpamClassificationMode.FirstTimeOnly,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var saved = Assert.Single(this.store.Saved);
+
+        Assert.NotEqual(SpamVerdict.Spam, saved.Verdict);
+        Assert.DoesNotContain(saved.Signals, signal => signal.Kind is SpamSignalKind.JunkFolderPlacement);
     }
 
     /// <summary>
@@ -397,7 +452,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Junk),
             SpamHeaderFacts.None,
-            email: new ClassifiableEmail(Occurrence, Account, Junk, RemoteEmailKeywords.None),
+            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
 
         // Act
@@ -425,7 +480,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Inbox),
             SpamHeaderFacts.None,
-            email: new ClassifiableEmail(Occurrence, Account, Inbox, RemoteEmailKeywords.Create(["$Junk"])));
+            email: new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.Create(["$Junk"])));
 
         // Act
         await classifier.ClassifyAsync(
@@ -451,7 +506,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Junk),
             SpamHeaderFacts.None,
-            email: new ClassifiableEmail(Occurrence, Account, Junk, RemoteEmailKeywords.None),
+            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
 
         // Act
@@ -493,7 +548,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Junk),
             FactsSaying("X-Spam-Flag", "NO"),
-            email: new ClassifiableEmail(Occurrence, Account, Junk, RemoteEmailKeywords.None),
+            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
 
         // Act
@@ -540,13 +595,13 @@ public sealed class EmailSpamClassifierTests
         var inTheArchive = this.Classifier(
             SettingsCovering(Inbox),
             flagged,
-            new ClassifiableEmail(Occurrence, Archive, Inbox, RemoteEmailKeywords.None),
+            new ClassifiableEmail(Occurrence, Archive, Inbox, Inbox, RemoteEmailKeywords.None),
             classifying: Account);
 
         var inTheClassifiedMailbox = this.Classifier(
             SettingsCovering(Inbox),
             flagged,
-            new ClassifiableEmail(Occurrence, Account, Inbox, RemoteEmailKeywords.None),
+            new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.None),
             classifying: Account);
 
         // Act
@@ -614,7 +669,7 @@ public sealed class EmailSpamClassifierTests
         var emailReader = Substitute.For<IClassifiableEmailReader>();
         emailReader
             .FindAsync(Arg.Any<MailAccountId>(), Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>())
-            .Returns(withEmail ? email ?? new ClassifiableEmail(Occurrence, Account, Inbox, RemoteEmailKeywords.None) : null);
+            .Returns(withEmail ? email ?? new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.None) : null);
 
         this.contentStore
             .FindStoredContentAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>())

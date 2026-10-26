@@ -229,6 +229,26 @@ public sealed class SpamVerdictFloorPassTests
         Assert.Equal(SpamSignalKind.JunkFolderPlacement, signal.Kind);
     }
 
+    /// <summary>
+    /// The <c>$Junk</c> beside the person's <c>$NotJunk</c> is this deployment's own, so the <c>$NotJunk</c> stands alone
+    /// among the marks somebody else set and the person's correction holds, junk folder or not.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_AnOwnJunkKeywordBesideThePersonsNotJunkInTheJunkFolder_IsLeftWithoutAVerdict()
+    {
+        // Arrange
+        var emailId = this.Store(Junk, "$Junk", "$NotJunk");
+        this.harness.VerdictActs.With(emailId, SpamVerdictAct.MarkedJunk);
+        var pass = this.Pass(ClassifyingTheInbox);
+
+        // Act
+        var raised = await pass.RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(0, raised);
+        Assert.Empty(this.harness.Classifications.Saved);
+    }
+
     [Fact]
     public async Task RunAsync_OnAnAccountThatClassifies_RemovesWhatWasDerivedFromTheRaisedMessage()
     {
