@@ -65,8 +65,10 @@ namespace MailFathom.Application.Spam.Actions;
 /// server.
 /// </para>
 /// <para>
-/// Nothing it reads or reports is mail content. The occurrence, the folder alias, the keywords, the outcome, and the
-/// record identifiers are safe to report; there is no path from here to a subject, an address, or a body.
+/// Nothing it reports is mail content. The occurrence, the folder alias, the outcome, and the record identifiers are
+/// safe to report; there is no path from here to a subject, an address, or a body. The keywords a message carries are
+/// read and never reported, because a label a person invented can name a person or a matter; the only keywords this
+/// writes are RFC 9051's three.
 /// </para>
 /// </remarks>
 public sealed class SpamActionRecorder
@@ -256,8 +258,10 @@ public sealed class SpamActionRecorder
     /// <remarks>
     /// <para>
     /// RFC 9051 has a client treat <c>$Junk</c> and <c>$NotJunk</c> together as neither and take them off. A pair somebody
-    /// else set is cleared whole. A <c>$Junk</c> this deployment wrote is taken off alone, with a <c>$Phishing</c> it wrote
-    /// beside it, because the <c>$NotJunk</c> is the person correcting that verdict and is what has to stand.
+    /// else set is cleared whole, a <c>$Phishing</c> beside it included, since the pair cancelled it as well and left
+    /// standing alone it would decide junk at the next classification. A <c>$Junk</c> this deployment wrote is taken off
+    /// alone, with a <c>$Phishing</c> it wrote beside it, because the <c>$NotJunk</c> is the person correcting that
+    /// verdict and is what has to stand.
     /// </para>
     /// <para>
     /// It is asked for once per message, read from the record of what verdicts did, so a pair somebody sets again after
@@ -281,7 +285,9 @@ public sealed class SpamActionRecorder
         {
             return new KeywordChange(
                 MailboxMutation.RemoveKeywords,
-                AuthoredMailKeywords.Create([JunkKeywords.Junk, JunkKeywords.NotJunk]));
+                AuthoredMailKeywords.Create(JunkKeywords.Carries(occurrence.Keywords, JunkKeywords.Phishing)
+                    ? [JunkKeywords.Junk, JunkKeywords.NotJunk, JunkKeywords.Phishing]
+                    : [JunkKeywords.Junk, JunkKeywords.NotJunk]));
         }
 
         var takesOffPhishing = ownActs.Contains(SpamVerdictAct.MarkedPhishing)
@@ -297,7 +303,9 @@ public sealed class SpamActionRecorder
     /// <summary>Works out which junk keywords a spam verdict still owes the message, or <see langword="null" /> where it owes none.</summary>
     /// <remarks>
     /// A keyword the message already carries is not written, and neither is one a verdict of this deployment wrote once:
-    /// a message that no longer carries it had it taken off, and writing it again would undo that. <c>$Phishing</c> is
+    /// a message that no longer carries it had it taken off, and writing it again would undo that. A message whose
+    /// <c>$Junk</c> and <c>$NotJunk</c> pair was cleared is owed no <c>$Junk</c> either, because that removal stood in
+    /// its place. <c>$Phishing</c> is
     /// written only where <c>$Junk</c> will stand beside it, which is how a message whose <c>$Junk</c> somebody removed is
     /// left without either.
     /// </remarks>
@@ -307,7 +315,9 @@ public sealed class SpamActionRecorder
         IReadOnlySet<SpamVerdictAct> ownActs)
     {
         var carriesJunk = JunkKeywords.Carries(occurrence.Keywords, JunkKeywords.Junk);
-        var addsJunk = !carriesJunk && !ownActs.Contains(SpamVerdictAct.MarkedJunk);
+        var addsJunk = !carriesJunk
+            && !ownActs.Contains(SpamVerdictAct.MarkedJunk)
+            && !ownActs.Contains(SpamVerdictAct.ClearedJunkMarks);
         var addsPhishing = classification.Subcategory is SpamSubcategory.Phishing
             && (carriesJunk || addsJunk)
             && !JunkKeywords.Carries(occurrence.Keywords, JunkKeywords.Phishing)

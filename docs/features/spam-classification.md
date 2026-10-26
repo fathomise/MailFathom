@@ -254,8 +254,9 @@ found nothing is not that statement. A keyword the message already carries is no
 With the same switch on, **a message carrying `$Junk` and `$NotJunk` together has the `$Junk` taken off**, as RFC 9051
 asks of a client that finds both, whatever the verdict and on a message moved back out of junk as well. Only a filing
 withheld until its destination or its account is known again holds the removal back with it, because what the switches
-ask is then performed whole once it is. A pair somebody else set is cleared whole, and on a spam verdict
-that removal stands in place of the `$Junk` the verdict would otherwise owe. A `$Junk` this deployment wrote is taken off
+ask is then performed whole once it is. A pair somebody else set is cleared whole, a `$Phishing` beside it included —
+the pair cancelled that too, and left alone it would decide junk at the next classification — and on a spam verdict
+that removal stands in place of the `$Junk` the verdict would otherwise owe, on that run and every later one. A `$Junk` this deployment wrote is taken off
 alone, with a `$Phishing` it wrote beside it, because the `$NotJunk` next to it is the person correcting that verdict and
 is what has to stand. It is asked for once per message, read from the record of what verdicts did, so a pair somebody
 sets again after it was cleared is left to them on a mirrored, a held, and a restoring account alike.
@@ -265,7 +266,7 @@ gives the message a new UID, so a flag stored afterwards would be aimed at an oc
 holds.
 
 Nothing else is ever done. No delete, no flag other than `\Seen`, no keyword added other than `$Junk` and `$Phishing`,
-none taken off but the pair above, no folder created, nothing sent.
+none taken off but the pair above and a `$Phishing` beside it, no folder created, nothing sent.
 [ADR 0007](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0007-remote-mailbox-mutation-boundary-and-write-session.md)
 admits a spam verdict among the authors of a flag or keyword change and refuses the rest, and this feature does not
 reopen that record.
@@ -278,8 +279,9 @@ same transaction records each act beside the message, which is what lets a held 
 recognized as one already filed, exactly as a mirrored one is. **An account being restored to its source commits the
 same way and also records**: where the message still stands on the source, the same transaction opens the records the
 run carries there, so a verdict reached during the restore reaches the mailbox instead of being undone by it, and the
-answer names them beside the acts it applied. The restore itself carries every keyword a held message has, so a held
-mailbox goes back to its source with each verdict in the form other clients read. **An unmirrored junk destination
+answer names them beside the acts it applied. The restore itself carries every keyword a held message has wherever
+the source folder keeps them, so a held mailbox goes back to its source with each verdict in the form other clients
+read; a folder whose `PERMANENTFLAGS` keeps neither `\*` nor every keyword the message holds takes it back with none. **An unmirrored junk destination
 resolves to nothing on a held account**, and so does one no local folder corresponds to, so where filing is on the
 verdict ends as an unresolved destination and no act is made — the message stays unread where it is.
 

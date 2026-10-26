@@ -794,6 +794,47 @@ public sealed class SpamActionRecorderTests
     }
 
     /// <summary>
+    /// The cleared pair stands in place of the <c>$Junk</c> on every later run too, so a verdict reused after the pair is
+    /// gone does not write the keyword the person's <c>$NotJunk</c> was taken off with.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_ASpamVerdictAfterThePairWasCleared_WritesNoJunk()
+    {
+        // Arrange
+        var overThePair = this.Recorder(
+            MarkingWithKeywords(),
+            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk", "$NotJunk"]));
+        await overThePair.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+        var afterTheRemoval = this.Recorder(MarkingWithKeywords(), OccurrenceIn(Inbox, isRemotelySeen: false));
+
+        // Act
+        var result = await afterTheRemoval.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.NothingToChange, result.Outcome);
+        Assert.Equal(MailboxMutation.RemoveKeywords, Assert.Single(this.records.OpenedRequests).Mutation);
+    }
+
+    /// <summary>A <c>$Phishing</c> beside a pair somebody else set goes with it, since left alone it would decide junk at the next classification.</summary>
+    [Fact]
+    public async Task RecordAsync_APhishingBesideAPairSomebodyElseSet_IsClearedWithIt()
+    {
+        // Arrange
+        var recorder = this.Recorder(
+            MarkingWithKeywords(),
+            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk", "$NotJunk", "$Phishing"]));
+
+        // Act
+        var result = await recorder.RecordAsync(CancellingVerdict(), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.Requested, result.Outcome);
+        var request = Assert.Single(this.records.OpenedRequests);
+        Assert.Equal(MailboxMutation.RemoveKeywords, request.Mutation);
+        Assert.Equal(["$Junk", "$NotJunk", "$Phishing"], request.Keywords!.Values.Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>
     /// A message filed once and moved back out is left alone by every switch, and a pair standing on it is still cleared,
     /// on its own: that removal argues with nobody.
     /// </summary>

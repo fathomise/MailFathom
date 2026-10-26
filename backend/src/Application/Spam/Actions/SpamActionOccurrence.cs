@@ -28,9 +28,10 @@ namespace MailFathom.Application.Spam.Actions;
 /// </param>
 /// <remarks>
 /// Nothing here is mail content: a local identifier, a remote occurrence, a folder alias, and a flag are MailFathom's
-/// own or the server's own names for things, the keywords are labels a mail client or the receiving server set rather
-/// than anything the sender wrote, and the account the occurrence names is a generated identifier that names nobody
-/// outside this deployment. That is what lets an action be decided and written down without the message it is
+/// own or the server's own names for things, and the account the occurrence names is a generated identifier that
+/// names nobody outside this deployment. The keywords are labels a mail client, a person, or the receiving server set
+/// rather than anything the sender wrote, and still personal metadata — a label a person invented can name a person
+/// or a matter — so they are read here and reach no log or telemetry. That is what lets an action be decided and written down without the message it is
 /// about being read again.
 /// </remarks>
 public sealed record SpamActionOccurrence(
