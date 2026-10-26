@@ -771,7 +771,67 @@ public sealed class SpamActionRecorderTests
         var request = Assert.Single(this.records.OpenedRequests);
         Assert.Equal(MailboxMutation.RemoveKeywords, request.Mutation);
         Assert.Equal(["$Junk", "$NotJunk"], request.Keywords!.Values.Order(StringComparer.Ordinal));
-        Assert.Empty(this.verdictActs.Of(Email));
+        Assert.Equal([SpamVerdictAct.ClearedJunkMarks], this.verdictActs.Of(Email));
+    }
+
+    /// <summary>A pair somebody else set is cleared on a spam verdict too, in place of the <c>$Junk</c> it would otherwise owe.</summary>
+    [Fact]
+    public async Task RecordAsync_ASpamVerdictOverJunkAndNotJunkTogether_RemovesBothAndAddsNothing()
+    {
+        // Arrange
+        var recorder = this.Recorder(
+            MarkingWithKeywords(),
+            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk", "$NotJunk"]));
+
+        // Act
+        var result = await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.Requested, result.Outcome);
+        var request = Assert.Single(this.records.OpenedRequests);
+        Assert.Equal(MailboxMutation.RemoveKeywords, request.Mutation);
+        Assert.Equal(["$Junk", "$NotJunk"], request.Keywords!.Values.Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// The person's <c>$NotJunk</c> beside a <c>$Junk</c> this deployment wrote is the correction, so only the verdict's own
+    /// keyword is taken off and the correction stands.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_ThePersonsNotJunkBesideTheVerdictsOwnJunk_TakesOffTheJunkAlone()
+    {
+        // Arrange
+        this.verdictActs.With(Email, SpamVerdictAct.MarkedJunk);
+        var recorder = this.Recorder(
+            MarkingWithKeywords(),
+            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk", "$NotJunk"]));
+
+        // Act
+        var result = await recorder.RecordAsync(CorrectedVerdict(), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.Requested, result.Outcome);
+        var request = Assert.Single(this.records.OpenedRequests);
+        Assert.Equal(MailboxMutation.RemoveKeywords, request.Mutation);
+        Assert.Equal(["$Junk"], request.Keywords!.Values);
+    }
+
+    /// <summary>A pair is cleared once per message, so one somebody sets again afterwards is left to them in every phase.</summary>
+    [Fact]
+    public async Task RecordAsync_APairClearedOnceAndSetAgain_IsLeftAlone()
+    {
+        // Arrange
+        this.verdictActs.With(Email, SpamVerdictAct.ClearedJunkMarks);
+        var recorder = this.Recorder(
+            MarkingWithKeywords(),
+            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk", "$NotJunk"]));
+
+        // Act
+        var result = await recorder.RecordAsync(CancellingVerdict(), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.NotSpam, result.Outcome);
+        Assert.Equal(0, this.records.OpenedRecordCount);
     }
 
     /// <summary>Removing the cancelled pair is the keyword switch's alone, so an account that left it off is told the verdict was not spam.</summary>
@@ -905,6 +965,18 @@ public sealed class SpamActionRecorderTests
         [
             SpamSignal.Create(SpamSignalKind.JunkKeyword, "$NotJunk", observation: null, SpamSignalProvenance.FromMailboxKeyword("$NotJunk")),
             SpamSignal.Create(SpamSignalKind.JunkKeyword, "$Junk", observation: null, SpamSignalProvenance.FromMailboxKeyword("$Junk")),
+        ],
+        EvaluatedAt);
+
+    /// <summary>A verdict the person's <c>$NotJunk</c> decided, the <c>$Junk</c> beside it being this deployment's own and no signal.</summary>
+    private static SpamClassification CorrectedVerdict() => SpamClassification.Create(
+        Email,
+        SpamVerdict.NotSpam,
+        SpamClassificationStage.Deterministic,
+        assessment: null,
+        SpamClassificationProfile.Create(),
+        [
+            SpamSignal.Create(SpamSignalKind.JunkKeyword, "$NotJunk", observation: null, SpamSignalProvenance.FromMailboxKeyword("$NotJunk")),
         ],
         EvaluatedAt);
 

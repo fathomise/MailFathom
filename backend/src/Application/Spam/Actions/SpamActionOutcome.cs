@@ -73,7 +73,7 @@ public enum SpamActionOutcome
     /// <summary>A reload has withdrawn the account, so what it keeps of mail leaving the mirror is unknown.</summary>
     /// <remarks>
     /// Reachable only for an unmirrored destination, which is the one case a filing has to carry that answer. Like an
-    /// unresolved destination it withholds both changes, for the same reason: the intent is one, and it is performed
+    /// unresolved destination it withholds every change, for the same reason: the intent is one, and it is performed
     /// whole once the account is declared again.
     /// </remarks>
     AccountNoLongerConfigured = 8,
@@ -82,7 +82,7 @@ public enum SpamActionOutcome
     /// <remarks>
     /// It is reached at exactly the point <see cref="Requested" /> is: the switches, the destination, and every reason to
     /// leave the message alone have all been read by then, so a dry run reports the decision the acting run would have
-    /// taken rather than a guess at it. What is absent is the pair of record identifiers, because no record was opened.
+    /// taken rather than a guess at it. It carries no record identifier, because no record was opened.
     /// </remarks>
     WouldRequest = 9,
 

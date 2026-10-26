@@ -7,6 +7,7 @@ using System.Text;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Chunking;
+using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Signals;
@@ -14,6 +15,7 @@ using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Mutations;
 using MailFathom.Domain.Spam;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
@@ -40,6 +42,8 @@ public sealed class EmailSpamClassifierTests
     private readonly InMemoryEmailSpamClassificationStore store = new();
 
     private readonly InMemorySpamVerdictActStore verdictActs = new();
+
+    private readonly IMailboxMutationRecordStore mutationRecords = Substitute.For<IMailboxMutationRecordStore>();
 
     private readonly IEmailContentStore contentStore = ContentStores.Substituted();
 
@@ -375,6 +379,41 @@ public sealed class EmailSpamClassifierTests
         Assert.Equal(SpamSignalKind.JunkFolderPlacement, signal.Kind);
     }
 
+    /// <summary>
+    /// A message an earlier build's verdict filed left a relocation and no recorded act, and its placement is still the
+    /// deployment's own rather than evidence a reclassification may rest on.
+    /// </summary>
+    [Fact]
+    public async Task ClassifyAsync_AMessageAnEarlierVerdictFiledBeforeItsActsWereRecorded_DoesNotReadThePlacementBack()
+    {
+        // Arrange
+        this.mutationRecords
+            .HasRecordAsync(
+                Occurrence,
+                MailboxMutation.Relocate,
+                MailboxMutationOrigin.Classification,
+                Arg.Any<CancellationToken>())
+            .Returns(true);
+        var classifier = this.Classifier(
+            SettingsCovering(Junk),
+            SpamHeaderFacts.None,
+            email: new ClassifiableEmail(Occurrence, Account, Junk, RemoteEmailKeywords.None),
+            junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
+
+        // Act
+        await classifier.ClassifyAsync(
+            Account,
+            Occurrence,
+            SpamClassificationMode.FirstTimeOnly,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var saved = Assert.Single(this.store.Saved);
+
+        Assert.Equal(SpamVerdict.Undetermined, saved.Verdict);
+        Assert.Empty(saved.Signals);
+    }
+
     [Fact]
     public async Task ClassifyAsync_AModeOutsideTheDeclaredSet_IsRefused()
     {
@@ -508,6 +547,7 @@ public sealed class EmailSpamClassifierTests
             settingsReader,
             this.store,
             this.verdictActs,
+            this.mutationRecords,
             this.chunkStore,
             this.attachmentTextStore,
             this.gateTelemetry,

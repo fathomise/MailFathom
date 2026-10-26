@@ -31,8 +31,9 @@ namespace MailFathom.Application.Spam.Actions;
 /// junk keywords RFC 9051 defines, which is how every other mail client sees the verdict. A spam verdict adds
 /// <c>$Junk</c>, and <c>$Phishing</c> beside it for the phishing subcategory; <c>$Phishing</c> is never written without
 /// <c>$Junk</c>, because a client warns only where both are set, and no verdict ever writes <c>$NotJunk</c>, which only
-/// the person can say. The one keyword change a verdict that is not spam asks for is the one RFC 9051 asks of a client:
-/// a message somebody marked both <c>$Junk</c> and <c>$NotJunk</c> has both removed.
+/// the person can say. The one keyword removal is the one RFC 9051 asks of a client, made on any verdict once a message
+/// carries <c>$Junk</c> and <c>$NotJunk</c> together: a pair somebody else set is cleared whole, and a <c>$Junk</c>
+/// this deployment wrote is taken off alone, because the <c>$NotJunk</c> beside it is the person correcting it.
 /// </para>
 /// <para>
 /// Two rules keep the switches from turning into an argument with the mailbox's user. An act already taken is not taken
@@ -157,9 +158,9 @@ public sealed class SpamActionRecorder
 
         var isSpam = classification.Verdict is SpamVerdict.Spam;
 
-        // The record names only the junk keywords somebody else set, so a verdict that rested on both is the one case a
-        // verdict that is not spam asks anything of the mailbox — and it is answered here, before anything is read.
-        if (!isSpam && !JunkKeywords.NameBoth(classification.Signals))
+        // A verdict that is not spam asks the mailbox for something only where the person's $NotJunk may stand beside a
+        // $Junk, and its signals already say whether a $NotJunk is there — so every other one ends before anything is read.
+        if (!isSpam && !JunkKeywords.NameNotJunk(classification.Signals))
         {
             return SpamActionResult.NotActedOn(SpamActionOutcome.NotSpam);
         }
@@ -178,9 +179,10 @@ public sealed class SpamActionRecorder
             return SpamActionResult.NotActedOn(SpamActionOutcome.NoActionConfigured);
         }
 
+        var ownActs = await this.verdictActs.FindAsync(occurrence.Id, cancellationToken);
         var decision = isSpam
-            ? await this.DecideSpamActionsAsync(classification, occurrence, settings, cancellationToken)
-            : this.DecideCancelledMarks(occurrence, settings);
+            ? await this.DecideSpamActionsAsync(classification, occurrence, settings, ownActs, cancellationToken)
+            : this.DecideCorrectedMarks(occurrence, settings, ownActs);
 
         if (decision.Refusal is { } refusal)
         {
@@ -207,9 +209,9 @@ public sealed class SpamActionRecorder
         SpamClassification classification,
         SpamActionOccurrence occurrence,
         SpamActionSettings settings,
+        IReadOnlySet<SpamVerdictAct> ownActs,
         CancellationToken cancellationToken)
     {
-        var ownActs = await this.verdictActs.FindAsync(occurrence.Id, cancellationToken);
         var filing = await this.DecideFilingAsync(occurrence, settings, ownActs, cancellationToken);
 
         if (filing.Refusal is { } refusal)
@@ -218,37 +220,70 @@ public sealed class SpamActionRecorder
         }
 
         var marksRead = settings.MarksJunkRead && !occurrence.IsRemotelySeen;
-        var marks = this.MayWriteJunkKeywords(occurrence.Account, settings, MailboxMutation.AddKeywords)
-            ? JunkMarksOwed(classification, occurrence, ownActs)
-            : null;
+
+        // A pair standing together is cleared in place of an addition: $Junk is already there, and RFC 9051 reads the
+        // message as carrying neither until somebody takes them off.
+        var marks = this.JunkMarksCleared(occurrence, settings, ownActs)
+            ?? (this.MayWriteJunkKeywords(occurrence.Account, settings, MailboxMutation.AddKeywords)
+                ? JunkMarksOwed(classification, occurrence, ownActs)
+                : null);
 
         return ActionDecision.Planned(new ActionPlan(marksRead, marks, filing.Plan));
     }
 
-    /// <summary>Decides whether the <c>$Junk</c> and <c>$NotJunk</c> somebody set together are removed, as RFC 9051 asks of a client.</summary>
+    /// <summary>Decides what a verdict resting on the person's <c>$NotJunk</c> asks of the mailbox, which is at most a removal.</summary>
     /// <remarks>
-    /// The removal is the keyword switch's alone, and an account that did not turn it on reports the verdict as not spam
-    /// rather than as an action it never asked for. A message that no longer carries both, because somebody already
-    /// removed one, owes nothing.
+    /// An account that did not turn the keyword switch on, or a message carrying no <c>$Junk</c> beside the
+    /// <c>$NotJunk</c>, owes nothing, and the verdict is reported as not spam rather than as an action it never asked for.
     /// </remarks>
-    private ActionDecision DecideCancelledMarks(SpamActionOccurrence occurrence, SpamActionSettings settings)
+    private ActionDecision DecideCorrectedMarks(
+        SpamActionOccurrence occurrence,
+        SpamActionSettings settings,
+        IReadOnlySet<SpamVerdictAct> ownActs) =>
+        this.JunkMarksCleared(occurrence, settings, ownActs) is { } removal
+            ? ActionDecision.Planned(new ActionPlan(MarksRead: false, removal, Filing: null))
+            : ActionDecision.Refused(SpamActionOutcome.NotSpam);
+
+    /// <summary>Works out which junk keywords standing beside a <c>$NotJunk</c> are taken off, or <see langword="null" /> where none are.</summary>
+    /// <remarks>
+    /// <para>
+    /// RFC 9051 has a client treat <c>$Junk</c> and <c>$NotJunk</c> together as neither and take them off. A pair somebody
+    /// else set is cleared whole. A <c>$Junk</c> this deployment wrote is taken off alone, with a <c>$Phishing</c> it wrote
+    /// beside it, because the <c>$NotJunk</c> is the person correcting that verdict and is what has to stand.
+    /// </para>
+    /// <para>
+    /// It is asked for once per message, read from the record of what verdicts did, so a pair somebody sets again after
+    /// it was cleared is left to them on a mirrored, a held, and a restoring account alike.
+    /// </para>
+    /// </remarks>
+    private KeywordChange? JunkMarksCleared(
+        SpamActionOccurrence occurrence,
+        SpamActionSettings settings,
+        IReadOnlySet<SpamVerdictAct> ownActs)
     {
-        if (!this.MayWriteJunkKeywords(occurrence.Account, settings, MailboxMutation.RemoveKeywords))
+        if (!JunkKeywords.Carries(occurrence.Keywords, JunkKeywords.Junk)
+            || !JunkKeywords.Carries(occurrence.Keywords, JunkKeywords.NotJunk)
+            || ownActs.Contains(SpamVerdictAct.ClearedJunkMarks)
+            || !this.MayWriteJunkKeywords(occurrence.Account, settings, MailboxMutation.RemoveKeywords))
         {
-            return ActionDecision.Refused(SpamActionOutcome.NotSpam);
+            return null;
         }
 
-        var carriesBoth = JunkKeywords.Carries(occurrence.Keywords, JunkKeywords.Junk)
-            && JunkKeywords.Carries(occurrence.Keywords, JunkKeywords.NotJunk);
+        if (!ownActs.Contains(SpamVerdictAct.MarkedJunk))
+        {
+            return new KeywordChange(
+                MailboxMutation.RemoveKeywords,
+                AuthoredMailKeywords.Create([JunkKeywords.Junk, JunkKeywords.NotJunk]));
+        }
 
-        return ActionDecision.Planned(carriesBoth
-            ? new ActionPlan(
-                MarksRead: false,
-                new KeywordChange(
-                    MailboxMutation.RemoveKeywords,
-                    AuthoredMailKeywords.Create([JunkKeywords.Junk, JunkKeywords.NotJunk])),
-                Filing: null)
-            : ActionPlan.Nothing);
+        var takesOffPhishing = ownActs.Contains(SpamVerdictAct.MarkedPhishing)
+            && JunkKeywords.Carries(occurrence.Keywords, JunkKeywords.Phishing);
+
+        return new KeywordChange(
+            MailboxMutation.RemoveKeywords,
+            AuthoredMailKeywords.Create(takesOffPhishing
+                ? [JunkKeywords.Junk, JunkKeywords.Phishing]
+                : [JunkKeywords.Junk]));
     }
 
     /// <summary>Works out which junk keywords a spam verdict still owes the message, or <see langword="null" /> where it owes none.</summary>
@@ -485,7 +520,7 @@ public sealed class SpamActionRecorder
             cancellationToken);
         var recordId = RecordIdOf(submitted, applied);
 
-        if (change.Mutation == MailboxMutation.AddKeywords && Wrote(submitted))
+        if (Wrote(submitted))
         {
             foreach (var act in change.ActsRecorded)
             {
@@ -570,15 +605,17 @@ public sealed class SpamActionRecorder
     /// <summary>Where a filing would put the message, and what the account keeps of it locally afterwards.</summary>
     private sealed record FilingPlan(MailboxDestination Destination, AuthoredDeleteEmailDisposition? LocalDisposition);
 
-    /// <summary>A junk keyword change: the keywords a spam verdict adds, or the cancelled pair a verdict that is not spam removes.</summary>
+    /// <summary>A junk keyword change: the keywords a spam verdict adds, or the ones standing beside a <c>$NotJunk</c> that are taken off.</summary>
     private sealed record KeywordChange(MailboxMutation Mutation, AuthoredMailKeywords Keywords)
     {
-        /// <summary>Gets what an addition is recorded as once written; a removal is recorded as nothing.</summary>
-        internal IEnumerable<SpamVerdictAct> ActsRecorded => this.Keywords.Values.Select(static keyword => keyword switch
-        {
-            JunkKeywords.Phishing => SpamVerdictAct.MarkedPhishing,
-            _ => SpamVerdictAct.MarkedJunk,
-        });
+        /// <summary>Gets what the change is recorded as once written: one act per keyword added, and one for a removal.</summary>
+        internal IEnumerable<SpamVerdictAct> ActsRecorded => this.Mutation == MailboxMutation.RemoveKeywords
+            ? [SpamVerdictAct.ClearedJunkMarks]
+            : this.Keywords.Values.Select(static keyword => keyword switch
+            {
+                JunkKeywords.Phishing => SpamVerdictAct.MarkedPhishing,
+                _ => SpamVerdictAct.MarkedJunk,
+            });
     }
 
     /// <summary>Everything one verdict asks of the mailbox, in the order it is applied.</summary>

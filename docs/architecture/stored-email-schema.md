@@ -1288,11 +1288,12 @@ classification, so whatever erasure and retention already reach a message reach 
 pass of its own to remember.
 
 `email_spam_verdict_acts` records what a verdict of this deployment did to a message: one row per act, keyed by
-`(StoredEmailId, Act)`, where `Act` is `FiledIntoJunk`, `MarkedJunk`, or `MarkedPhishing`, with the `RecordedAt` it was
-first done. It is written in the transaction that makes the act — beside the mutation record on a mirrored account, and
+`(StoredEmailId, Act)`, where `Act` is `FiledIntoJunk`, `MarkedJunk`, `MarkedPhishing`, or `ClearedJunkMarks`, with the
+`RecordedAt` it was first done. It is written in the transaction that makes the act — beside the mutation record on a mirrored account, and
 beside the local commit on a held or restoring one — and is never rewritten, because what it answers outlives the
 verdict: the deterministic stage reads it so a placement or a keyword the deployment made is not taken as evidence, and
-the action recorder reads it so a message moved back out of junk, or a keyword somebody removed, is not acted on again.
+the action recorder reads it so a message moved back out of junk, a keyword somebody removed, or a `$Junk` and
+`$NotJunk` pair already cleared once, is not acted on again.
 It is a table of its own rather than a reading of the mutation records because a held account's act opens none. It
 holds no folder, no keyword text, and nothing from the message, and it is deleted with the email it describes.
 
@@ -2528,6 +2529,12 @@ message's classification, retention, access, export, and erasure obligations who
 is what makes that structural rather than a pass somebody has to remember. A signal names a header field, an
 authentication outcome, or a rule — never the value of a header — and nothing in either table reaches a log, a metric, a
 trace, or an error message.
+
+`email_spam_verdict_acts` is derived personal data by the same reading as a recorded mutation: a row says that this
+deployment filed somebody's message as junk or marked it so, and when. It inherits the source message's retention,
+access, export, and erasure obligations whole, and the cascade from `stored_emails` is what makes that structural. It
+holds the act and its instant and nothing else — no folder, no keyword text, nothing the message supplied — and neither
+column reaches a log, a metric, a trace, or an error message beyond the message's generated identifier.
 
 `jobs` is derived personal data by the same reading as a chunk or a classification: a row says that something is to be done about somebody's message, and it points at that message by its stored identity. What keeps it a pointer rather than a copy is the payload contract — a document of references with no property a subject, an address, or a body could go in, bounded in size at the enqueue boundary so a payload that grew into a copy is refused instead of stored. The account column and the cascade from `mailbox_accounts` are what erasure reaches queued work by. The message the payload names is not a foreign key, because it is a value inside a `jsonb` document rather than a column a constraint can reach: a job whose message was erased before it ran finds nothing under that identity and ends without acting.
 

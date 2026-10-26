@@ -154,7 +154,7 @@ to case, and each one present is recorded as a signal of its own.
 | --- | --- | --- |
 | `$NotJunk` alone | Not spam, over every other signal — the junk folder and a provider's header included | It is a person's correction, made in whichever client they use |
 | `$Junk`, or `$Phishing`, without `$NotJunk` | Spam, with no subcategory | Another client, the person, or the receiving server's filter marked it; `$Phishing` is read as junk, as RFC 9051 asks, and naming the kind stays a model's |
-| `$Junk` and `$NotJunk` together | Neither: the verdict is reached as if no junk keyword were there | RFC 9051 reads the pair as no statement at all |
+| `$Junk` and `$NotJunk` together, both somebody else's | Neither: the verdict is reached as if no junk keyword were there | RFC 9051 reads the pair as no statement at all |
 
 A keyword is read when the message is classified — on arrival, by a run reaching a record decided under other terms, or
 by a run with `--rescore` — and setting one does not by itself classify the message again, for the reason
@@ -174,12 +174,23 @@ A junk folder placement that a verdict of this deployment filed, and a `$Junk` o
 deployment wrote, are not signals. Each act a verdict takes on a message is recorded beside the message, in every custody
 phase, and the stage reads that record before it reads the message: otherwise the next run would find the message in the
 junk folder because the last verdict put it there, and a verdict could never be undone by the terms that reached it
-changing. A keyword or a placement somebody else made counts exactly as before, and so does a `$NotJunk` beside a `$Junk`
-this deployment wrote, which is the person correcting it.
+changing. A message an earlier build filed, before acts were recorded, is recognized from the relocation that verdict
+asked for instead.
 
-**Leaving the junk folder is not a correction.** A message moved out of it, in MailFathom or in another client, keeps its
-verdict: nothing re-decides a message because it moved, and a run that does reach it again finds no signal in a filing
-this deployment made. Only `$NotJunk` turns a spam verdict.
+The record answers by kind of act rather than by who made the mark the message now carries. **Once a verdict has filed a
+message, no junk folder placement of it counts again, and once a verdict has written `$Junk` or `$Phishing`, no `$Junk` or
+`$Phishing` on it counts again** — whoever moves it back into junk or sets the keyword afterwards, and also where the
+keyword was asked for and a folder that keeps no such keyword refused it. A `$NotJunk` is never one of them: beside a
+`$Junk` this deployment wrote it is the person correcting it, and it decides as it would anywhere.
+
+**Leaving the junk folder is not a correction.** Nothing re-decides a message because it moved, so a message moved out
+of junk, in MailFathom or in another client, keeps its verdict until something classifies it again. Then what stands
+depends on what the verdict rested on. The deployment's own filing and keywords are no signal either way, so a verdict
+resting on what the message itself carries — a provider's spam header — stands again and turns only on `$NotJunk`. A
+verdict resting on somebody else's placement or keyword — the receiving
+server's filter, another client's `$Junk` — is decided again on what the message carries then, so moving it out of junk
+or taking that keyword off turns it at that next classification. A first run after upgrading to this build is one such
+classification.
 
 ## Each account decides this for the mail in it
 
@@ -240,13 +251,19 @@ found nothing is not that statement. A keyword the message already carries is no
 `PERMANENTFLAGS` keeps neither `\*` nor the keyword refuses it, which ends that change as unsupported while filing and
 `\Seen`, each a change of its own, still go ahead.
 
+With the same switch on, **a message carrying `$Junk` and `$NotJunk` together has the `$Junk` taken off**, as RFC 9051
+asks of a client that finds both, whatever the verdict. A pair somebody else set is cleared whole, and on a spam verdict
+that removal stands in place of the `$Junk` the verdict would otherwise owe. A `$Junk` this deployment wrote is taken off
+alone, with a `$Phishing` it wrote beside it, because the `$NotJunk` next to it is the person correcting that verdict and
+is what has to stand. It is asked for once per message, read from the record of what verdicts did, so a pair somebody
+sets again after it was cleared is left to them on a mirrored, a held, and a restoring account alike.
+
 With more than one on, **flags and keywords are set before the move**. On a server without RFC 6851 `MOVE` a relocation
 gives the message a new UID, so a flag stored afterwards would be aimed at an occurrence the source folder no longer
 holds.
 
-Nothing else is ever done. No delete, no flag other than `\Seen`, no keyword other than `$Junk` and `$Phishing` — and,
-where a message carries both `$Junk` and `$NotJunk`, the removal of the two that RFC 9051 asks of a client, made only
-with the keyword switch on — no folder created, nothing sent.
+Nothing else is ever done. No delete, no flag other than `\Seen`, no keyword added other than `$Junk` and `$Phishing`,
+none taken off but the pair above, no folder created, nothing sent.
 [ADR 0007](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0007-remote-mailbox-mutation-boundary-and-write-session.md)
 admits a spam verdict among the authors of a flag or keyword change and refuses the rest, and this feature does not
 reopen that record.

@@ -29,4 +29,8 @@ public enum SpamVerdictAct
 
     /// <summary>A verdict added the <c>$Phishing</c> keyword.</summary>
     MarkedPhishing = 2,
+
+    /// <summary>A verdict took off a <c>$Junk</c> that stood beside a <c>$NotJunk</c>, as RFC 9051 asks of a client.</summary>
+    /// <remarks>Recorded so the removal is asked for once per message in every custody phase, as an addition is.</remarks>
+    ClearedJunkMarks = 3,
 }

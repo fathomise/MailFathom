@@ -140,6 +140,7 @@ internal sealed class SpamClassificationHarness
             settingsReader,
             this.Classifications,
             this.VerdictActs,
+            this.Mutations,
             Substitute.For<IEmailChunkStore>(),
             Substitute.For<IStoredEmailAttachmentTextStore>(),
             new RecordingDerivedWorkGateTelemetry(),

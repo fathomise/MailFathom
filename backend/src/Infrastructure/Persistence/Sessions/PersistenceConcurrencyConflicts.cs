@@ -66,6 +66,11 @@ internal static class PersistenceConcurrencyConflicts
     /// rests on rather than a provider failure ending the pass that lost.
     /// </para>
     /// <para>
+    /// The verdict-act key is that same message met by two actions: two replicas acting on one verdict both read that
+    /// the message carries no act, both ask for the change, and both insert the same act for it. The retry re-reads the
+    /// acts, finds the winner's row, and asks for nothing further, so one verdict is acted on once.
+    /// </para>
+    /// <para>
     /// The next three are one message met by two writers, at the stages that write per attachment and per passage. The
     /// passage ordinal is two cutters: the account run's cut and the embedding sweep select the same rows and walk
     /// them in the same order, and the sweep runs on its own interval while a run is still fetching, so on a first

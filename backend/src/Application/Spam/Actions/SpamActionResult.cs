@@ -13,7 +13,7 @@ namespace MailFathom.Application.Spam.Actions;
 /// <param name="KeywordsRecordId">The record carrying the junk keyword change, or <see langword="null" /> when none was asked for.</param>
 /// <remarks>
 /// The record identifiers travel back so a caller reporting what a run did can name the changes it started rather than
-/// reading them out of the store again, and so a run over a whole mailbox can count them. Neither identifier says the
+/// reading them out of the store again, and so a run over a whole mailbox can count them. No identifier says the
 /// change has happened: a record is opened before the first IMAP command and the account's convergence pass carries it
 /// from there.
 /// </remarks>

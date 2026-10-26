@@ -38,23 +38,21 @@ public static class JunkKeywords
         return keywords.Values.Contains(normalized, StringComparer.Ordinal);
     }
 
-    /// <summary>Reports whether a recorded verdict rested on both <see cref="Junk" /> and <see cref="NotJunk" /> somebody else set.</summary>
+    /// <summary>Reports whether a recorded verdict rested on a <see cref="NotJunk" /> somebody set.</summary>
     /// <param name="signals">The signals a classification recorded.</param>
-    /// <returns><see langword="true" /> when the record names both keywords as signals.</returns>
+    /// <returns><see langword="true" /> when the record names <see cref="NotJunk" /> as a signal.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="signals" /> is <see langword="null" />.</exception>
     /// <remarks>
-    /// RFC 9051 has a client remove both when it finds them together, and the record is where that pair is answered
-    /// from, because it names only the keywords somebody other than this deployment set — the one pair worth removing.
+    /// A verdict that is not spam asks the mailbox for something only where a <c>$Junk</c> may stand beside the person's
+    /// <c>$NotJunk</c>, and that needs the <c>$NotJunk</c> among its signals, so this is what lets every other such verdict
+    /// end before the message's occurrence is read.
     /// </remarks>
-    public static bool NameBoth(IEnumerable<SpamSignal> signals)
+    public static bool NameNotJunk(IEnumerable<SpamSignal> signals)
     {
         ArgumentNullException.ThrowIfNull(signals);
 
-        var named = signals
-            .Where(static signal => signal.Kind is SpamSignalKind.JunkKeyword)
-            .Select(static signal => signal.Name)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        return named.Contains(Junk) && named.Contains(NotJunk);
+        return signals.Any(static signal =>
+            signal.Kind is SpamSignalKind.JunkKeyword
+            && string.Equals(signal.Name, NotJunk, StringComparison.OrdinalIgnoreCase));
     }
 }
