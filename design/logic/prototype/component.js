@@ -3353,8 +3353,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const outboxDecidingHere = !!outboxEntry && !!st.outboxDeciding && st.outboxDeciding.id === outboxEntry.id;
       const obHeld = outboxDecidingHere ? ";opacity:0.6;cursor:default" : "";
       const obBtn = "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:" + (touch ? 44 : 32) + "px;padding:0 14px;border-radius:8px;font-size:13px;";
-      /* Drafts whose copy on the mail server may be missing or out of date stand at the top of a Drafts list, apart
-         from the ordinary drafts below them; the unified Drafts gathers every account's. */
+      /* Drafts whose copy on the mail server may be missing or out of date stand at the foot of a Drafts list's column,
+         outside the scrolling rows, so their arrival moves no row; the unified Drafts gathers every account's. */
       const openFolderKey = st.folderKey || "acc1·Inbox";
       const draftsAcc = /·Drafts$/.test(openFolderKey) && !outboxOn ? openFolderKey.split("·")[0] : null;
       const draftsLocal = !draftsAcc ? [] : ACCOUNTS.some(a => a.key === draftsAcc)
@@ -5213,7 +5213,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const pills = n.failure === "send"
             ? [{ icon: "send", label: "Send again", run: (e) => this.decideRefusedNotif(n, "again", e) }, { icon: "edit", label: "Edit", run: (e) => this.decideRefusedNotif(n, "edit", e) }]
             : changeOpen
-            ? [{ icon: "refresh", label: "Ask again", run: (e) => this.decideChange(n.change, true, e) }, { icon: "close", label: "Let it go", run: (e) => this.decideChange(n.change, false, e) }]
+            ? [{ icon: "refresh", label: (CHANGE_NOTICES[n.change] || {}).act === "move" ? "Move again…" : "Ask again", run: (e) => this.decideChange(n.change, true, e) }, { icon: "close", label: "Let it go", run: (e) => this.decideChange(n.change, false, e) }]
             : [];
           return {
             pills: pills, hasPills: pills.length > 0,

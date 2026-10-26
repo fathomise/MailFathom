@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import type { ClientNotification, NotificationKind } from '@mailfathom/client-backend';
+import { failureOf } from './failures';
 
 // What an arrival is reduced to before anything outside this client is told about it: how many, and of what kind.
 //
@@ -14,11 +15,16 @@ import type { ClientNotification, NotificationKind } from '@mailfathom/client-ba
 // in it, which is exactly the shape a test can hold.
 //
 // The kinds come back in the order they first arrived rather than in the order the service declares them, so what a
-// reader is told first is what happened first.
+// reader is told first is what happened first. A failure is counted as one whatever kind it was raised under: a refused
+// send is a mail notification to the service, and counting it as new mail would tell somebody the opposite of what
+// happened at the moment they most need to know.
+
+/** What an arrival is counted as: the kind the service raised it under, or a failure. */
+export type ArrivalKind = NotificationKind | 'Failure';
 
 /** How many notifications of one kind arrived together. */
 export interface ArrivalCount {
-    readonly kind: NotificationKind;
+    readonly kind: ArrivalKind;
 
     /** How many arrived, which is at least one — a kind with nothing behind it is absent rather than counted at zero. */
     readonly count: number;
@@ -26,10 +32,12 @@ export interface ArrivalCount {
 
 /** Reduces an arrival to the counts a system notification may carry, and to nothing else. */
 export function arrivalCounts(arrived: readonly ClientNotification[]): readonly ArrivalCount[] {
-    const counted = new Map<NotificationKind, number>();
+    const counted = new Map<ArrivalKind, number>();
 
     for (const notification of arrived) {
-        counted.set(notification.kind, (counted.get(notification.kind) ?? 0) + 1);
+        const kind = failureOf(notification) === null ? notification.kind : 'Failure';
+
+        counted.set(kind, (counted.get(kind) ?? 0) + 1);
     }
 
     return [...counted].map(([kind, count]) => ({ kind, count }));

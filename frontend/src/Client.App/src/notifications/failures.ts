@@ -43,9 +43,9 @@ export type Failure =
 
 /**
  * What a row reporting a failure offers to decide: a refused send is sent again or taken back to edit, and a change the
- * mailbox did not take is asked again or let go.
+ * mailbox did not take is asked again — moved again, for a move, which asks for the folder once more — or let go.
  */
-export type FailureDecision = 'sendAgain' | 'edit' | 'askAgain' | 'letGo';
+export type FailureDecision = 'sendAgain' | 'edit' | 'askAgain' | 'moveAgain' | 'letGo';
 
 /** The act a given-up change's statement counts, or `null` for a count this build does not name. */
 export function abandonedActOf(counted: number | null): AbandonedAct | null {

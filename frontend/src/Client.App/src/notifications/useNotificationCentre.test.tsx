@@ -1145,6 +1145,7 @@ describe('useNotificationCentre', () => {
 
             expect(result.current.notifications).toHaveLength(1);
             expect(screen.queryByRole('button', { name: 'Show message' })).toBeNull();
+            expect(head.said).toEqual([]);
         });
 
         it('raises its toast where nothing in this tab is following it', async () => {
@@ -1159,6 +1160,7 @@ describe('useNotificationCentre', () => {
             await polled();
 
             expect(screen.getByRole('button', { name: 'Show message' })).toBeDefined();
+            expect(head.said).toEqual(['1 failure in your mail']);
         });
     });
 });

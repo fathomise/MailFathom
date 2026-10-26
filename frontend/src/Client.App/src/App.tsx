@@ -686,17 +686,14 @@ export function App({
         [signalledChanges],
     );
 
-    // Where a notification leads. What each target kind comes to is `notifications/notificationDestination.ts`, which
-    // is where it can be asserted without a frame around it; what this supplies is the two things this client can
-    // actually do about one, because opening a message and reaching a space are the frame's rather than a mapping's.
     const toasts = useToasts();
     const { translate } = useLocalization();
 
-    // A send is opened in its own account's Outbox, which the notification names only by the send: so its account is
-    // read first, and a send the deployment no longer answers for is said rather than opened onto nothing.
     // A decision about a send asked from its notification, held until the Outbox that draws the send has read it.
     const [outboxAsked, setOutboxAsked] = useState<OutboxDecisionAsked | null>(null);
 
+    // A send is opened in its own account's Outbox, which the notification names only by the send: so its account is
+    // read first, and a send the deployment no longer answers for is said rather than opened onto nothing.
     const showSend = useCallback(
         (outgoingEmailId: string, decision?: OutboxDecisionAsked['decision'], onTaken?: () => void): void => {
             if (session === null) {
@@ -728,6 +725,9 @@ export function App({
         [session, readMail, revise, toasts, translate],
     );
 
+    // Where a notification leads. What each target kind comes to is `notifications/notificationDestination.ts`, which
+    // is where it can be asserted without a frame around it; what this supplies is the two things this client can
+    // actually do about one, because opening a message and reaching a space are the frame's rather than a mapping's.
     const followNotification = useCallback(
         (target: NotificationTarget): void => {
             followTarget(target, {

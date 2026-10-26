@@ -609,6 +609,23 @@ describe('NotificationCentre, a failure’s row', () => {
         expect(asked).toHaveLength(1);
     });
 
+    it('offers a given-up move as moved again, which leads to its message to choose the folder once more', () => {
+        const move: ClientNotification = {
+            ...change,
+            statement: { cause: 'MailboxChangeAbandoned', counted: 4, outOf: null },
+        };
+
+        panel({ notifications: [move] }, null, undefined, {
+            ...nothingPending,
+            abandoned: [{ recordId: 'r-1', storedEmailId: 'm-9', act: 'move' }],
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Move again…' }));
+
+        expect(screen.queryByRole('button', { name: 'Ask again' })).toBeNull();
+        expect(acts.follow).toHaveBeenCalledExactlyOnceWith(move);
+    });
+
     it('puts focus on the row’s own control once a decision on it is taken, rather than leaving it nowhere', () => {
         panel({ notifications: [change] }, null, undefined, {
             ...nothingPending,

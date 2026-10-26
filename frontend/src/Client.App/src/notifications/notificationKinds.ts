@@ -6,6 +6,7 @@ import type { ClientNotification, NotificationKind } from '@mailfathom/client-ba
 import type { IconName } from '../controls/icons';
 import type { MessageKey } from '../localization/en';
 import type { ToastKind } from '../toasts/useToasts';
+import type { ArrivalKind } from './arrivalCounts';
 import { failureOf, type Failure, type FailureDecision } from './failures';
 
 // How each of the four kinds is drawn, said, and — when one arrives while somebody is looking at the screen — spoken
@@ -51,16 +52,19 @@ export const notificationKindLabels: Readonly<Record<NotificationKind, MessageKe
  * words.
  */
 export const systemNotificationCounts: Readonly<
-    Record<NotificationKind, Readonly<Record<Intl.LDMLPluralRule, MessageKey>>>
+    Record<ArrivalKind, Readonly<Record<Intl.LDMLPluralRule, MessageKey>>>
 > = {
     Mail: counted('mail'),
     Calendar: counted('calendar'),
     Task: counted('task'),
     System: counted('system'),
+    Failure: counted('failure'),
 };
 
 /** The four forms one kind is counted in, which every kind declares the same way. */
-function counted(kind: 'mail' | 'calendar' | 'task' | 'system'): Readonly<Record<Intl.LDMLPluralRule, MessageKey>> {
+function counted(
+    kind: 'mail' | 'calendar' | 'task' | 'system' | 'failure',
+): Readonly<Record<Intl.LDMLPluralRule, MessageKey>> {
     return {
         zero: `notifications.arrived.${kind}.other`,
         one: `notifications.arrived.${kind}.one`,
@@ -120,5 +124,6 @@ export const failureDecisionShapes: Readonly<
     sendAgain: { icon: 'send', label: 'outbox.sendAgain' },
     edit: { icon: 'edit', label: 'outbox.edit' },
     askAgain: { icon: 'refresh', label: 'pendingChange.askAgain' },
+    moveAgain: { icon: 'refresh', label: 'change.moveAgain' },
     letGo: { icon: 'close', label: 'pendingChange.letGo' },
 };

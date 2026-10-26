@@ -13,10 +13,29 @@ import { DraftsOutOfStep } from './DraftsOutOfStep';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
 
-function drawing(answer: unknown): Composing {
+// Every answer here is a promise already resolved, so the read, its parse and its state update are all microtasks: a
+// task queued after the request has been asked runs only once every one of them has, which is the point an absence can
+// be read at.
+async function answered(asked: readonly string[], count: number): Promise<void> {
+    await waitFor(() => {
+        expect(asked).toHaveLength(count);
+    });
+    await act(
+        () =>
+            new Promise<void>((resolve) => {
+                setTimeout(resolve, 0);
+            }),
+    );
+}
+
+function drawing(answer: unknown): { readonly composing: Composing; readonly asked: readonly string[] } {
     const composing: Composing = { offered: true, drafts: false, opening: null, compose: vi.fn(), close: vi.fn() };
-    const transport: MailFathomTransport = () =>
-        Promise.resolve({ status: 200, body: JSON.stringify(answer), headers: {} });
+    const asked: string[] = [];
+    const transport: MailFathomTransport = (request) => {
+        asked.push(request.path);
+
+        return Promise.resolve({ status: 200, body: JSON.stringify(answer), headers: {} });
+    };
 
     render(
         <LocalizationProvider>
@@ -26,12 +45,12 @@ function drawing(answer: unknown): Composing {
         </LocalizationProvider>,
     );
 
-    return composing;
+    return { composing, asked };
 }
 
 describe('DraftsOutOfStep', () => {
     it('lists only the drafts whose server copy is out of step, and opens one in the composer as itself', async () => {
-        const composing = drawing(drafts.draftList);
+        const { composing } = drawing(drafts.draftList);
 
         fireEvent.click(await screen.findByRole('button', { name: new RegExp(drafts.outOfStepDraft.subject, 'u') }));
 
@@ -44,12 +63,9 @@ describe('DraftsOutOfStep', () => {
     });
 
     it('draws nothing where every draft is in step with its server', async () => {
-        drawing({ drafts: [drafts.draft], maximumCount: 200 });
+        const { asked } = drawing({ drafts: [drafts.draft], maximumCount: 200 });
 
-        // The answer is read and drawn as nothing; letting the read settle is what makes the absence mean that.
-        await act(async () => {
-            await Promise.resolve();
-        });
+        await answered(asked, 1);
 
         expect(screen.queryByRole('region', { name: 'Out of step with your server' })).toBeNull();
     });
@@ -143,12 +159,7 @@ describe('DraftsOutOfStep, read again', () => {
             }
         });
 
-        await waitFor(() => {
-            expect(asked).toHaveLength(2);
-        });
-        await act(async () => {
-            await Promise.resolve();
-        });
+        await answered(asked, 2);
 
         expect(screen.getByRole('button', { name: new RegExp(drafts.outOfStepDraft.subject, 'u') })).toBeDefined();
     });

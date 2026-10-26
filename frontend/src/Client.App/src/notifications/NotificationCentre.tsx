@@ -261,7 +261,7 @@ export function NotificationCentre({
                 ? []
                 : [
                       {
-                          decision: 'askAgain' as const,
+                          decision: again === 'choosesFolder' ? ('moveAgain' as const) : ('askAgain' as const),
                           underWay: askingFor.includes(question.change.recordId),
                           take: () => {
                               askAgain(notification, question, again);

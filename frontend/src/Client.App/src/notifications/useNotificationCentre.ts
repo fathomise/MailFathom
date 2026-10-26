@@ -397,13 +397,13 @@ export function useNotificationCentre(
     // open the notification it is about.
     const announce = useCallback(
         (arrived: readonly ClientNotification[]): void => {
-            raiseWithTheSystem(arrived);
-
             const spoken = arrived.filter((notification) => {
                 const failure = failureOf(notification);
 
                 return failure?.kind !== 'change' || !followedHere(failure.recordId);
             });
+
+            raiseWithTheSystem(spoken);
 
             for (const notification of spoken.slice(0, mostArrivalsAnnounced).reverse()) {
                 const said = wordNotificationToast(notification, accounts, locale, translate);
