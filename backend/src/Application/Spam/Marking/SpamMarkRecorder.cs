@@ -176,8 +176,8 @@ public sealed class SpamMarkRecorder
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="mark" />, <paramref name="requester" />, or <paramref name="batch" /> is <see langword="null" />.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the grant the mark needs.</exception>
     /// <remarks>
-    /// Repeating a mark is one change: the verdict is replaced by the same verdict, the keywords the message already
-    /// carries are not asked for again, and a move into the folder the message is in is no move. Marking spam again with
+    /// Repeating a mark is one change: the verdict is replaced by the same verdict, its keywords are asked for again and
+    /// change nothing the message already carries, and a move into the folder the message is in is no move. Marking spam again with
     /// another subcategory replaces the person's subcategory. Every destination is resolved before the transaction opens,
     /// because resolving a folder the account does not mirror can reach the mail server. A message on an account the batch
     /// did not reach when it was admitted is reported as not found, since its grants were never decided.
@@ -205,7 +205,7 @@ public sealed class SpamMarkRecorder
         this.RequireMoveGrantWhereTheSwitchFilesJunk(settings);
         var move = await this.PlanMoveAsync(target, mark, settings, cancellationToken);
 
-        var prepared = await this.writer.PrepareAsync(storedEmailId, account, mark, cancellationToken);
+        var prepared = this.writer.Prepare(account, mark);
 
         StagedSpamMark staged;
         SubmittedMailboxChange? moved = null;

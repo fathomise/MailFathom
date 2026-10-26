@@ -536,7 +536,9 @@ replaces: a reclassification, a [classification run](#classifying-the-mail-you-a
 change of profile all leave it standing and count it as skipped. **Marking not spam is the one way a spam verdict is
 lifted** — moving a message out of the junk folder is not a correction, as above. Marking a message again is the same
 act: the verdict is replaced with the one just stated, so marking spam with another subcategory changes the subcategory
-rather than adding a second verdict, and a keyword the message already carries is not asked for again.
+rather than adding a second verdict. Each mark asks for every keyword below rather than for what the server last reported
+missing, so a mark undone before the first one reached the server is corrected by the second one's changes, which reach
+it afterwards.
 
 **The keywords follow the verdict into the mailbox**, so every other mail client reads the correction:
 
@@ -569,7 +571,8 @@ a move into junk that is not made — the message is already there, or the move 
 it out changes no verdict; marking it not spam does. A move an agent or an MCP caller asks for is a move and nothing else.
 
 A message marked spam loses its passages and attachment text in the same transaction, as
-[a junk verdict does](#what-a-junk-verdict-removes). One marked not spam is admitted again: once it is outside a junk
+[a junk verdict does](#what-a-junk-verdict-removes); on an account whose classification is off nothing withholds it
+afterwards, so the next sweep of derived work derives from it again. One marked not spam is admitted again: once it is outside a junk
 folder, the next sweep of derived work selects it like any other admitted message. No verdict files it back into junk —
 the switches act on spam verdicts alone, and a stage cannot replace the person's.
 

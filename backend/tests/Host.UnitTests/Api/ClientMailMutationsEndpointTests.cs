@@ -1272,7 +1272,6 @@ public sealed class ClientMailMutationsEndpointTests
         permissions.GetRuleActionPermissions(Arg.Any<MailAccountId>()).Returns(MailRuleActionPermissions.Default);
 
         return new SpamMarkWriter(
-            Substitute.For<ISpamActionOccurrenceReader>(),
             permissions,
             this.spamClassifications,
             Substitute.For<ISpamVerdictActStore>(),

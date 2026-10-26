@@ -8,7 +8,6 @@ using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Authoring.Failures;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Rules.Actions;
-using MailFathom.Application.Spam.Actions;
 using MailFathom.Application.Spam.Gating;
 using MailFathom.Application.Spam.Signals;
 using MailFathom.Domain.Accounts;
@@ -29,8 +28,10 @@ namespace MailFathom.Application.Spam.Marking;
 /// <para>
 /// The keywords are the ones RFC 9051 defines. Spam adds <c>$Junk</c>, with <c>$Phishing</c> beside it for the
 /// phishing subcategory, and takes off <c>$NotJunk</c>; not spam adds <c>$NotJunk</c> and takes off <c>$Junk</c> and
-/// <c>$Phishing</c>. Only what the message does not already stand at is written, so repeating a mark asks the mailbox
-/// for nothing new. They are the person's own keyword acts: the account's <c>WriteKeywords</c> permission governs them
+/// <c>$Phishing</c>. Every mark asks for all of them rather than for what the server last reported missing, as every
+/// keyword change a person asks for does: a mark undone before the first one reached the server is then corrected by
+/// the records of the second, which converge after it, instead of being judged against a reading the first one has not
+/// changed yet. They are the person's own keyword acts: the account's <c>WriteKeywords</c> permission governs them
 /// as it governs every keyword MailFathom writes, and the switch letting an automated verdict write keywords does not.
 /// Each travels as every change on a message does, by the custodian the account's phase selects.
 /// </para>
@@ -42,7 +43,6 @@ namespace MailFathom.Application.Spam.Marking;
 /// </remarks>
 public sealed class SpamMarkWriter
 {
-    private readonly ISpamActionOccurrenceReader occurrences;
     private readonly IMailRuleActionPermissionReader permissions;
     private readonly IEmailSpamClassificationStore classifications;
     private readonly ISpamVerdictActStore verdictActs;
@@ -53,7 +53,6 @@ public sealed class SpamMarkWriter
     private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes the writer over what a mark reads and the stores it writes.</summary>
-    /// <param name="occurrences">Reads the keywords the message carries, which decide which of them a mark still owes.</param>
     /// <param name="permissions">Answers whether the account permits keywords to be written.</param>
     /// <param name="classifications">Reads the person's earlier verdict and records the new one.</param>
     /// <param name="verdictActs">Records the keywords a mark wrote and the filing it made.</param>
@@ -64,7 +63,6 @@ public sealed class SpamMarkWriter
     /// <param name="timeProvider">Stamps the verdict.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
     public SpamMarkWriter(
-        ISpamActionOccurrenceReader occurrences,
         IMailRuleActionPermissionReader permissions,
         IEmailSpamClassificationStore classifications,
         ISpamVerdictActStore verdictActs,
@@ -74,7 +72,6 @@ public sealed class SpamMarkWriter
         MailboxChangeSubmission submission,
         TimeProvider timeProvider)
     {
-        ArgumentNullException.ThrowIfNull(occurrences);
         ArgumentNullException.ThrowIfNull(permissions);
         ArgumentNullException.ThrowIfNull(classifications);
         ArgumentNullException.ThrowIfNull(verdictActs);
@@ -84,7 +81,6 @@ public sealed class SpamMarkWriter
         ArgumentNullException.ThrowIfNull(submission);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
-        this.occurrences = occurrences;
         this.permissions = permissions;
         this.classifications = classifications;
         this.verdictActs = verdictActs;
@@ -95,23 +91,14 @@ public sealed class SpamMarkWriter
         this.timeProvider = timeProvider;
     }
 
-    /// <summary>Works out which junk keywords a mark still owes the message, before the transaction it is written in opens.</summary>
-    /// <param name="emailId">The message.</param>
+    /// <summary>Works out the junk keywords a mark adds and takes off, before the transaction it is written in opens.</summary>
     /// <param name="account">The account the message belongs to, whose permission governs the keywords.</param>
     /// <param name="mark">What the person says the message is.</param>
-    /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>The mark with the keywords it adds and takes off, either of which is <see langword="null" /> where nothing is owed or permitted.</returns>
+    /// <returns>The mark with the keywords it adds and takes off, either of which is <see langword="null" /> where the account permits nothing.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="mark" /> is <see langword="null" />.</exception>
-    public async Task<PreparedSpamMark> PrepareAsync(
-        StoredEmailId emailId,
-        MailAccountId account,
-        SpamMark mark,
-        CancellationToken cancellationToken)
+    public PreparedSpamMark Prepare(MailAccountId account, SpamMark mark)
     {
         ArgumentNullException.ThrowIfNull(mark);
-
-        var carried = (await this.occurrences.FindAsync(emailId, cancellationToken))?.Keywords
-            ?? RemoteEmailKeywords.Create([]);
 
         var isSpam = mark.Verdict is SpamVerdict.Spam;
         string[] wanted = isSpam
@@ -121,8 +108,8 @@ public sealed class SpamMarkWriter
 
         return new PreparedSpamMark(
             mark,
-            this.KeywordsPermitted(account, MailboxMutation.AddKeywords, wanted.Where(keyword => !JunkKeywords.Carries(carried, keyword))),
-            this.KeywordsPermitted(account, MailboxMutation.RemoveKeywords, unwanted.Where(keyword => JunkKeywords.Carries(carried, keyword))));
+            this.KeywordsPermitted(account, MailboxMutation.AddKeywords, wanted),
+            this.KeywordsPermitted(account, MailboxMutation.RemoveKeywords, unwanted));
     }
 
     /// <summary>Works out the mark a move into the account's junk folder makes, which keeps the kind of spam the person already named.</summary>
@@ -144,7 +131,7 @@ public sealed class SpamMarkWriter
             ? existing.Subcategory
             : null;
 
-        return await this.PrepareAsync(emailId, account, SpamMark.Spam(named), cancellationToken);
+        return this.Prepare(account, SpamMark.Spam(named));
     }
 
     /// <summary>Records the person's verdict, removes what a spam mark withholds, and writes the keywords, inside the caller's transaction.</summary>

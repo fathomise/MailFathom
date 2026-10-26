@@ -545,7 +545,7 @@ public sealed class MailRelocationRecorderTests
         // Assert
         Assert.Equal(MailRelocationOutcome.Recorded, result.Outcome);
         Assert.Equal(
-            [MailboxMutation.AddKeywords, MailboxMutation.Relocate],
+            [MailboxMutation.AddKeywords, MailboxMutation.RemoveKeywords, MailboxMutation.Relocate],
             this.records.OpenedRequests.Select(static opened => opened.Mutation));
 
         var verdict = Assert.Single(this.classifications.Saved);
@@ -553,7 +553,9 @@ public sealed class MailRelocationRecorderTests
             (SpamVerdict.Spam, SpamClassificationStage.Person, (SpamSubcategory?)null),
             (verdict.Verdict, verdict.DecidedBy, verdict.Subcategory));
         Assert.Equal([SpamVerdictAct.FiledIntoJunk, SpamVerdictAct.MarkedJunk], this.verdictActs.Of(LocalEmail).Order());
-        Assert.Equal(MailboxMutation.AddKeywords, Assert.Single(result.SpamMarkRecords).Request.Mutation);
+        Assert.Equal(
+            [MailboxMutation.AddKeywords, MailboxMutation.RemoveKeywords],
+            result.SpamMarkRecords.Select(static record => record.Request.Mutation));
     }
 
     /// <summary>
@@ -645,7 +647,7 @@ public sealed class MailRelocationRecorderTests
         Assert.Equal(["$JUNK"], states.States[LocalEmail].Keywords.Values);
         Assert.Equal(SpamClassificationStage.Person, Assert.Single(this.classifications.Saved).DecidedBy);
         Assert.Equal([SpamVerdictAct.FiledIntoJunk, SpamVerdictAct.MarkedJunk], this.verdictActs.Of(LocalEmail).Order());
-        Assert.Equal(phase is MailAccountCustodyPhase.Restoring ? 1 : 0, result.SpamMarkRecords.Count);
+        Assert.Equal(phase is MailAccountCustodyPhase.Restoring, result.SpamMarkRecords.Count > 0);
     }
 
     /// <summary>A request identity that already asked for other keywords is answered as an unusable request, never as a message that has gone.</summary>
@@ -808,7 +810,6 @@ public sealed class MailRelocationRecorderTests
             runSignal ?? new MailAccountRunSignal(),
             StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)),
             new SpamMarkWriter(
-                SpamClassificationHarness.OccurrenceReader(Account, target?.Folder.Alias ?? Inbox),
                 SpamClassificationHarness.KeywordsPermitted(),
                 this.classifications,
                 this.verdictActs,

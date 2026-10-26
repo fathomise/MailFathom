@@ -2180,7 +2180,8 @@ Content-Type: application/json
       "moved": true,
       "changes": [
         { "mutation": "add-keywords", "recordId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a92", "state": "pending" },
-        { "mutation": "relocate", "recordId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a93", "state": "pending" }
+        { "mutation": "remove-keywords", "recordId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a93", "state": "pending" },
+        { "mutation": "relocate", "recordId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a94", "state": "pending" }
       ]
     }
   ]
@@ -2190,8 +2191,9 @@ Content-Type: application/json
 Each result carries `recorded`, `applied`, `message-not-found`, or `change-not-usable` — the last where `requestId`
 already asked the same message for other keywords. **The verdict itself is recorded at once in every case but the two
 refusals**, so `recorded` means the verdict stands and at least one change is written down for the mail server, and
-`applied` means everything the mark asked took effect immediately — on a held account, or where the message already
-carried the keywords and nothing had to move. `changes` lists every record opened, which the read route above follows
+`applied` means everything the mark asked took effect immediately — on a held account, or where the account permits
+no keyword change and nothing had to move. Every mark asks for all of its keywords, whatever the server last reported,
+so one undone before the first reached the server is still corrected. `changes` lists every record opened, which the read route above follows
 like any other: the keyword additions and removals first, then the move. `moved` says whether the mark moved the
 message, which only the account's `SpamClassification:Actions:MoveToJunkFolder` decides — spam into the junk
 destination, and not spam out of the junk folder to the inbox. A mark's move passes the checks a person's own move does,
