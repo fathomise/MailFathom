@@ -10,6 +10,7 @@ using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Scheduling;
 using MailFathom.Host.Configuration.Mail;
 using MailFathom.Host.Configuration.SensitiveContent;
+using MailFathom.Host.Configuration.Spam;
 using MailFathom.Host.Observability.ClientTelemetry;
 using MailFathom.Infrastructure.Policies;
 
@@ -242,6 +243,23 @@ internal sealed class UserAccountOptions : IValidatableObject
         this.MailAccounts.Index().SelectMany(entry => entry.Item.FindSensitiveContentErrors(
             deployment,
             $"{nameof(this.MailAccounts)}:{entry.Index.ToString(CultureInfo.InvariantCulture)}:{MailAccountSensitiveContentOptions.BlockName}"));
+
+    /// <summary>Finds the refusal for every account of this record switching the spam model stage on with no model to ask.</summary>
+    /// <param name="modelServesSpamClassification">Whether this deployment declares a decision model spam classification reaches.</param>
+    /// <returns>One result per account asking for the stage while nothing serves it, empty otherwise.</returns>
+    /// <remarks>
+    /// Asked of the account blocks being written and of no others, for the reason the scanning rule above is: a record
+    /// that asked for the stage before its model was taken away is classified deterministically and reported at
+    /// startup, while a record asking for it now is told so while somebody is there to act on it.
+    /// </remarks>
+    internal IEnumerable<ValidationResult> FindSpamModelStageErrors(bool modelServesSpamClassification) =>
+        modelServesSpamClassification
+            ? []
+            : this.MailAccounts.Index()
+                .Where(static entry => entry.Item.SpamClassification is { ModelStage.Enabled: true })
+                .Select(entry => new ValidationResult(
+                    $"{nameof(this.MailAccounts)}:{entry.Index.ToString(CultureInfo.InvariantCulture)}:{MailAccountSpamModelStageOptions.EnabledPath} switches the spam model stage on, and this deployment declares no decision model under Decisions:Models that Decisions:SpamClassification:Model reaches. Declare one, or switch the model stage off.",
+                    [MailAccountSpamModelStageOptions.EnabledPath]));
 
     /// <summary>Finds the refusal for every account of this record that states no language at all.</summary>
     /// <returns>One result per account stating none, empty where every one of them names a language.</returns>

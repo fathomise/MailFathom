@@ -4,6 +4,7 @@
 
 using MailFathom.Domain.Access;
 using MailFathom.Host.Configuration;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Policies;
 using MailFathom.Host.Configuration.SensitiveContent;
 using MailFathom.Host.Configuration.UserSettings;
@@ -49,7 +50,8 @@ internal sealed class InMemorySettingsPolicies(
         var binder = new UserAccountDocumentBinder(
             new PersistedSecretMaterial(DeclaredSecretScheme.Registered),
             new FakeTimeProvider(),
-            Options.Create(scanning ?? new SensitiveContentOptions()));
+            Options.Create(scanning ?? new SensitiveContentOptions()),
+            Options.Create(new DecisionModelOptions()));
 
         return new InMemorySettingsPolicies(new UserRecordPolicyJudge(binder), new MailAccountPolicyJudge(binder));
     }

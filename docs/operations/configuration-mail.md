@@ -229,7 +229,7 @@ whether the folder may be created at all, through a fourth that defaults to `fal
 | --- | --- | --- | --- | --- |
 | `…:Folders:<n>:Synchronize` | bool | `true` | With `false`, no run schedules the folder: no connection is opened for it and nothing further of it is stored | reload; the next run stops scheduling it and keeps everything already stored for it |
 | `…:Folders:<n>:GenerateEmbeddings` | bool | `true` | With `false`, stored mail of the folder is never cut into passages and never reaches an embedding provider; refused alongside `Synchronize: false` and alongside `VisibleToAI: false`, and off whenever either of those is `false` | reload; governs what is stored from then on, and passages already produced stay |
-| `…:Folders:<n>:VisibleToAI` | bool | `true` | With `false`, the folder is withheld from every AI function and from nothing else: no MCP tool, agent, or model or embedding provider lists, searches, reads, answers from, or derives anything from it, and no act an agent or MCP caller asks for reaches its mail, while the person still reads and acts on it in the client; refused alongside `Synchronize: false` | reload; the next request reads the new value |
+| `…:Folders:<n>:VisibleToAI` | bool | `true` | With `false`, the folder is withheld from every AI function and from nothing else: no MCP tool, agent, or model or embedding provider lists, searches, reads, answers from, or derives anything from it, and no act an agent or MCP caller asks for reaches its mail, while the person still reads and acts on it in the client; refused alongside `Synchronize: false`, and for a folder this account's [spam model stage](#classifying-this-accounts-mail--spamclassification) classifies | reload; the next request reads the new value |
 | `…:Folders:<n>:CreateIfMissing` | bool | `false` | With `true`, the folder is created on the mail server when the server advertises none at `RemotePath`; refused on a mapping that names no `RemotePath` | reload; the next resolution of the alias creates it |
 
 Startup refuses a folder that asks for embeddings or for visibility to AI while `Synchronize` is `false`, naming the
@@ -435,7 +435,8 @@ verdict may do.
   "SpamClassification": {
     "Enabled": true,
     "ScannedFolders": [ "inbox" ],
-    "Actions": { "MoveToJunkFolder": true, "MarkAsRead": false, "JunkFolder": "role:Junk" }
+    "Actions": { "MoveToJunkFolder": true, "MarkAsRead": false, "JunkFolder": "role:Junk" },
+    "ModelStage": { "Enabled": true, "NameSubcategoriesOfDeterministicSpam": false, "Threshold": 0.5 }
   }
 }
 ```
@@ -448,14 +449,23 @@ verdict may do.
 | `…:SpamClassification:Actions:MarkAsRead` | bool | `false` | Whether junk has this account's remote `\Seen` flag set; the same refusal | reload; the same |
 | `…:SpamClassification:Actions:MarkWithJunkKeywords` | bool | `false` | Whether junk is given RFC 9051's `$Junk` keyword, and `$Phishing` beside it where the verdict names phishing; `RuleActions:WriteKeywords` still governs it. With it on, a message carrying both `$Junk` and `$NotJunk` has the `$Junk` taken off once: the pair whole, with a `$Phishing` beside it, where somebody else set both, the deployment's own `$Junk` (and `$Phishing`) alone where the `$NotJunk` is a person's correction of it. The same refusal | reload; the same |
 | `…:SpamClassification:Actions:JunkFolder` | string | `role:Junk` | A folder alias, or one of the special uses written as `role:<name>`. Once filing is switched on, **this account** has to map it, because MailFathom creates a folder on nobody's server; the syntax is judged whatever the switches say | reload; the same |
+| `…:SpamClassification:ModelStage:Enabled` | bool | `false` | Whether a decision model is asked about this account's mail after the deterministic stage. **Switching it on sends this mailbox's mail to two third parties**, the router and the provider it picks, as [what the model is shown](../features/spam-classification.md#what-the-model-is-shown) lists. Refused while `Enabled` is false, while any folder this account classifies is withheld from AI (`VisibleToAI: false` or `Synchronize: false`), and while the deployment declares no decision model that `Decisions:SpamClassification:Model` reaches | reload; the next classification reads it |
+| `…:SpamClassification:ModelStage:NameSubcategoriesOfDeterministicSpam` | bool | `false` | Whether the model also names the kind of mail the deterministic stage already called spam. Off, such a verdict carries no kind and costs no call, which matters because junk is often most of a mailbox | reload; the same |
+| `…:SpamClassification:ModelStage:Threshold` | double | `0.5` | Above 0 and at most 1; the spam probability at or above which the model's judgement is a spam verdict. A threshold belongs to one model build, so move it with the model, and set it from the evaluation's false-positive rate on legitimate mail | reload; the same |
 
 **A junk destination is judged against this account alone.** Junk is filed into the mailbox it was found in, so a
 destination this account does not map is refused exactly as one nobody maps — from inside the record the two are the
 same thing. That is what the block being the account's buys over one held on the person: an account no longer has to
 map a folder some other mailbox of the same user wanted junk filed into.
 
-**A record may hold only what is this mailbox's.** The classification wait and the run batch sizes are what the
-process spends rather than a judgement about anybody's mailbox, so an account naming one of them is refused at the
+**The model stage reads only what AI may read.** It is an AI function, so a record that switches it on while a folder
+it classifies — the `ScannedFolders`, or this account's inbox where none are written — is withheld from AI, mapped
+`VisibleToAI: false` or `Synchronize: false`, is refused naming the account and the folder, and so is a record that withholds such a folder while the stage is on.
+The deterministic stage is not AI and is not affected. Each of the three keys joins the profile a verdict is recorded
+under, so changing one re-decides this account's mail on the next classification run.
+
+**A record may hold only what is this mailbox's.** The classification wait, the run batch sizes, and the model stage's
+call and body bounds are what the process spends rather than a judgement about anybody's mailbox, so an account naming one of them is refused at the
 write, naming the key, and so is one naming a key the block does not declare.
 
 ### Scanning this account's mail — `SensitiveContent`

@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.AI.Chat;
+using MailFathom.AI.DecisionModels;
 using MailFathom.Evaluations.Providers;
 using Xunit;
 
@@ -11,6 +12,8 @@ namespace MailFathom.Evaluations.UnitTests.Providers;
 public sealed class EvaluationDeclarationTests
 {
     private static readonly Uri Address = new("https://gateway.example.test/v1/");
+
+    private static readonly Uri DecisionAddress = new("https://router.example.test/");
 
     [Fact]
     public void Parse_NoBlock_MeasuresEveryAgentOnTheFallbackModel()
@@ -184,5 +187,67 @@ public sealed class EvaluationDeclarationTests
         Assert.Equal(
             [("model-b", "model-a"), ("model-c", "model-a")],
             pairings.Select(static pairing => (pairing.First.Name, pairing.Second.Name)));
+    }
+
+    [Fact]
+    public void DecisionModelsFor_AFunctionTheBlockNamesNothingFor_MeasuresTheFallbackDecisionModelAtTheDecisionAddress()
+    {
+        // Arrange
+        var declaration = EvaluationDeclaration.Parse("{MainModel: model-a}", "fallback", Address, "vendor/decider-2026-10-01", DecisionAddress);
+
+        // Act
+        var plan = Assert.Single(declaration.DecisionModelsFor(DecisionFunction.SpamClassification));
+
+        // Assert
+        Assert.Equal(("vendor/decider-2026-10-01", "vendor/decider-2026-10-01", DecisionAddress), (plan.Alias, plan.Model, plan.Address));
+        Assert.True(plan.RequestTimeout > TimeSpan.Zero);
+        Assert.True(plan.MaximumRequestCharacters > 0);
+    }
+
+    [Fact]
+    public void DecisionModelsFor_AFunctionGivenTwoModels_MeasuresBothUnderTheNamesTheyAreFiledBy()
+    {
+        // Arrange
+        var declaration = EvaluationDeclaration.Parse(
+            "{SpamClassification: [vendor/decider-a, {Model: vendor/decider-b, Alias: second}]}",
+            "fallback",
+            Address,
+            "vendor/decider-fallback",
+            decisionAddress: null);
+
+        // Act
+        var plans = declaration.DecisionModelsFor(DecisionFunction.SpamClassification);
+
+        // Assert
+        Assert.Equal(
+            [("vendor/decider-a", "vendor/decider-a"), ("second", "vendor/decider-b")],
+            plans.Select(static plan => (plan.Alias, plan.Model)));
+        Assert.All(plans, static plan => Assert.Null(plan.Address));
+    }
+
+    [Fact]
+    public void DecisionModelsFor_NeitherTheBlockNorTheFallbackNamesOne_FailsNamingTheKeyAndTheVariable()
+    {
+        // Arrange
+        var declaration = EvaluationDeclaration.Parse("{MainModel: model-a}", "fallback", Address);
+
+        // Act
+        var failure = Assert.Throws<InvalidOperationException>(() => declaration.DecisionModelsFor(DecisionFunction.SpamClassification));
+
+        // Assert
+        Assert.Contains(nameof(DecisionFunction.SpamClassification), failure.Message, StringComparison.Ordinal);
+        Assert.Contains(DecisionEndpoint.ModelVariable, failure.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("{SpamClassification: ~vendor/decider-latest}")]
+    [InlineData("{SpamClassification: {Model: vendor/decider-a, ReasoningEffort: high}}")]
+    public void Parse_ADecisionModelADeploymentWouldRefuse_FailsNamingTheVariable(string block)
+    {
+        // Act
+        var failure = Assert.Throws<InvalidOperationException>(() => EvaluationDeclaration.Parse(block, "fallback", Address));
+
+        // Assert
+        Assert.Contains(EvaluationDeclaration.Variable, failure.Message, StringComparison.Ordinal);
     }
 }

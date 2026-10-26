@@ -163,6 +163,21 @@ public sealed class DeclaredMailAccountsTests
         Assert.Equal(Describe(fromDeclarations), Describe(fromRecords));
     }
 
+    /// <summary>A folder that is not mirrored keeps nothing AI could read, so it is withheld from AI whether or not its mapping says so.</summary>
+    [Theory]
+    [InlineData("""{"Alias":"archive","RemotePath":"Archive"}""", true)]
+    [InlineData("""{"Alias":"archive","RemotePath":"Archive","VisibleToAI":false}""", false)]
+    [InlineData("""{"Alias":"archive","RemotePath":"Archive","Synchronize":false}""", false)]
+    public void ReadFrom_AMappedFolder_IsVisibleToAIOnlyWhereItsParticipationAdmitsAI(string folder, bool expected)
+    {
+        // Act
+        var accounts = DeclaredMailAccounts.ReadFrom([Record(Primary, $$"""{"Folders":[{{folder}}]}""")]);
+
+        // Assert
+        var archive = Assert.Single(Assert.Single(accounts).MappedFolders, mapped => string.Equals(mapped.Alias.Value, "archive", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(expected, archive.IsVisibleToAI);
+    }
+
     [Fact]
     public void ReadFrom_NoDeclarations_Throws()
     {

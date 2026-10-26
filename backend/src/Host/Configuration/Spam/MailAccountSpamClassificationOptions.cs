@@ -59,6 +59,10 @@ internal sealed class MailAccountSpamClassificationOptions
     /// </remarks>
     public MailAccountSpamActionOptions Actions { get; set; } = new();
 
+    /// <summary>Gets or sets whether this account's mail is put to a decision model, and on which terms.</summary>
+    /// <remarks>Always present, so a record stating none of its keys binds with the model stage off.</remarks>
+    public MailAccountSpamModelStageOptions ModelStage { get; set; } = new();
+
     /// <summary>Finds everything about this block that would otherwise be discovered on the account's own mail.</summary>
     /// <param name="account">The account this block was written on, which is the only one a folder may resolve within.</param>
     /// <returns>One result per refusal, each naming the setting that carries it.</returns>
@@ -67,8 +71,19 @@ internal sealed class MailAccountSpamClassificationOptions
     {
         ArgumentNullException.ThrowIfNull(account);
 
-        return this.FindPostureRefusals().Concat(this.Actions.FindRefusals(this.Enabled, account));
+        return this.FindPostureRefusals()
+            .Concat(this.Actions.FindRefusals(this.Enabled, account))
+            .Concat(this.ModelStage.FindRefusals(this.Enabled, this.ClassifiedAliasesOf(account), account));
     }
+
+    /// <summary>Resolves the folders this block classifies, within the account it was written on.</summary>
+    /// <remarks>
+    /// The same answer the settings reader gives: the aliases written, or every folder the account maps to its inbox
+    /// where none were. An alias that is not usable is refused above and selects nothing here.
+    /// </remarks>
+    private IReadOnlyCollection<MailFolderAlias> ClassifiedAliasesOf(DeclaredMailAccount account) => this.ScannedFolders is { } written
+        ? [.. written.Select(static alias => MailFolderAlias.TryCreate(alias, out var usable) ? usable : (MailFolderAlias?)null).OfType<MailFolderAlias>()]
+        : [.. account.MappedFolders.Where(static folder => folder.Role is MailFolderSpecialUse.Inbox).Select(static folder => folder.Alias)];
 
     private IEnumerable<ValidationResult> FindPostureRefusals() =>
         (this.ScannedFolders ?? [])

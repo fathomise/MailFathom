@@ -36,10 +36,10 @@ internal sealed class TransientProviderRetryChatClient(IChatClient innerClient, 
     public const int MaxAttempts = 3;
 
     /// <summary>The delay the first retry is drawn around, sized for a rate limit or a momentary overload to clear.</summary>
-    private static readonly TimeSpan BaseDelay = TimeSpan.FromSeconds(5);
+    internal static readonly TimeSpan BaseDelay = TimeSpan.FromSeconds(5);
 
     /// <summary>The longest any one wait between attempts may grow to.</summary>
-    private static readonly TimeSpan MaxDelay = TimeSpan.FromSeconds(30);
+    internal static readonly TimeSpan MaxDelay = TimeSpan.FromSeconds(30);
 
     /// <inheritdoc />
     public override async Task<ChatResponse> GetResponseAsync(

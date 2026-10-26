@@ -82,7 +82,10 @@ internal sealed class ConfiguredSpamClassificationSettingsReader(
     {
         var record = account.SpamClassification ?? new MailAccountSpamClassificationOptions();
 
-        return SpamClassificationSettings.Create(record.Enabled, ScannedAliasesOf(record.ScannedFolders, account));
+        return SpamClassificationSettings.Create(
+            record.Enabled,
+            ScannedAliasesOf(record.ScannedFolders, account),
+            record.ModelStage.ToSettings(record.Enabled));
     }
 
     /// <summary>Reads the aliases a posture names, or the account's own inbox aliases where it names none.</summary>

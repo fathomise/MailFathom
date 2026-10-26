@@ -5,6 +5,7 @@
 using System.Globalization;
 using MailFathom.AI;
 using MailFathom.AI.Chat;
+using MailFathom.AI.DecisionModels;
 using MailFathom.AI.Providers;
 using MailFathom.Application.Access;
 using MailFathom.Application.Access.Grants;
@@ -432,6 +433,11 @@ internal static class HostComposition
             .GetRequiredService<IOptionsMonitor<SpamClassificationOptions>>()
             .CurrentValue
             .ToRunOptions());
+        builder.Services.AddSingleton(provider => provider
+            .GetRequiredService<IOptions<SpamClassificationOptions>>()
+            .Value
+            .ModelStage
+            .ToBounds());
         builder.Services.AddScoped<SpamClassificationPass>();
         builder.Services.AddScoped<SpamVerdictFloorPass>();
         builder.Services.AddScoped<SpamClassificationRunRequests>();
@@ -1085,6 +1091,11 @@ internal static class HostComposition
         builder.Services.AddEmailEnrichmentAgent(
             declaredChat?.IsConfigured is true && declaredChat.Enrichment.Enabled);
 
+        // And again for the spam model stage, which answers through the decision model routed to spam classification
+        // rather than through the chat endpoint. Which account consults it is that account's own switch; what this
+        // decides is only whether there is a model to consult.
+        builder.Services.AddSpamModelJudge(declaredDecisions?.ToPlans().GetValueOrDefault(DecisionFunction.SpamClassification));
+
         // And again for a conversation's state, which needs the same two decisions and reports the absence of either
         // the same way.
         builder.Services.AddThreadStateAgent(
@@ -1327,6 +1338,10 @@ internal static class HostComposition
         // compose rather than anything known here; the report asks that question itself and says nothing where no user's
         // mail is scanned.
         builder.Services.AddHostedService<StaleDerivedDataStartupReport>();
+
+        // Behind the schema gate for the same reason, since it reads the account records, and registered whatever is
+        // declared: it asks the judge whether a model serves the stage and reads nothing where one does.
+        builder.Services.AddHostedService<SpamModelStageWithoutModelWarning>();
 
         // The bound settings, because the coordinator replaces every supervisor when its settings are replaced and the
         // accounts it supervises, and each account's own settings, are read from the records instead.

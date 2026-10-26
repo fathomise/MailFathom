@@ -159,8 +159,9 @@ its folders, and what becomes of the result are what [that account's own
 record](configuration-mail.md#classifying-this-accounts-mail--spamclassification) states. What is left here is what the
 process may spend. The keys the two split into are named after the table.
 
-Every switch is off by default, and an absent section is that default rather than a startup failure. Classification is
-the deterministic stage alone: it reads what the message carried, and nothing here moves its answer.
+Every switch is off by default, and an absent section is that default rather than a startup failure. Nothing here moves
+a verdict: the deterministic stage reads what the message carried, and whether a decision model is asked as well is the
+account's own switch. What the section bounds of that model stage is what one replica spends on it.
 
 | Key | Type | Default | Constraint | Change |
 | --- | --- | --- | --- | --- |
@@ -173,12 +174,16 @@ the deterministic stage alone: it reads what the message carried, and nothing he
 | `SpamClassification:Actions:MarkAsRead` | bool | `false` | Read by no classification, for the reason above | — |
 | `SpamClassification:Actions:MarkWithJunkKeywords` | bool | `false` | Read by no classification, for the reason above | — |
 | `SpamClassification:Actions:JunkFolder` | string | `role:Junk` | Read by no classification, for the reason above | — |
+| `SpamClassification:ModelStage:MaxConcurrentCalls` | int | `4` | 1 – 64; how many calls to the spam decision model one replica runs at once, so a deployment of several replicas runs this many on each. A call past it waits for a slot rather than failing | restart |
+| `SpamClassification:ModelStage:MaxBodyCharacters` | int | `8000` | 500 – 100 000; how many characters of a message's plain-text body one call carries. The rest is cut and the model is told so. Longer costs input tokens on every message and sends more of somebody's mail; shorter hides what a long scam says after its first paragraphs | restart |
 
 **Six of those keys are one account's decision and the rest are the deployment's.** `Enabled`, `ScannedFolders`, and
 the four settings under `Actions` are what an account decides about the mail in it, and are the whole of what its
-record may carry. `ClassificationWait`, `RunBatchSize`, and `MaxRunBatchesPerPass` are the deployment's, because each of
-them is what the process spends rather than a judgement about anybody's mailbox — an account record naming one is
-refused. The section is bound strictly, so a key it does not declare fails startup naming itself rather than being
+record may carry, beside the account's own `ModelStage` block. `ClassificationWait`, `RunBatchSize`,
+`MaxRunBatchesPerPass`, and the two `ModelStage` bounds are the deployment's, because each of them is what the process
+spends rather than a judgement about anybody's mailbox — an account record naming one is refused. The endpoint, the
+credential, and the per-call timeout the model stage reaches its model with belong to that model's own block under
+[`Decisions`](#decisions). The section is bound strictly, so a key it does not declare fails startup naming itself rather than being
 ignored.
 
 `ClassificationWait` bounds the ordering rather than a classification. Wherever classification is on, a message it
@@ -1053,10 +1058,13 @@ Which model a closed question — a yes or no, a choice between named options, a
 probabilities coming back rather than prose. A root of its own beside `Chat`, because the two reach different APIs on
 different terms: a chat model writes an answer under parameters the operator chooses, while a decision model answers a
 fixed question through [OpenRouter's Decisions API](https://openrouter.ai/docs), which takes no generation parameters at
-all. Writing nothing is a supported deployment and composes no decision client. **No part of this build asks a
-decision model yet**: declaring one validates the section, composes the client each function resolves, and registers
-the `ai-decision-provider` check, and it changes no verdict — spam classification runs exactly as it does without
-the section, and the check stays unobserved. [ADR
+all. Writing nothing is a supported deployment and composes no decision client. **The one part of this build that asks a
+decision model is the [spam model stage](../features/spam-classification.md#the-model-stage)**, and only for an account
+whose record switched it on: declaring a model validates the section, composes the client each function resolves, and
+registers the `ai-decision-provider` check, and it changes no verdict until an account consults the stage. An account
+record switching the stage on is refused at the write while no declared model serves spam classification; one that
+asked for it before the model was taken away is classified deterministically, named in a startup warning, and counted
+as `not_activated`. [ADR
 0041](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0041-asking-a-model-a-closed-question-through-openrouters-decisions-api.md)
 holds the decision and its reasoning.
 
@@ -1108,7 +1116,7 @@ model does not open another's circuit.
 | `…:Model` | string | — | required; the dated build or versioned identifier a request is routed to. One of the router's moving aliases, which begin with `~`, is refused, because a threshold is calibrated against one build and an alias moves to the next one without anybody being told | restart |
 | `…:Address` | string | *(empty)* | absolute HTTP or HTTPS; a plain `http` one only for a model declaring `…:Unauthenticated`. Empty is `https://openrouter.ai`, and a regional host is written here. The adapter appends `/api/alpha/decisions` itself, so this is the host and never the API path | restart |
 | `…:RequestTimeout` | TimeSpan | `00:00:30` | positive; one request. Shorter than a chat request's, because a decision is a handful of probabilities rather than an answer the model writes out | restart |
-| `…:MaxRequestCharacters` | int | `32000` | 1 – 1000000; what one request body may hold as it is sent — the mail, the questions, and their criteria together. Refused rather than truncated | restart |
+| `…:MaxRequestCharacters` | int | `32000` | 1 – 1000000; what one request body may hold as it is sent — the mail, the questions, and their criteria together. The adapter refuses a request past it rather than truncating it; the spam model stage cuts its input to fit first, so a long message is asked about rather than refused | restart |
 | `…:ApiKey` | secret block | *(absent)* | the OpenRouter key. Exactly one of this and `Unauthenticated` is declared | restart, value read per request |
 | `…:Unauthenticated` | bool | `false` | that this model asks for no credential, so a request presents none. Written rather than inferred from an absent key, because that is what a forgotten key reference looks like | restart |
 
@@ -1120,7 +1128,7 @@ does for a chat model.
 | Key | Type | Default | Constraint | Change |
 | --- | --- | --- | --- | --- |
 | `Decisions:DefaultModel:Alias` | string | *(empty)* | the declared alias a function naming no model of its own is asked through. Required once more than one model is declared and a function falls through to it; with exactly one model declared, empty means that one | restart |
-| `Decisions:SpamClassification:Model:Alias` | string | *(empty)* | the declared alias the `SpamClassification` decision function resolves to. Empty takes `Decisions:DefaultModel`. Nothing in this build asks that function yet | restart |
+| `Decisions:SpamClassification:Model:Alias` | string | *(empty)* | the declared alias the `SpamClassification` decision function resolves to — the model the spam model stage asks about each message an account sends it. Empty takes `Decisions:DefaultModel` | restart |
 
 A reference naming no declared model, or naming a chat model, refuses the start and says which. A reference written
 with no model declared at all is refused the same way, so a forgotten `Models` block is not read as no capability.

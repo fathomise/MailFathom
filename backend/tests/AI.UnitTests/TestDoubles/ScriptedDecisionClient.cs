@@ -43,6 +43,11 @@ internal sealed class ScriptedDecisionClient : IDecisionClient
                     : null,
             }));
 
+    /// <summary>Builds a client that answers every call the way the given script decides.</summary>
+    /// <param name="answer">Answers one call from the questions it asked.</param>
+    public static ScriptedDecisionClient Answering(
+        Func<IReadOnlyList<DecisionQuestion>, CancellationToken, Task<DecisionResponse>> answer) => new(answer);
+
     /// <summary>Builds a client that fails every call the way the given exception says.</summary>
     /// <param name="failure">What every call raises.</param>
     public static ScriptedDecisionClient Throwing(Exception failure) => new((_, _) => throw failure);

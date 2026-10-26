@@ -10,6 +10,7 @@ using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam;
+using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Spam.Signals;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
@@ -531,6 +532,47 @@ public sealed class EmailSpamClassifierTests
                 Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// A message this deployment filed into junk is no evidence to the deterministic stage, so only the floor makes it
+    /// spam — and the model is then asked which kind alone, never whether it is spam, so its answer cannot take the
+    /// message below the floor.
+    /// </summary>
+    [Fact]
+    public async Task ClassifyAsync_AMessageTheFloorHoldsAtSpamWithTheModelStageOn_AsksTheModelOnlyWhichKind()
+    {
+        // Arrange
+        this.verdictActs.With(Occurrence, SpamVerdictAct.FiledIntoJunk);
+        var judge = new ScriptedSpamModelJudge(SpamModelJudgement.Answered(new SpamModelAnswer(
+            SpamProbability: null,
+            SpamSubcategory.Marketing,
+            PhishingRequest: null,
+            ImpersonatedParty: null,
+            "example-provider/spam-model",
+            "0123456789ab",
+            [new SpamModelChoice("spam_kind", "marketing")])));
+        var classifier = this.Classifier(
+            SpamClassificationSettings.Create(true, [Junk], SpamModelStageSettings.Consulted(true, 0.5)),
+            SpamHeaderFacts.None,
+            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None),
+            junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)),
+            modelStage: SpamModelStages.Over(judge));
+
+        // Act
+        await classifier.ClassifyAsync(
+            Account,
+            Occurrence,
+            SpamClassificationMode.FirstTimeOnly,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var saved = Assert.Single(this.store.Saved);
+
+        Assert.Equal(SpamModelJob.NameSubcategory, Assert.Single(judge.Asked).Job);
+        Assert.Equal(SpamVerdict.Spam, saved.Verdict);
+        Assert.Equal(SpamClassificationStage.Deterministic, saved.DecidedBy);
+        Assert.Equal(SpamSubcategory.Marketing, saved.Subcategory);
+    }
+
     /// <summary>A reclassification asked for explicitly reaches a header saying no, and the floor still holds the message at spam.</summary>
     [Fact]
     public async Task ClassifyAsync_ReclassifyingAMessageInJunkWhoseHeaderSaysNo_KeepsItAtSpam()
@@ -651,6 +693,7 @@ public sealed class EmailSpamClassifierTests
     /// <param name="withEmail">Whether the reader resolves the message at all.</param>
     /// <param name="withContent">Whether the content store holds its mail.</param>
     /// <param name="classifying">Whose mailbox <paramref name="settings" /> belong to, defaulting to the one the message is in.</param>
+    /// <param name="modelStage">The model stage the classification is composed through, defaulting to one nobody expects to ask.</param>
     /// <returns>The classifier under test.</returns>
     /// <remarks>
     /// The settings are answered for one account rather than for whichever one is asked about, because that is what the
@@ -664,7 +707,8 @@ public sealed class EmailSpamClassifierTests
         StubJunkMailFolderCatalog? junkFolders = null,
         bool withEmail = true,
         bool withContent = true,
-        MailAccountId? classifying = null)
+        MailAccountId? classifying = null,
+        SpamModelStage? modelStage = null)
     {
         var emailReader = Substitute.For<IClassifiableEmailReader>();
         emailReader
@@ -693,6 +737,7 @@ public sealed class EmailSpamClassifierTests
             headerReader,
             junkFolders ?? StubJunkMailFolderCatalog.None,
             new DeterministicSpamClassifier(),
+            modelStage ?? SpamModelStages.Over(),
             settingsReader,
             this.store,
             this.verdictActs,

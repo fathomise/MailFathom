@@ -8,6 +8,7 @@ using MailFathom.Application.Persistence;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
 using MailFathom.Host.Configuration;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Endpoints;
 using MailFathom.Host.Configuration.SensitiveContent;
 using MailFathom.Host.Configuration.UserSettings;
@@ -117,7 +118,8 @@ internal sealed class UserRecordDeployment
         var binder = new UserAccountDocumentBinder(
             new PersistedSecretMaterial(DeclaredSecretScheme.Registered),
             new FakeTimeProvider(Today),
-            Options.Create(scanning ?? new SensitiveContentOptions()));
+            Options.Create(scanning ?? new SensitiveContentOptions()),
+            Options.Create(new DecisionModelOptions()));
 
         this.Roster = new UserRosterAdministration(
             authorization,

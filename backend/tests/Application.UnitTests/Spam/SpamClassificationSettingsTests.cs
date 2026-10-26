@@ -3,7 +3,9 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Spam;
+using MailFathom.Application.Spam.Model;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Spam;
 using Xunit;
 
 namespace MailFathom.Application.UnitTests.Spam;
@@ -59,5 +61,28 @@ public sealed class SpamClassificationSettingsTests
         Assert.Throws<ArgumentNullException>(() => SpamClassificationSettings.Create(
             isEnabled: true,
             scannedFolderAliases: null!));
+    }
+
+    [Fact]
+    public void Profile_ModelStageConsulted_NamesItsTermsAndMovesWithEachOfThem()
+    {
+        // Arrange
+        SpamModelStageSettings[] stages =
+        [
+            SpamModelStageSettings.NotConsulted,
+            SpamModelStageSettings.Consulted(false, 0.5),
+            SpamModelStageSettings.Consulted(true, 0.5),
+            SpamModelStageSettings.Consulted(false, 0.8),
+        ];
+
+        // Act
+        var profiles = stages
+            .Select(stage => SpamClassificationSettings.Create(true, [MailFolderAlias.Create("INBOX")], stage).Profile)
+            .ToArray();
+
+        // Assert
+        Assert.Equal(SpamClassificationProfile.Create(), profiles[0]);
+        Assert.Equal(SpamClassificationProfile.Create(true, 0.5), profiles[2]);
+        Assert.Equal(profiles.Length, profiles.Distinct().Count());
     }
 }

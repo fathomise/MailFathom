@@ -78,6 +78,10 @@ internal sealed class SpamClassificationOptions : IValidatableObject
     /// </remarks>
     public SpamActionOptions Actions { get; set; } = new();
 
+    /// <summary>Gets or sets what the spam model stage may spend, for every account that consults it.</summary>
+    /// <remarks>Always present, so the stage runs within its default bounds where the deployment names none.</remarks>
+    public SpamModelStageOptions ModelStage { get; set; } = new();
+
     /// <summary>Turns the declared limits into the bounds one pass of an on-demand run works under.</summary>
     /// <returns>The bounds.</returns>
     public SpamClassificationRunOptions ToRunOptions() => new()
@@ -91,7 +95,9 @@ internal sealed class SpamClassificationOptions : IValidatableObject
 
     /// <summary>Finds everything about this section that would otherwise be discovered on somebody's mail.</summary>
     internal IEnumerable<ValidationResult> FindErrors() =>
-        FindScannedFolderErrors(this.ScannedFolders).Concat(this.Actions.FindErrors(this.Enabled));
+        FindScannedFolderErrors(this.ScannedFolders)
+            .Concat(this.Actions.FindErrors(this.Enabled))
+            .Concat(this.ModelStage.FindErrors());
 
     /// <summary>Refuses an alias that is not a value this system could have issued, naming the alias rather than the position.</summary>
     private static IEnumerable<ValidationResult> FindScannedFolderErrors(string[]? scannedFolders) =>

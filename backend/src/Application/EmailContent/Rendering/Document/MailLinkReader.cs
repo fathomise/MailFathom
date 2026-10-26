@@ -149,8 +149,17 @@ public static class MailLinkReader
     }
 
     /// <summary>Reads the host a link's text names, or reports that it names none.</summary>
-    private static string? HostNamedBy(string displayText)
+    /// <param name="displayText">The words the link shows.</param>
+    /// <returns>The named host in its ASCII form, or <see langword="null" /> where the words name no place.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="displayText" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// Public so a reader that has to say which host the words claimed — the spam model stage — reads it exactly as
+    /// <see cref="Read" /> judged it, rather than with a second parse that could disagree.
+    /// </remarks>
+    public static string? HostNamedBy(string displayText)
     {
+        ArgumentNullException.ThrowIfNull(displayText);
+
         var text = displayText.Trim();
         if (text.Length is 0 or > MaximumComparedTextLength || text.Contains(' ', StringComparison.Ordinal))
         {

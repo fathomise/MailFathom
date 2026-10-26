@@ -137,6 +137,7 @@ internal sealed class SpamClassificationHarness
             headerReader,
             StubJunkMailFolderCatalog.None,
             new DeterministicSpamClassifier(),
+            SpamModelStages.Over(),
             settingsReader,
             this.Classifications,
             this.VerdictActs,

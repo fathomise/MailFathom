@@ -190,4 +190,20 @@ public enum SensitiveContentEgressPoint
     /// </para>
     /// </remarks>
     ClientContactRelationship = 12,
+
+    /// <summary>What the spam model stage sends a decision model about one message it classifies.</summary>
+    /// <remarks>
+    /// <para>
+    /// A point of its own rather than <see cref="ChatPrompt" />, because what crosses here is chosen by a classifier about
+    /// a message nobody asked a question about, and an operator reading redaction rates needs the two apart. It is the
+    /// sender's display name, the subject, the plain-text body cut to the deployment's bound, each link's hosts, and each
+    /// attachment's declared type and name.
+    /// </para>
+    /// <para>
+    /// The account's posture applies in full and there is no exemption for this point. The sender's address and a
+    /// differing <c>Reply-To</c> address cross unguarded, as an address does at every point: the guard draws its line
+    /// between a routing identity and free text, and those two are among the strongest signs of phishing.
+    /// </para>
+    /// </remarks>
+    SpamClassificationInput = 13,
 }
