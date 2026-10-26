@@ -11,7 +11,7 @@ using Xunit;
 
 namespace MailFathom.Infrastructure.UnitTests.Observability;
 
-/// <summary>Covers the state a capability gate and a health check both read, that the two providers keep separate ones, and what a transition says.</summary>
+/// <summary>Covers the state a capability gate and a health check both read, that each provider role keeps its own, and what a transition says.</summary>
 public sealed class AiProviderHealthTrackerTests
 {
     private static readonly DateTimeOffset Start = new(2026, 8, 8, 12, 0, 0, TimeSpan.Zero);
@@ -20,6 +20,7 @@ public sealed class AiProviderHealthTrackerTests
     [Theory]
     [InlineData(AiProviderRole.Embedding)]
     [InlineData(AiProviderRole.Chat)]
+    [InlineData(AiProviderRole.Decision)]
     public void Read_BeforeAnyCall_IsUnobserved(AiProviderRole role)
     {
         // Arrange
@@ -199,6 +200,35 @@ public sealed class AiProviderHealthTrackerTests
         // Act, Assert
         Assert.Throws<ArgumentNullException>(() =>
             new AiProviderHealthTracker(new FakeTimeProvider(Start), null!));
+    }
+
+    /// <summary>A dashboard keys on the documented role names, so each role's state is published under its own.</summary>
+    /// <remarks>
+    /// Other classes' trackers publish on the same instrument while this runs, so the assertion selects this tracker's
+    /// three states by their combination rather than expecting three measurements.
+    /// </remarks>
+    [Fact]
+    public void HealthGauge_EveryRoleAProviderWasCalledIn_PublishesItsStateUnderItsDocumentedRoleName()
+    {
+        // Arrange
+        using var logs = new RecordingLoggerProvider();
+        var tracker = TrackerAt(Start, logs);
+        using var measurements = new RecordedMailFathomMeasurements("mailfathom.ai.provider.health");
+
+        tracker.RecordServed(AiProviderRole.Embedding);
+        tracker.RecordMisconfigured(AiProviderRole.Chat);
+        tracker.RecordUnavailable(AiProviderRole.Decision);
+
+        // Act
+        measurements.ObserveGauges();
+
+        // Assert
+        var published = measurements.Read("mailfathom.ai.provider.health")
+            .Select(measurement => (Role: measurement.Tags["mailfathom.ai.provider.role"] as string, State: (int)measurement.Value))
+            .ToArray();
+        Assert.Contains(("embedding", (int)AiProviderHealthState.Serving), published);
+        Assert.Contains(("chat", (int)AiProviderHealthState.Misconfigured), published);
+        Assert.Contains(("decision", (int)AiProviderHealthState.Unavailable), published);
     }
 
     private static AiProviderHealthTracker TrackerAt(DateTimeOffset moment, RecordingLoggerProvider logs) =>

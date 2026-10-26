@@ -5,6 +5,7 @@
 using System.ComponentModel.DataAnnotations;
 using MailFathom.AI.Descriptions;
 using MailFathom.Host.Configuration.Answering;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Embeddings;
 using MailFathom.Host.Configuration.Providers;
 
@@ -21,7 +22,7 @@ namespace MailFathom.Host.Configuration.Chat;
 /// <para>
 /// Several of the rules span sections and neither options type can see both sides, which is why they are reached from
 /// here rather than from <see cref="ChatModelOptions.Validate" />: an alias must not repeat one an embedding endpoint
-/// declares, the relevance filter must not name more candidates than a retrieval hands over, and a deployment
+/// or a decision model declares, the relevance filter must not name more candidates than a retrieval hands over, and a deployment
 /// describing image attachments must declare a model that can carry the conversation one description composes.
 /// </para>
 /// </remarks>
@@ -31,6 +32,7 @@ internal static class ChatDeclarationRules
     /// <param name="candidate">The bound declaration, or <see langword="null" /> when the deployment wrote no section.</param>
     /// <param name="embeddings">The bound embedding declaration, or <see langword="null" /> when the deployment wrote no section.</param>
     /// <param name="answering">The bound answering ceilings, which supply the retrieval count the filter is judged against.</param>
+    /// <param name="decisions">The bound decision declaration, or <see langword="null" /> when the deployment wrote no section.</param>
     /// <returns>One message per rule the declaration breaks, empty when it is usable.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="answering" /> is <see langword="null" />.</exception>
     /// <remarks>
@@ -40,7 +42,8 @@ internal static class ChatDeclarationRules
     public static IReadOnlyList<string> FindDeclarationErrors(
         ChatModelOptions? candidate,
         EmbeddingOptions? embeddings,
-        MailAnsweringOptions answering)
+        MailAnsweringOptions answering,
+        DecisionModelOptions? decisions)
     {
         ArgumentNullException.ThrowIfNull(answering);
 
@@ -61,6 +64,11 @@ internal static class ChatDeclarationRules
         if (ProviderEndpointAliases.FindReusedAlias(embeddings, candidate) is { } reusedAlias)
         {
             errors.Add(ProviderEndpointAliases.DescribeReusedAlias(reusedAlias));
+        }
+
+        if (ProviderEndpointAliases.FindReusedDecisionAlias(decisions, candidate) is { } reusedDecisionAlias)
+        {
+            errors.Add(ProviderEndpointAliases.DescribeReusedDecisionAlias(reusedDecisionAlias));
         }
 
         // Three bounds are legal declarations on their own and mistakes only beside the one feature whose whole request

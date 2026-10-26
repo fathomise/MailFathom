@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Host.Configuration.Chat;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Embeddings;
 using MailFathom.Host.Hosting.Warnings;
 using MailFathom.Host.UnitTests.TestDoubles;
@@ -133,6 +134,33 @@ public sealed class AiProviderTransportEncryptionWarningTests
         Assert.Empty(logs.Records);
     }
 
+    /// <summary>A decision hop carries the mail a question is about and the verdict on it, so it is named like the other two.</summary>
+    [Fact]
+    public async Task StartAsync_ADecisionModelOnAPlainAddress_NamesTheMailAndTheVerdict()
+    {
+        // Arrange
+        using var logs = new RecordingLoggerProvider();
+        var decisions = new DecisionModelOptions();
+        decisions.Models.Add(new DecisionModelDeclarationOptions
+        {
+            Alias = "decider",
+            Model = "vendor/decider-2026-10-01",
+            Address = "http://decision-server:8000",
+            Unauthenticated = true,
+        });
+        var warning = WarningOver(new EmbeddingOptions(), new ChatModelOptions(), logs, decisions);
+
+        // Act
+        await warning.StartAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        var record = Assert.Single(logs.Records);
+        Assert.Equal(LogLevel.Warning, record.Level);
+        Assert.Contains("the verdict", record.Message, StringComparison.Ordinal);
+        Assert.Equal("decider", Assert.Contains("EndpointAlias", record.Properties));
+        Assert.DoesNotContain("decision-server", record.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task StopAsync_AnyPosture_CompletesWithoutSayingAnythingFurther()
     {
@@ -176,13 +204,15 @@ public sealed class AiProviderTransportEncryptionWarningTests
     private static AiProviderTransportEncryptionWarning WarningOver(
         EmbeddingOptions embeddings,
         ChatModelOptions chat,
-        RecordingLoggerProvider logs)
+        RecordingLoggerProvider logs,
+        DecisionModelOptions? decisions = null)
     {
         using var loggerFactory = LoggerFactory.Create(logging => logging.AddProvider(logs));
 
         return new AiProviderTransportEncryptionWarning(
             Options.Create(embeddings),
             new StubSettingsSnapshot<ChatModelOptions>(chat),
+            Options.Create(decisions ?? new DecisionModelOptions()),
             loggerFactory.CreateLogger<AiProviderTransportEncryptionWarning>());
     }
 }

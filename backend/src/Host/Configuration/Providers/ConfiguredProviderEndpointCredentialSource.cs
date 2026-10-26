@@ -5,6 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 using MailFathom.AI.Providers;
 using MailFathom.Host.Configuration.Chat;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Embeddings;
 using MailFathom.Infrastructure.Secrets.Discovery;
 using MailFathom.Infrastructure.Secrets.References;
@@ -21,8 +22,9 @@ namespace MailFathom.Host.Configuration.Providers;
 /// than once, so a key rotated behind an unchanged reference takes effect on the next call with no cache to invalidate.
 /// </para>
 /// <para>
-/// One source for both declared sections, keyed by the alias alone. Startup refuses a chat model whose alias an
-/// embedding endpoint already uses, and so does every reloaded chat declaration, which is what lets the lookup stay a
+/// One source for every declared section, keyed by the alias alone. Startup refuses a chat model whose alias an
+/// embedding endpoint already uses, and a decision model whose alias either does, and so does every reloaded chat
+/// declaration, which is what lets the lookup stay a
 /// search over one name rather than a name paired with the section it came from — and the same rule is what keeps two
 /// endpoints from sharing one resilience circuit and one log identity.
 /// </para>
@@ -42,6 +44,7 @@ namespace MailFathom.Host.Configuration.Providers;
 internal sealed class ConfiguredProviderEndpointCredentialSource(
     IOptions<EmbeddingOptions> embeddingSettings,
     ISettingsSnapshot<ChatModelOptions> chatSettings,
+    IOptions<DecisionModelOptions> decisionSettings,
     ISecretReferenceResolver secretReferenceResolver) : IProviderEndpointCredentialSource
 {
     /// <inheritdoc />
@@ -85,8 +88,9 @@ internal sealed class ConfiguredProviderEndpointCredentialSource(
 
     /// <summary>Finds the endpoint an alias names, in whichever section declared it.</summary>
     /// <remarks>
-    /// The embedding chain is searched before the declared chat models for no reason beyond having to be searched in
-    /// some order. The order decides nothing, since an alias declared in both is refused at startup.
+    /// The embedding chain is searched before the declared chat models, and those before the decision models, for no
+    /// reason beyond having to be searched in some order. The order decides nothing, since an alias declared twice is
+    /// refused at startup.
     /// </remarks>
     private ProviderCredentialDeclaration? FindDeclaration(string endpointAlias)
     {
@@ -102,12 +106,17 @@ internal sealed class ConfiguredProviderEndpointCredentialSource(
                 [.. embeddingEndpoint.ExtraHeaders]);
         }
 
-        return chatSettings.Current.FindModel(endpointAlias) is { } model
-            ? new ProviderCredentialDeclaration(
+        if (chatSettings.Current.FindModel(endpointAlias) is { } model)
+        {
+            return new ProviderCredentialDeclaration(
                 model.ApiKey,
                 model.EntraCredential,
                 model.Unauthenticated,
-                [.. model.ExtraHeaders])
+                [.. model.ExtraHeaders]);
+        }
+
+        return decisionSettings.Value.FindModel(endpointAlias) is { } decisionModel
+            ? new ProviderCredentialDeclaration(decisionModel.ApiKey, null, decisionModel.Unauthenticated, [])
             : null;
     }
 

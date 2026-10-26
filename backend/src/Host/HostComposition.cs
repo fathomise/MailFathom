@@ -52,6 +52,7 @@ using MailFathom.Application.Synchronization;
 using MailFathom.Application.Synchronization.Administration;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Application.Synchronization.Reconciliation;
+using MailFathom.Common.Observability;
 using MailFathom.Host.Api;
 using MailFathom.Host.Api.Documentation;
 using MailFathom.Host.Configuration;
@@ -59,6 +60,7 @@ using MailFathom.Host.Configuration.Administration;
 using MailFathom.Host.Configuration.Answering;
 using MailFathom.Host.Configuration.Chat;
 using MailFathom.Host.Configuration.DataEncryption;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Embeddings;
 using MailFathom.Host.Configuration.Endpoints;
 using MailFathom.Host.Configuration.Jobs;
@@ -914,6 +916,10 @@ internal static class HostComposition
         // again from the published snapshot on every question.
         var declaredChat = builder.Configuration.GetSection(ChatModelOptions.SectionName).Get<ChatModelOptions>();
 
+        // Read the same way: which functions ask a decision model is decided while the services are registered. The
+        // whole section is frozen here, not only its presence, because a decision model is not reloadable.
+        var declaredDecisions = builder.Configuration.GetSection(DecisionModelOptions.SectionName).Get<DecisionModelOptions>();
+
         // Read the same way, and needed before the container for the same reason: the retrieval ceiling it carries is what
         // caps the relevance filter's candidate count and what supplies that count's default, and both are decided while
         // the services are being registered. An absent section binds to the defaults rather than to nothing, so this never
@@ -937,6 +943,7 @@ internal static class HostComposition
             provider.GetRequiredService<SecretConfigurationValidator>(),
             declaredChat ?? new ChatModelOptions(),
             declaredEmbeddings,
+            declaredDecisions,
             declaredAnswering));
         builder.Services.AddSingleton(provider => new ValidatedSettingsSnapshot<ChatModelOptions>(
             provider.GetRequiredService<IOptionsMonitor<ChatModelOptions>>(),
@@ -947,9 +954,12 @@ internal static class HostComposition
         builder.Services.AddSingleton<ISettingsSnapshot<ChatModelOptions>>(provider => provider.GetRequiredService<ValidatedSettingsSnapshot<ChatModelOptions>>());
         builder.Services.AddHostedService(provider => provider.GetRequiredService<ValidatedSettingsSnapshot<ChatModelOptions>>());
 
-        // Registered once for both declarations, because it resolves by alias and the aliases are unique across them. It is
-        // needed by whichever adapter exists, so it is registered when either does rather than by each of them.
-        if (declaredEmbeddings?.IsConfigured is true || declaredChat?.IsConfigured is true)
+        // Registered once for the embedding, chat, and decision declarations, because it resolves by alias and the startup
+        // and reload rules keep an alias unique across all three. It is needed by whichever adapter exists, so it is
+        // registered when any of them does rather than by each of them.
+        if (declaredEmbeddings?.IsConfigured is true
+            || declaredChat?.IsConfigured is true
+            || declaredDecisions?.Models.Count > 0)
         {
             builder.Services.AddSingleton<IProviderEndpointCredentialSource, ConfiguredProviderEndpointCredentialSource>();
             // Registered under the same condition and for the same reason: an instance that declared no endpoint at all
@@ -1041,12 +1051,21 @@ internal static class HostComposition
                         "The relevance filter was enabled at registration and is absent from the configuration in force."));
             }
 
-            // Readiness alone, and never worse than degraded. Neither provider serves a request path, so a failing one must
+            // Readiness alone, and never worse than degraded. No AI provider serves a request path, so a failing one must
             // not take the instance out of traffic and must never reach the liveness probe: restarting the process cannot
             // fix a provider and would turn one outage into an outage plus a restart loop. The registration says all of
-            // that once, for both roles.
+            // that once, for every role.
             builder.Services.AddHealthChecks()
                 .Add(AiProviderHealthCheck.RegistrationFor(AiProviderRole.Chat));
+        }
+
+        // One client per function, keyed by it, so a function asks the model the operator routed it to. Validated before
+        // the container exists by the startup gate, so a plan resolving to nothing is a section nobody declared.
+        if (declaredDecisions?.Models.Count > 0)
+        {
+            builder.Services.AddDecisionProviderAdapter(declaredDecisions.ToPlans(), Telemetry.ActivitySource, Telemetry.Meter);
+            builder.Services.AddHealthChecks()
+                .Add(AiProviderHealthCheck.RegistrationFor(AiProviderRole.Decision));
         }
 
         // Outside both blocks and always registered, because the port answers with a reason rather than by being

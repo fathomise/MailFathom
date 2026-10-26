@@ -1,6 +1,6 @@
 # AI configuration
 
-<!-- describes: backend/src/Host/Configuration/Embeddings/**, backend/src/Host/Configuration/Chat/**, backend/src/Host/Configuration/Answering/**, backend/src/Host/Configuration/Spam/**, backend/src/Host/Configuration/SensitiveContent/**, backend/src/Host/Configuration/Providers/**, backend/src/AI/Descriptions/**, backend/src/Application/Emails/Extraction/Images/** -->
+<!-- describes: backend/src/Host/Configuration/Embeddings/**, backend/src/Host/Configuration/Chat/**, backend/src/Host/Configuration/Decisions/**, backend/src/Host/Configuration/Answering/**, backend/src/Host/Configuration/Spam/**, backend/src/Host/Configuration/SensitiveContent/**, backend/src/Host/Configuration/Providers/**, backend/src/AI/Descriptions/**, backend/src/Application/Emails/Extraction/Images/** -->
 
 Every key deciding what leaves this process for a model provider and what it may cost: what is scanned before it goes,
 which endpoint and model each capability reaches, what one question and one period may spend, what classification does
@@ -1043,6 +1043,84 @@ an arrangement holds and what acting on one takes.
 | --- | --- | --- | --- | --- |
 | `Chat:DayLayout:Model:Alias` | string | *(empty)* | an alias `Chat:Models` declares, which arranging a day alone is routed to. Empty routes it to `Chat:MainModel`. One press is one short call carrying no mail, so this is a candidate for the cheap model a deployment already declares — and somebody is waiting in front of it | reload |
 | `Chat:DayLayout:Model:Fallback` | string | *(empty)* | an alias attempted where the model above could not answer, under the rules [`Chat:MainModel:Fallback`](#which-model-a-capability-runs-on--chatmainmodel-and-the-references-beside-it) states. A control somebody pressed is worth answering from a second model rather than not at all | reload |
+
+## `Decisions`
+
+Which model a closed question — a yes or no, a choice between named options, a place on a scale — is put to, with
+probabilities coming back rather than prose. A root of its own beside `Chat`, because the two reach different APIs on
+different terms: a chat model writes an answer under parameters the operator chooses, while a decision model answers a
+fixed question through [OpenRouter's Decisions API](https://openrouter.ai/docs), which takes no generation parameters at
+all. Writing nothing is a supported deployment and composes no decision client. **No part of this build asks a
+decision model yet**: declaring one validates the section, composes the client each function resolves, and registers
+the `ai-decision-provider` check, and it changes no verdict — spam classification runs exactly as it does without
+the section, and the check stays unobserved. [ADR
+0041](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0041-asking-a-model-a-closed-question-through-openrouters-decisions-api.md)
+holds the decision and its reasoning.
+
+**The section is a declared array and the references into it**, the way `Chat` is. A model is written once under
+`Decisions:Models` beneath an alias, and a function names that alias. `SpamClassification` is the one function a
+reference may name today. With one model declared nothing has to name it; with several, `Decisions:DefaultModel` says
+which one a function naming none is asked through. A reference is an alias and nothing else: there is no fallback
+model, because a verdict from a second model is a verdict calibrated against a different build.
+
+**What leaves the deployment is fixed in the adapter rather than in configuration.** Every request asks the router for
+an endpoint that retains nothing — `"provider": { "zdr": true, "data_collection": "deny" }` — and no key here can loosen
+that, which is why the block refuses `ExtraHeaders` and `AdditionalProperties`. No request carries a session, a user, or
+a trace identifier, which would let the router link one person's mail across requests, which is why it refuses
+`StickySessions` too. The router answers a model with no such endpoint by refusing the request, so a declared model has
+to have one. A request carries the mail it is asked about, the questions, and nothing else, and is refused before it is
+sent when it holds more than `…:MaxRequestCharacters`.
+
+**Routing is global unless the address says otherwise.** OpenRouter's in-region routing takes a regional host under
+`…:Address` and a Business or Enterprise plan. On 2026-10-25 its European host listed no decision model, so a deployment
+bound to keep mail processing in Europe cannot declare one yet.
+
+**Every key a chat model takes and a decision model does not is refused, not ignored.** The section binds strictly, so
+`Api`, `MaxOutputTokens`, `Temperature`, `TopP`, `ReasoningEffort`, `StickySessions`, `ExtraHeaders`,
+`AdditionalProperties`, `EntraCredential`, and a reference's `Fallback` each stop the start naming the key. So does an
+alias that a chat model or an embedding endpoint already declares, and a reference naming a chat model's alias: one
+credential source resolves every alias, and a chat model cannot answer a decision.
+
+**What a decision costs is charged where a question's cost is.** The tokens the provider reports are charged to the
+deployment's `MailAnswering` period as soon as the answer arrives, against the same
+[`MailAnswering:MaxTokensPerPeriod`](#mailanswering) a question is held to. The money figure the provider sends beside
+them is never read, because no other spend MailFathom records is in money.
+
+A failure is classified by what the provider answered: `401` and `403` as a rejected credential, `429` as a rate limit,
+`408` and `504` as a timeout, any other `5xx` — `524` and `529` included — as a transport failure worth repeating, and
+every other refusal, `402` among them, as a request refused. An answer that does not have the contract's shape — an
+answer of another type, a value no option names, a distribution that does not name exactly the options offered, a
+probability out of range, a token count below zero — is refused as unreadable rather than read generously, because the
+contract is alpha and a shape that changed is better reported than half understood. Its tokens are still charged
+wherever the provider reported them, since the model ran and was billed. A question the answer carries no key for is
+not unreadable: it comes back unanswered, which is the one gap the contract names on purpose. The
+`AiProviderInvocation` resilience budget repeats only the failures worth repeating, keyed by the alias, so one failing
+model does not open another's circuit.
+
+### One model — `Decisions:Models:<n>`
+
+| Key | Type | Default | Constraint | Change |
+| --- | --- | --- | --- | --- |
+| `…:Alias` | string | — | required; unique across every AI endpoint the deployment declares, chat models and embedding endpoints included. What a log line, a metric tag, a resilience circuit, a credential lookup, a failure message, and every reference call this model | restart |
+| `…:Model` | string | — | required; the dated build or versioned identifier a request is routed to. One of the router's moving aliases, which begin with `~`, is refused, because a threshold is calibrated against one build and an alias moves to the next one without anybody being told | restart |
+| `…:Address` | string | *(empty)* | absolute HTTP or HTTPS; a plain `http` one only for a model declaring `…:Unauthenticated`. Empty is `https://openrouter.ai`, and a regional host is written here. The adapter appends `/api/alpha/decisions` itself, so this is the host and never the API path | restart |
+| `…:RequestTimeout` | TimeSpan | `00:00:30` | positive; one request. Shorter than a chat request's, because a decision is a handful of probabilities rather than an answer the model writes out | restart |
+| `…:MaxRequestCharacters` | int | `32000` | 1 – 1000000; what one request body may hold as it is sent — the mail, the questions, and their criteria together. Refused rather than truncated | restart |
+| `…:ApiKey` | secret block | *(absent)* | the OpenRouter key. Exactly one of this and `Unauthenticated` is declared | restart, value read per request |
+| `…:Unauthenticated` | bool | `false` | that this model asks for no credential, so a request presents none. Written rather than inferred from an absent key, because that is what a forgotten key reference looks like | restart |
+
+A plain `http` address carries the mail and the verdict in the clear, and startup logs a warning naming the alias, as it
+does for a chat model.
+
+### Which model a function asks — `Decisions:DefaultModel` and `Decisions:<Function>:Model`
+
+| Key | Type | Default | Constraint | Change |
+| --- | --- | --- | --- | --- |
+| `Decisions:DefaultModel:Alias` | string | *(empty)* | the declared alias a function naming no model of its own is asked through. Required once more than one model is declared and a function falls through to it; with exactly one model declared, empty means that one | restart |
+| `Decisions:SpamClassification:Model:Alias` | string | *(empty)* | the declared alias the `SpamClassification` decision function resolves to. Empty takes `Decisions:DefaultModel`. Nothing in this build asks that function yet | restart |
+
+A reference naming no declared model, or naming a chat model, refuses the start and says which. A reference written
+with no model declared at all is refused the same way, so a forgotten `Models` block is not read as no capability.
 
 ## `MailAnswering`
 

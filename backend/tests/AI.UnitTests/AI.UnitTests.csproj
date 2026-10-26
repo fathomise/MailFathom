@@ -37,6 +37,10 @@
     <Compile Include="..\shared\FixedSensitiveContentPostures.cs" Link="FixedSensitiveContentPostures.cs" />
     <Compile Include="..\shared\SensitiveContentEgressGuards.cs" Link="SensitiveContentEgressGuards.cs" />
     <Compile Include="..\shared\ScanningSensitiveContentEgress.cs" Link="ScanningSensitiveContentEgress.cs" />
+    <!-- The redaction contract is asserted in every assembly that publishes a signal; this one publishes the decision
+         telemetry, which it opens over a source and a meter it is handed, so the rules are linked without the recorder
+         that listens to the process-wide pair. -->
+    <Compile Include="..\shared\TelemetryRedactionContract.cs" Link="TelemetryRedactionContract.cs" />
   </ItemGroup>
 
   <ItemGroup>

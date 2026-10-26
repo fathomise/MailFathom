@@ -5,6 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 using MailFathom.Host.Configuration;
 using MailFathom.Host.Configuration.Chat;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Embeddings;
 using MailFathom.Host.Configuration.Providers;
 using Microsoft.Extensions.Options;
@@ -38,23 +39,28 @@ internal sealed partial class AiProviderTransportEncryptionWarning : IHostedServ
 {
     private readonly EmbeddingOptions embeddingSettings;
     private readonly ISettingsSnapshot<ChatModelOptions> chatSettings;
+    private readonly DecisionModelOptions decisionSettings;
     private readonly ILogger<AiProviderTransportEncryptionWarning> logger;
 
     /// <summary>Initializes a new startup warning.</summary>
     /// <param name="embeddingSettings">The embedding chain startup was composed from.</param>
     /// <param name="chatSettings">The published chat declaration, which is the one in force when this runs.</param>
+    /// <param name="decisionSettings">The decision models startup was composed from.</param>
     /// <param name="logger">The startup logger.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="embeddingSettings" /> or <paramref name="chatSettings" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when a settings argument is <see langword="null" />.</exception>
     public AiProviderTransportEncryptionWarning(
         IOptions<EmbeddingOptions> embeddingSettings,
         ISettingsSnapshot<ChatModelOptions> chatSettings,
+        IOptions<DecisionModelOptions> decisionSettings,
         ILogger<AiProviderTransportEncryptionWarning> logger)
     {
         ArgumentNullException.ThrowIfNull(embeddingSettings);
         ArgumentNullException.ThrowIfNull(chatSettings);
+        ArgumentNullException.ThrowIfNull(decisionSettings);
 
         this.embeddingSettings = embeddingSettings.Value;
         this.chatSettings = chatSettings;
+        this.decisionSettings = decisionSettings.Value;
         this.logger = logger;
     }
 
@@ -77,6 +83,15 @@ internal sealed partial class AiProviderTransportEncryptionWarning : IHostedServ
         foreach (var modelAlias in clearTextChatAliases)
         {
             this.LogChatEndpointReachedInClearText(modelAlias);
+        }
+
+        var clearTextDecisionAliases = this.decisionSettings.Models
+            .Where(model => ProviderEndpointReachRules.IsReachedInClearText(model.Address))
+            .Select(model => model.Alias.Trim());
+
+        foreach (var modelAlias in clearTextDecisionAliases)
+        {
+            this.LogDecisionEndpointReachedInClearText(modelAlias);
         }
 
         return Task.CompletedTask;
@@ -102,4 +117,13 @@ internal sealed partial class AiProviderTransportEncryptionWarning : IHostedServ
             + "plain address, but nothing else on the hop is protected either. This is the expected posture for a model "
             + "server you run yourself on a network you control; anywhere else, give the endpoint an https address.")]
     private partial void LogChatEndpointReachedInClearText(string endpointAlias);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Decision endpoint {EndpointAlias} is declared with a plain http address, so the mail a question is "
+            + "asked about and the verdict that comes back both cross that hop readable by anything on the network path. "
+            + "No credential is on it, because startup refuses one over a plain address, but nothing else on the hop is "
+            + "protected either. Give the endpoint an https address unless it is a server you run yourself on a network "
+            + "you control.")]
+    private partial void LogDecisionEndpointReachedInClearText(string endpointAlias);
 }

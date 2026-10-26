@@ -5,6 +5,7 @@
 using MailFathom.Application.Rules.Conditions;
 using MailFathom.Host.Configuration.Answering;
 using MailFathom.Host.Configuration.Chat;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Embeddings;
 using MailFathom.Host.Configuration.Endpoints;
 using MailFathom.Host.Configuration.Rules;
@@ -131,12 +132,18 @@ internal static class ComposedSettings
     /// <param name="configuration">The configuration to judge.</param>
     /// <returns>One refusal per section that would stop a start, in the order a start meets them.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="configuration" /> is <see langword="null" />.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when the chat section will not bind at all, which the strict reading below is what decides.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the chat or the decision section will not bind at all, which the strict reading below is what decides.</exception>
     /// <remarks>
+    /// <para>
     /// The chat section is the one bound without <c>ValidateDataAnnotations</c> and without <c>ValidateOnStart</c>,
     /// deliberately and for the reason <see cref="BoundSettings" /> gives — it reloads, and the framework validator has
     /// nowhere to report a reloaded candidate's refusal. That makes these rules the only thing judging the section, so
     /// a candidate that escaped them would escape every rule the section has.
+    /// </para>
+    /// <para>
+    /// The decision section is judged only here as well, for a different reason: composition maps it into plans before
+    /// the container exists, so no options validator would run ahead of that mapping.
+    /// </para>
     /// </remarks>
     public static IReadOnlyList<SettingsRefusal> FindProviderRefusals(IConfiguration configuration)
     {
@@ -144,9 +151,9 @@ internal static class ComposedSettings
 
         var embeddings = configuration.GetSection(EmbeddingOptions.SectionName).Get<EmbeddingOptions>();
 
-        // The one of the three read strictly, because it is the one nothing else binds strictly for a candidate: the
-        // other two are registered under ValidateOnStart, so the startup validator materializes them and reports an
-        // unknown key of its own. This section is not, so a lenient read here would drop a misspelled key that a start
+        // Read strictly, as the decision section below is, because nothing else binds it strictly for a candidate: the
+        // embedding and answering sections are registered under ValidateOnStart, so the startup validator materializes
+        // them and reports an unknown key of its own. This section is not, so a lenient read here would drop a misspelled key that a start
         // does refuse — the snapshot hosted service reads the monitor's current value, which runs the strict binder
         // while hosted services are resolved.
         var chat = configuration.GetSection(ChatModelOptions.SectionName)
@@ -163,9 +170,19 @@ internal static class ComposedSettings
         embeddingErrors.AddRange(
             SecretConfigurationValidator.FindSecretDeclarationErrors(EmbeddingOptions.SectionName, embeddings));
 
-        List<string> chatErrors = [.. ChatDeclarationRules.FindDeclarationErrors(chat, embeddings, answering)];
+        // Bound strictly for the reason the chat section is, and judged only here: composition maps it into plans before
+        // the container exists, so no options validator would run ahead of that mapping. Read before the chat rules,
+        // because a chat alias is judged against the decision aliases as it is against the embedding ones.
+        var decisions = configuration.GetSection(DecisionModelOptions.SectionName)
+            .Get<DecisionModelOptions>(binderOptions => binderOptions.ErrorOnUnknownConfiguration = true);
+
+        List<string> chatErrors = [.. ChatDeclarationRules.FindDeclarationErrors(chat, embeddings, answering, decisions)];
         chatErrors.AddRange(
             SecretConfigurationValidator.FindSecretDeclarationErrors(ChatModelOptions.SectionName, chat));
+
+        List<string> decisionErrors = [.. DecisionModelOptions.FindDeclarationErrors(decisions, chat, embeddings)];
+        decisionErrors.AddRange(
+            SecretConfigurationValidator.FindSecretDeclarationErrors(DecisionModelOptions.SectionName, decisions));
 
         return
         [
@@ -180,8 +197,12 @@ internal static class ComposedSettings
 
             // Every rule the chat declaration answers to, in one reading: the section's own bounds, the alias that names
             // one AI endpoint across the whole deployment because a credential, a resilience circuit, and a log line are
-            // all keyed by it, and the filter's candidate count against what a lookup actually hands over.
+            // all keyed by it, and the filter's candidate count against what a lookup actually hands over. A chat alias
+            // reusing a decision model's is refused here rather than under Decisions, because a reload runs these rules
+            // and not the decision section's, and the chat section is the one that can bring the collision with it.
             .. Refusal<ChatModelOptions>(ChatModelOptions.SectionName, chatErrors),
+
+            .. Refusal<DecisionModelOptions>(DecisionModelOptions.SectionName, decisionErrors),
         ];
     }
 

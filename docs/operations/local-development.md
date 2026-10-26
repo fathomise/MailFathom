@@ -1671,9 +1671,9 @@ the server an operator gets.
 
 ### The provider-contract tests
 
-`backend/tests/IntegrationTests/ProviderAdapters` holds the tests that call a real AI provider — the embedding adapter's and the chat adapter's — and they are the only part of this suite that costs money. Everything else runs against the containers the run starts, so it costs runner time and nothing else.
+`backend/tests/IntegrationTests/ProviderAdapters` holds the tests that call a real AI provider — the embedding adapter's, the chat adapter's, and the decision adapter's — and they are the only part of this suite that costs money. Everything else runs against the containers the run starts, so it costs runner time and nothing else.
 
-They are skipped unless somebody asks. One switch covers both adapters, `MAILFATHOM_AI_CONTRACT_TESTS`, and nothing sets it: a developer's run and every ordinary pipeline run spend no provider credit. Which half of the AI boundary a test bills against is not a distinction the operator turning them on makes, which is why there is one switch rather than one per provider.
+They are skipped unless somebody asks. One switch covers every adapter, `MAILFATHOM_AI_CONTRACT_TESTS`, and nothing sets it: a developer's run and every ordinary pipeline run spend no provider credit. Which half of the AI boundary a test bills against is not a distinction the operator turning them on makes, which is why there is one switch rather than one per provider.
 
 A run that was asked for and finds a variable missing fails rather than skipping, because a run somebody requested and which then quietly proved nothing is worse than one that never started. What each adapter needs beside the switch:
 
@@ -1681,8 +1681,11 @@ A run that was asked for and finds a variable missing fails rather than skipping
 |---|---|
 | Embedding | `MAILFATHOM_EMBEDDING_API_KEY`, `MAILFATHOM_EMBEDDING_MODEL`, `MAILFATHOM_EMBEDDING_DIMENSION`, and optionally `MAILFATHOM_EMBEDDING_ADDRESS` and `MAILFATHOM_EMBEDDING_ROUTED_MODEL` |
 | Chat | `MAILFATHOM_CHAT_API_KEY`, `MAILFATHOM_CHAT_MODEL`, and optionally `MAILFATHOM_CHAT_ADDRESS` and `MAILFATHOM_CHAT_REASONING_EFFORT` |
+| Decision | `MAILFATHOM_DECISION_API_KEY`, `MAILFATHOM_DECISION_MODEL`, and optionally `MAILFATHOM_DECISION_ADDRESS` |
 
-An absent address means the provider library's own default, which is what a first-party OpenAI endpoint needs; a cloud deployment sets the resource's OpenAI-compatible address. Turning the switch on with only one adapter's variables configured therefore fails the other adapter's tests, which is the same asymmetry rather than a separate rule.
+An absent address means the provider library's own default, which is what a first-party OpenAI endpoint needs; a cloud deployment sets the resource's OpenAI-compatible address. Turning the switch on with only one adapter's variables configured therefore fails the other adapters' tests, which is the same asymmetry rather than a separate rule.
+
+The decision adapter's two tests are one answer and one refusal against OpenRouter's Decisions API. An absent address is the global router, as it is for a deployment that writes none. Every request asks the router for an endpoint that retains nothing, so the model a run names has to have one; a model without is refused, and that refusal is the finding. The `Integration tests` workflow reads `secrets.DECISION_PROVIDER_API_KEY` and falls back to `secrets.CHAT_PROVIDER_API_KEY`, which authenticates the same provider, and reads `vars.DECISION_PROVIDER_MODEL` and falls back to a versioned decision model that has such an endpoint, so a repository configured for the chat tests runs these too.
 
 The chat adapter's two tests each run **twice**, once over each of the provider's two request APIs, because each is a distinct wire protocol against the same endpoint and a surface nobody called is one whose first failure reaches an operator instead of this suite. Which API a call goes to is therefore not a variable a run sets; the declared model has to serve both, which the first-party and cloud endpoints do for a request carrying no tools, and a contract request carries none. The four chat calls a requested run makes are two answers and two refusals, and a refusal is answered before a model runs, so it costs a round trip and no tokens.
 

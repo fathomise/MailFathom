@@ -94,13 +94,13 @@ framework's default is to include every registered check in every endpoint, whic
 able to restart the process. Because a probe over no checks reports healthy, composition refuses to start when any of
 the three would answer without consulting anything.
 
-**A declared AI provider degrades the readiness probe rather than failing it.** An embedding provider and a chat
-provider each register a check of their own — `ai-embedding-provider` and `ai-chat-provider` — when the deployment
-declared one, and neither ever reports worse than degraded. Neither serves a request path: an instance whose embedding
-provider is failing still answers every search lexically, and one whose chat provider is failing still answers every
-search at all. So `/health` reads `Degraded` while a provider is unreachable, the instance keeps its traffic, and the
-liveness probe is untouched — restarting the process could not fix a provider and would turn one outage into two.
-Neither check calls a provider to find out; each reports the outcome of the last real call, which is what keeps a
+**A declared AI provider degrades the readiness probe rather than failing it.** An embedding provider, a chat
+provider, and a decision model each register a check of their own — `ai-embedding-provider`, `ai-chat-provider`, and
+`ai-decision-provider` — when the deployment declared one, and none ever reports worse than degraded. None serves a
+request path: an instance whose embedding provider is failing still answers every search lexically, and one whose chat
+provider is failing still answers every search at all. So `/health` reads `Degraded` while a provider is unreachable,
+the instance keeps its traffic, and the liveness probe is untouched — restarting the process could not fix a provider
+and would turn one outage into two. No check calls a provider to find out; each reports the outcome of the last real call, which is what keeps a
 health scrape from spending an operator's money. [Chat generation](../features/chat-generation.md#provider-health-is-tracked-per-provider)
 records the states and what each asks of an operator.
 
