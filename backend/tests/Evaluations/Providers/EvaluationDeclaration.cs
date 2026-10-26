@@ -6,9 +6,11 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 using MailFathom.AI.Chat;
+using MailFathom.AI.DecisionModels;
 using MailFathom.AI.Providers;
 using MailFathom.Evaluations.Reporting;
 using MailFathom.Host.Configuration.Chat;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Provisioning;
 using Microsoft.Extensions.Configuration;
 
@@ -29,6 +31,13 @@ namespace MailFathom.Evaluations.Providers;
 /// request asks for — <c>Model</c>, <c>Alias</c>, <c>Api</c>, <c>ReasoningEffort</c>, <c>Temperature</c>, <c>TopP</c>,
 /// <c>ExtraHeaders</c>, and <c>AdditionalProperties</c> — and each is built into a plan through
 /// <see cref="ChatModelDeclarationOptions" />, so a value is refused here as a deployment refuses it.
+/// </para>
+/// <para>
+/// A decision model is routed the same way, under the key a deployment's <c>Decisions</c> section routes its
+/// <see cref="DecisionFunction" /> by — <c>{SpamClassification: [vendor/decider-a, vendor/decider-b]}</c> — and falls back
+/// to <see cref="DecisionEndpoint.ModelVariable" /> where the block names none. It is a routed name, or a mapping carrying
+/// <c>Model</c> and <c>Alias</c>, which is all a decision declaration says about what a request asks for; its bounds are
+/// <see cref="DecisionModelDeclarationOptions" />' own defaults, so a verdict here is about what such a deployment sends.
 /// </para>
 /// <para>
 /// A header's value is written in the block rather than referenced as a secret, because the block is a dispatch input
@@ -58,21 +67,32 @@ internal sealed class EvaluationDeclaration
     private const string RefKey = "Ref";
 
     private static readonly HashSet<string> RunKeys = new(
-        [RefKey, MainModelKey, RepetitionsKey, EmbeddingModelsKey, EmbeddingDimensionKey, .. Enum.GetNames<ChatCapability>()],
+        [
+            RefKey,
+            MainModelKey,
+            RepetitionsKey,
+            EmbeddingModelsKey,
+            EmbeddingDimensionKey,
+            .. Enum.GetNames<ChatCapability>(),
+            .. Enum.GetNames<DecisionFunction>(),
+        ],
         StringComparer.OrdinalIgnoreCase);
 
     private readonly IReadOnlyList<ModelUnderTest> mainModels;
     private readonly Dictionary<ChatCapability, IReadOnlyList<ModelUnderTest>> capabilityModels;
+    private readonly Dictionary<DecisionFunction, IReadOnlyList<DecisionModelPlan>> decisionModels;
 
     private EvaluationDeclaration(
         IReadOnlyList<ModelUnderTest> mainModels,
         Dictionary<ChatCapability, IReadOnlyList<ModelUnderTest>> capabilityModels,
+        Dictionary<DecisionFunction, IReadOnlyList<DecisionModelPlan>> decisionModels,
         int repetitions,
         IReadOnlyList<string> embeddingModels,
         int? embeddingDimension)
     {
         this.mainModels = mainModels;
         this.capabilityModels = capabilityModels;
+        this.decisionModels = decisionModels;
         this.Repetitions = repetitions;
         this.EmbeddingModels = embeddingModels;
         this.EmbeddingDimension = embeddingDimension;
@@ -91,15 +111,27 @@ internal sealed class EvaluationDeclaration
     /// <returns>The declaration.</returns>
     /// <exception cref="InvalidOperationException">Thrown, naming the variable and the key, when the block cannot be read or declares nothing to measure.</exception>
     public static EvaluationDeclaration Read() =>
-        Parse(AiEvaluationRun.Optional(Variable), AiEvaluationRun.Optional(MainModelVariable), EvaluationEndpoint.Address());
+        Parse(
+            AiEvaluationRun.Optional(Variable),
+            AiEvaluationRun.Optional(MainModelVariable),
+            EvaluationEndpoint.Address(),
+            AiEvaluationRun.Optional(DecisionEndpoint.ModelVariable),
+            DecisionEndpoint.Address());
 
     /// <summary>Reads a declared block.</summary>
     /// <param name="block">The block, or <see langword="null" /> where the run declared none.</param>
     /// <param name="fallbackMainModel">The model measured as the main one where the block names none, or <see langword="null" />.</param>
     /// <param name="address">The endpoint every model sits behind, or <see langword="null" /> for the provider's own default.</param>
+    /// <param name="fallbackDecisionModel">The decision model measured for a function the block names none for, or <see langword="null" />.</param>
+    /// <param name="decisionAddress">The host every decision model sits behind, or <see langword="null" /> for the global router.</param>
     /// <returns>The declaration.</returns>
     /// <exception cref="InvalidOperationException">Thrown, naming the variable and the key, when the block cannot be read or declares nothing to measure.</exception>
-    public static EvaluationDeclaration Parse(string? block, string? fallbackMainModel, Uri? address)
+    public static EvaluationDeclaration Parse(
+        string? block,
+        string? fallbackMainModel,
+        Uri? address,
+        string? fallbackDecisionModel = null,
+        Uri? decisionAddress = null)
     {
         var run = ReadBlock(block);
 
@@ -124,9 +156,15 @@ internal sealed class EvaluationDeclaration
             .Where(static declared => declared.Models.Count > 0)
             .ToDictionary(static declared => declared.Capability, static declared => (IReadOnlyList<ModelUnderTest>)declared.Models);
 
+        var decisionModels = Enum.GetValues<DecisionFunction>()
+            .Select(function => (Function: function, Models: DecisionModelsOf(run.GetSection(function.ToString()), fallbackDecisionModel, decisionAddress)))
+            .Where(static declared => declared.Models.Count > 0)
+            .ToDictionary(static declared => declared.Function, static declared => (IReadOnlyList<DecisionModelPlan>)declared.Models);
+
         return new EvaluationDeclaration(
             mainModels,
             capabilityModels,
+            decisionModels,
             EvaluationRepetitions.Parse(run[RepetitionsKey]),
             [.. NamesOf(run.GetSection(EmbeddingModelsKey))],
             EmbeddingModelsUnderTest.ParseDimension(run[EmbeddingDimensionKey]));
@@ -137,6 +175,16 @@ internal sealed class EvaluationDeclaration
     /// <returns>The models the block names for it, or the main models where it names none.</returns>
     public IReadOnlyList<ModelUnderTest> ModelsFor(ChatCapability capability) =>
         this.capabilityModels.GetValueOrDefault(capability) ?? this.mainModels;
+
+    /// <summary>Names the decision models the evaluations of one decision function run on.</summary>
+    /// <param name="function">The function.</param>
+    /// <returns>The plans the block names for it, or the one <see cref="DecisionEndpoint.ModelVariable" /> names where it names none.</returns>
+    /// <exception cref="InvalidOperationException">Thrown, naming the key and the variable, when neither names one.</exception>
+    /// <remarks>Asked for by the scenario that needs it rather than at parsing, so a run measuring no decision function needs no decision model.</remarks>
+    public IReadOnlyList<DecisionModelPlan> DecisionModelsFor(DecisionFunction function) =>
+        this.decisionModels.GetValueOrDefault(function)
+        ?? throw new InvalidOperationException(
+            $"{Variable} names no {function} and {DecisionEndpoint.ModelVariable} is not set, so there is no decision model to measure.");
 
     /// <summary>Pairs the models of two agents one evaluation joins, as a deployment would route each of them.</summary>
     /// <param name="first">The agent asked first.</param>
@@ -183,6 +231,74 @@ internal sealed class EvaluationDeclaration
         }
 
         return models;
+    }
+
+    /// <summary>Reads a decision function's role as the plans it lists, or as the fallback model where it lists none.</summary>
+    private static List<DecisionModelPlan> DecisionModelsOf(IConfigurationSection role, string? fallback, Uri? address)
+    {
+        List<DecisionModelPlan> models = [.. ElementsOf(role).Select(element => DeclareDecision(BoundDecision(element), element.Path, address))];
+
+        if (models.Count is 0 && fallback is { } model)
+        {
+            models.Add(DeclareDecision(new DeclaredDecisionModel { Model = model }, DecisionEndpoint.ModelVariable, address));
+        }
+
+        if (models.GroupBy(static model => model.Alias, StringComparer.Ordinal).FirstOrDefault(static named => named.Count() > 1) is { } repeated)
+        {
+            throw new InvalidOperationException(
+                $"{Variable} names two decision models under '{role.Path}' whose results would both be filed as '{repeated.Key}'. Give one an Alias.");
+        }
+
+        return models;
+    }
+
+    private static DeclaredDecisionModel BoundDecision(IConfigurationSection element)
+    {
+        if (element.Value is { } name)
+        {
+            return new DeclaredDecisionModel { Model = name };
+        }
+
+        var declared = new DeclaredDecisionModel();
+
+        try
+        {
+            element.Bind(declared, static options => options.ErrorOnUnknownConfiguration = true);
+        }
+        catch (InvalidOperationException failure)
+        {
+            throw new InvalidOperationException($"{Variable} declares the decision model at '{element.Path}' in a shape the run cannot read. {failure.Message}", failure);
+        }
+
+        return declared;
+    }
+
+    /// <summary>Builds the plan a deployment declaring this decision model would build, refusing what it would refuse about the model itself.</summary>
+    /// <remarks>
+    /// The credential is the run's, from <see cref="DecisionEndpoint" />, so the declaration's reach rules — which ask
+    /// whether a key reference was written — have nothing here to read; the model's own rules do.
+    /// </remarks>
+    private static DecisionModelPlan DeclareDecision(DeclaredDecisionModel declared, string path, Uri? address)
+    {
+        var model = declared.Model.Trim();
+
+        if (model.Length is 0)
+        {
+            throw new InvalidOperationException($"{Variable} declares a decision model at '{path}' with no Model to route it to.");
+        }
+
+        if (model[0] == DecisionModelDeclarationOptions.MovingAliasPrefix)
+        {
+            throw new InvalidOperationException(
+                $"{Variable} declares the decision model '{model}' at '{path}', which is one of the router's moving aliases. A deployment refuses one, so name the dated build instead.");
+        }
+
+        return new DecisionModelDeclarationOptions
+        {
+            Alias = declared.Alias?.Trim() is { Length: > 0 } alias ? alias : model,
+            Model = model,
+            Address = address?.AbsoluteUri ?? string.Empty,
+        }.ToPlan();
     }
 
     /// <summary>Reads a role as the models it lists: nothing where it is absent, one where it is a name or a mapping, each element where it is a list.</summary>
@@ -284,6 +400,14 @@ internal sealed class EvaluationDeclaration
         public IList<DeclaredHeader> ExtraHeaders { get; } = [];
 
         public IConfigurationSection? AdditionalProperties { get; set; }
+    }
+
+    /// <summary>What one decision model's mapping may carry, which is bound strictly so a mistyped key fails the run.</summary>
+    private sealed class DeclaredDecisionModel
+    {
+        public string Model { get; set; } = string.Empty;
+
+        public string? Alias { get; set; }
     }
 
     [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "The configuration binder materializes each header a model's mapping lists.")]

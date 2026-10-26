@@ -17,8 +17,10 @@ name: AI evaluations
 # `{MainModel: model-a, ImageDescription: [model-b, model-c]}` runs the image evaluations twice and everything else once.
 # A model is its routed name, or a mapping with the keys a deployment's `Chat:Models` declaration uses for what a request
 # asks for — `Model`, `Alias`, `Api`, `ReasoningEffort`, `Temperature`, `TopP`, `ExtraHeaders`, `AdditionalProperties`.
-# The block also takes `Ref`, `Repetitions`, `EmbeddingModels`, and `EmbeddingDimension`, and a key it does not know
-# fails the run. It is shown to anyone who can read the run, so nothing private belongs in it — a header value included.
+# A decision model is routed the same way, under the key a deployment's `Decisions` section routes its function by —
+# `SpamClassification` — and falls back to `vars.DECISION_PROVIDER_MODEL`, the one the `Integration tests` workflow
+# reaches, where the block names none. The block also takes `Ref`, `Repetitions`, `EmbeddingModels`, and
+# `EmbeddingDimension`, and a key it does not know fails the run. It is shown to anyone who can read the run, so nothing private belongs in it — a header value included.
 #
 # What keeps a run cheap is the store `backend/tests/Evaluations` writes: every answer it paid for is
 # cached by prompt, model, parameters, and the name, description, and schema of every tool the model
@@ -245,6 +247,12 @@ jobs:
           MAILFATHOM_EMBEDDING_MODEL: ${{ vars.EMBEDDING_PROVIDER_ROUTED_MODEL || vars.EMBEDDING_PROVIDER_MODEL }}
           MAILFATHOM_EMBEDDING_ADDRESS: ${{ vars.EMBEDDING_PROVIDER_ADDRESS }}
           MAILFATHOM_EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_PROVIDER_API_KEY }}
+          # The decision models answer from the endpoint and key the decision provider-contract tests read, with the same
+          # fallbacks the `Integration tests` workflow gives them; where the block names no `SpamClassification`, the
+          # model that workflow reaches is measured.
+          MAILFATHOM_DECISION_MODEL: ${{ vars.DECISION_PROVIDER_MODEL || 'perplexity/pplx-decider-flash-v1.2' }}
+          MAILFATHOM_DECISION_ADDRESS: ${{ vars.DECISION_PROVIDER_ADDRESS }}
+          MAILFATHOM_DECISION_API_KEY: ${{ secrets.DECISION_PROVIDER_API_KEY || secrets.CHAT_PROVIDER_API_KEY }}
           # Empty unless the step above started a server, which is what leaves the PostgreSQL retrieval scenario skipped.
           MAILFATHOM_EVALUATION_DATABASE: ${{ steps.retrieval-database.outputs.connection }}
 
