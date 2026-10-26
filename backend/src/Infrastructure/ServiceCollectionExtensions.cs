@@ -110,6 +110,7 @@ using MailFathom.Application.Spam.Actions;
 using MailFathom.Application.Spam.Floor;
 using MailFathom.Application.Spam.Gating;
 using MailFathom.Application.Spam.History;
+using MailFathom.Application.Spam.Marking;
 using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.Spam.Signals;
@@ -1379,6 +1380,11 @@ public static class ServiceCollectionExtensions
         // The relocation half of what a caller may author, beside the flag half and registered the same way: it writes
         // a record and holds nothing that could reach a mail server, so the account's own pass carries the move.
         services.AddScoped<MailRelocationRecorder>();
+
+        // The person's own spam verdict, beside the moves because a move into the junk folder is one: the writer is
+        // what both acts record the verdict and its keywords through, and the recorder is the act of marking itself.
+        services.AddScoped<SpamMarkWriter>();
+        services.AddScoped<SpamMarkRecorder>();
 
         // The deleting half beside them, and registered the same way for the same reason. Its grant is its own: filing
         // mail in the trash is reversible and this is not, so a deployment decides the two separately.

@@ -606,7 +606,7 @@ internal static class ClientMailMutationsEndpoint
     /// retry: two such calls are two requests, and collapsing them would silently discard the second of a star and an
     /// unstar.
     /// </remarks>
-    private static MailboxMutationRequester? RequesterOf(string? requestId)
+    internal static MailboxMutationRequester? RequesterOf(string? requestId)
     {
         if (requestId is null)
         {
@@ -668,7 +668,7 @@ internal static class ClientMailChangeOutcomes
     /// <summary>The change was written down, and the account's next convergence pass will issue it.</summary>
     internal const string Recorded = "recorded";
 
-    /// <summary>The account is held and the change has already been applied to the mail MailFathom keeps, so there is no record to follow.</summary>
+    /// <summary>The change has already taken effect in what MailFathom keeps — on a held account, or a spam mark that asked the mail server for nothing — so there is no record to follow.</summary>
     internal const string Applied = "applied";
 
     /// <summary>This deployment serves no readable message under that identity, so there was nothing to change.</summary>

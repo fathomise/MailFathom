@@ -4,6 +4,8 @@
 
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Accounts.Custody;
+using MailFathom.Application.Emails.AttachmentText;
+using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Folders.Local;
@@ -14,6 +16,11 @@ using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Preferences;
+using MailFathom.Application.Rules.Actions;
+using MailFathom.Application.Spam;
+using MailFathom.Application.Spam.Actions;
+using MailFathom.Application.Spam.Gating;
+using MailFathom.Application.Spam.Marking;
 using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -66,6 +73,7 @@ public sealed class ClientMailMutationsEndpointTests
         Assert.Equal("/mutations/flags/withdrawals", ClientMailMutationsEndpoint.FlagWithdrawalsRoute);
         Assert.Equal("/mutations/moves", ClientMailMutationsEndpoint.MoveMutationsRoute);
         Assert.Equal("/mutations/moves/withdrawals", ClientMailMutationsEndpoint.MoveWithdrawalsRoute);
+        Assert.Equal("/mutations/spam", ClientMailSpamMarksEndpoint.SpamMarksRoute);
     }
 
     /// <summary>A read naming nothing is a request with no question in it, and answering it with everything would be the unbounded read this surface refuses.</summary>
@@ -824,6 +832,92 @@ public sealed class ClientMailMutationsEndpointTests
         Assert.Null(response.Change);
     }
 
+    /// <summary>A batch of spam marks naming no message asks for nothing, exactly as every other batch here does.</summary>
+    [Fact]
+    public async Task SubmitSpamMarksAsync_ABatchNamingNoMessage_IsRefused()
+    {
+        // Act
+        var result = await ClientMailSpamMarksEndpoint.SubmitSpamMarksAsync(
+            new ClientMailSpamMarksRequest(RequestId: null, "Spam", SpamSubcategory: null, []),
+            this.SpamMarkRecorder(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, RefusalOf(result).StatusCode);
+    }
+
+    /// <summary>The bound holds a batch of spam marks to the durable writes one request may cause, as it holds every other batch.</summary>
+    [Fact]
+    public async Task SubmitSpamMarksAsync_MoreMessagesThanTheBatchBound_IsRefused()
+    {
+        // Arrange
+        Guid[] messages = [.. Enumerable.Range(0, ClientMailMutationsEndpoint.MaximumChangesPerRequest + 1).Select(_ => Guid.CreateVersion7())];
+
+        // Act
+        var result = await ClientMailSpamMarksEndpoint.SubmitSpamMarksAsync(
+            new ClientMailSpamMarksRequest(RequestId: null, "NotSpam", SpamSubcategory: null, messages),
+            this.SpamMarkRecorder(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, RefusalOf(result).StatusCode);
+    }
+
+    /// <summary>
+    /// A mark is the published member names and nothing else: a subcategory beside <i>not spam</i>, a name spelled in
+    /// another case, a number standing for a member, and a missing verdict are each refused rather than guessed at.
+    /// </summary>
+    [Theory]
+    [InlineData("NotSpam", "Phishing")]
+    [InlineData("Spam", "phishing")]
+    [InlineData("Spam", "0")]
+    [InlineData("spam", null)]
+    [InlineData("Undetermined", null)]
+    [InlineData(null, null)]
+    public async Task SubmitSpamMarksAsync_AMarkThisSurfaceDoesNotPublish_IsRefused(string? verdict, string? subcategory)
+    {
+        // Act
+        var result = await ClientMailSpamMarksEndpoint.SubmitSpamMarksAsync(
+            new ClientMailSpamMarksRequest(RequestId: null, verdict, subcategory, [Message]),
+            this.SpamMarkRecorder(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, RefusalOf(result).StatusCode);
+    }
+
+    /// <summary>A message the use case cannot find is answered on its own, so the rest of the batch is still marked.</summary>
+    [Fact]
+    public async Task SubmitSpamMarksAsync_AMessageTheUseCaseCannotFind_ReportsThatMessageAlone()
+    {
+        // Act
+        var result = await ClientMailSpamMarksEndpoint.SubmitSpamMarksAsync(
+            new ClientMailSpamMarksRequest("call-1", "Spam", "Phishing", [Message, Guid.Empty]),
+            this.SpamMarkRecorder(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            [(Message, ClientMailChangeOutcomes.MessageNotFound), (Guid.Empty, ClientMailChangeOutcomes.MessageNotFound)],
+            Assert.IsType<Ok<ClientMailSpamMarksResponse>>(result.Result).Value!.Results.Select(static mark => (mark.StoredEmailId, mark.Outcome)));
+    }
+
+    /// <summary>What a mark wrote reaches the wire as the move and the records a client follows, in the vocabulary every change here uses.</summary>
+    [Fact]
+    public void SpamMarkResultResponse_AMarkThatMovedTheMessage_CarriesTheMoveAndItsRecords()
+    {
+        // Arrange
+        var record = RecordOf(MoveRequest());
+
+        // Act
+        var response = ClientMailSpamMarkResultResponse.For(
+            new SpamMarkResult(StoredEmailId.Create(Message), SpamMarkOutcome.Recorded, [record], IsMoved: true));
+
+        // Assert
+        Assert.Equal((ClientMailChangeOutcomes.Recorded, true), (response.Outcome, response.Moved));
+        Assert.Equal(record.Id.Value, Assert.Single(response.Changes).RecordId);
+    }
+
     private static ProblemHttpResult RefusalOf<TValue>(Results<Ok<TValue>, ProblemHttpResult> result) =>
         Assert.IsType<ProblemHttpResult>(result.Result);
 
@@ -1080,7 +1174,53 @@ public sealed class ClientMailMutationsEndpointTests
             Substitute.For<IAuthoredDeleteEmailDispositionReader>(),
             this.Submission(held: false),
             CommitPolicy(),
+            new MailAccountRunSignal(),
+            StubJunkMailFolderCatalog.None,
+            this.SpamMarks());
+    }
+
+    /// <summary>Builds the use case the spam route is given, under the grant that route carries.</summary>
+    /// <param name="target">The message the caller names, defaulting to none, which is the absence the recorder reports as a message that has gone.</param>
+    private SpamMarkRecorder SpamMarkRecorder(AuthoredMailboxTarget? target = null)
+    {
+        var targets = Substitute.For<IAuthoredMailboxTargetReader>();
+        targets.FindAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(target));
+
+        var settings = Substitute.For<ISpamActionSettingsReader>();
+        settings.ActionsFor(Arg.Any<MailAccountId>()).Returns(SpamActionSettings.None);
+
+        return new SpamMarkRecorder(
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailFlagsWrite),
+            ScopeResolver(
+                target is null ? null : StubMailFolderParticipation.Mapping(new MailFolderIdentity(ServedAccount, Inbox))),
+            targets,
+            settings,
+            StubJunkMailFolderCatalog.None,
+            Substitute.For<ILocalMailFolderStore>(),
+            DestinationResolver(StubMailFolderMappings.Nothing, Substitute.For<IMailFolderResolutionStore>()),
+            Substitute.For<IAuthoredDeleteEmailDispositionReader>(),
+            this.SpamMarks(),
+            this.Submission(held: false),
+            CommitPolicy(),
             new MailAccountRunSignal());
+    }
+
+    /// <summary>Builds what writes the person's verdict and its keywords, over an account that permits keywords.</summary>
+    private SpamMarkWriter SpamMarks()
+    {
+        var permissions = Substitute.For<IMailRuleActionPermissionReader>();
+        permissions.GetRuleActionPermissions(Arg.Any<MailAccountId>()).Returns(MailRuleActionPermissions.Default);
+
+        return new SpamMarkWriter(
+            Substitute.For<ISpamActionOccurrenceReader>(),
+            permissions,
+            Substitute.For<IEmailSpamClassificationStore>(),
+            Substitute.For<ISpamVerdictActStore>(),
+            Substitute.For<IEmailChunkStore>(),
+            Substitute.For<IStoredEmailAttachmentTextStore>(),
+            Substitute.For<IDerivedWorkGateTelemetry>(),
+            this.Submission(held: false),
+            new FakeTimeProvider(RecordedAt));
     }
 
     /// <summary>Builds the deleting use case the route is given, under the grant that route carries.</summary>

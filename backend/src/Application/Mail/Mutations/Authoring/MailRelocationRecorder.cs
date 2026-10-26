@@ -2,12 +2,15 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Access;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Folders.Local;
+using MailFathom.Application.Mail.Mutations.Authoring.Failures;
 using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Spam.Marking;
 using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -50,6 +53,12 @@ namespace MailFathom.Application.Mail.Mutations.Authoring;
 /// local rather than the one it was stored under.
 /// </para>
 /// <para>
+/// <b>The person moving a message into the account's junk folder is marking it spam.</b> The same transaction records
+/// their spam verdict, with the subcategory they already named or none, and the junk keywords it carries, through
+/// <see cref="SpamMarkWriter" /> and whatever the account's switch for filing junk says — they filed it themselves. A
+/// move by any other reader is a move and nothing else, and a move out of the junk folder changes no verdict.
+/// </para>
+/// <para>
 /// Every refusal is a result rather than an exception, because a caller moving several messages at once acts on each
 /// answer and carries on with the rest. The one failure that is not about a message is: a caller without the grant
 /// gets no answer about any of them, which is the whole request's outcome rather than one item's.
@@ -68,6 +77,8 @@ public sealed class MailRelocationRecorder
     private readonly MailboxChangeSubmission submission;
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
     private readonly MailAccountRunSignal runSignal;
+    private readonly IJunkMailFolderCatalog junkFolders;
+    private readonly SpamMarkWriter spamMarks;
 
     /// <summary>Initializes the use case over the grant it asks first, the folder it files into, and the submission it writes through.</summary>
     /// <param name="authorization">Answers which principal reached this use case.</param>
@@ -81,6 +92,8 @@ public sealed class MailRelocationRecorder
     /// <param name="submission">Records the move, or commits it where the account is held.</param>
     /// <param name="commitPolicy">Commits the change, retrying an optimistic conflict.</param>
     /// <param name="runSignal">Brings the account's next synchronization run forward, which is what carries the move to the mail server.</param>
+    /// <param name="junkFolders">Answers whether the destination is the account's junk folder, which makes the person's move a spam mark.</param>
+    /// <param name="spamMarks">Writes the person's spam verdict a move into the junk folder makes.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     public MailRelocationRecorder(
         AccessAuthorization authorization,
@@ -93,7 +106,9 @@ public sealed class MailRelocationRecorder
         IAuthoredDeleteEmailDispositionReader deleteDispositions,
         MailboxChangeSubmission submission,
         OptimisticConcurrencyRetryPolicy commitPolicy,
-        MailAccountRunSignal runSignal)
+        MailAccountRunSignal runSignal,
+        IJunkMailFolderCatalog junkFolders,
+        SpamMarkWriter spamMarks)
     {
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(scopeResolver);
@@ -106,6 +121,8 @@ public sealed class MailRelocationRecorder
         ArgumentNullException.ThrowIfNull(submission);
         ArgumentNullException.ThrowIfNull(commitPolicy);
         ArgumentNullException.ThrowIfNull(runSignal);
+        ArgumentNullException.ThrowIfNull(junkFolders);
+        ArgumentNullException.ThrowIfNull(spamMarks);
 
         this.authorization = authorization;
         this.scopeResolver = scopeResolver;
@@ -118,6 +135,8 @@ public sealed class MailRelocationRecorder
         this.submission = submission;
         this.commitPolicy = commitPolicy;
         this.runSignal = runSignal;
+        this.junkFolders = junkFolders;
+        this.spamMarks = spamMarks;
     }
 
     /// <summary>Writes down one move, against the email and the folder a caller named.</summary>
@@ -203,16 +222,65 @@ public sealed class MailRelocationRecorder
             folder.Path,
             localDisposition);
 
-        // Whether the message is already there is the submission's to answer, because it is a different question on a
-        // held account: the alias a message was stored under is its source folder, and the folder it is in is local.
-        var submitted = await this.commitPolicy.CommitAsync(
-            (session, attemptCancellationToken) => this.submission.SubmitMoveAsync(
-                session,
-                request,
-                folder,
-                crossesOnTheServer,
-                attemptCancellationToken),
-            cancellationToken);
+        var spamMark = reader is MailboxReaderKind.Person && this.IsJunkFolder(account, folder)
+            ? await this.spamMarks.PrepareMoveIntoJunkAsync(storedEmailId, account, cancellationToken)
+            : null;
+
+        SubmittedMailboxChange submitted;
+        StagedSpamMark? markedSpam = null;
+
+        try
+        {
+            // Whether the message is already there is the submission's to answer, because it is a different question on a
+            // held account: the alias a message was stored under is its source folder, and the folder it is in is local.
+            submitted = await this.commitPolicy.CommitAsync(
+                async (session, attemptCancellationToken) =>
+                {
+                    markedSpam = spamMark is null
+                        ? null
+                        : await this.spamMarks.StageAsync(
+                            session,
+                            storedEmailId,
+                            target.Occurrence,
+                            spamMark,
+                            requester,
+                            attemptCancellationToken);
+
+                    var moved = await this.submission.SubmitMoveAsync(
+                        session,
+                        request,
+                        folder,
+                        crossesOnTheServer,
+                        attemptCancellationToken);
+
+                    if (markedSpam is not null)
+                    {
+                        await this.FinishSpamMarkAsync(session, storedEmailId, moved, attemptCancellationToken);
+                    }
+
+                    return moved;
+                },
+                cancellationToken);
+        }
+        catch (MoveNotMadeException refused)
+        {
+            submitted = refused.Submitted;
+            markedSpam = null;
+        }
+        catch (Exception refusal) when (refusal is AuthoredMailChangeTargetNotFoundException or MailFlagChangeInvalidException)
+        {
+            return AuthoredMailRelocationResult.NotRecorded(MailRelocationOutcome.MessageNotFound);
+        }
+
+        if (markedSpam is not null)
+        {
+            this.spamMarks.Announce(markedSpam);
+
+            if (markedSpam.Records.Count > 0)
+            {
+                this.runSignal.BringForward(account);
+            }
+        }
 
         switch (submitted.Outcome)
         {
@@ -243,6 +311,34 @@ public sealed class MailRelocationRecorder
                 return AuthoredMailRelocationResult.NotRecorded(MailRelocationOutcome.DestinationNotAllowed);
             default:
                 return AuthoredMailRelocationResult.NotRecorded(MailRelocationOutcome.MessageNotFound);
+        }
+    }
+
+    /// <summary>Answers whether a destination is the account's junk folder, by the role it plays or the mapping that carries the role.</summary>
+    private bool IsJunkFolder(MailAccountId account, MailboxDestination destination) =>
+        destination.Role is MailFolderSpecialUse.Junk || this.junkFolders.IsJunkFolder(account, destination.Alias);
+
+    /// <summary>Records the person's filing as a verdict's act, or takes the spam mark back with a move that was not made.</summary>
+    /// <exception cref="MoveNotMadeException">Thrown when the move was refused, so the mark staged beside it never commits.</exception>
+    /// <remarks>
+    /// A message already in the junk folder keeps the mark: the person put it where spam goes, and nothing had to move
+    /// for that to be their verdict.
+    /// </remarks>
+    private async Task FinishSpamMarkAsync(
+        IPersistenceSession session,
+        StoredEmailId storedEmailId,
+        SubmittedMailboxChange moved,
+        CancellationToken cancellationToken)
+    {
+        switch (moved.Outcome)
+        {
+            case MailboxChangeSubmissionOutcome.Recorded or MailboxChangeSubmissionOutcome.Applied:
+                await this.spamMarks.RecordFiledIntoJunkAsync(session, storedEmailId, cancellationToken);
+                break;
+            case MailboxChangeSubmissionOutcome.AlreadyInDestination:
+                break;
+            default:
+                throw new MoveNotMadeException(moved);
         }
     }
 
@@ -314,4 +410,12 @@ public sealed class MailRelocationRecorder
 
     /// <summary>The drafts or the sent folder, and where on the server it was last found where it has been.</summary>
     private sealed record KeptTreeRoot(MailFolderAlias Alias, RemoteFolderPath? Path);
+
+    /// <summary>Ends a commit whose move into the junk folder was refused, so the spam mark staged before it is rolled back with it.</summary>
+    [SuppressMessage("Design", "CA1064:Exceptions should be public", Justification = "A control-flow signal from the commit body to the method around it that never leaves this type.")]
+    private sealed class MoveNotMadeException(SubmittedMailboxChange submitted)
+        : Exception($"A move into the junk folder ended as {submitted.Outcome}, so the spam mark beside it was not committed.")
+    {
+        public SubmittedMailboxChange Submitted { get; } = submitted;
+    }
 }
