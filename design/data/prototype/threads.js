@@ -600,6 +600,29 @@ Notes and recordings: [hiring/frontend-2026](https://company.example/hiring/fron
     ],
     attachments: [{ type: "XLSX", name: "Candidate_scores.xlsx", size: "28 kB" }],
   },
+  {
+    id: "handover1",
+    from: "Olga Mazur",
+    org: "",
+    time: "21.08",
+    subject: "Handover - supplier contracts",
+    ai: "Two renewals to take over",
+    meta: "o.mazur@harborworks.example · 21.08.2026 · thread: 1 message",
+    state: [
+      { label: "Agreed", value: "You take over the supplier contracts" },
+      { label: "Open question", value: "Who signs the Halvard renewal" },
+      { label: "Commitment", value: "Renewals by 30.09" },
+    ],
+    body: [
+      {
+        text: "As agreed, the supplier contracts are yours from Monday. The folder with all of them is shared with you.",
+      },
+      {
+        text: "Two renewals are due by 30 September: Halvard Logistics and the cleaning service. Halvard asked for a two-year term this time.",
+      },
+    ],
+    attachments: [],
+  },
 
   // Spam. `spam` is the verdict a message arrived with: `judge` is who reached it (`model`, `server`, or `person`),
   // `kind` its spam subcategory where one was named, and `request` and `party` what a phishing message asks for and whom

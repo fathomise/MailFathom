@@ -8,8 +8,9 @@
 // where none did; `dmarc` is pass, fail, none (no policy published), unreported, temperror or permerror; `author` is
 // whether the domain in From was established as the author and `authDomain` the domain that actually authenticated
 // it; `trust` says why this account recognizes the author - on its trusted senders (`list`), a domain of the owner's own
-// accounts (`own`), or a member of the account's organization proven by the organization's signature (`org`); `sig` is the S/MIME or OpenPGP signature, null where the
-// message carries none. A thread missing here is an authenticated sender the account does not recognize.
+// accounts (`own`), or a member of the account's organization proven by the organization's signature (`org`, naming the
+// organization's display name, null where that organization has since been deleted); `sig` is the S/MIME or OpenPGP
+// signature, null where the message carries none. A thread missing here is an authenticated sender the account does not recognize.
 MailFathomDesign.data.senderMarks = {
   ownDomains: { acc1: "nordwind.example", acc2: "mail.example" },
   threads: {
@@ -197,7 +198,11 @@ MailFathomDesign.data.senderMarks = {
     },
     rekrutacja1: {
       from: "a.bielska@company.example", checker: "server", dkim: "company.example", spf: "company.example", dmarc: "pass",
-      author: "authenticated", authDomain: "company.example", trust: { source: "org" }, sig: null,
+      author: "authenticated", authDomain: "company.example", trust: { source: "org", org: "Nordwind" }, sig: null,
+    },
+    handover1: {
+      from: "o.mazur@harborworks.example", checker: "server", dkim: null, spf: "harborworks.example", dmarc: "none",
+      author: "notEstablished", authDomain: null, trust: { source: "org", org: null }, sig: null,
     },
     spamPayroll: {
       from: "payroll@nordwlnd-hr.example", checker: "server", dkim: "nordwlnd-hr.example", spf: "nordwlnd-hr.example", dmarc: "pass",
