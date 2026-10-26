@@ -161,6 +161,7 @@ internal sealed class StoredEmailExtractionBackfillStore(
             ?? throw new InvalidOperationException("Extraction cannot be applied to a stored email that no longer exists.");
 
         StoredEmailMetadataMapping.ApplyExtractedMetadata(storedEmail, metadata);
+        await StoredEmailSignerKeyWriter.SaveAsync(sessionContext, storedEmail, metadata.Signature, cancellationToken);
 
         await EmailSearchDocumentWriter.SaveAsync(
             sessionContext,

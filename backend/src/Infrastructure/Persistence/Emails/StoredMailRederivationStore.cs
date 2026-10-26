@@ -84,12 +84,13 @@ internal sealed class StoredMailRederivationStore(
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="metadata" /> is <see langword="null" />.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the email disappeared between the batch query and this write.</exception>
     /// <remarks>
-    /// The thread assignment is the one write this pass makes outside the row's own columns, and it is deliberate rather
-    /// than an oversight in a contract that is otherwise "re-read the row's MIME into the row". A thread membership
-    /// cannot be a column: it is decided from this row's identifiers and recorded as a relation other rows share, so a
-    /// mailbox stored before threading existed becomes threaded only if re-derivation is allowed to write it. Everything
-    /// the assignment touches is still derived from stored MIME and from nothing a mail server would have to be asked
-    /// for.
+    /// The thread assignment and the signer's key material are the two writes this pass makes outside the row's own
+    /// columns, and both are deliberate rather than an oversight in a contract that is otherwise "re-read the row's MIME
+    /// into the row". A thread membership cannot be a column: it is decided from this row's identifiers and recorded as a
+    /// relation other rows share, so a mailbox stored before threading existed becomes threaded only if re-derivation is
+    /// allowed to write it. The key material is the row's own but kept in a table of its own, so no mailbox query carries
+    /// it, and it is written beside the signature columns that describe it. Everything both touch is still derived from
+    /// stored MIME and from nothing a mail server would have to be asked for.
     /// </remarks>
     public async Task ApplyRederivedMetadataAsync(
         IPersistenceSession session,
@@ -105,6 +106,7 @@ internal sealed class StoredMailRederivationStore(
                 "Re-derived metadata cannot be applied to a stored email that no longer exists.");
 
         StoredEmailMetadataMapping.ApplyExtractedMetadata(storedEmail, metadata);
+        await StoredEmailSignerKeyWriter.SaveAsync(sessionContext, storedEmail, metadata.Signature, cancellationToken);
 
         await threadAssembly.AssembleAsync(
             session,

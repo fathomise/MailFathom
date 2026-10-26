@@ -132,6 +132,8 @@ internal sealed class MailFathomDbContext : DbContext
 
     internal DbSet<EmailSearchDocumentEntity> EmailSearchDocuments => this.Set<EmailSearchDocumentEntity>();
 
+    internal DbSet<StoredEmailSignerKeyEntity> StoredEmailSignerKeys => this.Set<StoredEmailSignerKeyEntity>();
+
     internal DbSet<EmailChunkEntity> EmailChunks => this.Set<EmailChunkEntity>();
 
     internal DbSet<EmailAttachmentTextEntity> EmailAttachmentTexts => this.Set<EmailAttachmentTextEntity>();
@@ -311,6 +313,7 @@ internal sealed class MailFathomDbContext : DbContext
         modelBuilder.ApplyConfiguration(new StoredEmailConfiguration());
         modelBuilder.ApplyConfiguration(new EmailMessageContentConfiguration());
         modelBuilder.ApplyConfiguration(new EmailSearchDocumentConfiguration(this.textSearchConfiguration));
+        modelBuilder.ApplyConfiguration(new StoredEmailSignerKeyConfiguration());
         modelBuilder.ApplyConfiguration(new EmailChunkConfiguration());
         modelBuilder.ApplyConfiguration(new EmailAttachmentTextConfiguration(this.textSearchConfiguration));
         modelBuilder.ApplyConfiguration(new EmbeddingProfileConfiguration());

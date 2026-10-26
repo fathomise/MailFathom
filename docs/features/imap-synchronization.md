@@ -1352,6 +1352,7 @@ write. Nothing is fetched twice, and no extraction path can select a folder or s
 | Thread identifiers | `Message-ID`, `In-Reply-To`, `References` | Angle brackets and the whitespace around them removed; `References` keeps header order and collapses duplicates. |
 | Attachment summary | the message structure | Counts, total decoded size, inline-resource count, three markers, and one record per attachment. |
 | Sender-authentication verdict | the trusted `Authentication-Results` header, or the message's own DKIM signatures | What was established about who sent the message, and which of the two readings established it. Only the header carrying the account's configured authserv-id is read, and only the topmost such header. Where no such header is found, extraction verifies the message's DKIM signatures itself against the keys their domains publish, which is the one step of a run that queries DNS; the verdict records which of the two readings produced it. [Sender authentication](sender-authentication.md) holds the whole rule. |
+| Message signature | the `multipart/signed` container or the opaque S/MIME part | Whether the message's own S/MIME or PGP/MIME signature verifies against what this deployment trusts, each step that decided it, and who signed. Verifying a certificate may ask its authority's revocation responder, which is the one other step of a run that reaches the network; [verifying a message's own signature](../operations/configuration-mail.md#verifying-a-messages-own-signature--signatureverification) holds what is trusted and what is asked, and [the stored-email schema](../architecture/stored-email-schema.md#the-messages-own-signature) what is recorded. |
 | Automation claim | `List-Id`, `List-Post`, `List-Unsubscribe`, `Auto-Submitted`, `Precedence` | What the message says about itself: a list posting, something submitted automatically, or bulk. It is read for [contact collection](contacts.md#collecting-contacts-from-arriving-mail), which refuses the whole message rather than one of its addresses, and it is deliberately not persisted — it is a claim one message makes rather than a property of the mail, and a reader wanting it has the headers. |
 
 An address is normalized to an upper-cased comparison form and keeps what the message wrote alongside it, and that
@@ -1425,8 +1426,9 @@ Outlook sends an invitation, and an attachment when it is a separate part, which
 
 Attachment presence means the attachment count is greater than zero, so an inline-only or signature-only message does
 not have attachments. The signature marker states **presence only** and its name says so: anyone can attach a
-signature-typed part, nothing here verifies one, and a marker named after signing would be read downstream as an
-authenticity result that was never established. Decryption and verification are out of scope and tracked separately.
+signature-typed part, and the marker is read off the structure whatever the signature turns out to be. Whether the
+signature verifies is the separate message-signature answer in the table above, and a marker named after signing would
+be read downstream as that answer. Decryption is out of scope and tracked separately.
 
 Size is the **decoded** octet count, measured by streaming the part through a counter that discards the bytes. MIME
 declares no per-part length, so this is measured rather than read, and the sum over a message's attachments does not

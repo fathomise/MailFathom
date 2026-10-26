@@ -92,8 +92,16 @@ internal static class PersistenceConcurrencyConflicts
     /// stage could not have avoided.
     /// </para>
     /// <para>
-    /// The next two are one message's derivation, and they are the pair above one stage further on — over what was
-    /// concluded about a message rather than over what was cut from it. The record's key is the message alone, so an
+    /// The signer-key row is the certificate or public key behind a message's signature, and its key is the message
+    /// alone. Two runs re-deriving or backfilling one message — a re-derivation beside the extraction backfill, or
+    /// either beside a synchronization reading it again — both find that the message carries no signer-key row and
+    /// both insert, and the loser violates the key. The retry re-reads the winner's row and replaces it in place, so
+    /// the message keeps one key and the run that lost goes on rather than ending on the violation.
+    /// </para>
+    /// <para>
+    /// The next two are one message's derivation, and they are the per-attachment and per-passage pair above one stage
+    /// further on — over what was concluded about a message rather than over what was cut from it. The record's key is
+    /// the message alone, so an
     /// account run reaching a message a second time while a retry of itself is still committing has both writers
     /// reading that nothing was derived and both inserting. The retry re-reads the record the winner wrote and
     /// replaces it whole, which is what makes a message derived from twice hold one derivation rather than ending the
@@ -248,6 +256,7 @@ internal static class PersistenceConcurrencyConflicts
                 or PersistenceConstraintNames.EmailChunkOrdinalUniqueIndexName
                 or PersistenceConstraintNames.EmailChunkAttachmentOrdinalUniqueIndexName
                 or PersistenceConstraintNames.EmailAttachmentTextPrimaryKeyName
+                or PersistenceConstraintNames.StoredEmailSignerKeyPrimaryKeyConstraintName
                 or PersistenceConstraintNames.EmailEnrichmentPrimaryKeyConstraintName
                 or PersistenceConstraintNames.EmailEnrichmentMarkAspectUniqueIndexName
                 or PersistenceConstraintNames.MailRederivationPositionPrimaryKeyConstraintName

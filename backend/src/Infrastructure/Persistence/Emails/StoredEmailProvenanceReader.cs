@@ -41,6 +41,7 @@ internal sealed class StoredEmailProvenanceReader(
                 {
                     AuthorAuthentication = row.AuthorAuthentication,
                     DeploymentTrust = row.DeploymentTrust,
+                    Signature = row.Signature.ToSignature(),
                 },
                 IsInJunkFolder = row.IsInJunkFolder,
                 IsFirstContact = !row.HasEarlierCorrespondence,
@@ -91,6 +92,32 @@ internal sealed class StoredEmailProvenanceReader(
                 email.Id,
                 email.AuthorAuthenticationOutcome,
                 email.SenderTrustLevel,
+                new StoredEmailSignatureRow(
+                    email.SignatureFormat,
+                    email.SignatureSecureMimeType,
+                    email.SignatureUnverifiableReason,
+                    email.SignatureSignedAt,
+                    email.SignatureContentCheck,
+                    email.SignatureAuthorityCheck,
+                    email.SignatureTrustAnchor,
+                    email.SignatureChainEnd,
+                    email.SignatureValidityCheck,
+                    email.SignatureValidityFailure,
+                    email.SignatureRevocationCheck,
+                    email.SignatureRevocationMethod,
+                    email.SignatureRevocationCheckedAt,
+                    email.SignatureRevokedAt,
+                    email.SignatureSignerCheck,
+                    email.SignerName,
+                    email.SignerAddress,
+                    email.SignerIssuer,
+                    email.SignerValidFrom,
+                    email.SignerValidUntil,
+                    email.SignerSerialNumber,
+                    email.SignerFingerprint,
+                    email.SignerKeyId,
+                    email.SignerPublicKeyAlgorithm,
+                    email.SignerDigestAlgorithm),
                 email.Folder.Role == MailFolderSpecialUse.Junk,
                 email.SenderNormalizedAddress != null
                     && correspondence.Any(earlier =>
@@ -112,11 +139,13 @@ internal sealed class StoredEmailProvenanceReader(
 /// <param name="StoredEmailId">The email.</param>
 /// <param name="AuthorAuthentication">What the receiving server established about the displayed author.</param>
 /// <param name="DeploymentTrust">Whether this deployment recognizes that author.</param>
+/// <param name="Signature">What verifying the email's own signature found.</param>
 /// <param name="IsInJunkFolder">Whether the email sits in its account's junk folder.</param>
 /// <param name="HasEarlierCorrespondence">Whether the mailbox held earlier mail written by or addressed to the sender.</param>
 internal sealed record StoredEmailProvenanceRow(
     Guid StoredEmailId,
     AuthorAuthenticationOutcome AuthorAuthentication,
     SenderTrustLevel DeploymentTrust,
+    StoredEmailSignatureRow Signature,
     bool IsInJunkFolder,
     bool HasEarlierCorrespondence);

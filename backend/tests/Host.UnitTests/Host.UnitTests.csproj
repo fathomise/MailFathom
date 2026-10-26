@@ -81,5 +81,6 @@
     <!-- The defaults every image ships, carried as a resource so the composition test layers the real file without
          reaching the file system. -->
     <EmbeddedResource Include="..\..\src\Host\appsettings.json" LogicalName="MailFathom.Host.appsettings.json" />
+    <EmbeddedResource Include="..\Infrastructure.UnitTests\Mail\Signatures\Fixtures\pgp-robert.asc" LogicalName="Signatures.pgp-robert.asc" />
   </ItemGroup>
 </Project>

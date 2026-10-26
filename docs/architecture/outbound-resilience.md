@@ -257,6 +257,23 @@ is the layer rather than something MailFathom re-implements:
   by selector and signing domain, honouring the record's own time-to-live, so a domain's key is resolved once for every
   message it signs. [Sender authentication](../features/sender-authentication.md#where-no-server-said-anything-the-signature-still-does)
   states what a failed lookup leaves behind.
+- **The certificate revocation client.** An eighth outbound dependency is the OCSP responder and the CRL distribution
+  point a signed message's signer certificate names, asked when extraction verifies an S/MIME signature whose chain is
+  already trusted. It runs under no `OutboundDependency` pipeline, so it keeps the standard resilience handler the service
+  defaults give the `certificate-revocation` client, and that handler is the single layer; the registration adds the
+  bounds a stranger's address calls for — no redirect is followed, since a plain-HTTP answer could send the process
+  anywhere, and an answer may reach 10 MiB. Above it sits one hard deadline,
+  `MailSynchronization:SignatureVerification:RevocationTimeout`, over every responder the certificate names together,
+  and nothing retries above that: an answer that does not arrive leaves the signature *not verifiable*, which is a value
+  the verification already has. An answer is cached per issuer key and serial number until the next update it names,
+  held for at least one minute and at most one day whatever that says, and an unavailable answer is remembered for one
+  minute — so a responder that failed once leaves that minute's messages from the signer *not verifiable* until they are
+  re-derived. An answer that names no next update is believed only for one day from when it was issued. Each
+  certificate below the root of the signer's chain is checked under its own deadline, the signer first, and the walk
+  stops at the first answer that is not good. The cache is per replica.
+  [Verifying a message's own
+  signature](../operations/configuration-mail.md#verifying-a-messages-own-signature--signatureverification) states what a
+  responder learns.
 - **EF Core.** `EnableRetryOnFailure` is deliberately not configured, and no database call runs under an
   `OutboundDependency` pipeline either. What retries a local write is `OptimisticConcurrencyRetryPolicy`, one layer up,
   and it is the only one — which is what makes the single-layer rule below checkable here rather than aspirational.

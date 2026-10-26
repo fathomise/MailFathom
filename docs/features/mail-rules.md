@@ -482,7 +482,7 @@ comparison, operator, and function checks below are made against.
 | `attachmentCount` | number | How many attachments the email carries |
 | `attachmentTotalBytes` | number | The size of every attachment added together |
 | `isEncrypted` | boolean | Whether the email's body is encrypted |
-| `carriesUnverifiedSignature` | boolean | Whether a signature part is present; nothing has verified it |
+| `carriesUnverifiedSignature` | boolean | Whether a signature part is present anywhere in the message; it says nothing about whether the message's own signature verified |
 | `isSeen` | boolean | Whether the server reports the email as read |
 | `isAnswered` | boolean | Whether the server reports the email as answered |
 | `isFlagged` | boolean | Whether the server reports the email as flagged |

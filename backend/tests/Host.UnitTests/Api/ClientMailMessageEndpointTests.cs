@@ -12,6 +12,7 @@ using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
+using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Spam;
 using MailFathom.Host.Api;
@@ -249,6 +250,63 @@ public sealed class ClientMailMessageEndpointTests
         Assert.True(response.Unread);
         Assert.False(response.Flagged);
         Assert.False(response.Answered);
+    }
+
+    /// <summary>
+    /// A signature travels beside the sender verdict with each step's own result, so a popup draws the steps a
+    /// verification never reached as well as those it did, and a mismatched signer as a fact of its own.
+    /// </summary>
+    [Fact]
+    public void For_AMessageSignedBySomebodyElse_CarriesTheVerifiedStepsAndTheMismatch()
+    {
+        // Arrange
+        var checkedAt = new DateTimeOffset(2026, 9, 1, 12, 0, 0, TimeSpan.Zero);
+        var message = MessageWith() with
+        {
+            SenderVerification = MessageWith().SenderVerification with
+            {
+                Signature = new EmailSignature
+                {
+                    Format = EmailSignatureFormat.OpenPgpMime,
+                    ContentCheck = SignatureCheckResult.Passed,
+                    AuthorityCheck = SignatureCheckResult.Passed,
+                    TrustAnchor = SignatureTrustAnchor.ConfiguredKey,
+                    ValidityCheck = SignatureCheckResult.Passed,
+                    RevocationCheck = SignatureCheckResult.Passed,
+                    RevocationMethod = RevocationCheckMethod.KeyRevocationSignature,
+                    RevocationCheckedAt = checkedAt,
+                    SignerCheck = SignatureCheckResult.Failed,
+                    Signer = new EmailSigner { Address = "robert@pgp.example.test", KeyId = "0123456789ABCDEF", KeyMaterial = new byte[] { 1, 2, 3 } },
+                },
+            },
+        };
+
+        // Act
+        var signature = ClientMailMessageResponse.For(message).Signature;
+
+        // Assert
+        Assert.Equal("Verified", signature.Outcome);
+        Assert.Equal("OpenPgpMime", signature.Format);
+        Assert.Equal(new ClientMailSignatureStepsResponse("Passed", "Passed", "Passed", "Passed", "Failed"), signature.Steps);
+        Assert.Equal("ConfiguredKey", signature.TrustAnchor);
+        Assert.Equal("KeyRevocationSignature", signature.RevocationMethod);
+        Assert.False(signature.SignerMatchesAuthor);
+        Assert.Equal("robert@pgp.example.test", signature.Signer?.Address);
+        Assert.Equal("0123456789ABCDEF", signature.Signer?.KeyId);
+    }
+
+    /// <summary>A message carrying no signature still carries the object, saying so, with every step skipped and no signer.</summary>
+    [Fact]
+    public void For_AnUnsignedMessage_CarriesNotSignedWithEveryStepSkipped()
+    {
+        // Act
+        var signature = ClientMailMessageResponse.For(MessageWith()).Signature;
+
+        // Assert
+        Assert.Equal("NotSigned", signature.Outcome);
+        Assert.Null(signature.Format);
+        Assert.Equal(new ClientMailSignatureStepsResponse("Skipped", "Skipped", "Skipped", "Skipped", "Skipped"), signature.Steps);
+        Assert.Null(signature.Signer);
     }
 
     /// <summary>An opened message carries the verdict its row carries, so a warning is drawn from the message already fetched.</summary>

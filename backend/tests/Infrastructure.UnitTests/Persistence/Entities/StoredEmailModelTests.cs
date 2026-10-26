@@ -203,6 +203,25 @@ public sealed class StoredEmailModelTests
         Assert.Equal(DeleteBehavior.SetNull, reference.DeleteBehavior);
     }
 
+    /// <summary>
+    /// EF Core leaves a value equal to the property's sentinel out of an insert and lets the column default write it, so a
+    /// column whose default differs from its sentinel stores the default in place of a value written as the CLR default.
+    /// </summary>
+    [Fact]
+    public void StoredEmailModel_ColumnWithADefault_LeavesOutOfAnInsertOnlyTheValueItsDefaultWrites()
+    {
+        // Arrange
+        using var context = CreateContext();
+
+        // Act
+        var storedEmail = context.Model.FindEntityType(typeof(StoredEmailEntity))!;
+
+        // Assert
+        Assert.Empty(storedEmail.GetProperties()
+            .Where(property => property.GetDefaultValue() is not null && !Equals(property.Sentinel, property.GetDefaultValue()))
+            .Select(property => property.Name));
+    }
+
     /// <summary>Raw MIME lives in its own table so that no mailbox query can pull a <c>bytea</c> value into the change tracker.</summary>
     [Fact]
     public void StoredEmailModel_MetadataTable_HoldsNoBinaryColumn()

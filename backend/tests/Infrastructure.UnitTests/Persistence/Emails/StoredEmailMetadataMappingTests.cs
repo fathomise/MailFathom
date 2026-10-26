@@ -9,6 +9,7 @@ using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
+using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Domain.Folders;
 using MailFathom.Infrastructure.Persistence.Emails;
 using MailFathom.Infrastructure.Persistence.Entities;
@@ -370,6 +371,68 @@ public sealed class StoredEmailMetadataMappingTests
         Assert.Equal(DmarcOutcome.Fail, entity.DmarcOutcome);
         Assert.Equal(AuthorAuthenticationOutcome.Failed, entity.AuthorAuthenticationOutcome);
         Assert.Null(entity.AuthenticatedAuthorDomain);
+    }
+
+    /// <summary>A verified signature reaches its columns step by step, with the signer and the key material kept for later.</summary>
+    [Fact]
+    public void ApplyExtractedMetadata_ASignedMessage_RecordsEveryStepAndTheSigner()
+    {
+        // Arrange
+        var entity = CreateEntity();
+        var checkedAt = new DateTimeOffset(2026, 9, 1, 12, 0, 0, TimeSpan.Zero);
+        var metadata = CreateExtractedMetadata() with
+        {
+            Signature = new EmailSignature
+            {
+                Format = EmailSignatureFormat.SecureMimeOpaque,
+                SecureMimeType = SecureMimeContentType.SignedData,
+                ContentCheck = SignatureCheckResult.Passed,
+                AuthorityCheck = SignatureCheckResult.Passed,
+                TrustAnchor = SignatureTrustAnchor.SystemTrustStore,
+                ChainEnd = "CN=Example Root",
+                ValidityCheck = SignatureCheckResult.Passed,
+                RevocationCheck = SignatureCheckResult.Passed,
+                RevocationMethod = RevocationCheckMethod.Crl,
+                RevocationCheckedAt = checkedAt,
+                SignerCheck = SignatureCheckResult.Passed,
+                Signer = new EmailSigner { Address = "anna@signer.example.test", Fingerprint = "AB12" },
+            },
+        };
+
+        // Act
+        StoredEmailMetadataMapping.ApplyExtractedMetadata(entity, metadata);
+
+        // Assert
+        Assert.Equal(EmailSignatureOutcome.Verified, entity.SignatureOutcome);
+        Assert.Equal(EmailSignatureFormat.SecureMimeOpaque, entity.SignatureFormat);
+        Assert.Equal(SecureMimeContentType.SignedData, entity.SignatureSecureMimeType);
+        Assert.Equal(SignatureTrustAnchor.SystemTrustStore, entity.SignatureTrustAnchor);
+        Assert.Equal(RevocationCheckMethod.Crl, entity.SignatureRevocationMethod);
+        Assert.Equal(checkedAt, entity.SignatureRevocationCheckedAt);
+        Assert.Equal(SignatureCheckResult.Passed, entity.SignatureSignerCheck);
+        Assert.Equal("anna@signer.example.test", entity.SignerAddress);
+    }
+
+    /// <summary>
+    /// A re-derivation that finds no signature replaces the whole group, so no signer from an earlier reading is left
+    /// beside the not-signed answer.
+    /// </summary>
+    [Fact]
+    public void ApplyExtractedMetadata_AMessageReadAgainAsNotSigned_ClearsTheEarlierSigner()
+    {
+        // Arrange
+        var entity = CreateEntity();
+        entity.SignatureOutcome = EmailSignatureOutcome.Verified;
+        entity.SignatureContentCheck = SignatureCheckResult.Passed;
+        entity.SignerAddress = "anna@signer.example.test";
+
+        // Act
+        StoredEmailMetadataMapping.ApplyExtractedMetadata(entity, CreateExtractedMetadata());
+
+        // Assert
+        Assert.Equal(EmailSignatureOutcome.NotSigned, entity.SignatureOutcome);
+        Assert.Equal(SignatureCheckResult.Skipped, entity.SignatureContentCheck);
+        Assert.Null(entity.SignerAddress);
     }
 
     /// <summary>

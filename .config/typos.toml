@@ -110,8 +110,15 @@
 # of that name anywhere in either stack — and the workflow above, which has to apply this list to a list of changed
 # files, refuses such an entry by widening to the whole checkout rather than guessing. Anchoring it says what is meant:
 # this one directory at the root.
+#
+# `backend/tests/Infrastructure.UnitTests/Mail/Signatures/Fixtures/` holds the signed messages, certificates, keys, and
+# revocation answers the signature verification tests read, generated once and committed. Nearly every line of them is
+# base64 or armored key material, and a single changed byte is a signature that no longer verifies, so no spelling in
+# them is a decision anybody made or could correct. The directory rather than the files, because a fixture added for a
+# new case is the same kind of data and would otherwise fail a check nobody expected.
 extend-exclude = [
   'backend/src/Application/Localization/ApplicationTexts.pl.resx',
+  'backend/tests/Infrastructure.UnitTests/Mail/Signatures/Fixtures/',
   'backend/tests/Infrastructure.UnitTests/Mail/Signing/SigningIdentityFixtures.cs',
   'backend/tools/SyntheticMail/corpora/',
   '/design/',

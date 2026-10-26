@@ -655,6 +655,10 @@ internal static class HostComposition
                 .Current.MaxConcurrentConnectionsPerHost));
         builder.Services.AddScoped(provider =>
             provider.GetRequiredService<MailSynchronizationOptions>().ToMimeExtractionOptions());
+        // From the same scoped snapshot as the extraction limits, so a reload that replaces a trusted authority or key
+        // reaches the next work unit and never changes the trust a run already in progress is verifying against.
+        builder.Services.AddScoped(provider =>
+            provider.GetRequiredService<MailSynchronizationOptions>().SignatureVerification.ToTrustOptions());
     }
 
     /// <summary>Maps the delivery section onto the outbox's settings, the ceilings a send is judged against, and what one message may carry.</summary>

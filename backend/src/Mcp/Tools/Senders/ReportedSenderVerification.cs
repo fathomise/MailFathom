@@ -8,7 +8,7 @@ using MailFathom.Domain.Emails.Authentication;
 
 namespace MailFathom.Mcp.Tools.Senders;
 
-/// <summary>Publishes the two conclusions an email carries about the author it displays.</summary>
+/// <summary>Publishes the conclusions an email carries about the author it displays.</summary>
 /// <remarks>
 /// <para>
 /// One shape, published by every tool that names an email: a listing row, a search match, the single-email read, and an
@@ -23,11 +23,16 @@ namespace MailFathom.Mcp.Tools.Senders;
 /// against the message, when it is what almost every legitimate email in a mailbox carries.
 /// </para>
 /// <para>
+/// <see cref="Signature" /> is a third answer beside the two and is folded into neither: what the email's own
+/// cryptographic signature proves about who signed it, which is provenance rather than a verdict on the domain the
+/// receiving server authenticated.
+/// </para>
+/// <para>
 /// Nothing here characterizes the email or the sender's intent, and nothing here is computed when the email is read.
-/// Both values were established when the message was stored and are published as they stand.
+/// Every value was established when the message was stored and is published as it stands.
 /// </para>
 /// </remarks>
-[Description("What was established about the author this email displays. Two independent answers: whether the displayed author was authenticated, and whether this deployment recognizes them. Neither is a judgement about whether the email is wanted or unwanted.")]
+[Description("What was established about the author this email displays. Three independent answers: whether the displayed author was authenticated, whether this deployment recognizes them, and what the email's own signature proves about who signed it. None is a judgement about whether the email is wanted, unwanted, or safe.")]
 internal sealed record ReportedSenderVerification
 {
     /// <summary>Gets what the receiving mail server established about the displayed author.</summary>
@@ -38,8 +43,11 @@ internal sealed record ReportedSenderVerification
     [Description("Whether this deployment's own trusted-sender configuration recognizes the authenticated author: 'trusted' when it names them, 'unknown' otherwise. This is this deployment's classification and not an authentication result. 'unknown' is the ordinary state of legitimate mail from a correspondent nobody has named, and is also what an email whose author was not authenticated carries, so it says nothing on its own — read it together with authorAuthentication.")]
     public required DeploymentTrustState DeploymentTrust { get; init; }
 
-    /// <summary>Publishes the verdict pair a read returned.</summary>
-    /// <param name="verification">The stored verdict pair to publish.</param>
+    /// <summary>Gets what verifying the email's own signature found.</summary>
+    public required ReportedSignature Signature { get; init; }
+
+    /// <summary>Publishes the conclusions a read returned.</summary>
+    /// <param name="verification">The stored conclusions to publish.</param>
     /// <returns>The wire representation of <paramref name="verification" />.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="verification" /> is <see langword="null" />.</exception>
     public static ReportedSenderVerification From(SenderVerification verification)
@@ -50,6 +58,7 @@ internal sealed record ReportedSenderVerification
         {
             AuthorAuthentication = PublishedAuthorAuthentication(verification.AuthorAuthentication),
             DeploymentTrust = PublishedDeploymentTrust(verification.DeploymentTrust),
+            Signature = ReportedSignature.From(verification.Signature),
         };
     }
 

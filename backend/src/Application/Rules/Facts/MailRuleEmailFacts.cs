@@ -69,7 +69,7 @@ public sealed record MailRuleEmailFacts
     /// <summary>Gets whether the email's body is encrypted.</summary>
     public bool IsEncrypted { get; init; }
 
-    /// <summary>Gets whether the email carries a signature part that nothing has verified.</summary>
+    /// <summary>Gets whether the email carries a signature part anywhere, which states nothing about whether it verified.</summary>
     public bool CarriesUnverifiedSignature { get; init; }
 
     /// <summary>Gets whether the server reports the email as read.</summary>

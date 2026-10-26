@@ -12,6 +12,7 @@ using MailFathom.Host.Configuration.UserSettings;
 using MailFathom.Infrastructure.Certificates;
 using MailFathom.Infrastructure.DataEncryption;
 using MailFathom.Infrastructure.Mail;
+using MailFathom.Infrastructure.Mail.Signatures;
 using MailFathom.Infrastructure.Mail.Signing;
 using MailFathom.Infrastructure.Persistence.Connections;
 using MailFathom.Infrastructure.Secrets;
@@ -263,11 +264,84 @@ internal sealed partial class SecretConfigurationValidator
     {
         ArgumentNullException.ThrowIfNull(candidate);
 
-        return await this.FindSecretReferenceErrorsAsync(
+        var errors = new List<string>(await this.FindSecretReferenceErrorsAsync(
             MailSynchronizationConfigurationPath,
             candidate,
             null,
-            cancellationToken);
+            cancellationToken));
+
+        errors.AddRange(await this.FindSignatureTrustErrorsAsync(candidate.SignatureVerification, cancellationToken));
+
+        return errors;
+    }
+
+    /// <summary>Loads every authority and key the signature verification trusts and reports the ones no verification could use.</summary>
+    /// <remarks>
+    /// Resolving the reference is not enough, for the reason the other anchors are loaded too: material that resolves
+    /// but is not a certificate, or not an OpenPGP public key, would pass a reference check and then quietly trust
+    /// nothing. Each one is discarded once it has proven loadable, because a verification loads its own. The keys are
+    /// also judged together, because one key configured at two positions is refused only when both are seen.
+    /// </remarks>
+    private async Task<IReadOnlyList<string>> FindSignatureTrustErrorsAsync(
+        MailSignatureVerificationOptions candidate,
+        CancellationToken cancellationToken)
+    {
+        var errors = new List<string>();
+        var sectionPath = $"{MailSynchronizationConfigurationPath}:{nameof(MailSynchronizationOptions.SignatureVerification)}";
+
+        foreach (var (index, configuredAuthority) in candidate.TrustedAuthorities.Index())
+        {
+            var configurationPath = $"{sectionPath}:{nameof(MailSignatureVerificationOptions.TrustedAuthorities)}:{index}";
+
+            using var loadResult = await this.trustAnchorLoader.LoadAsync(configuredAuthority, cancellationToken);
+
+            if (loadResult.TrustAnchor is { } authority)
+            {
+                this.LogTrustAnchorLoaded(configurationPath, authority.Subject, authority.Thumbprint);
+            }
+            else
+            {
+                errors.Add($"{configurationPath} — the certificate authority could not be loaded [{loadResult.Failure}].");
+            }
+        }
+
+        var keysSectionPath = $"{sectionPath}:{nameof(MailSignatureVerificationOptions.TrustedOpenPgpKeys)}";
+        var firstPositionOfKey = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        foreach (var (index, configuredKey) in candidate.TrustedOpenPgpKeys.Index())
+        {
+            var configurationPath = $"{keysSectionPath}:{index}";
+
+            var resolved = await this.secretReferenceResolver.ResolveAsync(configuredKey.SecretReference, cancellationToken);
+            if (resolved.Secret is not { } material)
+            {
+                errors.Add($"{configurationPath} — the OpenPGP key could not be resolved [{resolved.Failure}].");
+
+                continue;
+            }
+
+            using (material)
+            {
+                if (OpenPgpPublicKeyMaterial.PrimaryKeyIdsOf(material.RevealBytes()) is not { } keyIds)
+                {
+                    errors.Add($"{configurationPath} — the material is not an OpenPGP public key.");
+
+                    continue;
+                }
+
+                // One key configured twice — a refreshed copy added during rotation is the usual way — cannot be put
+                // into one key set, so it is refused here rather than left to fail every verification later.
+                foreach (var keyId in keyIds)
+                {
+                    if (!firstPositionOfKey.TryAdd(keyId, index))
+                    {
+                        errors.Add($"{configurationPath} — holds an OpenPGP key already trusted at {keysSectionPath}:{firstPositionOfKey[keyId]}; configure each key once.");
+                    }
+                }
+            }
+        }
+
+        return errors;
     }
 
     /// <summary>Finds everything an operator must fix before one user's own mail accounts can be connected with.</summary>

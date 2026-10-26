@@ -357,6 +357,13 @@ of its own: `authorAuthentication` is the conclusion, reached against every iden
 against the one kept as evidence, and the domains say what stood behind the message rather than answering the question
 themselves.
 
+**A message's own S/MIME or OpenPGP signature is a separate fact, published beside these and never folded into them.**
+What the receiving server established is about the domain a message came from; what a signature proves is who signed
+it and that the signed content is unchanged. `senderVerification.signature` on the tools and `signature` on [the
+client's message route](../operations/client-endpoint.md#the-message-route) carry it, and [verifying a message's own
+signature](../operations/configuration-mail.md#verifying-a-messages-own-signature--signatureverification) is how it is
+reached and what it trusts. Neither answer is an input to the other, and neither says a message is safe.
+
 **Every published value was stored when the message was extracted.** A read evaluates nothing, resolves no DNS, re-reads
 no header, verifies no signature, and triggers no IMAP fetch. Mail stored before the columns existed therefore reads as *not established* and
 *unknown*, with every domain absent, which is what its row holds rather than a state invented for it — and an absent

@@ -2865,6 +2865,9 @@
           "sender": {
             "$ref": "#/components/schemas/ClientMailSenderVerdictResponse"
           },
+          "signature": {
+            "$ref": "#/components/schemas/ClientMailSignatureResponse"
+          },
           "sizeOctets": {
             "format": "int64",
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -2907,6 +2910,7 @@
           "headers",
           "body",
           "sender",
+          "signature",
           "attachments",
           "carried",
           "unread",
@@ -3359,6 +3363,215 @@
           "authorAuthentication",
           "deploymentTrust",
           "authenticatedDomain"
+        ],
+        "type": "object"
+      },
+      "ClientMailSignatureResponse": {
+        "properties": {
+          "chainEnd": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "format": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "revocationCheckedAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "revocationMethod": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "secureMimeType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "signedAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "signer": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailSignerResponse"
+              }
+            ]
+          },
+          "signerMatchesAuthor": {
+            "type": "boolean"
+          },
+          "steps": {
+            "$ref": "#/components/schemas/ClientMailSignatureStepsResponse"
+          },
+          "trustAnchor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "unverifiableReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "validityFailure": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "outcome",
+          "format",
+          "secureMimeType",
+          "unverifiableReason",
+          "signedAt",
+          "steps",
+          "trustAnchor",
+          "chainEnd",
+          "validityFailure",
+          "revocationMethod",
+          "revocationCheckedAt",
+          "revokedAt",
+          "signerMatchesAuthor",
+          "signer"
+        ],
+        "type": "object"
+      },
+      "ClientMailSignatureStepsResponse": {
+        "properties": {
+          "authority": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "revocation": {
+            "type": "string"
+          },
+          "signer": {
+            "type": "string"
+          },
+          "validity": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "content",
+          "authority",
+          "validity",
+          "revocation",
+          "signer"
+        ],
+        "type": "object"
+      },
+      "ClientMailSignerResponse": {
+        "properties": {
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "digestAlgorithm": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fingerprint": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "issuer": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "keyId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "publicKeyAlgorithm": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "serialNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "validFrom": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "validUntil": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "address",
+          "issuer",
+          "validFrom",
+          "validUntil",
+          "serialNumber",
+          "fingerprint",
+          "keyId",
+          "publicKeyAlgorithm",
+          "digestAlgorithm"
         ],
         "type": "object"
       },

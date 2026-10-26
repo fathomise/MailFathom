@@ -29,8 +29,9 @@
     <!-- The DNS lookups the local DKIM verification makes. Referenced by this project alone, so the resolver stays
          behind the application port that names the one place this system reaches the network to judge a sender. -->
     <PackageReference Include="DnsClient" />
-    <!-- Named directly because the DKIM key locator declares the key type MimeKit's locator contract returns, and
-         because an account's OpenPGP signing key is read with its parser. Neither type leaves the adapter using it. -->
+    <!-- Named directly because MailFathom compiles against it: the DKIM key locator declares the key type MimeKit's
+         locator contract returns, an account's OpenPGP signing key is read with its parser, and verifying a message's
+         own signature reads CMS, OCSP, CRL, and OpenPGP through it. No type of it leaves the adapter using it. -->
     <PackageReference Include="BouncyCastle.Cryptography" />
     <PackageReference Include="MailKit" />
     <!-- Referenced directly rather than relied on through MailKit, because message parsing uses MimeKit's own API and

@@ -32,8 +32,8 @@ internal sealed record ListedEmailAttachments
     [Description("Whether the body arrived inside a cryptographic envelope and is therefore unreadable by MailFathom, which also means no text was extracted from it.")]
     public required bool IsEncrypted { get; init; }
 
-    /// <summary>Gets whether a signature part is present, verified by nothing.</summary>
-    [Description("Whether a cryptographic signature part is present. MailFathom does not verify it, so this states presence and nothing about authenticity.")]
+    /// <summary>Gets whether a signature part is present anywhere in the email, which states nothing about whether it verified.</summary>
+    [Description("Whether a cryptographic signature part is present anywhere in the email. It states presence and nothing about authenticity: what verifying the email's own signature found is senderVerification.signature, and a signature on a forwarded or attached message is not verified.")]
     public required bool CarriesUnverifiedSignature { get; init; }
 
     /// <summary>Gets whether a TNEF part was recorded without being expanded.</summary>

@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Domain.Emails.Authentication;
+using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Mcp.Tools.Senders;
 using Xunit;
 
@@ -91,6 +92,69 @@ public sealed class ReportedSenderVerificationTests
 
         // Act, Assert
         Assert.Throws<ArgumentOutOfRangeException>(() => ReportedSenderVerification.From(stored));
+    }
+
+    /// <summary>A signature is published as provenance beside the two answers: the outcome, its reason, and who signed.</summary>
+    [Fact]
+    public void From_AVerificationThatCouldNotComplete_PublishesTheOutcomeItsReasonAndTheSigner()
+    {
+        // Arrange
+        var signedAt = new DateTimeOffset(2026, 8, 27, 9, 13, 0, TimeSpan.Zero);
+        var stored = SenderVerification.NotEstablished with
+        {
+            Signature = new EmailSignature
+            {
+                Format = EmailSignatureFormat.SecureMimeDetached,
+                SignedAt = signedAt,
+                ContentCheck = SignatureCheckResult.Passed,
+                AuthorityCheck = SignatureCheckResult.Failed,
+                SignerCheck = SignatureCheckResult.Passed,
+                UnverifiableReason = EmailSignatureUnverifiableReason.UntrustedRoot,
+                Signer = new EmailSigner { Address = "anna@signer.example.test" },
+            },
+        };
+
+        // Act
+        var published = ReportedSenderVerification.From(stored).Signature;
+
+        // Assert
+        Assert.Equal("NotVerifiable", published.Outcome.ToString());
+        Assert.Equal("SecureMimeDetached", published.Format?.ToString());
+        Assert.Equal("UntrustedRoot", published.UnverifiableReason?.ToString());
+        Assert.True(published.SignerMatchesAuthor);
+        Assert.Equal("anna@signer.example.test", published.SignerAddress);
+        Assert.Equal(signedAt, published.SignedAt);
+    }
+
+    /// <summary>Every stored reason has a published value, so a reason added to the domain cannot reach a caller unnamed.</summary>
+    [Fact]
+    public void From_EveryUnverifiableReason_IsPublishedUnderItsOwnName()
+    {
+        // Arrange
+        var reasons = Enum.GetValues<EmailSignatureUnverifiableReason>();
+
+        // Act
+        var published = reasons.Select(reason => ReportedSenderVerification.From(SenderVerification.NotEstablished with
+        {
+            Signature = new EmailSignature { Format = EmailSignatureFormat.OpenPgpMime, UnverifiableReason = reason },
+        }).Signature.UnverifiableReason?.ToString());
+
+        // Assert
+        Assert.Equal(reasons.Select(reason => reason.ToString()), published);
+    }
+
+    /// <summary>A message carrying no signature is published as not signed, with nothing about a signer.</summary>
+    [Fact]
+    public void From_AnUnsignedMessage_PublishesNotSigned()
+    {
+        // Act
+        var published = ReportedSenderVerification.From(SenderVerification.NotEstablished).Signature;
+
+        // Assert
+        Assert.Equal("NotSigned", published.Outcome.ToString());
+        Assert.Null(published.Format);
+        Assert.Null(published.SignerAddress);
+        Assert.False(published.SignerMatchesAuthor);
     }
 
     /// <summary>Nothing is published for a pair that was never handed over.</summary>

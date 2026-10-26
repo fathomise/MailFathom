@@ -1431,6 +1431,39 @@ of its body exist to be asked for:
     "deploymentTrust": "Trusted",
     "authenticatedDomain": "example.test"
   },
+  "signature": {
+    "outcome": "Verified",
+    "format": "SecureMimeDetached",
+    "secureMimeType": null,
+    "unverifiableReason": null,
+    "signedAt": "2026-08-27T09:13:58+00:00",
+    "steps": {
+      "content": "Passed",
+      "authority": "Passed",
+      "validity": "Passed",
+      "revocation": "Passed",
+      "signer": "Passed"
+    },
+    "trustAnchor": "SystemTrustStore",
+    "chainEnd": "CN=Example Root CA, O=Example Trust Services",
+    "validityFailure": null,
+    "revocationMethod": "Ocsp",
+    "revocationCheckedAt": "2026-08-27T09:14:07+00:00",
+    "revokedAt": null,
+    "signerMatchesAuthor": true,
+    "signer": {
+      "name": "CN=Release notices, O=Example",
+      "address": "release@example.test",
+      "issuer": "CN=Example Mail CA, O=Example Trust Services",
+      "validFrom": "2026-01-01T00:00:00+00:00",
+      "validUntil": "2028-01-01T00:00:00+00:00",
+      "serialNumber": "1001",
+      "fingerprint": "4F1C…",
+      "keyId": null,
+      "publicKeyAlgorithm": "ECDSA P-256",
+      "digestAlgorithm": "SHA-256"
+    }
+  },
   "attachments": [
     {
       "position": 0,
@@ -1484,6 +1517,35 @@ name a message displays is not it. It is the domain the receiving mail server au
 `null` for a message nothing authenticated a sender for, and it is published beside the two states rather than
 compared against the `From` address, because judging whether the two agree is the policy this path deliberately does
 not evaluate.
+
+**`signature` is what the message's own S/MIME or OpenPGP signature proves, and it is never folded into `sender`.**
+`sender` is what the receiving mail server established about the domain a message came from; `signature` is what the
+message's cryptography proves about who signed it and whether the signed content changed since. Neither says a message
+is safe. `outcome` is one of four values for both formats — `NotSigned`, `Verified`, `Failed` where the content does not
+match its signature, and `NotVerifiable` where it could not be verified here, with `unverifiableReason` saying why:
+`NoCertificate`, `UntrustedRoot`, `OutsideValidityPeriod`, `WrongKeyUsage`, `Revoked`, `RevocationNotCheckable`,
+`UnknownKey`, `ExpiredKey`, `RevokedKey`, `UnsupportedAlgorithm`, `MalformedSignature`, or `ContentNotOpened` for an
+encrypted or compressed S/MIME body whose signature was never reached. `Revoked` and `RevocationNotCheckable`, and the
+`revocationMethod`, `revocationCheckedAt`, and `revokedAt` beside them, describe the signer's answer or, where an
+authority above the signer answered revoked or could not be asked, that authority's. `format` is `SecureMimeDetached`,
+`SecureMimeOpaque`, or `OpenPgpMime`, and `secureMimeType` is the `smime-type` an opaque body declared, whatever it was —
+a `certs-only` body is recorded with it and stays `NotSigned`. Only the message's own signature is read: a signed message
+forwarded as an attachment is not this message's signature.
+
+**`steps` is what a verification popup draws, one result per step**: the content is unchanged, a certificate authority or
+a configured key vouches for the signer, the certificate or key was valid at signing time and fit for signing mail, it is
+not revoked, and the signer is the author the message displays. Each is `Passed`, `Failed`, `NotChecked` where the step
+was reached and could not be completed, or `Skipped` where an earlier step stopped the verification before it — so the
+steps a verification never reached are drawn as such rather than inferred. `trustAnchor`, `chainEnd`, `validityFailure`,
+`revocationMethod`, `revocationCheckedAt`, and `revokedAt` are each step's detail. **`signerMatchesAuthor` is a fact of
+its own rather than a fifth outcome**: a sound signature by somebody other than the displayed author is `Verified` with
+it `false`, because the signature is sound and the mismatch is what a reader needs to be told.
+
+**It is read back as extraction stored it.** Opening a message verifies nothing and reaches no responder: the revocation
+answer is the one extraction received, and `revocationCheckedAt` says when. Mail stored before signatures were verified
+reads as `NotSigned` until a re-derivation reaches it. `signer` is personal data like the rest of this response, and the
+signer's certificate or key itself is not published. The configuration that decides which signers can verify is
+[`MailSynchronization:SignatureVerification`](configuration-mail.md#verifying-a-messages-own-signature--signatureverification).
 
 **`spam` is the object a list row carries**, read from the same summary the row is, so the warning an opened message
 draws and the badge on its row cannot disagree. [The mail list route](#the-mail-list-route) describes its fields.

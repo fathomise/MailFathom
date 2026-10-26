@@ -3,17 +3,23 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Emails.Authentication;
+using MailFathom.Domain.Emails.Signatures;
 
 namespace MailFathom.Application.Emails.Summaries;
 
-/// <summary>The two conclusions a stored email carries about the author it displays, read back as they were stored.</summary>
+/// <summary>The conclusions a stored email carries about the author it displays, read back as they were stored.</summary>
 /// <remarks>
 /// <para>
-/// The pair is never collapsed into one value. <see cref="AuthorAuthentication" /> is what the receiving mail server
+/// The first two are never collapsed into one value. <see cref="AuthorAuthentication" /> is what the receiving mail server
 /// established about the displayed author, and <see cref="DeploymentTrust" /> is whether this deployment recognizes the
 /// author it established — a fact about the message beside a decision about a list. An authenticated author nobody has
 /// named is the ordinary state of legitimate mail and carries the same trust value as an author whose authentication
 /// failed, so a reader that had only one of the two could not tell those apart.
+/// </para>
+/// <para>
+/// <see cref="Signature" /> is a third fact beside them rather than an input to either: what verifying the message's own
+/// S/MIME or OpenPGP signature found. It proves who signed and that the signed content is unchanged, never that the
+/// message is safe, and a verified signature by somebody other than the displayed author says so in its own step.
 /// </para>
 /// <para>
 /// It is read rather than reached. Nothing on a read path evaluates a policy, resolves DNS, or re-reads a header to
@@ -23,7 +29,7 @@ namespace MailFathom.Application.Emails.Summaries;
 /// </remarks>
 public sealed record SenderVerification
 {
-    /// <summary>Gets the pair a row carries where nothing has established an author and no policy has judged one.</summary>
+    /// <summary>Gets the conclusions a row carries where nothing has established an author and no policy has judged one.</summary>
     /// <remarks>
     /// It is the stored default rather than an absence, which is what mail stored before the columns existed reads as
     /// until a re-derivation reaches it. Publishing it as it stands is deliberate: inventing a third state for
@@ -40,4 +46,8 @@ public sealed record SenderVerification
 
     /// <summary>Gets whether this deployment recognizes the author, which is its own classification and not a check.</summary>
     public required SenderTrustLevel DeploymentTrust { get; init; }
+
+    /// <summary>Gets what verifying the message's own signature found, which is not signed for every message that carries none.</summary>
+    /// <remarks>Mail stored before signatures were verified reads as not signed until a re-derivation reaches it.</remarks>
+    public EmailSignature Signature { get; init; } = EmailSignature.NotSigned;
 }
