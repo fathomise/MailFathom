@@ -590,17 +590,17 @@ test('answers the centre and the bell with every notification raised, marked, an
     deployment.raiseNotification();
 
     expect(centre().notifications[0]).toMatchObject({ id: notifications.arrivingNotification.id, read: false });
-    expect(ask(deployment, 'GET', '/notifications/unread-count')).toStrictEqual({ unreadCount: 3 });
+    expect(ask(deployment, 'GET', '/notifications/unread-count')).toStrictEqual({ unreadCount: 6 });
 
     expect(
         ask(deployment, 'POST', `/notifications/${notifications.notificationId}/read-state`, { read: true }),
-    ).toStrictEqual({ id: notifications.notificationId, read: true, unreadCount: 2 });
+    ).toStrictEqual({ id: notifications.notificationId, read: true, unreadCount: 5 });
     expect(
         ask(deployment, 'POST', '/notifications/deletions', {
             notificationIds: [notifications.arrivingNotification.id, notifications.notificationId],
         }),
-    ).toStrictEqual({ deleted: 2, unreadCount: 1 });
-    expect(ask(deployment, 'POST', '/notifications/read')).toStrictEqual({ markedRead: 1, unreadCount: 0 });
+    ).toStrictEqual({ deleted: 2, unreadCount: 4 });
+    expect(ask(deployment, 'POST', '/notifications/read')).toStrictEqual({ markedRead: 4, unreadCount: 0 });
 
     expect(centre().notifications.map(({ id }) => id)).not.toContain(notifications.notificationId);
     expect(centre().notifications.every(({ read }) => read)).toBe(true);

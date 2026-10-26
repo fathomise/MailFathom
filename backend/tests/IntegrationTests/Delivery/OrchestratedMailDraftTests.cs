@@ -4,9 +4,11 @@
 
 using System.Text;
 using MailFathom.AppHost;
+using MailFathom.Application.Mail.Delivery;
 using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Delivery.Filing;
+using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Access;
@@ -149,6 +151,54 @@ public sealed class OrchestratedMailDraftTests(MailFathomOrchestrationFixture or
 
         // The record goes with the copy: a draft that has been sent is no longer a draft this deployment holds.
         Assert.Null(await FindAsync(services, edited.Id, cancellationToken));
+    }
+
+    /// <summary>
+    /// A refused send written from a draft goes back to that draft and out of the outbox in one statement, and only once:
+    /// the draft is listed for its writer again and the send is dismissed by them.
+    /// </summary>
+    /// <remarks>
+    /// It is here because the reopening is one SQL statement whose three parts — the lock on the send, the draft let go
+    /// of its promotion, and the dismissal conditioned on that — only PostgreSQL can be wrong about together.
+    /// </remarks>
+    [Fact]
+    public async Task ReopenAsDraftAsync_ARefusedSendWrittenFromADraft_ListsTheDraftAgainAndDismissesTheSendOnce()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var mailbox = new OrchestratedMailbox(orchestration.MailServer);
+        await mailbox.RecreateFolderAsync(SyntheticMailAccount.DraftCopyFolderPath, cancellationToken);
+
+        await using var services = await OrchestratedMailFathomServices.StartAsync(
+            orchestration,
+            cancellationToken,
+            keepsDrafts: true);
+
+        await OrchestratedFolderBinding.CommitAsync(
+            services,
+            SyntheticMailAccount.DraftCopyFolderAlias,
+            SyntheticMailAccount.DraftCopyFolderPath,
+            cancellationToken);
+
+        var draft = await SaveAsync(services, $"draft-reopened-{Guid.NewGuid():N}", revises: null, cancellationToken);
+        var promoted = await PromoteAsync(services, draft.Id, cancellationToken);
+        await RefuseAsync(services, promoted.Id, cancellationToken);
+
+        // Act
+        var reopened = await ReopenAsync(services, promoted.Id, cancellationToken);
+        var again = await ReopenAsync(services, promoted.Id, cancellationToken);
+
+        // Assert
+        Assert.Equal(new OutboxReopening(OutboxDecisionOutcome.Accepted, draft.Id), reopened);
+        Assert.NotEqual(OutboxDecisionOutcome.Accepted, again.Outcome);
+        Assert.Null(again.Draft);
+        Assert.Null((await FindAsync(services, draft.Id, cancellationToken))?.PromotedTo);
+        Assert.Contains(draft.Id, await HeldForUserAsync(services, cancellationToken));
+
+        var send = await services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<IOutgoingEmailStore>().FindAsync(promoted.Id, token),
+            cancellationToken);
+        Assert.Equal(SyntheticMailAccount.User, send?.Dismissal?.DismissedBy);
     }
 
     /// <summary>
@@ -336,6 +386,35 @@ public sealed class OrchestratedMailDraftTests(MailFathomOrchestrationFixture or
         CancellationToken cancellationToken) => services.AsCallerInScopeAsync(
             (scope, token) => scope.GetRequiredService<MailDraftPromotion>().PromoteAsync(draftId, SyntheticMailAccount.User, token),
             [MailFathomPermission.MailSend],
+            cancellationToken);
+
+    /// <summary>Ends one send refused, under a lease that lapses at once so no other send of the account stays held.</summary>
+    private static async Task RefuseAsync(
+        OrchestratedMailFathomServices services,
+        OutgoingEmailId outgoingEmailId,
+        CancellationToken cancellationToken)
+    {
+        var claimed = await services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<IOutgoingEmailStore>().ClaimAsync(
+                OutgoingEmailClaimRequest.Create(SyntheticMailAccount.Account, batchSize: 100, TimeSpan.FromMilliseconds(1)),
+                token),
+            cancellationToken);
+        var lease = Assert.Single(claimed, entry => entry.Record.Id == outgoingEmailId).Lease;
+
+        var committed = await services.CommitAsync(
+            (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>()
+                .AdvanceAsync(session, lease, outgoingEmailId, OutgoingEmailStage.Refused, 550, token),
+            cancellationToken);
+
+        Assert.Equal(PersistenceCommitResult.Committed, committed);
+    }
+
+    private static Task<OutboxReopening> ReopenAsync(
+        OrchestratedMailFathomServices services,
+        OutgoingEmailId outgoingEmailId,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<IOutboxOperationStore>()
+                .ReopenAsDraftAsync(outgoingEmailId, SyntheticMailAccount.User, token),
             cancellationToken);
 
     private static Task<MailDraftRecord?> FindAsync(

@@ -64,6 +64,9 @@ internal static class ClientOutboxEndpoints
     /// <summary>The route one send is dismissed from its account's outbox on.</summary>
     internal const string OutboxDismissalRoute = $"{OutboxRoute}/dismissal";
 
+    /// <summary>The route one refused send is taken back to the draft it was written in on.</summary>
+    internal const string OutboxReopeningRoute = $"{OutboxRoute}/reopening";
+
     /// <summary>Maps the outbox routes into the client group, so they inherit its requirement, its policy, and its limits.</summary>
     /// <param name="api">The client route group.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="api" /> is <see langword="null" />.</exception>
@@ -89,6 +92,12 @@ internal static class ClientOutboxEndpoints
             .RequirePermission(MailFathomPermission.MailSend);
 
         api.MapPost(OutboxDismissalRoute, DismissAsync)
+            .WithMetadata(new RequestSizeLimitAttribute(OutboxEndpoints.MaxDecisionRequestBytes))
+            .RequirePermission(MailFathomPermission.MailSend);
+
+        // A route publishes one permission, and this one is a decision about a send like the three above; the draft
+        // grant it also needs is the use case's to require, which refuses a caller without it exactly as the transport would.
+        api.MapPost(OutboxReopeningRoute, ReopenAsync)
             .WithMetadata(new RequestSizeLimitAttribute(OutboxEndpoints.MaxDecisionRequestBytes))
             .RequirePermission(MailFathomPermission.MailSend);
     }
@@ -267,6 +276,32 @@ internal static class ClientOutboxEndpoints
         var outcome = await outbox.DismissAsync(identifier, cancellationToken);
 
         return TypedResults.Ok(OutboxDecisionResponse.For(identifier, outcome));
+    }
+
+    /// <summary>Takes one of the acting user's refused sends back to the draft they wrote it in, and out of the outbox.</summary>
+    /// <param name="request">The send to take back.</param>
+    /// <param name="outbox">Performs the decision, for the user the credential names.</param>
+    /// <param name="cancellationToken">Cancels the read and the write.</param>
+    /// <returns><c>200</c> with what happened and the draft to edit, or <c>400</c> where the request named no send.</returns>
+    /// <remarks>
+    /// It is offered at <c>Refused</c> alone. A send whose outcome nobody knows may already be in somebody's mailbox, so
+    /// editing it and sending it again is the duplicate offering it again warns about, without the warning.
+    /// </remarks>
+    internal static async Task<Results<Ok<OutboxReopeningResponse>, ProblemHttpResult>> ReopenAsync(
+        [FromBody] OutboxReopeningRequest? request,
+        [FromServices] UserOutbox outbox,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(outbox);
+
+        if (NamedSend(request?.OutgoingEmail) is not { } identifier)
+        {
+            return Refuse(NoSendNamed());
+        }
+
+        var reopening = await outbox.ReopenAsDraftAsync(identifier, cancellationToken);
+
+        return TypedResults.Ok(OutboxReopeningResponse.For(identifier, reopening));
     }
 
     /// <summary>Reads the account a request narrows to, refusing text no name of this system is spelled with.</summary>

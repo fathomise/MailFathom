@@ -4,10 +4,12 @@
 
 import { act, fireEvent, render, renderHook, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ClientNotification } from '@mailfathom/client-backend';
+import type { ClientNotification, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { nothingPending, PendingChangesContext, type PendingChanges } from '../pendingChanges/usePendingChanges';
 import { AgentHandOverContext, type AgentHandOver } from '../routing/agentHandOver';
 import { ScreenLayersContext, useScreenLayerStack, type ScreenLayers } from '../shell/screenLayers';
+import { ToastsProvider } from '../toasts/Toasts';
 import { NotificationCentre } from './NotificationCentre';
 import type { NotificationCentre as Centre } from './useNotificationCentre';
 import type { PanelSwipe } from './usePanelSwipe';
@@ -60,6 +62,7 @@ const acts = {
     remove: vi.fn(),
     follow: vi.fn(),
     show: vi.fn(),
+    changeDecided: vi.fn(),
 };
 
 function centre(held: Partial<Centre> = {}): Centre {
@@ -78,6 +81,9 @@ function centre(held: Partial<Centre> = {}): Centre {
 function panel(
     held: Partial<Centre> = {},
     handToAgent: ((handOver: AgentHandOver) => void) | null = null,
+    onDecideSend: (outgoingEmailId: string, decision: 'again' | 'edit', onTaken: () => void) => void = () => undefined,
+    pending: PendingChanges = nothingPending,
+    reading: { readonly session: ClientSession; readonly transport: MailFathomTransport } | null = null,
 ): { readonly current: ScreenLayers } {
     // The shell around it, because the panel records itself as standing over the screen while it is shown. Its three
     // functions are the same ones for the life of the stack, so the value handed to the provider stays current
@@ -86,11 +92,21 @@ function panel(
 
     render(
         <LocalizationProvider>
-            <AgentHandOverContext value={handToAgent}>
-                <ScreenLayersContext value={result.current}>
-                    <NotificationCentre centre={centre(held)} swipe={swipe} />
-                </ScreenLayersContext>
-            </AgentHandOverContext>
+            <ToastsProvider>
+                <PendingChangesContext value={pending}>
+                    <AgentHandOverContext value={handToAgent}>
+                        <ScreenLayersContext value={result.current}>
+                            <NotificationCentre
+                                centre={centre(held)}
+                                swipe={swipe}
+                                session={reading?.session ?? null}
+                                {...(reading === null ? {} : { transport: reading.transport })}
+                                onDecideSend={onDecideSend}
+                            />
+                        </ScreenLayersContext>
+                    </AgentHandOverContext>
+                </PendingChangesContext>
+            </ToastsProvider>
         </LocalizationProvider>,
     );
 
@@ -528,5 +544,127 @@ describe('NotificationCentre', () => {
         const shell = panel({ shown: false });
 
         expect(shell.current.depth).toBe(0);
+    });
+});
+
+describe('NotificationCentre, a failure’s row', () => {
+    const refusal: ClientNotification = {
+        ...mail,
+        id: 'n-refusal',
+        title: 'Not sent - it waits in the Outbox',
+        body: 'Re: Contract addendum',
+        statement: { cause: 'SendRefused', counted: 1, outOf: null },
+        target: { kind: 'OutgoingEmail', outgoingEmailId: 'o-1' },
+    };
+
+    const change: ClientNotification = {
+        ...mail,
+        id: 'n-change',
+        title: 'A change did not reach your mailbox',
+        statement: { cause: 'MailboxChangeAbandoned', counted: 2, outOf: null },
+        target: { kind: 'MailboxChange', storedEmailId: 'm-9', changeRecordId: 'r-1' },
+    };
+
+    it('takes a refused send to its Outbox to be edited there, reading the row once the Outbox has taken it', () => {
+        const decided = vi.fn<(outgoingEmailId: string, decision: 'again' | 'edit', onTaken: () => void) => void>();
+
+        panel({ notifications: [refusal] }, null, decided);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+        expect(acts.hide).toHaveBeenCalled();
+        expect(decided).toHaveBeenCalledExactlyOnceWith('o-1', 'edit', expect.any(Function));
+        expect(acts.markRead).not.toHaveBeenCalled();
+
+        decided.mock.calls[0]?.[2]();
+
+        expect(acts.markRead).toHaveBeenCalledExactlyOnceWith(['n-refusal'], true);
+    });
+
+    it('asks a change again once however often its pill is pressed while the message is still being read', async () => {
+        const asked: string[] = [];
+        const transport: MailFathomTransport = (request) => {
+            asked.push(request.path);
+
+            return new Promise(() => undefined);
+        };
+
+        panel(
+            { notifications: [change] },
+            null,
+            undefined,
+            { ...nothingPending, abandoned: [{ recordId: 'r-1', storedEmailId: 'm-9', act: 'flag' }] },
+            { session: { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' }, transport },
+        );
+
+        const again = screen.getByRole('button', { name: 'Ask again' });
+
+        fireEvent.click(again);
+        fireEvent.click(again);
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(1);
+        });
+
+        expect(again.getAttribute('aria-disabled')).toBe('true');
+        expect(asked).toHaveLength(1);
+    });
+
+    it('offers a given-up move as moved again, which leads to its message to choose the folder once more', () => {
+        const move: ClientNotification = {
+            ...change,
+            statement: { cause: 'MailboxChangeAbandoned', counted: 4, outOf: null },
+        };
+
+        panel({ notifications: [move] }, null, undefined, {
+            ...nothingPending,
+            abandoned: [{ recordId: 'r-1', storedEmailId: 'm-9', act: 'move' }],
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Move again…' }));
+
+        expect(screen.queryByRole('button', { name: 'Ask again' })).toBeNull();
+        expect(acts.follow).toHaveBeenCalledExactlyOnceWith(move);
+    });
+
+    it('puts focus on the row’s own control once a decision on it is taken, rather than leaving it nowhere', () => {
+        panel({ notifications: [change] }, null, undefined, {
+            ...nothingPending,
+            abandoned: [{ recordId: 'r-1', storedEmailId: 'm-9', act: 'flag' }],
+            settle: vi.fn(),
+        });
+        showAll();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Let it go' }));
+
+        expect(document.activeElement).toBe(
+            within(rowFor('A change did not reach your mailbox')).getAllByRole('button')[0],
+        );
+    });
+
+    it('says where a failure came from without the identifier the deployment wrote there', () => {
+        panel({ notifications: [refusal] });
+
+        expect(screen.getByText('Outbox')).toBeDefined();
+    });
+
+    it('lets go of a change the mailbox did not take from its row', () => {
+        const settle = vi.fn();
+
+        panel({ notifications: [change] }, null, undefined, {
+            ...nothingPending,
+            abandoned: [{ recordId: 'r-1', storedEmailId: 'm-9', act: 'flag' }],
+            settle,
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Let it go' }));
+
+        expect(settle).toHaveBeenCalledExactlyOnceWith('r-1', 'letGo');
+    });
+
+    it('offers nothing to decide about a change no longer waiting on anybody', () => {
+        panel({ notifications: [change] });
+
+        expect(screen.getAllByRole('listitem')).toHaveLength(1);
+        expect(screen.queryByRole('button', { name: 'Let it go' })).toBeNull();
     });
 });

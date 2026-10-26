@@ -35,6 +35,7 @@ describe('NotificationRowMenu', () => {
                         onToggleRead={vi.fn()}
                         onOpen={vi.fn()}
                         onSummarize={null}
+                        decisions={[]}
                         onDelete={vi.fn()}
                         onClose={vi.fn()}
                     />
@@ -57,6 +58,7 @@ describe('NotificationRowMenu', () => {
                     onToggleRead={vi.fn()}
                     onOpen={vi.fn()}
                     onSummarize={onSummarize}
+                    decisions={[]}
                     onDelete={vi.fn()}
                     onClose={vi.fn()}
                 />

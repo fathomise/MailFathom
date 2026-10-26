@@ -380,7 +380,7 @@ function answerFor(
         changeAnswer(route, options) ??
         outboxAnswer(route, options) ??
         contactAnswer(route, asked, request, options) ??
-        draftAnswer(route, request) ??
+        draftAnswer(route, asked, request) ??
         taskAnswer(route, request, options) ??
         messageAnswer(route, asked) ?? { status: 404, body: '', headers: {} }
     );
@@ -700,16 +700,38 @@ function outboxAnswer(route: string, options: Readonly<FixtureDeploymentOptions>
         return answering(outbox.outboxDecisionTaken);
     }
 
+    if (route === '/outbox/reopening') {
+        return answering(drafts.reopenedSend);
+    }
+
     const named = decodeURIComponent(route.slice('/outbox/'.length));
     const send = outbox.outboxPage.sends.find(({ outgoingEmail }) => outgoingEmail === named);
 
     return send === undefined ? { status: 404, body: '', headers: {} } : answering(outbox.outgoingMailPreview(send));
 }
 
-/** What the drafts routes answer: the record itself for a write, the queued send, and nothing for a discard. */
-function draftAnswer(route: string, request: ClientRequest): ClientResponse | null {
+/**
+ * What the drafts routes answer: the kept drafts and one of them read whole, the record itself for a write, the queued
+ * send, and nothing for a discard.
+ */
+function draftAnswer(route: string, asked: URLSearchParams, request: ClientRequest): ClientResponse | null {
     if (!route.startsWith('/drafts')) {
         return null;
+    }
+
+    if (request.method === 'GET') {
+        const reading = [drafts.outOfStepDraftReading, drafts.reopenedDraftReading].find(
+            ({ draft }) => route === `/drafts/${draft.draftId}`,
+        );
+
+        return route === '/drafts'
+            ? answering({
+                  ...drafts.draftList,
+                  drafts: drafts.draftList.drafts.filter(({ account }) => account === asked.get('account')),
+              })
+            : reading === undefined
+              ? { status: 404, body: '', headers: {} }
+              : answering(reading);
     }
 
     if (request.method === 'DELETE') {

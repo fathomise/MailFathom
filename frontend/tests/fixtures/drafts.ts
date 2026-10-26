@@ -8,6 +8,7 @@
 // to stand in for: what a save answers with is the record itself, and that is what these values are.
 
 import { workAccount } from './deployment';
+import { refusedOutgoingSend } from './outbox';
 
 /** The identity the draft below is addressed by, everywhere the corpus names one draft. */
 export const draftId = '00000000-0000-4000-8000-0000000000d0';
@@ -27,10 +28,17 @@ export const draft = {
             fileName: 'yard.pdf',
             mediaType: 'application/pdf',
             sizeOctets: 18_432,
+            stagedAt: '2026-09-02T14:05:00+00:00',
         },
     ],
+    serverCopy: 'Filed',
     revision: 3,
     sizeOctets: 21_504,
+    composedAt: '2026-09-02T14:00:00+00:00',
+    revisedAt: '2026-09-02T14:20:00+00:00',
+    sentAs: null,
+    divergence: null,
+    lastFailureCode: null,
 };
 
 /**
@@ -46,18 +54,78 @@ export const answeringDraft = {
     subject: 'Re: The racking quote',
     recipients: [{ role: 'To', address: 'sales@nordwind.example', displayName: 'Nordwind' }],
     attachments: [],
+    serverCopy: 'Filed',
     revision: 1,
     sizeOctets: 1_120,
+    composedAt: '2026-09-03T09:10:00+00:00',
+    revisedAt: '2026-09-03T09:10:00+00:00',
+    sentAs: null,
+    divergence: null,
+    lastFailureCode: null,
 };
 
 /**
- * What is unsent, newest first, as the records themselves rather than as a listing.
- *
- * The envelope a listing puts them in is left to whoever routes it, because nothing in `Client.Backend` reads that
- * route yet — and a corpus that invented one would be a shape nobody could check against the service, which is the
- * failure this whole directory exists to end rather than to move.
+ * A draft MailFathom keeps whose copy in the drafts folder on the mail server may be missing: its filing was never
+ * answered. It is what the Drafts list draws under *Out of step with your server* and what the draft notification
+ * opens.
  */
-export const drafts = [answeringDraft, draft];
+export const outOfStepDraft = {
+    draftId: '00000000-0000-4000-8000-0000000000d3',
+    account: workAccount.id,
+    subject: 'Q4 supplier review - agenda',
+    recipients: [
+        { role: 'To', address: 'marta@nordwind.example', displayName: 'Marta' },
+        { role: 'To', address: 'olek@nordwind.example', displayName: null },
+    ],
+    attachments: [],
+    serverCopy: 'AppendIssued',
+    revision: 2,
+    sizeOctets: 2_048,
+    composedAt: '2026-09-03T07:40:00+00:00',
+    revisedAt: '2026-09-03T07:52:00+00:00',
+    sentAs: null,
+    divergence: 'AppendOutcomeUnknown',
+    lastFailureCode: null,
+};
+
+/** What listing the work account's drafts answers with: every draft, newest edit first, and the most it would list. */
+export const draftList = { drafts: [answeringDraft, outOfStepDraft, draft], maximumCount: 200 };
+
+/**
+ * The draft a refused send is taken back into, which is the message it was sent as: the same subject and the same
+ * people, a draft again and filed as one.
+ */
+export const reopenedDraft = {
+    ...draft,
+    draftId: '00000000-0000-4000-8000-0000000000d4',
+    subject: refusedOutgoingSend.subject,
+    recipients: refusedOutgoingSend.recipients.map(({ address, role }) => ({ role, address, displayName: null })),
+    attachments: [],
+    revision: 1,
+};
+
+/** What taking the refused send back to edit answers with: the send that left the Outbox and the draft to open. */
+export const reopenedSend = {
+    outgoingEmail: refusedOutgoingSend.outgoingEmail,
+    outcome: 'Accepted',
+    draftId: reopenedDraft.draftId,
+};
+
+/** What opening the reopened draft answers with. */
+export const reopenedDraftReading = {
+    draft: reopenedDraft,
+    plainTextBody: 'Signed copies attached, as agreed on the call.',
+    htmlBody: null,
+    document: null,
+};
+
+/** What opening the out-of-step draft answers with: the record and the words its stored message carries. */
+export const outOfStepDraftReading = {
+    draft: outOfStepDraft,
+    plainTextBody: 'Agenda for Thursday: volumes, the racking quote, and the yard on the ninth.',
+    htmlBody: null,
+    document: null,
+};
 
 /** What a save answers with, which is the record wrapped the way the surface is documented as free to wrap it. */
 export const savedDraft = { draft };

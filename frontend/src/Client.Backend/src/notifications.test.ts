@@ -132,6 +132,23 @@ describe('readNotifications', () => {
         });
     });
 
+    it.each([
+        ['a refused send', { cause: 'SendRefused', counted: 1, outOf: null }],
+        ['a given-up change', { cause: 'MailboxChangeAbandoned', counted: 4, outOf: null }],
+        ['a draft copy not kept', { cause: 'DraftCopyNotKept', counted: 0, outOf: null }],
+    ])('reads %s as the condition it was and the number it is counted with', async (_named, statement) => {
+        const answer = await readNotifications(
+            session,
+            answering({ status: 200, body: page([{ ...arrived, statement }]) }),
+            25,
+        );
+
+        expect(answer).toStrictEqual({
+            outcome: 'read',
+            value: { nextCursor: null, notifications: [expect.objectContaining({ statement })] },
+        });
+    });
+
     // A deployment ahead of this client is the ordinary case rather than a defect, and so is one behind it: neither
     // is a row worth losing, so the condition is what falls away and the service's own two lines are what is left.
     it.each([
@@ -139,6 +156,7 @@ describe('readNotifications', () => {
         ['a count no producer could have written', { cause: 'MailArrived', counted: -1, outOf: null }],
         ['a count that is not a whole number', { cause: 'MailArrived', counted: 1.5, outOf: null }],
         ['no condition at all', undefined],
+        ['a given-up change naming no act', { cause: 'MailboxChangeAbandoned', counted: null, outOf: null }],
     ])('reads a notification stating %s as one with no statement, keeping the row', async (_named, statement) => {
         const answer = await readNotifications(
             session,
@@ -165,6 +183,17 @@ describe('readNotifications', () => {
             { kind: 'CalendarEvent', calendarEventId: 'c-4' },
         ],
         ['PersonalTask', { kind: 'PersonalTask', taskId: 't-7' }, { kind: 'PersonalTask', taskId: 't-7' }],
+        [
+            'OutgoingEmail',
+            { kind: 'OutgoingEmail', outgoingEmailId: 'o-3' },
+            { kind: 'OutgoingEmail', outgoingEmailId: 'o-3' },
+        ],
+        [
+            'MailboxChange',
+            { kind: 'MailboxChange', messageId: 'm-9', changeRecordId: 'r-2' },
+            { kind: 'MailboxChange', changeRecordId: 'r-2', storedEmailId: 'm-9' },
+        ],
+        ['MailDraft', { kind: 'MailDraft', draftId: 'd-5' }, { kind: 'MailDraft', draftId: 'd-5' }],
     ])('reads a %s target as the shape a reader switches on', async (_named, sent, expected) => {
         const answer = await readNotifications(
             session,
@@ -195,6 +224,16 @@ describe('readNotifications', () => {
         ['a message target naming no message', { ...arrived, target: { kind: 'Message', messageId: '' } }],
         ['a calendar target naming no event', { ...arrived, target: { kind: 'CalendarEvent', calendarEventId: '' } }],
         ['a task target naming no task', { ...arrived, target: { kind: 'PersonalTask', taskId: '' } }],
+        ['a send target naming no send', { ...arrived, target: { kind: 'OutgoingEmail', outgoingEmailId: '' } }],
+        [
+            'a change target naming no change',
+            { ...arrived, target: { kind: 'MailboxChange', messageId: 'm-9', changeRecordId: null } },
+        ],
+        [
+            'a change target naming no message',
+            { ...arrived, target: { kind: 'MailboxChange', messageId: null, changeRecordId: 'r-2' } },
+        ],
+        ['a draft target naming no draft', { ...arrived, target: { kind: 'MailDraft', draftId: '' } }],
         [
             'a screen target naming a screen this client does not have',
             {

@@ -23,8 +23,15 @@ import { followable, type WrittenElement, type WrittenNode } from './writtenText
 // write — one the deployment could not reduce at all, and one whose every block is a block this has no shape for —
 // falls back to its plain text, which is the rendering the deployment always answers with.
 
-/** The words of a draft, as the closed tree the composer writes. */
-export function draftWords(body: MailBody): readonly WrittenNode[] {
+/**
+ * The words of a draft, as the closed tree the composer writes.
+ *
+ * It reads the two parts any reading of a draft carries rather than one route's answer, because a draft in a folder is
+ * read through the message's body and a draft MailFathom keeps through its own record, and both carry the same pair.
+ */
+export function draftWords(
+    body: Pick<MailBody, 'document'> & { readonly plainText: { readonly text: string } },
+): readonly WrittenNode[] {
     const written = (body.document?.blocks ?? []).flatMap(writtenBlock);
 
     return written.length === 0 ? writtenParagraphs(body.plainText.text) : written;

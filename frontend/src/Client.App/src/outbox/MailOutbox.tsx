@@ -7,6 +7,7 @@ import {
     dismissOutgoingMail,
     offerOutgoingMailAgain,
     readMailOutbox,
+    reopenOutgoingMailAsDraft,
     withdrawOutgoingMail,
     type ClientFailureReason,
     type ClientResult,
@@ -16,6 +17,7 @@ import {
     type MailOutboxPage,
     type OutgoingMail,
 } from '@mailfathom/client-backend';
+import { useComposing } from '../composer/useComposing';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
@@ -24,7 +26,13 @@ import { useToasts, type Toast } from '../toasts/useToasts';
 import { useWorkspace } from '../workspace/useWorkspace';
 import { addresseeOf, standingOf, type OutboxWording } from './outboxStanding';
 import { readSentFolder } from './sentFolder';
-import { MailOutboxContext, type MailOutbox, type OutboxDecisionUnderWay, type OutboxPage } from './useMailOutbox';
+import {
+    MailOutboxContext,
+    type MailOutbox,
+    type OutboxDecisionAsked,
+    type OutboxDecisionUnderWay,
+    type OutboxPage,
+} from './useMailOutbox';
 
 // The one reader of the open account's Outbox. It reads the newest page while an Outbox is open and nothing while none
 // is, reads it again whenever the deployment says that account's Outbox moved, and performs the three decisions a
@@ -52,6 +60,11 @@ const notTaken: Readonly<Record<Exclude<MailOutboxDecision, 'accepted'>, Message
     refusalNotRestated: 'outbox.movedOn',
 };
 
+const notReopened: Readonly<Record<Exclude<MailOutboxDecision, 'accepted'> | 'noDraftToReopen', MessageKey>> = {
+    ...notTaken,
+    noDraftToReopen: 'outbox.noDraftToReopen',
+};
+
 interface Answered {
     readonly account: string;
     readonly result: ClientResult<MailOutboxPage>;
@@ -61,13 +74,23 @@ export function MailOutboxProvider({
     session,
     transport,
     online,
+    asked: askedElsewhere = null,
+    onAskedTaken,
     children,
 }: {
     readonly session: ClientSession | null;
     readonly transport: MailFathomTransport;
     readonly online: boolean;
+
+    /** A decision asked for from a notification about a send, taken here once that send is on the open page. */
+    readonly asked?: OutboxDecisionAsked | null;
+
+    /** Told that the decision asked for has been taken, or dropped because its send is no longer in the Outbox. */
+    readonly onAskedTaken?: () => void;
+
     readonly children: ReactNode;
 }) {
+    const composing = useComposing();
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
     const { workspace, revise } = useWorkspace();
@@ -110,6 +133,32 @@ export function MailOutboxProvider({
         }
     });
 
+    // A decision asked from a notification is taken where the send is drawn, so it is held until the page that holds
+    // the send has been read, and dropped with a sentence when that page no longer holds it.
+    const takeTheAskedDecision = useEffectEvent((decision: OutboxDecisionAsked, sends: readonly OutgoingMail[]) => {
+        onAskedTaken?.();
+
+        const send = sends.find((listed) => listed.outgoingEmailId === decision.outgoingEmailId);
+
+        if (send === undefined) {
+            toasts.raise({
+                kind: 'warning',
+                title: translate('outbox.notDoneTitle'),
+                body: translate('compose.noSuchSend'),
+            });
+
+            return;
+        }
+
+        decision.onTaken();
+
+        if (decision.decision === 'again') {
+            sendAgain(send);
+        } else {
+            edit(send);
+        }
+    });
+
     useEffect(() => {
         if (account === null || session === null || !online) {
             return;
@@ -137,13 +186,18 @@ export function MailOutboxProvider({
 
                 setHidden((current) => current.filter((held) => held.account !== account || listed.has(held.id)));
                 arrived(result.value.sends);
+
+                // A decision asked from a notification is taken once the page holding its send has been read.
+                if (askedElsewhere?.account === account) {
+                    takeTheAskedDecision(askedElsewhere, result.value.sends);
+                }
             }
         });
 
         return () => {
             listening = false;
         };
-    }, [account, session, transport, online, asked]);
+    }, [account, session, transport, online, asked, askedElsewhere]);
 
     // An Outbox has no folder to signal about, so its own signal names the account whose Outbox moved, and only the
     // one open is read again. A refresh reads it again for the reason it reads everything again.
@@ -192,7 +246,11 @@ export function MailOutboxProvider({
         toasts.raise(
             result.value === 'accepted'
                 ? taken
-                : { kind: 'warning', title: translate('outbox.notDoneTitle'), body: translate(notTaken[result.value]) },
+                : {
+                      kind: 'warning',
+                      title: translate('outbox.notDoneTitle'),
+                      body: translate(notTaken[result.value]),
+                  },
         );
     }
 
@@ -306,6 +364,51 @@ export function MailOutboxProvider({
         });
     }
 
+    function edit(send: OutgoingMail): void {
+        if (session === null || heldByDecision(send)) {
+            return;
+        }
+
+        const id = send.outgoingEmailId;
+
+        void holdWhileAsking(send, 'edit', reopenOutgoingMailAsDraft(session, transport, id)).then((result) => {
+            readAgain();
+
+            if (result.outcome === 'failed') {
+                toasts.raise({
+                    kind: 'error',
+                    title: translate('outbox.notDoneTitle'),
+                    body: translate('outbox.decisionFailed', {
+                        reason: translate(failureLabels[result.failure.reason]),
+                    }),
+                });
+
+                return;
+            }
+
+            if (!result.value.reopened) {
+                toasts.raise({
+                    kind: 'warning',
+                    title: translate('outbox.notDoneTitle'),
+                    body: translate(notReopened[result.value.decision]),
+                });
+
+                return;
+            }
+
+            revise(({ outbox }) => (outbox?.entry === id ? { outbox: { ...outbox, entry: null } } : {}));
+            composing.compose({ kind: 'held', draftId: result.value.draftId });
+            toasts.raise({
+                kind: 'neutral',
+                title: translate('outbox.backInDraftsTitle'),
+                body:
+                    send.subject === null
+                        ? translate('outbox.backInDraftsUntitled')
+                        : translate('outbox.backInDrafts', { subject: send.subject }),
+            });
+        });
+    }
+
     const page: OutboxPage = !online
         ? { kind: 'offline' }
         : account === null || answered?.account !== account
@@ -319,7 +422,7 @@ export function MailOutboxProvider({
                   ),
               };
 
-    const outbox: MailOutbox = { page, underWay, readAgain, goToSent, cancel, sendAgain, dismiss };
+    const outbox: MailOutbox = { page, underWay, readAgain, goToSent, cancel, sendAgain, dismiss, edit };
 
     return <MailOutboxContext value={outbox}>{children}</MailOutboxContext>;
 }

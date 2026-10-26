@@ -40,6 +40,19 @@ describe('arrivalCounts', () => {
         expect(counted.map((count) => count.kind)).toEqual(['Task', 'Mail']);
     });
 
+    it('counts a failure as a failure rather than as the kind it was raised under', () => {
+        const refused: ClientNotification = {
+            ...arrived('Mail', 'n-2'),
+            statement: { cause: 'SendRefused', counted: null, outOf: null },
+            target: { kind: 'OutgoingEmail', outgoingEmailId: 'o-1' },
+        };
+
+        expect(arrivalCounts([arrived('Mail', 'n-1'), refused])).toEqual([
+            { kind: 'Mail', count: 1 },
+            { kind: 'Failure', count: 1 },
+        ]);
+    });
+
     it('counts nothing where nothing arrived', () => {
         expect(arrivalCounts([])).toEqual([]);
     });

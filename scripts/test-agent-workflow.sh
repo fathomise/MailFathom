@@ -11656,7 +11656,12 @@ discovery.ts runWithAnUnknownBlock GET /api/client/discovery/runs/{runId}
 discovery.ts runAheadOfTheClient GET /api/client/discovery/runs/{runId}
 drafts.ts draft GET /api/client/drafts/{draftId}
 drafts.ts answeringDraft GET /api/client/drafts/{draftId}
-drafts.ts drafts - -
+drafts.ts outOfStepDraft GET /api/client/drafts
+drafts.ts draftList GET /api/client/drafts
+drafts.ts reopenedDraft GET /api/client/drafts/{draftId}
+drafts.ts reopenedSend POST /api/client/outbox/reopening
+drafts.ts reopenedDraftReading GET /api/client/drafts/{draftId}
+drafts.ts outOfStepDraftReading GET /api/client/drafts/{draftId}
 drafts.ts savedDraft POST /api/client/drafts
 drafts.ts queuedSend POST /api/client/drafts/{draftId}/send
 drafts.ts withdrawnSend POST /api/client/outbox/cancellation
@@ -11699,6 +11704,9 @@ outbox.ts outboxPage GET /api/client/outbox
 outbox.ts emptyOutboxPage GET /api/client/outbox
 outbox.ts outgoingMailPreview - -
 outbox.ts outboxDecisionTaken POST /api/client/outbox/requeue
+notifications.ts refusedSendNotification GET /api/client/notifications
+notifications.ts abandonedChangeNotification GET /api/client/notifications
+notifications.ts draftCopyNotification GET /api/client/notifications
 notifications.ts notificationPage GET /api/client/notifications
 notifications.ts arrivingNotification GET /api/client/notifications
 notifications.ts emptyNotificationPage GET /api/client/notifications

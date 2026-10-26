@@ -58,6 +58,7 @@ const failureLabels: Readonly<Record<ClientFailureReason, MessageKey>> = {
 const askingSaid: Readonly<Record<OutboxDecisionUnderWay['decision'], MessageKey>> = {
     cancel: 'outbox.cancelling',
     again: 'outbox.offeringAgain',
+    edit: 'outbox.reopening',
 };
 
 const roleLabels: Readonly<Record<OutgoingMailRecipientRole, MessageKey>> = {
@@ -333,7 +334,7 @@ function StateBox({
 }) {
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
-    const { underWay, cancel, sendAgain, dismiss } = useMailOutbox();
+    const { underWay, cancel, sendAgain, dismiss, edit } = useMailOutbox();
     const [now] = useState(() => Date.now());
     const wording: OutboxWording = { locale, timeZone, translate, now };
     const shape = standingShapes[standing];
@@ -378,6 +379,18 @@ function StateBox({
                                 sendAgain(send);
                             }}
                         />
+                        {/* Only a refusal is taken back to edit: a send whose outcome is unknown may have arrived. */}
+                        {standing === 'refused' ? (
+                            <Control
+                                label={translate('outbox.edit')}
+                                icon="edit"
+                                shape="outlined"
+                                held={held}
+                                onPress={() => {
+                                    edit(send);
+                                }}
+                            />
+                        ) : null}
                         <SecondaryButton
                             label={translate('outbox.dismiss')}
                             shape="form"

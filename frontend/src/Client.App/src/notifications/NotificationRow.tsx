@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { PointerEvent } from 'react';
+import { useRef, type PointerEvent } from 'react';
 import type { ClientNotification } from '@mailfathom/client-backend';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { pressedByFinger, useRowPress } from '../contextMenu/rowPress';
@@ -12,7 +12,8 @@ import { wordInstant } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
 import { wordNotificationAge } from './notificationAge';
-import { notificationKindLabels, notificationTones } from './notificationKinds';
+import type { FailureDecision } from './failures';
+import { failureDecisionShapes, notificationKindLabels, toneOf } from './notificationKinds';
 import { wordNotification } from './notificationWords';
 
 // One thing that happened, as the design draws it: the kind's own symbol and tint, the headline — heavier and
@@ -27,9 +28,26 @@ import { wordNotification } from './notificationWords';
 // rather than inside it, for the reason the toggle is: it hands the messages the row stands for to the agent, which is
 // a different act from opening the mail list the row leads to.
 //
+// **A failure carries its decisions the same way**, as pills under the source line at every width so a finger reaches
+// them: a refused send is sent again or taken back to edit, and a change the mailbox did not take is asked again or let
+// go. Each is a decision taken where the row stands rather than a way into the thing it is about.
+//
 // **How long ago is drawn and when is read.** The relative wording is what somebody scanning the list needs; the
 // instant behind it is what the `time` element carries and what a pointer resting on it says, so nothing about the
 // row's own wording has to be precise enough to act on.
+
+/** One decision a row offers, and what taking it does. */
+export interface RowDecision {
+    readonly decision: FailureDecision;
+    readonly take: () => void;
+
+    /** Whether it is already being taken, which draws it as unavailable until it is. */
+    readonly underWay?: boolean;
+}
+
+// The pill a row's own acts are drawn as, which is the design's Summarize shape for every one of them.
+const pill =
+    'flex h-7.5 cursor-pointer items-center gap-1.75 rounded-field border border-accent-line bg-accent-soft px-2.75 text-base font-semibold text-accent-deep transition hover:bg-accent-line pointer-coarse:px-3.5 pointer-coarse:text-md';
 
 export function NotificationRow({
     notification,
@@ -41,6 +59,8 @@ export function NotificationRow({
     onSelect,
     onToggleRead,
     onSummarize,
+    decisions,
+    source,
     onPress,
 }: {
     readonly notification: ClientNotification;
@@ -67,13 +87,21 @@ export function NotificationRow({
     /** Hands the messages a merged arrival stands for to the agent, or `null` on every row that stands for none. */
     readonly onSummarize: (() => void) | null;
 
+    /** What may be decided about the failure this row reports, and none on every other row. */
+    readonly decisions: readonly RowDecision[];
+
+    /** Where it came from, as the reader names it, or `null` where the kind is the whole of it. */
+    readonly source: string | null;
+
     /** Opens this row's menu at the point the gesture happened. */
     readonly onPress: (at: MenuPoint) => void;
 }) {
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
     const press = useRowPress(onPress);
-    const tone = notificationTones[notification.kind];
+    const primary = useRef<HTMLButtonElement>(null);
+    const tone = toneOf(notification);
+    const tucked = onSummarize === null && decisions.length === 0;
     const age = wordNotificationAge(notification.occurredAt, locale, now);
     const at = wordInstant(notification.occurredAt, locale, 'full', timeZone);
     const said = wordNotification(notification, locale, translate);
@@ -106,10 +134,11 @@ export function NotificationRow({
         >
             <span className="flex min-w-0 flex-1 flex-col">
                 <button
+                    ref={primary}
                     type="button"
                     aria-pressed={selecting ? selected : undefined}
                     className={`flex cursor-pointer items-start gap-3 pt-3.25 text-start ${
-                        onSummarize === null ? 'pb-3.25' : 'pb-1.5'
+                        tucked ? 'pb-3.25' : 'pb-1.5'
                     }`}
                     onContextMenu={press.onContextMenu}
                     onPointerDown={(event) => {
@@ -180,7 +209,7 @@ export function NotificationRow({
                         {/* The kind is what the source line falls back to, because a row says where it came from either
                         way — and the kind is the one thing every notification has. */}
                         <span className="pt-0.25 text-xs text-muted">
-                            {notification.source ?? translate(notificationKindLabels[notification.kind])}
+                            {source ?? translate(notificationKindLabels[notification.kind])}
                         </span>
                     </span>
 
@@ -192,14 +221,40 @@ export function NotificationRow({
                 {/* Under the text rather than under the symbol, which is where the design hangs it: inset by the
                 symbol's width and the gap beside it. */}
                 {onSummarize === null ? null : (
-                    <button
-                        type="button"
-                        onClick={onSummarize}
-                        className="ms-11 mb-3.25 flex h-7.5 cursor-pointer items-center gap-1.75 self-start rounded-field border border-accent-line bg-accent-soft px-2.75 text-base font-semibold text-accent-deep transition hover:bg-accent-line pointer-coarse:px-3.5 pointer-coarse:text-md"
-                    >
+                    <button type="button" onClick={onSummarize} className={`ms-11 mb-3.25 self-start ${pill}`}>
                         <Icon name="auto_awesome" className="size-icon-md" />
                         {summarizeName}
                     </button>
+                )}
+
+                {decisions.length === 0 ? null : (
+                    <span
+                        role="group"
+                        aria-label={translate('notifications.decisions')}
+                        className="ms-11 mb-3.25 flex flex-wrap gap-2"
+                    >
+                        {/* A decision takes its pills away, so focus goes to the row's own control first rather than
+                            falling to the document with the pill that held it. */}
+                        {decisions.map(({ decision, take, underWay }) => (
+                            <button
+                                key={decision}
+                                type="button"
+                                aria-disabled={underWay === true ? true : undefined}
+                                onClick={() => {
+                                    if (underWay === true) {
+                                        return;
+                                    }
+
+                                    primary.current?.focus();
+                                    take();
+                                }}
+                                className={pill}
+                            >
+                                <Icon name={failureDecisionShapes[decision].icon} className="size-icon-md" />
+                                {translate(failureDecisionShapes[decision].label)}
+                            </button>
+                        ))}
+                    </span>
                 )}
             </span>
 

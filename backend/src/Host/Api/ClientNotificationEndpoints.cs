@@ -380,11 +380,14 @@ internal sealed record ClientNotificationStatementResponse(string Cause, int? Co
 }
 
 /// <summary>Where opening a notification leads.</summary>
-/// <param name="Kind">Which of the five shapes this target is.</param>
-/// <param name="MessageId">The stored message it leads to, or <see langword="null" /> for every other shape.</param>
+/// <param name="Kind">Which of the shapes this target is.</param>
+/// <param name="MessageId">The stored message it leads to, which a message target and a change target carry, or <see langword="null" /> for every other shape.</param>
 /// <param name="Screen">The screen it leads to, or <see langword="null" /> for every other shape.</param>
 /// <param name="CalendarEventId">The calendar event it leads to, or <see langword="null" /> for every other shape.</param>
 /// <param name="TaskId">The task it leads to, or <see langword="null" /> for every other shape.</param>
+/// <param name="OutgoingEmailId">The send in its account's outbox it leads to, or <see langword="null" /> for every other shape.</param>
+/// <param name="ChangeRecordId">The change it reports, as the record the change routes name it by, or <see langword="null" /> for every other shape.</param>
+/// <param name="DraftId">The draft it leads to, or <see langword="null" /> for every other shape.</param>
 /// <remarks>
 /// The shape is reported beside the values so a client switches on one field rather than inferring the shape from
 /// which value happens to be present — which is what keeps a target that leads nowhere distinct from one whose record
@@ -395,7 +398,10 @@ internal sealed record ClientNotificationTargetResponse(
     Guid? MessageId,
     string? Screen,
     Guid? CalendarEventId,
-    Guid? TaskId)
+    Guid? TaskId,
+    Guid? OutgoingEmailId,
+    Guid? ChangeRecordId,
+    Guid? DraftId)
 {
     /// <summary>Describes one target on the wire.</summary>
     /// <param name="target">The target.</param>
@@ -410,7 +416,10 @@ internal sealed record ClientNotificationTargetResponse(
             target.Message?.Value,
             target.Screen?.ToString(),
             target.CalendarEvent?.Value,
-            target.PersonalTask?.Value);
+            target.PersonalTask?.Value,
+            target.OutgoingEmail?.Value,
+            target.MailboxChange?.Value,
+            target.MailDraft?.Value);
     }
 }
 

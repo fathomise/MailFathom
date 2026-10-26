@@ -993,6 +993,20 @@ the server: what has not left, and what was refused and nobody dismissed. No fol
 `SpecialUse: Outbox` is refused at startup, and a provider folder merely *named* like an outbox is an ordinary folder —
 nothing here reads a folder's name.
 
+**A refusal decided after the send answered is put in front of the people the account belongs to.** The send was
+already answered as queued, so nobody is at the screen when the server refuses it for good or the pass finds it past
+the moment it was due. The pass that recorded the refusal raises one
+[notification](../operations/client-endpoint.md#the-notification-routes) per user assigned the account, deduplicated
+per send and leading to the send in its outbox. It is written in its own transaction after the refusal commits, so a
+notification that could not be written loses that notification and nothing else: the send stays refused in the outbox
+either way. A refused send that was written from a draft can be [taken back to that draft to be
+edited](../operations/client-endpoint.md#the-outbox-routes), which dismisses the send in the same statement.
+
+**A draft whose copy on the server stopped following it is put in front of its writer.** An append the server never
+answered, and an earlier revision's copy that could not be taken back out, each leave the user's drafts folder showing
+something other than what MailFathom holds. The filer raises one notification for the draft's writer when it first
+records either, leading to the draft; a draft being given up raises none.
+
 **The sent copy is appended after a delivery the server acknowledged, and only then.** Whether it is appended at all is
 `Delivery:FileSentCopy`, a per-account setting that defaults to on. Whether it is appended is never decided by looking
 at the folder: a provider that files the copy itself does so asynchronously, so a look immediately after a delivery

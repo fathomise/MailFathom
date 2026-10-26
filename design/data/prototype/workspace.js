@@ -69,6 +69,25 @@ MailFathomDesign.data.outbox = {
   ],
 };
 
+// Drafts MailFathom keeps whose copy in the account's Drafts folder on the mail server may be missing (its filing was
+// never answered) or out of date (an older copy could not be removed after an edit): the Drafts list gathers them at
+// its foot under *Out of step with your server*.
+MailFathomDesign.data.localDrafts = {
+  acc1: [
+    { id: "ld1", at: "09:31", subject: "Q4 supplier review - agenda",
+      to: ["r.lis@nordwind.example"], cc: ["m.nowak@company.example"],
+      attachments: [{ name: "Supplier-scorecard-Q3.xlsx", meta: "XLSX · 48 KB" }],
+      body: ["Robert,", "Before Thursday, a short agenda: delivery times against the SLA, the two open credit notes, and the 2027 price list.", "Karolina"] },
+  ],
+};
+
+// A mailbox change the mail server never took, on the message it was asked for (the thread's newest). `fate` is
+// exhausted — MailFathom stopped trying — or unknown — the server never answered. `act` is what was asked.
+MailFathomDesign.data.changeNotices = {
+  travel1: { act: "move", fate: "exhausted", notif: "nf2" },
+  devops1: { act: "flag", fate: "unknown" },
+};
+
 // The unified view across both accounts at the top of the folder column.
 MailFathomDesign.data.unifiedAccounts = {
   label: "All accounts", title: "Unified folders - two accounts", dot: "linear-gradient(135deg,var(--accent) 50%,#4d9aa8 50%)",

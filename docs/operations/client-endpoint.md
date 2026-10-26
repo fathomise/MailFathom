@@ -114,6 +114,7 @@ AppHost provisions its synthetic credential after the service reports ready;
 | `POST /api/client/outbox/cancellation` | `mailfathom.mail.send` |
 | `POST /api/client/outbox/requeue` | `mailfathom.mail.send` |
 | `POST /api/client/outbox/dismissal` | `mailfathom.mail.send` |
+| `POST /api/client/outbox/reopening` | `mailfathom.mail.send` with `mailfathom.mail.drafts.write` |
 | `GET /api/client/contacts` | `mailfathom.contacts.read` |
 | `GET /api/client/contacts/collected` | `mailfathom.contacts.read` |
 | `GET /api/client/contacts/{contactId}` | `mailfathom.contacts.read` |
@@ -2732,7 +2733,7 @@ route to promote one into the other.
 | --- | --- |
 | `GET /api/client/drafts` | Lists what the signed-in user is writing, newest first, optionally narrowed to one account |
 | `POST /api/client/drafts` | Writes one new draft, as a message of its own or as an answer to stored mail |
-| `GET /api/client/drafts/{draftId}` | Opens one draft with the words its stored message carries |
+| `GET /api/client/drafts/{draftId}` | Opens one draft with the words its stored message carries, and the same `document` a message body is drawn from, which is what a composer reads the author's formatting back from |
 | `PUT /api/client/drafts/{draftId}` | Replaces one draft with what the author has written since |
 | `DELETE /api/client/drafts/{draftId}` | Gives one draft up, and takes its copies back out of the folder |
 | `POST /api/client/drafts/{draftId}/attachments` | Stages one file against a draft, the octets being the request body |
@@ -2987,6 +2988,7 @@ offers a failed one another chance, or dismisses one that failed for good.
 | `POST /api/client/outbox/cancellation` | Withdraws one send that has not begun transmitting |
 | `POST /api/client/outbox/requeue` | Offers one send again |
 | `POST /api/client/outbox/dismissal` | Takes one refused send, or one whose outcome nobody will learn, out of the outbox |
+| `POST /api/client/outbox/reopening` | Takes one refused send back to the draft it was written in, so it can be edited and sent again |
 
 **The outbox is beside an account's folders, never one of them.** [The folders route](#the-folders-route) carries it as
 an `outbox` member of each account — `{ "waiting": 2, "refused": 1 }`, where `waiting` counts the sends recorded or
@@ -3037,8 +3039,18 @@ attempt holds the send; the stage stays what it was, and the record keeps when t
 user. A dismissed send is out of every outbox a person reads, so offering it again is the operator's, from
 [the administrative outbox](admin-endpoint.md), and a requeue here answers `StageDoesNotAllowIt`.
 
+**Taking a refused send back to edit hands the message back to its draft and dismisses the send, in one statement.**
+The body is `{"outgoingEmail": "..."}` and the answer `{"outgoingEmail", "outcome", "draftId"}`. It is offered at
+`Refused` alone, for a send nobody dismissed that was written from a draft of the caller's own: the draft stops naming
+the send it was promoted to, so it is listed and opened again like any other draft, and the send is dismissed against
+the same user in the same transaction, so the message is never in the Outbox and in Drafts at once. `Accepted` carries
+the `draftId` a client opens the composer on, through `GET /api/client/drafts/{draftId}`; a send written from no draft
+of the caller's — one an agent sent, or one written straight to the Outbox — answers `NoDraftToReopen`, and every other
+outcome is the one the decisions above answer with.
+
 **Every decision here is `mailfathom.mail.send`.** Withdrawing, offering again, and dismissing a send are part of
-sending rather than powers beside it, so a credential granted to read a mailbox decides nothing here.
+sending rather than powers beside it, so a credential granted to read a mailbox decides nothing here. Taking one back
+to edit also writes a draft, so it needs `mailfathom.mail.drafts.write` beside it.
 
 **An open client is told when an account's outbox moves.** A send written down, every step a delivery attempt commits
 — transmission begun, the send delivered, refused, or left to try again — and a send withdrawn, offered again, or
@@ -3283,16 +3295,20 @@ holds** — so nothing here reports whether such a notification exists.
 what the source line names beyond the kind, where opening it leads, when the thing it describes happened, and whether
 it has been read. Everything a row draws was derived when the notification was produced, so drawing the centre
 re-reads no mail — and no mail body, no recipient, and no attachment reaches these answers at any size. A row about
-one arrived message is the one place mail's own words appear, its sender and its subject, for the reason given below.
+one arrived message carries mail's own words, its sender and its subject, and a refused send and a draft out of step
+carry the subject of the send or the draft, for the reason given below.
 The deduplication key is absent: it is the rule's own name for a condition rather than anything a screen renders.
 
 **What a notification says is a condition and its numbers, and the sentence is the client's.** `statement` carries a
-`cause` — `MailArrived`, `MessageArrived`, `SynchronizationIncomplete`, `CredentialRefused`, `CalendarReminderDue`, or
-`TaskReminderDue` — beside
+`cause` — `MailArrived`, `MessageArrived`, `SynchronizationIncomplete`, `CredentialRefused`, `CalendarReminderDue`,
+`TaskReminderDue`, `SendRefused`, `MailboxChangeAbandoned`, or `DraftCopyNotKept` — beside
 `counted` and `outOf`, whose meaning is the cause's to give: merged mail counts the messages that arrived, one arrived
 message counts whether it carried a subject — so a client words a missing one itself — an unfinished run
 counts the folders that did not finish out of the folders it scheduled, a due reminder counts the minutes between now
-and the event, and a refused credential counts nothing. A client turns that into a
+and the event, and a refused credential counts nothing. A refused send and a draft out of step with its server copy
+count whether they carried a subject, as one arrived message does, and a given-up change counts the act it was:
+`0` mark as read, `1` mark as unread, `2` flag, `3` remove the flag, `4` move, `5` delete, `6` copy, `7` change the
+tags. A client turns that into a
 sentence in whatever language its reader has, which is why the service sends no sentence of its own for it to
 translate. `title` and `body` beside it are that same statement written out in English, for a reader with no client
 to say it in their own; a client that recognizes the cause draws the statement and ignores them. `statement` is
@@ -3330,11 +3346,24 @@ administrator maintains clears their own bell under a grant that says nothing ab
 record about a message that stays. Opening the message a notification points at is `mailfathom.mail.read`, as it is
 from anywhere else.
 
-**Where opening one leads is one of five shapes**, and `target` carries the one the producer chose: `Nothing`,
+**Where opening one leads is one of eight shapes**, and `target` carries the one the producer chose: `Nothing`,
 `Message` with a `messageId`, `Screen` with a `screen`, `CalendarEvent` with a `calendarEventId`, and `PersonalTask`
 with a `taskId` — the last two being what a [due reminder](../features/reminders.md) names, and how a client reaches
-the record it is about. A row carrying a shape a client does not recognize leads nowhere rather than being drawn as an
+the record it is about — then `OutgoingEmail` with an `outgoingEmailId`, `MailboxChange` with a `changeRecordId` and the
+`messageId` it was asked of, and `MailDraft` with a `draftId`, which are what a failure decided after its request
+answered leads to. A row carrying a shape a client does not recognize leads nowhere rather than being drawn as an
 error.
+
+**A failure decided after its request answered is put in front of the person once.** A send the mail server refused
+for good, or one that missed the moment it was due, is a `SendRefused` row for every user assigned the account,
+leading to that send in its outbox, where it is offered again, taken back to edit, or dismissed. A change somebody
+asked of a message that MailFathom gave up on — every attempt spent, a server that cannot carry it, a destination
+folder the server does not have, or an outcome nobody could establish — is a `MailboxChangeAbandoned` row for every user assigned the account, leading to the message;
+a change a rule or the spam classifier asked for raises none, because nobody watched it happen. A draft whose copy on
+the mail server stopped following it — an append the server never answered, or an earlier revision's copy that could
+not be taken back out — is a `DraftCopyNotKept` row for the draft's writer alone, leading to the draft. Each is
+deduplicated per send, per change, and per draft while it stands unread, and each goes with the record it names: a
+send purged from the outbox, a change record removed, and a draft sent or given up take their row with them.
 
 **Two kinds of row carry a headline no catalogue could hold.** A reminder's `title` is what the person called their own
 event or their own task, because there is nothing else a reminder is about, so a client fills it into its own sentence

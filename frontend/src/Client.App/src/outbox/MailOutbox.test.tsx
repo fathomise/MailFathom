@@ -4,15 +4,18 @@
 
 import type { ClientRequest, ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { mailFolders, workAccount } from '../../../../tests/fixtures/deployment';
+import * as drafts from '../../../../tests/fixtures/drafts';
 import * as outbox from '../../../../tests/fixtures/outbox';
+import { ComposingContext, type Composing } from '../composer/useComposing';
 import { LocalizationProvider } from '../localization/Localization';
 import { SignalledChangesContext, type SignalListener } from '../signals/signalledChanges';
 import { ToastsProvider } from '../toasts/Toasts';
 import { useWorkspace } from '../workspace/useWorkspace';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import { MailOutboxProvider } from './MailOutbox';
+import type { OutboxDecisionAsked } from './useMailOutbox';
 import { OutboxList } from './OutboxList';
 import { OutboxPane } from './OutboxPane';
 
@@ -34,6 +37,9 @@ const anotherFolderName = 'Another folder';
 const openingName = 'Open the Outbox';
 
 type Send = (typeof outbox.outboxPage.sends)[number];
+
+// What the Outbox opens the composer through, which is where a send taken back to edit goes.
+const composing: Composing = { offered: true, drafts: false, opening: null, compose: vi.fn(), close: vi.fn() };
 
 /** A deployment holding the corpus Outbox, applying what each decision does to it, and recording every request. */
 function deployment(sends: readonly Send[] = outbox.outboxPage.sends, refusing = false) {
@@ -64,7 +70,13 @@ function deployment(sends: readonly Send[] = outbox.outboxPage.sends, refusing =
                     held = held.filter((send) => send.outgoingEmail !== named);
                 }
 
-                return answering({ outgoingEmail: named, outcome: decided.outcome });
+                return answering({
+                    outgoingEmail: named,
+                    outcome: decided.outcome,
+                    ...(path === '/outbox/reopening'
+                        ? { draftId: decided.outcome === 'Accepted' ? drafts.reopenedDraft.draftId : null }
+                        : {}),
+                });
             };
             const waiting = decisionsHeldBack;
 
@@ -197,7 +209,13 @@ function drawing(
         entry = null,
         online = true,
         openedOn = sent,
-    }: { entry?: string | null; online?: boolean; openedOn?: typeof sent | typeof inbox } = {},
+        asked = null,
+    }: {
+        entry?: string | null;
+        online?: boolean;
+        openedOn?: typeof sent | typeof inbox;
+        asked?: OutboxDecisionAsked | null;
+    } = {},
 ) {
     const listeners: SignalListener[] = [];
 
@@ -217,9 +235,11 @@ function drawing(
                     }}
                 >
                     <WorkspaceProvider>
-                        <MailOutboxProvider session={session} transport={transport} online={online}>
-                            <Surfaces transport={transport} entry={entry} openedOn={openedOn} />
-                        </MailOutboxProvider>
+                        <ComposingContext value={composing}>
+                            <MailOutboxProvider session={session} transport={transport} online={online} asked={asked}>
+                                <Surfaces transport={transport} entry={entry} openedOn={openedOn} />
+                            </MailOutboxProvider>
+                        </ComposingContext>
                     </WorkspaceProvider>
                 </SignalledChangesContext>
             </ToastsProvider>
@@ -490,6 +510,57 @@ describe('the Outbox preview', () => {
         expect(held.posted('/outbox/requeue')).toStrictEqual([
             { outgoingEmail: outbox.refusedOutgoingSend.outgoingEmail, refusalRestated: true },
         ]);
+    });
+
+    it('takes a refused send back to edit, opening the composer on the draft it was written in', async () => {
+        const held = deployment();
+
+        drawing(held.transport, { entry: outbox.refusedOutgoingSend.outgoingEmail });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+
+        expect(await screen.findByText('Back in Drafts')).toBeDefined();
+        expect(held.posted('/outbox/reopening')).toStrictEqual([
+            { outgoingEmail: outbox.refusedOutgoingSend.outgoingEmail },
+        ]);
+        expect(composing.compose).toHaveBeenCalledExactlyOnceWith({
+            kind: 'held',
+            draftId: drafts.reopenedDraft.draftId,
+        });
+    });
+
+    it('says a decision asked from a notification is taken once the send it is about is on the page', async () => {
+        const onTaken = vi.fn();
+
+        drawing(deployment().transport, {
+            asked: {
+                account: workAccount.id,
+                outgoingEmailId: outbox.refusedOutgoingSend.outgoingEmail,
+                decision: 'edit',
+                onTaken,
+            },
+        });
+
+        expect(await screen.findByText('Back in Drafts')).toBeDefined();
+        expect(onTaken).toHaveBeenCalledOnce();
+    });
+
+    it('leaves a decision untaken where the send it is about has left the Outbox, and says so', async () => {
+        const onTaken = vi.fn();
+
+        drawing(deployment().transport, {
+            asked: { account: workAccount.id, outgoingEmailId: 'gone', decision: 'again', onTaken },
+        });
+
+        expect(await screen.findByText('The server no longer holds that send.')).toBeDefined();
+        expect(onTaken).not.toHaveBeenCalled();
+    });
+
+    it('offers no way back to edit on a send whose outcome is unknown, which may have arrived', async () => {
+        drawing(deployment().transport, { entry: outbox.unknownSend.outgoingEmail });
+
+        expect(await screen.findByRole('button', { name: 'Dismiss' })).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
     });
 
     it('takes a dismissed send off the list at once and puts it back on undo, having told the deployment nothing', async () => {

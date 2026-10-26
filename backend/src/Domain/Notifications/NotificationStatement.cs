@@ -112,6 +112,42 @@ public sealed record NotificationStatement
         return new NotificationStatement(NotificationCause.TaskReminderDue, minutesBefore, outOf: null);
     }
 
+    /// <summary>States that the mail server refused a message somebody sent, counting whether it carried a subject.</summary>
+    /// <param name="carriesSubject">Whether the message carried a subject line, which is what the row's body then is.</param>
+    /// <returns>The statement, counting one where the message carried a subject and none where it did not.</returns>
+    /// <remarks>
+    /// The subject is the row's body for the reason it is one for an arrival: which message did not leave is the whole of
+    /// what a person reading the row needs, and it is the message's own words rather than a sentence with a language.
+    /// </remarks>
+    public static NotificationStatement SendRefused(bool carriesSubject) =>
+        new(NotificationCause.SendRefused, carriesSubject ? 1 : 0, outOf: null);
+
+    /// <summary>States that a change asked of a mailbox was given up, counting which act it was.</summary>
+    /// <param name="act">What the change was asked to do.</param>
+    /// <returns>The statement, counting the act by its declared value.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="act" /> is not a declared act.</exception>
+    /// <remarks>
+    /// The act travels as the count because a statement carries numbers and nothing else, and the act is the one thing
+    /// the sentence varies by: a client turns the value back into the act and says it in its reader's language. The
+    /// values of <see cref="MailboxChangeAct" /> are never renumbered, which is what lets a stored row keep meaning the
+    /// act it was raised for.
+    /// </remarks>
+    public static NotificationStatement MailboxChangeAbandoned(MailboxChangeAct act)
+    {
+        if (!Enum.IsDefined(act))
+        {
+            throw new ArgumentOutOfRangeException(nameof(act), act, "A given-up change names a declared act.");
+        }
+
+        return new NotificationStatement(NotificationCause.MailboxChangeAbandoned, (int)act, outOf: null);
+    }
+
+    /// <summary>States that a draft's copy on the mail server could not be kept, counting whether the draft carried a subject.</summary>
+    /// <param name="carriesSubject">Whether the draft carried a subject line, which is what the row's body then is.</param>
+    /// <returns>The statement, counting one where the draft carried a subject and none where it did not.</returns>
+    public static NotificationStatement DraftCopyNotKept(bool carriesSubject) =>
+        new(NotificationCause.DraftCopyNotKept, carriesSubject ? 1 : 0, outOf: null);
+
     /// <summary>Restores the statement a stored row holds, or nothing where the row names no cause.</summary>
     /// <param name="cause">The condition the row names, or <see langword="null" /> for a row written before a cause was kept.</param>
     /// <param name="counted">How many the cause counts.</param>

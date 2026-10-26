@@ -2,8 +2,10 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { ClientNotification, NotificationCause } from '@mailfathom/client-backend';
+import type { ClientNotification, MailAccount, NotificationCause } from '@mailfathom/client-backend';
 import { wordReminderRemaining } from '../reminders/reminderWords';
+import { accountNameIn } from '../shell/accountNames';
+import { abandonedActOf, failureOf, type AbandonedAct, type Failure } from './failures';
 import type { MessageKey } from '../localization/en';
 import type { Locale } from '../localization/locale';
 import type { Translate } from '../localization/useLocalization';
@@ -52,6 +54,9 @@ const causeTitles: Readonly<Record<NotificationCause, CauseTitle>> = {
     CalendarReminderDue: { naming: 'notifications.said.calendarReminderDue.title' },
     TaskReminderDue: { naming: 'notifications.said.taskReminderDue.title' },
     MessageArrived: { sender: true },
+    SendRefused: { said: 'notifications.said.sendRefused.title' },
+    MailboxChangeAbandoned: { said: 'notifications.said.mailboxChangeAbandoned.title' },
+    DraftCopyNotKept: { said: 'notifications.said.draftCopyNotKept.title' },
 };
 
 /**
@@ -65,7 +70,8 @@ type CauseBody =
     | { readonly said: MessageKey }
     | { readonly counted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> }
     | { readonly remaining: true }
-    | { readonly subject: true };
+    | { readonly subject: MessageKey }
+    | { readonly act: true };
 
 const causeBodies: Readonly<Record<NotificationCause, CauseBody>> = {
     MailArrived: { said: 'notifications.said.mailArrived.body' },
@@ -79,9 +85,110 @@ const causeBodies: Readonly<Record<NotificationCause, CauseBody>> = {
     CalendarReminderDue: { remaining: true },
     TaskReminderDue: { remaining: true },
     // The subject is the message's own words, as its sender is; what a message without one says is the client's
-    // sentence, which is what the count is there to tell apart.
-    MessageArrived: { subject: true },
+    // sentence, which is what the count is there to tell apart. A refused send and a draft out of step are read the
+    // same way, each with its own sentence for a message nobody gave a subject.
+    MessageArrived: { subject: 'list.noSubject' },
+    SendRefused: { subject: 'notifications.said.sendRefused.untitled' },
+    DraftCopyNotKept: { subject: 'notifications.said.draftCopyNotKept.untitled' },
+    // A given-up change carries no mail at all — it leads to the message, which says what it is — so what it says is
+    // which act did not happen, counted as the statement's number.
+    MailboxChangeAbandoned: { act: true },
 };
+
+/** What a given-up change says it was, one sentence per act, because the act is where the sentence starts. */
+const abandonedActBodies: Readonly<Record<AbandonedAct, MessageKey>> = {
+    markRead: 'notifications.said.mailboxChangeAbandoned.markRead',
+    markUnread: 'notifications.said.mailboxChangeAbandoned.markUnread',
+    flag: 'notifications.said.mailboxChangeAbandoned.flag',
+    unflag: 'notifications.said.mailboxChangeAbandoned.unflag',
+    move: 'notifications.said.mailboxChangeAbandoned.move',
+    delete: 'notifications.said.mailboxChangeAbandoned.delete',
+    copy: 'notifications.said.mailboxChangeAbandoned.copy',
+    changeTags: 'notifications.said.mailboxChangeAbandoned.changeTags',
+};
+
+/**
+ * Where each failure says it came from, with the account it belongs to.
+ *
+ * The deployment writes the account's identifier there, and an identifier is never shown: the account is named by
+ * what a reader knows it by, and where the client holds no name for it the place is said alone.
+ */
+const failureSources: Readonly<Record<Failure['kind'], { readonly place: MessageKey; readonly named: MessageKey }>> = {
+    send: { place: 'folder.outbox', named: 'notifications.source.outbox' },
+    change: { place: 'notifications.kind.mail', named: 'notifications.source.mail' },
+    draft: { place: 'folder.drafts', named: 'notifications.source.drafts' },
+};
+
+/**
+ * The source line one notification is drawn with: where a failure came from, the deployment's own line for anything
+ * else, or `null` where it states none and the kind is the whole of it.
+ */
+export function wordNotificationSource(
+    notification: ClientNotification,
+    accounts: readonly MailAccount[],
+    translate: Translate,
+): string | null {
+    const failure = failureOf(notification);
+
+    if (failure === null) {
+        return notification.source;
+    }
+
+    const said = failureSources[failure.kind];
+    const account = notification.source === null ? null : accountNameIn(accounts, notification.source);
+
+    return account === null ? translate(said.place) : translate(said.named, { account });
+}
+
+/** What a toast about one notification says and the act it offers, which for a failure is not its row's second line. */
+export interface NotificationToastWords {
+    readonly title: string;
+    readonly body: string;
+    readonly action: string;
+}
+
+/**
+ * Says what the toast raised for one notification says, while the client is open as it arrives.
+ *
+ * A failure's toast says where the thing now stands and the way to it, which is more than its row says: a refused
+ * send is named and placed in its account's Outbox. A given-up change carries no subject to name, so its toast says
+ * what its row says. Every other notification's toast is its row.
+ */
+export function wordNotificationToast(
+    notification: ClientNotification,
+    accounts: readonly MailAccount[],
+    locale: Locale,
+    translate: Translate,
+): NotificationToastWords {
+    const said = wordNotification(notification, locale, translate);
+    const failure = failureOf(notification);
+    const subject = notification.statement?.counted === 1 ? notification.body : null;
+    const account = notification.source === null ? null : accountNameIn(accounts, notification.source);
+
+    switch (failure?.kind) {
+        case 'send':
+            return {
+                title: said.title,
+                body:
+                    account === null
+                        ? said.body
+                        : subject === null
+                          ? translate('notifications.toast.sendRefusedUntitled', { account })
+                          : translate('notifications.toast.sendRefused', { subject, account }),
+                action: translate('compose.showInOutbox'),
+            };
+        case 'change':
+            return { ...said, action: translate('notifications.showMessage') };
+        case 'draft':
+            return {
+                title: said.title,
+                body: subject === null ? said.body : translate('notifications.toast.draftCopyNotKept', { subject }),
+                action: translate('notifications.openDraft'),
+            };
+        case undefined:
+            return { ...said, action: translate('notifications.show') };
+    }
+}
 
 /**
  * Says what one notification says, in the reader's own language where the deployment named a condition.
@@ -158,7 +265,13 @@ function wordBody(
     }
 
     if ('subject' in body) {
-        return counted === 0 ? translate('list.noSubject') : line;
+        return counted === 0 ? translate(body.subject) : line;
+    }
+
+    if ('act' in body) {
+        const act = abandonedActOf(counted);
+
+        return act === null ? line : translate(abandonedActBodies[act]);
     }
 
     return translate(body.counted[form], holes);

@@ -16,6 +16,7 @@ import {
     type ClientResult,
     type ClientSession,
     type MailAttachment,
+    type MailDraft,
     type MailFathomTransport,
     type MailSendRefusal,
     type MailSendWithdrawal,
@@ -69,14 +70,23 @@ export interface AttachedFile {
     readonly sizeOctets: number;
 }
 
-/** One chosen file as this hook holds it: the file itself, and what the deployment calls it once it has it. */
+/**
+ * One file as this hook holds it: the file itself where it was chosen here, and what the deployment calls it once it
+ * has it. A file a kept draft already carried has no bytes on this machine at all — the deployment has it, which is
+ * all a save and a send need.
+ */
 interface HeldFile {
     readonly attachmentId: string;
-    readonly file: File;
+    readonly fileName: string;
+    readonly sizeOctets: number;
+    readonly file: File | null;
 
     /** What the deployment named it when it was staged, or `null` while the deployment does not have it. */
     readonly stagedAs: string | null;
 }
+
+/** A file chosen here that the deployment does not have yet, which is the one kind a save puts up. */
+type ChosenFile = HeldFile & { readonly file: File };
 
 /** The draft the deployment holds for what is being written, and what a person does to it. */
 export interface DraftAtDeployment {
@@ -84,6 +94,9 @@ export interface DraftAtDeployment {
 
     /** The files the message carries, oldest first, which is nothing until one is chosen. */
     readonly attached: readonly AttachedFile[];
+
+    /** The record the deployment last answered for this draft — the one it was opened on, then each save's — or none. */
+    readonly record: MailDraft | null;
 
     /** Files the draft in the user's own drafts folder, putting up whatever was attached and not yet staged. */
     readonly save: (composition: Composition) => Promise<boolean>;
@@ -102,6 +115,12 @@ export interface DraftAtDeployment {
      * their machine. A file that could not be brought over is said by name rather than dropped quietly.
      */
     readonly carry: (storedEmailId: string, attachments: readonly MailAttachment[]) => Promise<void>;
+
+    /**
+     * Carries on with a draft MailFathom keeps, as that same draft: every later save revises it, and the files staged
+     * against it stay where they are rather than being chosen again.
+     */
+    readonly adopt: (draft: MailDraft) => void;
 
     /**
      * Queues the message, saving what has been written since first, and answers what it came to.
@@ -138,6 +157,7 @@ export function useDraftAtDeployment(session: ClientSession, transport: MailFath
     const telemetry = useTelemetry();
     const [standing, setStanding] = useState<DraftStanding>({ kind: 'held' });
     const [attached, setAttached] = useState<readonly AttachedFile[]>([]);
+    const [record, setRecord] = useState<MailDraft | null>(null);
 
     // The draft the deployment holds, as a ref rather than as state: two acts in the same turn have to see the
     // identifier the first of them wrote, and nothing on the screen is drawn from it.
@@ -186,13 +206,7 @@ export function useDraftAtDeployment(session: ClientSession, transport: MailFath
 
     function holdFiles(next: readonly HeldFile[]): void {
         held.current = next;
-        setAttached(
-            next.map(({ attachmentId, file }) => ({
-                attachmentId,
-                fileName: file.name,
-                sizeOctets: file.size,
-            })),
-        );
+        setAttached(next.map(({ attachmentId, fileName, sizeOctets }) => ({ attachmentId, fileName, sizeOctets })));
     }
 
     // An upload whose composer has gone is an upload nobody is waiting for, and letting it finish would stage a file
@@ -208,7 +222,10 @@ export function useDraftAtDeployment(session: ClientSession, transport: MailFath
     function attach(file: File): void {
         named.current += 1;
 
-        holdFiles([...held.current, { attachmentId: String(named.current), file, stagedAs: null }]);
+        holdFiles([
+            ...held.current,
+            { attachmentId: String(named.current), fileName: file.name, sizeOctets: file.size, file, stagedAs: null },
+        ]);
     }
 
     function saved(composition: Composition, asked: DraftAct): Promise<string | null> {
@@ -262,6 +279,7 @@ export function useDraftAtDeployment(session: ClientSession, transport: MailFath
         }
 
         draftId.current = answer.value.draft.draftId;
+        setRecord(answer.value.draft);
 
         return answer.value.draft.draftId;
     }
@@ -276,7 +294,7 @@ export function useDraftAtDeployment(session: ClientSession, transport: MailFath
      */
     async function stageHeld(draft: string): Promise<boolean> {
         for (;;) {
-            const next = held.current.find((file) => file.stagedAs === null);
+            const next = held.current.find((file): file is ChosenFile => file.stagedAs === null && file.file !== null);
 
             if (next === undefined) {
                 return true;
@@ -422,6 +440,7 @@ export function useDraftAtDeployment(session: ClientSession, transport: MailFath
     return {
         standing,
         attached,
+        record,
 
         save: async (composition) => {
             hold({ kind: 'saving' });
@@ -438,6 +457,24 @@ export function useDraftAtDeployment(session: ClientSession, transport: MailFath
         },
 
         attach,
+
+        adopt: (draft) => {
+            draftId.current = draft.draftId;
+            setRecord(draft);
+            holdFiles(
+                draft.attachments.map((attachment) => {
+                    named.current += 1;
+
+                    return {
+                        attachmentId: String(named.current),
+                        fileName: attachment.fileName,
+                        sizeOctets: attachment.sizeOctets,
+                        file: null,
+                        stagedAs: attachment.attachmentId,
+                    };
+                }),
+            );
+        },
 
         carry: async (storedEmailId, attachments) => {
             if (carried.current === storedEmailId) {

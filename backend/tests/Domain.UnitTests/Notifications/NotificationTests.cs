@@ -3,7 +3,10 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Mutations;
 using MailFathom.Domain.Notifications;
 using Xunit;
 
@@ -117,6 +120,75 @@ public sealed class NotificationTests
         Assert.Equal(NotificationTargetKind.Message, target.Kind);
         Assert.Equal(message, target.Message);
         Assert.Null(target.Screen);
+    }
+
+    /// <summary>A send target names the send and nothing else, which is what a client opens the Outbox entry from.</summary>
+    [Fact]
+    public void ToOutgoingEmail_AnySend_NamesTheSendAlone()
+    {
+        // Arrange
+        var send = OutgoingEmailId.Create(Guid.NewGuid());
+
+        // Act
+        var target = NotificationTarget.ToOutgoingEmail(send);
+
+        // Assert
+        Assert.Equal(NotificationTargetKind.OutgoingEmail, target.Kind);
+        Assert.Equal(send, target.OutgoingEmail);
+        Assert.Null(target.Message);
+        Assert.Null(target.MailDraft);
+    }
+
+    /// <summary>A change target names both the change and its message, because opening leads to one and asking again acts on the other.</summary>
+    [Fact]
+    public void ToMailboxChange_AnyChange_NamesTheChangeAndItsMessage()
+    {
+        // Arrange
+        var change = MailboxMutationRecordId.Create(Guid.NewGuid());
+        var message = StoredEmailId.Create(Guid.NewGuid());
+
+        // Act
+        var target = NotificationTarget.ToMailboxChange(change, message);
+
+        // Assert
+        Assert.Equal(NotificationTargetKind.MailboxChange, target.Kind);
+        Assert.Equal(change, target.MailboxChange);
+        Assert.Equal(message, target.Message);
+        Assert.Null(target.OutgoingEmail);
+    }
+
+    /// <summary>A draft target names the draft alone.</summary>
+    [Fact]
+    public void ToMailDraft_AnyDraft_NamesTheDraftAlone()
+    {
+        // Arrange
+        var draft = MailDraftId.Create(Guid.NewGuid());
+
+        // Act
+        var target = NotificationTarget.ToMailDraft(draft);
+
+        // Assert
+        Assert.Equal(NotificationTargetKind.MailDraft, target.Kind);
+        Assert.Equal(draft, target.MailDraft);
+        Assert.Null(target.Message);
+        Assert.Null(target.OutgoingEmail);
+    }
+
+    /// <summary>A struct default in place of an identifier would lead nowhere, so each of the three refuses one.</summary>
+    [Fact]
+    public void ToOutgoingEmailToMailboxChangeToMailDraft_StructDefault_IsRefused()
+    {
+        // Act
+        var refusals = new[]
+        {
+            Assert.Throws<ArgumentException>(() => NotificationTarget.ToOutgoingEmail(default)).ParamName,
+            Assert.Throws<ArgumentException>(
+                () => NotificationTarget.ToMailboxChange(default, StoredEmailId.Create(Guid.NewGuid()))).ParamName,
+            Assert.Throws<ArgumentException>(() => NotificationTarget.ToMailDraft(default)).ParamName,
+        };
+
+        // Assert
+        Assert.Equal(["outgoingEmail", "mailboxChange", "mailDraft"], refusals);
     }
 
     /// <summary>A screen the client may not have is a promise nothing can keep, so an undeclared one is refused.</summary>

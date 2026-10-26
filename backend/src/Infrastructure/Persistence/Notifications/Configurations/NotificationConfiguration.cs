@@ -9,23 +9,26 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace MailFathom.Infrastructure.Persistence.Notifications.Configurations;
 
-/// <summary>Declares what a person is told about, and the two ways a row leaves again.</summary>
+/// <summary>Declares what a person is told about, and the ways a row leaves again.</summary>
 /// <remarks>
 /// <para>
-/// Two cascades reach this table and they answer different obligations. The user's own row takes their notifications
-/// with them, so an erasure request never has to know this table exists; and a stored message takes the notifications
-/// that lead to it, so nothing can leave a row pointing at mail that is gone. That second one is the whole reason the
-/// message is an association here where the audit trails beside this table deliberately keep theirs as a value: a
-/// trail records an act and has to outlive what it acted on, while a notification only offers to open something.
+/// The user's own row takes their notifications with them, so an erasure request never has to know this table exists.
+/// Every record a notification can lead to takes the notifications leading to it as well — a stored message, a calendar
+/// event, a task, a send, a change somebody asked of a mailbox, and a draft — so nothing can leave a row pointing at
+/// something that is gone. That is the whole reason each is an association here where the audit trails beside this
+/// table deliberately keep theirs as a value: a trail records an act and has to outlive what it acted on, while a
+/// notification only offers to open something.
 /// </para>
 /// <para>
-/// A title and a body are derived when the notification is produced. For a notification about one arrived message
-/// they are that message's sender and subject, which is the one place mail content reaches this table and the reason
-/// such a row leads to its message and cascades with it; for every other notification they are MailFathom's own
-/// sentences about a count or a condition. The cause and its two counts are that condition as a name and two numbers,
-/// which is what a client says in its own language; the source is an account identifier; and the deduplication key is
-/// a condition's name. What makes every row personal data is that it says something reached this person's mailbox and
-/// when, which is what the retention bound and both cascades answer for.
+/// A title and a body are derived when the notification is produced. Mail content reaches this table in two shapes: an
+/// arrived message's sender and subject, and the subject of a send the mail server did not take or of a draft whose
+/// server copy fell out of step, carried as the body. Each of those rows leads to the record it names and cascades with
+/// it. A change a mailbox did not take carries no mail at all, only the act it asked for, and every other notification
+/// carries MailFathom's own sentences about a count or a condition. The cause and its two counts are that condition as a
+/// name and two numbers, which is what a client says in its own language; the source is an account identifier; and the
+/// deduplication key is a condition's name with, for a failure, the identifier of the record that failed. What makes
+/// every row personal data is that it says something reached or left this person's mailbox and when, which is what the
+/// retention bound and the cascades answer for.
 /// </para>
 /// </remarks>
 internal sealed class NotificationConfiguration : IEntityTypeConfiguration<NotificationEntity>
@@ -86,6 +89,24 @@ internal sealed class NotificationConfiguration : IEntityTypeConfiguration<Notif
         entity.HasOne(notification => notification.TargetPersonalTask)
             .WithMany()
             .HasForeignKey(notification => notification.TargetPersonalTaskId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // The send, the change, and the draft a failure is reported about, each cascading for the same reason: once the
+        // record is no longer kept there is nothing left to decide about, and a row offering to open it would lead
+        // nowhere. A draft somebody sent or discarded takes the statement about its copy with it this way.
+        entity.HasOne(notification => notification.TargetOutgoingEmail)
+            .WithMany()
+            .HasForeignKey(notification => notification.TargetOutgoingEmailId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        entity.HasOne(notification => notification.TargetMailboxMutation)
+            .WithMany()
+            .HasForeignKey(notification => notification.TargetMailboxMutationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        entity.HasOne(notification => notification.TargetMailDraft)
+            .WithMany()
+            .HasForeignKey(notification => notification.TargetMailDraftId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // The deduplication rule, in the database rather than before the insert: a raise repeated while the first is

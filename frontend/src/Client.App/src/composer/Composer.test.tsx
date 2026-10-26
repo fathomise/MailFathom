@@ -49,7 +49,33 @@ function draftBody(overrides: Readonly<Record<string, unknown>> = {}): string {
         attachments: [],
         revision: 1,
         sizeOctets: 512,
+        serverCopy: 'Filed',
+        composedAt: '2026-09-04T11:50:00+00:00',
+        revisedAt: '2026-09-04T11:55:00+00:00',
+        sentAs: null,
+        divergence: null,
+        lastFailureCode: null,
         ...overrides,
+    });
+}
+
+// What reading a kept draft whole answers: the record, and the words its stored message carries.
+function heldReading(overrides: Readonly<Record<string, unknown>> = {}): string {
+    return JSON.stringify({
+        draft: JSON.parse(
+            draftBody({
+                draftId: 'd9',
+                subject: 'Q4 supplier review',
+                recipients: [{ role: 'To', address: 'marta@example.invalid', displayName: null }],
+                attachments: [{ ...stagedFile, stagedAt: '2026-09-04T11:51:00+00:00' }],
+                serverCopy: 'AppendIssued',
+                divergence: 'AppendOutcomeUnknown',
+                ...overrides,
+            }),
+        ) as unknown,
+        plainTextBody: 'Agenda',
+        htmlBody: null,
+        document: null,
     });
 }
 
@@ -141,6 +167,7 @@ interface Answers {
     readonly discard?: { readonly status: number; readonly body: string };
     readonly drafting?: { readonly status: number; readonly body: string };
     readonly contacts?: { readonly status: number; readonly body: string };
+    readonly held?: { readonly status: number; readonly body: string };
 }
 
 function deployment(answers: Answers = {}): { transport: MailFathomTransport; asked: ClientRequest[] } {
@@ -161,6 +188,10 @@ function deployment(answers: Answers = {}): { transport: MailFathomTransport; as
 function answerFor(request: ClientRequest, answers: Answers): { status: number; body: string } {
     if (request.path.includes('/contacts')) {
         return answers.contacts ?? { status: 200, body: JSON.stringify({ contacts: [], nextCursor: null }) };
+    }
+
+    if (request.method === 'GET' && /\/drafts\/[^/]+$/u.test(request.path)) {
+        return answers.held ?? { status: 200, body: heldReading() };
     }
 
     if (request.path.endsWith('/replies/drafting')) {
@@ -1680,6 +1711,60 @@ describe('Composer, a draft', () => {
                 `${new Intl.ListFormat('en', { style: 'long', type: 'conjunction' }).format(['invoice.pdf', 'receipt.pdf'])} could not be brought over from the draft, so this message does not carry them. Attach them again to send them.`,
             ),
         ).toBeDefined();
+    });
+});
+
+describe('Composer, a draft MailFathom keeps', () => {
+    const held: ComposerOpening = { kind: 'held', draftId: 'd9' };
+
+    it('opens on what the kept draft holds, its files included, and says its server copy is out of step', async () => {
+        drawComposer(held);
+
+        const subject = await screen.findByRole('textbox', { name: 'Subject' });
+
+        expect((subject as HTMLInputElement).value).toBe('Q4 supplier review');
+        expect(screen.getByRole('button', { name: 'Remove marta@example.invalid from To' })).toBeDefined();
+        expect(screen.getByText(/^Your mail server's copy of this draft may be missing or out of date/u)).toBeDefined();
+        expect(screen.getByRole('list', { name: 'Attached files' }).textContent).toContain('invoice.pdf');
+    });
+
+    it('stops saying the server copy is out of step once a save answers that it is in step again', async () => {
+        drawComposer(held, {
+            save: { status: 200, body: draftBody({ draftId: 'd9', subject: 'Q4 supplier review' }) },
+        });
+
+        await screen.findByText(/^Your mail server's copy of this draft may be missing or out of date/u);
+        fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+
+        await waitFor(() => {
+            expect(screen.queryByText(/^Your mail server's copy of this draft/u)).toBeNull();
+        });
+    });
+
+    it('says nothing about the server copy of a kept draft that is in step', async () => {
+        drawComposer(held, { held: { status: 200, body: heldReading({ serverCopy: 'Filed', divergence: null }) } });
+
+        await screen.findByRole('textbox', { name: 'Subject' });
+
+        expect(screen.queryByText(/^Your mail server's copy of this draft/u)).toBeNull();
+    });
+
+    it('asks before giving up a kept draft nobody has typed in yet, and sends no delete', async () => {
+        const { asked } = drawComposer(held, {
+            held: { status: 200, body: heldReading({ attachments: [] }) },
+        });
+
+        await screen.findByRole('textbox', { name: 'Subject' });
+        fireEvent.click(screen.getByRole('button', { name: 'Close the message' }));
+
+        expect(screen.getByRole('dialog', { name: 'Discard this message?' })).toBeDefined();
+        expect(asked.filter((request) => request.method === 'DELETE')).toHaveLength(0);
+    });
+
+    it('says why a kept draft could not be opened rather than opening on nothing', async () => {
+        drawComposer(held, { held: { status: 404, body: '' } });
+
+        expect(await screen.findByText(/^MailFathom no longer keeps this draft/u)).toBeDefined();
     });
 });
 

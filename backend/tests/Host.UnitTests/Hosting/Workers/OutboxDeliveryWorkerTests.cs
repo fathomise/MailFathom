@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Accounts;
 using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
@@ -15,6 +16,7 @@ using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Destinations;
+using MailFathom.Application.Notifications;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Synchronization;
@@ -298,6 +300,13 @@ public sealed class OutboxDeliveryWorkerTests
             collection.AddSingleton(drafts);
             collection.AddScoped<MailDraftFiler>();
             collection.AddScoped<MailDraftPass>();
+
+            // A pass tells the account's users about a send it left refused. Nobody is assigned an account here, so
+            // that reaches nobody, which keeps these tests about when the loop takes a pass.
+            collection.AddSingleton(Substitute.For<INotificationStore>());
+            collection.AddSingleton<IMailAccountAssignments>(new StubMailAccountAssignments());
+            collection.AddScoped<NotificationRaiser>();
+            collection.AddScoped<MailFailureNotifications>();
 
             collection.AddScoped<MailOutboxPass>();
 

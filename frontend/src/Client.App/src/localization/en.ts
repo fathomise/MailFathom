@@ -858,6 +858,9 @@ export const en = {
     'compose.close': 'Close the message',
     'compose.reading': 'Reading the message you are answering…',
     'compose.readingDraft': 'Reading the draft you are carrying on…',
+    'compose.readingHeldDraft': 'Opening the draft…',
+    'compose.noServerCopy':
+        "Your mail server's copy of this draft may be missing or out of date, so another mail app may not show what you see here. It is kept in MailFathom.",
     'compose.from': 'From',
     'compose.to': 'To',
     'compose.cc': 'Cc',
@@ -978,6 +981,7 @@ export const en = {
     'compose.alreadyBeingSent': 'It is already being sent, so it could not be taken back.',
     'compose.pastRecall': 'It has gone out, so it cannot be taken back.',
     'compose.noSuchSend': 'The server no longer holds that send.',
+    'compose.sendNotRead': 'That send could not be read: {reason}.',
     'compose.offline':
         'This machine is offline. What you write is kept here, and it can be filed or sent once the network is back.',
     'compose.refusedSendingNotEnabled': 'This server does not send mail. Your administrator can turn sending on.',
@@ -1013,6 +1017,7 @@ export const en = {
         'The server answered, but this client could not act on the answer. That is a defect worth reporting.',
     'compose.failedMissing':
         'The server no longer holds the message this was answering, so there is nothing here to answer.',
+    'compose.failedMissingDraft': 'MailFathom no longer keeps this draft. It was sent or discarded somewhere else.',
 
     'tabs.strip': 'Open tabs',
     'tabs.close': 'Close {title}',
@@ -1098,6 +1103,12 @@ export const en = {
     'outbox.dismiss': 'Dismiss',
     'outbox.cancelling': 'Cancelling sending…',
     'outbox.offeringAgain': 'Sending it again…',
+    'outbox.edit': 'Edit',
+    'outbox.reopening': 'Taking it back to edit…',
+    'outbox.backInDraftsTitle': 'Back in Drafts',
+    'outbox.backInDrafts': '“{subject}” left the Outbox and nothing was sent. Send it when it is ready.',
+    'outbox.backInDraftsUntitled': 'It left the Outbox and nothing was sent. Send it when it is ready.',
+    'outbox.noDraftToReopen': 'It was not written in a draft of yours, so there is nothing to take back to edit.',
     'outbox.fact.from': 'From',
     'outbox.fact.handed': 'Handed',
     'outbox.fact.leaves': 'Leaves',
@@ -1162,6 +1173,10 @@ export const en = {
     'list.answered': 'Answered',
     'list.attachments': '{count} attached',
     'list.noSubject': 'No subject',
+    'drafts.outOfStep': 'Out of step with your server',
+    'drafts.outOfStepTo': 'To',
+    'drafts.outOfStepMore': '{first} +{more}',
+    'drafts.nobody': 'Nobody yet',
     'list.senderUnknown': 'No sender',
     'list.threadMessages': '{count} messages in this conversation',
 
@@ -1604,6 +1619,31 @@ export const en = {
     'pendingChange.stoppedFollowingReason':
         'The server answered, but this client could not act on the answer: {reason}. Nothing is being checked until you ask it to.',
     'pendingChange.followAgain': 'Check again',
+    'change.notMarkedRead': 'Not marked read - your mailbox did not take this change',
+    'change.notMarkedUnread': 'Not marked unread - your mailbox did not take this change',
+    'change.notFlagged': 'Not flagged - your mailbox did not take this change',
+    'change.notUnflagged': 'Not unflagged - your mailbox did not take this change',
+    'change.notArchived': 'Not archived - your mailbox did not take this change',
+    'change.notDeleted': 'Not deleted - your mailbox did not take this change',
+    'change.notMoved': 'Not moved - your mailbox did not take this change',
+    'change.notPutBack': 'Not put back - your mailbox did not take this change',
+    'change.notCopied': 'Not copied - your mailbox did not take this change',
+    'change.tagsNotChanged': 'Tags not changed - your mailbox did not take this change',
+    'change.exhaustedText': 'The mail server would not take it, so this message is shown where the server holds it.',
+    'change.markingReadUnknown': 'Marking read may not have happened',
+    'change.markingUnreadUnknown': 'Marking unread may not have happened',
+    'change.flaggingUnknown': 'Flagging may not have happened',
+    'change.unflaggingUnknown': 'Unflagging may not have happened',
+    'change.archivingUnknown': 'Archiving may not have happened',
+    'change.deletingUnknown': 'Deleting may not have happened',
+    'change.movingUnknown': 'Moving may not have happened',
+    'change.puttingBackUnknown': 'Putting it back may not have happened',
+    'change.unknownText':
+        'The mail server never answered, so nobody knows whether it took the change. The message is shown as the server last reported it.',
+    'change.moveAgain': 'Move again…',
+    'change.askedAgainTitle': 'Asked again',
+    'change.askedAgain': 'MailFathom is telling your mailbox again.',
+    'change.notAskedAgain': 'This message could not be read, so the change was not asked again: {reason}.',
 
     'notifications.title': 'Notifications',
     'notifications.place': 'Notifications',
@@ -1672,6 +1712,39 @@ export const en = {
         'The mail server refused the credential MailFathom holds, so this account is no longer being fetched.',
     'notifications.said.calendarReminderDue.title': 'Reminder: {subject}',
     'notifications.said.taskReminderDue.title': 'Reminder: {subject}',
+    'notifications.said.sendRefused.title': 'Not sent - it waits in the Outbox',
+    'notifications.said.sendRefused.untitled': 'A message with no subject was not sent. It waits in the Outbox.',
+    'notifications.said.mailboxChangeAbandoned.title': 'A change did not reach your mailbox',
+    'notifications.said.mailboxChangeAbandoned.markRead':
+        'Mark as read - the mail server would not take it, so the message is still where the server holds it.',
+    'notifications.said.mailboxChangeAbandoned.markUnread':
+        'Mark as unread - the mail server would not take it, so the message is still where the server holds it.',
+    'notifications.said.mailboxChangeAbandoned.flag':
+        'Flag - the mail server would not take it, so the message is still where the server holds it.',
+    'notifications.said.mailboxChangeAbandoned.unflag':
+        'Remove the flag - the mail server would not take it, so the message is still where the server holds it.',
+    'notifications.said.mailboxChangeAbandoned.move':
+        'Move - the mail server would not take it, so the message is still where the server holds it.',
+    'notifications.said.mailboxChangeAbandoned.delete':
+        'Delete - the mail server would not take it, so the message is still where the server holds it.',
+    'notifications.said.mailboxChangeAbandoned.copy':
+        'Copy - the mail server would not take it, so the message is still where the server holds it.',
+    'notifications.said.mailboxChangeAbandoned.changeTags':
+        'Change the tags - the mail server would not take it, so the message is still where the server holds it.',
+    'notifications.said.draftCopyNotKept.title': 'Draft out of step with your server',
+    'notifications.said.draftCopyNotKept.untitled':
+        "A draft with no subject is kept in MailFathom, but your mail server's copy may be missing or out of date.",
+    'notifications.source.outbox': 'Outbox · {account}',
+    'notifications.source.mail': 'Mail · {account}',
+    'notifications.source.drafts': 'Drafts · {account}',
+    'notifications.toast.sendRefused': '“{subject}” is in the Outbox of {account}. Send it again or edit it there.',
+    'notifications.toast.sendRefusedUntitled':
+        'A message with no subject is in the Outbox of {account}. Send it again or edit it there.',
+    'notifications.toast.draftCopyNotKept':
+        "“{subject}” is kept in MailFathom, but your mail server's copy may be missing or out of date.",
+    'notifications.showMessage': 'Show message',
+    'notifications.openDraft': 'Open draft',
+    'notifications.decisions': 'What to do about it',
     'reminders.title': 'Reminders',
     'reminders.about': '{subject} - {anchor}',
     'reminders.anchor.eventTime': 'before the event time',
@@ -1739,6 +1812,10 @@ export const en = {
     'notifications.arrived.system.few': '{count} notices from MailFathom',
     'notifications.arrived.system.many': '{count} notices from MailFathom',
     'notifications.arrived.system.other': '{count} notices from MailFathom',
+    'notifications.arrived.failure.one': '{count} failure in your mail',
+    'notifications.arrived.failure.few': '{count} failures in your mail',
+    'notifications.arrived.failure.many': '{count} failures in your mail',
+    'notifications.arrived.failure.other': '{count} failures in your mail',
     'notifications.kind.mail': 'Mail',
     'notifications.kind.calendar': 'Calendar',
     'notifications.kind.task': 'Tasks',

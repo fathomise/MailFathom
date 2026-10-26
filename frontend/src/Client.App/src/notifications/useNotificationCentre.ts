@@ -12,6 +12,7 @@ import {
     type ClientFailureReason,
     type ClientNotification,
     type ClientSession,
+    type MailAccount,
     type MailFathomTransport,
     type NotificationTarget,
 } from '@mailfathom/client-backend';
@@ -20,8 +21,9 @@ import { chooseSystemNotifications, systemNotificationsChosen } from '../prefere
 import { useSystemNotifier } from '../shellOperations/systemNotifier';
 import { useSignalledChanges } from '../signals/signalledChanges';
 import { arrivalCounts } from './arrivalCounts';
-import { notificationToastKinds, systemNotificationCounts } from './notificationKinds';
-import { wordNotification } from './notificationWords';
+import { failureOf } from './failures';
+import { systemNotificationCounts, toastKindOf } from './notificationKinds';
+import { wordNotificationToast } from './notificationWords';
 import { useToasts } from '../toasts/useToasts';
 
 // What the client knows about the person's notification centre, and everything that changes it. It is one hook rather
@@ -86,9 +88,32 @@ export interface NotificationCentre {
     /** Removes the named notifications from the centre for good, in one request. */
     readonly remove: (ids: readonly string[]) => void;
 
-    /** Reads one notification and goes where it leads, which is what a click on the row does. */
+    /**
+     * Reads one notification and goes where it leads, which is what a click on the row does.
+     *
+     * A change the mailbox did not take is the one row following does not mark read: it leads to the message so the
+     * change can be decided there, and the decision is what marks it read — a row read on the way would take the
+     * question off the message before anybody answered it.
+     */
     readonly follow: (notification: ClientNotification) => void;
+
+    /**
+     * Marks read every row about one change, which deciding it does wherever it is decided.
+     *
+     * A row the panel has not read yet is marked once it arrives, because a change decided in this tab is a change
+     * nobody has to be told about again — however the durable row and the decision crossed on the way.
+     */
+    readonly changeDecided: (recordId: string) => void;
 }
+
+/**
+ * Whether this tab is already following a change, which is what keeps a failure from being said twice.
+ *
+ * A change this tab asked for is followed by the pending-changes queue, which puts its own line and toast in front of
+ * the person when the mailbox does not take it. The durable row that same failure raises is still listed in the centre,
+ * but its toast is not raised: one failure, one voice.
+ */
+export type FollowedHere = (recordId: string) => boolean;
 
 /** Which notifications have already been drawn or announced, and whose reading of the centre that was. */
 interface Seen {
@@ -121,12 +146,16 @@ interface Risen {
  * @param transport How a request reaches the deployment.
  * @param online Whether this machine has a network, which is what stops the interval rather than a failing read.
  * @param onFollow Where a notification leads, which is the frame's answer rather than this hook's.
+ * @param accounts The person's mail accounts, which is what a failure's toast names its account by.
+ * @param followedHere Whether this tab already follows a change, which is what silences its durable row's toast.
  */
 export function useNotificationCentre(
     session: ClientSession | null,
     transport: MailFathomTransport,
     online: boolean,
     onFollow: (target: NotificationTarget) => void,
+    accounts: readonly MailAccount[] = noAccounts,
+    followedHere: FollowedHere = followsNothing,
 ): NotificationCentre {
     const { locale, translate } = useLocalization();
     const toasts = useToasts();
@@ -162,6 +191,10 @@ export function useNotificationCentre(
     // What the last count read answered, so a rise is measurable without the count itself being a dependency of the
     // effect that reads it — which would restart the interval on every poll that changed anything.
     const counted = useRef<Counted | null>(null);
+
+    // The changes decided in this tab, so a row about one of them that a later page brings is read on arrival rather
+    // than asking a second time about something already answered. A ref for the reason `known` is one.
+    const decided = useRef<Seen | null>(null);
 
     // Everything held belongs to the credential that read it, so a sign-out and a sign-in as somebody else start from
     // nothing rather than showing the previous person's centre until the first read lands. It is adjusted while
@@ -302,17 +335,18 @@ export function useNotificationCentre(
     const follow = useCallback(
         (notification: ClientNotification): void => {
             setShown(false);
-            setNotifications((held) => held.map((row) => (row.id === notification.id ? { ...row, read: true } : row)));
+            onFollow(notification.target);
 
-            if (!notification.read) {
-                setUnreadCount((standing) => Math.max(0, standing - 1));
+            if (notification.read || failureOf(notification)?.kind === 'change') {
+                return;
             }
 
-            if (session !== null && !notification.read) {
+            setNotifications((held) => held.map((row) => (row.id === notification.id ? { ...row, read: true } : row)));
+            setUnreadCount((standing) => Math.max(0, standing - 1));
+
+            if (session !== null) {
                 void setNotificationRead(session, transport, notification.id, true);
             }
-
-            onFollow(notification.target);
         },
         [session, transport, onFollow],
     );
@@ -363,17 +397,23 @@ export function useNotificationCentre(
     // open the notification it is about.
     const announce = useCallback(
         (arrived: readonly ClientNotification[]): void => {
-            raiseWithTheSystem(arrived);
+            const spoken = arrived.filter((notification) => {
+                const failure = failureOf(notification);
 
-            for (const notification of arrived.slice(0, mostArrivalsAnnounced).reverse()) {
-                const said = wordNotification(notification, locale, translate);
+                return failure?.kind !== 'change' || !followedHere(failure.recordId);
+            });
+
+            raiseWithTheSystem(spoken);
+
+            for (const notification of spoken.slice(0, mostArrivalsAnnounced).reverse()) {
+                const said = wordNotificationToast(notification, accounts, locale, translate);
 
                 toasts.raise({
-                    kind: notificationToastKinds[notification.kind],
+                    kind: toastKindOf(notification),
                     title: said.title,
                     body: said.body,
                     action: {
-                        label: translate('notifications.show'),
+                        label: said.action,
                         take: () => {
                             follow(notification);
                         },
@@ -381,7 +421,7 @@ export function useNotificationCentre(
                 });
             }
         },
-        [toasts, locale, translate, follow, raiseWithTheSystem],
+        [toasts, accounts, followedHere, locale, translate, follow, raiseWithTheSystem],
     );
 
     // What an arrival is said with is held rather than depended on. The read below must be decided by the credential,
@@ -428,6 +468,15 @@ export function useNotificationCentre(
             }
 
             const page = answer.value.notifications;
+            const decidedHere = decided.current?.session === session ? decided.current.ids : null;
+            const answered =
+                decidedHere === null
+                    ? []
+                    : page.filter((notification) => {
+                          const failure = failureOf(notification);
+
+                          return !notification.read && failure?.kind === 'change' && decidedHere.has(failure.recordId);
+                      });
             const seen = known.current?.session === session ? known.current.ids : null;
             const standing = risen.current?.session === session ? risen.current : null;
             const stillMeasured = (standing?.measured ?? 0) - (taken?.measured ?? 0);
@@ -449,10 +498,24 @@ export function useNotificationCentre(
                     : page.filter((notification) => !seen.has(notification.id));
 
             setFailure(null);
-            setNotifications(page);
+            setNotifications(
+                answered.length === 0
+                    ? page
+                    : page.map((notification) =>
+                          answered.includes(notification) ? { ...notification, read: true } : notification,
+                      ),
+            );
             setArrived(new Set(unseen.map((notification) => notification.id)));
             known.current = { session, ids: new Set(page.map((notification) => notification.id)) };
-            announcing.current(unseen.filter((notification) => !notification.read));
+            announcing.current(unseen.filter((notification) => !notification.read && !answered.includes(notification)));
+
+            if (answered.length > 0) {
+                setUnreadCount((standing) => Math.max(0, standing - answered.length));
+
+                for (const notification of answered) {
+                    void setNotificationRead(session, transport, notification.id, true);
+                }
+            }
         })();
 
         return () => {
@@ -569,6 +632,26 @@ export function useNotificationCentre(
         });
     }
 
+    function changeDecided(recordId: string): void {
+        if (session === null) {
+            return;
+        }
+
+        const standing = decided.current?.session === session ? decided.current.ids : new Set<string>();
+
+        decided.current = { session, ids: new Set([...standing, recordId]) };
+        markRead(
+            notifications
+                .filter((notification) => {
+                    const failure = failureOf(notification);
+
+                    return failure?.kind === 'change' && failure.recordId === recordId;
+                })
+                .map((notification) => notification.id),
+            true,
+        );
+    }
+
     return {
         unreadCount,
         shown,
@@ -582,5 +665,12 @@ export function useNotificationCentre(
         markAllRead,
         remove,
         follow,
+        changeDecided,
     };
+}
+
+const noAccounts: readonly MailAccount[] = [];
+
+function followsNothing(): boolean {
+    return false;
 }

@@ -2,7 +2,9 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Mail.Mutations.Audit;
+using MailFathom.Application.Notifications;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
@@ -29,12 +31,19 @@ namespace MailFathom.Application.Mail.Mutations;
 /// and not written by another would be a history whose gaps mean nothing. The append happens after the terminal stage is
 /// durable and cannot fail the mutation, which <see cref="IMailboxMutationAuditTrail" /> states in full.
 /// </para>
+/// <para>
+/// The same reasoning puts the notification about a change given up here: every way a record is abandoned — attempts
+/// exhausted, a refusal, an outcome nobody learned, on a mirrored account and on the record a restoring account opens to
+/// carry a change to its source — ends in <see cref="AbandonAsync" />, and the store refuses to move a record out of a
+/// terminal stage, so it is raised exactly once per record.
+/// </para>
 /// </remarks>
 internal sealed class MailboxMutationJournal : IMailboxMutationJournal
 {
     private readonly IMailboxMutationRecordStore store;
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
     private readonly IMailboxMutationAuditTrail auditTrail;
+    private readonly MailFailureNotifications failures;
     private readonly MailFolderResolution sourceFolder;
     private MailboxMutationRecord record;
 
@@ -42,12 +51,14 @@ internal sealed class MailboxMutationJournal : IMailboxMutationJournal
         IMailboxMutationRecordStore store,
         OptimisticConcurrencyRetryPolicy commitPolicy,
         IMailboxMutationAuditTrail auditTrail,
+        MailFailureNotifications failures,
         MailboxMutationRecord record,
         MailFolderResolution sourceFolder)
     {
         this.store = store;
         this.commitPolicy = commitPolicy;
         this.auditTrail = auditTrail;
+        this.failures = failures;
         this.record = record;
         this.sourceFolder = sourceFolder;
     }
@@ -124,6 +135,7 @@ internal sealed class MailboxMutationJournal : IMailboxMutationJournal
     {
         await this.RecordFailureAsync(failure, cancellationToken);
         await this.AdvanceAsync(MailboxMutationStage.Abandoned, placement: null, cancellationToken);
+        await this.ReportAbandonmentAsync(cancellationToken);
     }
 
     /// <summary>Records why an attempt ended without moving the stage the next attempt resumes from.</summary>
@@ -134,6 +146,29 @@ internal sealed class MailboxMutationJournal : IMailboxMutationJournal
             cancellationToken);
 
         this.record = this.record with { LastFailure = failure };
+    }
+
+    /// <summary>Tells the account's users that the change was given up, and never lets that fail the mutation.</summary>
+    /// <remarks>
+    /// The record is already terminal, so what fails here is the notification and nothing else, exactly as an audit
+    /// entry that could not be written leaves the mutation standing. The caller's own cancellation travels on.
+    /// </remarks>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "The change has already been given up durably; a notification that could not be written must not turn that into a failed mutation the converger would then report again.")]
+    [SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception", Justification = "There is no second action to take: the record already says the change was given up.")]
+    private async Task ReportAbandonmentAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await this.failures.ReportAbandonedChangeAsync(this.record, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // Nothing to restore: the record says the change was given up whatever became of telling anybody.
+        }
     }
 
     private async Task AdvanceAsync(

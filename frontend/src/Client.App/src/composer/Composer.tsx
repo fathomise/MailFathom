@@ -8,11 +8,13 @@ import {
     longestDraftInstruction,
     longestDraftSelection,
     readMailBody,
+    readMailDraft,
     readMailMessage,
     type ClientFailureReason,
     type ClientSession,
     type MailAccount,
     type MailAttachment,
+    type MailDraft,
     type MailDraftAnswer,
     type MailFathomTransport,
 } from '@mailfathom/client-backend';
@@ -25,13 +27,13 @@ import { sizeOf } from '../localization/octets';
 import { useLocalization } from '../localization/useLocalization';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
 import { useToasts, type Toast } from '../toasts/useToasts';
-import { readSentFolder } from '../outbox/sentFolder';
-import { addressOf } from '../routing/spaces';
+import { showOutboxEntry } from '../outbox/showOutboxEntry';
 import { useWorkspace } from '../workspace/useWorkspace';
 import {
     anythingWritten,
     answerTo,
     draftContinued,
+    draftHeld,
     nothingWrittenYet,
     type ComposerOpening,
     type Composition,
@@ -133,9 +135,10 @@ const reachableControls =
 // in English however the screen is read, for the reason `DraftingBlock.tsx` gives.
 const writeTheReply = 'Write a reply to this message.';
 
-const titles: Readonly<Record<'new' | 'draft' | MailDraftAnswer, MessageKey>> = {
+const titles: Readonly<Record<'new' | 'draft' | 'held' | MailDraftAnswer, MessageKey>> = {
     new: 'compose.titleNew',
     draft: 'compose.titleDraft',
+    held: 'compose.titleDraft',
     senderOnly: 'compose.titleReply',
     everyone: 'compose.titleReplyAll',
     forward: 'compose.titleForward',
@@ -202,6 +205,7 @@ export function Composer({
     // authored by definition — somebody wrote it, in this tab, before the reload.
     const [authored, setAuthored] = useState(() => composition !== null && anythingWritten(composition));
     const [reading, setReading] = useState<Reading>({ kind: 'reading' });
+
     const [participants, setParticipants] = useState<readonly RecipientSuggestion[]>([]);
 
     // Whether the copy headers are drawn, which is a choice only once somebody made one: before that they are drawn
@@ -379,6 +383,42 @@ export function Composer({
         };
     }, [session, transport, opening]);
 
+    // A draft MailFathom keeps is read through its own record and carried on with as itself: the composer adopts its
+    // identity, so every save revises it, and the files staged against it stay staged rather than being fetched and
+    // chosen again. What this tab was already writing on it wins over what the record says, as with any other opening.
+    const adoptTheDraft = useEffectEvent((held: MailDraft) => {
+        draft.adopt(held);
+    });
+
+    useEffect(() => {
+        if (opening.kind !== 'held') {
+            return;
+        }
+
+        let listening = true;
+
+        void readMailDraft(session, transport, opening.draftId).then((answer) => {
+            if (!listening) {
+                return;
+            }
+
+            if (answer.outcome === 'failed') {
+                setReading({ kind: 'unread', reason: answer.failure.reason });
+
+                return;
+            }
+
+            // A kept draft is somebody's writing whatever this tab has typed into it, so closing it asks first.
+            adoptTheDraft(answer.value.draft);
+            setAuthored(true);
+            setComposition((held) => held ?? draftHeld(answer.value));
+        });
+
+        return () => {
+            listening = false;
+        };
+    }, [session, transport, opening]);
+
     // The local draft, kept continuously so that a reload returns to what was being written rather than to nothing.
     // A browser store is something outside React, which is what an effect synchronizes with.
     useEffect(() => {
@@ -395,9 +435,7 @@ export function Composer({
     useEffect(() => {
         if (written) {
             frame.current
-                ?.querySelector<HTMLElement>(
-                    opening.kind === 'answer' || opening.kind === 'draft' ? '[contenteditable="true"]' : 'input',
-                )
+                ?.querySelector<HTMLElement>(opening.kind === 'new' ? 'input' : '[contenteditable="true"]')
                 ?.focus();
         }
     }, [written, opening.kind]);
@@ -586,22 +624,7 @@ export function Composer({
     // it, and a late directory answer must not take them back. One that does not answer leaves the Outbox open over
     // whatever was listed, and *Go to Sent* asks for the folder again rather than trusting what is behind it.
     function showInOutbox(account: string, outgoingEmailId: string): void {
-        window.location.hash = addressOf('mail');
-
-        reviseWorkspace({
-            outbox: { account, entry: outgoingEmailId },
-            selection: null,
-            conversation: null,
-            selected: [],
-        });
-
-        void readSentFolder(session, transport, account).then((sent) => {
-            if (sent === null) {
-                return;
-            }
-
-            reviseWorkspace(({ outbox }) => (outbox?.account === account ? { scope: sent, outbox } : {}));
-        });
+        showOutboxEntry(session, transport, reviseWorkspace, account, outgoingEmailId);
     }
 
     function withdrawAndReport(): void {
@@ -765,6 +788,18 @@ export function Composer({
                 <BeforeAnythingIsWritten reading={reading} opening={opening} />
             ) : (
                 <>
+                    {/* First, above everything it is about: what another mail app shows of this draft may not be what
+                        is written here, and the next save tries again, so it is said and nothing is offered. */}
+                    {(draft.record?.divergence ?? null) === null ? null : (
+                        <p
+                            role="status"
+                            className="flex items-start gap-2.25 border-b border-warning bg-warning-soft px-3.75 py-2.25 text-sm/relaxed text-warning-text pointer-coarse:py-2.75 pointer-coarse:text-base"
+                        >
+                            <Icon name="cloud_off" className="size-icon-md shrink-0" />
+                            <span className="min-w-0 flex-1 text-pretty">{translate('compose.noServerCopy')}</span>
+                        </p>
+                    )}
+
                     {accounts.length > 1 && composition.answering === null ? (
                         <div className="flex items-center gap-2.5 border-b border-line-soft px-3.75 py-2.25">
                             <label
@@ -1059,6 +1094,8 @@ function sameOpening(kept: Composition, opening: ComposerOpening): boolean {
             return kept.answering === null && kept.continuing === null;
         case 'draft':
             return kept.continuing === opening.storedEmailId;
+        case 'held':
+            return kept.continuing === opening.draftId;
         case 'answer':
             return (
                 kept.answering?.storedEmailId === opening.storedEmailId && kept.answering.answers === opening.answers
@@ -1080,12 +1117,23 @@ function BeforeAnythingIsWritten({
 
     // What is being read differs between the two openings that read anything at all, and so does what a reader is
     // owed while it happens: an answer waits on the message it answers, a draft on the words that reader wrote.
-    const said = opening.kind === 'draft' ? 'compose.readingDraft' : 'compose.reading';
+    const said =
+        opening.kind === 'draft'
+            ? 'compose.readingDraft'
+            : opening.kind === 'held'
+              ? 'compose.readingHeldDraft'
+              : 'compose.reading';
 
     return (
         <div className="flex flex-1 flex-col items-start gap-3 px-4.25 py-6">
             <p aria-live="polite" className="text-base text-muted text-pretty">
-                {translate(reading.kind === 'reading' ? said : failureSaid[reading.reason])}
+                {translate(
+                    reading.kind === 'reading'
+                        ? said
+                        : opening.kind === 'held' && reading.reason === 'missing'
+                          ? 'compose.failedMissingDraft'
+                          : failureSaid[reading.reason],
+                )}
             </p>
         </div>
     );

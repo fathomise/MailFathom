@@ -26,10 +26,18 @@ internal sealed class InMemoryNotificationStore : INotificationStore
     /// <summary>Gets the notifications this store kept, in the order they were recorded.</summary>
     public IReadOnlyList<Notification> Recorded => this.recorded;
 
+    /// <summary>Gets or sets whether a record is refused with a fault rather than kept, as a store that cannot be reached refuses one.</summary>
+    public bool RefusesRecords { get; set; }
+
     /// <inheritdoc />
     public Task<bool> RecordAsync(Notification notification, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(notification);
+
+        if (this.RefusesRecords)
+        {
+            throw new InvalidOperationException("The notification store refused the record.");
+        }
 
         var standing = this.recorded.Any(candidate => candidate.User == notification.User
             && candidate.DeduplicationKey == notification.DeduplicationKey

@@ -873,6 +873,9 @@ export const pl: Catalogue = {
     'compose.close': 'Zamknij wiadomość',
     'compose.reading': 'Odczytujemy wiadomość, na którą odpowiadasz…',
     'compose.readingDraft': 'Wczytywanie szkicu, który kontynuujesz…',
+    'compose.readingHeldDraft': 'Otwieranie szkicu…',
+    'compose.noServerCopy':
+        'Kopii tego szkicu na serwerze poczty może brakować albo może być nieaktualna, więc inny program pocztowy może nie pokazywać tego, co widzisz tutaj. Szkic jest zachowany w MailFathom.',
     'compose.from': 'Od',
     'compose.to': 'Do',
     'compose.cc': 'DW',
@@ -993,6 +996,7 @@ export const pl: Catalogue = {
     'compose.alreadyBeingSent': 'Wysyłka już trwa, więc nie dało się jej wycofać.',
     'compose.pastRecall': 'Wiadomość została wysłana, więc nie da się jej wycofać.',
     'compose.noSuchSend': 'Serwer nie prowadzi już tej wysyłki.',
+    'compose.sendNotRead': 'Nie udało się odczytać tej wysyłki: {reason}.',
     'compose.offline':
         'Ta maszyna jest bez sieci. To, co piszesz, zostaje tutaj, a zapisać lub wysłać można to, gdy sieć wróci.',
     'compose.refusedSendingNotEnabled': 'Ten serwer nie wysyła poczty. Administrator może włączyć wysyłkę.',
@@ -1028,6 +1032,8 @@ export const pl: Catalogue = {
         'Serwer odpowiedział, ale klient nie potrafił nic z tą odpowiedzią zrobić. To usterka warta zgłoszenia.',
     'compose.failedMissing':
         'Serwer nie ma już wiadomości, na którą to miała być odpowiedź, więc nie ma tu na co odpowiadać.',
+    'compose.failedMissingDraft':
+        'MailFathom nie przechowuje już tego szkicu. Został wysłany albo odrzucony gdzie indziej.',
 
     'tabs.strip': 'Co jest otwarte',
     'tabs.close': 'Zamknij: {title}',
@@ -1117,6 +1123,12 @@ export const pl: Catalogue = {
     'outbox.dismiss': 'Usuń z listy',
     'outbox.cancelling': 'Anulujemy wysyłanie…',
     'outbox.offeringAgain': 'Wysyłamy ponownie…',
+    'outbox.edit': 'Popraw',
+    'outbox.reopening': 'Przywracamy do poprawienia…',
+    'outbox.backInDraftsTitle': 'Z powrotem w szkicach',
+    'outbox.backInDrafts': '„{subject}” opuściła Nadawczą i nic nie zostało wysłane. Wyślij ją, gdy będzie gotowa.',
+    'outbox.backInDraftsUntitled': 'Opuściła Nadawczą i nic nie zostało wysłane. Wyślij ją, gdy będzie gotowa.',
+    'outbox.noDraftToReopen': 'Nie powstała w Twoim szkicu, więc nie ma czego przywrócić do poprawienia.',
     'outbox.fact.from': 'Od',
     'outbox.fact.handed': 'Przekazana',
     'outbox.fact.leaves': 'Wyjdzie',
@@ -1182,6 +1194,10 @@ export const pl: Catalogue = {
     'list.answered': 'Odpowiedziano',
     'list.attachments': 'Załączniki: {count}',
     'list.noSubject': 'Bez tematu',
+    'drafts.outOfStep': 'Niezgodne z serwerem',
+    'drafts.outOfStepTo': 'Do',
+    'drafts.outOfStepMore': '{first} +{more}',
+    'drafts.nobody': 'Jeszcze nikt',
     'list.senderUnknown': 'Brak nadawcy',
     'list.threadMessages': 'Wiadomości w tym wątku: {count}',
 
@@ -1627,6 +1643,32 @@ export const pl: Catalogue = {
     'pendingChange.stoppedFollowingReason':
         'Serwer odpowiedział, ale ten klient nie mógł nic z tą odpowiedzią zrobić: {reason}. Nic nie jest sprawdzane, dopóki o to nie poprosisz.',
     'pendingChange.followAgain': 'Sprawdź ponownie',
+    'change.notMarkedRead': 'Nie oznaczono jako przeczytanej - Twoja skrzynka nie przyjęła tej zmiany',
+    'change.notMarkedUnread': 'Nie oznaczono jako nieprzeczytanej - Twoja skrzynka nie przyjęła tej zmiany',
+    'change.notFlagged': 'Nie oflagowano - Twoja skrzynka nie przyjęła tej zmiany',
+    'change.notUnflagged': 'Nie zdjęto flagi - Twoja skrzynka nie przyjęła tej zmiany',
+    'change.notArchived': 'Nie zarchiwizowano - Twoja skrzynka nie przyjęła tej zmiany',
+    'change.notDeleted': 'Nie usunięto - Twoja skrzynka nie przyjęła tej zmiany',
+    'change.notMoved': 'Nie przeniesiono - Twoja skrzynka nie przyjęła tej zmiany',
+    'change.notPutBack': 'Nie odłożono z powrotem - Twoja skrzynka nie przyjęła tej zmiany',
+    'change.notCopied': 'Nie skopiowano - Twoja skrzynka nie przyjęła tej zmiany',
+    'change.tagsNotChanged': 'Nie zmieniono etykiet - Twoja skrzynka nie przyjęła tej zmiany',
+    'change.exhaustedText':
+        'Serwer poczty jej nie przyjął, więc ta wiadomość jest pokazana tam, gdzie trzyma ją serwer.',
+    'change.markingReadUnknown': 'Oznaczenie jako przeczytanej mogło nie nastąpić',
+    'change.markingUnreadUnknown': 'Oznaczenie jako nieprzeczytanej mogło nie nastąpić',
+    'change.flaggingUnknown': 'Oflagowanie mogło nie nastąpić',
+    'change.unflaggingUnknown': 'Zdjęcie flagi mogło nie nastąpić',
+    'change.archivingUnknown': 'Archiwizacja mogła nie nastąpić',
+    'change.deletingUnknown': 'Usunięcie mogło nie nastąpić',
+    'change.movingUnknown': 'Przeniesienie mogło nie nastąpić',
+    'change.puttingBackUnknown': 'Odłożenie z powrotem mogło nie nastąpić',
+    'change.unknownText':
+        'Serwer poczty nigdy nie odpowiedział, więc nikt nie wie, czy przyjął zmianę. Wiadomość jest pokazana tak, jak serwer ostatnio ją zgłosił.',
+    'change.moveAgain': 'Przenieś ponownie…',
+    'change.askedAgainTitle': 'Poproszono ponownie',
+    'change.askedAgain': 'MailFathom ponownie przekazuje to Twojej skrzynce.',
+    'change.notAskedAgain': 'Nie udało się odczytać tej wiadomości, więc nie poproszono ponownie o zmianę: {reason}.',
 
     'notifications.title': 'Powiadomienia',
     'notifications.place': 'Alerty',
@@ -1695,6 +1737,40 @@ export const pl: Catalogue = {
         'Serwer pocztowy odrzucił dane logowania, które przechowuje MailFathom, więc poczta z tego konta nie jest już pobierana.',
     'notifications.said.calendarReminderDue.title': 'Przypomnienie: {subject}',
     'notifications.said.taskReminderDue.title': 'Przypomnienie: {subject}',
+    'notifications.said.sendRefused.title': 'Nie wysłano - czeka w Nadawczej',
+    'notifications.said.sendRefused.untitled': 'Wiadomość bez tematu nie została wysłana. Czeka w Nadawczej.',
+    'notifications.said.mailboxChangeAbandoned.title': 'Zmiana nie dotarła do Twojej skrzynki',
+    'notifications.said.mailboxChangeAbandoned.markRead':
+        'Oznacz jako przeczytaną - serwer poczty jej nie przyjął, więc wiadomość jest tam, gdzie trzyma ją serwer.',
+    'notifications.said.mailboxChangeAbandoned.markUnread':
+        'Oznacz jako nieprzeczytaną - serwer poczty jej nie przyjął, więc wiadomość jest tam, gdzie trzyma ją serwer.',
+    'notifications.said.mailboxChangeAbandoned.flag':
+        'Oflaguj - serwer poczty tego nie przyjął, więc wiadomość jest tam, gdzie trzyma ją serwer.',
+    'notifications.said.mailboxChangeAbandoned.unflag':
+        'Zdejmij flagę - serwer poczty tego nie przyjął, więc wiadomość jest tam, gdzie trzyma ją serwer.',
+    'notifications.said.mailboxChangeAbandoned.move':
+        'Przenieś - serwer poczty tego nie przyjął, więc wiadomość jest tam, gdzie trzyma ją serwer.',
+    'notifications.said.mailboxChangeAbandoned.delete':
+        'Usuń - serwer poczty tego nie przyjął, więc wiadomość jest tam, gdzie trzyma ją serwer.',
+    'notifications.said.mailboxChangeAbandoned.copy':
+        'Skopiuj - serwer poczty tego nie przyjął, więc wiadomość jest tam, gdzie trzyma ją serwer.',
+    'notifications.said.mailboxChangeAbandoned.changeTags':
+        'Zmień etykiety - serwer poczty tego nie przyjął, więc wiadomość jest tam, gdzie trzyma ją serwer.',
+    'notifications.said.draftCopyNotKept.title': 'Szkic niezgodny z serwerem',
+    'notifications.said.draftCopyNotKept.untitled':
+        'Szkic bez tematu jest zachowany w MailFathom, ale jego kopii na serwerze poczty może brakować albo może być nieaktualna.',
+    'notifications.source.outbox': 'Nadawcza · {account}',
+    'notifications.source.mail': 'Poczta · {account}',
+    'notifications.source.drafts': 'Kopie robocze · {account}',
+    'notifications.toast.sendRefused':
+        '„{subject}” jest w Nadawczej konta {account}. Wyślij ją ponownie albo tam ją popraw.',
+    'notifications.toast.sendRefusedUntitled':
+        'Wiadomość bez tematu jest w Nadawczej konta {account}. Wyślij ją ponownie albo tam ją popraw.',
+    'notifications.toast.draftCopyNotKept':
+        '„{subject}” jest zachowany w MailFathom, ale jego kopii na serwerze poczty może brakować albo może być nieaktualna.',
+    'notifications.showMessage': 'Pokaż wiadomość',
+    'notifications.openDraft': 'Otwórz szkic',
+    'notifications.decisions': 'Co z tym zrobić',
     'reminders.title': 'Przypomnienia',
     'reminders.about': '{subject} – {anchor}',
     'reminders.anchor.eventTime': 'przed godziną wydarzenia',
@@ -1761,6 +1837,10 @@ export const pl: Catalogue = {
     'notifications.arrived.system.few': '{count} komunikaty od MailFathom',
     'notifications.arrived.system.many': '{count} komunikatów od MailFathom',
     'notifications.arrived.system.other': '{count} komunikatu od MailFathom',
+    'notifications.arrived.failure.one': '{count} błąd w poczcie',
+    'notifications.arrived.failure.few': '{count} błędy w poczcie',
+    'notifications.arrived.failure.many': '{count} błędów w poczcie',
+    'notifications.arrived.failure.other': '{count} błędu w poczcie',
     'notifications.kind.mail': 'Poczta',
     'notifications.kind.calendar': 'Kalendarz',
     'notifications.kind.task': 'Zadania',
