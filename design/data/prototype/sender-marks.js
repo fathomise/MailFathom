@@ -215,6 +215,10 @@ MailFathomDesign.data.senderMarks = {
       from: "accounts@halvard-logistlcs.example", checker: "server", dkim: null, spf: "halvard-logistlcs.example", dmarc: "permerror",
       author: "notEstablished", authDomain: null, trust: null, sig: null,
     },
+    spamParcel: {
+      from: "notice@parcel-track.example", checker: "server", dkim: "parcel-track.example", spf: "parcel-track.example", dmarc: "none",
+      author: "authenticated", authDomain: "parcel-track.example", trust: null, sig: null,
+    },
     spamEstate: {
       from: "executor@marlowe-estate.example", checker: "none", dkim: null, spf: null, dmarc: "unreported",
       author: "notEstablished", authDomain: null, trust: null, sig: null,

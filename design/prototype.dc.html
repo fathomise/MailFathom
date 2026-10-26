@@ -2119,7 +2119,7 @@ Project repository: https://github.com/fathomise/MailFathom
           <div style="font-size:12px;color:var(--muted);overflow-wrap:anywhere">{{ senderPopFrom }}</div>
           <div style="font-size:13px;line-height:1.5;color:var(--text2);text-wrap:pretty;padding-top:3px">{{ senderPopWhy }}</div>
         </div>
-        <div role="button" tabindex="0" title="Close" aria-label="Close" onClick="{{ closeSenderMark }}" style="{{ closeBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span aria-hidden="true" style="{{ closeIconStyle }}">close</span></div>
+        <div role="button" tabindex="0" title="Close" aria-label="Close" onClick="{{ closeSenderMark }}" onKeyDown="{{ closeSenderMark }}" style="{{ closeBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span aria-hidden="true" style="{{ closeIconStyle }}">close</span></div>
       </div>
       <div style="{{ senderPopBodyStyle }}">
         <sc-for list="{{ senderPopGroups }}" as="g" hint-placeholder-count="3">

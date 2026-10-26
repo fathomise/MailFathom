@@ -3828,7 +3828,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             senderPopOpen: true,
             senderPopSheet: touch,
             senderPopMotion: touch ? "sheet" : "pop",
-            closeSenderMark: () => this.closeSenderMark(true),
+            closeSenderMark: (e) => {
+              if (e && e.type === "keydown") { if (e.key !== "Enter" && e.key !== " ") return; e.preventDefault(); }
+              this.closeSenderMark(true);
+            },
             senderPopRef: this.senderPopRef,
             senderPopTitle: M.name,
             senderPopWhy: senderWhy(k, r),
