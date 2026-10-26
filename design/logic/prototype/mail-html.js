@@ -31,9 +31,10 @@ MailFathomDesign.mailHtml = (() => {
 
   /* The frame follows no link itself: a press on one, or on a picture inside one, is handed to the page, which asks
      before anything leaves MailFathom. */
-  const LINK_SCRIPT = S_OPEN + '(function(){document.addEventListener("click",function(e){' +
+  const LINK_SCRIPT = S_OPEN + '(function(){function press(e){if(e.button>1)return;' +
     'var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;if(!a)return;e.preventDefault();' +
-    'try{parent.postMessage({link:{href:a.getAttribute("href"),text:(a.textContent||"").trim(),image:!!a.querySelector("img,svg,picture")}},"*")}catch(x){}},true)})()' + S_CLOSE;
+    'try{parent.postMessage({link:{href:a.getAttribute("href"),text:(a.textContent||"").trim(),image:!!a.querySelector("img,svg,picture")}},"*")}catch(x){}}' +
+    'document.addEventListener("click",press,true);document.addEventListener("auxclick",press,true)})()' + S_CLOSE;
 
   const inHead = (src, script) => {
     const i = src.indexOf("<head>");

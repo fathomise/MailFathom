@@ -605,6 +605,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       window.addEventListener("message", this.onHtmlFrameMessage);
       window.addEventListener("popstate", this.onBackPressed);
       document.addEventListener("click", this.onLinkClick, true);
+      document.addEventListener("auxclick", this.onLinkClick, true);
       this.backSync();
       this.measure = () => {
         const el = this.rootRef.current;
@@ -1804,7 +1805,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       setTimeout(() => { const b = this.linkAskCancelRef.current; if (b && b.focus) b.focus(); }, 0);
     };
     onLinkClick = (e) => {
-      if (e.defaultPrevented || e.button > 0) return;
+      // A middle press opens a tab through `auxclick` rather than `click`, so both arrive here; the right button opens a menu.
+      if (e.defaultPrevented || e.button > 1) return;
       const a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
       if (!a || !leavesApp(a.getAttribute("href"))) return;
       e.preventDefault();
@@ -3086,6 +3088,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       window.removeEventListener("message", this.onHtmlFrameMessage);
       window.removeEventListener("popstate", this.onBackPressed);
       document.removeEventListener("click", this.onLinkClick, true);
+      document.removeEventListener("auxclick", this.onLinkClick, true);
       this.htmlFrames.forEach(r => { if (r.timer) clearTimeout(r.timer); });
       this.htmlFrames.clear();
       this.timers.forEach(clearTimeout);

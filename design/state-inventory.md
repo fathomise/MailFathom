@@ -923,7 +923,7 @@ Every label in the prototype is English, among them the Settings tabs *Profile* 
 ### A link that leaves MailFathom
 
 **No link that leaves MailFathom opens on the press that found it.** A text link or a picture inside one, an `http` or
-`https` address, asks first wherever it is drawn — the simplified text of a message, its original, an agent's answer,
+`https` address, pressed with the main button or the middle one, asks first wherever it is drawn — the simplified text of a message, its original, an agent's answer,
 an event's detail, and every surface added after them, because the rule is one interception in the artboard's logic
 (`onLinkClick`, and the frame's `LINK_SCRIPT` for the original) rather than a dialog any screen owns. A screen that
 draws a link therefore draws nothing extra for it. Spam is outside the rule rather than an exception to it: its links
