@@ -100,8 +100,14 @@ jobs:
         run: pnpm --dir frontend install --frozen-lockfile
 
       # The browser the end-to-end configuration names, and only that one. `--with-deps` is what a runner needs and a
-      # developer machine usually does not.
+      # developer machine usually does not, and it installs from apt, so a mirror is chosen first and both steps carry
+      # the bounds `Build the desktop client` gives them.
+      - name: Choose a fast apt mirror
+        timeout-minutes: 2
+        uses: vegardit/fast-apt-mirror.sh@1.4.5
+
       - name: Install Chromium
+        timeout-minutes: 5
         run: pnpm --dir frontend exec playwright install --with-deps chromium
 
       # The same script a person runs, so this pipeline has one way to be started rather than two that can drift. It

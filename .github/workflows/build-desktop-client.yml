@@ -72,9 +72,15 @@ jobs:
       # The system half of the Linux toolchain, which the runner image does not carry: the WebView the shell renders in
       # and the libraries Tauri links and bundles beside it. The Windows runner needs none of this — WebView2 and the
       # MSVC build tools are part of its image.
-      # The step carries a bound of its own because what stalls it is the runner's package mirror rather than anything
-      # here: it ordinarily takes half a minute, and a slow mirror once held it for the job's whole budget. Five minutes
-      # is about four times the slowest ordinary run.
+      # The runner's own mirror stalls rather than fails on a bad day, which apt's failure fallback does not see, so a fast
+      # one is chosen first. The choice ordinarily takes under half a minute and is bounded at two. The install keeps a
+      # bound of its own because a mirror fast when probed can still slow down mid-download: it ordinarily takes half a
+      # minute, and five minutes is about four times the slowest ordinary run.
+      - name: Choose a fast apt mirror
+        if: runner.os == 'Linux'
+        timeout-minutes: 2
+        uses: vegardit/fast-apt-mirror.sh@1.4.5
+
       - name: Install the Linux WebView and bundling dependencies
         if: runner.os == 'Linux'
         timeout-minutes: 5

@@ -2136,10 +2136,11 @@ job of `repository-contracts.yml` and again locally in `scripts/verify-full.sh`,
 
 | Contract | What it refuses |
 |---|---|
-| `every_external_action_names_an_approved_owner` | An action from an owner outside the reviewed set: `actions`, `github`, `Krzysztof318`, `dorny`, `anthropics`, `docker`, `crate-ci`, `aquasecurity`, `oras-project`, `peter-evans` |
+| `every_external_action_names_an_approved_owner` | An action from an owner outside the reviewed set: `actions`, `github`, `Krzysztof318`, `dorny`, `anthropics`, `docker`, `crate-ci`, `aquasecurity`, `oras-project`, `peter-evans`, `vegardit` |
 | `every_workflow_job_declares_its_permissions` | A job that inherits the repository default instead of declaring a `permissions:` block, at the workflow level or its own |
 | `every_workflow_job_declares_its_timeout` | A job that runs steps without declaring `timeout-minutes`, and so inherits GitHub's six-hour default |
-| `every_apt_step_declares_its_timeout` | A step that runs `apt-get` without a `timeout-minutes` of its own, so a slow package mirror can spend the whole job's budget on an install that ordinarily takes half a minute |
+| `every_apt_step_declares_its_timeout` | A step that runs `apt-get`, or Playwright with `--with-deps`, without a `timeout-minutes` of its own, so a slow package mirror can spend the whole job's budget on an install that ordinarily takes half a minute |
+| `every_apt_step_follows_a_bounded_mirror_choice` | A step that runs `apt-get`, or Playwright with `--with-deps`, without `vegardit/fast-apt-mirror.sh` as the step before it, and a mirror-choosing step without a `timeout-minutes` of its own |
 | `every_write_scope_is_one_the_policy_records` | A write scope appearing anywhere the list in that contract does not already name |
 | `every_checkout_refuses_to_persist_credentials` | An `actions/checkout` step that leaves the workflow token in `.git/config` for the steps after it |
 | `only_the_recorded_workflows_use_pull_request_target` | A third `pull_request_target` trigger beside the two `fathom-review.yml` and `contributor-licence.yml` hold, and a licence workflow that checks anything out, reaches an action beyond the token mint, or runs a command fetching the contribution directly |
@@ -2194,11 +2195,25 @@ in `fathom-review.yml`, `duplicate-definitions.yml`, `end-to-end-client.yml`, `m
 and `ai-evaluations.yml` do. When a job's healthy runs start approaching their bound, the bound is
 raised in the same change that made the job slower.
 
-**A step that runs `apt-get` is bounded on its own**, at five minutes, beneath its job's bound. The
-install waits on the runner's package mirror and nothing else, it ordinarily takes about half a
-minute, and a slow mirror has held one for its job's whole thirty minutes. A step bound ends that as
+**A step that installs from apt is bounded on its own**, at five minutes, beneath its job's bound —
+whether it runs `apt-get` or Playwright's `--with-deps`, which runs `apt-get` itself. The install
+waits on the runner's package mirror and nothing else, it ordinarily takes about half a minute, and a
+slow mirror has held one for its job's whole thirty minutes. A step bound ends that as
 a red step naming the install, and leaves the job's budget to the work after it. The ten-minute floor
 above is for jobs and does not reach a step.
+
+**The step before it chooses the mirror.** The runner image puts `azure.archive.ubuntu.com` first in
+`/etc/apt/apt-mirrors.txt`, and on a bad day that mirror stalls rather than fails, which apt's own
+fallback to the next mirror in that file does not see. So the step before every such install runs
+`vegardit/fast-apt-mirror.sh` with the defaults its author recommends: it health-checks twenty mirrors
+from the list `mirrors.ubuntu.com` returns for the runner's location, the current one among them,
+speed-tests ten of them with a one-megabyte sample each, and writes the fastest over the first line of
+that file. The other mirrors stay below it, so the failure fallback still holds, and which mirror
+serves the archives changes nothing about what is installed, because apt checks every archive against
+Ubuntu's signed index. The choice ordinarily takes under half a minute and is bounded at two minutes
+of its own. The desktop installs still run their own `apt-get update`, as `--with-deps` does: the
+action refreshes the lists on every path it takes, but a refresh that failed halfway is one it does
+not repeat, and a second one over lists that are already current costs a second or two.
 
 **What lives in the repository settings**, which no check here can read:
 
@@ -2207,7 +2222,7 @@ above is for jobs and does not reach a step.
 | Default workflow token | `read` | A job that needs more says so in its own `permissions:` block, which is reviewable; a permissive default is not |
 | Actions may create or approve pull requests | disabled | A workflow approving its own change would satisfy the ruleset's review requirement without a person |
 | Allowed actions | `all` today; #160 owns narrowing it | The allowlist is the settings-side twin of the owner contract above. The contract suite already refuses an owner outside the reviewed set on every pull request, so what the setting adds is coverage of a workflow that reaches the repository some other way |
-| Require actions pinned to a full-length commit SHA | off, and deliberately | Turning it on would refuse every reference this repository makes. Actions are referenced by major tag so that an upstream fix arrives without a commit, which is the whole update mechanism now that nothing proposes one; a commit SHA freezes that and makes each patch a pull request somebody has to open. Two references are exact versions for reasons their own workflows state, and neither is a supply-chain one. `THIRD_PARTY_LICENSES.md` records each version and the argument for allowing it, which is where the trust in a reference actually comes from, and [Keeping the pinned actions current](#keeping-the-pinned-actions-current) carries the rest |
+| Require actions pinned to a full-length commit SHA | off, and deliberately | Turning it on would refuse every reference this repository makes. Actions are referenced by major tag so that an upstream fix arrives without a commit, which is the whole update mechanism now that nothing proposes one; a commit SHA freezes that and makes each patch a pull request somebody has to open. Three references are exact versions, and only one of them for a supply-chain reason: `vegardit/fast-apt-mirror.sh` runs as root on the runner. `THIRD_PARTY_LICENSES.md` records each version and the argument for allowing it, which is where the trust in a reference actually comes from, and [Keeping the pinned actions current](#keeping-the-pinned-actions-current) carries the rest |
 | Artifact and log retention | 30 days | The REST API exposes no retention field, so the settings page is both where it is set and the only evidence it was |
 | Cache retention and size | 7 days, 10 GB | Unchanged unless measured eviction pressure argues otherwise |
 | Fork pull request approval | `Require approval for all external contributors` | Every pull request from a fork waits for a maintainer to release its run, whoever opened it. The workflows such a push can start hold a read-only token and no repository secret either way, so what the wider setting buys is that no run starts before a person has looked at the change. `gh api repos/fathomise/MailFathom/actions/permissions/fork-pr-contributor-approval` reads it |
@@ -2234,12 +2249,14 @@ Every action a workflow runs is referenced by its major tag — `actions/checkou
 executes whatever the newest release under that major is, so an upstream fix reaches this repository
 without a commit on either side, and what a version bump costs here is a major.
 
-Two references are exact versions instead, each for a reason of its own. `crate-ci/typos@v1.48.0` is
+Three references are exact versions instead, each for a reason of its own. `crate-ci/typos@v1.48.0` is
 pinned because the action's entrypoint hard-codes the `typos` binary it downloads, which makes the
 reference decide the dictionary a pull request is judged against; a moving tag there turns a green
 pull request red with no commit anywhere. `aquasecurity/trivy-action@v0.36.0` is pinned because the
 project publishes no moving major tag at all — its `v0` line is exact versions only — so there is
-nothing else to follow.
+nothing else to follow. `vegardit/fast-apt-mirror.sh@1.4.5` is pinned because the action runs with
+`sudo` and rewrites the runner's apt sources, so the reference decides which code holds root on the
+runner, and a moving `v1` would change that with no commit here.
 
 Nothing in this repository proposes an update automatically, and that is the deliberate half. A bump
 is a licensing review before it is a diff: `THIRD_PARTY_LICENSES.md` records every action's version,
