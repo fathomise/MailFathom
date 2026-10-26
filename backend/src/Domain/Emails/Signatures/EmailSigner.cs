@@ -30,24 +30,14 @@ public sealed record EmailSigner
     /// <summary>The largest certificate or public key kept as key material.</summary>
     public const int MaximumKeyMaterialLength = 64 * 1024;
 
-    private readonly string? name;
-    private readonly string? address;
-    private readonly string? issuer;
-    private readonly string? serialNumber;
-    private readonly string? fingerprint;
-    private readonly string? keyId;
-    private readonly string? publicKeyAlgorithm;
-    private readonly string? digestAlgorithm;
-    private readonly ReadOnlyMemory<byte> keyMaterial;
-
     /// <summary>Gets the certificate's subject name, or the OpenPGP key's primary user ID.</summary>
-    public string? Name { get => this.name; init => this.name = Bounded(value, MaximumNameLength); }
+    public string? Name { get; init => field = Bounded(value, MaximumNameLength); }
 
     /// <summary>Gets the address the certificate or key names — the one matching the displayed author where one does.</summary>
-    public string? Address { get => this.address; init => this.address = Bounded(value, MaximumAddressLength); }
+    public string? Address { get; init => field = Bounded(value, MaximumAddressLength); }
 
     /// <summary>Gets the name of the authority that issued the certificate; never present for an OpenPGP key.</summary>
-    public string? Issuer { get => this.issuer; init => this.issuer = Bounded(value, MaximumNameLength); }
+    public string? Issuer { get; init => field = Bounded(value, MaximumNameLength); }
 
     /// <summary>Gets when the certificate became valid, or when the OpenPGP key was created.</summary>
     public DateTimeOffset? ValidFrom { get; init; }
@@ -56,26 +46,26 @@ public sealed record EmailSigner
     public DateTimeOffset? ValidUntil { get; init; }
 
     /// <summary>Gets the certificate's serial number in hexadecimal; never present for an OpenPGP key.</summary>
-    public string? SerialNumber { get => this.serialNumber; init => this.serialNumber = Bounded(value, MaximumIdentifierLength); }
+    public string? SerialNumber { get; init => field = Bounded(value, MaximumIdentifierLength); }
 
     /// <summary>Gets the certificate's SHA-256 fingerprint, or the OpenPGP key's fingerprint, in hexadecimal.</summary>
-    public string? Fingerprint { get => this.fingerprint; init => this.fingerprint = Bounded(value, MaximumIdentifierLength); }
+    public string? Fingerprint { get; init => field = Bounded(value, MaximumIdentifierLength); }
 
     /// <summary>Gets the OpenPGP key ID in hexadecimal, which is all an unknown key's signature names; never present for S/MIME.</summary>
-    public string? KeyId { get => this.keyId; init => this.keyId = Bounded(value, MaximumIdentifierLength); }
+    public string? KeyId { get; init => field = Bounded(value, MaximumIdentifierLength); }
 
     /// <summary>Gets the public-key algorithm the signature was made with, for example <c>ECDSA P-256</c> or <c>Ed25519</c>.</summary>
     public string? PublicKeyAlgorithm
     {
-        get => this.publicKeyAlgorithm;
-        init => this.publicKeyAlgorithm = Bounded(value, MaximumIdentifierLength);
+        get;
+        init => field = Bounded(value, MaximumIdentifierLength);
     }
 
     /// <summary>Gets the digest or hash algorithm the signature was made over, for example <c>SHA-256</c>.</summary>
     public string? DigestAlgorithm
     {
-        get => this.digestAlgorithm;
-        init => this.digestAlgorithm = Bounded(value, MaximumIdentifierLength);
+        get;
+        init => field = Bounded(value, MaximumIdentifierLength);
     }
 
     /// <summary>Gets the signer's certificate in DER, or the OpenPGP transferable public key, empty where none was available.</summary>
@@ -85,8 +75,8 @@ public sealed record EmailSigner
     /// </remarks>
     public ReadOnlyMemory<byte> KeyMaterial
     {
-        get => this.keyMaterial;
-        init => this.keyMaterial = value.Length > MaximumKeyMaterialLength ? ReadOnlyMemory<byte>.Empty : value;
+        get;
+        init => field = value.Length > MaximumKeyMaterialLength ? ReadOnlyMemory<byte>.Empty : value;
     }
 
     private static string? Bounded(string? value, int maximumLength) =>

@@ -25,8 +25,6 @@ namespace MailFathom.Domain.Emails.Signatures;
 /// </remarks>
 public sealed record EmailSignature
 {
-    private readonly string? chainEnd;
-
     /// <summary>Gets the verification of a message that carries no signature.</summary>
     public static EmailSignature NotSigned { get; } = new();
 
@@ -63,8 +61,8 @@ public sealed record EmailSignature
     /// </remarks>
     public string? ChainEnd
     {
-        get => this.chainEnd;
-        init => this.chainEnd = value is { Length: > EmailSigner.MaximumNameLength } ? value[..EmailSigner.MaximumNameLength] : value;
+        get;
+        init => field = value is { Length: > EmailSigner.MaximumNameLength } ? value[..EmailSigner.MaximumNameLength] : value;
     }
 
     /// <summary>Gets whether the signer was valid at the signing time and meant for signing email.</summary>
