@@ -676,7 +676,7 @@ public sealed class SpamActionRecorderTests
     {
         // Arrange
         var recorder = this.Recorder(MarkingWithKeywords());
-        await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam, SpamClassificationStage.Model), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+        await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
         var carryingJunk = this.Recorder(
             MarkingWithKeywords(),
             OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk"]));
@@ -927,12 +927,10 @@ public sealed class SpamActionRecorderTests
     private static SpamActionSettings FilingAndMarkingRead() =>
         SpamActionSettings.Create(filesJunk: true, marksJunkRead: true);
 
-    private static SpamClassification SpamVerdictOf(
-        SpamVerdict verdict,
-        SpamClassificationStage decidedBy = SpamClassificationStage.Deterministic) => SpamClassification.Create(
+    private static SpamClassification SpamVerdictOf(SpamVerdict verdict) => SpamClassification.Create(
         Email,
         verdict,
-        decidedBy,
+        SpamClassificationStage.Deterministic,
         assessment: null,
         SpamClassificationProfile.Create(),
         [],
