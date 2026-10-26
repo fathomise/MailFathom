@@ -105,3 +105,63 @@ document.addEventListener('focusout', (event) => {
   addEventListener('scroll', hide, true);
   addEventListener('resize', hide);
 })();
+
+// A toast dragged aside, the same in every artboard that stands one: the card follows the pointer across once it has
+// travelled 14 px, fading as it goes and carried at most 148 px; let go past 96 px it leaves that way and `gone` takes
+// it, short of that it springs back; more than 26 px up or down, and more down than across, is a scroll and springs it
+// back too. A card that `asks` — a running operation's — springs back as `gone` asks its question. Every pointer drags, a mouse included, because the close control stays beside it. The pointer is captured
+// only once the drag engages, so a press on the close control still lands on the close control, and `dragged` tells a
+// card's own click that the press it ends was a drag rather than a press.
+MailFathomDesign.toastDrag = (gone, asks) => {
+  const back = (el, d) => {
+    el.style.transition = "transform .22s var(--ease-sheet), opacity .22s ease";
+    el.style.transform = "";
+    el.style.opacity = d.opacity;
+    setTimeout(() => { el.style.transition = d.transition; }, 230);
+  };
+  return {
+    down: (e) => {
+      if (e.button > 0) return;
+      e.currentTarget._drag = { pointer: e.pointerId, x: e.clientX, y: e.clientY, on: false, dx: 0 };
+    },
+    move: (e) => {
+      const el = e.currentTarget, d = el._drag;
+      if (!d || d.pointer !== e.pointerId) return;
+      const dx = e.clientX - d.x, dy = e.clientY - d.y;
+      if (Math.abs(dy) > 26 && Math.abs(dy) > Math.abs(dx)) {
+        el._drag = null;
+        el._dragged = Date.now();
+        if (d.on) back(el, d);
+        return;
+      }
+      if (!d.on) {
+        if (Math.abs(dx) < 14) return;
+        d.on = true;
+        d.opacity = el.style.opacity;
+        d.transition = el.style.transition;
+        el.style.transition = "none";
+        try { el.setPointerCapture(e.pointerId); } catch (_) { /* a synthesised pointer has nothing to capture */ }
+      }
+      d.dx = Math.max(-148, Math.min(148, dx));
+      el.style.transform = "translateX(" + d.dx + "px)";
+      el.style.opacity = String(1 - (Math.abs(d.dx) / 148) * 0.6);
+    },
+    up: (e) => {
+      const el = e.currentTarget, d = el._drag;
+      if (!d || d.pointer !== e.pointerId) return;
+      el._drag = null;
+      if (!d.on) return;
+      el._dragged = Date.now();
+      if (Math.abs(d.dx) < 96 || e.type === "pointercancel") { back(el, d); return; }
+      if (asks) { back(el, d); gone(); return; }
+      el.style.transition = "transform .2s var(--ease-sheet), opacity .2s ease";
+      el.style.transform = "translateX(" + (d.dx < 0 ? -110 : 110) + "%)";
+      el.style.opacity = "0";
+      setTimeout(gone, 200);
+    },
+    dragged: (e) => {
+      const el = e && e.currentTarget;
+      return !!(el && el._dragged && Date.now() - el._dragged < 400);
+    },
+  };
+};

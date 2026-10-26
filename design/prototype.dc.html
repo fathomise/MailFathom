@@ -3227,7 +3227,7 @@ Project repository: https://github.com/fathomise/MailFathom
   </sc-if>
   <div style="{{ toastWrapStyle }}">
     <sc-for list="{{ toasts }}" as="t" hint-placeholder-count="0">
-      <div style="{{ t.style }}" style-hover="opacity:1">
+      <div onClick="{{ t.open }}" onPointerDown="{{ t.dragDown }}" onPointerMove="{{ t.dragMove }}" onPointerUp="{{ t.dragUp }}" onPointerCancel="{{ t.dragUp }}" style="{{ t.style }}" style-hover="opacity:1">
         <div style="{{ t.iconWrapStyle }}"><span style="{{ t.iconStyle }}">{{ t.icon }}</span></div>
         <div style="{{ toastTextStyle }}">
           <div style="{{ toastTitleStyle }}">{{ t.title }}</div>

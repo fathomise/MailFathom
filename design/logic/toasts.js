@@ -52,7 +52,7 @@ MailFathomDesign.artboards.toasts = (DCLogic, React) => {
       const id = "t" + (this._tSeq = (this._tSeq || 0) + 1);
       const t = {
         id: id, kind: o.kind || "neutral", title: o.title, body: o.body || "",
-        actionLabel: o.action || "", ms: o.ms || this.ms(),
+        actionLabel: o.action || "", opens: !!o.opens, ms: o.ms || this.ms(),
         sticky: o.kind === "loading", cancelText: o.cancelText || "",
       };
       this.setState(s => ({ toasts: [t].concat(s.toasts || []).slice(0, this.maxStack()) }));
@@ -73,6 +73,12 @@ MailFathomDesign.artboards.toasts = (DCLogic, React) => {
       setTimeout(() => this.setState(s => ({ toasts: (s.toasts || []).filter(x => x.id !== id) })), 200);
     };
 
+    remove = (id) => {
+      this._tT = this._tT || {};
+      clearTimeout(this._tT[id]);
+      this.setState(s => ({ toasts: (s.toasts || []).filter(x => x.id !== id) }));
+    };
+
     patch = (id, p) => {
       this.setState(s => ({ toasts: (s.toasts || []).map(x => (x.id === id ? Object.assign({}, x, p) : x)) }));
       if (!p.sticky) this.arm(id, this.ms());
@@ -83,7 +89,7 @@ MailFathomDesign.artboards.toasts = (DCLogic, React) => {
       this._tasks = this._tasks || {};
       this._tasks[id] = setTimeout(() => {
         delete this._tasks[id];
-        this.patch(id, { kind: o.doneKind || "success", title: o.doneTitle, body: o.doneBody || "", actionLabel: o.doneAction || "", sticky: false, ms: this.ms() });
+        this.patch(id, { kind: o.doneKind || "success", title: o.doneTitle, body: o.doneBody || "", actionLabel: o.doneAction || "", opens: !!o.doneOpens, sticky: false, ms: this.ms() });
       }, o.ms || 2600);
       return id;
     };
@@ -156,10 +162,10 @@ MailFathomDesign.artboards.toasts = (DCLogic, React) => {
           (live ? ";animation:mftbar " + (t.ms || this.ms()) + "ms linear both" : ";transform:scaleX(0.62)"),
         iconWrapStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:" + K.soft + ";" + (slim ? "width:28px;height:28px;border-radius:8px" : "width:34px;height:34px;border-radius:12px"),
         iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;line-height:1;font-size:" + (slim ? 18 : 22) + "px;color:" + K.c + (loading ? ";animation:mfspin 1.1s linear infinite" : ""),
-        style: "position:relative;overflow:hidden;display:flex;background:var(--panel);border:1px solid var(--line);" +
+        style: "position:relative;overflow:hidden;display:flex;background:var(--panel);border:1px solid var(--line);" + (t.opens ? "cursor:pointer;" : "") +
           (slim ? "align-items:center;gap:10px;padding:6px 4px 6px 8px;border-radius:12px;" : "align-items:flex-start;gap:12px;padding:13px 12px 15px 13px;border-radius:16px;") +
           (live
-            ? "pointer-events:auto;box-shadow:0 16px 38px var(--sh-2),0 2px 6px var(--sh-1);opacity:" + (slim ? 1 : 0.8) + ";transition:opacity .15s ease;animation:" + (t.out ? "mftout .2s ease forwards" : "mftin .24s cubic-bezier(.2,.85,.3,1) backwards")
+            ? "pointer-events:auto;touch-action:pan-y;user-select:none;box-shadow:0 16px 38px var(--sh-2),0 2px 6px var(--sh-1);opacity:" + (slim ? 1 : 0.8) + ";transition:opacity .15s ease;animation:" + (t.out ? "mftout .2s ease forwards" : "mftin .24s cubic-bezier(.2,.85,.3,1) backwards")
             : "box-shadow:0 6px 16px var(--sh-1)"),
       };
     };
@@ -201,7 +207,7 @@ MailFathomDesign.artboards.toasts = (DCLogic, React) => {
               "A response to my own action - I sent, deleted, downloaded.",
               "Lives " + Math.round(this.ms() / 1000) + " seconds and leaves no trace.",
               "Has no read state and no history.",
-              "At most one action: Undo, Retry, Show.",
+              "At most one action: Undo or Retry. One raised for a notification opens it when pressed anywhere.",
             ],
           },
           {
@@ -240,7 +246,7 @@ MailFathomDesign.artboards.toasts = (DCLogic, React) => {
               if (s.kind === "loading") {
                 this.task({ title: s.title, body: s.body, cancelText: TASKS.archive.cancelText, doneTitle: TASKS.archive.doneTitle, doneBody: TASKS.archive.doneBody, ms: TASKS.archive.ms });
               } else {
-                this.notify({ kind: s.kind, title: s.title, body: s.body, action: s.action });
+                this.notify({ kind: s.kind, title: s.title, body: s.body, action: s.action, opens: s.opens });
               }
             },
           };
@@ -249,14 +255,19 @@ MailFathomDesign.artboards.toasts = (DCLogic, React) => {
         toasts: (st.toasts || []).map(t => {
           const v = this.vis(t, true);
           const loading = t.kind === "loading";
+          const drag = MailFathomDesign.toastDrag(loading ? () => this.askCancel(t.id) : () => this.remove(t.id), loading);
           return Object.assign({}, v, {
+            open: (e) => { if (t.opens && !drag.dragged(e)) this.dismiss(t.id); },
+            dragDown: drag.down,
+            dragMove: drag.move,
+            dragUp: drag.up,
             id: t.id, title: t.title, body: t.body,
             hasBody: !!t.body,
             hasBar: v.hasBar && bar,
             hasAction: !!t.actionLabel,
             actionLabel: t.actionLabel,
             action: () => { this.dismiss(t.id); this.notify({ kind: "neutral", title: MESSAGES.restored.title, body: MESSAGES.restored.body }); },
-            close: loading ? () => this.askCancel(t.id) : () => this.dismiss(t.id),
+            close: (e) => { if (e && e.stopPropagation) e.stopPropagation(); if (loading) this.askCancel(t.id); else this.dismiss(t.id); },
             closeTitle: loading ? "Abort operation" : "Close",
           });
         }),
@@ -274,6 +285,8 @@ MailFathomDesign.artboards.toasts = (DCLogic, React) => {
           { k: "Timing", v: "Auto-close after " + Math.round(this.ms() / 1000) + " s; the bar at the bottom shows the time left." },
           { k: "Transparency", v: "0.8 at rest, 1.0 under the cursor - content beneath the stack stays readable. Opaque on the phone and the fold, where there is no cursor." },
           { k: "Close button", v: "Always present. For a running operation it means abort and asks for confirmation." },
+          { k: "Drag aside", v: "Any toast, dragged left or right, follows the pointer and fades; let go past 96 px it leaves, short of that it springs back. A running operation's asks first, as its close button does." },
+          { k: "Pressed", v: "A toast raised for a notification draws no button: the whole card opens what the notification opens. Its close button only closes." },
         ],
 
         startBlocking: () => this.startBlock(true),
