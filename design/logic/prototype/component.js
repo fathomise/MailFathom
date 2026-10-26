@@ -9,7 +9,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     avatars: AVATARS, contacts: CONTACTS, contactInsights: CONTACT_AI,
     threads: THREADS, earlierMessages, threadMailBodies, threadStateSources: STATE_SRC, replyTo: HDR_REPLY_TO, cc: HDR_CC,
     mailBodies, documentPreviews, composeDrafts: COMPOSE_DRAFTS, newMessageTo: NEW_MESSAGE_TO,
-    accounts: ACCOUNTS, outbox: OUTBOX, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, defaultReplyTo: DEFAULT_REPLY_TO, mailAccounts: MAIL_ACCOUNTS,
+    accounts: ACCOUNTS, outbox: OUTBOX, localDrafts: LOCAL_DRAFTS, changeNotices: CHANGE_NOTICES, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, defaultReplyTo: DEFAULT_REPLY_TO, mailAccounts: MAIL_ACCOUNTS,
     home: HOME, savedAnswers: SAVED_ANSWERS, suggestedQuestions: SUGGESTED_QUESTIONS, sampleText: SAMPLE_TEXT,
     calendarBriefing: CALENDAR_BRIEFING, eventFromThread: EVENT_FROM_THREAD, taskCapacity: TASK_CAPACITY,
     starterChips: STARTER_CHIPS, anotherTimeReply: ANOTHER_TIME, agentScheduledEvents: AGENT_SCHEDULED,
@@ -359,7 +359,19 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     cal: { icon: "event", c: "var(--ok-text)", soft: "var(--ok-soft)", toast: "info" },
     task: { icon: "task_alt", c: "var(--text2)", soft: "var(--hover)", toast: "neutral" },
     system: { icon: "sync", c: "var(--muted)", soft: "var(--hover)", toast: "neutral" },
+    failure: { icon: "error", c: "var(--err-text)", soft: "var(--err-soft)", toast: "error" },
+    draftcopy: { icon: "cloud_off", c: "var(--warn-text)", soft: "var(--warn-soft)", toast: "warning" },
   };
+
+  /* What a mailbox change asked, as a notice names it once the server did not take it: the exhausted title, then
+     the gerund an unknown outcome is said with. */
+  const CHANGE_ACT = {
+    move: ["Not moved", "Moving"], archive: ["Not archived", "Archiving"], delete: ["Not deleted", "Deleting"],
+    read: ["Not marked read", "Marking read"], unread: ["Not marked unread", "Marking unread"],
+    flag: ["Not flagged", "Flagging"], unflag: ["Not unflagged", "Unflagging"],
+  };
+
+  const draftHtml = (paras) => (paras || []).map(p => "<p>" + String(p).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>") + "</p>").join("");
 
   const isNotifUnread = (n, read) => (read && read[n.id] !== undefined ? !read[n.id] : !!n.unread);
 
@@ -448,6 +460,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (typeof matchMedia === "function") matchMedia("(pointer: coarse)").addEventListener("change", this.measure);
       this.measure();
       this.timers.push(setTimeout(() => this.simulateNotif(), 14000));
+      if (this.props.raise && this.props.raise !== "none") this.timers.push(setTimeout(() => this.raiseFailure(this.props.raise), 1200));
     }
 
     toggleSelect = (id) => {
@@ -567,6 +580,47 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.setOutbox(acc, this.outboxOf(acc).map(x => (x.id === id ? Object.assign({}, x, { stage: "sending" }) : x)));
       this.notify("It goes out again now.", { title: "Sending again" });
       this.outboxLeaveSoon(acc);
+    };
+    /* A refused send can be taken back to edit: it leaves the Outbox, nothing is sent, and the composer opens on it
+       as a draft with everything it carried. Only a refusal - an unknown outcome may have arrived. */
+    editOutboxEntry = (acc, id) => this.decideOutboxEntry(id, "edit", () => {
+      const entry = this.outboxOf(acc).find(x => x.id === id);
+      if (!entry) return;
+      this.setOutbox(acc, this.outboxOf(acc).filter(x => x.id !== id));
+      this.openDraft({ id: entry.id, acc: acc, subject: entry.subject, body: entry.body, attachments: entry.attachments || [],
+        to: entry.rcpt.filter(r => r.hdr === "To").map(r => r.mail), cc: entry.rcpt.filter(r => r.hdr === "Cc").map(r => r.mail) });
+      this.notify("“" + entry.subject + "” left the Outbox and nothing was sent. Send it when it is ready.", { title: "Back in Drafts" });
+    });
+
+    /* The composer opened on a draft: its recipients, subject, words and attachments. `noServerCopy` is a draft
+       MailFathom keeps whose copy on the mail server is missing or unknown. */
+    openDraft = (d) => {
+      this.pendingBody = draftHtml(d.body);
+      const patch = { compose: true, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null,
+        composeSubjEdit: d.subject, composeDraft: d, composeCc: (d.cc || []).slice(), ccOpen: !!(d.cc || []).length, closeAsk: false, sendAsk: null };
+      if (this.tabsMode()) this.openTab("compose", patch);
+      else this.setState(patch);
+    };
+
+    /* A mailbox change the server never took is decided on the message or on its notification row, and either one
+       marks the durable row read, so one failure is never shown as two. */
+    decideChange = (threadId, again, e) => {
+      if (e && e.stopPropagation) e.stopPropagation();
+      const n = CHANGE_NOTICES[threadId] || {};
+      this.setState(s => ({
+        changeDecided: Object.assign({}, s.changeDecided, { [threadId]: true }),
+        notifRead: n.notif ? Object.assign({}, s.notifRead, { [n.notif]: true }) : s.notifRead,
+      }));
+      if (again) this.notify("MailFathom is telling your mailbox again.", { title: "Asked again" });
+    };
+
+    /* What the open client raises when one of the three failures is raised: the durable row's own toast. */
+    raiseFailure = (which) => {
+      const n = this.notifAll().find(x => x.failure === which);
+      if (!n || !n.toast) return;
+      let tid;
+      tid = this.notify(n.toast.body, { kind: n.toast.kind, title: n.title, actionLabel: n.toast.action, ms: 8000,
+        onAction: () => { this.dismissToast(tid); this.openNotif(n); } });
     };
 
     pickThread = (id, e) => {
@@ -741,7 +795,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     startReply = (mode, ids) => {
       const id = this.opTargets(ids)[0];
       if (this.refuseSpam(id, mode === "fwd" ? "Spam cannot be forwarded." : "Spam cannot be answered.")) return;
-      const patch = { compose: true, composeMin: false, replyMode: mode, replyThreadId: id, composeCtx: [id], composeCtxBase: [id], threadId: id, mailPane: "thread", threadOpen: true, sel: [] };
+      const patch = { compose: true, composeDraft: null, composeMin: false, replyMode: mode, replyThreadId: id, composeCtx: [id], composeCtxBase: [id], threadId: id, mailPane: "thread", threadOpen: true, sel: [] };
       if (this.state.workMode === "tabs") this.openTab("compose", patch);
       else this.setState(patch);
     };
@@ -1800,6 +1854,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.setState({ notifRead: read });
       this.closeNotifCenter();
       if (!n.go) return;
+      if (n.go.outbox) { this.showOutboxEntry(n.go.outbox, n.go.entry); return; }
+      if (n.go.draft) {
+        const d = ((LOCAL_DRAFTS[n.go.acc] || []).find(x => x.id === n.go.draft));
+        this.goScreen("mail", { outboxAcc: null, folderKey: n.go.acc + "·Drafts", folderLabel: "Drafts", mailPane: "list" });
+        if (d) this.openDraft(Object.assign({ acc: n.go.acc, noServerCopy: true }, d));
+        return;
+      }
       if (n.go.thread) this.goScreen("mail", Object.assign(this.leaveOutbox(), { mailPane: "thread", threadOpen: true, threadId: n.go.thread, cameFrom: false, sel: [] }));
       else this.goScreen(n.go.screen, n.go.screen === "mail" ? { mailPane: "list" } : {});
     };
@@ -1814,6 +1875,23 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.closeNotifCenter();
       this.goAgentWith(n.count + " new messages · " + n.account);
       this.agentAsk("Summarize these " + n.count + " new messages");
+    };
+
+    showOutboxEntry = (acc, id) => {
+      this.goScreen("mail", { mailPane: "list" });
+      this.openOutbox(acc);
+      this.pickOutboxEntry(id);
+    };
+
+    /* A refused send's row decides it where it stands: Send again or Edit, each done in the Outbox on that entry so the
+       decision under way is seen, and the row marked read. */
+    decideRefusedNotif = (n, decision, e) => {
+      if (e && e.stopPropagation) e.stopPropagation();
+      this.setState(s => ({ notifRead: Object.assign({}, s.notifRead, { [n.id]: true }) }));
+      this.closeNotifCenter();
+      this.showOutboxEntry(n.go.outbox, n.go.entry);
+      if (decision === "again") this.sendOutboxEntryAgain(n.go.outbox, n.go.entry);
+      else this.editOutboxEntry(n.go.outbox, n.go.entry);
     };
 
     pushNotif = (it) => {
@@ -2570,6 +2648,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         this.pendingDraft = null;
         this.setState({ aiDraft: true });
       }
+      if (this.pendingBody && this.bodyRef.current) {
+        this.bodyRef.current.innerHTML = this.pendingBody;
+        this.pendingBody = null;
+      }
+      const raise = this.props.raise;
+      if (raise && raise !== "none" && raise !== (prevProps || {}).raise) this.raiseFailure(raise);
       if (this.pendingAiWrite && this.bodyRef.current) {
         this.pendingAiWrite = false;
         this.aiWrite("full");
@@ -2896,11 +2980,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const flagOn = actTargets.every(id => !!flags[id]);
       const wantTabs = (st.workMode || "tabs") === "tabs";
       const rmode = st.replyMode || null;
-      const composeKind = rmode === "reply" ? "Reply" : rmode === "all" ? "Reply all" : rmode === "fwd" ? "Forward" : "New message";
+      const composeKind = rmode === "reply" ? "Reply" : rmode === "all" ? "Reply all" : rmode === "fwd" ? "Forward" : st.composeDraft ? "Draft" : "New message";
       /* A reply keeps the conversation it answers, whatever the list is pointed at afterwards. */
       const replyThread = (rmode && THREADS.find(t => t.id === st.replyThreadId)) || thread;
       const threadParticipants = (msgsFor(replyThread) || []).map(m => m.from).filter((n, i, a) => a.indexOf(n) === i);
-      const composeTo = rmode === "fwd" ? [] : rmode === "all" ? threadParticipants : rmode === "reply" ? threadParticipants.slice(-1) : NEW_MESSAGE_TO.slice();
+      const composeDraft = !rmode && st.composeDraft ? st.composeDraft : null;
+      const composeTo = rmode === "fwd" ? [] : rmode === "all" ? threadParticipants : rmode === "reply" ? threadParticipants.slice(-1) : composeDraft ? composeDraft.to.slice() : NEW_MESSAGE_TO.slice();
       const composeSubj = rmode === "fwd" ? "Fwd: " + replyThread.subject : rmode ? "Re: " + replyThread.subject : "";
       const composeCtx = (st.composeCtx || []).filter(id => THREADS.some(t => t.id === id));
       const composeCtxBase = st.composeCtxBase || null;
@@ -2912,7 +2997,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         return el ? (el.innerText || "").replace(/\u200b/g, "").trim() : "";
       };
       const finishCompose = () => {
-        const patch = { compose: false, composeCtx: [], composeCtxBase: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "" };
+        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "" };
         if ((st.workMode || "classic") === "tabs") this.closeTab("compose");
         this.setState(patch);
       };
@@ -2979,9 +3064,28 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : m.mine ? 0 : (((m.from || "") + (m.when || "")).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 3 === 0 ? 0 : 3 + (((m.from || "").length * 7 + (m.when || "").length) % 16));
         const remoteOn = !!(st.remoteLoaded || {})[k];
         const folding = st.histFolding === thread.id;
+        /* A mailbox change the server never took, on the message it was asked for, until it is asked again or let go. */
+        const chg = i === lastIdx && !(st.changeDecided || {})[thread.id] ? CHANGE_NOTICES[thread.id] : null;
+        const chgUnknown = !!chg && chg.fate === "unknown";
+        const chgAct = chg ? (CHANGE_ACT[chg.act] || CHANGE_ACT.move) : null;
+        const chgBtn = "display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:" + (touch ? 44 : 32) + "px;padding:0 14px;border-radius:8px;font-size:13px;";
         items.push({
           isMsg: true, isPill: false, key: k, isActive,
           ...(threadSpam.spam && i === lastIdx ? spamWarning(threadSpam, thread.spam || {}) : { spamWarn: false }),
+          changeShown: !!chg,
+          changeIcon: chgUnknown ? "help" : "sync_problem",
+          changeTitle: !chg ? "" : chgUnknown ? chgAct[1] + " may not have happened" : chgAct[0] + " - your mailbox did not take this change",
+          changeText: !chg ? "" : chgUnknown
+            ? "The mail server never answered, so nobody knows whether it took the change. The message is shown as the server last reported it."
+            : "The mail server would not take it, so this message is shown where the server holds it.",
+          changeBoxStyle: "display:flex;align-items:flex-start;gap:11px;border-radius:12px;padding:12px 14px;border:1px solid " + (chgUnknown ? "var(--warn);background:var(--warn-soft)" : "var(--err);background:var(--err-soft)"),
+          changeIconStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1;color:" + (chgUnknown ? "var(--warn-text)" : "var(--err-text)"),
+          changeTitleStyle: "font-size:14px;font-weight:600;color:" + (chgUnknown ? "var(--warn-text)" : "var(--err-text)"),
+          changeAgainLabel: chg && chg.act === "move" ? "Move again…" : "Ask again",
+          changeAgain: (e) => this.decideChange(thread.id, true, e),
+          changeLetGo: (e) => this.decideChange(thread.id, false, e),
+          changeAgainStyle: chgBtn + "font-weight:600;color:var(--onaccent);background:var(--accent)",
+          changeQuietStyle: chgBtn + "color:var(--text2);background:var(--panel);border:1px solid var(--border2)",
           unfoldMotion: i !== activeIdx && (folding || st.histUnfolded === thread.id) ? "unfold" : "none",
           unfoldPhase: folding && i !== activeIdx ? "out" : "in",
           remoteBlocked: remoteRefs > 0 && !remoteOn && !threadSpam.spam,
@@ -3249,7 +3353,22 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const outboxDecidingHere = !!outboxEntry && !!st.outboxDeciding && st.outboxDeciding.id === outboxEntry.id;
       const obHeld = outboxDecidingHere ? ";opacity:0.6;cursor:default" : "";
       const obBtn = "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:" + (touch ? 44 : 32) + "px;padding:0 14px;border-radius:8px;font-size:13px;";
+      /* Drafts whose copy on the mail server may be missing or out of date stand at the top of a Drafts list, apart
+         from the ordinary drafts below them; the unified Drafts gathers every account's. */
+      const openFolderKey = st.folderKey || "acc1·Inbox";
+      const draftsAcc = /·Drafts$/.test(openFolderKey) && !outboxOn ? openFolderKey.split("·")[0] : null;
+      const draftsLocal = !draftsAcc ? [] : ACCOUNTS.some(a => a.key === draftsAcc)
+        ? (LOCAL_DRAFTS[draftsAcc] || []).map(d => Object.assign({ acc: draftsAcc }, d))
+        : ACCOUNTS.reduce((all, a) => all.concat((LOCAL_DRAFTS[a.key] || []).map(d => Object.assign({ acc: a.key }, d))), []);
       const outboxView = {
+        draftsLocalShown: draftsLocal.length > 0 && !st.listLoading,
+        draftsLocalHeadStyle: "display:flex;align-items:center;gap:7px;padding:" + (isMobile ? "12px 16px 8px" : "10px 14px 6px") + ";font-size:12px;font-weight:600;color:var(--warn-text);background:var(--warn-soft);border-bottom:1px solid var(--line2)",
+        draftsLocalRows: draftsLocal.map(d => ({
+          to: d.to[0] + (d.to.length > 1 ? " +" + (d.to.length - 1) : ""), subject: d.subject, at: d.at,
+          open: () => this.openDraft(Object.assign({ noServerCopy: true }, d)),
+          rowStyle: rowStyleFor(false, false) + "border-bottom:1px solid var(--line2);",
+        })),
+        draftsLocalEndStyle: "height:8px;background:var(--sub);border-bottom:1px solid var(--line)",
         outboxListShown: outboxOn,
         outboxHeadStyle: "flex:0 0 auto;display:flex;align-items:center;gap:" + (touch ? 8 : 9) + "px;box-sizing:border-box;" + (isMobile ? "min-height:56px;padding:6px 12px 6px 16px;" : touch ? "padding:8px 12px;" : "padding:10px 12px;") + "border-bottom:1px solid var(--line)",
         outboxTitleStyle: isMobile ? "font-size:20px;font-weight:600;letter-spacing:-0.01em;line-height:1.2" : "font-size:16px;font-weight:600",
@@ -3297,7 +3416,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         outboxDismiss: () => outboxEntry && !outboxDecidingHere && this.dismissOutboxEntry(outboxAcc, outboxEntry.id),
         outboxHeld: outboxDecidingHere,
         outboxDecidingShown: outboxDecidingHere,
-        outboxDecidingSaid: outboxDecidingHere ? (st.outboxDeciding.decision === "cancel" ? "Cancelling sending…" : "Sending it again…") : "",
+        outboxDecidingSaid: outboxDecidingHere ? (st.outboxDeciding.decision === "cancel" ? "Cancelling sending…" : st.outboxDeciding.decision === "edit" ? "Taking it back to edit…" : "Sending it again…") : "",
+        outboxCanEdit: !!outboxEntry && outboxEntry.stage === "refused",
+        outboxEdit: () => outboxEntry && this.editOutboxEntry(outboxAcc, outboxEntry.id),
+        outboxEditIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:18px;line-height:1;margin-right:6px",
         outboxResendStyle: obBtn + "font-weight:600;color:var(--onaccent);background:var(--accent)" + obHeld,
         outboxQuietBtnStyle: obBtn + "color:var(--text2);background:var(--panel);border:1px solid var(--border2)" + obHeld,
         outboxFacts: !outboxEntry ? [] : [{ k: "From", v: outboxAccount.address }]
@@ -5084,14 +5206,24 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         notifItems: notifShown.map(n => {
           const K = NKIND[n.kind] || NKIND.system;
           const unread = isNotifUnread(n, st.notifRead || {});
+          /* A refused send and an abandoned change carry their decisions as pills under the source line, visible at
+             every width so a finger reaches them; the same decisions stand in the row's menu. A change already decided on
+             its message has nothing left to decide. */
+          const changeOpen = n.failure === "change" && !(st.changeDecided || {})[n.change];
+          const pills = n.failure === "send"
+            ? [{ icon: "send", label: "Send again", run: (e) => this.decideRefusedNotif(n, "again", e) }, { icon: "edit", label: "Edit", run: (e) => this.decideRefusedNotif(n, "edit", e) }]
+            : changeOpen
+            ? [{ icon: "refresh", label: "Ask again", run: (e) => this.decideChange(n.change, true, e) }, { icon: "close", label: "Let it go", run: (e) => this.decideChange(n.change, false, e) }]
+            : [];
           return {
+            pills: pills, hasPills: pills.length > 0,
             title: n.title, body: n.body, src: n.src, icon: K.icon, unread: unread,
             time: notifTime(n.mins),
             press: this.pressFor("notifs", n.id, n.title, [
               { icon: "check_box", label: "Select notifications", run: () => this.selStart("notifs", n.id) },
               { icon: unread ? "mark_email_read" : "mark_email_unread", label: unread ? "Mark as read" : "Mark as unread", run: () => this.toggleNotifRead(n) },
               { icon: "open_in_new", label: "Open source", run: () => this.openNotif(n) },
-            ].concat(n.merged ? [{ icon: "auto_awesome", label: "Summarize", run: () => this.summarizeNotif(n) }] : []).concat([
+            ].concat(n.merged ? [{ icon: "auto_awesome", label: "Summarize", run: () => this.summarizeNotif(n) }] : []).concat(pills).concat([
               { icon: "delete", label: "Delete notification", danger: true, run: () => this.askHide("notifs", [n.id], "Delete notification?", n.title + " will disappear from the notification centre.") },
             ]), 420, notifInstant(n.mins)),
             merged: !!n.merged,
@@ -5396,8 +5528,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         composeExpanded: (!!st.compose && !st.composeMin) || composeInPane,
         composeChromeShown: !composeTabActive,
         openCompose: () => (tabsMode
-          ? this.openTab("compose", { compose: true, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })
-          : this.setState({ compose: true, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })),
+          ? this.openTab("compose", { compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })
+          : this.setState({ compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })),
         composeSubjValue: curSubj,
         onComposeSubj: (e) => this.setState({ composeSubjEdit: e.target.value }),
         closeCompose: () => (bodyTxt() || curSubj.trim() ? this.setState({ closeAsk: true }) : finishCompose()),
@@ -5424,7 +5556,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           this.notifyTask({
             title: "Sending message…",
             body: "Do: " + to,
-            cancelText: "The message is being sent. Aborting stops delivery and saves it as a draft.",
+            cancelText: "The message is being sent. Aborting stops it here, so it is not sent.",
             doneTitle: "Message sent",
             doneBody: "Do: " + to,
             doneActionLabel: "Show in Outbox",
@@ -5444,6 +5576,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : "position:fixed;right:26px;bottom:0;width:680px;max-width:calc(100vw - 52px);max-height:" + (low ? "calc(100dvh - 8px)" : tall ? "min(86dvh, 760px)" : "86dvh") + ";z-index:90;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-bottom:none;border-radius:12px 12px 0 0;box-shadow:0 -1px 0 var(--inset) inset,0 18px 44px var(--sh-3)",
         composeTitle: (st.composeMin ? composeKind + " - collapsed" : composeKind),
         composeToChips: composeTo.map(n => ({ name: n })),
+        /* A draft opened from the Outbox or the Drafts list carries its files; one whose copy on the mail server may be
+           missing or out of date says so first, above the recipients, at every composition. */
+        composeDraftAtts: composeDraft ? (composeDraft.attachments || []) : [],
+        composeHasAtts: !!composeDraft && !!(composeDraft.attachments || []).length,
+        composeAttChipStyle: "display:flex;align-items:center;gap:7px;min-width:0;max-width:100%;box-sizing:border-box;font-size:13px;background:var(--rail);border:1px solid var(--line);border-radius:8px;" + (touch ? "min-height:36px;padding:0 10px;" : "padding:4px 10px;"),
+        composeNoServerCopy: !!composeDraft && !!composeDraft.noServerCopy,
+        composeNoCopyStyle: "display:flex;align-items:flex-start;gap:9px;padding:" + (touch ? "11px 15px" : "9px 15px") + ";font-size:" + (touch ? 13 : 12) + "px;line-height:1.45;color:var(--warn-text);background:var(--warn-soft);border-bottom:1px solid var(--warn)",
         ccOpen: !!st.ccOpen,
         ccTitle: st.ccOpen ? "Hide Cc and Bcc fields" : "Show Cc and Bcc fields",
         /* The phone's field labels take the width of the longest of them rather than a desktop column, so a recipient

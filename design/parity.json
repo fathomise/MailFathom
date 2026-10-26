@@ -218,6 +218,123 @@
         }
       ]
     },
+    "mail-outbox-refused": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Folders and filters",
+            "exact": true
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Outbox - 4 waiting to leave, 1 refused",
+            "exact": true
+          }
+        },
+        {
+          "click": {
+            "text": "Re: Contract addendum - signatures"
+          }
+        },
+        {
+          "expect": {
+            "text": "Not sent - the server refused it"
+          }
+        }
+      ]
+    },
+    "mail-change-notice": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "notifications_active"
+          }
+        },
+        {
+          "click": {
+            "text": "A change did not reach your mailbox"
+          }
+        },
+        {
+          "expect": {
+            "text": "Not moved - your mailbox did not take this change"
+          }
+        }
+      ]
+    },
+    "composer-held-draft": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "notifications_active"
+          }
+        },
+        {
+          "click": {
+            "text": "Draft out of step with your server"
+          }
+        },
+        {
+          "expect": {
+            "text": "Your mail server's copy of this draft may be missing or out of date, so another mail app may not show what you see here. It is kept in MailFathom."
+          }
+        }
+      ]
+    },
+    "mail-drafts": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Folders and filters",
+            "exact": true
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "text": "Drafts"
+          }
+        },
+        {
+          "expect": {
+            "role": "group",
+            "name": "Out of step with your server",
+            "exact": true
+          }
+        }
+      ]
+    },
     "account-menu": {
       "file": "prototype.dc.html",
       "properties": {

@@ -7,8 +7,12 @@ MailFathomDesign.data.toastsSamples = [
     desc: "Confirmation of an ordinary operation. No colour - it does not take attention but offers a way back." },
   { kind: "success", name: "Success", title: "Message sent", body: "To: anna.kowalska@lexmar.example", action: "",
     desc: "Operation finished. Green accent only on the icon and the timer bar." },
-  { kind: "error", name: "Error", title: "Could not send", body: "The SMTP server refused the connection (421). The text was saved to Drafts.", action: "Retry",
-    desc: "Something failed and needs a decision. Always with a cause and a way to fix it." },
+  { kind: "error", name: "Error", title: "Not sent - the server refused it", body: "“Re: Contract addendum - signatures” is in the Outbox of Nordwind · work. Send it again or edit it there.", action: "Show in Outbox",
+    desc: "Something failed and needs a decision. Always with where it stands and a way to it - never a status code." },
+  { kind: "error", name: "Error - a change that did not land", title: "A change did not reach your mailbox", body: "Move - the mail server would not take it, so the message is still where the server holds it.", action: "Show message",
+    desc: "Raised with its notification, unless an open tab is already following that change - then its pending line and toast stand for it." },
+  { kind: "warning", name: "Warning - a draft out of step", title: "Draft out of step with your server", body: "“Q4 supplier review - agenda” is kept in MailFathom, but your mail server's copy may be missing or out of date.", action: "Open draft",
+    desc: "Nothing is lost - MailFathom keeps the draft - but another mail app may not show it as it stands here." },
   { kind: "warning", name: "Warning", title: "Cancelled", body: "The operation was aborted before saving - nothing was changed.", action: "",
     desc: "A side effect or an interruption. Not an error, but the user needs to know." },
   { kind: "info", name: "Information", title: "Index extended", body: "Search now covers the contents of PDF attachments.", action: "",
@@ -22,7 +26,7 @@ MailFathomDesign.data.toastsBurst = [
   { kind: "success", title: "Message sent", body: "To: team@lexmar.example" },
   { kind: "info", title: "Index extended", body: "Search now covers the contents of PDF attachments." },
   { kind: "warning", title: "2 recipients skipped", body: "Addresses outside the domain need legal approval." },
-  { kind: "error", title: "Could not send", body: "The SMTP server refused the connection (421).", action: "Retry" },
+  { kind: "error", title: "Not sent - the server refused it", body: "“Re: Contract addendum - signatures” is in the Outbox of Nordwind · work. Send it again or edit it there.", action: "Show in Outbox" },
 ];
 
 MailFathomDesign.data.toastsMessages = {
@@ -43,10 +47,10 @@ MailFathomDesign.data.toastsTasks = {
   },
   sendFailure: {
     title: "Sending message…", body: "To: anna.kowalska@lexmar.example",
-    cancelText: "The message is being sent. Aborting stops delivery and saves it as a draft.",
-    doneKind: "error", doneTitle: "Could not send",
-    doneBody: "The SMTP server refused the connection (421). The text was saved to Drafts.",
-    doneAction: "Retry", ms: 3400,
+    cancelText: "The message is being sent. Aborting stops it here, so it is not sent.",
+    doneKind: "error", doneTitle: "Not sent - the server refused it",
+    doneBody: "“Re: Contract addendum - signatures” is in the Outbox of Nordwind · work. Send it again or edit it there.",
+    doneAction: "Show in Outbox", ms: 3400,
   },
 };
 

@@ -833,6 +833,18 @@ Project repository: https://github.com/fathomise/MailFathom
             </sc-if>
             <sc-if value="{{ listReady }}" hint-placeholder-val="{{ true }}">
             <div data-motion="fade" style="{{ listInnerStyle }}">
+            <sc-if value="{{ draftsLocalShown }}" hint-placeholder-val="{{ false }}">
+              <div role="group" aria-label="Out of step with your server">
+                <div style="{{ draftsLocalHeadStyle }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1">cloud_off</span>Out of step with your server</div>
+                <sc-for list="{{ draftsLocalRows }}" as="ld" hint-placeholder-count="1">
+                  <div role="button" tabindex="0" onClick="{{ ld.open }}" style="{{ ld.rowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+                    <div style="display:flex;align-items:center;gap:8px;min-width:0"><span style="flex:0 0 auto;font-size:12px;color:var(--muted)">To</span><span style="flex:1;min-width:0;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ld.to }}</span><span aria-hidden="true" title="Out of step with your server" data-tip-hover style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:15px;line-height:1;color:var(--warn-text)">cloud_off</span><span style="flex:0 0 auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint)">{{ ld.at }}</span></div>
+                    <div style="font-size:13px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ld.subject }}</div>
+                  </div>
+                </sc-for>
+                <div style="{{ draftsLocalEndStyle }}"></div>
+              </div>
+            </sc-if>
             <sc-for list="{{ threads }}" as="t" hint-placeholder-count="5">
               <div style="{{ t.swipeWrapStyle }}">
               <sc-if value="{{ t.swiping }}" hint-placeholder-val="{{ false }}">
@@ -958,7 +970,7 @@ Project repository: https://github.com/fathomise/MailFathom
                   <div style="{{ outboxStageTitleStyle }}">{{ outboxStageTitle }}</div>
                   <div style="font-size:13px;line-height:1.55;color:var(--text2);text-wrap:pretty">{{ outboxStageText }}</div>
                   <sc-if value="{{ outboxCanDecide }}" hint-placeholder-val="{{ false }}">
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:6px"><div role="button" tabindex="0" aria-disabled="{{ outboxHeld }}" onClick="{{ outboxResend }}" style="{{ outboxResendStyle }}" style-hover="cursor:pointer;opacity:0.9">Send again</div><div role="button" tabindex="0" aria-disabled="{{ outboxHeld }}" onClick="{{ outboxDismiss }}" style="{{ outboxQuietBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Dismiss</div></div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:6px"><div role="button" tabindex="0" aria-disabled="{{ outboxHeld }}" onClick="{{ outboxResend }}" style="{{ outboxResendStyle }}" style-hover="cursor:pointer;opacity:0.9">Send again</div><sc-if value="{{ outboxCanEdit }}" hint-placeholder-val="{{ false }}"><div role="button" tabindex="0" aria-disabled="{{ outboxHeld }}" onClick="{{ outboxEdit }}" style="{{ outboxQuietBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ outboxEditIconStyle }}">edit</span>Edit</div></sc-if><div role="button" tabindex="0" aria-disabled="{{ outboxHeld }}" onClick="{{ outboxDismiss }}" style="{{ outboxQuietBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Dismiss</div></div>
                   </sc-if>
                   <sc-if value="{{ outboxCanCancel }}" hint-placeholder-val="{{ false }}">
                     <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:6px"><div role="button" tabindex="0" aria-disabled="{{ outboxHeld }}" onClick="{{ outboxCancel }}" style="{{ outboxQuietBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Cancel sending</div></div>
@@ -1134,6 +1146,16 @@ Project repository: https://github.com/fathomise/MailFathom
                           </div>
                         </div>
                       </sc-if>
+                      <sc-if value="{{ m.changeShown }}" hint-placeholder-val="{{ false }}">
+                        <div role="status" style="{{ m.changeBoxStyle }}">
+                          <span aria-hidden="true" style="{{ m.changeIconStyle }}">{{ m.changeIcon }}</span>
+                          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+                            <div style="{{ m.changeTitleStyle }}">{{ m.changeTitle }}</div>
+                            <div style="font-size:13px;line-height:1.55;color:var(--text2);text-wrap:pretty">{{ m.changeText }}</div>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:6px"><div role="button" tabindex="0" onClick="{{ m.changeAgain }}" style="{{ m.changeAgainStyle }}" style-hover="cursor:pointer;opacity:0.9">{{ m.changeAgainLabel }}</div><div role="button" tabindex="0" onClick="{{ m.changeLetGo }}" style="{{ m.changeQuietStyle }}" style-hover="cursor:pointer;background:var(--hover)">Let it go</div></div>
+                          </div>
+                        </div>
+                      </sc-if>
                       <sc-if value="{{ m.remoteBlocked }}" hint-placeholder-val="{{ false }}">
                         <div style="{{ m.remoteBoxStyle }}">
                           <div style="font-size:14px;line-height:1.5;color:var(--text);text-wrap:pretty">This message asked to fetch content from another server. That was removed, so opening it told the sender nothing.</div>
@@ -1299,6 +1321,9 @@ Project repository: https://github.com/fathomise/MailFathom
           <sc-if value="{{ composeExpanded }}" hint-placeholder-val="{{ true }}">
             <div data-motion="fade" data-compose-fields style="{{ composeBodyStyle }}">
               <div style="{{ composeScrollStyle }}">
+              <sc-if value="{{ composeNoServerCopy }}" hint-placeholder-val="{{ false }}">
+                <div role="status" style="{{ composeNoCopyStyle }}"><span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:18px;line-height:1.1">cloud_off</span><span style="flex:1;min-width:0;text-wrap:pretty">Your mail server's copy of this draft may be missing or out of date, so another mail app may not show what you see here. It is kept in MailFathom.</span></div>
+              </sc-if>
               <div style="display:flex;align-items:center;gap:10px;padding:9px 15px;border-bottom:1px solid var(--line2)">
                 <span style="font-size:12px;color:var(--muted);width:var(--compose-label)">To</span>
                 <sc-for list="{{ composeToChips }}" as="ct" hint-placeholder-count="1">
@@ -1338,6 +1363,14 @@ Project repository: https://github.com/fathomise/MailFathom
                 <span style="font-size:12px;color:var(--muted);width:var(--compose-label)">Subject</span>
                 <input value="{{ composeSubjValue }}" onChange="{{ onComposeSubj }}" placeholder="Subject" style="flex:1;min-width:0;font-family:inherit;font-size:14px;color:var(--text);background:transparent;border:none;outline:none;padding:0" />
               </div>
+              <sc-if value="{{ composeHasAtts }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 15px;border-bottom:1px solid var(--line)">
+                  <span style="font-size:12px;color:var(--muted);width:var(--compose-label)">Files</span>
+                  <sc-for list="{{ composeDraftAtts }}" as="da" hint-placeholder-count="1">
+                    <span style="{{ composeAttChipStyle }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--muted)">description</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ da.name }}</span><span style="flex:0 0 auto;font-size:12px;color:var(--muted)">{{ da.meta }}</span></span>
+                  </sc-for>
+                </div>
+              </sc-if>
               <div style="display:flex;flex-direction:column;gap:9px;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);padding:11px 15px">
                 <div style="display:flex;align-items:center;gap:11px;background:var(--panel);border:2px solid var(--accent);border-radius:8px;padding:8px 11px">
                   <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:3px 7px;font-weight:600">AI</span>
@@ -3113,6 +3146,13 @@ Project repository: https://github.com/fathomise/MailFathom
               <sc-if value="{{ n.merged }}" hint-placeholder-val="{{ false }}">
                 <div onClick="{{ n.summarize }}" style="{{ n.summarizeStyle }}" style-hover="cursor:pointer;background:var(--accent-line)"><span style="{{ n.summarizeIconStyle }}">auto_awesome</span><span>Summarize</span></div>
               </sc-if>
+              <sc-if value="{{ n.hasPills }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <sc-for list="{{ n.pills }}" as="np" hint-placeholder-count="2">
+                    <div role="button" tabindex="0" onClick="{{ np.run }}" style="{{ n.summarizeStyle }}" style-hover="cursor:pointer;background:var(--accent-line)"><span aria-hidden="true" style="{{ n.summarizeIconStyle }}">{{ np.icon }}</span><span>{{ np.label }}</span></div>
+                  </sc-for>
+                </div>
+              </sc-if>
             </div>
             <div style="flex:0 0 auto;display:flex;align-items:center;gap:7px;padding-top:1px">
               <sc-if value="{{ n.unread }}" hint-placeholder-val="{{ false }}">
@@ -3173,7 +3213,7 @@ Project repository: https://github.com/fathomise/MailFathom
     <div data-motion="pop" data-phase="{{ mo.agentReturn }}" role="button" tabIndex="0" aria-label="Back to the agent conversation you came from" onClick="{{ backToConv }}" onKeyDown="{{ backToConvKey }}" style="{{ convReturnStyle }}" style-hover="cursor:pointer;opacity:0.92" style-focus="outline:2px solid var(--accent);outline-offset:3px"><span style="{{ convReturnIconStyle }}">arrow_back</span>{{ convReturnLabel }}</div>
   </sc-if>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;desktop&quot;,&quot;tablet&quot;,&quot;fold&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;space&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;discover&quot;,&quot;mail&quot;,&quot;agent&quot;,&quot;tasks&quot;,&quot;calendar&quot;,&quot;people&quot;],&quot;default&quot;:&quot;discover&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;aiHints&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;streamDelay&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:550,&quot;min&quot;:120,&quot;max&quot;:1200,&quot;step&quot;:50,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;desktop&quot;,&quot;tablet&quot;,&quot;fold&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;space&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;discover&quot;,&quot;mail&quot;,&quot;agent&quot;,&quot;tasks&quot;,&quot;calendar&quot;,&quot;people&quot;],&quot;default&quot;:&quot;discover&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;aiHints&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;streamDelay&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:550,&quot;min&quot;:120,&quot;max&quot;:1200,&quot;step&quot;:50,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;raise&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;send&quot;,&quot;change&quot;,&quot;draft&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
 const Component = MailFathomDesign.artboards.prototype(DCLogic, React);
 </script>
 </body>
