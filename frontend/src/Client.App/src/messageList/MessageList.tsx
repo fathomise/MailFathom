@@ -76,6 +76,7 @@ import {
     type HeldTimeline,
     type TimelineRead,
 } from './heldTimeline';
+import { ListPull } from './ListPull';
 import { ListSettings } from './ListSettings';
 import { narrowed, narrowedByReading, narrowedToView, queryFor, type MailListing } from './listing';
 import { extendedTo, inReadingOrder, withToggled } from '../contextMenu/rowSelection';
@@ -1001,101 +1002,103 @@ export function MessageList({
             {rowCount === 0 ? (
                 <Note>{translate(emptyReason(accounts, scope, listing))}</Note>
             ) : (
-                <div
-                    ref={scroller}
-                    className="rows-windowed min-h-0 flex-1 overflow-y-auto overscroll-contain"
-                    onScroll={(event) => {
-                        scrolledTo(event.currentTarget.scrollTop);
-                    }}
-                >
-                    {/* The rows that are not in the document, as the space they take. Outside the list rather than in
-                        it, because a listbox holds options and nothing else — a spacer inside it would be announced as
-                        one more thing in the list. */}
-                    <div aria-hidden="true" style={{ height: `${String(drawn.above)}px` }} />
-
-                    {/* Rows sit flush against each other, and that is arithmetic rather than taste: the spacers above
-                        and below are whole rows of the token height, so a gap between drawn rows would put every row a
-                        fraction lower than the space the list drew for it, and the drift would grow with how far down
-                        the folder the reader is. What separates them is the line each row carries. */}
-                    <ul
-                        aria-label={translate('list.label')}
-                        aria-busy={wanted !== null}
-                        aria-multiselectable="true"
-                        role="listbox"
-                        className="flex flex-col"
-                        onKeyDown={onKeyDown}
+                <ListPull scroller={scroller} enabled={coarse}>
+                    <div
+                        ref={scroller}
+                        className="rows-windowed min-h-0 flex-1 overflow-y-auto overscroll-contain"
+                        onScroll={(event) => {
+                            scrolledTo(event.currentTarget.scrollTop);
+                        }}
                     >
-                        {Array.from({ length: drawn.count }, (_, at) => drawn.first + at).map((row) => {
-                            const email = rowAt(shown, row);
+                        {/* The rows that are not in the document, as the space they take. Outside the list rather than in
+                            it, because a listbox holds options and nothing else — a spacer inside it would be announced as
+                            one more thing in the list. */}
+                        <div aria-hidden="true" style={{ height: `${String(drawn.above)}px` }} />
 
-                            return email === null ? (
-                                <ArrivingRow key={`arriving-${String(row)}`} position={row + 1} />
-                            ) : (
-                                <MessageRow
-                                    key={email.id}
-                                    email={email}
-                                    position={row + 1}
-                                    open={workspace.selection === email.id}
-                                    selected={workspace.selected.includes(email.id)}
-                                    focusable={row === focusedRow}
-                                    arrived={arrivedRows.has(email.id)}
-                                    changed={changedRows.has(email.id)}
-                                    onSettled={() => {
-                                        setArrivedRows((rows) => rowSettled(rows, email.id));
-                                        setChangedRows((rows) => rowSettled(rows, email.id));
-                                    }}
-                                    onGone={() => {
-                                        const asked = acts.asked.get(email.id);
+                        {/* Rows sit flush against each other, and that is arithmetic rather than taste: the spacers above
+                            and below are whole rows of the token height, so a gap between drawn rows would put every row a
+                            fraction lower than the space the list drew for it, and the drift would grow with how far down
+                            the folder the reader is. What separates them is the line each row carries. */}
+                        <ul
+                            aria-label={translate('list.label')}
+                            aria-busy={wanted !== null}
+                            aria-multiselectable="true"
+                            role="listbox"
+                            className="flex flex-col"
+                            onKeyDown={onKeyDown}
+                        >
+                            {Array.from({ length: drawn.count }, (_, at) => drawn.first + at).map((row) => {
+                                const email = rowAt(shown, row);
 
-                                        if (asked !== undefined) {
-                                            setGoneRows((gone) => rowWentOut(gone, email.id, asked));
+                                return email === null ? (
+                                    <ArrivingRow key={`arriving-${String(row)}`} position={row + 1} />
+                                ) : (
+                                    <MessageRow
+                                        key={email.id}
+                                        email={email}
+                                        position={row + 1}
+                                        open={workspace.selection === email.id}
+                                        selected={workspace.selected.includes(email.id)}
+                                        focusable={row === focusedRow}
+                                        arrived={arrivedRows.has(email.id)}
+                                        changed={changedRows.has(email.id)}
+                                        onSettled={() => {
+                                            setArrivedRows((rows) => rowSettled(rows, email.id));
+                                            setChangedRows((rows) => rowSettled(rows, email.id));
+                                        }}
+                                        onGone={() => {
+                                            const asked = acts.asked.get(email.id);
+
+                                            if (asked !== undefined) {
+                                                setGoneRows((gone) => rowWentOut(gone, email.id, asked));
+                                            }
+                                        }}
+                                        note={readingOn(email)}
+                                        onReadings={
+                                            hasReadings(email)
+                                                ? () => {
+                                                      checkReadings(email);
+                                                  }
+                                                : undefined
                                         }
-                                    }}
-                                    note={readingOn(email)}
-                                    onReadings={
-                                        hasReadings(email)
-                                            ? () => {
-                                                  checkReadings(email);
-                                              }
-                                            : undefined
-                                    }
-                                    onOpen={() => {
-                                        open(row);
-                                    }}
-                                    onPoint={(event) => {
-                                        point(event, row);
-                                    }}
-                                    onPress={(pointedAt) => {
-                                        setFocusedRow(row);
-                                        setPressed({ storedEmailId: email.id, at: pointedAt });
-                                    }}
-                                    onAnswer={answering(row)}
-                                    onArchive={filingAway(row)}
-                                    onCarry={carrying(row)}
-                                    onElement={(element) => {
-                                        if (element === null) {
-                                            elements.current.delete(row);
-                                        } else {
-                                            elements.current.set(row, element);
-                                        }
-                                    }}
-                                />
-                            );
-                        })}
-                    </ul>
+                                        onOpen={() => {
+                                            open(row);
+                                        }}
+                                        onPoint={(event) => {
+                                            point(event, row);
+                                        }}
+                                        onPress={(pointedAt) => {
+                                            setFocusedRow(row);
+                                            setPressed({ storedEmailId: email.id, at: pointedAt });
+                                        }}
+                                        onAnswer={answering(row)}
+                                        onArchive={filingAway(row)}
+                                        onCarry={carrying(row)}
+                                        onElement={(element) => {
+                                            if (element === null) {
+                                                elements.current.delete(row);
+                                            } else {
+                                                elements.current.set(row, element);
+                                            }
+                                        }}
+                                    />
+                                );
+                            })}
+                        </ul>
 
-                    <div aria-hidden="true" style={{ height: `${String(drawn.below)}px` }} />
+                        <div aria-hidden="true" style={{ height: `${String(drawn.below)}px` }} />
 
-                    {wanted !== null ? (
-                        <p className="px-3 py-2 text-sm text-muted" role="status">
-                            {translate('list.readingMore')}
-                        </p>
-                    ) : null}
+                        {wanted !== null ? (
+                            <p className="px-3 py-2 text-sm text-muted" role="status">
+                                {translate('list.readingMore')}
+                            </p>
+                        ) : null}
 
-                    {cursorAfter(shown) === null ? (
-                        <p className="px-3 py-2 text-sm text-faint">{translate('list.wholeFolderRead')}</p>
-                    ) : null}
-                </div>
+                        {cursorAfter(shown) === null ? (
+                            <p className="px-3 py-2 text-sm text-faint">{translate('list.wholeFolderRead')}</p>
+                        ) : null}
+                    </div>
+                </ListPull>
             )}
 
             {draftsAccounts.length === 0 ? null : (

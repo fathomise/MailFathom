@@ -6,7 +6,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LocalizationProvider } from '../localization/Localization';
 import { SignalledChangesContext, type SignalListener, type SignalledChanges } from '../signals/signalledChanges';
-import { Refresh, refreshShownFor } from './Refresh';
+import { Refresh } from './Refresh';
+import { refreshShownFor } from './useRefreshUnderWay';
 
 /** Changes a test speaks for: a refresh is told to every listener, as the hook tells it, and each press is counted. */
 function signalling(): { changes: SignalledChanges; refreshed: () => void; pressed: () => number } {

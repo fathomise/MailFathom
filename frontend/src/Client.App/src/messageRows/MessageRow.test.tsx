@@ -465,6 +465,17 @@ describe('MessageRow, under a pointer', () => {
         expect(pointed).toHaveBeenCalledOnce();
     });
 
+    it('acts on nothing where the finger travelled down the row before it was lifted, which is the list being pulled', () => {
+        const pointed = vi.fn();
+        const row = pointedRow({ onPoint: pointed });
+
+        fireEvent.pointerDown(row, { pointerType: 'touch', clientX: 10, clientY: 20 });
+        fireEvent.pointerMove(row, { pointerType: 'touch', clientX: 10, clientY: 160 });
+        fireEvent.pointerUp(row, { pointerType: 'touch', clientX: 10, clientY: 160 });
+
+        expect(pointed).not.toHaveBeenCalled();
+    });
+
     it('opens the row’s menu once the finger has been held, and acts on nothing when it is lifted', () => {
         const pointed = vi.fn();
         const pressed = vi.fn();
