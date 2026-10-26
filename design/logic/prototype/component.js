@@ -364,11 +364,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   };
 
   /* What a mailbox change asked, as a notice names it once the server did not take it: the exhausted title, then
-     the gerund an unknown outcome is said with. */
+     the gerund an unknown outcome is said with. Archive is a change this tab followed; one known only from its
+     notification is named by the server's eight acts, where archiving is a move. */
   const CHANGE_ACT = {
     move: ["Not moved", "Moving"], archive: ["Not archived", "Archiving"], delete: ["Not deleted", "Deleting"],
     read: ["Not marked read", "Marking read"], unread: ["Not marked unread", "Marking unread"],
     flag: ["Not flagged", "Flagging"], unflag: ["Not unflagged", "Unflagging"],
+    copy: ["Not copied", "Copying"], tags: ["Tags not changed", "Changing tags"],
   };
 
   const draftHtml = (paras) => (paras || []).map(p => "<p>" + String(p).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>") + "</p>").join("");

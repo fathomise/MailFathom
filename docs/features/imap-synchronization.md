@@ -892,8 +892,8 @@ refuses. Those wait `UnknownMutationOutcomeGrace` for an observation that may st
 on so they stand as dead-lettered rather than as changes still apparently happening.
 
 **A change a person asked for and MailFathom gave up on is put in front of them.** Whichever way it was given up —
-every attempt spent, a server that cannot carry it, a destination folder the server does not have, an outcome nobody
-could establish, or a restore that found the change already committed — the one path that ends a record as given up
+every attempt spent, a server that cannot carry it, a destination folder the server does not have, or an outcome
+nobody could establish — the one path that ends a record as given up
 raises one [notification](../operations/client-endpoint.md#the-notification-routes) per user assigned the account,
 naming the act and leading to the message, deduplicated per change. A change a rule or the spam classifier asked for
 raises none, because nobody watched it happen. The record is already terminal when the notification is written, so a
