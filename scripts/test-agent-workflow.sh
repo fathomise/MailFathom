@@ -735,14 +735,17 @@ verify_full_runs_both_flows_for_a_change_above_both_stacks() {
 # `ci.yml` is named by both filters, and by them alone it would run both flows and, naming no unit
 # suite, widen the service flow to the whole solution. No gate runs a workflow, so neither flow could
 # verify the edit, and the matcher passes over the path instead.
+# A workflow and a composite action beside it, because the client's filter names both and both are
+# passed over: neither path may earn a flow on its own.
 stage_workflow_change() {
-  mkdir -p "$repository_root/.github/workflows"
+  mkdir -p "$repository_root/.github/workflows" "$repository_root/.github/actions/install"
   printf 'name: CI\n' > "$repository_root/.github/workflows/ci.yml"
-  git -C "$repository_root" add .github/workflows/ci.yml
+  printf 'name: Install\n' > "$repository_root/.github/actions/install/action.yml"
+  git -C "$repository_root" add .github/workflows/ci.yml .github/actions/install/action.yml
 }
 
 discard_workflow_change() {
-  git -C "$repository_root" rm --quiet --force --cached .github/workflows/ci.yml
+  git -C "$repository_root" rm --quiet --force --cached .github/workflows/ci.yml .github/actions/install/action.yml
   rm -rf "$repository_root/.github"
 }
 

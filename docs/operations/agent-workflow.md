@@ -289,7 +289,8 @@ itself decides whether either job runs. A change to one of those reaches both
 flows in the pipeline because it genuinely moves both.
 
 The gates depart from the filters in one place: they pass over every path under
-`.github/workflows/` before matching. The workflow entries are in the filters
+`.github/workflows/` and `.github/actions/` before matching, the second holding the
+composite actions a workflow runs. The workflow entries are in the filters
 because in the pipeline a changed workflow runs itself, so building a stack is how
 its edit is verified. No gate here runs a workflow, so a Release build and a unit
 suite over a solution the change did not touch would prove nothing about it, and
