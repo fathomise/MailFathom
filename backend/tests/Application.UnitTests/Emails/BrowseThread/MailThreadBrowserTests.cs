@@ -35,6 +35,7 @@ public sealed class MailThreadBrowserTests
     private static readonly MailFolderAlias Inbox = MailFolderAlias.Create("INBOX");
     private static readonly MailFolderAlias Sent = MailFolderAlias.Create("SENT");
     private static readonly MailFolderAlias Withheld = MailFolderAlias.Create("PRIVATE");
+    private static readonly MailFolderAlias Unmirrored = MailFolderAlias.Create("ARCHIVE");
 
     private static readonly EmailThreadId Conversation =
         EmailThreadId.Create(new Guid("11111111-1111-1111-1111-111111111111"));
@@ -83,14 +84,37 @@ public sealed class MailThreadBrowserTests
         Assert.Equal(2, thread.Messages.Count);
     }
 
-    /// <summary>A message in a folder an operator withheld is in no conversation this surface publishes and in no count of one.</summary>
+    /// <summary>A folder withheld from AI is still the person's, so the conversation they open in the client carries its messages and their authors.</summary>
     [Fact]
-    public async Task BrowsePageAsync_AConversationReachingAWithheldFolder_PublishesNeitherTheMessageNorItsAuthor()
+    public async Task BrowsePageAsync_AConversationReachingAFolderWithheldFromAI_PublishesEveryMessageAndAuthor()
     {
         // Arrange
         var opening = Message(1, Inbox, "2026-08-16T09:00:00Z", sender: "anna@example.test");
         var withheld = Message(2, Withheld, "2026-08-16T10:00:00Z", sender: "marek@example.test", answers: opening);
         var browser = BrowserOver([opening, withheld]);
+
+        // Act
+        var thread = await browser.BrowsePageAsync(Request(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(thread);
+        Assert.Equal(
+            [opening.StoredEmailId, withheld.StoredEmailId],
+            thread.Messages.Select(message => message.Email.StoredEmailId));
+        Assert.Equal(2, thread.MessageCount);
+        Assert.Equal(
+            ["anna@example.test", "marek@example.test"],
+            thread.Participants.Select(participant => participant.Address).Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>A message in a folder nothing mirrors any more is in no conversation this surface publishes and in no count of one.</summary>
+    [Fact]
+    public async Task BrowsePageAsync_AConversationReachingAnUnmirroredFolder_PublishesNeitherTheMessageNorItsAuthor()
+    {
+        // Arrange
+        var opening = Message(1, Inbox, "2026-08-16T09:00:00Z", sender: "anna@example.test");
+        var stale = Message(2, Unmirrored, "2026-08-16T10:00:00Z", sender: "marek@example.test", answers: opening);
+        var browser = BrowserOver([opening, stale]);
 
         // Act
         var thread = await browser.BrowsePageAsync(Request(), TestContext.Current.CancellationToken);
@@ -448,7 +472,7 @@ public sealed class MailThreadBrowserTests
     public async Task BrowsePageAsync_AnIdentifierNamingNoConversationThisCallerMaySee_AnswersWithNothing()
     {
         // Arrange
-        var browser = BrowserOver([Message(1, Withheld, "2026-08-16T09:00:00Z")]);
+        var browser = BrowserOver([Message(1, Unmirrored, "2026-08-16T09:00:00Z")]);
 
         // Act
         var thread = await browser.BrowsePageAsync(Request(), TestContext.Current.CancellationToken);
@@ -682,7 +706,8 @@ public sealed class MailThreadBrowserTests
                 new MailFolderIdentity(Account, Inbox),
                 new MailFolderIdentity(Account, Sent),
                 new MailFolderIdentity(SecondAccount, Inbox))
-            .Hiding(new MailFolderIdentity(Account, Withheld));
+            .Hiding(new MailFolderIdentity(Account, Withheld))
+            .Unmirroring(new MailFolderIdentity(Account, Unmirrored));
 
         return new MailThreadBrowser(
             threadReader,

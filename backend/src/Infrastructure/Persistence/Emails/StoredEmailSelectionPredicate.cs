@@ -114,7 +114,7 @@ internal static class StoredEmailSelectionPredicate
     /// readable and the other reads have to agree with this one about that.
     /// </para>
     /// <para>
-    /// The folder decisions follow: the folders a mapping admits to tools, which no caller can widen, and the junk
+    /// The folder decisions follow: the folders a mapping admits to the reader the scope was resolved for, which no caller can widen, and the junk
     /// folder unless the caller asked for it.
     /// </para>
     /// <para>

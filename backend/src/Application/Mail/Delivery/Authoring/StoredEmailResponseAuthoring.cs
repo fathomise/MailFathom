@@ -36,9 +36,10 @@ namespace MailFathom.Application.Mail.Delivery.Authoring;
 /// local copy at all.
 /// </para>
 /// <para>
-/// The stored email is a permission boundary as well as a source. A folder an operator withheld from tools is outside
-/// every mailbox read, and a reply must not become the path by which its content leaves — so an email nothing may read
-/// is an email nothing may answer, and the refusal is the same not-found answer a read of it gives.
+/// The stored email is a permission boundary as well as a source, judged for the request's reader. A folder an
+/// operator withheld from AI is outside every agent's read, and an agent's reply must not become the path by which its
+/// content leaves — so an email an agent may not read is one it may not answer, and the refusal is the same not-found
+/// answer a read of it gives. The person answers from any mirrored folder, that one included.
 /// </para>
 /// <para>
 /// Whoever the author copies in may be named out of the contact book rather than by an address, and is resolved here
@@ -69,7 +70,7 @@ public sealed class StoredEmailResponseAuthoring
     /// <param name="renderer">Turns stored raw MIME into the headers, body, and attachment descriptions an answer is built from.</param>
     /// <param name="attachmentContentReader">Opens one attachment of that stored MIME so a forward can carry it.</param>
     /// <param name="repairRequestStore">Records durably that a local copy has to be fetched or read again.</param>
-    /// <param name="scopeResolver">Answers whether a tool may read the mailbox the answered email was stored from.</param>
+    /// <param name="scopeResolver">Answers whether the request's reader may reach the mailbox the answered email was stored from.</param>
     /// <param name="senderIdentities">Resolves the address the answering account sends from, which is what a reply to all leaves out.</param>
     /// <param name="recipientResolver">Turns the people the author added into addresses, asking the contact book for the ones named as somebody.</param>
     /// <param name="bounds">What this deployment is willing to compose, which decides how much history and how many files an answer carries.</param>
@@ -133,9 +134,10 @@ public sealed class StoredEmailResponseAuthoring
         var summary = await this.summaryReader.FindAsync(request.AnsweredEmailId, cancellationToken);
 
         // An account this deployment no longer serves leaves its stored rows in place, and a folder an operator
-        // withheld from tools keeps its own, so the row existing is not enough. All three cases produce one answer,
-        // because telling them apart would let a caller learn which mail exists by trying to answer it.
-        if (summary is null || !await this.scopeResolver.IsReadableByToolsAsync(
+        // withheld from AI keeps its own, so the row existing is not enough when an agent is answering. All three cases
+        // produce one answer, because telling them apart would let a caller learn which mail exists by trying to answer it.
+        if (summary is null || !await this.scopeResolver.IsReadableAsync(
+                request.Reader,
                 summary.Account,
                 summary.Folder.Alias,
                 cancellationToken))

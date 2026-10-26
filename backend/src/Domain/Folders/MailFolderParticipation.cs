@@ -10,7 +10,7 @@ namespace MailFathom.Domain.Folders;
 /// Mapping a folder and mirroring it are two decisions rather than one. A mapping makes the folder known: it is
 /// nameable by its alias, resolvable by the role its server advertises, and reachable as the destination of a change
 /// MailFathom is asked to make. What the other three answers add is what happens to the mail inside it, which costs
-/// storage, a provider's tokens, and — for some folders — the discretion of never having an agent read them.
+/// storage, a provider's tokens, and — for some folders — the discretion of never having an agent or a model read them.
 /// </para>
 /// <para>
 /// A folder no mapping names is not one of those decisions taken quietly: it is <see cref="Unmapped" />, which is a
@@ -20,11 +20,12 @@ namespace MailFathom.Domain.Folders;
 /// folder apart from their decision to stop having it.
 /// </para>
 /// <para>
-/// The answers are not independent, and the dependency runs one way: a folder nothing mirrors has no local content, so
-/// there is nothing to embed and nothing a tool could read whatever the other two say. This type derives that rather
-/// than trusting a caller with it, which is why every mapped value is built through <see cref="Create" />.
-/// Configuration refuses the contradiction separately, so an operator who asked for embeddings on an unmirrored folder
-/// is told rather than quietly given the normalized answer.
+/// The answers are not independent, and the dependencies run one way. A folder nothing mirrors has no local content, so
+/// there is nothing to embed and nothing AI could read whatever the other two say. A folder withheld from AI is one no
+/// model may reach, and an embedding is a model's reading of its content, so it is embedded by nobody. This type derives
+/// both rather than trusting a caller with them, which is why every mapped value is built through <see cref="Create" />.
+/// Configuration refuses each contradiction separately, so an operator who asked for embeddings on an unmirrored or a
+/// withheld folder is told rather than quietly given the normalized answer.
 /// </para>
 /// </remarks>
 public sealed record MailFolderParticipation
@@ -33,12 +34,12 @@ public sealed record MailFolderParticipation
         bool isMapped,
         bool isSynchronized,
         bool generatesEmbeddings,
-        bool isVisibleToTools)
+        bool isVisibleToAI)
     {
         this.IsMapped = isMapped;
         this.IsSynchronized = isSynchronized;
         this.GeneratesEmbeddings = generatesEmbeddings;
-        this.IsVisibleToTools = isVisibleToTools;
+        this.IsVisibleToAI = isVisibleToAI;
     }
 
     /// <summary>Gets the participation of a folder that takes part in everything, which is what a mapping means by default.</summary>
@@ -46,14 +47,14 @@ public sealed record MailFolderParticipation
         isMapped: true,
         isSynchronized: true,
         generatesEmbeddings: true,
-        isVisibleToTools: true);
+        isVisibleToAI: true);
 
     /// <summary>Gets the participation of a folder MailFathom knows by name and mirrors nothing of.</summary>
     public static MailFolderParticipation MappedOnly { get; } = new(
         isMapped: true,
         isSynchronized: false,
         generatesEmbeddings: false,
-        isVisibleToTools: false);
+        isVisibleToAI: false);
 
     /// <summary>Gets the participation of a folder no mapping names, which takes part in nothing because it does not exist here.</summary>
     /// <remarks>
@@ -66,7 +67,7 @@ public sealed record MailFolderParticipation
         isMapped: false,
         isSynchronized: false,
         generatesEmbeddings: false,
-        isVisibleToTools: false);
+        isVisibleToAI: false);
 
     /// <summary>Gets whether a mapping names the folder at all.</summary>
     /// <remarks>
@@ -88,15 +89,20 @@ public sealed record MailFolderParticipation
     /// <remarks>Off, the folder is still mirrored and still searchable by everything an embedding is not needed for.</remarks>
     public bool GeneratesEmbeddings { get; }
 
-    /// <summary>Gets whether MCP tools may list, search, read, or answer from the folder.</summary>
-    /// <remarks>Off, the folder is still mirrored, so anything operating on the mailbox rather than answering about it still reaches it.</remarks>
-    public bool IsVisibleToTools { get; }
+    /// <summary>Gets whether any AI function may reach the folder: an agent, an MCP tool, or a model or embedding provider.</summary>
+    /// <remarks>
+    /// Off, the folder is withheld from AI and from nothing else. It is still mirrored and the person still reads it in
+    /// the client like any other, and everything that asks no model — synchronization, rules, retention — still reaches
+    /// it. What no longer reaches it is every read whose answer goes to an agent or a model, every act an agent asks for,
+    /// and every derivation a model computes, which is why <see cref="GeneratesEmbeddings" /> is off with it.
+    /// </remarks>
+    public bool IsVisibleToAI { get; }
 
     /// <summary>Builds the participation an operator's three answers describe, for a folder their mapping names.</summary>
     /// <param name="isSynchronized">Whether the folder's mail is mirrored locally.</param>
     /// <param name="generatesEmbeddings">Whether the mirrored content is embedded.</param>
-    /// <param name="isVisibleToTools">Whether MCP tools may read the folder.</param>
-    /// <returns>The participation, with everything an unmirrored folder cannot take part in already withdrawn.</returns>
+    /// <param name="isVisibleToAI">Whether any AI function may reach the folder.</param>
+    /// <returns>The participation, with everything an unmirrored or a withheld folder cannot take part in already withdrawn.</returns>
     /// <remarks>
     /// Every value this builds is mapped, because the three answers are what a mapping says and there is nowhere else
     /// to write them. <see cref="Unmapped" /> is therefore reached by a folder having no mapping rather than by an
@@ -105,14 +111,29 @@ public sealed record MailFolderParticipation
     public static MailFolderParticipation Create(
         bool isSynchronized,
         bool generatesEmbeddings,
-        bool isVisibleToTools) => (isSynchronized, generatesEmbeddings, isVisibleToTools) switch
+        bool isVisibleToAI) => (isSynchronized, generatesEmbeddings, isVisibleToAI) switch
         {
             (false, _, _) => MappedOnly,
             (true, true, true) => Full,
             _ => new MailFolderParticipation(
                 isMapped: true,
                 isSynchronized: true,
-                generatesEmbeddings,
-                isVisibleToTools),
+                generatesEmbeddings && isVisibleToAI,
+                isVisibleToAI),
         };
+
+    /// <summary>Reports whether a read answering for one kind of reader may reach the folder.</summary>
+    /// <param name="reader">Who the read is answering for.</param>
+    /// <returns><see langword="true" /> when the folder is visible to AI for an agent, or mirrored for the person.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="reader" /> is not a defined member.</exception>
+    /// <remarks>
+    /// The person is answered by mirroring rather than by mapping: a folder nothing mirrors keeps whatever an earlier
+    /// configuration stored, inert, and reading it would present a copy nothing refreshes as the person's mailbox.
+    /// </remarks>
+    public bool Admits(MailboxReaderKind reader) => reader switch
+    {
+        MailboxReaderKind.Agent => this.IsVisibleToAI,
+        MailboxReaderKind.Person => this.IsSynchronized,
+        _ => throw new ArgumentOutOfRangeException(nameof(reader), reader, "A read answers either for an agent or for the person."),
+    };
 }

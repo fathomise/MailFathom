@@ -228,15 +228,16 @@ whether the folder may be created at all, through a fourth that defaults to `fal
 | Key | Type | Default | Constraint | Change |
 | --- | --- | --- | --- | --- |
 | `…:Folders:<n>:Synchronize` | bool | `true` | With `false`, no run schedules the folder: no connection is opened for it and nothing further of it is stored | reload; the next run stops scheduling it and keeps everything already stored for it |
-| `…:Folders:<n>:GenerateEmbeddings` | bool | `true` | With `false`, stored mail of the folder is never cut into passages and never reaches an embedding provider; refused alongside `Synchronize: false` | reload; governs what is stored from then on, and passages already produced stay |
-| `…:Folders:<n>:VisibleToTools` | bool | `true` | With `false`, no MCP tool lists, searches, reads, or answers from the folder; refused alongside `Synchronize: false` | reload; the next request reads the new value |
+| `…:Folders:<n>:GenerateEmbeddings` | bool | `true` | With `false`, stored mail of the folder is never cut into passages and never reaches an embedding provider; refused alongside `Synchronize: false` and alongside `VisibleToAI: false`, and off whenever either of those is `false` | reload; governs what is stored from then on, and passages already produced stay |
+| `…:Folders:<n>:VisibleToAI` | bool | `true` | With `false`, the folder is withheld from every AI function and from nothing else: no MCP tool, agent, or model or embedding provider lists, searches, reads, answers from, or derives anything from it, and no act an agent or MCP caller asks for reaches its mail, while the person still reads and acts on it in the client; refused alongside `Synchronize: false` | reload; the next request reads the new value |
 | `…:Folders:<n>:CreateIfMissing` | bool | `false` | With `true`, the folder is created on the mail server when the server advertises none at `RemotePath`; refused on a mapping that names no `RemotePath` | reload; the next resolution of the alias creates it |
 
-Startup refuses a folder that asks for embedding or tool visibility while `Synchronize` is `false`, naming the alias,
-because a folder that stores nothing has nothing to embed and nothing a tool could read. Leaving a switch out is not
-asking for it, so `Synchronize: false` on its own binds. Mirrored, embedded, and withheld from tools binds as well and
-costs what it says: the vectors are produced and paid for while no reader reaches them, since the tools are the only
-readers there are.
+Startup refuses a folder that asks for embeddings or for visibility to AI while `Synchronize` is `false`, naming the
+alias, because a folder that stores nothing has nothing to embed and nothing AI could read. It refuses
+`GenerateEmbeddings: true` beside `VisibleToAI: false` too, naming the alias and both keys, because an embedding is
+computed by a provider a folder withheld from AI never reaches. Leaving a switch out is not asking for it, so
+`Synchronize: false` on its own binds, and so does `VisibleToAI: false` with `GenerateEmbeddings` left out — the folder
+is then never embedded.
 
 `CreateIfMissing` is the one switch here that authorizes an act against your mail server rather than withdrawing an
 existing folder from something MailFathom does locally, which is why it defaults to `false` while the other three
@@ -255,7 +256,8 @@ a server's refusal reports.
 Switching `Synchronize` off for a folder that was mirrored **keeps what is stored for it**. Nothing is removed, and the
 folder's checkpoint stays where the last run left it, so switching the folder back on resumes: the next run fetches
 what arrived while it was off and reconciles the retained mail rather than mirroring the folder again. What is kept is
-inert — no tool lists, searches, reads, or answers from it, nothing of it is embedded, and no rule evaluates it — so
+inert — neither the person in the client nor any AI function lists, searches, reads, or answers from it, nothing of it
+is embedded, and no rule evaluates it — so
 the only thing an operator gives up by leaving the switch off is the storage it occupies. No configuration value erases
 stored mail: taking a folder's local copy away is an act somebody performs, never something a switch performs on their
 behalf. The mapping stays too, so the alias goes on resolving, any role the mapping names goes on being answered, and

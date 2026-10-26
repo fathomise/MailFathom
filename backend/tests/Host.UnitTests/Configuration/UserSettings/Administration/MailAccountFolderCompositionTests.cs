@@ -406,7 +406,7 @@ public sealed class MailAccountFolderCompositionTests
         var candidate = MailAccountFolderComposition.WithFolderReplaced(
                 account,
                 "JUNK",
-                """{"Alias":"JUNK","SpecialUse":"Junk","RemotePath":"[Gmail]/Spam","GenerateEmbeddings":false,"VisibleToTools":false}""")
+                """{"Alias":"JUNK","SpecialUse":"Junk","RemotePath":"[Gmail]/Spam","GenerateEmbeddings":false,"VisibleToAI":false}""")
             .Candidate;
 
         // Assert
@@ -414,7 +414,7 @@ public sealed class MailAccountFolderCompositionTests
 
         Assert.Equal("[Gmail]/Spam", folder["RemotePath"]!.GetValue<string>());
         Assert.False(folder["GenerateEmbeddings"]!.GetValue<bool>());
-        Assert.False(folder["VisibleToTools"]!.GetValue<bool>());
+        Assert.False(folder["VisibleToAI"]!.GetValue<bool>());
     }
 
     [Fact]
@@ -506,7 +506,7 @@ public sealed class MailAccountFolderCompositionTests
     public void WithFolderRepointed_AFolderTheAccountDeclares_MovesThePathAndNothingElse()
     {
         // Arrange
-        const string account = """{"Folders":{"0":{"Alias":"PROJECTS","RemotePath":"Projects","Synchronize":true,"CreateIfMissing":true,"VisibleToTools":false}}}""";
+        const string account = """{"Folders":{"0":{"Alias":"PROJECTS","RemotePath":"Projects","Synchronize":true,"CreateIfMissing":true,"VisibleToAI":false}}}""";
 
         // Act
         var candidate = MailAccountFolderComposition.WithFolderRepointed(account, "PROJECTS", "Archive/Projects").Candidate;
@@ -516,7 +516,7 @@ public sealed class MailAccountFolderCompositionTests
 
         Assert.Equal("PROJECTS", folder["Alias"]!.GetValue<string>());
         Assert.Equal("Archive/Projects", folder["RemotePath"]!.GetValue<string>());
-        Assert.False(folder["VisibleToTools"]!.GetValue<bool>());
+        Assert.False(folder["VisibleToAI"]!.GetValue<bool>());
     }
 
     [Fact]

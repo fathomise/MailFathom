@@ -25,7 +25,7 @@ internal sealed record NamedThreadedEmail
     public required int Position { get; init; }
 
     /// <summary>Gets the message this one answers, or <see langword="null" /> when it opens what is shown.</summary>
-    [Description("The storedEmailId of the message this one answers, or null when it is a root of what you are shown. Null does not mean the message opened the conversation: a message whose parent is not held here, or sits in a folder withheld from tools, is published as a root.")]
+    [Description("The storedEmailId of the message this one answers, or null when it is a root of what you are shown. Null does not mean the message opened the conversation: a message whose parent is not held here, or sits in a folder withheld from AI, is published as a root.")]
     public string? InReplyToStoredEmailId { get; init; }
 
     /// <summary>Gets the decoded subject, or <see langword="null" /> when the message carried none.</summary>

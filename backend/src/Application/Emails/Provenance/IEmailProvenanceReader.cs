@@ -12,7 +12,7 @@ namespace MailFathom.Application.Emails.Provenance;
 /// the passages a search returned, the messages of a conversation a tool opened, the batch a background pass selected.
 /// What it answers about a message beyond that message's own row is one yes or no — whether its mailbox held earlier
 /// mail from or to the sender — and that is read only from mail still part of the mailbox in the folders a mapping
-/// admits to tools, so it says nothing about any other message a caller could not read.
+/// admits to AI, so it says nothing about any other message a caller could not read.
 /// </remarks>
 public interface IEmailProvenanceReader
 {

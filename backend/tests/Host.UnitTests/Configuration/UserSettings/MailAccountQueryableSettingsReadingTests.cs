@@ -80,7 +80,7 @@ public sealed class MailAccountQueryableSettingsReadingTests
             {
               "Folders": [
                 { "Alias": "INBOX", "SpecialUse": "Inbox" },
-                { "Alias": "SPAM", "SpecialUse": "Junk", "VisibleToTools": false }
+                { "Alias": "SPAM", "SpecialUse": "Junk", "VisibleToAI": false }
               ]
             }
             """));
@@ -91,7 +91,7 @@ public sealed class MailAccountQueryableSettingsReadingTests
                 (MailFolderAlias.Create("INBOX"), (MailFolderSpecialUse?)MailFolderSpecialUse.Inbox, true),
                 (MailFolderAlias.Create("SPAM"), MailFolderSpecialUse.Junk, false),
             ],
-            settings.Folders.Select(folder => (folder.Alias, folder.SpecialUse, folder.Participation.IsVisibleToTools)));
+            settings.Folders.Select(folder => (folder.Alias, folder.SpecialUse, folder.Participation.IsVisibleToAI)));
     }
 
     /// <summary>An account declaring no folder synchronizes its inbox, so the inbox is the one folder its settings name.</summary>

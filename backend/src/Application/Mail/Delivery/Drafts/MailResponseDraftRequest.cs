@@ -7,6 +7,7 @@ using MailFathom.Application.Mail.Delivery.Authoring;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Mail.Delivery.Drafts;
 
@@ -27,6 +28,10 @@ public sealed record MailResponseDraftRequest
 {
     /// <summary>Gets the stored email being answered, named by its stable local identity.</summary>
     public required StoredEmailId AnsweredEmailId { get; init; }
+
+    /// <summary>Gets who the draft is written for: the person through the client, or an agent asking on their behalf.</summary>
+    /// <remarks>It decides whether the answered email may sit in a folder withheld from AI, which only the person may answer from.</remarks>
+    public required MailboxReaderKind Reader { get; init; }
 
     /// <summary>Gets which answer is being drafted, which decides who it would go to.</summary>
     public required AuthoredResponseAct Act { get; init; }

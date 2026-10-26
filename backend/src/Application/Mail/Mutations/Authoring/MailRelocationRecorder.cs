@@ -124,6 +124,7 @@ public sealed class MailRelocationRecorder
     /// <param name="storedEmailId">The email to move, as a listing, a search, or a read returned it.</param>
     /// <param name="destination">The identity of the folder to move it into.</param>
     /// <param name="requester">The invocation asking, which is what decides whether asking again is the same request.</param>
+    /// <param name="reader">Who the act is asked for: the person through the client, or an agent or an MCP caller.</param>
     /// <param name="cancellationToken">Cancels the resolution and the write.</param>
     /// <returns>The record that was opened, or the reason none was.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="requester" /> is <see langword="null" />.</exception>
@@ -136,6 +137,7 @@ public sealed class MailRelocationRecorder
         StoredEmailId storedEmailId,
         MailFolderId destination,
         MailboxMutationRequester requester,
+        MailboxReaderKind reader,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(requester);
@@ -151,7 +153,8 @@ public sealed class MailRelocationRecorder
         // so neither answer says anything about the other.
         var assignedAccounts = await this.scopeResolver.ReadAssignedAccountsAsync(cancellationToken);
 
-        if (target is null || !this.scopeResolver.IsReadableByTools(
+        if (target is null || !this.scopeResolver.IsReadable(
+                reader,
                 assignedAccounts,
                 target.Occurrence.AccountId,
                 target.Folder.Alias))
@@ -165,7 +168,7 @@ public sealed class MailRelocationRecorder
 
         if (named is null
             || ReferenceTo(named) is not { } reference
-            || !this.scopeResolver.IsReadableByTools(assignedAccounts, account, named.SourceFolderAlias))
+            || !this.scopeResolver.IsReadable(reader, assignedAccounts, account, named.SourceFolderAlias))
         {
             return AuthoredMailRelocationResult.NotRecorded(MailRelocationOutcome.DestinationNotFound);
         }

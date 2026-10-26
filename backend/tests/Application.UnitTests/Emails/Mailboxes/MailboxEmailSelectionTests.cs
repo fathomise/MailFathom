@@ -415,7 +415,7 @@ public sealed class MailboxEmailSelectionTests
     }
 
     private static Task<MailboxScope> ReadableScopeAsync(MailboxScopeResolver resolver, JunkMailInclusion junkMail) =>
-        resolver.ReadableScopeAsync([], [], junkMail, TestContext.Current.CancellationToken);
+        resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [], [], junkMail, TestContext.Current.CancellationToken);
 
     private static MailboxEmailSelection SelectionWith(
         MailboxScope? scope = null,

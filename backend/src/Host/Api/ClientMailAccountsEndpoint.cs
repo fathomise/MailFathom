@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Accounts;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Folders;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -57,7 +58,7 @@ internal static class ClientMailAccountsEndpoint
     {
         ArgumentNullException.ThrowIfNull(reader);
 
-        var accounts = await reader.ReadAsync(cancellationToken);
+        var accounts = await reader.ReadAsync(MailboxReaderKind.Person, cancellationToken);
 
         return TypedResults.Ok(ClientMailAccountsResponse.For(accounts));
     }

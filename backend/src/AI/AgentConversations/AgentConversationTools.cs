@@ -22,6 +22,7 @@ using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Calendar;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.Domain.Tasks;
 using Microsoft.Extensions.AI;
 
@@ -316,7 +317,7 @@ internal sealed class AgentConversationTools
 
         if (await this.ReadConversationAsync(messageId, cancellationToken) is not { Count: > 0 } messages
             || messages[0].Thread is not { } thread
-            || await this.readers.StateBrowser.ReadStateAsync(thread.ThreadId, cancellationToken) is not { } state
+            || await this.readers.StateBrowser.ReadStateAsync(thread.ThreadId, MailboxReaderKind.Agent, cancellationToken) is not { } state
             || await this.ThreadStateBlockOfAsync(state, messages, cancellationToken) is not { } block)
         {
             return "This conversation has no reading yet. Answer from its messages instead.";
@@ -465,6 +466,7 @@ internal sealed class AgentConversationTools
             new AuthoredResponseRequest
             {
                 AnsweredEmailId = answeredId,
+                Reader = MailboxReaderKind.Agent,
                 Act = responseAct,
                 PlainTextBody = written.Value,
                 Recipients = [.. named.Select(static address => NamedRecipient.AtAddress(OutgoingRecipientRole.To, address.Address, address.DisplayName))],

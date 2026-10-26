@@ -42,14 +42,14 @@ public sealed class StubDeploymentMailFoldersTests
         // Act
         var mapped = await folders.ReadAsync(MailFolderSelection.Mapped, cancellationToken);
         var synchronized = await folders.ReadAsync(MailFolderSelection.Synchronized, cancellationToken);
-        var visible = await folders.ReadAsync(MailFolderSelection.VisibleToTools, cancellationToken);
+        var visible = await folders.ReadAsync(MailFolderSelection.VisibleToAI, cancellationToken);
         var embedded = await folders.ReadAsync(MailFolderSelection.GeneratingEmbeddings, cancellationToken);
 
         // Assert
         Assert.Equal([Inbox, Hidden, Unembedded, Unmirrored], mapped);
         Assert.Equal([Inbox, Hidden, Unembedded], synchronized);
         Assert.Equal([Inbox, Unembedded], visible);
-        Assert.Equal([Inbox, Hidden], embedded);
+        Assert.Equal([Inbox], embedded);
     }
 
     [Fact]

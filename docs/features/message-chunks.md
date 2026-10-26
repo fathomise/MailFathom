@@ -5,7 +5,8 @@
 A message is often too big to be the unit a search answers with. A forwarded thread can carry twenty exchanges, and the
 one paragraph that answers a question is somewhere inside it. MailFathom therefore cuts a message's extracted text
 into overlapping passages — chunks — and stores each of them with the span it came from and a hash that identifies it.
-Every message is cut unless its folder is mapped with `GenerateEmbeddings: false`.
+Every message is cut unless its folder is mapped with `GenerateEmbeddings: false` or withheld from AI with
+`VisibleToAI: false`.
 
 No search surface answers with a chunk yet. They exist because the passage, not the message, is what a vector is
 produced for, and because deriving them is free: chunking reaches no provider, opens no connection, and costs an
@@ -38,9 +39,11 @@ A message that yielded no text is cut into nothing. That covers a body that carr
 encrypted: both keep the search document that makes them findable on their subject and participants, and neither gains a
 chunk.
 
-A message of a folder mapped with `GenerateEmbeddings: false` is cut into nothing either, on every path that would cut
-one, which is what keeps its content from reaching an embedding provider at all. Everything else about the folder is
-unchanged — it is mirrored, listed, searched lexically, and read like any other. Passages cut before the switch was set
+A message of a folder mapped with `GenerateEmbeddings: false`, or withheld from AI with `VisibleToAI: false`, is cut
+into nothing either, on every path that would cut one, which is what keeps its content from reaching an embedding
+provider at all. Everything else about a folder that only declines embedding is
+unchanged — it is mirrored, listed, searched lexically, and read like any other — while a folder withheld from AI is
+listed, searched, and read by the person in the client alone. Passages cut before the switch was set
 stay where they are; nothing removes them, and the embedding backfill stops selecting the folder rather than sweeping
 for the vectors it now never produces.
 A message of a folder **no mapping names** is cut into nothing for a different reason: cutting is offered to the folders

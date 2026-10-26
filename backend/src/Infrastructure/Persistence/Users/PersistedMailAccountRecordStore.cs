@@ -615,7 +615,7 @@ internal sealed class PersistedMailAccountRecordStore(
         var aliases = folders.Select(folder => folder.Alias.Value).ToArray();
         var specialUses = folders.Select(folder => (int?)folder.SpecialUse).ToArray();
         var synchronized = folders.Select(folder => folder.Participation.IsSynchronized).ToArray();
-        var visibleToTools = folders.Select(folder => folder.Participation.IsVisibleToTools).ToArray();
+        var visibleToAI = folders.Select(folder => folder.Participation.IsVisibleToAI).ToArray();
         var generatingEmbeddings = folders.Select(folder => folder.Participation.GeneratesEmbeddings).ToArray();
         var classifiedForSpam = folders.Select(folder => folder.IsClassifiedForSpam).ToArray();
 
@@ -623,9 +623,9 @@ internal sealed class PersistedMailAccountRecordStore(
             $"""
              INSERT INTO mail_account_folder_settings
                  ("MailAccountId", "Alias", "SpecialUse", "IsSynchronized", "IsVisibleToTools", "GeneratesEmbeddings", "IsClassifiedForSpam")
-             SELECT {accountId}, folder.alias, folder.special_use, folder.synchronized, folder.visible_to_tools, folder.generating_embeddings, folder.classified_for_spam
-             FROM unnest({aliases}::text[], {specialUses}::integer[], {synchronized}::boolean[], {visibleToTools}::boolean[], {generatingEmbeddings}::boolean[], {classifiedForSpam}::boolean[])
-                 AS folder(alias, special_use, synchronized, visible_to_tools, generating_embeddings, classified_for_spam)
+             SELECT {accountId}, folder.alias, folder.special_use, folder.synchronized, folder.visible_to_ai, folder.generating_embeddings, folder.classified_for_spam
+             FROM unnest({aliases}::text[], {specialUses}::integer[], {synchronized}::boolean[], {visibleToAI}::boolean[], {generatingEmbeddings}::boolean[], {classifiedForSpam}::boolean[])
+                 AS folder(alias, special_use, synchronized, visible_to_ai, generating_embeddings, classified_for_spam)
              """,
             cancellationToken);
 

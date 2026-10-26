@@ -11,7 +11,7 @@ namespace MailFathom.Mcp.Tools.Content;
 /// <remarks>
 /// It answers what a reader asks next — what else is in this exchange, and where does what I am reading sit in it —
 /// without returning any of it. Only messages the caller may see are named, and the count is of those, so a folder
-/// withheld from tools is not disclosed by a number that includes it.
+/// withheld from AI is not disclosed by a number that includes it.
 /// </remarks>
 [Description("The conversation this email belongs to: its identifier, where this email sits in it, and the other messages in it named rather than reproduced.")]
 internal sealed record RetrievedEmailThread
@@ -25,11 +25,11 @@ internal sealed record RetrievedEmailThread
     public int? Position { get; init; }
 
     /// <summary>Gets the message this email answers, or <see langword="null" /> when it opens what is shown.</summary>
-    [Description("The storedEmailId of the message this email answers, or null when it is a root of what you are shown. Null does not mean this email opened the conversation: a message whose parent is not held here, or sits in a folder withheld from tools, is published as a root.")]
+    [Description("The storedEmailId of the message this email answers, or null when it is a root of what you are shown. Null does not mean this email opened the conversation: a message whose parent is not held here, or sits in a folder withheld from AI, is published as a root.")]
     public string? InReplyToStoredEmailId { get; init; }
 
     /// <summary>Gets how many messages of the conversation this read assembled, this email included where it was.</summary>
-    [Description("How many messages of the conversation are readable here, this email included where the read reached it. Messages in folders withheld from tools are in neither this count nor the list below, and a conversation longer than one read assembles is counted as far as the read reached, and moreMessagesNotNamed is true whenever it was.")]
+    [Description("How many messages of the conversation are readable here, this email included where the read reached it. Messages in folders withheld from AI are in neither this count nor the list below, and a conversation longer than one read assembles is counted as far as the read reached, and moreMessagesNotNamed is true whenever it was.")]
     public required int MessageCount { get; init; }
 
     /// <summary>Gets the conversation's other messages, in its own order.</summary>

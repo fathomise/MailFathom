@@ -109,6 +109,8 @@ internal sealed class PersistedServedMailAccounts(
          ORDER BY account."Id";
          """;
 
+    // Embeddings are read together with visibility to AI because a row an earlier build wrote may hold the two apart,
+    // and a folder withheld from AI must never reach an embedding provider whatever its row says.
     private const string SelectFolders =
         $"""
          SELECT folder."MailAccountId", folder."Alias"
@@ -119,8 +121,8 @@ internal sealed class PersistedServedMailAccounts(
            AND CASE @selection
                WHEN '{nameof(MailFolderSelection.Mapped)}' THEN TRUE
                WHEN '{nameof(MailFolderSelection.Synchronized)}' THEN folder."IsSynchronized"
-               WHEN '{nameof(MailFolderSelection.VisibleToTools)}' THEN folder."IsVisibleToTools"
-               WHEN '{nameof(MailFolderSelection.GeneratingEmbeddings)}' THEN folder."GeneratesEmbeddings"
+               WHEN '{nameof(MailFolderSelection.VisibleToAI)}' THEN folder."IsVisibleToTools"
+               WHEN '{nameof(MailFolderSelection.GeneratingEmbeddings)}' THEN folder."GeneratesEmbeddings" AND folder."IsVisibleToTools"
                WHEN '{nameof(MailFolderSelection.Junk)}' THEN folder."SpecialUse" IS NOT DISTINCT FROM @junk
                WHEN '{nameof(MailFolderSelection.OfAccountsClassifyingSpam)}' THEN account."ClassifiesSpam"
                WHEN '{nameof(MailFolderSelection.ClassifiedForSpam)}' THEN account."ClassifiesSpam" AND folder."IsClassifiedForSpam"

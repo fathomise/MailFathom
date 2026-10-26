@@ -53,7 +53,7 @@ public sealed class MailFlagChangeRecorderTests
             ["$Todo"]);
 
         // Act
-        var result = await recorder.RecordAsync(change, Requester, TestContext.Current.CancellationToken);
+        var result = await recorder.RecordAsync(change, Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(
@@ -74,7 +74,7 @@ public sealed class MailFlagChangeRecorderTests
         var change = AuthoredMailFlagChange.Create(LocalEmail, seen: true, null, null, null);
 
         // Act
-        var result = await recorder.RecordAsync(change, Requester, TestContext.Current.CancellationToken);
+        var result = await recorder.RecordAsync(change, Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         var request = Assert.Single(records.OpenedRequests);
@@ -99,16 +99,16 @@ public sealed class MailFlagChangeRecorderTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            recorder.RecordAsync(change, Requester, TestContext.Current.CancellationToken));
+            recorder.RecordAsync(change, Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomPermission.MailFlagsWrite, refusal.RequiredPermission);
         Assert.Equal(0, records.OpenedRecordCount);
     }
 
-    /// <summary>A folder no tool may read is a folder no tool may write, or the write surface would be the way round the withholding.</summary>
+    /// <summary>A folder no agent may read is a folder no agent may write, or the write surface would be the way round the withholding.</summary>
     [Fact]
-    public async Task RecordAsync_AnEmailInAFolderWithheldFromTools_IsRefusedAsNotFound()
+    public async Task RecordAsync_AnEmailInAFolderWithheldFromAIAskedByAnAgent_IsRefusedAsNotFound()
     {
         // Arrange
         var records = new InMemoryMailboxMutationRecordStore();
@@ -117,11 +117,27 @@ public sealed class MailFlagChangeRecorderTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<AuthoredMailChangeTargetNotFoundException>(() =>
-            recorder.RecordAsync(change, Requester, TestContext.Current.CancellationToken));
+            recorder.RecordAsync(change, Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomErrorCode.StoredEmailNotFound, refusal.ErrorCode);
         Assert.Equal(0, records.OpenedRecordCount);
+    }
+
+    /// <summary>A folder withheld from AI is still the person's, so a flag they set through the client is recorded like any other.</summary>
+    [Fact]
+    public async Task RecordAsync_AnEmailInAFolderWithheldFromAIAskedByThePerson_OpensTheRecord()
+    {
+        // Arrange
+        var records = new InMemoryMailboxMutationRecordStore();
+        var recorder = RecorderOver(records, TargetIn(Withheld));
+        var change = AuthoredMailFlagChange.Create(LocalEmail, seen: true, null, null, null);
+
+        // Act
+        await recorder.RecordAsync(change, Requester, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(1, records.OpenedRecordCount);
     }
 
     /// <summary>An email no row carries answers exactly as a withheld one does, so asking cannot reveal which identifiers exist.</summary>
@@ -135,7 +151,7 @@ public sealed class MailFlagChangeRecorderTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<AuthoredMailChangeTargetNotFoundException>(() =>
-            recorder.RecordAsync(change, Requester, TestContext.Current.CancellationToken));
+            recorder.RecordAsync(change, Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomErrorCode.StoredEmailNotFound, refusal.ErrorCode);
@@ -159,7 +175,7 @@ public sealed class MailFlagChangeRecorderTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<AuthoredMailChangeTargetNotFoundException>(() =>
-            recorder.RecordAsync(change, Requester, TestContext.Current.CancellationToken));
+            recorder.RecordAsync(change, Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomErrorCode.StoredEmailNotFound, refusal.ErrorCode);
@@ -176,8 +192,8 @@ public sealed class MailFlagChangeRecorderTests
         var change = AuthoredMailFlagChange.Create(LocalEmail, null, flagged: true, null, null);
 
         // Act
-        var first = await recorder.RecordAsync(change, Requester, TestContext.Current.CancellationToken);
-        var second = await recorder.RecordAsync(change, Requester, TestContext.Current.CancellationToken);
+        var first = await recorder.RecordAsync(change, Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
+        var second = await recorder.RecordAsync(change, Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(1, records.OpenedRecordCount);
@@ -196,10 +212,11 @@ public sealed class MailFlagChangeRecorderTests
         var change = AuthoredMailFlagChange.Create(LocalEmail, null, flagged: true, null, null);
 
         // Act
-        await recorder.RecordAsync(change, Requester, TestContext.Current.CancellationToken);
+        await recorder.RecordAsync(change, Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
         await recorder.RecordAsync(
             change,
             MailboxMutationRequester.Command("call-2"),
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -220,11 +237,11 @@ public sealed class MailFlagChangeRecorderTests
         var recorder = RecorderOver(records, TargetIn(Inbox));
         var starred = AuthoredMailFlagChange.Create(LocalEmail, null, flagged: true, null, null);
         var unstarred = AuthoredMailFlagChange.Create(LocalEmail, null, flagged: false, null, null);
-        await recorder.RecordAsync(starred, Requester, TestContext.Current.CancellationToken);
+        await recorder.RecordAsync(starred, Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Act
         var thrown = await Assert.ThrowsAsync<MailFlagChangeInvalidException>(
-            () => recorder.RecordAsync(unstarred, Requester, TestContext.Current.CancellationToken));
+            () => recorder.RecordAsync(unstarred, Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomErrorCode.MailFlagChangeInvalid, thrown.ErrorCode);
@@ -246,11 +263,11 @@ public sealed class MailFlagChangeRecorderTests
         var recorder = RecorderOver(records, TargetIn(Inbox));
         var firstLabel = AuthoredMailFlagChange.Create(LocalEmail, null, null, MailKeywordChangeDirection.Add, ["$A"]);
         var secondLabel = AuthoredMailFlagChange.Create(LocalEmail, null, null, MailKeywordChangeDirection.Add, ["$B"]);
-        await recorder.RecordAsync(firstLabel, Requester, TestContext.Current.CancellationToken);
+        await recorder.RecordAsync(firstLabel, Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Act
         var thrown = await Assert.ThrowsAsync<MailFlagChangeInvalidException>(
-            () => recorder.RecordAsync(secondLabel, Requester, TestContext.Current.CancellationToken));
+            () => recorder.RecordAsync(secondLabel, Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomErrorCode.MailFlagChangeInvalid, thrown.ErrorCode);
@@ -291,7 +308,7 @@ public sealed class MailFlagChangeRecorderTests
             ["$Todo"]);
 
         // Act
-        var recording = recorder.RecordAsync(change, Requester, TestContext.Current.CancellationToken);
+        var recording = recorder.RecordAsync(change, Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
         await firstCommitObserved.Task;
 
         // The policy's backoff for a first attempt is jittered within 25 to 50 milliseconds, so one advance past the
@@ -323,7 +340,7 @@ public sealed class MailFlagChangeRecorderTests
         var change = AuthoredMailFlagChange.Create(LocalEmail, seen: true, null, null, null);
 
         // Act
-        await recorder.RecordAsync(change, Requester, TestContext.Current.CancellationToken);
+        await recorder.RecordAsync(change, Requester, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         using var waiting = runSignal.Register(Account, TestContext.Current.CancellationToken);

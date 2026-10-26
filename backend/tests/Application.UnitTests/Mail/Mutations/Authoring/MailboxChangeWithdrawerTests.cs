@@ -50,6 +50,7 @@ public sealed class MailboxChangeWithdrawerTests
         // Act
         var withdrawn = await withdrawer.WithdrawFlagChangesAsync(
             [opened.Id],
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -76,6 +77,7 @@ public sealed class MailboxChangeWithdrawerTests
         // Act
         var withdrawn = await withdrawer.WithdrawFlagChangesAsync(
             [opened.Id],
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -97,6 +99,7 @@ public sealed class MailboxChangeWithdrawerTests
         // Act
         var withdrawn = await withdrawer.WithdrawFlagChangesAsync(
             [move.Id],
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -117,6 +120,7 @@ public sealed class MailboxChangeWithdrawerTests
         // Act
         var withdrawn = await withdrawer.WithdrawMovesAsync(
             [move.Id, flagChange.Id],
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -132,7 +136,7 @@ public sealed class MailboxChangeWithdrawerTests
 
     /// <summary>A record recorded in a folder the caller may no longer read is absent, the same answer a read of that folder's mail gives.</summary>
     [Fact]
-    public async Task WithdrawFlagChangesAsync_ARecordInAFolderWithheldFromTools_LeavesItAlone()
+    public async Task WithdrawFlagChangesAsync_ARecordInAFolderWithheldFromAIAskedByAnAgent_LeavesItAlone()
     {
         // Arrange
         var withheld = await this.OpenAsync(FlagRequestIn(Withheld, uid: 11));
@@ -141,11 +145,31 @@ public sealed class MailboxChangeWithdrawerTests
         // Act
         var withdrawn = await withdrawer.WithdrawFlagChangesAsync(
             [withheld.Id],
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Empty(withdrawn);
         Assert.Single(await this.records.ReadOutstandingAsync(Account, 10, TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>The person withdraws a change they made to their own mail in a folder withheld from AI, exactly as anywhere else.</summary>
+    [Fact]
+    public async Task WithdrawFlagChangesAsync_ARecordInAFolderWithheldFromAIAskedByThePerson_WithdrawsIt()
+    {
+        // Arrange
+        var withheld = await this.OpenAsync(FlagRequestIn(Withheld, uid: 11));
+        var withdrawer = this.Withdrawer();
+
+        // Act
+        var withdrawn = await withdrawer.WithdrawFlagChangesAsync(
+            [withheld.Id],
+            MailboxReaderKind.Person,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(withheld.Id, Assert.Single(withdrawn).RecordId);
+        Assert.Empty(await this.records.ReadOutstandingAsync(Account, 10, TestContext.Current.CancellationToken));
     }
 
     /// <summary>Withdrawing needs authority over the same kind of change, because the worst it does is stop one.</summary>
@@ -159,7 +183,7 @@ public sealed class MailboxChangeWithdrawerTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            withdrawer.WithdrawMovesAsync([move.Id], TestContext.Current.CancellationToken));
+            withdrawer.WithdrawMovesAsync([move.Id], MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomPermission.MailMove, refusal.RequiredPermission);
@@ -179,7 +203,7 @@ public sealed class MailboxChangeWithdrawerTests
 
         // Act
         var thrown = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            withdrawer.WithdrawFlagChangesAsync(asked, TestContext.Current.CancellationToken));
+            withdrawer.WithdrawFlagChangesAsync(asked, MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal("recordIds.Count", thrown.ParamName);
@@ -193,11 +217,11 @@ public sealed class MailboxChangeWithdrawerTests
         var opened = await this.OpenAsync(FlagRequestIn(Inbox, uid: 7));
         var withdrawer = this.Withdrawer();
         var first = Assert.Single(
-            await withdrawer.WithdrawFlagChangesAsync([opened.Id], TestContext.Current.CancellationToken));
+            await withdrawer.WithdrawFlagChangesAsync([opened.Id], MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Act
         var second = Assert.Single(
-            await withdrawer.WithdrawFlagChangesAsync([opened.Id], TestContext.Current.CancellationToken));
+            await withdrawer.WithdrawFlagChangesAsync([opened.Id], MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailboxMutationLifecycle.Cancelled, second.Lifecycle);
@@ -223,6 +247,7 @@ public sealed class MailboxChangeWithdrawerTests
         // Act
         var withdrawn = await withdrawer.WithdrawDeletesAsync(
             [delete.Id, flagChange.Id],
+            MailboxReaderKind.Agent,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -250,7 +275,7 @@ public sealed class MailboxChangeWithdrawerTests
         var withdrawer = this.Withdrawer(AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailDelete));
 
         // Act
-        var withdrawn = await withdrawer.WithdrawDeletesAsync([carried.Id], TestContext.Current.CancellationToken);
+        var withdrawn = await withdrawer.WithdrawDeletesAsync([carried.Id], MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         var entry = Assert.Single(withdrawn);
@@ -274,7 +299,7 @@ public sealed class MailboxChangeWithdrawerTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            withdrawer.WithdrawDeletesAsync([delete.Id], TestContext.Current.CancellationToken));
+            withdrawer.WithdrawDeletesAsync([delete.Id], MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomPermission.MailDelete, refusal.RequiredPermission);

@@ -736,13 +736,14 @@ The three fetch-again defects stay distinct from `Unreadable` because they say d
 a second fetch fixes the first three and may well reproduce the fourth. Which one was found is named in the failure's
 message.
 
-An email the local copy holds no row for, one belonging to an account this deployment no longer serves, and one stored in
-a folder mapped with `VisibleToTools: false` or in a folder no mapping names at all are all reported as
-`53002 StoredEmailNotFound`. One failure covers them, for the reason `53001 MailAccountNotAccessible` covers both of its
-cases: a caller that could tell them apart could learn which identifiers exist by asking. An attachment link minted
-before the folder was withheld — or before its mapping was removed — stops serving the same way, because the question is
-asked where the download is served;
-[folders withheld from tools](mailbox-queries.md#folders-withheld-from-tools) states both cases and what they withhold.
+An email the local copy holds no row for, one belonging to an account this deployment no longer serves, one stored in a
+folder no mapping names at all, and — when the read answers for an agent — one stored in a folder mapped with
+`VisibleToAI: false` are all reported as `53002 StoredEmailNotFound`. One failure covers them, for the reason
+`53001 MailAccountNotAccessible` covers both of its cases: a caller that could tell them apart could learn which
+identifiers exist by asking. An attachment link an MCP read minted before the folder was withheld from AI — or before
+its mapping was removed — stops serving the same way, because the question is asked where the download is served. The
+same read answering for the person in the client serves a folder withheld from AI like any other;
+[folders withheld from AI](mailbox-queries.md#folders-withheld-from-ai) states both cases and what they withhold.
 
 The two codes are distinct on purpose. `StoredEmailNotFound` names an email that was never stored here;
 `EmailContentUnavailable` names one that is stored and whose body cannot currently be served, and only the second is

@@ -19,7 +19,7 @@ That state is read per message rather than once at startup, so activating a prof
 without a restart.
 
 One thing narrows what an active profile reaches: what is cut into passages. Mail of a folder mapped with
-`GenerateEmbeddings: false`, and mail of a folder no mapping names at all, is cut into none, so there is nothing to embed
+`GenerateEmbeddings: false` or `VisibleToAI: false`, and mail of a folder no mapping names at all, is cut into none, so there is nothing to embed
 and nothing of it is ever sent to a provider.
 [What a mapping decides beyond where the folder is](imap-synchronization.md#what-a-mapping-decides-beyond-where-the-folder-is)
 states that switch beside the other two, and [message chunks](message-chunks.md#when-chunking-runs) what happens to

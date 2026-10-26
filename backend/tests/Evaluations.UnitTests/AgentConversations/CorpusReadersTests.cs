@@ -6,6 +6,7 @@ using MailFathom.AI.AgentConversations;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Mail.Delivery.Authoring;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Folders;
 using MailFathom.Domain.Tasks;
 using MailFathom.Evaluations.AgentConversations;
 using MailFathom.Evaluations.Answering;
@@ -48,7 +49,7 @@ public sealed class CorpusReadersTests
     public async Task StateBrowser_AConversationWithADerivedState_ReadsItsEntries()
     {
         // Act
-        var state = await Readers().StateBrowser.ReadStateAsync(CorpusReaders.ThreadOf(PersonalAgenda.KestrelQuayMove), TestContext.Current.CancellationToken);
+        var state = await Readers().StateBrowser.ReadStateAsync(CorpusReaders.ThreadOf(PersonalAgenda.KestrelQuayMove), MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(2, state?.Entries.Count);
@@ -91,6 +92,7 @@ public sealed class CorpusReadersTests
         var authored = await Readers().ResponseAuthoring.AuthorAsync(
             new AuthoredResponseRequest
             {
+                Reader = MailboxReaderKind.Agent,
                 AnsweredEmailId = answered.Id,
                 Act = AuthoredResponseAct.Reply,
                 PlainTextBody = "Thank you.",

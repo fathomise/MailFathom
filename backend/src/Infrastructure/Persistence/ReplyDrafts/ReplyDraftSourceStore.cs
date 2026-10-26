@@ -29,7 +29,7 @@ namespace MailFathom.Infrastructure.Persistence.ReplyDrafts;
 /// </para>
 /// <para>
 /// The style read is inside the caller's scope like every other read here, so a deployment that withholds the sent
-/// folder from tools derives no manner from it rather than reaching around the withholding. A conversation whose sent
+/// folder from AI derives no manner from it rather than reaching around the withholding. A conversation whose sent
 /// folder is unmapped is the same case and answers the same way: no samples, and a reply written from the
 /// correspondence alone.
 /// </para>

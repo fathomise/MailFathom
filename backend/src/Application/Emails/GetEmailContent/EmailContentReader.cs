@@ -82,7 +82,7 @@ public sealed class EmailContentReader
     /// <param name="contentStore">Reads the raw MIME stored for an email, with what was recorded about it.</param>
     /// <param name="renderer">Turns stored raw MIME into headers, a body, and a description of every attachment.</param>
     /// <param name="repairRequestStore">Records durably that a local copy has to be fetched or read again.</param>
-    /// <param name="scopeResolver">Answers whether a tool may read the mailbox an email was stored from.</param>
+    /// <param name="scopeResolver">Answers whether the request's reader may reach the mailbox an email was stored from.</param>
     /// <param name="linkIssuer">Mints the short-lived capability a caller fetches an attachment with.</param>
     /// <param name="egressGuard">Scans what the message's author wrote before a read publishes it.</param>
     /// <param name="readOptions">The bounds on how much body text one call returns.</param>
@@ -164,7 +164,7 @@ public sealed class EmailContentReader
 
         // One instance per read, because a call routinely names several messages of one exchange: assembling per email
         // would read that conversation, order it, and scan its subjects once for each of them.
-        var threads = new EmailThreadContexts(this.threadReader, this.scopeResolver, this.egressGuard);
+        var threads = new EmailThreadContexts(this.threadReader, this.scopeResolver, request.Reader, this.egressGuard);
         var selection = await this.SelectAsync(request, threads, cancellationToken);
 
         var outcomes = new List<EmailContentReadOutcome>(selection.StoredEmailIds.Count);
@@ -211,7 +211,7 @@ public sealed class EmailContentReader
     /// </para>
     /// <para>
     /// Nothing about a conversation this deployment does not hold is reported as a failure. It resolves to no messages,
-    /// exactly as a conversation whose messages all sit in folders withheld from tools does, because telling the two
+    /// exactly as a conversation whose messages all sit in folders withheld from AI does, because telling the two
     /// apart would let a caller learn which conversations exist by asking about them.
     /// </para>
     /// </remarks>
@@ -246,9 +246,10 @@ public sealed class EmailContentReader
         var summary = await this.summaryReader.FindAsync(storedEmailId, cancellationToken);
 
         // An account this deployment no longer serves leaves its stored rows in place, and a folder an operator withheld
-        // from tools keeps its own, so the row existing is not enough. All three cases produce one answer: telling them
-        // apart would let a caller learn which identifiers exist by asking about them.
-        if (summary is null || !this.scopeResolver.IsReadableByTools(
+        // from AI keeps its own, so the row existing is not enough when an agent is reading. All three cases produce one
+        // answer: telling them apart would let a caller learn which identifiers exist by asking about them.
+        if (summary is null || !this.scopeResolver.IsReadable(
+                request.Reader,
                 assignedAccounts,
                 summary.Account,
                 summary.Folder.Alias))

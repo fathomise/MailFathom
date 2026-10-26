@@ -1456,8 +1456,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsSynchronized")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsVisibleToTools")
-                        .HasColumnType("boolean");
+                    b.Property<bool>("IsVisibleToAI")
+                        .HasColumnType("boolean")
+                        .HasColumnName("IsVisibleToTools");
 
                     b.Property<int?>("SpecialUse")
                         .HasColumnType("integer");

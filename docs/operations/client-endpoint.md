@@ -608,8 +608,8 @@ scheduled, so no run discovers it, and a folder nothing has bound yet has not be
 present all the same, carrying `NeverSynchronized` and both counts at zero, because a folder MailFathom does not copy
 is still a folder the mailbox has and still a folder [a move](#the-mutation-routes) files into. A client that could not see one would
 be told an account has nowhere to put a deleted message while its mailbox has a trash folder. A folder an operator
-withheld from tools is the one that stays absent, for the same reason it is absent from every other read: this surface
-admits what configuration admits.
+withheld from AI is listed like any other, because this surface answers for the person and the switch withholds a
+folder from AI and from nothing else.
 
 **A user with no mail account reads an empty `accounts` list**, and a credential whose grant does not carry
 `mailfathom.mail.read` is answered `403` — the same two answers the accounts route gives, because naming a user's
@@ -689,7 +689,7 @@ where the server advertises it, and MailFathom records the role either way.
 something into, and every rule [the folder routes of an account's own settings](admin-endpoint.md) apply holds here
 too — `Synchronize` and `CreateIfMissing` are always true, a role is stated when a folder is declared rather than given
 to one declared without it, and an account has at most one folder per role. Its `RemotePath`, `GenerateEmbeddings`, and
-`VisibleToTools` stay editable there.
+`VisibleToAI` stay editable there.
 
 **On an account whose mailbox MailFathom holds**, a deletion is a move into the trash, with everything beneath the
 folder, and it is not held to the depth limit, since it takes the folder out of the hierarchy rather than deeper into
@@ -1290,9 +1290,8 @@ It answers with one conversation as a single document — the messages in it, wh
 **A conversation is not scoped to a folder, and the route takes no account or folder to scope it by.** The question is
 in the inbox, the answer is in `SENT`, and a forwarded copy is in a project folder — so it is read across every folder
 of every account the signed-in user owns, and the junk folder takes part too, because a reply that landed in junk is
-still part of the exchange somebody is reading. A folder an operator withheld from tools is the one exception, and it is
-absent for the reason it is absent everywhere: the message is in no conversation this surface publishes, in no count of
-one, and in no participant list.
+still part of the exchange somebody is reading. A folder an operator withheld from AI takes part like any other, because
+this surface answers for the person and the switch withholds a folder from AI and from nothing else.
 
 **What a conversation covers today is one account's mail.** MailFathom assembles a thread from the mail of the account
 that holds it, so the same exchange in two of your mailboxes is two conversations with two identifiers, each complete
@@ -1706,12 +1705,15 @@ frame rather than their message absent, and every block it keeps identical to wh
 | `AllowanceExhausted` | The period's `MailAnswering` ceilings are spent, so nothing was asked of the provider |
 | `ProviderUnavailable` | The provider was asked and did not answer |
 | `AnswerRejected` | Two answers arrived and neither described the document |
+| `WithheldFromAI` | The message is in a folder mapped `VisibleToAI: false`, so nothing of it was put to a model |
 
 **A route of its own rather than a query on the body route, because what it costs is different in kind.** The body route
 reads a local copy and is published under `mailfathom.mail.read`; this one sends an outline to a chat provider and is
 charged to the period allowance a question is charged to, so it is published under **`mailfathom.assistant.use`** — a reading
 grant is not a way to spend a deployment's provider budget. A caller holds both, the read behind this needing the reading
-grant as every read does.
+grant as every read does. That read answers for an agent rather than for the person, because what it reads goes to a
+model; a message only the person may read — one in a folder mapped `VisibleToAI: false` — is then read for the person,
+and answered with its ordinary reduced document and `WithheldFromAI` beside it, without a model being asked.
 
 **It never answers an empty pane, and it never fails the read to report a cost.** A spent allowance is `200` with the
 ordinary reduced document and `AllowanceExhausted` beside it rather than `429`: the message is on the screen either way,
@@ -2302,7 +2304,7 @@ spelling is the refusal. A folder
 naming a `RemotePath` also carries `CreateIfMissing` as `true`, so a folder a dialog declares is created where the
 server advertises none at that path; a folder found instead by the role it plays carries no such switch, because a
 folder that does not exist advertises no role, and a request stating one on such a folder is refused naming
-`RemotePath`. `GenerateEmbeddings`, `VisibleToTools`, and `RemotePath` stay the person's on every folder, special ones
+`RemotePath`. `GenerateEmbeddings`, `VisibleToAI`, and `RemotePath` stay the person's on every folder, special ones
 included — which is what lets a folder declared against the wrong place on the server be corrected rather than started
 over. The record route carries no mailbox at all and is therefore no way around them.
 

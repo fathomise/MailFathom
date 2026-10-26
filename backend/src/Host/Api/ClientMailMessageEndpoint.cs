@@ -7,6 +7,7 @@ using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -94,7 +95,7 @@ internal static class ClientMailMessageEndpoint
     /// because the headers and the file descriptions are read from the stored message rather than from the row.
     /// </remarks>
     internal static GetEmailContentRequest RequestFor(Guid storedEmailId) =>
-        GetEmailContentRequest.Create([StoredEmailId.Create(storedEmailId)]);
+        GetEmailContentRequest.Create([StoredEmailId.Create(storedEmailId)]) with { Reader = MailboxReaderKind.Person };
 }
 
 /// <summary>One message as the client endpoint serves it, without its body and without any file it carries.</summary>

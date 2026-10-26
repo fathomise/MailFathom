@@ -39,7 +39,7 @@ public sealed class MailThreadStateBrowserTests
         var browser = CreateBrowser(reader);
 
         // Act
-        var state = await browser.ReadStateAsync(Conversation, TestContext.Current.CancellationToken);
+        var state = await browser.ReadStateAsync(Conversation, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Same(stored, state);
@@ -67,7 +67,7 @@ public sealed class MailThreadStateBrowserTests
         var browser = CreateBrowser(ReaderReturning(stored));
 
         // Act
-        var state = await browser.ReadStateAsync(Conversation, TestContext.Current.CancellationToken);
+        var state = await browser.ReadStateAsync(Conversation, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.NotNull(state);
@@ -85,7 +85,7 @@ public sealed class MailThreadStateBrowserTests
         var browser = CreateBrowser(ReaderReturning(null));
 
         // Act
-        var state = await browser.ReadStateAsync(Conversation, TestContext.Current.CancellationToken);
+        var state = await browser.ReadStateAsync(Conversation, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Null(state);
@@ -103,7 +103,7 @@ public sealed class MailThreadStateBrowserTests
         var browser = CreateBrowser(reader);
 
         // Act
-        await browser.ReadStateAsync(Conversation, TestContext.Current.CancellationToken);
+        await browser.ReadStateAsync(Conversation, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         await reader.Received(1).ReadStateAsync(
@@ -124,7 +124,7 @@ public sealed class MailThreadStateBrowserTests
         var browser = CreateBrowser(reader, servedAccounts: []);
 
         // Act
-        var state = await browser.ReadStateAsync(Conversation, TestContext.Current.CancellationToken);
+        var state = await browser.ReadStateAsync(Conversation, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Null(state);
@@ -144,7 +144,7 @@ public sealed class MailThreadStateBrowserTests
 
         // Act and assert
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            browser.ReadStateAsync(Conversation, TestContext.Current.CancellationToken));
+            browser.ReadStateAsync(Conversation, MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
 
         Assert.Equal(MailFathomPermission.MailRead, refusal.RequiredPermission);
         await reader.DidNotReceiveWithAnyArgs().ReadStateAsync(
@@ -167,7 +167,7 @@ public sealed class MailThreadStateBrowserTests
         var browser = CreateBrowser(ReaderReturning(State([recorded])), egressGuard: egress.Guard);
 
         // Act
-        var state = await browser.ReadStateAsync(Conversation, TestContext.Current.CancellationToken);
+        var state = await browser.ReadStateAsync(Conversation, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.NotNull(state);
@@ -179,6 +179,29 @@ public sealed class MailThreadStateBrowserTests
         Assert.Equal(recorded.Aspect, guarded.Aspect);
         Assert.Equal(recorded.Sources, guarded.Sources);
         Assert.Equal(recorded.DueAt, guarded.DueAt);
+    }
+
+    /// <summary>The band is asked for by whoever reads the conversation, so a folder withheld from AI is read for the person and left out for an agent.</summary>
+    [Theory]
+    [InlineData(MailboxReaderKind.Person, true)]
+    [InlineData(MailboxReaderKind.Agent, false)]
+    public async Task ReadStateAsync_AConversationInAFolderWithheldFromAI_ReadsTheFolderOnlyForThePerson(
+        MailboxReaderKind readerKind,
+        bool folderRead)
+    {
+        // Arrange
+        var reader = ReaderReturning(State([Agreement("Ship on Friday")]));
+        var browser = CreateBrowser(reader, inboxWithheldFromAI: true);
+        var inbox = new MailFolderIdentity(Account, MailFolderAlias.Create("inbox"));
+
+        // Act
+        await browser.ReadStateAsync(Conversation, readerKind, TestContext.Current.CancellationToken);
+
+        // Assert
+        await reader.Received().ReadStateAsync(
+            Conversation,
+            Arg.Is<MailboxScope>(scope => scope.ReadableFolders.Contains(inbox) == folderRead),
+            Arg.Any<CancellationToken>());
     }
 
     private static EmailThreadState State(IReadOnlyList<ThreadStateEntry> entries) =>
@@ -218,15 +241,19 @@ public sealed class MailThreadStateBrowserTests
         IStoredThreadStateReader reader,
         IReadOnlyList<MailAccountId>? servedAccounts = null,
         AccessAuthorization? authorization = null,
-        SensitiveContentEgressGuard? egressGuard = null)
+        SensitiveContentEgressGuard? egressGuard = null,
+        bool inboxWithheldFromAI = false)
     {
         var accounts = servedAccounts ?? [Account];
         var catalog = Substitute.For<ICallerMailAccountCatalog>();
         catalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns([.. accounts.Select(static accountId => SyntheticServedAccount.Of(accountId))]);
         catalog.User.Returns(SyntheticUser.Deployment);
 
-        var participation = StubMailFolderParticipation.Mapping(
-            [.. accounts.Select(accountId => new MailFolderIdentity(accountId, MailFolderAlias.Create("inbox")))]);
+        MailFolderIdentity[] inboxes =
+            [.. accounts.Select(accountId => new MailFolderIdentity(accountId, MailFolderAlias.Create("inbox")))];
+        var participation = inboxWithheldFromAI
+            ? StubMailFolderParticipation.Mapping(inboxes).Hiding(inboxes)
+            : StubMailFolderParticipation.Mapping(inboxes);
 
         var scopeResolver = new MailboxScopeResolver(
             catalog,

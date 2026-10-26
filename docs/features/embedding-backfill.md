@@ -53,7 +53,8 @@ message whose local copy was deliberately kept after MailFathom deleted it on th
 retrieve it from the server any more, and everything may still retrieve it here, so the walk reaches it like any other.
 
 The walk asks the query for the folders configuration maps and leaves embedded, so a message of a folder mapped with
-`GenerateEmbeddings: false` is in neither group, and neither is a message of a folder **no mapping names**. The
+`GenerateEmbeddings: false` or `VisibleToAI: false` is in neither group, and neither is a message of a folder **no
+mapping names**. The
 narrowing is on the query rather than on what it does with a row: a folder whose passages are deliberately never cut
 would otherwise look like the first group on every run forever, and mail retained under a removed mapping would be
 re-embedded — paid for at a provider — for a folder this deployment no longer has. What was embedded before either

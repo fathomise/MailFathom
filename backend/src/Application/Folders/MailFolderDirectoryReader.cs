@@ -8,6 +8,7 @@ using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Folders;
 
@@ -78,7 +79,7 @@ public sealed class MailFolderDirectoryReader
     /// </remarks>
     public async Task<MailFolderDirectory> ReadAsync(CancellationToken cancellationToken)
     {
-        var accounts = await this.accountReader.ReadAsync(cancellationToken);
+        var accounts = await this.accountReader.ReadAsync(MailboxReaderKind.Person, cancellationToken);
 
         if (accounts.Accounts.Count is 0)
         {
@@ -89,7 +90,7 @@ public sealed class MailFolderDirectoryReader
         // account records, so it matches the folders that reading reported freshness for unless an account write
         // commits between the two reads. Junk is included for the reason the mailbox list includes it — the
         // withholding is about not returning its mail unasked, and no mail is returned here.
-        var scope = await this.scopeResolver.ReadableScopeAsync([], [], JunkMailInclusion.Included, cancellationToken);
+        var scope = await this.scopeResolver.ReadableScopeAsync(MailboxReaderKind.Person, [], [], JunkMailInclusion.Included, cancellationToken);
 
         var stored = await this.storedFolders.ReadAsync(scope, cancellationToken);
         var foldersByAccount = stored.ToLookup(static folder => folder.Account);

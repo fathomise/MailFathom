@@ -46,14 +46,15 @@ the boundary owns is the one thing a use case cannot: turning a caller's text in
 identity or role, and refusing text that names neither.
 
 Where a table below says a tool reads every folder of the accounts in scope, "every folder" means every folder the
-deployment lets tools read: a folder configuration maps and does not withhold. A folder mapped with
-`VisibleToTools: false` and a folder **no mapping names** are both outside every mailbox tool and are never
+deployment leaves visible to AI: a folder configuration maps and does not withhold from AI. A folder mapped with
+`VisibleToAI: false` and a folder **no mapping names** are both outside every mailbox tool and are never
 mentioned by one — a request naming such a folder's identity comes back empty rather than refused, and an email of it
-reads as not found. `set_mail_flags` resolves what it may change through that same scope, so a folder no tool may read is a folder no
-tool may write. The decision is made once, where the scope a read is expressed in is resolved, and what it carries is the list of
+reads as not found. `set_mail_flags`, `reply_to_email`, `forward_email`, and the draft tools resolve what they may act on
+through that same scope, so a folder no tool may read is a folder no tool may write. The switch withholds the folder
+from AI and from nothing else: the person still reads and acts on it in the client. The decision is made once, where the scope a read is expressed in is resolved, and what it carries is the list of
 folders that may be read, so it holds for a tool added later without that tool doing anything, and an account whose
 configuration maps no folder reads as empty;
-[folders withheld from tools](mailbox-queries.md#folders-withheld-from-tools) states what a caller sees and why nothing
+[folders withheld from AI](mailbox-queries.md#folders-withheld-from-ai) states what a caller sees and why nothing
 says the folder exists.
 
 Four properties hold for every tool and are proven by test rather than asserted here:
@@ -469,7 +470,7 @@ get wrong and nothing to bound.
 | `accountId` | The identifier the deployment generated for the account, unique across the whole deployment. It is what every other result reports as `accountId`, and it is stable across a change of the display name |
 | `displayName` | The readable name given to the account, unique within the set the reading user is assigned |
 | `synchronizationMode` | `polling` or `push`, stating what the operator asked to start the account's next pass |
-| `folders` | One entry per folder of the account that tools may read, ordered by its place in the account's hierarchy: `folderId`, the identity every other tool names the folder by; `folderPath`, its names from the top of the hierarchy down joined by `/`; `role`, the role it plays or null; `isSynchronized`, whether synchronization keeps it as the copy of a folder on the mail server; and `synchronizedAt`, when synchronization last committed progress for it |
+| `folders` | One entry per folder of the account that is visible to AI, ordered by its place in the account's hierarchy: `folderId`, the identity every other tool names the folder by; `folderPath`, its names from the top of the hierarchy down joined by `/`; `role`, the role it plays or null; `isSynchronized`, whether synchronization keeps it as the copy of a folder on the mail server; and `synchronizedAt`, when synchronization last committed progress for it |
 | `outbox` | Present only for a caller that may both read and send mail: `waiting`, how many messages are queued or being sent, and `refused`, how many a mail server refused that nobody has decided about. The outbox is not a folder and never appears among `folders`; [`list_outgoing_emails`](#list_outgoing_emails) lists it. Absent rather than zero for any other caller, so a credential that may not read the outbox is not told its size |
 
 **Either name may be used to select the account.** The identifier is matched exactly and the display name without regard
@@ -504,7 +505,7 @@ listing, a search, and a content read report the folder by. `folderPath` is for 
 alias configuration keys a folder by is never published and never accepted.
 
 **The list is the same set every other tool reads.** It is resolved through the one scope every mailbox read is
-expressed in, so a folder mapped with `VisibleToTools: false` and a folder no mapping names are both absent from it —
+expressed in, so a folder mapped with `VisibleToAI: false` and a folder no mapping names are both absent from it —
 naming a folder here is publishing that it exists, which is the whole of what this answer does. The account's junk
 folder is present, because withholding that one is about not returning its mail unasked and no mail is returned here.
 
@@ -868,7 +869,7 @@ Four things about it are worth reading before a caller writes against them:
   it answers whatever the two clocks say, because a sender's clock is not something MailFathom can check; two replies to
   one message are ordered by their sent timestamps, and messages that still tie are settled on their local identity. The
   same conversation read twice comes back in the same order.
-- **Withheld mail is absent from all of it.** A message in a folder withheld from tools appears in no `otherMessages`
+- **Withheld mail is absent from all of it.** A message in a folder withheld from AI appears in no `otherMessages`
   list, is in no `messageCount`, and is returned by no call naming its conversation — and a message whose parent is
   withheld is published as a root naming no ancestor, rather than pointing at something the caller may not see. A
   conversation whose messages are all withheld is published nowhere, so asking about its identifier returns no email
@@ -1156,7 +1157,7 @@ deployment that lets an agent read mail has not thereby let it star, unstar, or 
 an entrypoint added later reaches the same refusal without passing this boundary.
 
 Which mail may be written is the same question as which mail may be read, answered by the same resolver. An email of an
-account this deployment does not serve, an email in a folder mapped `VisibleToTools: false`, and an email no row is held
+account this deployment does not serve, an email in a folder mapped `VisibleToAI: false`, and an email no row is held
 for are one answer — `53002`, the same one a read gives — so a write surface is neither a way round a withheld folder
 nor a way to learn which identifiers exist by asking about them.
 
@@ -1427,7 +1428,7 @@ the sending grant is offered the tools and refused by the use case behind them. 
 listing, because that is the effect that leaves this deployment.
 
 **Four ways of naming an email that cannot be answered are one answer.** An identifier nothing is held under, an email
-of an account this deployment no longer serves, an email in a folder mapped `VisibleToTools: false`, and one whose
+of an account this deployment no longer serves, an email in a folder mapped `VisibleToAI: false`, and one whose
 stored content is no longer readable all produce `53005`, with the same message. That is deliberate and it is the whole
 reason the code exists: telling them apart would let a caller discover which mail this deployment holds, and which of it
 an operator withheld, by replying to identifiers one at a time. Below the boundary the distinction survives where it is

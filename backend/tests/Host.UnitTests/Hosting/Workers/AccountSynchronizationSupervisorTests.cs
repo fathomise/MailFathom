@@ -250,17 +250,17 @@ public sealed class AccountSynchronizationSupervisorTests
     [InlineData(true, true, true)]
     [InlineData(false, false, false)]
     [InlineData(true, false, true)]
-    [InlineData(true, true, false)]
+    [InlineData(true, false, false)]
     public async Task RunAsync_WhicheverWayTheFolderSwitchesAreSet_ErasesNothing(
         bool synchronize,
         bool generateEmbeddings,
-        bool visibleToTools)
+        bool visibleToAI)
     {
         // Arrange
         var options = SynchronizationTestHost.CreateSingleAccountOptions(enabled: true, "INBOX", "Archive");
         options.DeclaredAccount(0).Folders[1].Synchronize = synchronize;
         options.DeclaredAccount(0).Folders[1].GenerateEmbeddings = generateEmbeddings;
-        options.DeclaredAccount(0).Folders[1].VisibleToTools = visibleToTools;
+        options.DeclaredAccount(0).Folders[1].VisibleToAI = visibleToAI;
         var mirrorStore = new RecordingMailFolderMirrorStore();
         var ruleEvaluationReached = new TaskCompletionSource();
         await using var harness = CreateHarness(

@@ -296,7 +296,7 @@ version a client composes its own changes against.
 
 ### What every account is asked about at once
 
-Some questions are about every mailbox the deployment serves rather than one: which folders a tool may read, which are
+Some questions are about every mailbox the deployment serves rather than one: which folders an agent may read, which are
 junk, which accounts classify spam and which of their folders that covers, whether any mailbox is scanned, and the
 strictest posture across one user's mailboxes. Those are answered by a query rather than by binding every account's
 document, so the settings they filter on are held relationally beside the document — the five columns above, and one row
@@ -323,7 +323,7 @@ left as they stand rather than written from the document alone.
 | `MailAccountId` | The account, a foreign key onto `settings_mail_accounts` (`fk_mail_account_folder_settings_settings_mail_accounts`) with `ON DELETE CASCADE` |
 | `Alias` | The folder's alias, trimmed and upper-cased as every alias is compared, at most 128 characters |
 | `SpecialUse` | The role the mapping names, `0` inbox through `8` important in `MailFolderSpecialUse`'s order, or null where it names a path |
-| `IsSynchronized`, `IsVisibleToTools`, `GeneratesEmbeddings` | The folder's three participation switches, each true where the document leaves it unset |
+| `IsSynchronized`, `IsVisibleToTools`, `GeneratesEmbeddings` | The folder's participation as its three switches — `Synchronize`, `VisibleToAI`, and `GenerateEmbeddings` — resolve it: each true where the document leaves it unset, unless another withdraws it, so a folder nothing mirrors is neither visible to AI nor embedded and a folder withheld from AI is not embedded. `IsVisibleToTools` holds whether the folder is visible to AI |
 | `IsClassifiedForSpam` | Whether the account's classification covers the folder: the folders it names, or its inbox where it names none. Read together with `ClassifiesSpam`, so a folder is classified only where the account classifies at all |
 
 The primary key is `(MailAccountId, Alias)`. A document mapping no folder has one row, the inbox, which is the folder a

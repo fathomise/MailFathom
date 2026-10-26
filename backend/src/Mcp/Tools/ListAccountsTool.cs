@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Folders;
 using MailFathom.Mcp.Tools.Categories;
 using MailFathom.Mcp.Tools.Results;
 using ModelContextProtocol.Server;
@@ -86,7 +87,7 @@ internal sealed class ListAccountsTool(
         + "credential.")]
     public async Task<ListAccountsToolResult> ListAccountsAsync(CancellationToken cancellationToken = default)
     {
-        var directory = await mailAccountDirectoryReader.ReadAsync(cancellationToken);
+        var directory = await mailAccountDirectoryReader.ReadAsync(MailboxReaderKind.Agent, cancellationToken);
 
         var outboxCounts = outbox.MayReadOutbox
             ? await outbox.CountAsync([.. directory.Accounts.Select(account => account.Account.Id)], cancellationToken)

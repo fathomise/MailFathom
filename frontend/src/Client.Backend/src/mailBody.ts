@@ -47,12 +47,18 @@ export function cleanedMailBodyRoute(storedEmailId: string, remoteImages: boolea
 /**
  * What came of one cleaning, as the service names it.
  *
- * Five of the six say the cleaning did not happen, and each is a different sentence on the screen: a deployment that
+ * Six of the seven say the cleaning did not happen, and each is a different sentence on the screen: a deployment that
  * never turned it on, a period whose allowance is spent, an endpoint that did not answer, an answer the service could
- * not use, and a message with no document to clean at all. The reduced document comes back beside every one of them, where the message had one to reduce.
+ * not use, a message in a folder withheld from AI, and a message with no document to clean at all. The reduced document comes back beside every one of them, where the message had one to reduce.
  */
 export type MailBodyCleaning =
-    'Cleaned' | 'NothingToClean' | 'NotActivated' | 'AllowanceExhausted' | 'ProviderUnavailable' | 'AnswerRejected';
+    | 'Cleaned'
+    | 'NothingToClean'
+    | 'NotActivated'
+    | 'AllowanceExhausted'
+    | 'ProviderUnavailable'
+    | 'AnswerRejected'
+    | 'WithheldFromAI';
 
 /**
  * One message's body as the third rendering, or the reduced one beside the reason the cleaning did not happen.
@@ -320,6 +326,7 @@ const cleanings: readonly MailBodyCleaning[] = [
     'AllowanceExhausted',
     'ProviderUnavailable',
     'AnswerRejected',
+    'WithheldFromAI',
 ];
 
 const alignments: readonly MailBlockAlignment[] = ['Inherited', 'Start', 'Center', 'End', 'Justify'];

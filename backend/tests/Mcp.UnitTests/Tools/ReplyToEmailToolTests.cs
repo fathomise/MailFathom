@@ -220,14 +220,14 @@ public sealed class ReplyToEmailToolTests
     }
 
     /// <summary>
-    /// A folder an operator withheld from tools is outside every mailbox read, and a reply must not become the path by
+    /// A folder an operator withheld from AI is outside every mailbox read, and a reply must not become the path by
     /// which its content leaves.
     /// </summary>
     [Fact]
-    public async Task ReplyToEmailAsync_AnEmailOfAFolderWithheldFromTools_IsRefusedAsNoEmailItCanAnswer()
+    public async Task ReplyToEmailAsync_AnEmailOfAFolderWithheldFromAI_IsRefusedAsNoEmailItCanAnswer()
     {
         // Arrange
-        var tool = ToolOver(out _, participationReader: StubMailFolderParticipation.Nothing);
+        var tool = ToolOver(out _, participationReader: AnsweredMailSubmissions.AnsweredFolderWithheldFromAI);
 
         // Act
         var refusal = await Assert.ThrowsAsync<MailSubmissionRefusedException>(

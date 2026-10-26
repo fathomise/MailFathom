@@ -53,16 +53,16 @@ public sealed class MailFolderParticipationOptionsTests
         Assert.Equal(MailFolderParticipation.Full, participation);
     }
 
-    /// <summary>Withholding a folder from tools leaves everything else about it alone, which is the whole point of the switch being its own.</summary>
+    /// <summary>Withholding a folder from AI keeps it mirrored and embeds nothing of it, since an embedding is a model's reading of the folder.</summary>
     [Fact]
-    public void GetParticipation_AFolderWithdrawnFromTools_LeavesItInvisibleAndKeepsItMirrored()
+    public void GetParticipation_AFolderWithheldFromAI_LeavesItInvisibleUnembeddedAndMirrored()
     {
         // Arrange
         var options = OptionsFor(CreateAccount(new MailFolderMappingOptions
         {
             Alias = "private",
             RemotePath = "Private",
-            VisibleToTools = false,
+            VisibleToAI = false,
         }));
 
         // Act
@@ -70,8 +70,8 @@ public sealed class MailFolderParticipationOptionsTests
 
         // Assert
         Assert.True(participation.IsSynchronized);
-        Assert.True(participation.GeneratesEmbeddings);
-        Assert.False(participation.IsVisibleToTools);
+        Assert.False(participation.GeneratesEmbeddings);
+        Assert.False(participation.IsVisibleToAI);
     }
 
     /// <summary>A noisy folder can stay listed and filterable while costing no provider tokens.</summary>
@@ -91,13 +91,13 @@ public sealed class MailFolderParticipationOptionsTests
 
         // Assert
         Assert.False(participation.GeneratesEmbeddings);
-        Assert.True(participation.IsVisibleToTools);
+        Assert.True(participation.IsVisibleToAI);
         Assert.True(participation.IsSynchronized);
     }
 
     /// <summary>A folder nothing mirrors takes part in nothing, so it is admitted to neither without either switch being configured.</summary>
     [Fact]
-    public void GetParticipation_AFolderNothingMirrors_IsWithdrawnFromEmbeddingAndFromTools()
+    public void GetParticipation_AFolderNothingMirrors_IsWithdrawnFromEmbeddingAndFromAI()
     {
         // Arrange
         var options = OptionsFor(CreateAccount(new MailFolderMappingOptions
@@ -113,7 +113,7 @@ public sealed class MailFolderParticipationOptionsTests
         // Assert
         Assert.Equal(MailFolderParticipation.MappedOnly, participation);
         Assert.True(participation.IsMapped);
-        Assert.False(participation.IsVisibleToTools);
+        Assert.False(participation.IsVisibleToAI);
         Assert.False(participation.GeneratesEmbeddings);
     }
 
@@ -155,7 +155,7 @@ public sealed class MailFolderParticipationOptionsTests
         Assert.False(participation.IsMapped);
         Assert.False(participation.IsSynchronized);
         Assert.False(participation.GeneratesEmbeddings);
-        Assert.False(participation.IsVisibleToTools);
+        Assert.False(participation.IsVisibleToAI);
     }
 
     /// <summary>Removing a mapping is not the same decision as switching a mapped folder off, so the two answers are not one value.</summary>
@@ -188,7 +188,7 @@ public sealed class MailFolderParticipationOptionsTests
             {
                 Alias = "private",
                 RemotePath = "Private",
-                VisibleToTools = false,
+                VisibleToAI = false,
             }),
             CreateAccount("secondary", new MailFolderMappingOptions
             {
@@ -203,17 +203,17 @@ public sealed class MailFolderParticipationOptionsTests
             MailFolderAlias.Create("PRIVATE"));
 
         // Assert
-        Assert.False(withheld.IsVisibleToTools);
-        Assert.True(visible.IsVisibleToTools);
+        Assert.False(withheld.IsVisibleToAI);
+        Assert.True(visible.IsVisibleToAI);
     }
 
     /// <summary>Asking for something an unmirrored folder cannot do is refused where it binds, because the configuration would not do what it says.</summary>
     [Theory]
     [InlineData(true, null, "embeddings")]
-    [InlineData(null, true, "visible to tools")]
+    [InlineData(null, true, "visible to AI")]
     public void ValidateForSynchronization_AnUnmirroredFolderAskingForMore_IsRefusedNamingTheFolder(
         bool? generateEmbeddings,
-        bool? visibleToTools,
+        bool? visibleToAI,
         string expectedFragment)
     {
         // Arrange
@@ -223,7 +223,7 @@ public sealed class MailFolderParticipationOptionsTests
             SpecialUse = "Junk",
             Synchronize = false,
             GenerateEmbeddings = generateEmbeddings,
-            VisibleToTools = visibleToTools,
+            VisibleToAI = visibleToAI,
         }));
 
         // Act
@@ -255,9 +255,9 @@ public sealed class MailFolderParticipationOptionsTests
         Assert.Empty(results);
     }
 
-    /// <summary>An embedded folder no tool may read is a cost with no current reader rather than a mistake, so it binds.</summary>
+    /// <summary>An embedding is computed by a provider a withheld folder never reaches, so asking for both is refused naming both keys.</summary>
     [Fact]
-    public void ValidateForSynchronization_AFolderEmbeddedButInvisible_ReportsNoError()
+    public void ValidateForSynchronization_AFolderWithheldFromAIAskingForEmbeddings_IsRefusedNamingBothKeys()
     {
         // Arrange
         var options = OptionsFor(CreateAccount(new MailFolderMappingOptions
@@ -265,7 +265,29 @@ public sealed class MailFolderParticipationOptionsTests
             Alias = "private",
             RemotePath = "Private",
             GenerateEmbeddings = true,
-            VisibleToTools = false,
+            VisibleToAI = false,
+        }));
+
+        // Act
+        var messages = ConfiguredMailAccounts.Validate(options).Select(result => result.ErrorMessage!).ToArray();
+
+        // Assert
+        var message = Assert.Single(messages);
+        Assert.Contains("'private'", message, StringComparison.Ordinal);
+        Assert.Contains("'GenerateEmbeddings'", message, StringComparison.Ordinal);
+        Assert.Contains("'VisibleToAI'", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>Leaving embeddings out beside a folder withheld from AI is not asking for them, so the ordinary way to withhold a folder binds.</summary>
+    [Fact]
+    public void ValidateForSynchronization_AFolderWithheldFromAISayingNothingAboutEmbeddings_ReportsNoError()
+    {
+        // Arrange
+        var options = OptionsFor(CreateAccount(new MailFolderMappingOptions
+        {
+            Alias = "private",
+            RemotePath = "Private",
+            VisibleToAI = false,
         }));
 
         // Act
@@ -412,7 +434,7 @@ public sealed class MailFolderParticipationOptionsTests
                 {
                     Alias = "private",
                     RemotePath = "Private",
-                    VisibleToTools = false,
+                    VisibleToAI = false,
                 })),
         ]);
 
@@ -423,8 +445,8 @@ public sealed class MailFolderParticipationOptionsTests
             MailFolderAlias.Create("PRIVATE"));
 
         // Assert
-        Assert.True(visible.IsVisibleToTools);
-        Assert.False(withheld.IsVisibleToTools);
+        Assert.True(visible.IsVisibleToAI);
+        Assert.False(withheld.IsVisibleToAI);
     }
 
     private static MailSynchronizationOptions OptionsFor(MailSynchronizationAccountOptions account) =>

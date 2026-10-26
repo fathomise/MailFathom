@@ -47,7 +47,7 @@ public sealed class MailFolderReferenceResolverTests
         var quarantine = MailFolderMapping.ToRemotePath(
             MailFolderAlias.Create("quarantine"),
             RemoteFolderPath.Create("INBOX.Quarantine"),
-            MailFolderParticipation.Create(isSynchronized: false, generatesEmbeddings: false, isVisibleToTools: false),
+            MailFolderParticipation.Create(isSynchronized: false, generatesEmbeddings: false, isVisibleToAI: false),
             specialUse: MailFolderSpecialUse.Junk);
         var resolver = StubMailFolderMappings.Nothing.With(Work, quarantine).Resolver;
 

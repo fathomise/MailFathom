@@ -39,7 +39,7 @@ public sealed class MailboxScopeResolverTests
         var resolver = ResolverServing(Work, Private);
 
         // Act
-        var scope = await resolver.ReadableScopeAsync([MailAccountSelector.Create("acct-1")], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
+        var scope = await resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [MailAccountSelector.Create("acct-1")], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal([Work.Id], scope.AccountIds);
@@ -57,7 +57,7 @@ public sealed class MailboxScopeResolverTests
         var resolver = ResolverServing(Work, Private);
 
         // Act
-        var scope = await resolver.ReadableScopeAsync([MailAccountSelector.Create(named)], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
+        var scope = await resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [MailAccountSelector.Create(named)], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal([Work.Id], scope.AccountIds);
@@ -72,6 +72,7 @@ public sealed class MailboxScopeResolverTests
 
         // Act
         var scope = await resolver.ReadableScopeAsync(
+            MailboxReaderKind.Agent,
             [MailAccountSelector.Create("acct-1"), MailAccountSelector.Create("Work mail")],
             [],
             JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
@@ -89,7 +90,7 @@ public sealed class MailboxScopeResolverTests
 
         // Act, Assert
         await Assert.ThrowsAsync<MailAccountNotAccessibleException>(
-            () => resolver.ReadableScopeAsync([MailAccountSelector.Create("ACCT-1")], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken));
+            () => resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [MailAccountSelector.Create("ACCT-1")], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken));
     }
 
     /// <summary>Text naming nothing meets the refusal an unserved identifier meets, so a caller learns neither which spelling was wrong nor that the other exists.</summary>
@@ -103,7 +104,7 @@ public sealed class MailboxScopeResolverTests
 
         // Act
         var failure = await Assert.ThrowsAsync<MailAccountNotAccessibleException>(
-            () => resolver.ReadableScopeAsync([MailAccountSelector.Create(named)], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken));
+            () => resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [MailAccountSelector.Create(named)], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailAccountSelector.Create(named), failure.RequestedAccount);
@@ -119,6 +120,7 @@ public sealed class MailboxScopeResolverTests
 
         // Act
         var scope = await resolver.ReadableScopeAsync(
+            MailboxReaderKind.Agent,
             [],
             [MailFolderReference.ToFolder(NamedFolder)],
             JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
@@ -137,6 +139,7 @@ public sealed class MailboxScopeResolverTests
 
         // Act
         var thrown = await Assert.ThrowsAsync<ArgumentException>(() => resolver.ReadableScopeAsync(
+            MailboxReaderKind.Agent,
             [],
             [MailFolderReference.ToAlias(MailFolderAlias.Create("INBOX"))],
             JunkMailInclusion.Excluded,
@@ -159,7 +162,7 @@ public sealed class MailboxScopeResolverTests
         var resolver = ResolverServing(MappingAnInboxOnEachServedAccount());
 
         // Act
-        var scope = await resolver.ReadableScopeAsync([], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
+        var scope = await resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
 
         // Assert
         AssertNothingIsReadable(scope);
@@ -183,7 +186,7 @@ public sealed class MailboxScopeResolverTests
         var resolver = ResolverFor(SyntheticUser.Another, MappingAnInboxOnEachServedAccount(), Work, Private);
 
         // Act
-        var scope = await resolver.ReadableScopeAsync([], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
+        var scope = await resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
 
         // Assert
         AssertNothingIsReadable(scope);
@@ -193,7 +196,7 @@ public sealed class MailboxScopeResolverTests
                 MappingAnInboxOnEachServedAccount(),
                 Work,
                 Private)
-            .ReadableScopeAsync([], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
+            .ReadableScopeAsync(MailboxReaderKind.Agent, [], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
 
         Assert.NotEmpty(forTheOwningUser.AccountIds);
         Assert.NotEmpty(forTheOwningUser.ReadableFolders);
@@ -215,7 +218,7 @@ public sealed class MailboxScopeResolverTests
         var resolver = ResolverFor(SyntheticUser.Another, MappingAnInboxOnEachServedAccount(), Work, Private);
 
         // Act
-        var scope = await resolver.ReadableScopeAsync([], [], junkMail, TestContext.Current.CancellationToken);
+        var scope = await resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [], [], junkMail, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(recorded, scope.IncludesJunkMail);
@@ -236,10 +239,10 @@ public sealed class MailboxScopeResolverTests
 
         // Act
         var refusedForAnotherUsersAccount = await Assert.ThrowsAsync<MailAccountNotAccessibleException>(
-            () => resolver.ReadableScopeAsync([accountOfAnotherUser], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken));
+            () => resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [accountOfAnotherUser], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken));
         var refusedForNoSuchAccount = await Assert.ThrowsAsync<MailAccountNotAccessibleException>(
             () => ResolverFor(SyntheticUser.Deployment, Work)
-                .ReadableScopeAsync([MailAccountSelector.Create("no-such-account")], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken));
+                .ReadableScopeAsync(MailboxReaderKind.Agent, [MailAccountSelector.Create("no-such-account")], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(accountOfAnotherUser, refusedForAnotherUsersAccount.RequestedAccount);
@@ -263,8 +266,8 @@ public sealed class MailboxScopeResolverTests
         var ofAnotherUser = ResolverOwning(SyntheticUser.Another, TheSharedAccount());
 
         // Act
-        var forOneUser = await ofOneUser.ReadableScopeAsync([MailAccountSelector.Create(named)], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
-        var forAnotherUser = await ofAnotherUser.ReadableScopeAsync([MailAccountSelector.Create(named)], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
+        var forOneUser = await ofOneUser.ReadableScopeAsync(MailboxReaderKind.Agent, [MailAccountSelector.Create(named)], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
+        var forAnotherUser = await ofAnotherUser.ReadableScopeAsync(MailboxReaderKind.Agent, [MailAccountSelector.Create(named)], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal([SharedAccountId], forOneUser.AccountIds);
@@ -285,9 +288,9 @@ public sealed class MailboxScopeResolverTests
 
         // Act
         var refusedForTheirName = await Assert.ThrowsAsync<MailAccountNotAccessibleException>(
-            () => resolver.ReadableScopeAsync([onlyTheOtherUserCarries], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken));
+            () => resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [onlyTheOtherUserCarries], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken));
         var refusedForNoName = await Assert.ThrowsAsync<MailAccountNotAccessibleException>(
-            () => resolver.ReadableScopeAsync([MailAccountSelector.Create("no-such-account")], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken));
+            () => resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [MailAccountSelector.Create("no-such-account")], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(
@@ -298,13 +301,13 @@ public sealed class MailboxScopeResolverTests
         // The control: the user who is assigned that mailbox reaches it by the same name, so the refusal above is the
         // assignment rather than a name nothing in this deployment is called.
         var forTheAssignedUser = await ResolverOwning(SyntheticUser.Another, studio)
-            .ReadableScopeAsync([onlyTheOtherUserCarries], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
+            .ReadableScopeAsync(MailboxReaderKind.Agent, [onlyTheOtherUserCarries], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
         Assert.Equal([studio.Id], forTheAssignedUser.AccountIds);
     }
 
     /// <summary>The identity question a tool asks about one folder answers on the same user scope as the listing does.</summary>
     [Fact]
-    public async Task IsReadableByToolsAsync_AnAccountAnotherUserIsAssigned_IsNotReadable()
+    public async Task IsReadableAsync_AnAccountAnotherUserIsAssigned_IsNotReadable()
     {
         // Arrange
         var inbox = new MailFolderIdentity(Work.Id, MailFolderAlias.Create("INBOX"));
@@ -312,13 +315,13 @@ public sealed class MailboxScopeResolverTests
         // Act, Assert
         Assert.False(
             await ResolverFor(SyntheticUser.Another, StubMailFolderParticipation.Mapping(inbox), Work)
-                .IsReadableByToolsAsync(Work.Id, MailFolderAlias.Create("INBOX"), TestContext.Current.CancellationToken));
+                .IsReadableAsync(MailboxReaderKind.Agent, Work.Id, MailFolderAlias.Create("INBOX"), TestContext.Current.CancellationToken));
 
         // The control: the same folder under the same mapping is readable for the user who owns the account, so the
         // refusal above is the user axis rather than a mapping that admitted nothing.
         Assert.True(
             await ResolverFor(SyntheticUser.Deployment, StubMailFolderParticipation.Mapping(inbox), Work)
-                .IsReadableByToolsAsync(Work.Id, MailFolderAlias.Create("INBOX"), TestContext.Current.CancellationToken));
+                .IsReadableAsync(MailboxReaderKind.Agent, Work.Id, MailFolderAlias.Create("INBOX"), TestContext.Current.CancellationToken));
     }
 
     /// <summary>The count is refused before anything is resolved, so a request enumerating names never walks the served set once per name.</summary>
@@ -334,12 +337,12 @@ public sealed class MailboxScopeResolverTests
 
         // Act, Assert
         await Assert.ThrowsAsync<MailboxQueryFilterInvalidException>(
-            () => resolver.ReadableScopeAsync(tooMany, [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken));
+            () => resolver.ReadableScopeAsync(MailboxReaderKind.Agent, tooMany, [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken));
     }
 
     /// <summary>A withheld folder reaches every read model through the scope, which is what makes one decision cover four tools.</summary>
     [Fact]
-    public async Task ReadableScopeAsync_AFolderWithheldFromTools_LeavesItOutOfTheReadableFoldersWhateverTheRequestNamed()
+    public async Task ReadableScopeAsync_AFolderWithheldFromAI_LeavesItOutOfTheReadableFoldersWhateverTheRequestNamed()
     {
         // Arrange
         var privateFolder = new MailFolderIdentity(Work.Id, MailFolderAlias.Create("PRIVATE"));
@@ -351,6 +354,7 @@ public sealed class MailboxScopeResolverTests
 
         // Act
         var scope = await resolver.ReadableScopeAsync(
+            MailboxReaderKind.Agent,
             [],
             [MailFolderReference.ToFolder(NamedFolder)],
             JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
@@ -371,6 +375,7 @@ public sealed class MailboxScopeResolverTests
 
         // Act
         var scope = await resolver.ReadableScopeAsync(
+            MailboxReaderKind.Agent,
             [],
             [MailFolderReference.ToFolder(NamedFolder)],
             JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
@@ -388,7 +393,7 @@ public sealed class MailboxScopeResolverTests
         var resolver = ResolverServing(StubMailFolderParticipation.Nothing, Work);
 
         // Act
-        var scope = await resolver.ReadableScopeAsync([], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
+        var scope = await resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Empty(scope.ReadableFolders);
@@ -408,7 +413,7 @@ public sealed class MailboxScopeResolverTests
             Private);
 
         // Act
-        var scope = await resolver.ReadableScopeAsync([], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
+        var scope = await resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(
@@ -422,7 +427,7 @@ public sealed class MailboxScopeResolverTests
 
     /// <summary>The reads that reach an email by its identifier ask the same question, so a withheld folder is unreadable through them too.</summary>
     [Fact]
-    public async Task IsReadableByToolsAsync_AFolderWithheldFromTools_IsNotReadable()
+    public async Task IsReadableAsync_AFolderWithheldFromAI_IsNotReadable()
     {
         // Arrange
         var inbox = new MailFolderIdentity(Work.Id, MailFolderAlias.Create("INBOX"));
@@ -432,13 +437,111 @@ public sealed class MailboxScopeResolverTests
             Work);
 
         // Act, Assert
-        Assert.False(await resolver.IsReadableByToolsAsync(Work.Id, MailFolderAlias.Create("PRIVATE"), TestContext.Current.CancellationToken));
-        Assert.True(await resolver.IsReadableByToolsAsync(Work.Id, MailFolderAlias.Create("INBOX"), TestContext.Current.CancellationToken));
+        Assert.False(await resolver.IsReadableAsync(MailboxReaderKind.Agent, Work.Id, MailFolderAlias.Create("PRIVATE"), TestContext.Current.CancellationToken));
+        Assert.True(await resolver.IsReadableAsync(MailboxReaderKind.Agent, Work.Id, MailFolderAlias.Create("INBOX"), TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>A folder withheld from AI is still the person's folder, so a read answering for them through the client lists it like any other.</summary>
+    [Fact]
+    public async Task ReadableScopeAsync_AFolderWithheldFromAIReadForThePerson_AdmitsIt()
+    {
+        // Arrange
+        var inbox = new MailFolderIdentity(Work.Id, MailFolderAlias.Create("INBOX"));
+        var privateFolder = new MailFolderIdentity(Work.Id, MailFolderAlias.Create("PRIVATE"));
+        var resolver = ResolverServing(
+            StubMailFolderParticipation.Mapping(inbox, privateFolder).Hiding(privateFolder),
+            Work);
+
+        // Act
+        var scope = await resolver.ReadableScopeAsync(
+            MailboxReaderKind.Person,
+            [],
+            [],
+            JunkMailInclusion.Excluded,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([inbox, privateFolder], scope.ReadableFolders);
+    }
+
+    /// <summary>A folder nothing mirrors holds only what an earlier configuration stored, so not even the person is shown it.</summary>
+    [Fact]
+    public async Task ReadableScopeAsync_AFolderNothingMirrorsReadForThePerson_LeavesItOut()
+    {
+        // Arrange
+        var inbox = new MailFolderIdentity(Work.Id, MailFolderAlias.Create("INBOX"));
+        var archive = new MailFolderIdentity(Work.Id, MailFolderAlias.Create("ARCHIVE"));
+        var resolver = ResolverServing(
+            StubMailFolderParticipation.Mapping(inbox, archive).Unmirroring(archive),
+            Work);
+
+        // Act
+        var scope = await resolver.ReadableScopeAsync(
+            MailboxReaderKind.Person,
+            [],
+            [],
+            JunkMailInclusion.Excluded,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([inbox], scope.ReadableFolders);
+    }
+
+    /// <summary>An act or a read the person takes on one message in a folder withheld from AI is theirs to take, while an agent's is not.</summary>
+    [Fact]
+    public async Task IsReadableAsync_AFolderWithheldFromAI_IsReadableByThePersonAndNotByAnAgent()
+    {
+        // Arrange
+        var inbox = new MailFolderIdentity(Work.Id, MailFolderAlias.Create("INBOX"));
+        var privateFolder = new MailFolderIdentity(Work.Id, MailFolderAlias.Create("PRIVATE"));
+        var resolver = ResolverServing(
+            StubMailFolderParticipation.Mapping(inbox, privateFolder).Hiding(privateFolder),
+            Work);
+
+        // Act
+        var byThePerson = await resolver.IsReadableAsync(
+            MailboxReaderKind.Person,
+            Work.Id,
+            privateFolder.Alias,
+            TestContext.Current.CancellationToken);
+        var byAnAgent = await resolver.IsReadableAsync(
+            MailboxReaderKind.Agent,
+            Work.Id,
+            privateFolder.Alias,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(byThePerson);
+        Assert.False(byAnAgent);
+    }
+
+    /// <summary>A reader outside the two declared kinds names nobody, so the scope is refused rather than read as either.</summary>
+    [Fact]
+    public async Task ReadableScopeAsync_AReaderOutsideTheDeclaredSet_IsRefused()
+    {
+        // Arrange
+        var resolver = ResolverServing(Work);
+
+        // Act, Assert
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            resolver.ReadableScopeAsync((MailboxReaderKind)7, [], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>A reader outside the two declared kinds is refused by the per-message question too.</summary>
+    [Fact]
+    public async Task IsReadableAsync_AReaderOutsideTheDeclaredSet_IsRefused()
+    {
+        // Arrange
+        var resolver = ResolverServing(Work);
+
+        // Act, Assert
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            resolver.IsReadableAsync((MailboxReaderKind)7, Work.Id, MailFolderAlias.Create("INBOX"), TestContext.Current.CancellationToken));
     }
 
     /// <summary>Stored mail under an alias no mapping names is unreachable through the two reads that name an email by its identifier.</summary>
     [Fact]
-    public async Task IsReadableByToolsAsync_AnAliasNoMappingNames_IsNotReadable()
+    public async Task IsReadableAsync_AnAliasNoMappingNames_IsNotReadable()
     {
         // Arrange
         var resolver = ResolverServing(
@@ -446,19 +549,19 @@ public sealed class MailboxScopeResolverTests
             Work);
 
         // Act, Assert
-        Assert.False(await resolver.IsReadableByToolsAsync(Work.Id, MailFolderAlias.Create("ARCHIVE"), TestContext.Current.CancellationToken));
-        Assert.True(await resolver.IsReadableByToolsAsync(Work.Id, MailFolderAlias.Create("INBOX"), TestContext.Current.CancellationToken));
+        Assert.False(await resolver.IsReadableAsync(MailboxReaderKind.Agent, Work.Id, MailFolderAlias.Create("ARCHIVE"), TestContext.Current.CancellationToken));
+        Assert.True(await resolver.IsReadableAsync(MailboxReaderKind.Agent, Work.Id, MailFolderAlias.Create("INBOX"), TestContext.Current.CancellationToken));
     }
 
     /// <summary>An account the deployment stopped serving keeps its stored rows, and neither question may admit them.</summary>
     [Fact]
-    public async Task IsReadableByToolsAsync_AnAccountTheDeploymentDoesNotServe_IsNotReadable()
+    public async Task IsReadableAsync_AnAccountTheDeploymentDoesNotServe_IsNotReadable()
     {
         // Arrange
         var resolver = ResolverServing(Work);
 
         // Act, Assert
-        Assert.False(await resolver.IsReadableByToolsAsync(Private.Id, MailFolderAlias.Create("INBOX"), TestContext.Current.CancellationToken));
+        Assert.False(await resolver.IsReadableAsync(MailboxReaderKind.Agent, Private.Id, MailFolderAlias.Create("INBOX"), TestContext.Current.CancellationToken));
     }
 
     /// <summary>Junk is what a reader means by mail they never asked to see, so a read that says nothing about it gets none.</summary>
@@ -470,7 +573,7 @@ public sealed class MailboxScopeResolverTests
         var resolver = ResolverServing(StubJunkMailFolderCatalog.Naming(junkFolder), Work, Private);
 
         // Act
-        var scope = await resolver.ReadableScopeAsync([], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
+        var scope = await resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal([junkFolder], scope.WithheldJunkFolders);
@@ -487,7 +590,7 @@ public sealed class MailboxScopeResolverTests
             Work);
 
         // Act
-        var scope = await resolver.ReadableScopeAsync([], [], JunkMailInclusion.Included, TestContext.Current.CancellationToken);
+        var scope = await resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [], [], JunkMailInclusion.Included, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Empty(scope.WithheldJunkFolders);
@@ -496,7 +599,7 @@ public sealed class MailboxScopeResolverTests
 
     /// <summary>The caller's answer may add mail back, never a folder the operator withheld from every tool.</summary>
     [Fact]
-    public async Task ReadableScopeAsync_AJunkFolderAlsoWithheldFromTools_StaysUnreadableWhenTheCallerAsksForJunk()
+    public async Task ReadableScopeAsync_AJunkFolderAlsoWithheldFromAI_StaysUnreadableWhenTheCallerAsksForJunk()
     {
         // Arrange
         var junkFolder = new MailFolderIdentity(Work.Id, MailFolderAlias.Create("JUNK"));
@@ -506,7 +609,7 @@ public sealed class MailboxScopeResolverTests
             Work);
 
         // Act
-        var scope = await resolver.ReadableScopeAsync([], [], JunkMailInclusion.Included, TestContext.Current.CancellationToken);
+        var scope = await resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [], [], JunkMailInclusion.Included, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.DoesNotContain(junkFolder, scope.ReadableFolders);
@@ -527,7 +630,7 @@ public sealed class MailboxScopeResolverTests
             Work);
 
         // Act
-        var scope = await resolver.ReadableScopeAsync([], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
+        var scope = await resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal([inbox, junkFolder], scope.ReadableFolders);
@@ -548,7 +651,7 @@ public sealed class MailboxScopeResolverTests
             Private);
 
         // Act
-        var scope = await resolver.ReadableScopeAsync([], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
+        var scope = await resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(
@@ -568,7 +671,7 @@ public sealed class MailboxScopeResolverTests
         var resolver = ResolverServing(Work);
 
         // Act
-        var scope = await resolver.ReadableScopeAsync([], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
+        var scope = await resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [], [], JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Empty(scope.WithheldJunkFolders);
@@ -583,7 +686,7 @@ public sealed class MailboxScopeResolverTests
 
         // Act, Assert
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            resolver.ReadableScopeAsync([], [], (JunkMailInclusion)7, TestContext.Current.CancellationToken));
+            resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [], [], (JunkMailInclusion)7, TestContext.Current.CancellationToken));
     }
 
     /// <summary>A role names a different folder in each account, so a read across two of them narrows by the role rather than by one folder.</summary>
@@ -605,6 +708,7 @@ public sealed class MailboxScopeResolverTests
 
         // Act
         var scope = await resolver.ReadableScopeAsync(
+            MailboxReaderKind.Agent,
             [],
             [MailFolderReference.ToRole(MailFolderSpecialUse.Junk)],
             JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
@@ -628,6 +732,7 @@ public sealed class MailboxScopeResolverTests
 
         // Act
         var scope = await resolver.ReadableScopeAsync(
+            MailboxReaderKind.Agent,
             [],
             [MailFolderReference.ToRole(MailFolderSpecialUse.Archive)],
             JunkMailInclusion.Excluded, TestContext.Current.CancellationToken);
@@ -646,6 +751,7 @@ public sealed class MailboxScopeResolverTests
         // Act
         var failure = await Assert.ThrowsAsync<MailFolderRoleUnmappedException>(
             () => resolver.ReadableScopeAsync(
+                MailboxReaderKind.Agent,
                 [],
                 [MailFolderReference.ToRole(MailFolderSpecialUse.Junk)],
                 JunkMailInclusion.Excluded, TestContext.Current.CancellationToken));
@@ -670,7 +776,7 @@ public sealed class MailboxScopeResolverTests
 
         // Act, Assert
         await Assert.ThrowsAsync<MailboxQueryFilterInvalidException>(
-            () => resolver.ReadableScopeAsync([], tooMany, JunkMailInclusion.Excluded, TestContext.Current.CancellationToken));
+            () => resolver.ReadableScopeAsync(MailboxReaderKind.Agent, [], tooMany, JunkMailInclusion.Excluded, TestContext.Current.CancellationToken));
     }
 
     /// <summary>
@@ -695,6 +801,7 @@ public sealed class MailboxScopeResolverTests
 
         // Act
         await resolver.ReadableScopeAsync(
+            MailboxReaderKind.Agent,
             [MailAccountSelector.Create("acct-1")],
             [],
             JunkMailInclusion.Excluded,
@@ -702,7 +809,7 @@ public sealed class MailboxScopeResolverTests
 
         // Assert
         await deploymentFolders.Received(1).ReadAsync(
-            MailFolderSelection.VisibleToTools,
+            MailFolderSelection.VisibleToAI,
             Arg.Is<IReadOnlyCollection<MailAccountId>>(accounts => accounts!.SequenceEqual(new[] { Work.Id })),
             Arg.Any<CancellationToken>());
         await deploymentFolders.Received(1).ReadAsync(

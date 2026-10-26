@@ -8,6 +8,7 @@ using MailFathom.Application.Mail.Mutations.Authoring.Failures;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
 
 namespace MailFathom.Application.Mail.Mutations.Authoring;
@@ -29,7 +30,7 @@ namespace MailFathom.Application.Mail.Mutations.Authoring;
 /// </para>
 /// <para>
 /// Which mail may be written is the same question as which mail may be read, answered by the same resolver: an account
-/// this deployment no longer serves and a folder an operator withheld from tools are both mail no tool may reach, and a
+/// this deployment no longer serves and a folder an operator withheld from AI are both mail no agent may reach, and a
 /// surface that could write what it may not read would be the way round that withholding. A fourth case joins them and
 /// is the one a read does not share: a local copy retained after MailFathom deleted the message, which a listing serves
 /// because the mail is readable while the UID it carries names an occurrence the server expunged. All four produce one
@@ -52,7 +53,7 @@ public sealed class MailFlagChangeRecorder
 
     /// <summary>Initializes the use case over the grant it asks first and the submission it writes through.</summary>
     /// <param name="authorization">Answers which principal reached this use case.</param>
-    /// <param name="scopeResolver">Answers whether a tool may reach the mailbox an email was stored from.</param>
+    /// <param name="scopeResolver">Answers whether the request's reader may reach the mailbox an email was stored from.</param>
     /// <param name="targets">Answers where the named email currently is.</param>
     /// <param name="submission">Records one change, or commits it where the account is held.</param>
     /// <param name="commitPolicy">Commits a call's changes together, retrying an optimistic conflict.</param>
@@ -84,6 +85,7 @@ public sealed class MailFlagChangeRecorder
     /// <summary>Writes down every value one change asks for, against the email it names.</summary>
     /// <param name="change">What the caller asked for.</param>
     /// <param name="requester">The invocation asking, which is what decides whether asking again is the same request.</param>
+    /// <param name="reader">Who the act is asked for: the person through the client, or an agent or an MCP caller.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>The record opened for each value, in the order the change states them; no record where a held account applied the change; and, on a restoring account, the change applied beside the record each value whose message still stands on the source is carried by.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="change" /> or <paramref name="requester" /> is <see langword="null" />.</exception>
@@ -104,6 +106,7 @@ public sealed class MailFlagChangeRecorder
     public async Task<AuthoredMailFlagChangeResult> RecordAsync(
         AuthoredMailFlagChange change,
         MailboxMutationRequester requester,
+        MailboxReaderKind reader,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(change);
@@ -114,7 +117,8 @@ public sealed class MailFlagChangeRecorder
         var target = await this.targets.FindAsync(change.StoredEmailId, cancellationToken);
 
         if (target is null
-            || !await this.scopeResolver.IsReadableByToolsAsync(
+            || !await this.scopeResolver.IsReadableAsync(
+                reader,
                 target.Occurrence.AccountId,
                 target.Folder.Alias,
                 cancellationToken))

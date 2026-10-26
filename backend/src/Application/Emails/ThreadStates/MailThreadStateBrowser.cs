@@ -8,6 +8,7 @@ using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Emails.ThreadStates;
 
@@ -15,10 +16,11 @@ namespace MailFathom.Application.Emails.ThreadStates;
 /// <remarks>
 /// <para>
 /// It exists so the two questions a thread screen asks — what the exchange says, and where it stands — are scoped by
-/// one decision rather than by two that could drift. The scope is
-/// <see cref="BrowseThread.MailThreadBrowser" />'s own: every account this user holds, no folder narrowing, and
-/// junk included, because a conversation is read by membership and a reply that landed in junk is still part of the
-/// exchange. A state published under a wider scope than the conversation it describes would report a withheld folder's
+/// one decision rather than by two that could drift. The scope is the one the reader's own conversation read uses:
+/// every account this user holds, no folder narrowing, and junk included, because a conversation is read by membership
+/// and a reply that landed in junk is still part of the exchange. For the person that is
+/// <see cref="BrowseThread.MailThreadBrowser" />'s scope; for an agent it is the same scope narrowed to folders visible
+/// to AI. A state published under a wider scope than the conversation it describes would report a withheld folder's
 /// contents one derived sentence at a time.
 /// </para>
 /// <para>
@@ -58,6 +60,7 @@ public sealed class MailThreadStateBrowser
 
     /// <summary>Reads where one of the acting user's conversations stands.</summary>
     /// <param name="threadId">The conversation, as a message row published it.</param>
+    /// <param name="reader">Who the state is read for: the person opening it in the client, or an agent placing it in a conversation.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>
     /// The state, holding only the leading statements of each aspect — see <see cref="EmailThreadState.Leading" /> — or
@@ -65,14 +68,17 @@ public sealed class MailThreadStateBrowser
     /// </returns>
     /// <exception cref="SensitiveContentScannerUnavailableException">Thrown when a switched-on scanner could not establish what the state carries, which refuses it rather than serving it unscanned.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the use case was reached by anything but a caller granted <see cref="MailFathomPermission.MailRead" />.</exception>
-    public async Task<EmailThreadState?> ReadStateAsync(EmailThreadId threadId, CancellationToken cancellationToken)
+    public async Task<EmailThreadState?> ReadStateAsync(
+        EmailThreadId threadId,
+        MailboxReaderKind reader,
+        CancellationToken cancellationToken)
     {
         this.authorization.RequirePermission(MailFathomPermission.MailRead);
 
         using var actingFor = this.egressGuard.ActingFor(
             await this.egressGuard.ReadPostureAcrossAccountsOfAsync(this.scopeResolver.User, cancellationToken));
 
-        var scope = await this.scopeResolver.ReadableScopeAsync([], [], JunkMailInclusion.Included, cancellationToken);
+        var scope = await this.scopeResolver.ReadableScopeAsync(reader, [], [], JunkMailInclusion.Included, cancellationToken);
 
         if (scope.AccountIds.Count is 0)
         {

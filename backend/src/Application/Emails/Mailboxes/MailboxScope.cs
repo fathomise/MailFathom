@@ -205,8 +205,8 @@ public sealed record MailboxScope
             : new MailboxScope(accounts, folders, roles);
     }
 
-    /// <summary>Admits the folders configuration says a tool may read from, and nothing else.</summary>
-    /// <param name="readableFolders">The folders a tool may read, empty when none may.</param>
+    /// <summary>Admits the folders configuration says the reader may reach, and nothing else.</summary>
+    /// <param name="readableFolders">The folders the reader may reach, empty when none may.</param>
     /// <returns>The same scope restricted to those folders, or this scope unchanged when none is readable.</returns>
     /// <remarks>
     /// Ordered and deduplicated so one configuration produces one predicate, whichever order the folders were read in.

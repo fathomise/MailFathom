@@ -500,17 +500,54 @@ public sealed class StoredEmailResponseAuthoringTests
     }
 
     /// <summary>
-    /// A folder an operator withheld from tools is outside every mailbox read, and a reply must not become the path by
-    /// which its content leaves. The refusal is the same one a read of that email gives.
+    /// A folder an operator withheld from AI is outside every agent's read, and a reply an agent writes must not become
+    /// the path by which its content leaves. The refusal is the same one a read of that email gives.
     /// </summary>
     [Fact]
-    public async Task AuthorAsync_EmailOfAFolderWithheldFromTools_IsRefusedAsNoSuchEmail()
+    public async Task AuthorAsync_EmailOfAFolderWithheldFromAIForAnAgent_IsRefusedAsNoSuchEmail()
+    {
+        // Arrange
+        var summary = SyntheticEmailSummaries.Create();
+        var authoring = AuthoringOver(Rendering(), summary, folderParticipation: Withholding(summary));
+
+        // Act
+        var response = await authoring.AuthorAsync(Request(), TestContext.Current.CancellationToken);
+
+        // Assert
+        AssertRefused(
+            response,
+            AuthoredResponseRefusalReason.AnsweredEmailNotFound,
+            MailFathomErrorCode.AnsweredEmailNotFound);
+    }
+
+    /// <summary>The person answers their own mail in a folder withheld from AI exactly as anywhere else.</summary>
+    [Fact]
+    public async Task AuthorAsync_EmailOfAFolderWithheldFromAIForThePerson_AddressesItsAuthor()
+    {
+        // Arrange
+        var summary = SyntheticEmailSummaries.Create();
+        var authoring = AuthoringOver(Rendering(), summary, folderParticipation: Withholding(summary));
+
+        // Act
+        var response = await authoring.AuthorAsync(
+            Request() with { Reader = MailboxReaderKind.Person },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["author@example.test"], Addressed(response, OutgoingRecipientRole.To));
+    }
+
+    /// <summary>A folder nothing mirrors is a folder this deployment does not have, so not even the person answers mail in it.</summary>
+    [Fact]
+    public async Task AuthorAsync_EmailOfAFolderNoMappingNamesForThePerson_IsRefusedAsNoSuchEmail()
     {
         // Arrange
         var authoring = AuthoringOver(Rendering(), folderParticipation: StubMailFolderParticipation.Nothing);
 
         // Act
-        var response = await authoring.AuthorAsync(Request(), TestContext.Current.CancellationToken);
+        var response = await authoring.AuthorAsync(
+            Request() with { Reader = MailboxReaderKind.Person },
+            TestContext.Current.CancellationToken);
 
         // Assert
         AssertRefused(
@@ -1004,6 +1041,7 @@ public sealed class StoredEmailResponseAuthoringTests
 
     private static AuthoredResponseRequest Request(AuthoredResponseAct act = AuthoredResponseAct.Reply) => new()
     {
+        Reader = MailboxReaderKind.Agent,
         AnsweredEmailId = StoredEmailId.Create(Guid.CreateVersion7()),
         Act = act,
         PlainTextBody = "Thank you.",
@@ -1087,6 +1125,10 @@ public sealed class StoredEmailResponseAuthoringTests
             bounds ?? Bounds(),
             callerAuthorization);
     }
+
+    private static StubMailFolderParticipation Withholding(EmailSummary summary) => StubMailFolderParticipation
+        .Mapping(new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value))
+        .Hiding(new MailFolderIdentity(summary.Account, summary.Folder.Alias!.Value));
 
     private static IStoredEmailSummaryReader SummaryReaderReturning(EmailSummary? summary)
     {

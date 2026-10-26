@@ -280,6 +280,7 @@ internal sealed class RetrievalDatabase : IAsyncDisposable
                 StubDeploymentMailFolders.Of(participation),
                 StubMailFolderMappings.ResolvingNothing)
             .ReadableScopeAsync(
+                MailboxReaderKind.Agent,
                 [],
                 [MailFolderReference.ToAlias(CorpusKnowledgeSearch.Inbox)],
                 JunkMailInclusion.Excluded,

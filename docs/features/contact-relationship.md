@@ -47,7 +47,10 @@ sources are followed through.
 [an opened contact was already answered with](contacts.md#what-mail-already-holds-about-a-contact): each conversation's
 subject and when that person last wrote in it, and each document's file name, declared type, and when it arrived —
 under that correlation's own window, its own bounds, and the scope the caller may read. A correspondence the caller may
-not read is one this cannot derive from, rather than one it filters afterwards.
+not read is one this cannot derive from, rather than one it filters afterwards. Because a model reads what the run
+gathers, the correlation is read for an agent rather than for the person: a conversation or document in a folder
+mapped `VisibleToAI: false` is still in the contact's list in the client and is never in what the card is written
+from.
 
 **It carries no message text at all**, and the instruction says so in those words. Subjects, file names, and instants
 ground what an exchange is about and when it happens; they ground nothing about what anybody wrote, agreed, promised,

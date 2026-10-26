@@ -9,6 +9,7 @@ using MailFathom.Application.Observability;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Accounts;
 
@@ -48,7 +49,7 @@ public sealed class MailAccountDirectoryReader
     /// <param name="accountCatalog">Describes the accounts the caller's user is assigned.</param>
     /// <param name="freshnessReader">Reads how current the local copy of each folder is.</param>
     /// <param name="storedFolders">Reads every folder of each account, whichever copy of the mailbox is the truth.</param>
-    /// <param name="scopeResolver">Answers which folders of those accounts a tool may see.</param>
+    /// <param name="scopeResolver">Answers which folders of those accounts the reader may see.</param>
     /// <param name="readTelemetry">Publishes the read as the operation it is, beside the call it happened inside.</param>
     /// <param name="authorization">Answers which principal reached this use case.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
@@ -76,6 +77,7 @@ public sealed class MailAccountDirectoryReader
     }
 
     /// <summary>Reads the accounts the caller's user is assigned and their synchronization freshness.</summary>
+    /// <param name="reader">Who the directory is read for, which decides whether folders withheld from AI are listed.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>The user's accounts with their folders, and whether the deployment refreshes them.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the use case was reached by anything but a caller granted <see cref="MailFathomPermission.MailRead" /> that is acting for a user.</exception>
@@ -89,7 +91,7 @@ public sealed class MailAccountDirectoryReader
     /// is the catalog's answer rather than this use case's, so the user bound cannot be forgotten here either.
     /// </para>
     /// </remarks>
-    public async Task<MailAccountDirectory> ReadAsync(CancellationToken cancellationToken)
+    public async Task<MailAccountDirectory> ReadAsync(MailboxReaderKind reader, CancellationToken cancellationToken)
     {
         this.authorization.RequirePermission(MailFathomPermission.MailRead);
 
@@ -111,7 +113,7 @@ public sealed class MailAccountDirectoryReader
         // that lists them. Naming a folder is publishing that it exists, which is the whole of what this answer does.
         // Junk is included because it is a mapped folder whose freshness the operator asked to see; withholding it is
         // about not returning its mail unasked, and no mail is returned here.
-        var scope = await this.scopeResolver.ReadableScopeAsync([], [], JunkMailInclusion.Included, cancellationToken);
+        var scope = await this.scopeResolver.ReadableScopeAsync(reader, [], [], JunkMailInclusion.Included, cancellationToken);
 
         var folderFreshness = await this.freshnessReader.ReadAsync(scope, cancellationToken);
         var foldersByAccount = folderFreshness

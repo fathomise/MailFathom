@@ -188,6 +188,26 @@ public sealed class ClientMailTimelineEndpointTests
             Arg.Any<CancellationToken>());
     }
 
+    /// <summary>A folder withheld from AI is still the person's, so the list a screen opens on reads it like any other.</summary>
+    [Fact]
+    public async Task ReadTimelineAsync_AFolderWithheldFromAI_IsReadForThePerson()
+    {
+        // Arrange
+        var withheld = new MailFolderIdentity(MailAccountId.Create("work"), MailFolderAlias.Create("private"));
+
+        // Act
+        var result = await this.ReadAsync(participation: StubMailFolderParticipation.Nothing.Hiding(withheld));
+
+        // Assert
+        Assert.IsType<Ok<ClientMailTimelineResponse>>(result.Result);
+        await this.timeline.Received(1).ReadPageAsync(
+            Arg.Is<EmailTimelineFilter>(filter =>
+                filter != null && filter.Selection.Scope.ReadableFolders.Contains(withheld)),
+            null,
+            Arg.Any<int>(),
+            Arg.Any<CancellationToken>());
+    }
+
     /// <summary>The unread toggle a screen shows is the absence of the server's own <c>\Seen</c> flag rather than a state of its own.</summary>
     [Fact]
     public async Task ReadTimelineAsync_TheUnreadFilter_AsksForMailTheServerDidNotReportAsSeen()
@@ -535,7 +555,8 @@ public sealed class ClientMailTimelineEndpointTests
         string? cursor = null,
         string? carriesMark = null,
         DateTimeOffset? markDueOnOrAfter = null,
-        DateTimeOffset? markDueBefore = null)
+        DateTimeOffset? markDueBefore = null,
+        StubMailFolderParticipation? participation = null)
     {
         this.timeline
             .ReadPageAsync(
@@ -562,13 +583,16 @@ public sealed class ClientMailTimelineEndpointTests
             carriesMark,
             markDueOnOrAfter,
             markDueBefore,
-            this.Browser(),
+            this.Browser(participation),
             TestContext.Current.CancellationToken);
     }
 
     /// <summary>Builds the use case behind the route over the real scope resolution, with storage and the instruments stood in for.</summary>
-    private MailTimelineBrowser Browser()
+    /// <param name="participation">What the caller's folders take part in, defaulting to a deployment that maps none.</param>
+    private MailTimelineBrowser Browser(StubMailFolderParticipation? participation = null)
     {
+        var folders = participation ?? StubMailFolderParticipation.Nothing;
+
         var catalog = Substitute.For<ICallerMailAccountCatalog>();
         catalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns([SyntheticServedAccount.Of(MailAccountId.Create("work"))]);
 
@@ -601,8 +625,8 @@ public sealed class ClientMailTimelineEndpointTests
             conversations,
             new MailboxScopeResolver(
                 catalog,
-                StubMailFolderParticipation.Nothing,
-                StubDeploymentMailFolders.None,
+                folders,
+                StubDeploymentMailFolders.Of(folders),
                 StubMailFolderMappings.ResolvingNothing),
             SensitiveContentEgressGuards.Inactive(),
             readTelemetry,

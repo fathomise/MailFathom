@@ -15,6 +15,7 @@ using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
+using MailFathom.Domain.Folders;
 using MailFathom.Domain.Tasks;
 
 namespace MailFathom.Application.Agent.Answering;
@@ -186,6 +187,7 @@ public sealed class AgentActPerformer : IAgentActPerformer
                 new MailResponseDraftRequest
                 {
                     AnsweredEmailId = response.AnsweredEmailId,
+                    Reader = MailboxReaderKind.Agent,
                     Act = response.Act,
                     Recipients = RecipientsOf(response.Recipients),
                     PlainTextBody = response.Body.Value,

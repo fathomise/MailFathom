@@ -300,7 +300,7 @@ internal sealed class SyntheticMailAccount(
         {
             MailFolderSelection.Mapped => this.FoldersMapped,
             MailFolderSelection.Synchronized => this.FoldersSynchronized,
-            MailFolderSelection.VisibleToTools => this.FoldersVisibleToTools,
+            MailFolderSelection.VisibleToAI => this.FoldersVisibleToAI,
             MailFolderSelection.GeneratingEmbeddings => this.FoldersGeneratingEmbeddings,
             _ => (IReadOnlyList<MailFolderIdentity>)[],
         });
@@ -325,7 +325,7 @@ internal sealed class SyntheticMailAccount(
     /// <summary>Gets every folder this suite maps, whatever a test stopped mirroring or withheld, which is what being mapped means.</summary>
     public IReadOnlyList<MailFolderIdentity> FoldersMapped => MappedFolders;
 
-    /// <summary>Gets every folder this suite maps, less the ones a test withheld from tools.</summary>
+    /// <summary>Gets every folder this suite maps, less the ones a test withheld from AI.</summary>
     /// <remarks>
     /// Every folder this suite maps, less the ones a test withheld. The subtraction is stated that way round because a
     /// withholding is what a test arranges, while being mapped at all is what makes MailFathom have the folder: an
@@ -333,7 +333,7 @@ internal sealed class SyntheticMailAccount(
     /// answers with nothing. The one class that withholds a mapped folder needs it, because whether the narrowing
     /// translates to SQL at all is settled by a real database and nothing else.
     /// </remarks>
-    public IReadOnlyList<MailFolderIdentity> FoldersVisibleToTools =>
+    public IReadOnlyList<MailFolderIdentity> FoldersVisibleToAI =>
         [.. this.FoldersSynchronized.Where(folder => !(foldersHiddenFromTools ?? []).Contains(folder))];
 
     /// <summary>Gets every folder this suite maps, less the ones a test left unembedded.</summary>
@@ -404,7 +404,7 @@ internal sealed class SyntheticMailAccount(
             ? MailFolderParticipation.Create(
                 this.FoldersSynchronized.Contains(folder),
                 this.FoldersGeneratingEmbeddings.Contains(folder),
-                this.FoldersVisibleToTools.Contains(folder))
+                this.FoldersVisibleToAI.Contains(folder))
             : MailFolderParticipation.Unmapped;
     }
 

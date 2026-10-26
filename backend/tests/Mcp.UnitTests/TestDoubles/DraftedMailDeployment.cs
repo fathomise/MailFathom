@@ -69,6 +69,13 @@ internal sealed class DraftedMailDeployment
     {
     }
 
+    /// <summary>Assembles the deployment over the folder mappings a test arranged, for a caller granted every draft permission.</summary>
+    /// <param name="folderParticipation">What each folder an answered email may be stored in takes part in.</param>
+    internal DraftedMailDeployment(StubMailFolderParticipation folderParticipation)
+        : this(OutgoingMailScreenings.Inactive(), folderParticipation, [])
+    {
+    }
+
     /// <summary>Assembles the deployment of an operator who screens what a draft and a send carry.</summary>
     /// <param name="screening">The screening both the draft book and the outbox judge a composed message through.</param>
     /// <param name="granted">What the entry that admitted the caller resolved to.</param>
@@ -78,6 +85,14 @@ internal sealed class DraftedMailDeployment
     /// written and again when it is promoted.
     /// </remarks>
     internal DraftedMailDeployment(OutgoingMailScreening screening, params MailFathomPermission[] granted)
+        : this(screening, StubMailFolderParticipation.Nothing, granted)
+    {
+    }
+
+    private DraftedMailDeployment(
+        OutgoingMailScreening screening,
+        StubMailFolderParticipation folderParticipation,
+        MailFathomPermission[] granted)
     {
         ArgumentNullException.ThrowIfNull(screening);
 
@@ -119,7 +134,7 @@ internal sealed class DraftedMailDeployment
                 book,
                 authorization),
             new AuthoredResponseDrafting(
-                this.AuthoringOver(authorization),
+                this.AuthoringOver(authorization, folderParticipation),
                 this.Composer,
                 book,
                 authorization));
@@ -216,7 +231,9 @@ internal sealed class DraftedMailDeployment
     }
 
     /// <summary>Builds the authoring an answer is derived through, over a mailbox holding whatever a test put in it.</summary>
-    private StoredEmailResponseAuthoring AuthoringOver(AccessAuthorization authorization)
+    private StoredEmailResponseAuthoring AuthoringOver(
+        AccessAuthorization authorization,
+        StubMailFolderParticipation folderParticipation)
     {
         var catalog = new StubMailAccountCatalog(ServedAccount);
 
@@ -228,8 +245,8 @@ internal sealed class DraftedMailDeployment
             Substitute.For<IEmailContentRepairRequestStore>(),
             new MailboxScopeResolver(
                 catalog,
-                StubMailFolderParticipation.Nothing,
-                StubDeploymentMailFolders.None,
+                folderParticipation,
+                StubDeploymentMailFolders.Of(folderParticipation),
                 StubMailFolderMappings.ResolvingNothing),
             Substitute.For<IOutgoingSenderIdentityReader>(),
             new NamedRecipientResolver(Substitute.For<IContactDirectory>(), ContactBookOwnerships.For(authorization)),

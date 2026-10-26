@@ -363,7 +363,7 @@ neither grant implies the other. A credential holding only the sending grant is 
 call, so a deployment meant to let an agent reply grants both names.
 
 **A message you cannot answer is one answer, whatever the reason.** An identifier nothing is held under, mail of an
-account this deployment no longer serves, mail in a folder the operator withheld from tools, and a message whose stored
+account this deployment no longer serves, mail in a folder the operator withheld from AI, and a message whose stored
 content is no longer readable all come back as `53005`, worded identically. Nothing tells you which — otherwise
 replying to identifiers one at a time would map out what the deployment holds and what was withheld from you.
 
@@ -622,7 +622,7 @@ The codes a user meets in practice:
 | `53001` | The name reaches none of the accounts you may read | One answer whether nothing carries that name or somebody else's mailbox does. Call `list_accounts` and use an `accountId` or `displayName` it returns |
 | `53002` | No such email in the local copy | The identifier is stale, or the mail was removed; list again |
 | `53003` | A folder was named by a role no folder in scope carries | Name the folder's alias instead, or ask the operator to map the role on that account |
-| `53005` | There is no email here you can reply to or forward under that identifier | One answer for four situations, deliberately: no such identifier, an account no longer served, a folder withheld from tools, or content no longer readable. Nothing tells you which — list again, and ask the operator if the message is one you expected to be able to answer |
+| `53005` | There is no email here you can reply to or forward under that identifier | One answer for four situations, deliberately: no such identifier, an account no longer served, a folder withheld from AI, or content no longer readable. Nothing tells you which — list again, and ask the operator if the message is one you expected to be able to answer |
 | `53006` | A recipient is one this deployment may not write to | The whole message was refused rather than sent to the rest; write to somebody the policy admits, or ask the operator to widen it. The answer never repeats the address |
 | `53007` | There is no queued message *you* sent under that identifier | One answer for two situations, deliberately: nothing is held under it, or somebody else queued it. Pass the identifier the sending tool answered with, and note that another credential's sends are never yours to read or stop |
 | `55001` | The email exists but its stored content is currently unreadable; a repair has been queued | Retry later — this is a local-consistency state, not a mail-server problem |

@@ -860,14 +860,18 @@ describe('readCleanedMailBody', () => {
 
     // Every one of these is a sentence the pane says over the ordinary reduced document, which is why the reason
     // travels as itself rather than as an absence somebody has to interpret.
-    it.each(['NothingToClean', 'NotActivated', 'AllowanceExhausted', 'ProviderUnavailable', 'AnswerRejected'])(
-        'reads %s as the reason the cleaning did not happen',
-        async (cleaning) => {
-            const answer = await reading(cleanedBody({ cleaning }));
+    it.each([
+        'NothingToClean',
+        'NotActivated',
+        'AllowanceExhausted',
+        'ProviderUnavailable',
+        'AnswerRejected',
+        'WithheldFromAI',
+    ])('reads %s as the reason the cleaning did not happen', async (cleaning) => {
+        const answer = await reading(cleanedBody({ cleaning }));
 
-            expect(answer.outcome === 'read' && answer.value.cleaning).toBe(cleaning);
-        },
-    );
+        expect(answer.outcome === 'read' && answer.value.cleaning).toBe(cleaning);
+    });
 
     it('reads a message that carried no document at all as an absence rather than refusing it', async () => {
         const answer = await reading(cleanedBody({ cleaning: 'NothingToClean', document: null }));

@@ -37,7 +37,7 @@ internal sealed class StubDeploymentMailFolders(
         {
             MailFolderSelection.Mapped => participation.FoldersMapped,
             MailFolderSelection.Synchronized => participation.FoldersSynchronized,
-            MailFolderSelection.VisibleToTools => participation.FoldersVisibleToTools,
+            MailFolderSelection.VisibleToAI => participation.FoldersVisibleToAI,
             MailFolderSelection.GeneratingEmbeddings => participation.FoldersGeneratingEmbeddings,
             MailFolderSelection.Junk => junk.JunkFolders,
             MailFolderSelection.OfAccountsClassifyingSpam or MailFolderSelection.ClassifiedForSpam => [],
