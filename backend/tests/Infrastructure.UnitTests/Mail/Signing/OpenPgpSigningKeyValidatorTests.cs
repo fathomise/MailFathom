@@ -191,6 +191,21 @@ public sealed class OpenPgpSigningKeyValidatorTests
         Assert.Equal(OpenPgpSigningKeyFailure.UserIdDoesNotMatchAddress, failure);
     }
 
+    /// <summary>A certification issued after a user ID's revocation binds it again, which is how a key reinstates an address.</summary>
+    [Fact]
+    public async Task FindUnusabilityAsync_UserIdRevokedAndThenCertifiedAgain_AcceptsTheKey()
+    {
+        // Arrange
+        var material = new ProvisionedMaterialResolver();
+        material.ProvisionText(KeyReference, SigningIdentityFixtures.OpenPgpRecertifiedUserId);
+
+        // Act
+        var failure = await ValidatorFor(material).FindUnusabilityAsync(KeyOf(), FromAddress, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(failure);
+    }
+
     /// <summary>A valid primary key that signs only through subkeys signs nothing once each of them is revoked or expired.</summary>
     [Theory]
     [InlineData(SigningIdentityFixtures.OpenPgpRevokedSigningSubkey, nameof(OpenPgpSigningKeyFailure.KeyRevoked))]

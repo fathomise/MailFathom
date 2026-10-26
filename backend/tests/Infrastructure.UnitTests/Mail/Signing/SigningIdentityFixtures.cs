@@ -6,9 +6,12 @@ namespace MailFathom.Infrastructure.UnitTests.Mail.Signing;
 
 /// <summary>Fixed S/MIME certificates and OpenPGP keys, generated once with OpenSSL and GnuPG and committed, so no test generates a key.</summary>
 /// <remarks>
+/// <para>
 /// Every identity here is a throwaway made for these tests: it names only addresses in the reserved <c>example.test</c>
 /// domain, and its private key protects nothing. The validity periods are wide enough that a test fixing its clock
 /// inside 2026–2035 reads every certificate as current, and moves the clock to read one as not yet valid or expired.
+/// </para>
+/// <para>One certification was made with BouncyCastle instead, where <see cref="OpenPgpRecertifiedUserId" /> says why.</para>
 /// </remarks>
 internal static class SigningIdentityFixtures
 {
@@ -415,6 +418,29 @@ internal static class SigningIdentityFixtures
         CAsCBBYCAwECHgECF4AACgkQ5fwUFEHpUKDZgwD/bBD/nWtU9Op4hhIrRm9bBH/f
         DyANWp4G3PyneQPkTEUBALKxeQCA/U0i9O7I/FkDpSzlLPs81icxV54F212SJPMF
         =k+0h
+        -----END PGP PRIVATE KEY BLOCK-----
+        """;
+
+    /// <summary>A signing key whose user ID for <c>sender@example.test</c> was revoked on 2026-01-02 and certified again on 2026-01-03, the certification made with BouncyCastle because GnuPG will not add a user ID the key already holds.</summary>
+    internal const string OpenPgpRecertifiedUserId = """
+        -----BEGIN PGP PRIVATE KEY BLOCK-----
+
+        lFgEaVW5ABYJKwYBBAHaRw8BAQdAjDOMj+8nReJhb2RVIGU056AUCZibf7okVhwQ
+        +xjTyRsAAQDhlGHnUlbprc+QOQgVJSq9aEa/z00dYl/R/jwsK7QuLA6UtBxTZW5k
+        ZXIgPHNlbmRlckBleGFtcGxlLnRlc3Q+iHgEMBYKACAWIQQRsXlK0Lh0EiifL7XX
+        fz5lri7l+AUCaVcKgAIdIAAKCRDXfz5lri7l+GsWAQCL0t5i7JhnlLuNe1FjxGn5
+        9bpu6lfGSEVr/INgk1SV9wD+IHZPpz9P69rr0v26IbFShUHQRgxNbk01YTWaHZht
+        4wmIkAQTFgoAOBYhBBGxeUrQuHQSKJ8vtdd/PmWuLuX4BQJpVbkAAhsDBQsJCAcC
+        BhUKCQgLAgQWAgMBAh4BAheAAAoJENd/PmWuLuX4Xm8BAOXvm67dI3Zsq09jS9SH
+        2+8CR1QRTgMWU5Wk1ieTnPgiAQCGf/HCzLsiY0lUVGuZSAGlyzm+GcmKeTB1nPqj
+        qLJnCYh4BBMWCAAgBQJpWFwAFiEEEbF5StC4dBIony+1138+Za4u5fgCGwMACgkQ
+        138+Za4u5fgaGQEA4jgMAyxKFCE973iIi6iTgpy8QLBghDrWQaku0dr3XP0A/i7J
+        gDOnEoDsCURZraaKl0/WFkIMq365JlWEKlygzywPtChTb21lb25lIEVsc2UgPHNv
+        bWVvbmUuZWxzZUBleGFtcGxlLnRlc3Q+iJAEExYKADgWIQQRsXlK0Lh0EiifL7XX
+        fz5lri7l+AUCaVW5AAIbAwULCQgHAgYVCgkICwIEFgIDAQIeAQIXgAAKCRDXfz5l
+        ri7l+K8gAP9uKxcb3+4V7RqA4TfT/aNeDc6d25VakOgU+ujXkEdT3wEA5Zrp6fq3
+        QixJTjVTLdKDUxHdNzBPp9d7W+Nf5mCexwE=
+        =vBkV
         -----END PGP PRIVATE KEY BLOCK-----
         """;
 

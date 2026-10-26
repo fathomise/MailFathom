@@ -2022,9 +2022,12 @@ EndpointAccess:McpEndpoint is held by the deployment, whose settings policy forc
 carried.** A user record's save never touches an account, so a reference that stopped resolving in one of that user's
 accounts is reported beside the commit rather than refusing it: the answer names the setting, says the account already
 carried it, and names `mfctl account edit` as what clears it. An account write that introduces a reference reaching
-nothing, a secret name repeated within the composed record, or a trust anchor that cannot be loaded is refused,
-including one whose broken reference is replaced by another broken one; a problem the account already carried and the
-write leaves exactly as it was is reported the same way. It is still worth clearing before the next restart, because a
+nothing, a secret name repeated within the composed record, a trust anchor that cannot be loaded, or a signing
+identity that cannot sign as the account is refused, including one whose broken reference is replaced by another broken
+one. A signing identity is judged against the submission host, the sending address, and the user name that address
+falls back to as well as its own material, so an edit to any of those three beside an identity that cannot sign counts
+as introducing the problem. A problem the account already carried and the write leaves exactly as it was is reported
+the same way. It is still worth clearing before the next restart, because a
 start refuses a record carrying it.
 
 **Nothing here reports a secret.** A record is handed over with every password, token, and client secret replaced by the
