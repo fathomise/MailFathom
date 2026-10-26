@@ -5,6 +5,7 @@
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Host.Configuration;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Mail;
 using MailFathom.Host.Configuration.Policies;
 using MailFathom.Host.Configuration.Records;
@@ -607,7 +608,8 @@ public sealed class ServedUserResolutionTests
         var binder = new UserAccountDocumentBinder(
             new PersistedSecretMaterial(DeclaredSecretScheme.Registered),
             new FakeTimeProvider(),
-            Options.Create(new SensitiveContentOptions()));
+            Options.Create(new SensitiveContentOptions()),
+            Options.Create(new DecisionModelOptions()));
 
         return new ServedUserResolution(
             this.documents,

@@ -1094,8 +1094,12 @@ internal static class HostComposition
         // And again for the spam model stage, which answers through the decision model routed to spam classification
         // rather than through the chat endpoint. Which account consults it is that account's own switch; what this
         // decides is only whether there is a model to consult.
-        builder.Services.AddSpamModelJudge(
-            declaredDecisions?.Models.Count > 0 && declaredDecisions.ToPlans().ContainsKey(DecisionFunction.SpamClassification));
+        var spamClassificationModelDeclared = declaredDecisions?.Serves(DecisionFunction.SpamClassification) is true;
+        builder.Services.AddSpamModelJudge(spamClassificationModelDeclared);
+        if (!spamClassificationModelDeclared)
+        {
+            builder.Services.AddHostedService<SpamModelStageWithoutModelWarning>();
+        }
 
         // And again for a conversation's state, which needs the same two decisions and reports the absence of either
         // the same way.

@@ -4,6 +4,7 @@
 
 using MailFathom.Domain.Access;
 using MailFathom.Host.Configuration;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Policies;
 using MailFathom.Host.Configuration.SensitiveContent;
 using MailFathom.Host.Configuration.UserSettings;
@@ -186,5 +187,6 @@ public sealed class UserRecordPolicyJudgeTests
     private static UserRecordPolicyJudge NewJudge() => new(new UserAccountDocumentBinder(
         new PersistedSecretMaterial(DeclaredSecretScheme.Registered),
         new FakeTimeProvider(),
-        Options.Create(new SensitiveContentOptions())));
+        Options.Create(new SensitiveContentOptions()),
+        Options.Create(new DecisionModelOptions())));
 }

@@ -53,6 +53,7 @@ using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Folders;
 using MailFathom.Host.Configuration;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Policies;
 using MailFathom.Host.Configuration.SensitiveContent;
 using MailFathom.Host.Configuration.UserSettings;
@@ -506,7 +507,8 @@ internal sealed class OrchestratedMailFathomServices : IAsyncDisposable
         builder.Services.AddSingleton(provider => new UserAccountDocumentBinder(
             new PersistedSecretMaterial(provider.GetServices<ISecretSchemeResolver>()),
             provider.GetRequiredService<TimeProvider>(),
-            Options.Create(new SensitiveContentOptions())));
+            Options.Create(new SensitiveContentOptions()),
+            Options.Create(new DecisionModelOptions())));
         builder.Services.AddSingleton<IUserRecordPolicyJudge>(provider => new UserRecordPolicyJudge(
             provider.GetRequiredService<UserAccountDocumentBinder>()));
         builder.Services.AddSingleton<IMailAccountPolicyJudge>(provider => new MailAccountPolicyJudge(

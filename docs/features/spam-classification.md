@@ -1,6 +1,6 @@
 # Spam classification
 
-<!-- describes: backend/src/Domain/Spam/**, backend/src/Application/Spam/**, backend/src/Application/Folders/IJunkMailFolderCatalog.cs, backend/src/Infrastructure/Persistence/Spam/**, backend/src/Infrastructure/Observability/DerivedWorkGateTelemetry.cs, backend/src/Infrastructure/Mail/Mime/MimeKitEmailSpamHeaderReader.cs, backend/src/Host/Configuration/Spam/** -->
+<!-- describes: backend/src/Domain/Spam/**, backend/src/Application/Spam/**, backend/src/Application/Folders/IJunkMailFolderCatalog.cs, backend/src/Infrastructure/Persistence/Spam/**, backend/src/Infrastructure/Observability/DerivedWorkGateTelemetry.cs, backend/src/Infrastructure/Observability/SpamModelStageTelemetry.cs, backend/src/AI/SpamClassification/**, backend/src/Infrastructure/Mail/Mime/MimeKitEmailSpamHeaderReader.cs, backend/src/Host/Configuration/Spam/** -->
 
 A mailbox that an assistant reads is a mailbox somebody else can write to. Mail written to deceive a reader is
 indistinguishable from correspondence once it is a row in a timeline, and the receiving mail server has usually already
@@ -8,7 +8,7 @@ decided what it thought of it — in an `Authentication-Results` header, in a pr
 the message in the junk folder. Spam classification is what keeps that decision rather than discarding it, and records
 it as derived data beside the message.
 
-Six things ship here and are independent of each other: the classification record with the stage that fills it, mail
+Six things ship here and are independent of each other: the classification record with the two stages that fill it, mail
 being classified as it arrives, the three switches that let a verdict reach the mail server, spam and the junk folder
 being kept from every agent's read, junk being kept out of everything this deployment derives from mail, and the floor
 that gives every message in the junk folder or carrying `$Junk` at least a spam verdict. The fourth and the sixth reach a
@@ -61,7 +61,7 @@ behind switches of its own — described in [what an operator can let a verdict 
 | What it holds | Why |
 | --- | --- |
 | The verdict — undetermined, not spam, or spam | Undetermined is an ordinary answer: it says nothing was found either way |
-| The stage that decided it — the deterministic stage below, a decision model, or the person | Which of them a verdict rests on is the first thing anybody questioning it needs. Every verdict this build reaches is the deterministic stage's |
+| The stage that decided it — the deterministic stage below, a decision model, or the person | Which of them a verdict rests on is the first thing anybody questioning it needs. The person's act does not ship in this build, so every verdict it reaches is the deterministic stage's or the model's |
 | What kind of spam it is, when a stage named one, and the phishing detail beside it | A phishing message needs a warning and marketing needs filing; [what kind of spam it is](#what-kind-of-spam-it-is) holds what may be named and by whom |
 | The score and the threshold it was judged against, when the message stated both | A score without its threshold cannot be read: the same number is spam under one configuration and ordinary mail under another |
 | The signals the verdict rests on, in the order the stage produced them | An operator diagnosing a wrong verdict asks *which* authentication method failed and *what* the provider header said |
@@ -106,8 +106,9 @@ message's own sender display name is in front of them. Only the model names eith
 is a statement the person made rather than a check that found nothing. Neither a reclassification nor a
 [classification run](#classifying-the-mail-you-already-have) under any profile replaces it; a run counts it as skipped.
 
-This build has the record and nothing that fills it: neither the model stage nor the person's act ships in it, so every
-classification it reaches carries no subcategory and the deterministic stage's profile.
+This build fills the record from the deterministic stage and, where an account consults it, the
+[model stage](#the-model-stage). The person's act does not ship in it, so a subcategory this build records is always the
+model's.
 
 **The profile covers the model's terms and no other operator setting.** The deterministic stage reads what a message
 carried, and nothing an operator configures moves its answer. What it reads is part of the digest all the same, so a
@@ -116,7 +117,7 @@ one decided. This build reads a message's junk keywords, which is why the first 
 existing mail, and a message carrying `$Junk` or `$NotJunk` can change its verdict there once. The model stage's terms — whether it is consulted, whether
 it names the subcategory of deterministic spam, and the threshold its probability is judged against — are what the
 digest adds when the model is consulted, so a change to any of them re-decides mail on the next run, and a deployment
-that does not consult it keeps the deterministic profile. Every record this build writes names that one. The folders an account
+that does not consult it keeps the deterministic profile. The folders an account
 classifies are deliberately outside it: adding a folder changes which mail is classified and not what any
 classification would have concluded. A record whose profile differs from the current one — or that names none — was
 decided under other terms, and a [classification run](#classifying-the-mail-you-already-have) classifies it again
@@ -124,7 +125,7 @@ rather than skipping it.
 
 ## The deterministic stage
 
-It is the only stage this build runs, and it needs nothing deployed beside this service. It reads the stored message's
+It runs on every classified message, and it needs nothing deployed beside this service. It reads the stored message's
 header block —
 never its body, never its MIME tree, never an attachment — with the folder the message is in and the keywords it
 carries, and records four kinds of fact.
@@ -260,6 +261,93 @@ nor the person's verdict when it is read, and a record written after that read c
 replicas reaching one message leave one verdict. A run that raised anything logs how many messages it raised, and
 nothing about any of them.
 
+## The model stage
+
+Where an account switches it on, a decision model is asked about a message once the deterministic stage has read it. It
+is the only part of classification that sends anything out of the deployment, so it is off unless the account's record
+says otherwise, and the deterministic stage runs the same whether it is on or not.
+[ADR 0041](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0041-asking-a-model-a-closed-question-through-openrouters-decisions-api.md)
+records the shape of the question and what it is shown.
+
+### Two jobs
+
+| The deterministic stage concluded | What the model is asked | What the record says |
+| --- | --- | --- |
+| Not spam, or undetermined | Whether the message is spam, and of which kind | The model's verdict, decided by the model. Spam when its spam probability is at or above the account's threshold, with the kind it named; not spam, with no kind, below it. The probability and the threshold are recorded as the assessment |
+| Spam | Only which kind — and only where the account also switched on naming the kind of deterministic spam, since junk is often most of a mailbox and each one is a call | The deterministic verdict, still decided by the deterministic stage, with the kind the model named beside it |
+
+The question is one choice over seven options — not spam and the six kinds — and the provider reports a probability for
+each. The spam probability is one minus the probability of *not spam*, and the kind is the most probable of the six. The
+second job is offered the six kinds alone, so naming a kind can never overturn a verdict the mail server reached.
+
+Beside phishing the model is asked what the message asks for, and beside phishing and business email compromise who it
+pretends to come from, as [what kind of spam it is](#what-kind-of-spam-it-is) describes. Anything the record would refuse
+is dropped rather than repaired: a kind below the threshold, a phishing request beside another kind, and an impersonated
+party beside a kind that impersonates nobody.
+
+The model is never asked about a message somebody else marked `$NotJunk`. That is the person's correction, and a model
+judgement is not evidence against it. It is not asked either while the account's model stage is off, or about
+deterministic spam while naming its kind is off.
+
+### What the model is shown
+
+- the sender's address and display name, and the `Reply-To` address where it names another mailbox;
+- the subject;
+- the plain-text body, cut to `SpamClassification:ModelStage:MaxBodyCharacters` (8 000 by default), with the model told
+  where it was cut;
+- for each followable link, the host it leads to, the host its words name, and whether the two differ — the same reading
+  that makes the reading pane warn about a link;
+- the declared type and name of each attachment, never its content;
+- each authentication outcome the message's headers state — the method, the result, and whether a relay claimed it — and
+  whether this deployment trusts the authenticated sender.
+
+Nothing else is: no other recipient, no other header, no HTML, no picture, no attachment's words, and nothing the
+person decided. The message is handed over inside an envelope that escapes its markup, under instructions that say its
+text is data to judge rather than instructions to follow, so a message telling the classifier what to answer is one more
+thing to judge it by. The answer is a choice among fixed options, and the model writes no text that is kept.
+
+### Where it goes
+
+To the decision model `Decisions:SpamClassification:Model` names, or `Decisions:DefaultModel` where that is unwritten —
+never to a chat model — through the router and whichever provider it picks, which are two third parties. Every call goes
+through the same decision client as every other decision function: inside a run's budget and the period's spend, with
+its resilience and its telemetry, and reported as
+[ADR 0022](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0022-what-an-ai-run-reports-about-cost-cancellation-and-the-model.md)
+asks. One message is one run.
+
+What leaves crosses the `spam_classification_input`
+[egress point](sensitive-content-scanning.md#the-guarded-egress-points), so an account whose posture scans for sensitive
+content has the display name, the subject, the body, the hosts, the media types, and the file names redacted before they
+are sent. The addresses are not: an address is what the stage judges a sender by, and ADR 0041 records why it crosses.
+
+### When no answer comes back
+
+The stage is whole or absent. A provider that cannot be reached, a call past its budget, a period already spent, a
+request too large for the declared model, an answer outside the options, and a sensitive-content scanner that cannot
+run each leave the deterministic result recorded exactly as it would have been, with no model signal and the
+deterministic profile — so the next classification run asks again. Each is counted on
+`mailfathom.spam.model_stage.consultations` by job and by outcome, as [telemetry](../operations/telemetry.md) lists.
+
+A deployment that declares no decision model for spam classification asks nothing. A record switching the stage on is
+refused when it is written there, naming `Decisions:Models`. A record that asked for it before the model was taken away
+is classified deterministically: startup logs a warning naming the account, and each message it would have asked about
+is counted as `not_activated`. A message whose stored content cannot be rendered has nothing to
+show a model and is recorded under the account's own terms, since reading it again reads the same bytes.
+
+How many calls run at once is bounded per replica by `SpamClassification:ModelStage:MaxConcurrentCalls`; a call past
+the bound waits for a slot rather than failing.
+
+A model's spam verdict acts through the same switches as any other, and the same rule holds: a message a verdict filed
+once and somebody moved back is [never filed again](#a-message-the-user-moved-back-is-never-filed-again), whichever
+stage reaches spam the second time.
+
+### Folders withheld from AI
+
+The model stage is an AI function, so it never reads a folder mapped `VisibleToAI: false`. An account record that
+switches the stage on while any folder it classifies — its `ScannedFolders`, or its inbox where it names none — is
+withheld from AI is refused, naming the account and the folder, and so is a record that withholds such a folder while
+the stage is on. The deterministic stage is not AI and keeps classifying that folder's mail either way.
+
 ## Each account decides this for the mail in it
 
 Junk is a judgement about one mailbox, and every action below writes to that mailbox's mail server. So **the
@@ -274,7 +362,8 @@ means that changing one account's posture changes that mailbox and no other, inc
 person.
 
 **What stays the deployment's is what costs it a resource**: how long a message may wait for a verdict before the index
-moves on without it, and how wide one pass of a classification run is.
+moves on without it, how wide one pass of a classification run is, and how many model calls run at once and how much of a
+body each one carries.
 
 An account's posture is read from that account's own record, described in
 [classifying this account's mail](../operations/configuration-mail.md#classifying-this-accounts-mail--spamclassification).
@@ -686,13 +775,16 @@ The section bounds what the process spends; the account's block is what decides:
 
 - whether classification runs at all;
 - which folder aliases are classified, defaulting to whichever alias that account maps to its inbox;
+- whether the model stage is consulted, whether it names the kind of deterministic spam, and the threshold its
+  probability is judged against;
 - what a spam verdict does to the mailbox.
 
 What the account's block does not decide is how wide one pass of a classification run is: how many messages a batch
 commits, and how many batches one account run takes before it leaves the rest to the next. Both are the deployment's for every account,
 because they bound what one pass of the process spends rather than what happens to anybody's mail, and neither is a
 schedule — how often a pass happens is the account's own synchronization interval. So is how long a message may wait on
-a verdict before derived work runs for it unclassified.
+a verdict before derived work runs for it unclassified. So are the model stage's two bounds, how many calls run at
+once and how much of a body one carries, which bound what the process spends on every account that consults it.
 
 `Actions` holds the three switches and the folder junk is filed into; it is read per verdict, so switching filing on
 reaches the next one without a restart. An account's own record carries `Actions` and the posture above it, and none of
@@ -747,4 +839,9 @@ message, which holds which act it was and when, and nothing else.
 Nothing about a message's content reaches a log line or a telemetry attribute from any path here — not a header value,
 not an authentication detail, not a subject. What is safe to report is the occurrence identifier, the folder alias, the
 outcome, and the verdict. The spam subcategory and the phishing detail are closed values rather than text and are still
-a judgement about one person's message, so no log line or telemetry attribute carries them either.
+a judgement about one person's message, so no log line or telemetry attribute carries them either. Neither does
+anything the model stage sends or receives: its log lines and its counter name the job, how it ended, and the model's
+alias, and never the message, the probability, or the kind.
+
+What the model stage sends is the minimised reading [listed above](#what-the-model-is-shown), to the two third parties
+named there, and only for an account whose record switched it on.

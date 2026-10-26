@@ -4,6 +4,7 @@
 
 using MailFathom.Domain.Access;
 using MailFathom.Host.Configuration;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Policies;
 using MailFathom.Host.Configuration.SensitiveContent;
 using MailFathom.Host.Configuration.UserSettings;
@@ -369,7 +370,8 @@ public sealed class UserEndpointSwitchReconciliationTests
             new UserRecordPolicyJudge(new UserAccountDocumentBinder(
                 new PersistedSecretMaterial(DeclaredSecretScheme.Registered),
                 new FakeTimeProvider(),
-                Options.Create(new SensitiveContentOptions()))),
+                Options.Create(new SensitiveContentOptions()),
+                Options.Create(new DecisionModelOptions()))),
             logger);
 
     private static UserId User(int ordinal) => UserId.Create(new Guid($"0199a0c0-0000-7000-8000-{ordinal:D12}"));

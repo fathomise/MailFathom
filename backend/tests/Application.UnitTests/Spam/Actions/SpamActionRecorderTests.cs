@@ -268,6 +268,24 @@ public sealed class SpamActionRecorderTests
         Assert.Equal(2, this.records.OpenedRecordCount);
     }
 
+    /// <summary>A model reaching spam where the deterministic stage did not is no licence to file the message a second time.</summary>
+    [Fact]
+    public async Task RecordAsync_AModelSpamVerdictOnAMessageFiledOnceAndMovedBack_IsLeftAloneEntirely()
+    {
+        // Arrange
+        this.MapUnmirroredJunk("Spam");
+        var settings = FilingAndMarkingRead();
+        await this.Recorder(settings).RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+        var movedBack = this.Recorder(settings, OccurrenceIn(Inbox, isRemotelySeen: false, uid: 4403));
+
+        // Act
+        var result = await movedBack.RecordAsync(ModelSpamVerdict(), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.PreviouslyFiled, result.Outcome);
+        Assert.Equal(2, this.records.OpenedRecordCount);
+    }
+
     /// <summary>The same reading makes a filing still in flight idempotent, which is what a re-classification hits.</summary>
     [Fact]
     public async Task RecordAsync_AFilingAlreadyAskedForAndNotYetCarriedOut_AsksForNothingFurther()

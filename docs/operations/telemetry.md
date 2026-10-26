@@ -332,6 +332,16 @@ MailFathom's own names, and nothing about a message reaches either. [Junk is kep
 mail](../features/spam-classification.md#junk-is-kept-out-of-what-a-deployment-derives-from-mail) holds what each answer
 means and what the wait is.
 
+The spam model stage publishes `mailfathom.spam.model_stage.consultations`, one count per message the stage would have
+asked a decision model about, tagged with `mailfathom.spam.model_stage.job` — `decide_verdict` or `name_subcategory` —
+and `mailfathom.spam.model_stage.outcome`: `answered`, `not_activated`, `budget_exhausted`, `provider_unavailable`,
+`answer_unreadable`, `input_too_large`, or `scanner_unavailable`. Every outcome but the first left the deterministic
+verdict in place, so the share of those is the share of consulted mail the model did not reach. `not_activated` is the
+one to read first: an account switched the stage on and the deployment declares no decision model for spam
+classification. It is a count per replica and sums across them, and the call itself is reported again by the decision
+client's own instruments. Nothing about the message, the verdict, or the kind reaches it.
+[The model stage](../features/spam-classification.md#the-model-stage) holds what each outcome means.
+
 Each outbound AI provider publishes what its last call established about it, as `mailfathom.ai.provider.health` tagged
 with `mailfathom.ai.provider.role` — `embedding`, `chat`, or `decision`. The roles carry one measurement each rather than
 one combined figure, because an instance may hold a working embedding provider and a failing chat one and the two ask
@@ -1277,7 +1287,7 @@ Sensitive-content scanning publishes six instruments, all of them tagged with
 `mailfathom.sensitive_content.egress_point` — `chat_prompt`, `hosted_embedding_input`, `mcp_snippet`,
 `mcp_email_content`, `outgoing_mail`, `client_mail_listing`, `client_mail_search`, `client_citation_resolution`,
 `client_thread_state`, `client_reply_draft`, `client_contact_correspondence`,
-`client_contact_relationship`, or `attachment_download`. The
+`client_contact_relationship`, `attachment_download`, or `spam_classification_input`. The
 egress point is on every one
 of them because it is
 what an operator acts

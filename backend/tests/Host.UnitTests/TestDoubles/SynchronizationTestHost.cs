@@ -10,6 +10,7 @@ using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Collection;
 using MailFathom.Application.Coordination;
 using MailFathom.Application.EmailContent.Attachments;
+using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.EmailContent.Repair;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.AttachmentText;
@@ -19,6 +20,7 @@ using MailFathom.Application.Emails.Embeddings.Vectorization;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.Extraction.Attachments;
 using MailFathom.Application.Emails.Extraction.Images;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Folders.Local;
@@ -44,6 +46,7 @@ using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Actions;
 using MailFathom.Application.Spam.Floor;
 using MailFathom.Application.Spam.Gating;
+using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.Spam.Signals;
 using MailFathom.Application.Synchronization;
@@ -356,6 +359,16 @@ internal static class SynchronizationTestHost
         // it has not got.
         services.AddScoped<IMailAccountLanguages>(_ => new EnglishForEveryAccount());
         services.AddScoped<DeterministicSpamClassifier>();
+        // Every account these tests configure leaves the model stage off, so it is composed over a judge that would
+        // answer nothing and readers nothing reaches.
+        services.AddScoped(_ => new SpamModelStage(
+            Substitute.For<ISpamModelJudge>(),
+            new SpamModelEvidenceReader(
+                Substitute.For<IEmailContentRenderer>(),
+                Substitute.For<IEmailProvenanceReader>(),
+                SpamModelStageBounds.Default),
+            SensitiveContentEgressGuards.Inactive(),
+            Substitute.For<ISpamModelStageTelemetry>()));
         services.AddScoped<EmailSpamClassifier>();
         services.AddScoped<SpamActionRecorder>();
         services.AddScoped<SpamClassificationPass>();

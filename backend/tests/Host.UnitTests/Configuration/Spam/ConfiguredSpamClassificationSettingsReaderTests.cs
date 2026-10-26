@@ -4,9 +4,11 @@
 
 using MailFathom.Application.Folders;
 using MailFathom.Application.Spam;
+using MailFathom.Application.Spam.Model;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Spam;
 using MailFathom.Host.Configuration.Mail;
 using MailFathom.Host.Configuration.Spam;
 using MailFathom.Host.Configuration.UserSettings;
@@ -114,6 +116,31 @@ public sealed class ConfiguredSpamClassificationSettingsReaderTests
         Assert.Equal(
             [MailFolderAlias.Create("INBOX"), MailFolderAlias.Create("JUNK")],
             settings.ScannedFolderAliases);
+    }
+
+    [Fact]
+    public void SettingsFor_ModelStageSwitchedOnInTheRecord_ConsultsItOnTheRecordsTermsAndProfilesThem()
+    {
+        // Arrange
+        var reader = ReaderFor(
+            new MailAccountSpamClassificationOptions
+            {
+                Enabled = true,
+                ModelStage = new MailAccountSpamModelStageOptions
+                {
+                    Enabled = true,
+                    NameSubcategoriesOfDeterministicSpam = true,
+                    Threshold = 0.75,
+                },
+            },
+            AccountMapping("inbox", "Inbox"));
+
+        // Act
+        var settings = reader.SettingsFor(PrimaryAccount);
+
+        // Assert
+        Assert.Equal(SpamModelStageSettings.Consulted(true, 0.75), settings.ModelStage);
+        Assert.Equal(SpamClassificationProfile.Create(true, 0.75), settings.Profile);
     }
 
     /// <summary>A section reloaded while the process runs takes effect on the next classification rather than at the next restart.</summary>

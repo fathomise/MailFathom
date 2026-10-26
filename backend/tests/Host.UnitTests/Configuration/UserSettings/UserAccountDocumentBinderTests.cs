@@ -8,6 +8,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Scheduling;
 using MailFathom.Host.Configuration;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.SensitiveContent;
 using MailFathom.Host.Configuration.UserSettings;
 using MailFathom.Host.Observability.ClientTelemetry;
@@ -1010,13 +1011,50 @@ public sealed class UserAccountDocumentBinderTests
         Assert.Contains(binding.Refusals, refusal => refusal.Contains(property, StringComparison.Ordinal));
     }
 
-    /// <summary>Builds the binder, over a deployment that scans nothing unless a test says otherwise.</summary>
+    /// <summary>A record asking a model nobody declared is told so while somebody is there to act on it.</summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public void Bind_ModelStageWrittenOn_IsBoundOnlyWhereADecisionModelServesSpamClassification(bool modelDeclared, bool bound)
+    {
+        // Arrange
+        var decisions = new DecisionModelOptions();
+        if (modelDeclared)
+        {
+            decisions.Models.Add(new DecisionModelDeclarationOptions
+            {
+                Alias = "decider",
+                Model = "vendor/decider-2026-10-01",
+                Unauthenticated = true,
+            });
+        }
+
+        var binder = CreateBinder(decisions: decisions);
+
+        // Act
+        var binding = binder.Bind(
+            DocumentDeclaringAccountCarrying("""
+                "Folders": [ { "Alias": "inbox", "SpecialUse": "Inbox" } ],
+                "SpamClassification": { "Enabled": true, "ModelStage": { "Enabled": true } }
+                """),
+            UserRecordArrival.BeingWritten);
+
+        // Assert
+        Assert.Equal(bound, binding.IsBound);
+        Assert.Equal(!bound, binding.Refusals.Any(static refusal => refusal.Contains("Decisions:Models", StringComparison.Ordinal)));
+    }
+
+    /// <summary>Builds the binder, over a deployment that scans nothing and declares no decision model unless a test says otherwise.</summary>
     /// <param name="deployment">The deployment's own scanning section, which a record's scanning block is judged against.</param>
-    private static UserAccountDocumentBinder CreateBinder(SensitiveContentOptions? deployment = null) =>
+    /// <param name="decisions">The deployment's decision models, which a record's spam model stage is judged against.</param>
+    private static UserAccountDocumentBinder CreateBinder(
+        SensitiveContentOptions? deployment = null,
+        DecisionModelOptions? decisions = null) =>
         new(
             new PersistedSecretMaterial(DeclaredSecretScheme.Registered),
             new FakeTimeProvider(Today),
-            Options.Create(deployment ?? new SensitiveContentOptions()));
+            Options.Create(deployment ?? new SensitiveContentOptions()),
+            Options.Create(decisions ?? new DecisionModelOptions()));
 
     /// <summary>Composes a record whose one mailbox carries the stated block beside everything an account must declare.</summary>
     /// <param name="block">The settings block, written as the JSON properties it occupies on the account.</param>

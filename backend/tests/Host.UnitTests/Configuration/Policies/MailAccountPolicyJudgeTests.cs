@@ -4,6 +4,7 @@
 
 using MailFathom.Domain.Synchronization;
 using MailFathom.Host.Configuration;
+using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Policies;
 using MailFathom.Host.Configuration.SensitiveContent;
 using MailFathom.Host.Configuration.UserSettings;
@@ -171,7 +172,8 @@ public sealed class MailAccountPolicyJudgeTests
     private static MailAccountPolicyJudge NewJudge() => new(new UserAccountDocumentBinder(
         new PersistedSecretMaterial(DeclaredSecretScheme.Registered),
         new FakeTimeProvider(),
-        Options.Create(new SensitiveContentOptions())));
+        Options.Create(new SensitiveContentOptions()),
+        Options.Create(new DecisionModelOptions())));
 
     private static MailAccountRecord Mailbox(
         string? language = "English",

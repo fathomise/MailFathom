@@ -68,6 +68,11 @@ internal sealed class DecisionModelOptions : IValidatableObject
         .Where(resolved => resolved.Model is not null)
         .ToDictionary(resolved => resolved.Function, resolved => resolved.Model!.ToPlan());
 
+    /// <summary>Answers whether a declared model serves a function, either by its own reference or by the default.</summary>
+    /// <param name="function">The function asked about.</param>
+    /// <returns><see langword="true" /> when asking the function reaches a declared model.</returns>
+    public bool Serves(DecisionFunction function) => this.ToPlans().ContainsKey(function);
+
     /// <summary>Reports everything an operator must fix before this declaration can be used.</summary>
     /// <param name="candidate">The bound decision declaration, or <see langword="null" /> when the deployment wrote no section.</param>
     /// <param name="chat">The bound chat declaration, or <see langword="null" /> when the deployment wrote none.</param>
