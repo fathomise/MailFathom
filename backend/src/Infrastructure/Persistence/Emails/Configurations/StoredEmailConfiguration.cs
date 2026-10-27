@@ -60,7 +60,7 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
         entity.Property(email => email.ContentAvailability).HasConversion<string>().HasMaxLength(64).IsRequired();
 
         // The sender-authentication verdict — what authenticated, and separately what that establishes about the
-        // displayed author — whose five enums are stored as text for the same reason and whose domains are bounded
+        // displayed author — whose six enums are stored as text for the same reason and whose domains are bounded
         // by the length a resolver accepts, which the domain value already refuses to exceed. Each enum carries a
         // database default naming the value that establishes nothing, because that is what is true of a row written
         // before this deployment read the header: the migration that adds the columns fills every stored message in

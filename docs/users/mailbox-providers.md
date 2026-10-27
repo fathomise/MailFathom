@@ -421,13 +421,14 @@ your own mail.
 
 **Where no such header is found, MailFathom verifies the message's own DKIM signatures for itself**, against the keys
 the signing domains publish in DNS, and reads the sender's DMARC record to learn whether a signature counts as the
-author's. That is a fallback rather than a second opinion: it happens only for an account
+author's. The signature check is a fallback rather than a second opinion: it happens only for an account
 whose server wrote nothing MailFathom trusts, and it establishes a signing domain where there would otherwise be no
 author to hold your own addresses, `TrustedSenders`, or `TrustOwnAccountDomains` against at all. It is what makes those
 work on a mailbox whose provider records nothing, and it is on by default. What it cannot reach is the part that needed
 the connection: no SPF result, no DMARC outcome, and so no warning about a forged domain — your receiving server
-already refused or filed that before delivery. It is also the one thing in MailFathom that sends a DNS query, so an
-operator who wants none turns it off — see [the mail configuration](../operations/configuration-mail.md#mailsynchronization).
+already refused or filed that before delivery. The DMARC record is read beside a trusted server too, where that
+server's verdict leaves open whether a signature counts as the author's. Those lookups are the only DNS queries
+MailFathom sends, and one switch governs them all, so an operator who wants none turns it off — see [the mail configuration](../operations/configuration-mail.md#mailsynchronization).
 
 **Mail you send from one of your own addresses is trusted with nothing to configure**, once its author authenticated:
 each account's user name where it is an address, and the address an account sends as. Trusting everybody at your
