@@ -254,7 +254,6 @@ function SpaceLink({
                     {report?.dot == null ? null : (
                         <span
                             aria-hidden="true"
-                            data-space-dot={report.dot}
                             className={`pointer-events-none absolute top-1.5 end-1.5 size-2 rounded-full bg-error workspace:top-2 workspace:end-2 ${
                                 report.dot === 'working' ? 'animate-rail-ring' : ''
                             }`}

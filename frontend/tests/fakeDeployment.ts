@@ -1706,7 +1706,9 @@ export class FakeDeployment {
     private composing(conversation: Conversation): boolean {
         const base = conversation.reads === 'composing' ? agent.composingConversation : agent.answeredConversation;
 
-        return ((conversation.startsRunning && conversation.readsTaken === 0) || base.composing) && !conversation.stopped;
+        return (
+            ((conversation.startsRunning && conversation.readsTaken === 0) || base.composing) && !conversation.stopped
+        );
     }
 
     private conversationRead(conversation: Conversation, since: number) {

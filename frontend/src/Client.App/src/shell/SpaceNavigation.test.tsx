@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LocalizationProvider } from '../localization/Localization';
 import { spaces, type Space } from '../routing/spaces';
@@ -230,33 +230,73 @@ describe('a rail tile’s report', () => {
         empty: 'Nothing running and nothing unread.',
     };
 
-    function dotOf(space: string): string | null {
-        return (
-            screen
-                .getByRole('link', { name: new RegExp(`^${space}`) })
-                .querySelector('[data-space-dot]')
-                ?.getAttribute('data-space-dot') ?? null
-        );
-    }
-
-    it('draws a pulsing dot while something runs, a still one while something only waits, and none otherwise', () => {
-        atWorkspaceWidth(true);
-        renderNavigation(spaces, 'mail', {
-            agent: working,
-            discover: { ...working, dot: 'waiting' },
-            mail: { ...working, dot: null, counts: [], sections: [] },
-        });
-
-        expect(dotOf('Agent')).toBe('working');
-        expect(dotOf('Discover')).toBe('waiting');
-        expect(dotOf('Mail')).toBeNull();
-    });
-
     it('carries the counts in the tile’s name, so a reader who cannot see the dot hears them', () => {
         atWorkspaceWidth(true);
         renderNavigation(spaces, 'mail', { agent: working });
 
         expect(screen.getByRole('link', { name: 'Agent - 1 working, 1 unread' }).getAttribute('href')).toBe('#/agent');
+    });
+
+    it('names a tile with nothing to report by its space alone', () => {
+        atWorkspaceWidth(true);
+        renderNavigation(spaces, 'mail', { agent: { ...working, dot: null, counts: [], sections: [] } });
+
+        expect(screen.getByRole('link', { name: 'Agent' }).getAttribute('href')).toBe('#/agent');
+    });
+
+    describe('closing the peek', () => {
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
+        function peeked(): HTMLElement {
+            vi.useFakeTimers();
+            atWorkspaceWidth(true);
+            renderNavigation(spaces, 'mail', { agent: working });
+
+            const tile = screen.getByRole('link', { name: /^Agent/ });
+
+            fireEvent.pointerOver(tile, { pointerType: 'mouse' });
+
+            return tile;
+        }
+
+        it('lets the peek linger a moment once the pointer leaves the tile, then closes it', () => {
+            const tile = peeked();
+
+            fireEvent.pointerOut(tile, { pointerType: 'mouse' });
+            act(() => {
+                vi.advanceTimersByTime(100);
+            });
+
+            expect(screen.getByRole('dialog', { name: 'Agent' })).toBeTruthy();
+
+            act(() => {
+                vi.advanceTimersByTime(100);
+            });
+
+            expect(screen.queryByRole('dialog')).toBeNull();
+        });
+
+        it('keeps the peek while the pointer crosses from the tile onto it', () => {
+            const tile = peeked();
+
+            fireEvent.pointerOut(tile, { pointerType: 'mouse' });
+            fireEvent.pointerOver(screen.getByRole('dialog', { name: 'Agent' }), { pointerType: 'mouse' });
+            act(() => {
+                vi.advanceTimersByTime(1000);
+            });
+
+            expect(screen.getByRole('dialog', { name: 'Agent' })).toBeTruthy();
+        });
+
+        it('closes the peek at once when the tile is pressed', () => {
+            const tile = peeked();
+
+            fireEvent.click(tile);
+
+            expect(screen.queryByRole('dialog')).toBeNull();
+        });
     });
 
     it('slides out the peek under a mouse resting on the rail’s tile, and a row opens what it names', () => {

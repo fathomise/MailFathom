@@ -180,7 +180,7 @@ export function AgentSpace({
 
     // A conversation another surface asked to open — the rail's peek — joins the tabs and comes to the front, adjusted
     // while rendering for the reason a hand-over is.
-    const [openedFrom, setOpenedFrom] = useState(opening);
+    const [openedFrom, setOpenedFrom] = useState<AgentOpening | null>(null);
 
     if (opening !== openedFrom) {
         setOpenedFrom(opening);

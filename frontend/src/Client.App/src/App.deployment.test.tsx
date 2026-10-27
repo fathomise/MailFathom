@@ -77,10 +77,6 @@ describe('App deployment', () => {
             expect(routesAsked()).toEqual([
                 'https://elsewhere.example.invalid/api/client/session',
                 'https://elsewhere.example.invalid/api/client/accounts',
-
-                // The Agent space reads its history on landing for the reason the Mail space below it does, and reads first
-                // because it stands before Mail in the rail.
-
                 'https://elsewhere.example.invalid/api/client/folders',
                 'https://elsewhere.example.invalid/api/client/emails?sort=receivedAt&order=newestFirst&direction=forward&pageSize=100&folder=role%3AInbox',
                 'https://elsewhere.example.invalid/api/client/emails/search/phrasing',
@@ -102,6 +98,9 @@ describe('App deployment', () => {
                 'https://elsewhere.example.invalid/api/client/display-name',
                 'https://elsewhere.example.invalid/api/client/time-zone',
                 'https://elsewhere.example.invalid/api/client/signals/ticket',
+
+                // The frame reads the Agent's history for the rail's tile from every space, beside the signals that
+                // tell it to read again, rather than the Agent space reading it on landing.
                 'https://elsewhere.example.invalid/api/client/agent/conversations',
                 'https://elsewhere.example.invalid/api/client/notifications/unread-count',
             ]);

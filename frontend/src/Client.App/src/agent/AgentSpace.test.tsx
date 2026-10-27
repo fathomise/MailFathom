@@ -19,7 +19,7 @@ import type { AgentHandOver } from '../routing/agentHandOver';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import { nothingSignalled } from '../signals/signalledChanges';
-import { AgentSpace } from './AgentSpace';
+import { AgentSpace, type AgentOpening } from './AgentSpace';
 import { useConversationHistory } from './useConversationHistory';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
@@ -102,16 +102,47 @@ function deploymentAnswering(posting: { readonly status: number; readonly body: 
     };
 }
 
+// The corpus with its answered conversation turned unread, which is what a reply landing while nobody looked leaves.
+function withAnswerUnread() {
+    const { transport, asked } = deploymentAnswering();
+    const unread: MailFathomTransport = (request) =>
+        request.path === conversations && request.method === 'GET'
+            ? Promise.resolve({
+                  status: 200,
+                  headers: {},
+                  body: JSON.stringify({
+                      conversations: agent.agentHistory.conversations.map((listed) =>
+                          listed.id === agent.answeredConversationId ? { ...listed, unread: true } : listed,
+                      ),
+                  }),
+              })
+            : transport(request);
+
+    return { transport: unread, asked };
+}
+
+const markedRead = (asked: readonly ClientRequest[]) =>
+    asked
+        .filter((request) => request.method === 'PUT' && request.path.endsWith('/read'))
+        .map((request) => request.path);
+
 function drawn(
     transport: MailFathomTransport,
     handOver: AgentHandOver | null = null,
     onLook: ((where: ProposalLook) => void) | null = null,
+    { inFront = true, opening = null }: { readonly inFront?: boolean; readonly opening?: AgentOpening | null } = {},
 ) {
     return (
         <LocalizationProvider>
             <LinkOpenerContext value={() => Promise.resolve()}>
                 <WorkspaceProvider>
-                    <AgentSpaceInFrame transport={transport} handOver={handOver} onLook={onLook} />
+                    <AgentSpaceInFrame
+                        transport={transport}
+                        handOver={handOver}
+                        onLook={onLook}
+                        inFront={inFront}
+                        opening={opening}
+                    />
                 </WorkspaceProvider>
             </LinkOpenerContext>
         </LocalizationProvider>
@@ -123,10 +154,14 @@ function AgentSpaceInFrame({
     transport,
     handOver,
     onLook,
+    inFront,
+    opening,
 }: {
     readonly transport: MailFathomTransport;
     readonly handOver: AgentHandOver | null;
     readonly onLook: ((where: ProposalLook) => void) | null;
+    readonly inFront: boolean;
+    readonly opening: AgentOpening | null;
 }) {
     const history = useConversationHistory(session, transport, nothingSignalled);
 
@@ -135,7 +170,8 @@ function AgentSpaceInFrame({
             session={session}
             transport={transport}
             history={history}
-            inFront
+            inFront={inFront}
+            opening={opening}
             handOver={handOver}
             schedule={neverPolls}
             onLook={onLook}
@@ -213,36 +249,53 @@ describe('AgentSpace', () => {
         expect(within(row).getByText('Looking through today’s mail…')).toBeTruthy();
     });
 
-    it('sets an unread conversation heavier, and marks it read once it is opened in front of the reader', async () => {
-        const { transport, asked } = deploymentAnswering();
-        const withUnread: MailFathomTransport = (request) =>
-            request.path === conversations && request.method === 'GET'
-                ? Promise.resolve({
-                      status: 200,
-                      headers: {},
-                      body: JSON.stringify({
-                          conversations: agent.agentHistory.conversations.map((listed) =>
-                              listed.id === agent.answeredConversationId ? { ...listed, unread: true } : listed,
-                          ),
-                      }),
-                  })
-                : transport(request);
+    it('says a conversation is unread, and reads it as read for good once it is opened in front of the reader', async () => {
+        const { transport, asked } = withAnswerUnread();
 
-        screenOf(withUnread);
+        screenOf(transport);
 
         const row = await screen.findByRole('option', { name: /How many bays were confirmed/ });
 
-        expect(within(row).getByText('How many bays were confirmed').className).toContain('font-bold');
-        expect(asked.some((request) => request.path.endsWith('/read'))).toBe(false);
+        expect(within(row).getByText('Unread')).toBeTruthy();
 
         fireEvent.click(row);
 
         await waitFor(() => {
-            expect(asked.filter((request) => request.method === 'PUT').map((request) => request.path)).toEqual([
-                `${conversations}/${agent.answeredConversationId}/read`,
-            ]);
+            expect(markedRead(asked)).toEqual([`${conversations}/${agent.answeredConversationId}/read`]);
         });
-        expect(within(row).getByText('How many bays were confirmed').className).not.toContain('font-bold');
+
+        // Opening another one is what would draw the first as unread again, were the history still saying so.
+        fireEvent.click(screen.getByRole('option', { name: /What is waiting on me today/ }));
+
+        await waitFor(() => {
+            expect(
+                screen.getByRole('option', { name: /What is waiting on me today/ }).getAttribute('aria-current'),
+            ).toBe('true');
+        });
+        expect(within(row).queryByText('Unread')).toBeNull();
+    });
+
+    it('opens a conversation it was asked to from outside, and leaves it unread while the space is behind another', async () => {
+        const { transport, asked } = withAnswerUnread();
+        const { rerender } = render(
+            drawn(transport, null, null, {
+                inFront: false,
+                opening: { conversation: agent.answeredConversationId },
+            }),
+        );
+
+        const row = await screen.findByRole('option', { name: /How many bays were confirmed/ });
+
+        await waitFor(() => {
+            expect(row.getAttribute('aria-current')).toBe('true');
+        });
+        expect(markedRead(asked)).toEqual([]);
+
+        rerender(drawn(transport, null, null, { inFront: true }));
+
+        await waitFor(() => {
+            expect(markedRead(asked)).toEqual([`${conversations}/${agent.answeredConversationId}/read`]);
+        });
     });
 
     it('groups the history by the day each conversation last moved, drawing no empty day', async () => {

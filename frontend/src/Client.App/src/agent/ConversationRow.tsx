@@ -122,6 +122,7 @@ export function ConversationRow({
                 <span className={`min-w-0 flex-1 truncate text-lg/snug workspace:text-base/snug ${titleWeight}`}>
                     {conversation.title ?? translate('agent.newConversation')}
                 </span>
+                {unread ? <span className="sr-only">{translate('list.unread')}</span> : null}
 
                 <ReceivedAt at={conversation.lastActivityAt} emphasized={unread} />
 

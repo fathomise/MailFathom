@@ -137,6 +137,7 @@ describe('listAgentConversations', () => {
         ['whether an answer is running', { running: undefined }],
         ['whether it is unread', { unread: 'no' }],
         ['a status line it could read', { status: 7 }],
+        ['a status line within the bound a title has', { status: 'x'.repeat(1025) }],
     ])('refuses a conversation that does not say %s', async (_, wrong) => {
         const answered = await listAgentConversations(
             session,
@@ -161,6 +162,31 @@ describe('listAgentConversations', () => {
         );
 
         expect(answered).toMatchObject({ outcome: 'failed', failure: { reason: 'unreadable' } });
+    });
+
+    it('lets go of a status line a conversation names while nothing in it runs', async () => {
+        const answered = await listAgentConversations(
+            session,
+            answering({
+                status: 200,
+                body: JSON.stringify({
+                    conversations: [
+                        {
+                            id: conversation,
+                            title: 'Overdue invoices',
+                            startedAt: '2026-08-31T09:40:00+00:00',
+                            lastActivityAt: '2026-08-31T09:42:00+00:00',
+                            archived: false,
+                            running: false,
+                            status: 'Searching your mail',
+                            unread: false,
+                        },
+                    ],
+                }),
+            }),
+        );
+
+        expect(answered).toMatchObject({ outcome: 'read', value: [{ running: false, status: null }] });
     });
 
     it('refuses a conversation that does not say whether it is archived', async () => {

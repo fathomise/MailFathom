@@ -64,6 +64,7 @@ import { MessageList } from './messageList/MessageList';
 import { forgetListings } from './messageList/rememberedListings';
 import { NotificationBell } from './notifications/NotificationBell';
 import { failureOf } from './notifications/failures';
+import { useCurrentMinute } from './notifications/notificationAge';
 import { followTarget } from './notifications/notificationDestination';
 import { NotificationCentre } from './notifications/NotificationCentre';
 import { usePanelSwipe } from './notifications/usePanelSwipe';
@@ -714,10 +715,12 @@ export function App({
         setAgentOpening({ conversation });
         window.location.hash = addressOf('agent');
     }, []);
-    const [agentReportedFrom] = useState(() => Date.now());
+    // The frame stays for the whole session, so the peek words when a reply landed against the minute it is now rather
+    // than against the one the frame was drawn in.
+    const currentMinute = useCurrentMinute();
     const agentTile = agentReport(
         agentHistory.conversations,
-        { locale, timeZone: profile.timeZone, now: agentReportedFrom, translate },
+        { locale, timeZone: profile.timeZone, now: currentMinute, translate },
         openAgentConversation,
     );
 
