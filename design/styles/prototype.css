@@ -23,7 +23,12 @@ input { font-family: inherit; }
 [data-compose-fields] :has(> input[style*="border-style: none"]:focus-visible) { outline: none; border-bottom-color: var(--accent) !important; }
 [data-compose-fields] [contenteditable]:focus-visible { border-left-color: var(--accent) !important; }
 
-@keyframes mfmsgin { from { opacity: 0; transform: translateY(6px) } }
+/* A rail tile's status dot. `pulse` — work under way there — sends a ring out of the dot and lets it fade; `dot` —
+   something waits to be read — stands still. Under reduced motion the ring never travels and the dot alone remains. */
+@keyframes mf-rail-ring { 0% { box-shadow: 0 0 0 2px var(--rail), 0 0 0 2px var(--err) } 70%, 100% { box-shadow: 0 0 0 2px var(--rail), 0 0 0 8px transparent } }
+[data-rail-dot="pulse"] { animation: mf-rail-ring 1.6s var(--ease-out, ease-out) infinite; }
+
+@keyframes mfmsgin{ from { opacity: 0; transform: translateY(6px) } }
 @keyframes mfblkin { from { opacity: 0; transform: translateY(7px) } }
 @keyframes mfdot { 0%, 78%, 100% { opacity: 0.25; transform: translateY(0) } 38% { opacity: 1; transform: translateY(-3px) } }
 @keyframes mfrowin { from { opacity: 0; max-height: 0; transform: translateY(-7px) } to { opacity: 1; max-height: 260px; transform: none } }

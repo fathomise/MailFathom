@@ -65,8 +65,13 @@ Project repository: https://github.com/fathomise/MailFathom
       <div style="{{ railIconStyle }}">explore</div>
       <div style="{{ railLabelStyle }}">{{ railLabelDiscover }}</div>
     </div>
-    <div onClick="{{ goAgent }}" style="{{ railAgentStyle }}" style-hover="background:var(--hover);cursor:pointer">
-      <div style="{{ railIconStyle }}">auto_awesome</div>
+    <div onClick="{{ goAgent }}" onMouseEnter="{{ agentPeekEnter }}" onMouseLeave="{{ railPeekLeave }}" aria-label="{{ agentTileLabel }}" style="{{ railAgentStyle }}" style-hover="background:var(--hover);cursor:pointer">
+      <div style="{{ railIconWrapStyle }}">
+        <div style="{{ railIconStyle }}">auto_awesome</div>
+        <sc-if value="{{ agentDotShown }}" hint-placeholder-val="{{ true }}">
+          <span aria-hidden="true" data-rail-dot="{{ agentDotKind }}" style="{{ railDotStyle }}"></span>
+        </sc-if>
+      </div>
       <div style="{{ railLabelStyle }}">{{ railLabelAgent }}</div>
     </div>
     <sc-if value="{{ notMobile }}" hint-placeholder-val="{{ true }}">
@@ -158,6 +163,40 @@ Project repository: https://github.com/fathomise/MailFathom
       </div>
     </sc-if>
   </div>
+
+  <sc-if value="{{ railPeekShown }}" hint-placeholder-val="{{ false }}">
+    <div data-motion="pop" role="dialog" aria-label="{{ railPeekTitle }}" onMouseEnter="{{ railPeekKeep }}" onMouseLeave="{{ railPeekLeave }}" style="{{ railPeekStyle }}">
+      <span aria-hidden="true" style="{{ railPeekBeakStyle }}"></span>
+      <div style="position:relative;display:flex;align-items:baseline;gap:8px;padding:11px 14px 9px;border-bottom:1px solid var(--line2)">
+        <div style="font-size:13px;font-weight:600">{{ railPeekTitle }}</div>
+        <div style="margin-left:auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums">{{ railPeekMeta }}</div>
+      </div>
+      <div style="position:relative;display:flex;flex-direction:column;gap:6px;padding:6px 6px 8px;overflow:auto;scrollbar-width:thin">
+        <sc-for list="{{ railPeekSections }}" as="ps" hint-placeholder-count="2">
+          <div style="display:flex;flex-direction:column;gap:1px">
+            <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--faint);padding:6px 8px 4px">{{ ps.label }}</div>
+            <sc-for list="{{ ps.rows }}" as="pr" hint-placeholder-count="2">
+              <div role="button" tabIndex="0" onClick="{{ pr.open }}" style="display:flex;align-items:flex-start;gap:10px;border-radius:8px;padding:7px 8px" style-hover="cursor:pointer;background:var(--hover)">
+                <sc-if value="{{ pr.spin }}" hint-placeholder-val="{{ true }}">
+                  <span aria-hidden="true" style="flex:0 0 16px;margin-top:1px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1;color:var(--accent);animation:mfspin 1s linear infinite">progress_activity</span>
+                </sc-if>
+                <sc-if value="{{ pr.dot }}" hint-placeholder-val="{{ false }}">
+                  <span aria-hidden="true" style="flex:0 0 16px;height:18px;display:flex;align-items:center;justify-content:center"><span style="width:8px;height:8px;border-radius:50%;background:var(--err)"></span></span>
+                </sc-if>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+                  <div style="{{ pr.titleStyle }}">{{ pr.title }}</div>
+                  <div style="{{ pr.subStyle }}">{{ pr.sub }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+        <sc-if value="{{ railPeekEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="font-size:13px;color:var(--muted);padding:10px 8px">{{ railPeekEmpty }}</div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
 
   <sc-if value="{{ newFolderOpen }}" hint-placeholder-val="{{ false }}">
     <div data-motion="scrim" data-phase="{{ mo.newFolder }}" onClick="{{ closeNewFolder }}" style="{{ ovZ97 }}">
