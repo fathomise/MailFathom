@@ -14,7 +14,7 @@ using Pgvector;
 namespace MailFathom.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(MailFathomDbContext))]
-    [Migration("20261027214503_AddOrganizationContactBook")]
+    [Migration("20261027223136_AddOrganizationContactBook")]
     partial class AddOrganizationContactBook
     {
         /// <inheritdoc />
@@ -3765,6 +3765,13 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasDefaultValue("NotEstablished");
+
+                    b.Property<string>("AuthorAuthenticationRoute")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("None");
 
                     b.Property<DateTimeOffset?>("AuthoredDeleteFlaggedAt")
                         .HasColumnType("timestamp with time zone");
