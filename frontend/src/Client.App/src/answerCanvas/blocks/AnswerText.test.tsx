@@ -121,7 +121,7 @@ describe('AnswerText', () => {
 
     it('opens a link out of the application rather than navigating the answer to it', () => {
         const opened: string[] = [];
-        drawing('Read [the agreement](https://example.invalid/agreement).', [], (target) => {
+        drawing('Read [the agreement](https://example.invalid/agreement).', [], ({ target }) => {
             opened.push(target);
             return Promise.resolve();
         });
@@ -129,6 +129,18 @@ describe('AnswerText', () => {
         fireEvent.click(screen.getByRole('link', { name: 'the agreement' }));
 
         expect(opened).toEqual(['https://example.invalid/agreement']);
+    });
+
+    it('hands the question the warning that the address is in none of the messages the answer cites', () => {
+        const warned: (readonly string[])[] = [];
+        drawing('Read [the agreement](https://example.invalid/agreement).', [], ({ warnings }) => {
+            warned.push(warnings);
+            return Promise.resolve();
+        });
+
+        fireEvent.click(screen.getByRole('link', { name: 'the agreement' }));
+
+        expect(warned).toEqual([['This address is in none of the messages this answer cites.']]);
     });
 
     it('draws a link naming no web or mail address as its words alone', () => {

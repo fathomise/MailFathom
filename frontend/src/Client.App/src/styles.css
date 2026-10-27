@@ -457,6 +457,11 @@
     --container-dialog: 27.5rem;
     --container-dialog-narrow: calc(100vw - 3rem);
 
+    /* The short question asked before a link leaves the client, which the design draws narrower than a dialog with a
+       form in it: 400 pixels of content inside its padding and border off the phone, and a card of at most 344 on it. */
+    --container-link-question: 27.375rem;
+    --container-link-question-phone: 21.5rem;
+
     /* The column a Settings section is read in, beside its navigation, and the measure its own explanatory sentences
        stop at inside that column. A wide window gains margin rather than line length, as the reading pane does. */
     --container-settings: 47.5rem;

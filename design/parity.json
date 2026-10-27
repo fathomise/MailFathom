@@ -419,6 +419,34 @@
         }
       ]
     },
+    "mail-link-ask": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Tickets Kraków-Berlin 12.09"
+          }
+        },
+        {
+          "click": {
+            "text": "travel.example/checkin/7QX4MB"
+          }
+        },
+        {
+          "expect": {
+            "text": "Open this link?"
+          }
+        }
+      ]
+    },
     "calendar": {
       "file": "prototype.dc.html",
       "properties": {

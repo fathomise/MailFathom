@@ -13,11 +13,12 @@ namespace MailFathom.Application.Preferences;
 /// <param name="MessageView">Which of the three renderings an open message is drawn on.</param>
 /// <param name="AiFiltersShown">Whether the folder tree carries the standing views of what a derivation read in the mail.</param>
 /// <param name="NotificationSeconds">How long one of the client's own notifications stands before it takes itself away.</param>
+/// <param name="TrustedLinkDomains">The domains whose links, and the links of every subdomain of them, the client opens without asking first.</param>
 /// <remarks>
 /// <para>
-/// A closed set of eight rather than a settings service. Each of them says how somebody wants to work rather than what
+/// A closed set of nine rather than a settings service. Each of them says how somebody wants to work rather than what
 /// the screen in front of them is like, which is why they belong to the person and not to the browser profile or the
-/// desktop install they happened to set them in — and why a ninth is added when there is a ninth to add.
+/// desktop install they happened to set them in — and why a tenth is added when there is a tenth to add.
 /// </para>
 /// <para>
 /// Marking read is here rather than on the mail account for the reason
@@ -39,7 +40,7 @@ namespace MailFathom.Application.Preferences;
 /// That decision is theirs unless a settings policy takes it. The deployment's policy, or the policy of the
 /// organization they belong to, may force <see cref="TelemetryEnabled" /> on or off, and while one does the value
 /// held here is their own answer rather than the one applied: it is kept as they gave it, it decides nothing, and it
-/// applies again when no policy forces the switch. The other seven are never governed.
+/// applies again when no policy forces the switch. The other eight are never governed.
 /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0037-a-settings-policy-at-the-deployment-and-at-each-organization.md">ADR 0037</see>
 /// records the exception and what forcing the switch on owes the person it is about.
 /// </para>
@@ -52,8 +53,16 @@ public sealed record ClientPreferences(
     bool ExpandWholeThread,
     ClientMessageView MessageView,
     bool AiFiltersShown,
-    int NotificationSeconds)
+    int NotificationSeconds,
+    IReadOnlyList<TrustedLinkDomain> TrustedLinkDomains)
 {
+    /// <summary>The most domains one person's list of trusted link domains may hold.</summary>
+    /// <remarks>
+    /// Enough for the sites somebody opens all day, and few enough that the question stays the ordinary answer: a list
+    /// long enough to need searching is one nobody reads before adding to it.
+    /// </remarks>
+    public const int MostTrustedLinkDomains = 50;
+
     /// <summary>The shortest a notification may be asked to stand for.</summary>
     /// <remarks>A second is long enough to read a title and reach the control on it, and shorter than that is a notification nobody can act on rather than a preference.</remarks>
     public const int ShortestNotificationSeconds = 1;
@@ -86,8 +95,9 @@ public sealed record ClientPreferences(
     /// The standing views are drawn, because they are a section of the tree somebody turns off rather than one they
     /// go looking for, and a deployment deriving nothing answers each of them as a list with nothing in it.
     /// A notification stands for five seconds, which is what the client's own toast has always stood for — so a
-    /// deployment nobody has asked behaves as it did before this preference existed.
+    /// deployment nobody has asked behaves as it did before this preference existed. No link domain is trusted, so
+    /// every link that leaves the client asks first until the person says which sites they open all day.
     /// </remarks>
     public static ClientPreferences Unset { get; } =
-        new(true, ClientThemeChoice.System, false, true, false, ClientMessageView.Reduced, true, 5);
+        new(true, ClientThemeChoice.System, false, true, false, ClientMessageView.Reduced, true, 5, []);
 }

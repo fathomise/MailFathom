@@ -1109,3 +1109,20 @@ test('keeps the telemetry answer it holds through a preferences write that state
     expect(written).toMatchObject({ telemetryEnabled: false, theme: 'dark' });
     expect(ask(deployment, 'GET', '/preferences')).toMatchObject({ telemetryEnabled: false, theme: 'dark' });
 });
+
+test('keeps the trusted link domains it holds through a preferences write that states none', () => {
+    const deployment = new FakeDeployment('0.0.0');
+
+    ask(deployment, 'POST', '/preferences', { ...fixtures.clientPreferences, trustedLinkDomains: ['example.com'] });
+
+    // The client never states the list, so every write it makes is this one.
+    const withoutTheList: Record<string, unknown> = { ...fixtures.clientPreferences, theme: 'dark' };
+
+    delete withoutTheList['trustedLinkDomains'];
+
+    expect(ask(deployment, 'POST', '/preferences', withoutTheList)).toMatchObject({
+        trustedLinkDomains: ['example.com'],
+        theme: 'dark',
+    });
+    expect(ask(deployment, 'GET', '/preferences')).toMatchObject({ trustedLinkDomains: ['example.com'] });
+});

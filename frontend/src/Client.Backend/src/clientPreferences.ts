@@ -59,7 +59,22 @@ export interface ClientPreferences {
      * setting the deployment quietly disagrees with.
      */
     readonly notificationSeconds: number;
+
+    /**
+     * The domains whose links, and the links of every subdomain of them, open without the client asking first.
+     *
+     * Each is a lowercase ASCII name, an internationalized one in its punycode form, which is how the deployment
+     * normalized it and how a browser spells a link's host — so a link is held against the list without either side
+     * being converted. No screen edits it yet; the deployment's own route is where it is set.
+     */
+    readonly trustedLinkDomains: readonly string[];
 }
+
+/** The most domains a list of trusted link domains holds, which is the deployment's own bound. */
+export const mostTrustedLinkDomains = 50;
+
+/** The longest a trusted link domain can be, which is the longest name the domain name system resolves. */
+const longestTrustedLinkDomain = 253;
 
 /** The shortest a notification may be asked to stand for, which is the deployment's own bound. */
 export const shortestNotificationSeconds = 1;
@@ -82,16 +97,17 @@ export const unsetClientPreferences: ClientPreferences = {
     messageView: 'reduced',
     aiFiltersShown: true,
     notificationSeconds: 5,
+    trustedLinkDomains: [],
 };
 
 /**
  * The most of one preferences answer this package reads before refusing it.
  *
- * The document is eight scalars, so this is far above anything the deployment will legitimately send and far below
- * anything worth buffering. It is the same order the write route bounds its request body at, for the same reason:
- * what the bound guards against is an answer that was never a preferences document.
+ * The document is eight scalars and a list of at most fifty domain names, so this is above anything the deployment
+ * will legitimately send and far below anything worth buffering. It is the bound the write route reads its request
+ * body to, for the same reason: what the bound guards against is an answer that was never a preferences document.
  */
-export const longestPreferencesAnswer = 4_096;
+export const longestPreferencesAnswer = 16_384;
 
 /** Reads what the signed-in person set about their own client, answering an expected failure as a value. */
 export function readClientPreferences(
@@ -111,22 +127,29 @@ export function readClientPreferences(
 }
 
 /**
- * What a write states: the whole document, with the telemetry switch stated only as the person's own answer.
+ * What a write states: every preference but the trusted link domains, with the telemetry switch stated only as the
+ * person's own answer.
  *
  * `telemetryEnabled` is `null` wherever the value a caller holds is not one the person gave it. A read answers the
  * switch as it is applied, which under a settings policy is the policy's answer rather than theirs — so a caller that
  * sent back what it read would state the policy's answer as the person's, and the deployment would keep it for them
- * after the policy is gone. Stating nothing leaves what the deployment holds for them exactly as it is, which is the
- * one preference whose omission is not its unset answer.
+ * after the policy is gone. Stating nothing leaves what the deployment holds for them exactly as it is. The trusted
+ * link domains are the other preference whose omission is not its unset answer, and this type leaves them out.
  */
-export type StatedClientPreferences = Omit<ClientPreferences, 'telemetryEnabled'> & {
+export type StatedClientPreferences = Omit<ClientPreferences, 'telemetryEnabled' | 'trustedLinkDomains'> & {
     readonly telemetryEnabled: boolean | null;
 };
 
+// The trusted list is never stated, whatever a caller hands over. No control edits it, so the client has nothing of
+// the person's to say about it, and the deployment keeps what it holds for a write that says nothing — where restating
+// a list this session never read, or read before it changed, would erase one set through the deployment's own route.
+const unstated = new Set(['trustedLinkDomains']);
+
 /**
- * States the whole document, and answers with what is now stored.
+ * States every preference but the trusted link domains, and answers with what is now stored — the list included,
+ * which the route keeps for a write that says nothing about it.
  *
- * The whole of it rather than the part that changed, because that is what the route accepts: a preference the body
+ * Every other one rather than the part that changed, because that is what the route accepts: a preference the body
  * omits is committed as its own unset answer rather than left at whatever the row held. A caller therefore sends back
  * what it last read with one value replaced, which is also why nothing here merges anything — and states the
  * telemetry switch only where {@link StatedClientPreferences} says it may.
@@ -142,7 +165,9 @@ export function writeClientPreferences(
                 method: 'POST',
                 path: routeFor(session, clientPreferencesRoute),
                 headers: { ...headersFor(session), 'Content-Type': 'application/json' },
-                body: JSON.stringify(stated),
+                body: JSON.stringify(
+                    Object.fromEntries(Object.entries(stated).filter(([preference]) => !unstated.has(preference))),
+                ),
                 longestAnswer: longestPreferencesAnswer,
             }),
         );
@@ -189,8 +214,12 @@ function parsePreferences(body: string): ClientPreferences | null {
     const messageView = record['messageView'];
     const aiFiltersShown = record['aiFiltersShown'];
     const notificationSeconds = record['notificationSeconds'];
+    // Absent is an answer from a replica built before the list existed, which a rolling upgrade puts beside one built
+    // after it. It holds no list to report, so it reads as the unset one; refusing it would leave the screen on a
+    // document of nothing but defaults for every other preference too.
+    const trustedLinkDomains = record['trustedLinkDomains'] ?? unsetClientPreferences.trustedLinkDomains;
 
-    if (!isNotificationTime(notificationSeconds)) {
+    if (!isNotificationTime(notificationSeconds) || !isTrustedLinkDomainList(trustedLinkDomains)) {
         return null;
     }
 
@@ -217,7 +246,25 @@ function parsePreferences(body: string): ClientPreferences | null {
         messageView,
         aiFiltersShown,
         notificationSeconds,
+        trustedLinkDomains,
     };
+}
+
+// Bounded the way the deployment bounds it, and checked as lowercase ASCII because that is the form both the list and a
+// link's host are compared in: an entry in any other form would match no link, and a screen trusting it would be
+// trusting nothing while saying it trusts something.
+function isTrustedLinkDomainList(value: unknown): value is readonly string[] {
+    return (
+        Array.isArray(value) &&
+        value.length <= mostTrustedLinkDomains &&
+        value.every(
+            (domain) =>
+                typeof domain === 'string' &&
+                domain.length > 0 &&
+                domain.length <= longestTrustedLinkDomain &&
+                /^[a-z0-9.-]+$/.test(domain),
+        )
+    );
 }
 
 function isThemePreference(value: unknown): value is ClientThemePreference {

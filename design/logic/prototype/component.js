@@ -4119,6 +4119,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         ovAsk97: this.ovAskStyle(97, isMobile),
         ovAsk98: this.ovAskStyle(98, isMobile),
         ovAsk99: this.ovAskStyle(99, isMobile),
+        /* The link question is a modal dialog in the client, and a modal dialog covers the whole screen, the bottom bar
+           included, so on the phone it is centred on the full screen rather than above the bar. */
+        ovAskCover99: this.ovAskStyle(99, isMobile).replace("top:0;left:0;right:0;bottom:" + this.barH() + "px", "inset:0"),
         dlgFormWide: isMobile
           ? "width:100%;height:100%;display:flex;flex-direction:column;background:var(--panel);overflow:auto"
           : "width:460px;max-width:100%;max-height:" + dlgMaxH + ";display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 22px 52px var(--sh-3);overflow:auto",

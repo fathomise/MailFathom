@@ -8,7 +8,7 @@ import type { MailDocumentLink } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import { LinksNotOpened } from './linksNotOpened';
 import { MessageLink } from './MessageLink';
-import { LinkOpenerContext, type OpenLink } from '../shellOperations/linkOpener';
+import { LinkOpenerContext, type FollowedLink, type OpenLink } from '../shellOperations/linkOpener';
 
 const honest: MailDocumentLink = {
     target: 'https://example.invalid/offer',
@@ -95,9 +95,9 @@ describe('MessageLink', () => {
     });
 
     it('asks for the link to be opened out of the application rather than letting the document navigate', () => {
-        const asked: string[] = [];
-        drawing(honest, (target) => {
-            asked.push(target);
+        const asked: FollowedLink[] = [];
+        drawing(honest, (link) => {
+            asked.push(link);
 
             return Promise.resolve();
         });
@@ -107,7 +107,65 @@ describe('MessageLink', () => {
         const followed = fireEvent.click(screen.getByRole('link', { name: 'example.invalid' }));
 
         expect(followed).toBe(false);
-        expect(asked).toEqual(['https://example.invalid/offer']);
+        expect(asked).toEqual([
+            { target: 'https://example.invalid/offer', picture: false, words: 'example.invalid', warnings: [] },
+        ]);
+    });
+
+    it('hands the question the warnings it drew beside the link, so they are read again before it opens', () => {
+        const asked: FollowedLink[] = [];
+        drawing({ ...honest, deception: 'DisplayedHostDiffers', worthWarningAbout: true }, (link) => {
+            asked.push(link);
+
+            return Promise.resolve();
+        });
+
+        fireEvent.click(screen.getByRole('link', { name: 'example.invalid' }));
+
+        expect(asked.map((link) => link.warnings)).toEqual([
+            ['This link does not go where its words say. It goes to example.invalid.'],
+        ]);
+    });
+
+    it('says a picture was pressed where the link is drawn around one', () => {
+        const asked: FollowedLink[] = [];
+        const banner = 'Hotel banner';
+
+        render(
+            <LocalizationProvider>
+                <LinkOpenerContext
+                    value={(link) => {
+                        asked.push(link);
+
+                        return Promise.resolve();
+                    }}
+                >
+                    <MessageLink link={honest}>
+                        <img alt={banner} src="data:," />
+                    </MessageLink>
+                </LinkOpenerContext>
+            </LocalizationProvider>,
+        );
+
+        fireEvent.click(screen.getByRole('img', { name: banner }));
+
+        expect(asked.map((link) => link.picture)).toEqual([true]);
+    });
+
+    it('answers a middle press the way it answers a click, and leaves the right button to the browser', () => {
+        const asked: FollowedLink[] = [];
+        drawing(honest, (link) => {
+            asked.push(link);
+
+            return Promise.resolve();
+        });
+        const anchor = screen.getByRole('link', { name: 'example.invalid' });
+
+        fireEvent(anchor, new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 2 }));
+        const middle = fireEvent(anchor, new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 }));
+
+        expect(middle).toBe(false);
+        expect(asked.map((link) => link.target)).toEqual(['https://example.invalid/offer']);
     });
 
     it('says so when the link could not be opened, rather than appearing to have done nothing', async () => {

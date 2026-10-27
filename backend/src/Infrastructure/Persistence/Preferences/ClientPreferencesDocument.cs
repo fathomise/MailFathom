@@ -17,6 +17,7 @@ namespace MailFathom.Infrastructure.Persistence.Preferences;
 /// <param name="MessageView">Which of the three renderings they chose a message to open on, or nothing where they never chose.</param>
 /// <param name="AiFiltersShown">What they said about the tree carrying the standing views, or nothing where they never said.</param>
 /// <param name="NotificationSeconds">How long they asked a notification to stand for, or nothing where they never asked.</param>
+/// <param name="TrustedLinkDomains">The domains they trust the links to, as normalized names, or nothing where they never listed any.</param>
 /// <remarks>
 /// <para>
 /// Sparse, and every member is therefore optional: a key the document does not carry reads as that preference's own
@@ -43,7 +44,8 @@ internal sealed record ClientPreferencesDocument(
     bool? ExpandWholeThread,
     ClientMessageView? MessageView,
     bool? AiFiltersShown,
-    int? NotificationSeconds)
+    int? NotificationSeconds,
+    IReadOnlyList<string>? TrustedLinkDomains)
 {
     /// <summary>How the column is written and read, which is fixed here rather than inherited from a host's own options.</summary>
     /// <remarks>
@@ -74,7 +76,8 @@ internal sealed record ClientPreferencesDocument(
             preferences.ExpandWholeThread,
             preferences.MessageView,
             preferences.AiFiltersShown,
-            preferences.NotificationSeconds);
+            preferences.NotificationSeconds,
+            [.. preferences.TrustedLinkDomains.Select(static domain => domain.Name)]);
 
         return JsonSerializer.Serialize(document, StoredFormat);
     }
@@ -104,6 +107,24 @@ internal sealed record ClientPreferencesDocument(
             // read as the unset answer rather than handed to a client that would draw a control it cannot reach.
             document.NotificationSeconds is { } stated && ClientPreferences.IsUsableNotificationTime(stated)
                 ? stated
-                : ClientPreferences.Unset.NotificationSeconds);
+                : ClientPreferences.Unset.NotificationSeconds,
+            StoredDomains(document.TrustedLinkDomains));
+    }
+
+    // Read again on the way out for the reason the notification time is: a row this build did not check may hold an
+    // entry it would refuse, and such an entry is dropped rather than trusted. Dropping is safe in the one direction
+    // that matters, since a domain missing from the list only means a link to it asks first.
+    private static IReadOnlyList<TrustedLinkDomain> StoredDomains(IReadOnlyList<string>? stored)
+    {
+        TrustedLinkDomain[] domains =
+        [
+            .. (stored ?? [])
+                .Select(static written => TrustedLinkDomain.TryRead(written ?? string.Empty, out var domain, out _) ? domain : null)
+                .OfType<TrustedLinkDomain>()
+                .DistinctBy(static domain => domain.Name)
+                .Take(ClientPreferences.MostTrustedLinkDomains),
+        ];
+
+        return domains.Length == 0 ? ClientPreferences.Unset.TrustedLinkDomains : domains;
     }
 }

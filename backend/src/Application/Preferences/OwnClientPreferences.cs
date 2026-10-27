@@ -60,24 +60,24 @@ public sealed class OwnClientPreferences
         return stored ?? ClientPreferences.Unset;
     }
 
-    /// <summary>Reads the answer the signed-in person stored for the telemetry switch, for a write that carries it forward rather than deciding it.</summary>
+    /// <summary>Reads what the signed-in person stored, for a write that carries some of it forward rather than deciding it.</summary>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
-    /// <returns>The stored answer, or the unset one where they have set nothing.</returns>
+    /// <returns>What they stored, or <see cref="ClientPreferences.Unset" /> where they have set nothing.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller acts for no user, or its grant omits <see cref="MailFathomPermission.ProfileWrite" />.</exception>
     /// <exception cref="System.Text.Json.JsonException">Thrown when the stored row is not a document of preferences.</exception>
     /// <remarks>
     /// Asked under the writing grant, because it is a step of the write: the document is replaced whole, so a write
-    /// that may not decide the switch has to state the answer already stored. No permission implies another, and a
-    /// caller holding the writing grant alone would otherwise be refused an ordinary save by a read they never asked
-    /// for. It hands back the one value such a write restates and nothing else of the document.
+    /// that may not decide the telemetry switch, or that says nothing about the trusted link domains, has to state
+    /// what is already stored for them. No permission implies another, and a caller holding the writing grant alone
+    /// would otherwise be refused an ordinary save by a read they never asked for.
     /// </remarks>
-    public async Task<bool> ReadTelemetryAnswerToCarryAsync(CancellationToken cancellationToken)
+    public async Task<ClientPreferences> ReadToCarryAsync(CancellationToken cancellationToken)
     {
         this.authorization.RequirePermission(MailFathomPermission.ProfileWrite);
 
         var stored = await this.store.ReadAsync(this.authorization.RequireUser(), cancellationToken);
 
-        return (stored ?? ClientPreferences.Unset).TelemetryEnabled;
+        return stored ?? ClientPreferences.Unset;
     }
 
     /// <summary>Replaces what the signed-in person set about their own client.</summary>

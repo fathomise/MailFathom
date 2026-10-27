@@ -28,3 +28,10 @@ export const mannerDrawn: Readonly<Record<Manner, string>> = {
     act: 'rounded-md bg-accent px-4 py-2 text-base font-semibold text-on-accent transition hover:opacity-90',
     destroy: 'rounded-md bg-error px-4 py-2 text-base font-semibold text-on-accent transition hover:opacity-90',
 };
+
+/**
+ * The `back` way out as the design draws it in a short question standing on the panel: an outline with no fill of its
+ * own, so the one filled control beside it is the act.
+ */
+export const backOutlined =
+    'rounded-md border border-line-strong px-3.75 py-2 text-base text-text-soft transition hover:bg-hover';

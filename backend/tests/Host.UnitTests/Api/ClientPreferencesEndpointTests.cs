@@ -31,7 +31,7 @@ public sealed class ClientPreferencesEndpointTests
     private const string ForcingOff = """{"Users":{"Forced":{"ClientPreferences":{"TelemetryEnabled":false}}}}""";
 
     private static readonly ClientPreferences Chosen =
-        new(false, ClientThemeChoice.Dark, true, false, true, ClientMessageView.Cleaned, false, 12);
+        new(false, ClientThemeChoice.Dark, true, false, true, ClientMessageView.Cleaned, false, 12, []);
 
     [Fact]
     public async Task ReadAsync_APersonWhoHasSetSomething_HandsThemWhatTheySet()
@@ -152,7 +152,7 @@ public sealed class ClientPreferencesEndpointTests
         // Assert
         await store.Received(1).SaveAsync(
             SyntheticUser.Deployment,
-            new ClientPreferences(true, ClientThemeChoice.Light, false, true, false, ClientMessageView.Reduced, true, 5),
+            new ClientPreferences(true, ClientThemeChoice.Light, false, true, false, ClientMessageView.Reduced, true, 5, []),
             Arg.Any<CancellationToken>());
     }
 
@@ -519,7 +519,7 @@ public sealed class ClientPreferencesEndpointTests
         Assert.Equal("Deployment", preferences.TelemetryHeldBy);
     }
 
-    /// <summary>Only the switch is governed: the seven preferences beside it are answered as the person set them, whoever holds the switch.</summary>
+    /// <summary>Only the switch is governed: the eight preferences beside it are answered as the person set them, whoever holds the switch.</summary>
     [Fact]
     public async Task ReadAsync_APolicyForcingTelemetry_AnswersEveryOtherPreferenceAsThePersonSetIt()
     {
@@ -536,9 +536,10 @@ public sealed class ClientPreferencesEndpointTests
         // Assert
         var preferences = Assert.IsType<Ok<ClientPreferencesResponse>>(result.Result).Value!;
 
-        Assert.Equal(
+        Assert.Equivalent(
             ClientPreferencesResponse.For(Chosen) with { TelemetryEnabled = true, TelemetryHeldBy = "Deployment" },
-            preferences);
+            preferences,
+            strict: true);
     }
 
     /// <summary>
@@ -622,7 +623,7 @@ public sealed class ClientPreferencesEndpointTests
 
     /// <summary>
     /// A client sends back the whole document it read, so a write under a force states the forced value. It passes,
-    /// commits the other seven, answers the value in force, and leaves the person's own answer where it was.
+    /// commits the other eight, answers the value in force, and leaves the person's own answer where it was.
     /// </summary>
     [Fact]
     public async Task SaveAsync_AWriteStatingTheForcedAnswer_CommitsTheRestAndLeavesThePersonsOwnAnswerAsItWas()
@@ -725,6 +726,121 @@ public sealed class ClientPreferencesEndpointTests
             (store.Stored!.TelemetryEnabled, store.Stored.MarkReadOnOpen, answered.TelemetryEnabled));
     }
 
+    /// <summary>A person's list is stored as the names a browser compares, each once, and answered back as stored.</summary>
+    [Fact]
+    public async Task SaveAsync_ABodyListingTrustedLinkDomains_StoresAndAnswersThemNormalizedOnce()
+    {
+        // Arrange
+        var store = Holding(ClientPreferences.Unset);
+
+        // Act
+        var result = await ClientPreferencesEndpoint.SaveAsync(
+            SignedIn(store),
+            Acting(),
+            Serving(),
+            new ClientPreferencesRequest(TrustedLinkDomains: ["Nordwind.Example", "bücher.example", "nordwind.example"]),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var answered = Assert.IsType<Ok<ClientPreferencesResponse>>(result.Result).Value!;
+        string[] expected = ["nordwind.example", "xn--bcher-kva.example"];
+
+        Assert.Equal(expected, store.Stored!.TrustedLinkDomains.Select(static domain => domain.Name));
+        Assert.Equal(expected, answered.TrustedLinkDomains);
+    }
+
+    /// <summary>No control in the client edits the list, so a write that says nothing about it keeps the stored one rather than erasing it.</summary>
+    [Fact]
+    public async Task SaveAsync_ABodyStatingNoTrustedLinkDomains_KeepsTheStoredList()
+    {
+        // Arrange
+        var stored = ClientPreferences.Unset with { TrustedLinkDomains = [Trusted("nordwind.example")] };
+        var store = Holding(stored);
+
+        // Act
+        var result = await ClientPreferencesEndpoint.SaveAsync(
+            SignedIn(store),
+            Acting(),
+            Serving(),
+            new ClientPreferencesRequest(Theme: "dark"),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var answered = Assert.IsType<Ok<ClientPreferencesResponse>>(result.Result).Value!;
+
+        Assert.Equal(["nordwind.example"], store.Stored!.TrustedLinkDomains.Select(static domain => domain.Name));
+        Assert.Equal(["nordwind.example"], answered.TrustedLinkDomains);
+    }
+
+    /// <summary>An empty list is a statement, and it is the one that empties a stored list.</summary>
+    [Fact]
+    public async Task SaveAsync_ABodyStatingAnEmptyList_EmptiesTheStoredList()
+    {
+        // Arrange
+        var store = Holding(ClientPreferences.Unset with { TrustedLinkDomains = [Trusted("nordwind.example")] });
+
+        // Act
+        await ClientPreferencesEndpoint.SaveAsync(
+            SignedIn(store),
+            Acting(),
+            Serving(),
+            new ClientPreferencesRequest(TrustedLinkDomains: []),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(store.Stored!.TrustedLinkDomains);
+    }
+
+    /// <summary>One bad entry refuses the whole save, naming where it is, so nobody is told their list was stored and handed back a shorter one.</summary>
+    [Fact]
+    public async Task SaveAsync_ABodyListingAnEntryThatIsNoDomain_RefusesNamingItsPosition()
+    {
+        // Arrange
+        var store = Substitute.For<IClientPreferencesStore>();
+
+        // Act
+        var result = await ClientPreferencesEndpoint.SaveAsync(
+            SignedIn(store),
+            Acting(),
+            Serving(),
+            new ClientPreferencesRequest(TrustedLinkDomains: ["nordwind.example", "https://nordwind.example/billing"]),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var refusal = Assert.IsType<ProblemHttpResult>(result.Result);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
+        Assert.StartsWith("Trusted link domain 2 carries a scheme", refusal.ProblemDetails.Detail!, StringComparison.Ordinal);
+
+        await store.DidNotReceive()
+            .SaveAsync(Arg.Any<UserId>(), Arg.Any<ClientPreferences>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SaveAsync_ABodyListingMoreDomainsThanTheListHolds_IsRefused()
+    {
+        // Arrange
+        var store = Substitute.For<IClientPreferencesStore>();
+        var listed = Enumerable.Range(0, ClientPreferences.MostTrustedLinkDomains + 1)
+            .Select(static index => $"site{index}.example")
+            .ToArray();
+
+        // Act
+        var result = await ClientPreferencesEndpoint.SaveAsync(
+            SignedIn(store),
+            Acting(),
+            Serving(),
+            new ClientPreferencesRequest(TrustedLinkDomains: listed),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var refusal = Assert.IsType<ProblemHttpResult>(result.Result);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
+        await store.DidNotReceive()
+            .SaveAsync(Arg.Any<UserId>(), Arg.Any<ClientPreferences>(), Arg.Any<CancellationToken>());
+    }
+
     /// <summary>How the transport reads a body, so the binding these assert is the one a request actually meets.</summary>
     private static JsonSerializerOptions WebFormat => new(JsonSerializerDefaults.Web);
 
@@ -745,6 +861,9 @@ public sealed class ClientPreferencesEndpointTests
         new ServedUser(SyntheticUser.Deployment, "alex", []) { ForcedClientTelemetry = forced });
 
     private static RememberedPreferences Holding(ClientPreferences stored) => new() { Stored = stored };
+
+    private static TrustedLinkDomain Trusted(string name) =>
+        TrustedLinkDomain.TryRead(name, out var domain, out _) ? domain : throw new ArgumentException(name, nameof(name));
 
     /// <summary>One person's preferences held in memory, so a test can read back what a write left.</summary>
     private sealed class RememberedPreferences : IClientPreferencesStore

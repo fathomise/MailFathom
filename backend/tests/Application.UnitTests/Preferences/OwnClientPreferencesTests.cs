@@ -20,7 +20,7 @@ namespace MailFathom.Application.UnitTests.Preferences;
 public sealed class OwnClientPreferencesTests
 {
     private static readonly ClientPreferences Chosen =
-        new(false, ClientThemeChoice.Dark, true, false, true, ClientMessageView.Cleaned, false, 12);
+        new(false, ClientThemeChoice.Dark, true, false, true, ClientMessageView.Cleaned, false, 12, []);
 
     [Fact]
     public async Task ReadAsync_APersonWhoHasSetSomething_AnswersWhatTheySet()
@@ -148,30 +148,30 @@ public sealed class OwnClientPreferencesTests
             .SaveAsync(Arg.Any<UserId>(), Arg.Any<ClientPreferences>(), Arg.Any<CancellationToken>());
     }
 
-    /// <summary>The answer a write carries forward is a step of the write, so it is read under the writing grant and under no other.</summary>
+    /// <summary>What a write carries forward is a step of the write, so it is read under the writing grant and under no other.</summary>
     [Fact]
-    public async Task ReadTelemetryAnswerToCarryAsync_ACallerGrantedOnlyReadingTheirProfile_IsRefused()
+    public async Task ReadToCarryAsync_ACallerGrantedOnlyReadingTheirProfile_IsRefused()
     {
         // Arrange
         var preferences = ReachedBy(Substitute.For<IClientPreferencesStore>(), MailFathomPermission.ProfileRead);
 
         // Assert
         await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(
-            () => preferences.ReadTelemetryAnswerToCarryAsync(TestContext.Current.CancellationToken));
+            () => preferences.ReadToCarryAsync(TestContext.Current.CancellationToken));
     }
 
-    /// <summary>Somebody who has set nothing has stored no refusal, so the answer carried forward is the unset one.</summary>
+    /// <summary>Somebody who has set nothing has stored nothing to carry, so what is carried forward is the unset document.</summary>
     [Fact]
-    public async Task ReadTelemetryAnswerToCarryAsync_ACallerWhoHasSetNothing_AnswersTheUnsetAnswer()
+    public async Task ReadToCarryAsync_ACallerWhoHasSetNothing_AnswersTheUnsetDocument()
     {
         // Arrange
         var preferences = ReachedBy(Substitute.For<IClientPreferencesStore>(), MailFathomPermission.ProfileWrite);
 
         // Act
-        var carried = await preferences.ReadTelemetryAnswerToCarryAsync(TestContext.Current.CancellationToken);
+        var carried = await preferences.ReadToCarryAsync(TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(ClientPreferences.Unset.TelemetryEnabled, carried);
+        Assert.Equal(ClientPreferences.Unset, carried);
     }
 
     /// <summary>What somebody set about their own client is not mail, so the grant that reads mail reads none of it.</summary>

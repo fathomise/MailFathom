@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Icon } from '../controls/Icon';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
-import { useLinkOpener } from '../shellOperations/linkOpener';
+import { useLinkOpener, type FollowedLink } from '../shellOperations/linkOpener';
 import { linkScript, measuringScript } from './frameScripts';
 
 // The one file in this client that writes an `iframe`'s `srcDoc`, and the only place a message's own markup is drawn
@@ -238,16 +238,16 @@ function useFollowedLinks(frame: RefObject<HTMLIFrameElement | null>): boolean {
                 return;
             }
 
-            const target = followableTargetIn(event.data);
+            const followed = followedLinkIn(event.data);
 
-            if (target !== null) {
+            if (followed !== null) {
                 setRefused(false);
 
                 // The desktop head's opener can genuinely reject — an unregistered scheme, no handler, an operating
                 // system that refused — and a press that then does nothing is the defect this whole surface exists to
                 // remove wearing a different face. So the failure is drawn, in the same sentence a link in the reading
                 // pane draws it in.
-                void openLink(target).catch(() => {
+                void openLink(followed).catch(() => {
                     setRefused(true);
                 });
             }
@@ -263,20 +263,36 @@ function useFollowedLinks(frame: RefObject<HTMLIFrameElement | null>): boolean {
     return refused;
 }
 
-/** What a report names, or nothing where it names no target this application may open. */
-function followableTargetIn(reported: unknown): string | null {
+/**
+ * What a report names, or nothing where it names no target this application may open.
+ *
+ * The words and the picture flag are read with the same distrust as the target: words that are not a string, or longer
+ * than any address a person reads, are taken as no words at all, which only means the question has nothing to compare.
+ * Nothing the frame says about the link can make it ask less — the question rests on the target alone — so the frame
+ * reporting no warnings is no way past it.
+ */
+function followedLinkIn(reported: unknown): FollowedLink | null {
     if (typeof reported !== 'object' || reported === null || !('link' in reported)) {
         return null;
     }
 
     const { link } = reported;
+    const words = 'words' in reported ? reported.words : null;
+    const picture = 'picture' in reported && reported.picture === true;
 
     if (typeof link !== 'string' || link.length === 0 || link.length > longestTarget) {
         return null;
     }
 
     try {
-        return followableSchemes.includes(new URL(link).protocol) ? link : null;
+        return followableSchemes.includes(new URL(link).protocol)
+            ? {
+                  target: link,
+                  picture,
+                  words: typeof words === 'string' && words.length <= longestTarget ? words : null,
+                  warnings: [],
+              }
+            : null;
     } catch {
         // A relative reference resolves against nothing here, exactly as it does in the framed document, so it names
         // no place a reader could be taken to.

@@ -18,6 +18,15 @@ import * as messages from './fixtures/messages';
 // reaches, what the built bundle puts in the document, what it fetches from a sender and when, and the policy it all
 // runs under.
 
+// Nothing in the corpus is on the reader's trusted list, so every link that leaves for the web asks first, naming
+// where it goes; a reader who meant to go there says so, and only then does anything open.
+async function answerOpen(page: Page, host: string): Promise<void> {
+    const asked = page.getByRole('alertdialog', { name: 'Open this link?' });
+
+    await expect(asked).toContainText(host);
+    await asked.getByRole('button', { name: 'Open link' }).click();
+}
+
 test('issues every request to the origin it was served from and to no other', async ({ page }) => {
     const origins = new Set<string>();
 
@@ -75,6 +84,7 @@ test('leaves the application when a link is followed rather than navigating it',
     const opening = page.waitForEvent('popup');
 
     await page.getByRole('link', { name: 'example.invalid' }).click();
+    await answerOpen(page, 'offers.invalid');
 
     // A new browsing context is what the web head does with a link, and the application is still the application: a
     // WebView that navigated here would have replaced it, which is the whole reason the shell owns the desktop half.
@@ -165,6 +175,7 @@ test('opens a link the sender wrote out of the application, and navigates nothin
     // The press lands on the `span` inside the anchor rather than on the anchor, which is where a real one lands and
     // is what the script inside the frame reads the tree upwards for.
     await frame.getByText('Read the offers').click();
+    await answerOpen(page, 'offers.invalid');
 
     // `window.open` with `noopener` gives the new context no opener, so it arrives on the context rather than as this
     // page's popup. That it arrives at all is half the assertion: a frame granting no popup and no top navigation
@@ -253,6 +264,7 @@ test('reads mail, the sender own markup, its pictures, and its links under a pol
     const opened = page.context().waitForEvent('page');
 
     await page.frameLocator(`iframe[title="${markupFrame}"]`).getByText('Read the offers').click();
+    await answerOpen(page, 'offers.invalid');
     await (await opened).close();
 
     expect(violations).toStrictEqual([]);
@@ -335,6 +347,7 @@ test('fits the embedded original to the height its document reports, and opens i
     const opened = page.context().waitForEvent('page');
 
     await page.frameLocator(`iframe[title="${markupFrame}"]`).getByText('Read the offers').click();
+    await answerOpen(page, 'offers.invalid');
 
     const context = await opened;
 
