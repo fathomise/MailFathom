@@ -23,7 +23,8 @@ namespace MailFathom.Domain.Emails.Authentication;
 /// one server the account trusts, which is the only party in the chain that observed the connection; everything it
 /// records was read back out of that header. The second runs only where no such statement was available, and verifies
 /// the message's own DKIM signatures against the keys their domains publish — a cryptographic identity reached from the
-/// stored bytes and one DNS lookup. Neither reading evaluates an SPF policy, computes an organizational domain,
+/// stored bytes, the key lookup, and the walk for the displayed domain's DMARC record. Neither reading evaluates an
+/// SPF policy, computes an organizational domain,
 /// consults a public suffix list, or reasons from a <c>Received</c> chain.
 /// </para>
 /// <para>
@@ -123,9 +124,9 @@ public sealed record SenderAuthentication
     /// </para>
     /// <para>
     /// <see cref="AuthorAuthenticationOutcome.Failed" /> comes from <see cref="DmarcOutcome.Fail" /> alone, and it ends
-    /// the question rather than falling through to that second route: the receiving server reached it with the displayed
-    /// domain's own published policy in hand, so it outranks an identity comparison made here without one. Every other
-    /// DMARC result leaves the second route open, which is how most mail actually arrives.
+    /// the question rather than falling through to any of the three routes: the receiving server reached it with the
+    /// displayed domain's own published policy in hand, so it outranks an identity comparison made here without one.
+    /// Every other DMARC result leaves the aligned routes open, which is how most mail actually arrives.
     /// </para>
     /// </remarks>
     public AuthorAuthenticationOutcome AuthorAuthentication { get; }

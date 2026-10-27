@@ -57,6 +57,17 @@ public sealed class DmarcRecordTests
             names.Select(static name => name.NormalizedValue));
     }
 
+    /// <summary>A domain written with another script's full stop is walked over the labels its comparison form holds.</summary>
+    [Fact]
+    public void DiscoveryNames_IdeographicFullStops_ListsEveryParentInLowerCaseAscii()
+    {
+        // Act
+        var names = DmarcRecord.DiscoveryNames(DomainOf("mail。bank．test"));
+
+        // Assert
+        Assert.Equal(["mail.bank.test", "bank.test", "test"], names.Select(static name => name.Value));
+    }
+
     /// <summary>A name of eight or more labels is walked from seven, so no domain costs more than eight lookups.</summary>
     [Theory]
     [InlineData("a.b.c.d.e.f.g.test", 8)]

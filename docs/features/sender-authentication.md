@@ -156,7 +156,8 @@ held** — the first of these, in this order, where several do:
   narrows that relation and never widens it: `adkim=s` keeps only a signature for exactly the displayed domain.
 - **`AlignedSpf`: an SPF identity that passed on the same branch of the naming tree**, by the same relation. It still
   reads as authenticated, but SPF authenticates whoever handed the message over, and a shared relay or provider
-  satisfies it for everybody using it — so the route is recorded for what reads the author to tell it apart.
+  satisfies it for everybody using it — so the route is recorded, and [no list](#what-the-list-is-held-against)
+  recognizes an author established this way alone.
 
 Every identity the trusted header reported as passing is compared, so a delivery provider's signature listed first
 cannot hide the author's own listed after it, and the domain the author is established as is the **displayed** one
@@ -170,8 +171,8 @@ because discarding a refusal over a missing property would turn a warning into s
 `From` field does not carry is read as not reported. The first result that counts is the answer, except that a
 counting `fail` beside a counting `pass` reads as a failure.
 
-**`dmarc=fail` is the only route to a failure**, and it ends the question rather than falling through to the second
-route: the receiving server reached it with the displayed domain's own policy in hand, which is more than a comparison
+**`dmarc=fail` is the only route to a failure**, and it ends the question rather than falling through to any of the
+three routes: the receiving server reached it with the displayed domain's own policy in hand, which is more than a comparison
 made here without one. Everything else that establishes nothing is *not established* instead — an identity belonging to
 somebody else, a sibling under a shared parent, a message displaying no usable domain, a header nothing trusted could
 be read from. A DKIM signature that did not verify is among them: it says nothing about the author, because the
@@ -237,8 +238,8 @@ interesting ones. That is not a misconfiguration anybody can repair from this si
 the fact.
 
 **DKIM is the one check that is fully answerable after delivery.** The signature is in the stored bytes and verifying it
-needs one DNS lookup of the key its domain publishes, so MailFathom verifies it itself where nothing trusted was
-written. SPF is not attempted and no `Received`-chain heuristic stands in for it: SPF authenticates an envelope sender
+needs one DNS lookup of the key its domain publishes, and whether it is the author's needs the displayed domain's
+DMARC record, so MailFathom verifies it itself where nothing trusted was written. SPF is not attempted and no `Received`-chain heuristic stands in for it: SPF authenticates an envelope sender
 against a connecting address, and after delivery there is neither. Nor is a DMARC result produced, because that needs
 SPF as well.
 
@@ -337,8 +338,11 @@ identity happened to authenticate.** Both of the alternatives are forgeries wait
   would recognize every message it ever relays, whoever it says wrote them.
 
 What establishes an author is [the conclusion above](#whether-the-displayed-author-authenticated), and the list is held
-against its answer and nothing else. A message whose author was not established, and one whose author authentication
-failed, both reach *unknown* without the list being consulted at all; which of the two it was stays where it was
+against its answer and nothing else — and only where the route was a DMARC `pass` or an aligned DKIM signature. An
+author aligned only through SPF (`AlignedSpf`) is still authenticated and still shown as such, but SPF vouches for the
+server that handed the message over rather than for what it carries, so a forwarded or rewritten message would arrive
+recognized under an author who never signed it. A message whose author was not established, one aligned only through
+SPF, and one whose author authentication failed all reach *unknown* without the list being consulted at all; which of the two it was stays where it was
 recorded, on the authentication verdict. [Organization membership](#a-colleague-in-the-receiving-accounts-organization)
 is the one exception, because what it proves is the author's address rather than a domain.
 
@@ -410,8 +414,8 @@ person sends from the first to the second is the least suspicious mail in the ma
 The addresses are what the accounts state: each account's IMAP user name where it is an address, and the address an
 account that configures a submission endpoint sends as (`Delivery:FromAddress`). They are held against an
 **authenticated author** exactly as an address entry on [the trusted-sender list](#the-trusted-sender-list) is: the
-author's domain was established — by a trusted DMARC result, a DKIM or SPF identity matching the displayed domain, or a
-locally verified DKIM signature naming it — and `From` shows exactly that address. Where nothing authenticated the
+author's domain was established by a trusted DMARC `pass` or an aligned DKIM signature, reported or verified locally —
+never by SPF alone — and `From` shows exactly that address. Where nothing authenticated the
 author, `From` is not evidence and the owner's address in it recognizes nothing; what such a match rests on, and what it
 does not establish, is what the address entry below states.
 

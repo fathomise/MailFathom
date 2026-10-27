@@ -118,6 +118,27 @@ public sealed class DnsDmarcRecordResolverTests
         Assert.Equal(DkimAlignmentMode.Relaxed, answer.Record?.DkimAlignment);
     }
 
+    /// <summary>A record past the size bound is never parsed, so its name reads as holding none and the walk goes on.</summary>
+    [Fact]
+    public async Task ResolveAsync_RecordPastTheSizeBound_ReadsAsNoRecordThereAndKeepsWalking()
+    {
+        // Arrange
+        var strictRecord = "v=DMARC1; p=reject; adkim=s; rua=";
+        var oversized = strictRecord + new string('x', DnsDkimPublicKeyRecordResolver.MaximumRecordLength - strictRecord.Length + 1);
+        var lookup = LookupAnswering(new Dictionary<string, IDnsQueryResponse>
+        {
+            ["_dmarc.bank.example.test"] = Records(oversized),
+            ["_dmarc.example.test"] = Records("v=DMARC1; p=none; adkim=r"),
+        });
+
+        // Act
+        var answer = await CreateResolver(lookup).ResolveAsync(DomainOf("bank.example.test"), CancellationToken.None);
+
+        // Assert
+        Assert.Equal(DkimAlignmentMode.Relaxed, answer.Record?.DkimAlignment);
+        Assert.Equal(["_dmarc.bank.example.test", "_dmarc.example.test"], QueriedNames(lookup));
+    }
+
     /// <summary>A server failure ends the walk unread, since a parent's record might not be the one that governs.</summary>
     [Fact]
     public async Task ResolveAsync_ServerFailure_EndsTheWalkAsNotReadable()

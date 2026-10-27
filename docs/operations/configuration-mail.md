@@ -114,9 +114,9 @@ holds.
 
 `TrustedSenders` and `TrustOwnAccountDomains` are the second half of that: they decide whether a message's author is
 somebody this deployment recognizes, which is a separate question from what was established about them. Both lists are
-held against an **authenticated author** — the domain a trusted DMARC result or a matching DKIM or SPF identity
-established for the `From` header, or, where no server wrote a verdict, a locally verified DKIM signature naming that
-same domain — and never against the raw header, so naming a correspondent here cannot be exploited by writing their
+held against an **authenticated author** — the domain a trusted DMARC `pass` or an aligned DKIM signature established
+for the `From` header, reported by the trusted server or, where no server wrote a verdict, verified locally — and never
+against the raw header or an author aligned only through SPF, so naming a correspondent here cannot be exploited by writing their
 address into a message. Most legitimate mail stays unknown and that is the
 intended outcome: the claim is that this deployment does not know the author, not that the message is suspicious.
 One thing is recognized with nothing configured: an authenticated author whose `From` is exactly one of the owner's own

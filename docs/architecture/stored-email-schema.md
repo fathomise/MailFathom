@@ -119,7 +119,8 @@ all of its mail. What reads the verdict is the arriving message's own presentati
 so a join per row would buy a nullable association nothing is ever without.
 
 Every enum column carries a database default naming what was true of a row written before it existed —
-`NotEstablished`, `None`, `NotReported`, `NotEstablished` again for the author, and `ReceivingServer` for the source,
+`NotEstablished`, `None`, `NotReported`, `NotEstablished` again for the author, `None` for the author's route, and
+`ReceivingServer` for the source,
 since every row written before this deployment verified anything itself came from the trusted-header reading whatever
 it found — so the migration that adds a column fills every stored message in rather than leaving a value nothing
 wrote. A domain column takes no default and is simply

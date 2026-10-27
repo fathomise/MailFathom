@@ -54,15 +54,20 @@ public sealed record DmarcRecord(DkimAlignmentMode DkimAlignment)
     /// A domain of eight or more labels is shortened to its last seven before the parents are walked, so the walk asks
     /// for at most eight names whatever the message displays. It ends at the first name holding a record; the caller
     /// stops there, and at the first name that could not be read.
+    /// <para>
+    /// Every name is cut from the A-label form a comparison reads, written in lower case as DNS names usually are, so a
+    /// domain displayed with another script's full stop is split into the same labels the comparison sees.
+    /// </para>
     /// </remarks>
+    [SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "The names are asked of DNS and compared as SenderDomain, never as these strings; they are ASCII by this point, where the two casings are a bijection, and lower case is how a queried name is written.")]
     public static IReadOnlyList<SenderDomain> DiscoveryNames(SenderDomain fromDomain)
     {
-        var labels = fromDomain.Value.Split('.');
+        var labels = fromDomain.NormalizedValue.ToLowerInvariant().Split('.');
         var firstParentLength = Math.Min(labels.Length - 1, LongestWalkedName);
 
         return
         [
-            fromDomain,
+            DomainOf(labels),
             .. Enumerable.Range(1, firstParentLength)
                 .Reverse()
                 .Select(length => DomainOf(labels[^length..])),

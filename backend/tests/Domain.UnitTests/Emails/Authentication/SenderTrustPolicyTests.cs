@@ -253,11 +253,9 @@ public sealed class SenderTrustPolicyTests
         Assert.Equal(SenderTrustLevel.Trusted, trust.Level);
     }
 
-    /// <summary>Without DMARC, an identity that authenticated as the displayed author establishes them all the same.</summary>
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void Evaluate_IdentityMatchingTheDisplayedAuthorWithoutDmarc_RecognizesTheAuthor(bool throughDkim)
+    /// <summary>Without DMARC, a DKIM signature aligned with the displayed author establishes them all the same.</summary>
+    [Fact]
+    public void Evaluate_AlignedDkimWithoutDmarc_RecognizesTheAuthor()
     {
         // Arrange
         var policy = SenderTrustPolicy.Create(
@@ -269,8 +267,8 @@ public sealed class SenderTrustPolicyTests
         // Act
         var trust = policy.Evaluate(
             SenderAuthentication.Authenticated(
-                throughDkim ? [DomainOf("partner.example")] : [DomainOf("relay.example")],
-                throughDkim ? [] : [DomainOf("partner.example")],
+                [DomainOf("partner.example")],
+                spfDomains: [],
                 DomainOf("partner.example"),
                 DmarcOutcome.NotReported,
                 DmarcRecordLookup.NotPublished),
@@ -278,6 +276,33 @@ public sealed class SenderTrustPolicyTests
 
         // Assert
         Assert.Equal(SenderTrustLevel.Trusted, trust.Level);
+        Assert.Equal(SenderTrustSource.ConfiguredTrustedSender, trust.GrantedBy);
+    }
+
+    /// <summary>An author aligned only through SPF is authenticated, and still recognized by no list.</summary>
+    [Fact]
+    public void Evaluate_AuthorAlignedOnlyThroughSpf_LeavesTheMessageUnknown()
+    {
+        // Arrange
+        var policy = SenderTrustPolicy.Create(
+            [AddressOf("alice@partner.example")],
+            [DomainOf("partner.example")],
+            [DomainEntry("partner.example", includeSubdomains: false)],
+            storedTrustedSenders: []);
+        var authentication = SenderAuthentication.Authenticated(
+            [DomainOf("relay.example")],
+            [DomainOf("partner.example")],
+            DomainOf("partner.example"),
+            DmarcOutcome.NotReported,
+            DmarcRecordLookup.NotPublished);
+
+        // Act
+        var trust = policy.Evaluate(authentication, AddressOf("alice@partner.example"));
+
+        // Assert
+        Assert.Equal(AuthorAuthenticationRoute.AlignedSpf, authentication.AuthorAuthenticationRoute);
+        Assert.Equal(SenderTrustLevel.Unknown, trust.Level);
+        Assert.Equal(SenderTrustSource.None, trust.GrantedBy);
     }
 
     /// <summary>A message whose author was authenticated and whom nobody named is the ordinary answer.</summary>

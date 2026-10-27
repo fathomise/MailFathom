@@ -131,8 +131,14 @@ public sealed class SenderTrustPolicy
     /// provider ever relays, whoever it says wrote them.
     /// </para>
     /// <para>
-    /// So a message whose author was not established, and one whose author authentication the receiving server refused,
-    /// both reach <see cref="SenderTrustLevel.Unknown" /> without the list being consulted at all, unless organization
+    /// <b>Only an author established by <see cref="AuthorAuthenticationRoute.DmarcPass" /> or
+    /// <see cref="AuthorAuthenticationRoute.AlignedDkim" /> is held against the lists.</b> An author aligned only through
+    /// SPF is still authenticated, but SPF vouches for the server that handed the message over rather than for its
+    /// content, so a forwarded or rewritten message would carry a recognized author it was never signed by.
+    /// </para>
+    /// <para>
+    /// So a message whose author was not established, one aligned only through SPF, and one whose author authentication
+    /// the receiving server refused all reach <see cref="SenderTrustLevel.Unknown" /> without the list being consulted at all, unless organization
     /// membership was proved as stated above. Which of the two it
     /// was stays on <see cref="SenderAuthentication.AuthorAuthentication" />, where it was recorded, because this
     /// verdict answers only about the list.
@@ -154,7 +160,8 @@ public sealed class SenderTrustPolicy
             return SenderTrust.TrustedAsOrganizationMember(organizationVerification.ReceivingOrganizationId, revision);
         }
 
-        if (authentication.AuthenticatedAuthorDomain is not { } authorDomain)
+        if (authentication.AuthenticatedAuthorDomain is not { } authorDomain
+            || authentication.AuthorAuthenticationRoute is not (AuthorAuthenticationRoute.DmarcPass or AuthorAuthenticationRoute.AlignedDkim))
         {
             return SenderTrust.Unknown(revision);
         }
