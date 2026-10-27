@@ -2867,11 +2867,11 @@ Project repository: https://github.com/fathomise/MailFathom
 
   <sc-if value="{{ ctxMenuOpen }}" hint-placeholder-val="{{ false }}">
     <div data-motion="scrim" data-phase="{{ mo.ctxMenu }}" onClick="{{ closeCtxMenu }}" onContextMenu="{{ closeCtxMenu }}" style="position:fixed;inset:0;z-index:98;background:var(--scrim)">
-      <div data-motion="pop" data-phase="{{ mo.ctxMenu }}" onClick="{{ stopProp }}" style="{{ ctxMenuStyle }}">
+      <div data-motion="pop" data-phase="{{ mo.ctxMenu }}" data-ctx-menu role="menu" aria-label="{{ ctxMenuTitle }}" onClick="{{ stopProp }}" style="{{ ctxMenuStyle }}">
         <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);padding:4px 12px 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">{{ ctxMenuTitle }}</div>
         <sc-if value="{{ ctxMenuHasDetail }}" hint-placeholder-val="{{ false }}"><div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint);padding:0 12px 6px;margin-top:-4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ctxMenuDetail }}</div></sc-if>
         <sc-for list="{{ ctxMenuItems }}" as="cm" hint-placeholder-count="4">
-          <div onClick="{{ cm.run }}" style="{{ cm.style }}" style-hover="cursor:pointer;background:var(--hover)">
+          <div role="menuitem" tabIndex="-1" onClick="{{ cm.run }}" onKeyDown="{{ cm.key }}" style="{{ cm.style }}" style-hover="cursor:pointer;background:var(--hover)" style-focus="outline:2px solid var(--accent);outline-offset:-2px">
             <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;width:24px;text-align:center">{{ cm.icon }}</span>{{ cm.label }}
           </div>
         </sc-for>

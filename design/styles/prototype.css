@@ -49,6 +49,7 @@ input { font-family: inherit; }
 [data-fathom-fab]:hover { transform: translateY(-1px); background: color-mix(in oklch, var(--accent) 88%, black);
   box-shadow: 0 1px 0 color-mix(in oklch, white 22%, transparent) inset, 0 10px 24px var(--sh-2), 0 1px 3px var(--sh-1); }
 [data-fathom-fab]:active { transform: scale(0.96); }
-[data-fathom-fab]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 /* Open, or Smart on: a ring in the accent stands off the disc, so the button reads as the way out. */
 [data-fathom-fab][aria-expanded="true"], [data-fathom-fab][data-smart-on="1"] { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent), 0 6px 18px var(--sh-2); }
+/* Focus stands outside that ring in the ink, so a keyboard still sees where it is while the menu is open or Smart is on. */
+[data-fathom-fab]:focus-visible { outline: 2px solid var(--text); outline-offset: 8px; }

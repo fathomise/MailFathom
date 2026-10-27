@@ -116,9 +116,38 @@ MailFathomDesign.fathomUi = (() => {
       return comp ? { id: id, comp: comp, label: el.getAttribute("data-smart-label") || "", text: el.getAttribute("data-smart-text") || "", tid: el.getAttribute("data-smart-ref") || "" } : null;
     };
     self._smartPt = null;
+    self._smartKey = null;
+    /* Smart from the keyboard: Tab and Shift+Tab step through the components on screen in reading order, Enter or Space
+       opens the one outlined, and its menu takes the focus. */
+    const smartList = () => Array.from(document.querySelectorAll("[data-smart]")).filter(el => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight && !!smartOf(el);
+    });
+    const smartOutline = (el) => {
+      const s = smartOf(el);
+      self.setState({ smartHover: Object.assign({ id: s.id, name: s.comp.name, label: s.label }, smartRect(el)) });
+    };
+    const smartStep = (back) => {
+      const list = smartList();
+      if (!list.length) return;
+      const at = list.indexOf(self._smartKey);
+      const next = at < 0 ? (back ? list.length - 1 : 0) : (at + (back ? -1 : 1) + list.length) % list.length;
+      self._smartKey = list[next];
+      self._smartKey.scrollIntoView({ block: "nearest" });
+      smartOutline(self._smartKey);
+    };
+    const smartOpenKeyed = () => {
+      const el = self._smartKey;
+      const s = smartOf(el);
+      const r = smartRect(el);
+      const x = r.x + 12, y = r.y + Math.min(r.h, 44);
+      self.fathomMenuFor(s.comp.name, s.label || s.comp.what, s.comp.actions, { label: s.label || s.comp.name, text: s.text, tid: s.tid, x: x, y: y }, x, y);
+      setTimeout(() => { const first = document.querySelector("[data-ctx-menu] [role=menuitem]"); if (first) first.focus(); }, 0);
+    };
     self.onSmartMove = (e) => {
       if (!self.state.fathomSmart || self.state.ctxMenu) return;
-      if (e && e.clientX != null) self._smartPt = { x: e.clientX, y: e.clientY };
+      if (!e && self._smartKey && document.contains(self._smartKey)) { smartOutline(self._smartKey); return; }
+      if (e && e.clientX != null) { self._smartPt = { x: e.clientX, y: e.clientY }; self._smartKey = null; }
       const p = self._smartPt;
       if (!p) return;
       const hit = smartTarget(p.x, p.y);
@@ -145,10 +174,12 @@ MailFathomDesign.fathomUi = (() => {
     };
     self.onFathomKey = (e) => {
       const st = self.state;
+      if (st.fathomSmart && !st.ctxMenu && e.key === "Tab") { e.preventDefault(); smartStep(e.shiftKey); return; }
+      if (st.fathomSmart && !st.ctxMenu && (e.key === "Enter" || e.key === " ") && self._smartKey && document.contains(self._smartKey)) { e.preventDefault(); smartOpenKeyed(); return; }
       if (e.key === "Escape") {
         if (st.ctxMenu) return;
         if (st.fathomAnswer) self.setState({ fathomAnswer: null });
-        else if (st.fathomSmart) self.setState({ fathomSmart: false, smartHover: null });
+        else if (st.fathomSmart) { self._smartKey = null; self.setState({ fathomSmart: false, smartHover: null }); }
         else if (st.fathomMenu) self.setState({ fathomMenu: false });
         else if (st.catchupOpen) self.closeCatchup();
         return;
@@ -167,7 +198,7 @@ MailFathomDesign.fathomUi = (() => {
       ["pointerdown", "mousedown", "pointerup", "click"].forEach(t => window.addEventListener(t, self.onSmartPress, true));
       window.addEventListener("pointermove", self.onSmartMove, true);
       window.addEventListener("scroll", () => self.onSmartMove(null), true);
-      window.addEventListener("keydown", self.onFathomKey);
+      window.addEventListener("keydown", self.onFathomKey, true);
     }
   }
 
@@ -202,7 +233,7 @@ MailFathomDesign.fathomUi = (() => {
       fathomFabTitle: smartOn ? "Leave Smart" : st.fathomMenu ? "Close" : "Fathom - ask or act on what is on screen",
       fathomFabExpanded: !!st.fathomMenu,
       toggleFathom: () => {
-        if (self.state.fathomSmart) { self.setState({ fathomSmart: false, smartHover: null }); return; }
+        if (self.state.fathomSmart) { self._smartKey = null; self.setState({ fathomSmart: false, smartHover: null }); return; }
         self.setState(s => ({ fathomMenu: !s.fathomMenu, fathomAnswer: null }));
       },
       fathomFabSmart: smartOn ? "1" : "0",
@@ -217,14 +248,14 @@ MailFathomDesign.fathomUi = (() => {
       fathomRowStyle: rowStyle,
       fathomMenuStyle: "position:fixed;z-index:89;right:" + fabEdge + "px;bottom:" + (fabBottom + fabSize + 12) + "px;width:" + (isMobile ? "min(320px,calc(100% - 32px))" : "296px") + ";box-sizing:border-box;" +
         "display:flex;flex-direction:column;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px 6px;box-shadow:0 20px 46px var(--sh-3),0 2px 6px var(--sh-2)",
-      startSmart: () => self.setState({ fathomMenu: false, fathomSmart: true, smartHover: null }),
+      startSmart: () => { self._smartKey = null; self.setState({ fathomMenu: false, fathomSmart: true, smartHover: null }); },
       openAgentFromFathom: () => { self.setState({ fathomMenu: false }); self.goScreen("agent"); },
-      smartHint: isMobile ? "Tap anything for its actions" : touch ? "Tap anything to see what Fathom can do with it" : "Point at anything to see what Fathom can do with it",
+      smartHint: isMobile ? "Tap anything for its actions" : touch ? "Tap anything to see what Fathom can do with it" : "Point at anything, or Tab to it, to see what Fathom can do with it",
       smartOn,
       smartBarStyle: "position:fixed;z-index:87;left:50%;transform:translateX(-50%);top:" + (isMobile ? 10 : 14) + "px;display:flex;align-items:center;gap:10px;max-width:calc(100% - 24px);box-sizing:border-box;" +
         "background:var(--panel);border:1px solid var(--accent-line);border-radius:999px;box-shadow:0 10px 26px var(--sh-3);font-size:13px;color:var(--text2);" + (touch ? "padding:4px 4px 4px 14px;" : "padding:5px 5px 5px 14px;"),
-      smartDoneStyle: "display:inline-flex;align-items:center;justify-content:center;border-radius:999px;font-weight:600;color:var(--onaccent);background:var(--accent);white-space:nowrap;" + (touch ? "min-height:40px;padding:0 16px;font-size:14px;" : "min-height:30px;padding:0 13px;font-size:13px;"),
-      leaveSmart: () => self.setState({ fathomSmart: false, smartHover: null }),
+      smartDoneStyle: "display:inline-flex;align-items:center;justify-content:center;border-radius:999px;font-weight:600;color:var(--onaccent);background:var(--accent);white-space:nowrap;" + (touch ? "min-height:44px;min-width:64px;padding:0 18px;font-size:14px;" : "min-height:30px;padding:0 13px;font-size:13px;"),
+      leaveSmart: () => { self._smartKey = null; self.setState({ fathomSmart: false, smartHover: null }); },
       smartHoverShown: smartOn && !!st.smartHover,
       smartBoxStyle: (() => {
         const h = st.smartHover || { x: 0, y: 0, w: 0, h: 0 };

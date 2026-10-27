@@ -4895,6 +4895,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         ctxMenuItems: (st.ctxMenu ? st.ctxMenu.items : []).map(mi => ({
           icon: mi.icon, label: mi.label,
           run: () => { if (!this.ctxArmed()) return; this.setState({ ctxMenu: null }); if (mi.run) mi.run(); },
+          key: (e) => {
+            const items = Array.from(e.currentTarget.parentNode.querySelectorAll("[role=menuitem]"));
+            const at = items.indexOf(e.currentTarget);
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.setState({ ctxMenu: null }); if (mi.run) mi.run(); }
+            else if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); items[(at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus(); }
+            else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); this.setState({ ctxMenu: null }); }
+          },
           style: "display:flex;align-items:center;gap:11px;border-radius:8px;padding:0 12px;color:" + (mi.danger ? "var(--err-text)" : "var(--text)") +
             (touch ? ";min-height:48px;font-size:15px" : ";min-height:36px;font-size:14px"),
         })),

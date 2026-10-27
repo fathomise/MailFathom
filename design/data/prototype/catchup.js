@@ -14,7 +14,7 @@ MailFathomDesign.data.catchup = {
   range: "11-26 August",
   days: 16,
   reasons: {
-    away: { label: "16 days away", line: "You were last here on Monday 10 August, 16 days ago." },
+    away: { label: "16 days away", line: "You were last here on Monday 10 August, 17 days ago." },
     holiday: { label: "Holiday, 11-26 August", line: "Your calendar said Holiday from 11 to 26 August." },
   },
   slides: [

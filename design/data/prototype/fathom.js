@@ -111,8 +111,8 @@ MailFathomDesign.data.fathom = {
       { id: "agent", icon: "forum", label: "Talk it through", do: "agent", ctx: "this step" },
     ] },
     "start.watching": { name: "Watching", what: "the questions you keep", actions: [
-      { id: "moved", icon: "difference", label: "What moved since this morning?", do: "answer", line: "One answer moved: Contoso's terms - the cap is now the only open term. The other two read as they did at 08:12." },
-      { id: "refresh-all", icon: "refresh", label: "Refresh them all now", do: "toast", toast: "Three questions refreshed. Each counted against your allowance." },
+      { id: "moved", icon: "difference", label: "What moved since this morning?", do: "answer", line: "Two answers moved: Contoso's terms - the cap is now the only open term - and the office move, where facilities answered twice. The invoices and the Fabrikam sign-off read as they did at 08:12; the Q4 renewals question is paused." },
+      { id: "refresh-all", icon: "refresh", label: "Refresh them all now", do: "toast", toast: "Four questions refreshed, each counted against your allowance. The Q4 renewals question stays paused." },
     ] },
     "start.watch": { name: "Watching", what: "a watched question", actions: [
       { id: "changed", icon: "difference", label: "What changed?", do: "answer", line: "One new message from Contoso on 24 August moves the answer: the cap is now the only open term." },

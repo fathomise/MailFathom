@@ -77,9 +77,9 @@ MailFathomDesign.data.home.dayPlan = [
 // what they asked for, `days` how long it has waited (it fills the meter), `asked` how many times, `due` a date the
 // thread names.
 MailFathomDesign.data.home.waiting = [
+  { name: "Jacek Wrona", org: "Internal Audit", ask: "Send the IT contract register with its addenda", since: "7 days", days: 7, asked: 2, due: "due 3 September", tid: "audyt1" },
   { name: "Anna Kowalska", org: "Contoso", ask: "Send the counter-proposal on the 2027 terms", since: "2 days", days: 2, asked: 2, due: "due tomorrow", tid: "contoso" },
   { name: "Tomasz Bąk", org: "Fabrikam", ask: "Confirm a Q4 delivery date", since: "yesterday", days: 1, asked: 1, due: "", tid: "fabrikam1" },
-  { name: "Marta Nowak", org: "Finance", ask: "Look at the August calculation", since: "today", days: 0, asked: 1, due: "", tid: "marta" },
 ];
 
 // One step each, drawn with the Agent's proposal blocks and taken with one press that can be undone.
