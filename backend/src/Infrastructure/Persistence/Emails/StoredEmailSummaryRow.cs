@@ -207,61 +207,61 @@ internal sealed record StoredEmailSummaryRow(
     internal EmailSummary ToSummary(
         IReadOnlyDictionary<Guid, IReadOnlyList<string>> folderPaths,
         IReadOnlyDictionary<Guid, string> organizationNames) => new()
-    {
-        StoredEmailId = StoredEmailId.Create(this.Id),
-        Account = MailAccountId.Create(this.MailboxAccountId),
-        Folder = StoredMailFolderPaths.Describe(this.FolderId, this.FolderAlias, folderPaths),
-        ThreadId = this.ThreadId is { } threadId ? EmailThreadId.Create(threadId) : null,
-        InternetMessageId = this.InternetMessageId,
-        Subject = this.Subject,
-        SentAt = this.SentAt,
-        ReceivedAt = this.ReceivedAt,
-        SizeOctets = this.SizeOctets,
-        SenderDisplayName = this.SenderDisplayName,
-        SenderAddress = this.SenderAddress,
-        // A read-only view rather than the array itself, which a caller could cast back and write through.
-        ToAddresses = Array.AsReadOnly(this.ToAddresses),
-        Attachments = new StoredEmailAttachmentSummary(
-            this.AttachmentCount,
-            this.AttachmentTotalSizeOctets,
-            this.InlineResourceCount,
-            this.IsEncrypted,
-            this.CarriesUnverifiedSignature,
-            this.ContainsUnexpandedTnefPart),
-        ContentAvailability = this.ContentAvailability,
-        RemoteFlags = new RemoteEmailFlagSnapshot(
-            this.RemoteFlagsObservedAt,
-            this.IsRemotelySeen,
-            this.IsRemotelyAnswered,
-            this.IsRemotelyFlagged,
-            this.IsRemotelyDraft,
-            this.IsRemotelyDeleted,
-            // Rebuilt through the factory rather than wrapped, because the column is what an earlier build's
-            // normalization left behind and this one's rules are the ones a caller's filter is folded by.
-            RemoteEmailKeywords.Create(this.RemoteKeywords)),
-        SenderVerification = new SenderVerification
         {
-            AuthorAuthentication = this.AuthorAuthenticationOutcome,
-            DeploymentTrust = this.SenderTrustLevel,
-            DeploymentTrustGrantedBy = this.SenderTrustGrantedBy,
-            RecognizingOrganizationName = this.SenderTrustOrganizationId is { } organizationId
-                ? organizationNames.GetValueOrDefault(organizationId)
-                : null,
-            Signature = this.Signature.ToSignature(),
-        },
-        SenderAuthenticationEvidence = new SenderAuthenticationEvidence
-        {
-            AuthenticatedDomain = StoredDomain(this.AuthenticatedSenderDomain),
-            DisplayedAuthorDomain = StoredDomain(this.DisplayedAuthorDomain),
-            DkimDomain = StoredDomain(this.DkimSignerDomain),
-            SpfDomain = StoredDomain(this.SpfMailFromDomain),
-            AuthenticatedBy = this.SenderAuthenticationMethod,
-            Dmarc = this.DmarcOutcome,
-            Source = this.SenderAuthenticationSource,
-        },
-        MachineAuthorship = this.StoredAuthorship(),
-        Spam = this.StoredSpamVerdict(),
-    };
+            StoredEmailId = StoredEmailId.Create(this.Id),
+            Account = MailAccountId.Create(this.MailboxAccountId),
+            Folder = StoredMailFolderPaths.Describe(this.FolderId, this.FolderAlias, folderPaths),
+            ThreadId = this.ThreadId is { } threadId ? EmailThreadId.Create(threadId) : null,
+            InternetMessageId = this.InternetMessageId,
+            Subject = this.Subject,
+            SentAt = this.SentAt,
+            ReceivedAt = this.ReceivedAt,
+            SizeOctets = this.SizeOctets,
+            SenderDisplayName = this.SenderDisplayName,
+            SenderAddress = this.SenderAddress,
+            // A read-only view rather than the array itself, which a caller could cast back and write through.
+            ToAddresses = Array.AsReadOnly(this.ToAddresses),
+            Attachments = new StoredEmailAttachmentSummary(
+                this.AttachmentCount,
+                this.AttachmentTotalSizeOctets,
+                this.InlineResourceCount,
+                this.IsEncrypted,
+                this.CarriesUnverifiedSignature,
+                this.ContainsUnexpandedTnefPart),
+            ContentAvailability = this.ContentAvailability,
+            RemoteFlags = new RemoteEmailFlagSnapshot(
+                this.RemoteFlagsObservedAt,
+                this.IsRemotelySeen,
+                this.IsRemotelyAnswered,
+                this.IsRemotelyFlagged,
+                this.IsRemotelyDraft,
+                this.IsRemotelyDeleted,
+                // Rebuilt through the factory rather than wrapped, because the column is what an earlier build's
+                // normalization left behind and this one's rules are the ones a caller's filter is folded by.
+                RemoteEmailKeywords.Create(this.RemoteKeywords)),
+            SenderVerification = new SenderVerification
+            {
+                AuthorAuthentication = this.AuthorAuthenticationOutcome,
+                DeploymentTrust = this.SenderTrustLevel,
+                DeploymentTrustGrantedBy = this.SenderTrustGrantedBy,
+                RecognizingOrganizationName = this.SenderTrustOrganizationId is { } organizationId
+                    ? organizationNames.GetValueOrDefault(organizationId)
+                    : null,
+                Signature = this.Signature.ToSignature(),
+            },
+            SenderAuthenticationEvidence = new SenderAuthenticationEvidence
+            {
+                AuthenticatedDomain = StoredDomain(this.AuthenticatedSenderDomain),
+                DisplayedAuthorDomain = StoredDomain(this.DisplayedAuthorDomain),
+                DkimDomain = StoredDomain(this.DkimSignerDomain),
+                SpfDomain = StoredDomain(this.SpfMailFromDomain),
+                AuthenticatedBy = this.SenderAuthenticationMethod,
+                Dmarc = this.DmarcOutcome,
+                Source = this.SenderAuthenticationSource,
+            },
+            MachineAuthorship = this.StoredAuthorship(),
+            Spam = this.StoredSpamVerdict(),
+        };
 
     /// <summary>Reads the current display name of every organization the rows name.</summary>
     private static async Task<IReadOnlyDictionary<Guid, string>> ReadOrganizationNamesAsync(

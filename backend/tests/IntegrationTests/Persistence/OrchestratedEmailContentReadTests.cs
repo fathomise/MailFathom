@@ -194,7 +194,7 @@ public sealed class OrchestratedEmailContentReadTests(MailFathomOrchestrationFix
             (scope, token) => scope.GetRequiredService<IStoredEmailSummaryReader>().FindAsync(storedEmailId, token),
             cancellationToken);
 
-    private static Task UpdateOrganizationsAsync(
+    private static Task<int> UpdateOrganizationsAsync(
         OrchestratedMailFathomServices services,
         Func<IQueryable<OrganizationEntity>, CancellationToken, Task<int>> update,
         CancellationToken cancellationToken) => services.InScopeAsync(
