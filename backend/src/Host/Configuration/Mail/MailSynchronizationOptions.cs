@@ -910,11 +910,13 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
     /// defeated by the thing it is checking.
     /// </para>
     /// <para>
-    /// Which identifier is right is a property of who receives this account's mail rather than of MailFathom, so there
-    /// is nothing to default it to. Omitting it is an ordinary choice and not a misconfiguration: the account then
+    /// Which identifier is right is a property of who receives this account's mail rather than of MailFathom, so the
+    /// only default is the deployment's list of known authentication providers: omitting it makes the account believe
+    /// the server that list names for the account's IMAP host. Where the list has no entry for that host, the account
     /// believes no header at all and every message it holds carries the not-established verdict, which is also what a
-    /// deployment whose provider publishes no results sees. Configuring one afterwards changes what a later extraction
-    /// derives; the backfill is what re-derives the mail already stored.
+    /// deployment whose provider publishes no results sees. Either is an ordinary choice and not a misconfiguration, and
+    /// a value set here always wins over the list. Configuring one afterwards changes what a later extraction derives;
+    /// the backfill is what re-derives the mail already stored.
     /// </para>
     /// <para>
     /// It is compared without regard to case. A value that is present but unusable — blank, longer than a domain name,
@@ -1212,7 +1214,7 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
         if (!TrustedAuthenticationAuthority.TryCreate(this.TrustedAuthenticationServiceIdentifier, out _))
         {
             yield return new ValidationResult(
-                $"Account '{this.AccountId}': the trusted authentication service identifier must be a domain-shaped token of at most {TrustedAuthenticationAuthority.MaximumLength} characters, or be omitted so that the account believes no header.",
+                $"Account '{this.AccountId}': the trusted authentication service identifier must be a domain-shaped token of at most {TrustedAuthenticationAuthority.MaximumLength} characters, or be omitted so that the account believes the known authentication provider listed for its IMAP host, or no header where none is listed.",
                 [nameof(this.TrustedAuthenticationServiceIdentifier)]);
         }
 

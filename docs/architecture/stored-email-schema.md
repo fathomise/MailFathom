@@ -295,6 +295,10 @@ rather than a reference, so a removed entry leaves its record behind; `Act` is `
 (`ck_known_authentication_provider_changes_act`), and `ChangedBy` and `ChangedAt` say who and when. Nothing amends or
 deletes a row.
 
+`AddKnownAuthenticationProviders` seeds one entry, `imap.gmail.com` → `mx.google.com`, together with its `added` row in
+the change record, both recorded as added by `migration AddKnownAuthenticationProviders` at the moment the migration
+ran. The seed's identifiers are version 7 values dated before any entry a deployment adds, so it lists first.
+
 `settings_policies` holds [the settings policy](../operations/admin-endpoint.md#settings-policies) each scope states:
 at most one row for the deployment and one per organization. A scope that has stored none has no row, and reads as a
 policy stating nothing at version `0`.
