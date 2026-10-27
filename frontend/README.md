@@ -420,12 +420,15 @@ mailfathomFixtures.expiredSession = true; // the client asking for the password 
 mailfathomFixtures.unreachable = true; // the offline state, which is not an empty answer
 ```
 
-Two things about a run against the corpus are worth knowing before they read as defects. The grant is every permission
+Three things about a run against the corpus are worth knowing before they read as defects. The grant is every permission
 the client acts on rather than the reading-and-asking one the corpus states for the suites, so the composer, the filing
 controls and the flags are reachable. And three requests do not go through the transport — the picture a person is
 drawn by, the octets of a file a message carries, and the signal channel, each of which reaches the network in
 `deployment/` or opens a connection of its own — so they answer as a deployment that is not there, which every screen
 drawing one already has a state for. What the client's own telemetry export reports in the console is the same thing.
+Two of the inbox's messages answer their raw source in a state rather than at rest, so the parity loop can reach both:
+the second row's copy is gone and its source answers `404`, and the third row's source is never answered, so its
+skeleton stands until the surface is closed.
 
 [`tests/AGENTS.md`](tests/AGENTS.md) is where all four suites' policy is decided, including which check belongs to
 which, and where the corpus's own rules are.

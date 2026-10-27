@@ -12,7 +12,7 @@ import {
 import { Icon } from '../controls/Icon';
 import { SkeletonLines, type SkeletonLine } from '../controls/Skeleton';
 import { SurfaceControl } from '../controls/SurfaceControl';
-import { mannerDrawn } from '../confirmation/wayOutShapes';
+import { backOutlined } from '../confirmation/wayOutShapes';
 import type { MessageKey } from '../localization/en';
 import { sizeOf } from '../localization/octets';
 import { useLocalization } from '../localization/useLocalization';
@@ -178,7 +178,7 @@ function SourceBody({
                     {translate('source.failed', { reason: translate(failureLabels[result.failure.reason]) })}
                 </p>
 
-                <button type="button" className={mannerDrawn.back} onClick={onRetry}>
+                <button type="button" className={backOutlined} onClick={onRetry}>
                     {translate('connection.retry')}
                 </button>
             </div>
