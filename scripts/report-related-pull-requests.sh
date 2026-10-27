@@ -15,7 +15,8 @@
 # it exactly once, with every open pull request's paths as one "landed" list and this change's paths
 # as the "changed" one, then attributes each pair to the pull requests that touch its landed side. One
 # call is what keeps the cost flat however many pull requests are open: the index behind the relation
-# costs the same for two paths as for two thousand.
+# reads every page's marker once per call and starts the same handful of processes for two paths as
+# for two thousand.
 #
 # The `describes:` markers are read from this working tree, not from each open pull request's tree,
 # so a page an open pull request adds that describes a path changed here is not paired until it

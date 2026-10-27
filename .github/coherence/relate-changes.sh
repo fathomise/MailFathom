@@ -118,24 +118,64 @@ awk -F'\t' '
     return path
   }
 
-  function names(added, referrer, target,    text, name) {
+  # Every whole name the added lines of a referring file carry, recorded once so that a pair is a
+  # lookup rather than a scan of the whole text repeated for every pair. A name made of
+  # `[[:alnum:]_./-]` lies inside one run of those characters, and within a run the only character
+  # `mentions` accepts before a name is a slash and the only ones it accepts after are a dot and a
+  # slash. So the names are the substrings of the run that start where it does or after a slash, and
+  # end where it does or before a dot or a slash. A name with any other character is still searched
+  # for by `mentions`.
+  function record_names(line, side, file,
+                        runs, run_count, run_index, run, size, position,
+                        starts, start_count, ends, end_count, start, finish, name) {
+    run_count = split(line, runs, /[^[:alnum:]_.\/-]+/)
+    for (run_index = 1; run_index <= run_count; run_index++) {
+      run = runs[run_index]
+      size = length(run)
+      if (size == 0) continue
+      start_count = 0
+      end_count = 0
+      for (position = 1; position <= size; position++) {
+        if (position == 1 || substr(run, position - 1, 1) == "/") starts[++start_count] = position
+        if (position == size || substr(run, position + 1, 1) ~ /[.\/]/) ends[++end_count] = position
+      }
+      for (start = 1; start <= start_count; start++)
+        for (finish = 1; finish <= end_count; finish++)
+          if (ends[finish] >= starts[start]) {
+            name = substr(run, starts[start], ends[finish] - starts[start] + 1)
+            named[side SUBSEP file SUBSEP name] = 1
+          }
+    }
+  }
+
+  function mentioned(side, referrer, text, name) {
+    if (name ~ /^[[:alnum:]_.\/-]+$/) return (side SUBSEP referrer SUBSEP name) in named
+    return mentions(text, name)
+  }
+
+  function names(added, side, referrer, target,    text, name) {
     if (!(referrer in added) || !is_code(referrer) || is_test(referrer) || !is_code(target)) return 0
     text = added[referrer]
     name = file_name(target)
-    return mentions(text, target) || (name != target && file_name_count[name] == 1 && mentions(text, name))
+    return mentioned(side, referrer, text, target) \
+      || (name != target && file_name_count[name] == 1 && mentioned(side, referrer, text, name))
   }
 
   # Added lines only, from the hunks: a header line is never content, whatever it begins with.
   function read_added(line, side) {
     if (line ~ /^diff --git /) { in_header[side] = 1; current[side] = ""; return }
     if (in_header[side]) {
-      if (line ~ /^\+\+\+ b\//) current[side] = substr(line, 7)
+      if (line ~ /^\+\+\+ b\//) {
+        current[side] = substr(line, 7)
+        refers[side] = is_code(current[side]) && !is_test(current[side])
+      }
       else if (line ~ /^@@/) in_header[side] = 0
       return
     }
     if (current[side] != "" && line ~ /^\+/) {
       if (side == "landed") landed_added[current[side]] = landed_added[current[side]] substr(line, 2) "\n"
       else changed_added[current[side]] = changed_added[current[side]] substr(line, 2) "\n"
+      if (refers[side]) record_names(substr(line, 2), side, current[side])
     }
   }
 
@@ -160,9 +200,9 @@ awk -F'\t' '
           reason = "landed governs changed"
         } else if (governs(c, l)) {
           reason = "changed governs landed"
-        } else if (names(landed_added, l, c)) {
+        } else if (names(landed_added, "landed", l, c)) {
           reason = "landed names changed"
-        } else if (names(changed_added, c, l)) {
+        } else if (names(changed_added, "changed", c, l)) {
           reason = "changed names landed"
         }
         if (reason != "") print l "\t" c "\t" reason

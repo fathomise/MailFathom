@@ -158,7 +158,7 @@ Both scripts refuse to run on `main` or `master`. Check out your branch rather t
 
 The integration suite is not part of either script. It starts containers and is run deliberately, through `scripts/run-integration-tests.sh`, when a maintainer asks for it.
 
-Neither script answers the third question a change raises, so there is one more command, and it is thirteen seconds whatever your diff holds:
+Neither script answers the third question a change raises, so there is one more command, and it takes a few seconds whatever your diff holds:
 
 ```bash
 bash scripts/review-obligations.sh

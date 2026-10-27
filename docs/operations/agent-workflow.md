@@ -119,10 +119,10 @@ answers: not whether a changed line is correct, and not whether the build
 accepts it, but whether the change left the rest of the repository consistent
 with itself. [What the change obliges elsewhere](#what-the-change-obliges-elsewhere)
 describes what it indexes and why it asserts nothing. It gates nothing and costs
-about thirteen seconds — a fixed cost rather than a small one, since it is what
-an empty diff measures too — which is still an order below every other step here,
-so it belongs in the loop rather than in a checklist somebody reaches for when a
-change looks like it needs one.
+a few seconds, most of it the fixed cost of reading every page's marker, which an
+empty diff pays too — an order below every other step here, so it belongs in the
+loop rather than in a checklist somebody reaches for when a change looks like it
+needs one.
 
 Ask whether a client screen still looks like the design it was built from:
 
@@ -1419,8 +1419,8 @@ bash scripts/report-related-pull-requests.sh
 It reads the open pull requests to `main` and their changed paths in one `gh pr list` call, and runs
 `relate-changes.sh` once, with all of their paths as the landed side and the working tree's change
 against its merge base as the changed side. One call is what keeps the cost flat however many pull
-requests are open, since the index behind the relation costs the same for two paths as for two
-thousand. Each pair is attributed to the open pull requests that touch its landed side, and each of
+requests are open, since the index behind the relation reads every page's marker once per call and
+starts the same handful of processes for two paths as for two thousand. Each pair is attributed to the open pull requests that touch its landed side, and each of
 those gets one row: its link, its related paths, and every pair folded beneath them — its path,
 then the path here, and the relation with its direction stated from this change's side, such as
 *its page describes the path here*. The naming relation is read from this change's added lines
