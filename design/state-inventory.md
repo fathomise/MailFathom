@@ -301,9 +301,17 @@ reader first (*Waiting on you*, *Needs you today*), and raises what could hurt (
 part of it is also a component Fathom's *Smart* can point at, so whatever Start shows can be asked about or acted on
 where it stands.
 
-**Start has no title bar.** It opens on its header: the field, its suggestions, what is watched, and under them *Up
-next* and *One step each* — the most pressing things, within reach before the day is scrolled to. The header sits on
-`--panel` and ends in a hairline and a soft shadow, so it reads as one piece cut off from the day beneath it. Whether
+**Start has no title bar.** It opens on its header: the suggestions, the field, and what is watched. The header sits on
+`--panel`, ends in a hairline and a soft shadow, and stays put while the day scrolls under it, so the field and the
+watched questions are always within reach.
+
+**Start's edges run on one set of lines.** The header and the day share one frame (`framePad`: 28 px each side on two
+panes, 18 on the fold, 14 on a phone, and from 1180 px a frame 1240 px wide, 1760 from 1680 px, whose spare width stays
+on the right), so the field, the watched cards, the columns and every card in them start and end on the same lines.
+Inside it the watched cards take the day's columns — the two halves of the main column, then each aside — and *Up next*
+and *One step each* take those same two halves, so a vertical edge drawn once continues from the header to the bottom
+of the day. Both the header and the day reserve the scrollbar's gutter, so a window that draws one does not shift the
+day's right edge against the header's. Whether
 every account is up to date is not said on Start: it stands once, beside the profile in the rail (`railSyncLabel`,
 *Synced*), and under *Refresh* in the phone's *More* sheet. While an answer stands, a bar titled *Start* carries
 *Continue with the agent* and *Back to your day* (`hasRun`).
@@ -328,18 +336,11 @@ identifier, plan, model or spend, and an evidence entry carries no relevance sco
 
 | State | Flag | Reveal |
 |---|---|---|
-| The field and its suggestions | `searchWrapStyle`, `showAskChips` | always fixed at the top; idle, three questions as chips under the field, one row that scrolls sideways on a phone; a chip asks at once |
-| Watching | `watchBandStyle`, `watched` | idle, the first thing under the field, because a watched question is one asked there: an eye glyph, *Watching*, the count, *N answer(s) moved* in the accent when one did (`watchChangedAny`), and on two panes *refreshed when new mail matches · each refresh counts against your allowance*. Below, one card per question in a row that scrolls sideways (290 px each, 248 on a phone): the question in two lines at most, its state line, and × to stop watching (`w.stop`). Opening a card asks the question again |
+| The field and its suggestions | `searchWrapStyle`, `showAskChips` | always fixed at the top; idle, three questions as chips **above** the field, one row that scrolls sideways on a phone; a chip asks at once |
+| Watching | `watchBandStyle`, `watchedPage` | idle, under the field and behind a hairline, because a watched question is one asked there. A carousel (`role="region"`, `aria-roledescription="carousel"`): its head carries an eye glyph, *Watching*, the count, *N answer(s) moved* in the accent when one did (`watchChangedAny`), on two panes *refreshed when new mail matches · each refresh counts against your allowance*, then the page (*1–3 of 5*, `watchPageText`) and *Previous* and *Next*, which stay drawn and turn faint at either end. Under it one page of cards, a fixed number per width — four from 1680 px, three on two panes, two on the tablet and the fold, one on a phone — each the same size whatever its question (78 px tall, 92 under a finger): the question in two lines at most, × to stop watching (`w.stop`) in its corner, and the state line pinned to the foot on one line. A last page with fewer cards leaves its slots empty rather than widening them. Opening a card asks the question again |
 | A watched answer moved | `w.isChanged` | the seeded `changed` card — an accent edge, an accent dot, and a bold line naming what arrived; opening it settles it to *opened just now* |
 | A watched refresh paused | `w.isPaused` | the seeded `paused` card — a warning line naming when it resumes, because the allowance is spent |
 | Nothing watched | `noWatched` | every card stopped — a dashed hint: ask above, then press *Watch* on the answer, and the question stays here and refreshes when new mail matches it |
-| Up next | `nextUp` | the header's left half (`startBandStyle`, two equal columns from 1020 px, stacked below): the next meeting on an accent-edged card — its title, time, place and the thread behind it, the attendees as initials, and up to three facts rules read off the thread (`nextFacts`). *Prepare me*, *Open the thread*, *Open in Calendar*, and *Plan it with the agent*, which opens the Agent with the meeting as its context |
-| Being prepared | `prepBusy` | *Prepare me* — an `AI · preparing you for this meeting` well with three shimmer lines; *Prepare me* leaves the foot |
-| Prepared | `prepReady` | the prep arrives in the well: three sentences, headed `AI · what to know going in · from 6 messages and 1 attachment`, with an × that drops it (`dropPrep`) |
-| One step each | `startSteps`, `stepDeckNote` | the header's right half: a deck of the steps the Agent proposes (`HOME.steps`, each drawn by `bkView(…, "start")` and keyed `start#<n>`: a focus block, a task, a draft), one at a time, headed *One step each · N of M · a taken step leaves the deck* (no hint on a phone), with *Previous step* and *Next step* and a dot per step under the card. `role="region"`, `aria-roledescription="carousel"` |
-| A step taken | `bk.hasResult` | its primary control — *done* chip and result line, and a toast carrying *Undo*, which puts the step back to pending. The step stays where it is until the reader moves on, and then leaves the deck (`st.stepsGone`); undone, it comes back. A taken focus block reads *booked from Start* on *Your day* instead of *proposed below* |
-| A step declined | `bk.isDeclined` | *Decline* or *Discard* — it leaves the deck the same way |
-| Every step taken | `stepDeckEmpty` | the deck is empty — a dashed line with a `task_alt` glyph: *Every step is taken or declined. New ones arrive with new mail.* |
 
 ### The day
 
@@ -354,6 +355,13 @@ identifier, plan, model or spend, and an evidence entry carries no relevance sco
 | Heads up | `hasHeadsUp`, `headsUp` | at least one risk not marked safe — `HOME.headsUp`, raised by rules from the messages themselves, **most urgent first whatever its kind** (`rank`: how soon the harm lands), under *Today*. Each `--panel` card leads with its kind — *Deadline* in `--warn-text` or *Security* in `--err-text` — and the time left as a chip (*due tomorrow*, *before you pay · 29.08*), then the title, why it was raised, what to check, *Open the message*, *It is safe* (or *Dismiss* for a deadline), and the rule as a chip. Only the first card carries the warn edge and a warn tile; the rest stand plain, so the list says where to start without every card shouting. `role="alert"` |
 | A risk marked safe | `st.headsHidden` | *It is safe* or *Dismiss* — the card goes, and the toast carries *Undo* |
 | Nothing risky | `!hasHeadsUp` | every risk marked safe — the section is not drawn at all, so Start says nothing rather than *nothing to worry about* |
+| Up next | `nextUp` | always, under *Heads up* — the left half of one segment with *One step each* (`pairStyle`: two equal columns from 1180 px, stacked below). The two columns are one height: their heads stand on one line, their cards start on one line and end on one, and *Up next*'s actions sit at the foot of its card. The next meeting on an accent-edged card — its title, time, place and the thread behind it, the attendees as initials, and up to three facts rules read off the thread (`nextFacts`). *Prepare me*, *Open the thread*, *Open in Calendar*, and *Plan it with the agent*, which opens the Agent with the meeting as its context |
+| Being prepared | `prepBusy` | *Prepare me* — an `AI · preparing you for this meeting` well with three shimmer lines; *Prepare me* leaves the foot |
+| Prepared | `prepReady` | the prep arrives in the well: three sentences, headed `AI · what to know going in · from 6 messages and 1 attachment`, with an × that drops it (`dropPrep`) |
+| One step each | `startSteps`, `stepDeckNote` | the segment's right half: a deck of the steps the Agent proposes (`HOME.steps`, each drawn by `bkView(…, "start")` and keyed `start#<n>`: a focus block, a task, a draft), one at a time, headed *One step each · N of M* with a dot per step and *Previous step* and *Next step* in the head. **Every step in the deck is laid in the same cell** (`stepStackStyle`) and only the current one is visible, so the deck is as tall as its tallest step and stepping through it never moves what is below; the hidden ones are out of reach of the keyboard and the screen reader (`bk.away`). The step's foot sits at the foot of the card. `role="region"`, `aria-roledescription="carousel"` |
+| A step taken | `bk.hasResult` | its primary control — *done* chip and result line, and a toast carrying *Undo*, which puts the step back to pending. The step stays where it is until the reader moves on, and then leaves the deck (`st.stepsGone`); undone, it comes back. A taken focus block reads *booked from Start* on *Your day* instead of *proposed below* |
+| A step declined | `bk.isDeclined` | *Decline* or *Discard* — it leaves the deck the same way |
+| Every step taken | `stepDeckEmpty` | the deck is empty — a dashed line with a `task_alt` glyph: *Every step is taken or declined. New ones arrive with new mail.* |
 | Since you last looked | `sinceGroups` | always — what arrived since the reader last opened Start (*at 08:12 · 14 arrived · sorted by rules*), counted into three cells: *need you* (`--accent-soft`, *in Needs you today*), *to read when you like*, and *need nothing*, which carries *Archive the N*. Three columns on two panes, stacked on a phone |
 | Since: archived | `st.sinceArchived` | *Archive the N* — the cell dims and reads *archived*; the toast carries *Undo* |
 | Your day | `dayPlan` | always — the calendar and the tasks on one card, in time order: a past item struck and dimmed, a line marking *now*, the next meeting on `--accent-soft`, a task as a square dot, and a proposed slot as a dashed dot in italics. Each row opens Calendar or Tasks |

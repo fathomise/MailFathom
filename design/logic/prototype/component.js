@@ -3170,7 +3170,18 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const to = pos >= 0 ? pos + by : by > 0 ? before : before - 1;
         return { stepsGone: gone, stepAt: Math.max(0, Math.min(left.length - 1, to)) };
       });
-      const stepNav = (on) => "display:inline-flex;align-items:center;justify-content:center;border-radius:9px;border:1px solid var(--border2);color:" + (on ? "var(--text2)" : "var(--faint)") + ";font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;" +
+      /* Start's frame: the header and the day share one left and one right edge, so the field, the watched cards, the
+         columns and the cards in them all end on the same lines. Past the frame's width the space stays on the right. */
+      const frameX = isMobile ? 14 : narrow ? 18 : 28;
+      const frameMax = startWide ? 1760 : 1240;
+      const framePad = (top, bottom) => (isMobile || narrow || compact)
+        ? "padding:" + top + "px " + frameX + "px " + bottom + "px;"
+        : "padding:" + top + "px max(" + frameX + "px, calc(100% - " + (frameMax + frameX) + "px)) " + bottom + "px " + frameX + "px;";
+      const watchPer = isMobile ? 1 : (narrow || compact) ? 2 : startWide ? 4 : 3;
+      const watchList = st.watched || [];
+      const watchPages = Math.max(1, Math.ceil(watchList.length / watchPer));
+      const watchAt = Math.max(0, Math.min(watchPages - 1, st.watchAt || 0));
+      const stepNav = (on) => "display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;border-radius:9px;border:1px solid var(--border2);color:" + (on ? "var(--text2)" : "var(--faint)") + ";font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;" +
         (touch ? "width:44px;height:44px;font-size:22px;" : "width:30px;height:30px;font-size:19px;") + (on ? "" : "opacity:0.5;");
       const railW = compact ? 66 : 96;
       this._low = low;
@@ -4103,22 +4114,18 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         askLabel: touch ? "Ask" : "Ask ⏎",
         askBtnStyle: "font-size:13px;color:var(--onaccent);background:var(--accent);border-radius:8px;white-space:nowrap;box-sizing:border-box;display:flex;align-items:center;" +
           (touch ? "min-height:44px;padding:0 18px" : "padding:8px 16px"),
-        searchBoxStyle: "display:flex;align-items:center;gap:" + (isMobile ? 10 : 12) + "px;border:2px solid var(--accent);border-radius:12px;" + (touch ? "padding:6px 6px 6px 14px" : "padding:11px 14px") + (isMobile ? "" : narrow ? "" : compact ? ";max-width:780px" : ";max-width:1520px"),
+        searchBoxStyle: "display:flex;align-items:center;gap:" + (isMobile ? 10 : 12) + "px;border:2px solid var(--accent);border-radius:12px;" + (touch ? "padding:6px 6px 6px 14px" : "padding:11px 14px") + "",
         /* Start's header: the field, its suggestions and what is watched stay put; the band under them (Up next and
            one step each) scrolls with the day and shares their surface, so the header reads as one piece cut off from
            the day below. */
-        searchWrapStyle: (isMobile
-          ? "flex:0 0 auto;display:flex;flex-direction:column;gap:9px;padding:12px 14px;background:var(--panel);"
-          : "flex:0 0 auto;display:flex;flex-direction:column;gap:12px;padding:18px 26px 14px;background:var(--panel);") + (st.phase === "idle" ? "" : "border-bottom:1px solid var(--line)"),
-        idleStyle: "flex:1;display:flex;flex-direction:column;overflow:auto;min-height:0",
-        startBandStyle: "flex:0 0 auto;background:var(--panel);border-bottom:1px solid var(--line);box-shadow:0 6px 14px -12px var(--sh-3);" +
-          (isMobile ? "display:flex;flex-direction:column;gap:18px;padding:2px 14px 18px" : narrow ? "display:flex;flex-direction:column;gap:18px;padding:2px 18px 22px"
-            : "display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px 18px;align-items:start;box-sizing:border-box;padding:2px " + (compact ? "26px" : "max(26px, calc(100% - 1546px))") + " 24px 26px"),
-        startBodyStyle: isMobile
-          ? "display:flex;flex-direction:column;gap:22px;padding:20px 14px 28px"
+        searchWrapStyle: "flex:0 0 auto;position:relative;z-index:1;overflow:hidden;scrollbar-gutter:stable;background:var(--panel);border-bottom:1px solid var(--line);" + (st.phase === "idle" ? "box-shadow:0 6px 14px -12px var(--sh-3);" : ""),
+        searchInnerStyle: "display:flex;flex-direction:column;box-sizing:border-box;" + (isMobile ? "gap:10px;" + framePad(12, 12) : "gap:12px;" + framePad(16, 16)),
+        idleStyle: "flex:1;display:flex;flex-direction:column;overflow:auto;scrollbar-gutter:stable;min-height:0",
+        startBodyStyle: "box-sizing:border-box;" + (isMobile
+          ? "display:flex;flex-direction:column;gap:22px;" + framePad(20, 28)
           : narrow
-          ? "display:flex;flex-direction:column;gap:22px;padding:24px 18px 32px 18px"
-          : "display:flex;gap:34px;padding:28px 30px 40px 30px",
+          ? "display:flex;flex-direction:column;gap:22px;" + framePad(24, 32)
+          : "display:flex;gap:28px;" + framePad(26, 40)),
         idleTitleStyle: isMobile
           ? "font-size:24px;font-weight:600;letter-spacing:-0.015em;text-wrap:pretty"
           : "font-size:28px;font-weight:600;letter-spacing:-0.015em",
@@ -4257,14 +4264,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
            beside the day instead of below it; under that the two stand in one aside. */
         dayMainStyle: isMobile || narrow
           ? "display:flex;flex-direction:column;gap:22px;min-width:0"
-          : "flex:1;display:flex;flex-direction:column;gap:24px;min-width:0;max-width:" + (startWide ? 900 : 820) + "px",
+          : "flex:1;display:flex;flex-direction:column;gap:24px;min-width:0",
         dayAsideStyle: isMobile || narrow
           ? "display:flex;flex-direction:column;gap:22px;min-width:0"
           : startWide
-          ? "flex:0 0 auto;display:grid;grid-template-columns:340px 400px;gap:34px;align-items:start"
+          ? "flex:0 0 auto;display:grid;grid-template-columns:340px 400px;gap:28px;align-items:start"
           : "width:" + (compact ? 300 : 340) + "px;flex:0 0 " + (compact ? 300 : 340) + "px;display:flex;flex-direction:column;gap:22px",
         sectionHeadStyle: "display:flex;align-items:baseline;gap:9px",
-        sectionLabelStyle: "font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600",
+        sectionLabelStyle: "font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap",
 
         /* Up next: the facts stand by default; the prep is written by the model only on request. */
         nextUp: HOME.nextUp,
@@ -4283,8 +4290,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         openNextCal: () => this.goScreen("cal"),
         openNextThread: () => this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: HOME.nextUp.tid, cameFrom: false }),
         prepareWithAgent: () => this.goAgentWith("meeting “" + HOME.nextUp.title + "”"),
-        nextCardStyle: "display:flex;flex-direction:column;gap:12px;background:var(--panel);border:1px solid var(--accent-line);border-radius:14px;padding:" + (isMobile ? "14px" : "16px 18px") + ";box-shadow:0 1px 2px var(--sh-1),inset 0 1px 0 var(--inset)",
-        nextActsStyle: "display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line2);padding-top:12px",
+        /* Up next and one step each: one segment, two columns of one height whose heads, card tops and card bottoms
+           meet on the same lines; under two panes' width they stack. */
+        pairStyle: (isMobile || narrow || compact) ? "display:flex;flex-direction:column;gap:22px;min-width:0" : "display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:stretch;min-width:0",
+        pairColStyle: "display:flex;flex-direction:column;gap:10px;min-width:0",
+        pairHeadStyle: "display:flex;align-items:center;gap:9px;min-width:0;box-sizing:border-box;min-height:" + (touch ? 44 : 30) + "px",
+        nextCardStyle: "flex:1;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;background:var(--panel);border:1px solid var(--accent-line);border-radius:14px;padding:" + (isMobile ? "14px" : "16px 18px") + ";box-shadow:0 1px 2px var(--sh-1),inset 0 1px 0 var(--inset)",
+        nextActsStyle: "margin-top:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line2);padding-top:12px",
         nextBtn: BLK.btn(isMobile, false) + "width:auto;flex:0 0 auto;" + (touch ? "min-height:44px;" : ""),
         nextBtnPrimary: BLK.btn(isMobile, true) + "width:auto;flex:0 0 auto;" + (touch ? "min-height:44px;" : ""),
         avatarStyle: "display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;flex:0 0 26px;border-radius:50%;font-size:10.5px;font-weight:600;color:var(--text2);background:var(--rail);border:1px solid var(--line)",
@@ -4333,17 +4345,27 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* One step each: the Agent's proposal blocks with Start's controls - pressed, and undone from the toast. They
            stand as a deck, one at a time: a step taken or declined stays where it is with its result and Undo, and
            leaves the deck when the reader moves on. */
-        startSteps: stepDeck.slice(stepAt, stepAt + 1).map(i => this.bkView(HOME.steps[i], "start#" + i, isMobile, "start", touch)),
+        startSteps: stepDeck.map((i, k) => {
+          const v = this.bkView(HOME.steps[i], "start#" + i, isMobile, "start", touch);
+          const away = k !== stepAt;
+          return Object.assign({}, v, {
+            away: away ? "true" : undefined,
+            slotStyle: "grid-area:1 / 1;display:flex;flex-direction:column;min-width:0;" + (away ? "visibility:hidden;pointer-events:none;" : ""),
+            cardStyle: v.cardStyle + ";flex:1;box-sizing:border-box",
+            footStyle: (v.footStyle || "") + ";margin-top:auto",
+          });
+        }),
+        stepStackStyle: "flex:1;display:grid;min-width:0",
         stepDeckAny: stepDeck.length > 0,
         stepDeckEmpty: stepDeck.length === 0,
         stepDeckCount: stepDeck.length ? (stepAt + 1) + " of " + stepDeck.length : "",
-        stepDeckNote: stepDeck.length ? (stepAt + 1) + " of " + stepDeck.length + (isMobile ? "" : " · a taken step leaves the deck") : "",
+        stepDeckNote: stepDeck.length ? (stepAt + 1) + " of " + stepDeck.length : "",
         stepDeckMany: stepDeck.length > 1,
         stepPrev: () => moveStep(-1),
         stepNext: () => moveStep(1),
         stepPrevStyle: stepNav(stepAt > 0),
         stepNextStyle: stepNav(stepAt < stepDeck.length - 1),
-        stepDots: stepDeck.map((i, k) => ({ style: "height:4px;border-radius:2px;transition:width 160ms ease;background:" + (k === stepAt ? "var(--accent);width:18px" : "var(--border2);width:8px") })),
+        stepDots: stepDeck.map((i, k) => ({ style: "height:4px;border-radius:2px;transition:width 160ms ease;background:" + (k === stepAt ? "var(--accent);width:14px" : "var(--border2);width:6px") })),
 
         /* Under the answer, the messages it came from - the find half of *Ask or find*. */
         foundRows: plan && plan.sources ? plan.sources.map(id => THREADS.find(t2 => t2.id === id)).filter(Boolean).map(t2 => ({
@@ -4376,7 +4398,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         hasWatched: (st.watched || []).length > 0,
         /* Watching sits under the field it came from: one strip of the questions kept, each a card that says whether
            its answer moved, scrolling sideways when there are more than fit. */
-        watchBandStyle: "grid-column:1 / -1;display:flex;flex-direction:column;gap:8px;min-width:0;padding-bottom:2px",
+        watchBandStyle: "display:flex;flex-direction:column;gap:8px;min-width:0;border-top:1px solid var(--line2);padding-top:" + (isMobile ? 10 : 12) + "px",
+        watchHeadStyle: "display:flex;align-items:center;gap:8px;min-width:0;min-height:" + (touch ? 44 : 30) + "px",
         watchEyeStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1;color:var(--accent-d)",
         watchCount: String((st.watched || []).length),
         watchCountStyle: "font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--muted);background:var(--sub);border-radius:999px;padding:1px 7px",
@@ -4384,10 +4407,29 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         watchChangedText: (() => { const n = (st.watched || []).filter(w => w.state === "changed").length; return n === 1 ? "1 answer moved" : n + " answers moved"; })(),
         watchChangedStyle: "display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--accent-d);white-space:nowrap",
         watchHint: isMobile ? "" : "refreshed when new mail matches · each refresh counts against your allowance",
-        watchHintStyle: "margin-left:auto;font-size:11px;color:var(--faint);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
-        watchRowStyle: "display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;" + (isMobile ? "margin:0 -14px;padding-left:14px;padding-right:14px;" : ""),
+        watchHintStyle: "flex:1;text-align:right;font-size:11px;color:var(--faint);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
+        /* A carousel of fixed cards: the same count per page at each width, each card the same size whatever its question,
+           and the arrows in the head, so the strip never changes shape as questions come and go. On two panes the cards
+           take the day's columns - the two halves of the main one, then each aside - so their edges continue its lines. */
+        watchRowStyle: "display:grid;min-width:0;" + (isMobile ? "grid-template-columns:minmax(0,1fr)"
+          : narrow ? "grid-template-columns:repeat(2,minmax(0,1fr));gap:12px"
+          : compact ? "grid-template-columns:minmax(0,1fr) 300px;gap:28px"
+          : "grid-template-columns:minmax(0,1fr) minmax(0,1fr) 340px" + (startWide ? " 400px" : "") + ";gap:28px"),
+        watchPageText: watchList.length <= watchPer ? (watchList.length === 1 ? "1 question" : watchList.length + " questions")
+          : (watchAt * watchPer + 1) + (watchPer > 1 ? "–" + Math.min(watchList.length, (watchAt + 1) * watchPer) : "") + " of " + watchList.length,
+        watchPageStyle: "font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap;margin-right:2px",
+        watchPrev: () => this.setState({ watchAt: Math.max(0, watchAt - 1) }),
+        watchNext: () => this.setState({ watchAt: Math.min(watchPages - 1, watchAt + 1) }),
+        watchPrevOff: watchAt === 0 ? "true" : undefined,
+        watchNextOff: watchAt >= watchPages - 1 ? "true" : undefined,
+        watchPrevStyle: stepNav(watchAt > 0),
+        watchNextStyle: stepNav(watchAt < watchPages - 1),
+        watchQStyle: "flex:1;min-width:0;font-size:13.5px;font-weight:500;line-height:1.4;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-wrap:pretty",
+        watchStopStyle: "display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:8px;color:var(--faint);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;" +
+          (touch ? "width:44px;height:44px;margin:-10px -8px 0 0;" : "width:28px;height:28px;margin:-4px -4px 0 0;"),
+        watchEmptyStyle: "font-size:13px;line-height:1.45;color:var(--muted);border:1px dashed var(--border2);border-radius:11px;padding:10px 13px;text-wrap:pretty",
         noWatched: !(st.watched || []).length,
-        watched: (st.watched || []).map(w => ({
+        watchedPage: watchList.slice(watchAt * watchPer, (watchAt + 1) * watchPer).map(w => ({
           q: w.q, note: w.note,
           open: () => { this.setState(s2 => ({ watched: (s2.watched || []).map(x => (x.id === w.id && x.state === "changed" ? Object.assign({}, x, { state: "same", note: "opened just now" }) : x)) })); this.run(w.q); },
           stop: (e) => {
@@ -4398,8 +4440,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           stopAria: "Stop watching: " + w.q,
           isChanged: w.state === "changed", isPaused: w.state === "paused", isFailed: w.state === "failed",
           /* A card whose answer moved carries the accent edge, so it is found before it is read. */
-          rowStyle: "flex:0 0 " + (isMobile ? 248 : 290) + "px;display:flex;align-items:flex-start;gap:8px;box-sizing:border-box;background:var(--bg);border:1px solid " + (w.state === "changed" ? "var(--accent-line)" : "var(--line)") + ";border-radius:11px;padding:" + (touch ? "10px 4px 10px 12px" : "9px 4px 9px 12px") + (w.state === "changed" ? ";box-shadow:inset 3px 0 0 var(--accent)" : ""),
-          stateStyle: "display:inline-flex;align-items:center;gap:6px;font-size:12px;line-height:1.4;" + (w.state === "changed" ? "color:var(--accent-d);font-weight:600;"
+          rowStyle: "min-width:0;height:" + (touch ? 92 : 78) + "px;display:flex;flex-direction:column;justify-content:space-between;gap:6px;box-sizing:border-box;background:var(--bg);border:1px solid " + (w.state === "changed" ? "var(--accent-line)" : "var(--line)") + ";border-radius:12px;padding:" + (touch ? "12px 12px 11px 14px" : "10px 10px 9px 13px") + (w.state === "changed" ? ";box-shadow:inset 3px 0 0 var(--accent)" : ""),
+          stateStyle: "display:flex;align-items:center;gap:6px;min-width:0;font-size:12px;line-height:1.4;" + (w.state === "changed" ? "color:var(--accent-d);font-weight:600;"
             : w.state === "paused" || w.state === "failed" ? "color:var(--warn-text);" : "color:var(--muted);"),
           dotStyle: "width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:" + (w.state === "changed" ? "var(--accent)" : w.state === "paused" || w.state === "failed" ? "var(--warn)" : "var(--border2)"),
         })),

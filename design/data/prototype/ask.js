@@ -127,6 +127,8 @@ MailFathomDesign.data.watchedQuestions = [
   { id: "w1", q: "What is still open with Contoso before 28 August?", state: "changed", note: "1 new message from Anna Kowalska since Tuesday" },
   { id: "w2", q: "Which invoices from August are unpaid?", state: "same", note: "no change since yesterday" },
   { id: "w3", q: "Who owns the Q4 renewals?", state: "paused", note: "paused until 1 September - the allowance is spent" },
+  { id: "w4", q: "When does the Fabrikam pilot sign-off land?", state: "same", note: "no change since Monday" },
+  { id: "w5", q: "Has anyone answered about the office move in October?", state: "changed", note: "2 new replies in the facilities thread" },
 ];
 
 // The questions Start offers as chips under its field.
