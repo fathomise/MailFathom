@@ -1146,6 +1146,10 @@ export class FakeDeployment {
             return answering({ ...body, storedEmailId: id });
         }
 
+        if (part === 'source' && position === undefined) {
+            return { status: 200, body: messages.newsletterSource, contentType: 'text/plain; charset=utf-8' };
+        }
+
         // The one route answering with octets rather than JSON, which is what lets a check watch a real download.
         if (part === 'attachments' && position !== undefined && segments.length === 4) {
             return { status: 200, body: messages.attachedOctets, contentType: 'text/csv' };

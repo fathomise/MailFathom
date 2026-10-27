@@ -1479,6 +1479,22 @@ export const en = {
     'message.forward': 'Forward',
     'message.flag': 'Flag',
     'message.unflag': 'Unflag',
+    'message.moreActions': 'More actions',
+
+    'source.show': 'Show source',
+    'source.title': 'Message source',
+    'source.text': 'The message as received',
+    'source.close': 'Close the message source',
+    'source.reading': 'Reading the message source',
+    'source.asReceived': 'As received, {size}',
+    'source.subjectAsReceived': '{subject} · as received, {size}',
+    'source.failed': 'The message source could not be read: {reason}.',
+    'source.offline':
+        'This machine is offline, so the message source cannot be read. It is read once the network comes back.',
+    'source.withheld':
+        "Your administrator screens what leaves this server for sensitive content, and a message's raw source cannot be screened, so it is not shown.",
+    'source.cut':
+        'This message is {whole}, more than can be shown at once, so its source stops after the first {shown}.',
 
     'participant.sender': 'Submitted by',
     'participant.replyTo': 'Reply to',

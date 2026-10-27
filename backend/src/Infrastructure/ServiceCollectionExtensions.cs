@@ -54,6 +54,7 @@ using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.ListEmails;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Provenance;
+using MailFathom.Application.Emails.ReadSource;
 using MailFathom.Application.Emails.ReplyDrafts;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.Search.Attachments;
@@ -1170,6 +1171,7 @@ public static class ServiceCollectionExtensions
         // whoever asked the question.
         services.AddScoped<CitationResolver>();
         services.AddScoped<EmailAttachmentDownloadReader>();
+        services.AddScoped<EmailSourceReader>();
         services.AddScoped<MailboxSearchReader>();
         services.AddScoped<MailSearchBrowser>();
     }

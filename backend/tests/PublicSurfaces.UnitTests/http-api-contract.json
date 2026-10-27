@@ -19600,6 +19600,44 @@
         ]
       }
     },
+    "/api/client/messages/{storedEmailId}/source": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "storedEmailId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
     "/api/client/mutations": {
       "get": {
         "parameters": [

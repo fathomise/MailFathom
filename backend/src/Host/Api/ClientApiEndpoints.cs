@@ -211,6 +211,7 @@ internal static class ClientApiEndpoints
         api.MapClientMailBody();
         api.MapClientMailCleanedBody();
         api.MapClientMailAttachment();
+        api.MapClientMailSource();
         api.MapClientMailMutations();
         api.MapClientMailSpamMarks();
         api.MapClientContactCorrespondence();

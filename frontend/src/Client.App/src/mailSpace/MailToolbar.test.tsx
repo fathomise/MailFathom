@@ -217,6 +217,17 @@ describe('MailToolbar', () => {
         expect(showing.getAttribute('aria-pressed')).toBe('true');
     });
 
+    it('takes More actions over from the head once the panels are hidden at the desktop composition', () => {
+        theCompositionHasTwoPanes();
+        drawToolbar(true, messageId, actsOffering(vi.fn()), 'labelled');
+
+        expect(screen.queryByRole('button', { name: /^More actions/u })).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Hide the panels - the correspondence alone' }));
+
+        expect(screen.getByRole('button', { name: /^More actions/u })).toBeDefined();
+    });
+
     it('leads with the control that hides the mailbox column wherever the column stands beside the list', () => {
         theCompositionHasTwoPanes();
         drawToolbar(true);

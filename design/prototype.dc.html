@@ -24,6 +24,7 @@ Project repository: https://github.com/fathomise/MailFathom
 <script src="data/prototype/agent.js"></script>
 <script src="data/prototype/notifications.js"></script>
 <script src="data/prototype/sample-text.js"></script>
+<script src="data/prototype/message-sources.js"></script>
 <script src="logic/prototype/markdown.js"></script>
 <script src="logic/prototype/mail-html.js"></script>
 <script src="logic/prototype/component.js"></script>
@@ -1481,6 +1482,50 @@ Project repository: https://github.com/fathomise/MailFathom
               </div>
             </div>
           </sc-if>
+        </div>
+      </sc-if>
+      <sc-if value="{{ sourceOpen }}" hint-placeholder-val="{{ false }}">
+        <div data-motion="scrim" data-phase="{{ mo.source }}" onClick="{{ closeSource }}" style="{{ sourceOverlayStyle }}">
+          <div data-motion="{{ sourceMotion }}" data-phase="{{ mo.source }}" role="dialog" aria-label="Message source" onClick="{{ stopProp }}" style="{{ sourceWindowStyle }}">
+            <sc-if value="{{ sourceGrabber }}" hint-placeholder-val="{{ false }}"><div style="{{ grabberStyle }}"></div></sc-if>
+            <div style="{{ sourceHeadStyle }}">
+              <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--muted)">data_object</span>
+              <div style="display:flex;flex-direction:column;gap:1px;min-width:0;flex:1">
+                <span style="font-size:15px;font-weight:600">Message source</span>
+                <span style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ sourceSubject }}<sc-if value="{{ sourceLoaded }}" hint-placeholder-val="{{ true }}">{{ sourceAsReceived }}{{ sourceSize }}</sc-if></span>
+              </div>
+              <div role="button" tabindex="0" onClick="{{ closeSource }}" title="Close the message source" aria-label="Close the message source" style="{{ sourceCloseStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="{{ closeIconStyle }}">close</span></div>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto;background:var(--panel)">
+              <sc-if value="{{ sourceLoading }}" hint-placeholder-val="{{ false }}">
+                <div role="status" aria-label="Reading the message source" style="display:flex;flex-direction:column;gap:9px;padding:18px 20px">
+                  <sc-for list="{{ sourceSkelLines }}" as="ln" hint-placeholder-count="12">
+                    <div style="{{ ln.style }}"></div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ sourceFailed }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:18px 20px">
+                  <div role="alert" style="display:flex;align-items:flex-start;gap:9px;font-size:13px;line-height:1.5;color:var(--warn-text);text-wrap:pretty"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">warning</span>The message source could not be read: unavailable.</div>
+                  <div role="button" tabindex="0" onClick="{{ retrySource }}" style="font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:8px 15px" style-hover="cursor:pointer;background:var(--hover)">Try again</div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ sourceScreened }}" hint-placeholder-val="{{ false }}">
+                <div role="status" style="display:flex;align-items:flex-start;gap:9px;padding:18px 20px;font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">lock</span>Your administrator screens what leaves this server for sensitive content, and a message's raw source cannot be screened, so it is not shown.</div>
+              </sc-if>
+              <sc-if value="{{ sourceOffline }}" hint-placeholder-val="{{ false }}">
+                <div role="status" style="display:flex;align-items:flex-start;gap:9px;padding:18px 20px;font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">cloud_off</span>This machine is offline, so the message source cannot be read. It is read once the network comes back.</div>
+              </sc-if>
+              <sc-if value="{{ sourceLoaded }}" hint-placeholder-val="{{ true }}">
+                <div data-motion="fade">
+                  <sc-if value="{{ sourceCut }}" hint-placeholder-val="{{ false }}">
+                    <div role="note" style="display:flex;align-items:flex-start;gap:9px;margin:14px 20px 0;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--sub);font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">info</span>{{ sourceCutNote }}</div>
+                  </sc-if>
+                  <pre style="{{ sourceTextStyle }}">{{ sourceText }}</pre>
+                </div>
+              </sc-if>
+            </div>
+          </div>
         </div>
       </sc-if>
       <sc-if value="{{ htmlOpen }}" hint-placeholder-val="{{ false }}">

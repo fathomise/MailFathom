@@ -1501,6 +1501,22 @@ export const pl: Catalogue = {
     'message.forward': 'Przekaż',
     'message.flag': 'Oflaguj',
     'message.unflag': 'Bez flagi',
+    'message.moreActions': 'Więcej działań',
+
+    'source.show': 'Pokaż źródło',
+    'source.title': 'Źródło wiadomości',
+    'source.text': 'Wiadomość tak, jak dotarła',
+    'source.close': 'Zamknij źródło wiadomości',
+    'source.reading': 'Wczytywanie źródła wiadomości',
+    'source.asReceived': 'Tak jak dotarła, {size}',
+    'source.subjectAsReceived': '{subject} · tak jak dotarła, {size}',
+    'source.failed': 'Nie udało się odczytać źródła wiadomości: {reason}.',
+    'source.offline':
+        'Ta maszyna jest bez sieci, więc nie można odczytać źródła wiadomości. Zostanie odczytane, gdy sieć wróci.',
+    'source.withheld':
+        'Twój administrator sprawdza, czy to, co opuszcza ten serwer, nie zawiera danych wrażliwych, a surowego źródła wiadomości nie da się sprawdzić, więc nie jest pokazywane.',
+    'source.cut':
+        'Ta wiadomość ma {whole}, więcej niż da się pokazać naraz, więc jej źródło kończy się po pierwszym {shown}.',
 
     'participant.sender': 'Nadane przez',
     'participant.replyTo': 'Odpowiedź do',

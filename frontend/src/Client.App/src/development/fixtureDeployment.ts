@@ -240,6 +240,10 @@ export function fixtureDeployment(draw: () => number = Math.random): DeploymentT
 
         await answerAfter(options.latency, abandoned);
 
+        if (request.path.endsWith(`/messages/${messages.waitingSourceId}/source`)) {
+            await unanswered(abandoned);
+        }
+
         const answer = fixtureAnswer(request, options, draw(), state);
 
         if (answer === null) {
@@ -248,6 +252,19 @@ export function fixtureDeployment(draw: () => number = Math.random): DeploymentT
 
         return answer;
     };
+}
+
+/** A request nothing answers, which ends only when the screen that started it walks away. */
+function unanswered(abandoned: AbortSignal): Promise<never> {
+    return new Promise((_, reject) => {
+        abandoned.addEventListener(
+            'abort',
+            () => {
+                reject(new Error('The request was abandoned before the fixture deployment answered.'));
+            },
+            { once: true },
+        );
+    });
 }
 
 /** One value of the corpus put on the wire as the deployment behind it would answer with it. */
@@ -784,6 +801,18 @@ function messageAnswer(route: string, asked: URLSearchParams): ClientResponse | 
     const storedEmailId = decodeURIComponent(route.split('/')[2] ?? '');
     const markupOnly = storedEmailId === messages.markupOnlyId;
     const spamRow = mail.spamRows.find((row) => row.id === storedEmailId);
+
+    // The one read answered as text rather than JSON: the message as it arrived, whichever message was asked for but the
+    // one the deployment fails to serve. The one never answered is held back before this, in the transport.
+    if (route.endsWith('/source')) {
+        return storedEmailId === messages.unavailableSourceId
+            ? { status: 503, body: '', headers: {} }
+            : {
+                  status: 200,
+                  body: messages.newsletterSource,
+                  headers: { 'content-type': 'text/plain; charset=utf-8' },
+              };
+    }
 
     if (spamRow !== undefined) {
         return answering(

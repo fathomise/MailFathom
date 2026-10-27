@@ -19,7 +19,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     nextDefault: NEXT_DEFAULT, seedConversations: SEED_CONVS, agentReplies: AGENT_REPLIES, agentFallback: AGENT_FALLBACK,
     agentDraftHtml: AGENT_DRAFT_HTML,
     notifications: NOTIFS, incomingNotifications: INCOMING, demoBatches: DEMO_BATCHES,
-    senderMarks: SENDER_MARKS, trustedLinkDomains: TRUSTED_LINK_DOMAINS,
+    senderMarks: SENDER_MARKS, trustedLinkDomains: TRUSTED_LINK_DOMAINS, messageSources: MESSAGE_SOURCES,
   } = MailFathomDesign.data;
   const { mdPlain, mdView, MDTXT } = MailFathomDesign.markdown;
   const { HTML_SHELL, embedHtml, embedLinks, htmlFallback } = MailFathomDesign.mailHtml;
@@ -1109,7 +1109,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "sideDrawer", "compose", "settings",
       "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock", "replyChooser",
       "newTask", "newEvent", "newContact", "filtersOpen",
-      "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk", "spamAsk", "notSpamAsk", "senderMark", "linkAsk"];
+      "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk", "spamAsk", "notSpamAsk", "senderMark", "linkAsk", "source"];
     static MOTION_PANES = ["mailPane", "peoplePane"];
     static MOTION_EXIT_MS = 240;
 
@@ -1156,7 +1156,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        closes, and a step closed by its own control gives its entry back. A space switch is an entry of its own, and
        going back across one closes everything still standing, the way the client's change of destination does.
        Steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
-    static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
+    static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "source", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
       "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "senderMark", "replyDock", "replyChooser", "linkAsk"];
 
     backSteps = (state) => {
@@ -1735,6 +1735,112 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       }));
     };
 
+    /* *More actions* — the three-dot control after the spam control, in the thread's head and, where two panes under a
+       finger leave the head to the toolbar, in the toolbar. It opens the context menu under itself, its end edge on the
+       control's, headed by the message's subject — or, from the toolbar, which holds no subject, by its own name, and
+       the source it opens is then named by its size alone. *Show source* is its one item for now. */
+    openMoreMenu = (id, e, fromToolbar) => {
+      const th = THREADS.find(t => t.id === id) || {};
+      const r = e && e.currentTarget && e.currentTarget.getBoundingClientRect ? e.currentTarget.getBoundingClientRect() : null;
+      /* The menu's width plus its padding and border, which ctxMenuStyle's width does not include. */
+      const W = (this.state.coarse ? 262 : 236) + 14;
+      const p = this.localPt(r ? r.right - W : 0, r ? r.bottom + 4 : 0);
+      this.armCtx(false);
+      this.setState({
+        ctxMenu: {
+          x: p.x, y: p.y, kind: "more", id: id, title: fromToolbar ? "More actions" : th.subject || "Message",
+          items: [{ icon: "data_object", label: "Show source", run: () => this.openSource(id, !fromToolbar) }],
+        },
+      });
+    };
+
+    /* The raw source is asked for when *Show source* is pressed and never with the message, so the surface opens on a
+       skeleton and the text fades in once it arrives. One sample message fails until it is tried again, one arrives
+       cut, one is refused by its deployment's screen, one is asked for offline, which sends nothing and opens on no
+       skeleton, and one is never answered, so its skeleton stands (`data/prototype/message-sources.js`). */
+    openSource = (id, named) => {
+      if (MESSAGE_SOURCES.waitsFor.includes(id)) {
+        clearTimeout(this._sourceT);
+        this.setState({ source: { id: id, phase: "loading", named: named !== false } });
+        return;
+      }
+      if (MESSAGE_SOURCES.offlineFor.includes(id)) {
+        clearTimeout(this._sourceT);
+        this.setState({ source: { id: id, phase: "offline", named: named !== false } });
+        return;
+      }
+      const outcome = MESSAGE_SOURCES.screenedFor.includes(id) ? "screened" : MESSAGE_SOURCES.failsFor.includes(id) ? "failed" : "loaded";
+      this.loadSource(id, outcome, named !== false);
+    };
+
+    retrySource = () => {
+      const src = this.state.source;
+      if (src) this.loadSource(src.id, "loaded", src.named);
+    };
+
+    loadSource = (id, outcome, named) => {
+      clearTimeout(this._sourceT);
+      this.setState({ source: { id: id, phase: "loading", named: named } });
+      this._sourceT = setTimeout(() => this.setState(s => s.source && s.source.id === id ? { source: { id: id, phase: outcome, named: named } } : null), 900);
+    };
+
+    closeSource = () => { clearTimeout(this._sourceT); this.setState({ source: null }); };
+
+    /* The message exactly as it was received: the relay's trace, the authentication results, the signature, the
+       identity, and every MIME part with its transfer encoding — composed from the thread, since no sample stores one. */
+    sourceOf = (id) => {
+      const th = THREADS.find(t => t.id === id) || {};
+      const S = MESSAGE_SOURCES;
+      const addr = (/<([^>]+)>/.exec(th.meta || "") || [])[1] || "sender@mail.example";
+      const domain = addr.split("@")[1] || "mail.example";
+      const date = "Tue, 27 Oct 2026 " + (/^\d\d:\d\d$/.test(th.time || "") ? th.time : "09:14") + ":07 +0100";
+      const plain = (th.body || []).map(b => mdPlain(b.md || b.text || "")).join("\n\n");
+      const qp = (text) => text.split("\n").flatMap(line => {
+        const out = [];
+        let rest = line.replace(/=/g, "=3D");
+        while (rest.length > 75) { out.push(rest.slice(0, 75) + "="); rest = rest.slice(75); }
+        out.push(rest);
+        return out;
+      }).join("\n");
+      const boundary = "b1_mf_" + S.relay.id;
+      return [
+        "Return-Path: <" + addr + ">",
+        "Delivered-To: " + MY_MAIL,
+        "Received: from mail." + domain + " (mail." + domain + " [" + S.relay.via + "])",
+        "\tby " + S.relay.host + " with ESMTPS id " + S.relay.id,
+        "\tfor <" + MY_MAIL + ">; " + date,
+        "Authentication-Results: " + S.relay.host + ";",
+        "\tdkim=pass header.d=" + domain + " header.s=s2026;",
+        "\tspf=pass smtp.mailfrom=" + addr + ";",
+        "\tdmarc=pass (p=quarantine) header.from=" + domain,
+        "DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=" + domain + "; s=s2026;",
+        "\th=from:to:subject:date:message-id:mime-version;",
+        "\tbh=" + S.bodyHash + ";",
+        "\tb=" + S.signature.join("\n\t  "),
+        "Message-ID: <" + (th.id || "message") + ".20261027." + S.relay.id.toLowerCase() + "@" + domain + ">",
+        "Date: " + date,
+        "From: " + (th.from || "Sender") + " <" + addr + ">",
+        "To: " + ME + " <" + MY_MAIL + ">",
+        "Subject: " + (th.subject || ""),
+        "MIME-Version: 1.0",
+        "Content-Type: multipart/alternative; boundary=\"" + boundary + "\"",
+        "",
+        "--" + boundary,
+        "Content-Type: text/plain; charset=utf-8",
+        "Content-Transfer-Encoding: quoted-printable",
+        "",
+        qp(plain),
+        "",
+        "--" + boundary,
+        "Content-Type: text/html; charset=utf-8",
+        "Content-Transfer-Encoding: quoted-printable",
+        "",
+        qp("<html><body style=\"font-family:Arial,sans-serif\">" + plain.split("\n\n").map(p2 => "<p>" + p2 + "</p>").join("\n") + "</body></html>"),
+        "",
+        "--" + boundary + "--",
+      ].join("\n");
+    };
+
     openMailMenu = (id, cx, cy) => {
       const th = THREADS.find(t => t.id === id) || {};
       const flagged = !!(this.state.flags || {})[id];
@@ -1805,7 +1911,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     onDocKey = (e) => {
       if (e.key === "Escape" && this.state.linkAsk) { e.preventDefault(); this.closeLinkAsk(); return; }
-      if (e.key === "Escape" && this.state.senderMark) { e.preventDefault(); this.closeSenderMark(true); }
+      if (e.key === "Escape" && this.state.senderMark) { e.preventDefault(); this.closeSenderMark(true); return; }
+      if (e.key === "Escape" && this.state.ctxMenu) { e.preventDefault(); this.setState({ ctxMenu: null }); return; }
+      if (e.key === "Escape" && this.state.source) { e.preventDefault(); this.closeSource(); }
     };
 
     /* Every press on a link that leaves MailFathom ends here: a text link or a picture inside one, in a message's
@@ -3447,6 +3555,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         drive_file_move: () => this.openMove(),
         report: () => this.toggleSpam(),
         report_off: () => this.toggleSpam(),
+        more_vert: (e) => this.openMoreMenu(thread.id, e, true),
         fullscreen: () => this.setState({ stateBarOff: true }),
         fullscreen_exit: () => this.setState({ stateBarOff: false }),
       };
@@ -5370,20 +5479,23 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         toggleThreadAddr: () => this.setState(s2 => ({ threadAddrOpen: !s2.threadAddrOpen })),
         /* A message marked spam is read-only, so its header holds *Not spam* alone, the list's act with its
            confirmation; any other message adds *Spam* after its acts, in the error tone beside its glyph and word. */
+        /* *More actions* closes both sets, after the spam control, as its glyph alone wherever the head stands. */
         threadActions: (threadSpam.spam ? [
           { icon: "report_off", label: "Not spam", title: "Not spam", run: () => this.toggleSpam([thread.id]) },
+          { icon: "more_vert", label: "More actions", title: "More actions", glyph: true, run: (e) => this.openMoreMenu(thread.id, e) },
         ] : [
           { icon: "reply", label: "Reply", title: "Reply", run: () => this.startReply("reply", [thread.id]) },
           { icon: "forward", label: "Forward", title: "Forward", run: () => this.startReply("fwd", [thread.id]) },
           { icon: "flag", label: flagOn ? "Unflag" : "Flag", title: flagOn ? "Remove flag" : "Flag", run: () => this.toggleFlagThreads([thread.id]) },
           { icon: "report", label: "Mark spam", title: "Mark spam", run: () => this.toggleSpam([thread.id]) },
+          { icon: "more_vert", label: "More actions", title: "More actions", glyph: true, run: (e) => this.openMoreMenu(thread.id, e) },
         /* Two panes under a finger carry these in the toolbar above already, so the header keeps *Ask* alone and
            the subject keeps the width a second copy would take from it. */
         ]).filter(() => singlePane || !touch).map(a => ({
           title: a.title,
           run: a.run,
-          label: singlePane || paneNarrow ? a.icon : a.label,
-          style: singlePane || paneNarrow
+          label: singlePane || paneNarrow || a.glyph ? a.icon : a.label,
+          style: singlePane || paneNarrow || a.glyph
             ? "width:" + (isMobile ? 48 : touch ? 44 : 34) + "px;height:" + (isMobile ? 48 : touch ? 44 : 34) + "px;display:flex;align-items:center;justify-content:center;border-radius:" + (touch ? 12 : 8) + "px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : a.icon === "report" ? "--err-text" : "--text2") + ");font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1"
             : "display:flex;align-items:center;padding:5px 8px;border-radius:8px;font-size:13px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : a.icon === "report" ? "--err-text" : a.icon === "report_off" ? "--text2" : "--muted") + ")",
         })),
@@ -5469,14 +5581,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           { icon: "mark_email_unread", label: "Unread" },
           { icon: "drive_file_move", label: "Move" },
           ...(threadSpam.spam ? [] : [{ icon: "report", label: "Mark spam" }]),
+          /* Where two panes under a finger leave the head its subject alone, or hidden panels leave no head at all,
+             *More actions* follows the spam control here instead, so every composition reaches it once. */
+          ...((touch || st.stateBarOff) && !singlePane ? [{ icon: "more_vert", label: "More actions", glyphOnly: true }] : []),
           /* Condensed view: hides the agreed/questions bar under the thread header.
              The setting is global for mail, so it survives switching messages. */
           /* Glyph only — fullscreen/exit reads instantly, the label lives in the tooltip. */
           { icon: st.stateBarOff ? "fullscreen_exit" : "fullscreen", label: st.stateBarOff ? "Show thread panels" : "Hide panels - correspondence only", iconOnly: true, key: 1 },
         /* The Outbox takes no mail act, so its toolbar keeps the folder toggle and *New message* and nothing else. */
         ].filter(() => !outboxOn).map(a => ({
-           icon: a.icon, title: a.label, label: (tbFull && !a.iconOnly) ? a.label : "", run: mailAct[a.icon],
-           style: ((tbFull && !a.iconOnly) ? tbBtn : tbIcon + ";flex:0 0 auto") +
+           icon: a.icon, title: a.label, label: (tbFull && !a.iconOnly && !a.glyphOnly) ? a.label : "", run: mailAct[a.icon],
+           style: ((tbFull && !a.iconOnly && !a.glyphOnly) ? tbBtn : tbIcon + ";flex:0 0 auto") +
              (a.icon === "flag" && flagOn ? ";color:var(--warn);background:var(--warn-soft)" : "") +
              (a.icon === "report" ? ";color:var(--err-text)" : "") +
              (a.icon === "fullscreen_exit" ? ";color:var(--accent-d);background:var(--accent-soft)" : "") +
@@ -6193,6 +6308,53 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         toggleFmtBar: () => this.setState(s2 => ({ fmtBar: !s2.fmtBar })),
         fmtHintShown: !touch,
         fmtBarStyle: "display:flex;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line2);" + (touch ? "gap:6px;padding:9px 12px" : "gap:2px;padding:6px 12px"),
+
+        /* *Show source*: a dialog over a scrim on the desktop, and the whole screen below 1180 — the tablet, the fold, and
+           above the bottom navigation on the phone — rising as a sheet with its grabber. It draws a skeleton of
+           header-like lines while the source is on the wire, then the text in a monospaced face, which fades in, wraps
+           rather than scrolling sideways, and scrolls inside the surface. */
+        ...(() => {
+          const src = st.source;
+          if (!src) return { sourceOpen: false };
+          const full = isMobile || compact;
+          const th = THREADS.find(t => t.id === src.id) || {};
+          const cut = MESSAGE_SOURCES.cutFor[src.id];
+          const text = src.phase === "loaded" ? this.sourceOf(src.id) : "";
+          return {
+            sourceOpen: true,
+            sourceMotion: full ? "sheet" : "pop",
+            sourceGrabber: full,
+            sourceSubject: src.named ? th.subject || "Message" : "",
+            sourceOverlayStyle: isMobile
+              ? "position:fixed;top:0;left:0;right:0;bottom:" + this.barH() + "px;z-index:89;display:flex;background:var(--sub)"
+              : full
+              ? "position:fixed;inset:0;z-index:89;display:flex;background:var(--sub)"
+              : "position:fixed;inset:0;z-index:89;display:flex;align-items:center;justify-content:center;padding:22px;background:var(--scrim)",
+            sourceWindowStyle: full
+              ? "flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--panel)"
+              : "width:min(880px,100%);height:" + dlgMaxH + ";display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 26px 60px var(--scrim);overflow:hidden",
+            sourceHeadStyle: "flex:0 0 auto;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line);" + (full ? "padding:6px 12px 10px 16px" : "padding:10px 12px 10px 16px"),
+            sourceCloseStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:var(--text2);border-radius:8px;" + (touch ? "width:44px;height:44px" : "width:28px;height:28px"),
+            sourceLoading: src.phase === "loading",
+            sourceLoaded: src.phase === "loaded",
+            sourceFailed: src.phase === "failed",
+            sourceScreened: src.phase === "screened",
+            sourceOffline: src.phase === "offline",
+            sourceCut: src.phase === "loaded" && !!cut,
+            sourceCutNote: cut ? "This message is " + cut + ", more than can be shown at once, so its source stops after the first 1 MB." : "",
+            sourceSize: src.phase === "loaded" ? (cut || (Math.max(1, Math.round(text.length / 100) / 10)) + " kB") : "",
+            sourceAsReceived: src.phase === "loaded" ? (src.named ? " · as received, " : "As received, ") : "",
+            sourceText: text,
+            sourceTextStyle: "margin:0;padding:" + (isMobile ? "14px 14px 24px" : "16px 20px 28px") + ";font-family:'Geist Mono',ui-monospace,monospace;font-size:" + (isMobile ? 12 : 13) + "px;line-height:1.625;color:var(--text2);white-space:pre-wrap;overflow-wrap:anywhere;user-select:text",
+            sourceSkelLines: [38, 64, 52, 0, 70, 58, 66, 44, 0, 61, 74, 30, 0, 22, 48, 0, 96, 92, 98, 57].map((wd, i) => ({
+              style: wd
+                ? "border-radius:4px;background:linear-gradient(90deg,var(--line) 0%,var(--sub) 42%,var(--line) 78%);background-size:260% 100%;animation:mfshim 1.05s linear infinite;height:10px;width:" + wd + "%" + (i > 15 ? "" : ";max-width:560px")
+                : "height:6px",
+            })),
+            closeSource: this.closeSource,
+            retrySource: this.retrySource,
+          };
+        })(),
 
         htmlOpen: !!st.htmlDoc && (!tabsMode || htmlInPane),
         htmlTitleText: st.htmlDoc ? st.htmlDoc.title : "",

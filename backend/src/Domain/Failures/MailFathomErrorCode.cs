@@ -1044,6 +1044,15 @@ public readonly record struct MailFathomErrorCode
     /// </remarks>
     public static MailFathomErrorCode AttachmentDownloadScreened { get; } = new(59004);
 
+    /// <summary>Gets subcategory 9, content policy: a message's raw source was not served, because a scanner covers the mail its reader reads.</summary>
+    /// <remarks>
+    /// A read of the message is redacted value by value; its raw source cannot be, because the body sits in transfer
+    /// encodings no scanner reads, so serving it beside the redacted read would hand out what the redaction withholds.
+    /// The refusal is about the deployment's posture rather than about anything found, so it says nothing about the
+    /// message, and asking again answers the same until the posture changes.
+    /// </remarks>
+    public static MailFathomErrorCode EmailSourceScreened { get; } = new(59005);
+
     #endregion
 
     #region Category 6 — Embedding providers
@@ -1263,6 +1272,7 @@ public readonly record struct MailFathomErrorCode
         OutgoingMailNotFullyScanned,
         OutgoingMailAttachmentNotRead,
         AttachmentDownloadScreened,
+        EmailSourceScreened,
         EmbeddingProviderCredentialRejected,
         EmbeddingProviderUnavailable,
         EmbeddingVectorShapeUnexpected,

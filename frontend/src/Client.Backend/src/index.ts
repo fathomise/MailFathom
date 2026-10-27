@@ -333,6 +333,7 @@ export {
     readMailAttachment,
     type MailAttachmentRefusal,
 } from './mailAttachment';
+export { longestMailSource, mailSourceRoute, readMailSource, type MailSource } from './mailSource';
 export {
     mailMessageRoute,
     readMailMessage,

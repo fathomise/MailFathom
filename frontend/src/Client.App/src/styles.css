@@ -393,6 +393,10 @@
     --spacing-file-window: min(58.75rem, calc(100% - 3.5rem));
     --spacing-file-window-tall: min(88vh, calc(100% - 3.5rem));
 
+    /* How wide a message's raw source stands as a window, which the design draws only in the desktop composition and
+       as tall as any centred dialog may grow. Below the desktop breakpoint it is not read, the source being the screen. */
+    --spacing-source-window: min(55rem, calc(100% - 2.75rem));
+
     /* The surface a message's readings are checked on, in the composition where it is a dialog rather than the whole
        screen — 920 pixels wide, 760 below the roomy breakpoint, never closer than the design's 32-pixel margin to the
        window's edges, and a height that is a ceiling rather than a size: a message carrying one reading is a short
