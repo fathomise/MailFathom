@@ -118,6 +118,23 @@ public sealed class DnsDmarcRecordResolverTests
         Assert.Equal(DkimAlignmentMode.Relaxed, answer.Record?.DkimAlignment);
     }
 
+    /// <summary>A record published as several strings is read joined, so a tag in a later string still counts.</summary>
+    [Fact]
+    public async Task ResolveAsync_RecordInSeveralStrings_ReadsTheTagsOfEveryString()
+    {
+        // Arrange
+        var lookup = LookupAnswering(new Dictionary<string, IDnsQueryResponse>
+        {
+            ["_dmarc.bank.example.test"] = RecordInParts("v=DMARC1; p=reject; rua=mailto:reports@example.test", "; adkim=s"),
+        });
+
+        // Act
+        var answer = await CreateResolver(lookup).ResolveAsync(DomainOf("bank.example.test"), CancellationToken.None);
+
+        // Assert
+        Assert.Equal(DkimAlignmentMode.Strict, answer.Record?.DkimAlignment);
+    }
+
     /// <summary>A record past the size bound is never parsed, so its name reads as holding none and the walk goes on.</summary>
     [Fact]
     public async Task ResolveAsync_RecordPastTheSizeBound_ReadsAsNoRecordThereAndKeepsWalking()
@@ -275,12 +292,17 @@ public sealed class DnsDmarcRecordResolverTests
     private static string[] QueriedNames(IDnsQuery lookup) =>
         [.. lookup.ReceivedCalls().Select(static call => (string)call.GetArguments()[0]!)];
 
-    private static IDnsQueryResponse Records(params string[] texts)
+    private static IDnsQueryResponse Records(params string[] texts) =>
+        Answering([.. texts.Select(static text => TxtRecordOf([text]))]);
+
+    private static IDnsQueryResponse RecordInParts(params string[] parts) => Answering([TxtRecordOf(parts)]);
+
+    private static IDnsQueryResponse Answering(TxtRecord[] records)
     {
         var response = Substitute.For<IDnsQueryResponse>();
         response.HasError.Returns(false);
-        response.Header.Returns(new DnsResponseHeader(0, 0, 1, texts.Length, 0, 0));
-        response.Answers.Returns([.. texts.Select(static text => TxtRecordOf(text))]);
+        response.Header.Returns(new DnsResponseHeader(0, 0, 1, records.Length, 0, 0));
+        response.Answers.Returns([.. records]);
 
         return response;
     }
@@ -297,10 +319,10 @@ public sealed class DnsDmarcRecordResolverTests
         return response;
     }
 
-    private static TxtRecord TxtRecordOf(string text) => new(
+    private static TxtRecord TxtRecordOf(string[] parts) => new(
         new ResourceRecordInfo("_dmarc.example.test", ResourceRecordType.TXT, QueryClass.IN, timeToLive: 3600, rawDataLength: 0),
-        [text],
-        [text]);
+        parts,
+        parts);
 
     private static SenderDomain DomainOf(string written)
     {

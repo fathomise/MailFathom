@@ -342,8 +342,9 @@ against its answer and nothing else — and only where the route was a DMARC `pa
 author aligned only through SPF (`AlignedSpf`) is still authenticated and still shown as such, but SPF vouches for the
 server that handed the message over rather than for what it carries, so a forwarded or rewritten message would arrive
 recognized under an author who never signed it. A message whose author was not established, one aligned only through
-SPF, and one whose author authentication failed all reach *unknown* without the list being consulted at all; which of the two it was stays where it was
-recorded, on the authentication verdict. [Organization membership](#a-colleague-in-the-receiving-accounts-organization)
+SPF, and one whose author authentication failed all reach *unknown* without the list being consulted at all. The trust
+verdict answers only about the list, so which of the three it was stays where it was recorded, on the author verdict
+and the route beside it. [Organization membership](#a-colleague-in-the-receiving-accounts-organization)
 is the one exception, because what it proves is the author's address rather than a domain.
 
 ### A colleague in the receiving account's organization

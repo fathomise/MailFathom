@@ -123,8 +123,8 @@ public sealed class SenderTrustPolicy
     /// owner writing as themselves matches both, and the verdict names the narrower claim.
     /// </para>
     /// <para>
-    /// <b>The subject the lists are held against is <see cref="SenderAuthentication.AuthenticatedAuthorDomain" /> and
-    /// nothing else.</b> The <c>From</c> header on its own is written by whoever sent the message, so holding it against a list
+    /// <b>The subject the lists are held against is <see cref="SenderAuthentication.AuthenticatedAuthorDomain" />, on the
+    /// route condition below, and nothing else.</b> The <c>From</c> header on its own is written by whoever sent the message, so holding it against a list
     /// would let anybody be recognized by claiming to be; and the identity the receiving server happened to authenticate
     /// belongs to whoever handed the message over, which for a relay, a mailing list, or a delivery provider is not the
     /// author at all. Recognizing a provider one correspondent uses would otherwise recognize every message that
@@ -139,9 +139,9 @@ public sealed class SenderTrustPolicy
     /// <para>
     /// So a message whose author was not established, one aligned only through SPF, and one whose author authentication
     /// the receiving server refused all reach <see cref="SenderTrustLevel.Unknown" /> without the list being consulted at all, unless organization
-    /// membership was proved as stated above. Which of the two it
-    /// was stays on <see cref="SenderAuthentication.AuthorAuthentication" />, where it was recorded, because this
-    /// verdict answers only about the list.
+    /// membership was proved as stated above. This verdict answers only about the list, so which of the three it was
+    /// stays where it was recorded, on <see cref="SenderAuthentication.AuthorAuthentication" /> together with
+    /// <see cref="SenderAuthentication.AuthorAuthenticationRoute" />.
     /// </para>
     /// </remarks>
     public SenderTrust Evaluate(
