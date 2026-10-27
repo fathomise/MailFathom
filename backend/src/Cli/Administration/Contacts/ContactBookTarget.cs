@@ -45,6 +45,19 @@ internal sealed record ContactBookTarget
     /// <returns>The path, with the identity written the way a deployment's route constraint reads one.</returns>
     internal string ContactPath(Guid contactId) => $"{this.ContactsPath}/{contactId:D}";
 
+    /// <summary>Gets the path the contact of the book holding one address is read from.</summary>
+    internal string ContactByAddressPath => $"{this.ContactsPath}/by-address";
+
+    /// <summary>Gets the path a collected contact is promoted into the book at.</summary>
+    /// <param name="contactId">The collected contact the path names.</param>
+    /// <returns>The path.</returns>
+    internal string ContactPromotionPath(Guid contactId) => $"{this.ContactPath(contactId)}/promotion";
+
+    /// <summary>Gets the path everything the book holds about one person is exported from.</summary>
+    /// <param name="contactId">The contact the path names.</param>
+    /// <returns>The path.</returns>
+    internal string ContactExportPath(Guid contactId) => $"{this.ContactPath(contactId)}/export";
+
     /// <summary>Opens the query string of a request with the user it acts for, where it acts for one.</summary>
     /// <returns>The query string, empty for an organization's book.</returns>
     internal AdminQueryString Query() =>

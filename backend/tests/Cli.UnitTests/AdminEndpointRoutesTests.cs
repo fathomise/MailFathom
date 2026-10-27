@@ -112,6 +112,13 @@ public sealed class AdminEndpointRoutesTests
         Assert.Equal(
             "/api/admin/contacts/11111111-2222-3333-4444-555555555555",
             user.ContactPath(contact));
+        Assert.Equal("/api/admin/contacts/by-address", user.ContactByAddressPath);
+        Assert.Equal(
+            "/api/admin/contacts/11111111-2222-3333-4444-555555555555/promotion",
+            user.ContactPromotionPath(contact));
+        Assert.Equal(
+            "/api/admin/contacts/11111111-2222-3333-4444-555555555555/export",
+            user.ContactExportPath(contact));
     }
 
     /// <summary>An organization's book is reached beneath the organization, and one of its contacts beneath that.</summary>
@@ -127,6 +134,15 @@ public sealed class AdminEndpointRoutesTests
         Assert.Equal(
             "/api/admin/organizations/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/contacts/11111111-2222-3333-4444-555555555555",
             book.ContactPath(new Guid("11111111-2222-3333-4444-555555555555")));
+        Assert.Equal(
+            "/api/admin/organizations/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/contacts/by-address",
+            book.ContactByAddressPath);
+        Assert.Equal(
+            "/api/admin/organizations/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/contacts/11111111-2222-3333-4444-555555555555/promotion",
+            book.ContactPromotionPath(new Guid("11111111-2222-3333-4444-555555555555")));
+        Assert.Equal(
+            "/api/admin/organizations/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/contacts/11111111-2222-3333-4444-555555555555/export",
+            book.ContactExportPath(new Guid("11111111-2222-3333-4444-555555555555")));
     }
 
     /// <summary>The mail-account paths, written out for the reason the contact paths are: an account is served beneath a UUID segment.</summary>

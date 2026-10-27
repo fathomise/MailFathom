@@ -1289,7 +1289,7 @@ internal sealed class AdminApiClient
 
         return this.RequestAsync(
             HttpMethod.Get,
-            $"{book.ContactsPath}/by-address{book.Query().Add("address", address)}",
+            $"{book.ContactByAddressPath}{book.Query().Add("address", address)}",
             token,
             CliJsonContext.Default.ContactLookup,
             cancellationToken);
@@ -1355,7 +1355,7 @@ internal sealed class AdminApiClient
 
         return this.RequestAsync(
             HttpMethod.Post,
-            $"{book.ContactPath(contactId)}/promotion{book.Query().Add("account", account)}",
+            $"{book.ContactPromotionPath(contactId)}{book.Query().Add("account", account)}",
             token,
             CliJsonContext.Default.ContactWriteAnswer,
             cancellationToken);
@@ -1435,7 +1435,7 @@ internal sealed class AdminApiClient
 
         return this.RequestAsync(
             HttpMethod.Get,
-            $"{book.ContactPath(contactId)}/export{book.Query()}",
+            $"{book.ContactExportPath(contactId)}{book.Query()}",
             token,
             CliJsonContext.Default.ContactExport,
             cancellationToken);
