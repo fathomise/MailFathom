@@ -130,6 +130,7 @@ export {
     askAgent,
     deleteAgentConversation,
     listAgentConversations,
+    markAgentConversationRead,
     readAgentConversation,
     restoreAgentConversation,
     steerAgentRun,

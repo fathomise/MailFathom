@@ -302,22 +302,53 @@ internal sealed class AgentConversationStore(NpgsqlDataSource dataSource) : IAge
 
     /// <summary>Reads one person's conversation history, the ones they are working in first and each group's most recently moved first.</summary>
     /// <remarks>
+    /// <para>
     /// The archived conversations sort behind the rest so a listing cut at the bound loses one of those before it loses
     /// a working conversation. The identifier breaks a tie, so two conversations written in the same instant come back
     /// in one order rather than whichever the plan happened to produce.
+    /// </para>
+    /// <para>
+    /// Where an answer is being composed, the conversation's newest status line comes back beside it, and the reader
+    /// keeps it only where it belongs to that answer — so a run that has said nothing yet is not reported as doing what
+    /// the previous one did. A conversation is unread while nothing is being composed in it and an entry of the visible
+    /// history stands past the place the person last read it to. Both reads walk one conversation's entries down their
+    /// key, so the listing costs a few rows per conversation rather than its whole history.
+    /// </para>
     /// </remarks>
     private const string ListConversationsStatement = $"""
-        SELECT "{AgentConversationEntity.IdColumnName}",
-               "{AgentConversationEntity.TitleColumnName}",
-               "{AgentConversationEntity.StartedAtColumnName}",
-               "{AgentConversationEntity.LastActivityAtColumnName}",
-               "{AgentConversationEntity.ArchivedColumnName}"
-        FROM "{AgentConversationEntity.TableName}"
-        WHERE "{AgentConversationEntity.UserIdColumnName}" = @userId
-        ORDER BY "{AgentConversationEntity.ArchivedColumnName}",
-                 "{AgentConversationEntity.LastActivityAtColumnName}" DESC,
-                 "{AgentConversationEntity.IdColumnName}"
+        SELECT c."{AgentConversationEntity.IdColumnName}",
+               c."{AgentConversationEntity.TitleColumnName}",
+               c."{AgentConversationEntity.StartedAtColumnName}",
+               c."{AgentConversationEntity.LastActivityAtColumnName}",
+               c."{AgentConversationEntity.ArchivedColumnName}",
+               c."{AgentConversationEntity.ComposingMessageIdColumnName}",
+               (SELECT s."{AgentConversationEntryEntity.PayloadColumnName}"
+                FROM "{AgentConversationEntryEntity.TableName}" s
+                WHERE c."{AgentConversationEntity.ComposingMessageIdColumnName}" IS NOT NULL
+                  AND s."{AgentConversationEntryEntity.ConversationIdColumnName}" = c."{AgentConversationEntity.IdColumnName}"
+                  AND s."{AgentConversationEntryEntity.KindColumnName}" = @statusKind
+                ORDER BY s."{AgentConversationEntryEntity.SequenceColumnName}" DESC
+                LIMIT 1),
+               c."{AgentConversationEntity.ComposingMessageIdColumnName}" IS NULL AND EXISTS (
+                   SELECT 1
+                   FROM "{AgentConversationEntryEntity.TableName}" v
+                   WHERE v."{AgentConversationEntryEntity.ConversationIdColumnName}" = c."{AgentConversationEntity.IdColumnName}"
+                     AND v."{AgentConversationEntryEntity.SequenceColumnName}" > c."{AgentConversationEntity.ReadThroughColumnName}"
+                     AND v."{AgentConversationEntryEntity.VisibleColumnName}")
+        FROM "{AgentConversationEntity.TableName}" c
+        WHERE c."{AgentConversationEntity.UserIdColumnName}" = @userId
+        ORDER BY c."{AgentConversationEntity.ArchivedColumnName}",
+                 c."{AgentConversationEntity.LastActivityAtColumnName}" DESC,
+                 c."{AgentConversationEntity.IdColumnName}"
         LIMIT @listLimit;
+        """;
+
+    /// <summary>Marks a conversation this person holds read as far as it has reached.</summary>
+    /// <remarks>It touches that column alone, leaving the instant the history is ordered by where it was, for the reason archiving does.</remarks>
+    private const string MarkReadStatement = $"""
+        UPDATE "{AgentConversationEntity.TableName}"
+        SET "{AgentConversationEntity.ReadThroughColumnName}" = "{AgentConversationEntity.SequenceColumnName}"
+        WHERE "{AgentConversationEntity.IdColumnName}" = @id AND "{AgentConversationEntity.UserIdColumnName}" = @userId;
         """;
 
     /// <summary>Puts a conversation this person holds away, or takes it back out of the archive.</summary>
@@ -568,6 +599,7 @@ internal sealed class AgentConversationStore(NpgsqlDataSource dataSource) : IAge
         await using var command = dataSource.CreateCommand(ListConversationsStatement);
         command.Parameters.AddWithValue("userId", user.Value);
         command.Parameters.AddWithValue("listLimit", limit);
+        command.Parameters.AddWithValue("statusKind", AgentStatusReported.Kind);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
@@ -575,15 +607,36 @@ internal sealed class AgentConversationStore(NpgsqlDataSource dataSource) : IAge
 
         while (await reader.ReadAsync(cancellationToken))
         {
+            var composing = await reader.IsDBNullAsync(5, cancellationToken)
+                ? (AgentMessageId?)null
+                : AgentMessageId.Create(reader.GetGuid(5));
+            var newestStatus = await reader.IsDBNullAsync(6, cancellationToken) ? null : reader.GetString(6);
+
             history.Add(new AgentConversationSummary(
                 AgentConversationId.Create(reader.GetGuid(0)),
                 await reader.IsDBNullAsync(1, cancellationToken) ? null : reader.GetString(1),
                 reader.GetFieldValue<DateTimeOffset>(2),
                 reader.GetFieldValue<DateTimeOffset>(3),
-                reader.GetBoolean(4)));
+                reader.GetBoolean(4),
+                composing is not null,
+                StatusOf(composing, newestStatus),
+                reader.GetBoolean(7)));
         }
 
         return history;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> TryMarkReadAsync(
+        AgentConversationId id,
+        UserId user,
+        CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand(MarkReadStatement);
+        command.Parameters.AddWithValue("id", id.Value);
+        command.Parameters.AddWithValue("userId", user.Value);
+
+        return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
     }
 
     /// <inheritdoc />
@@ -842,6 +895,12 @@ internal sealed class AgentConversationStore(NpgsqlDataSource dataSource) : IAge
         {
             Value = message is { } named ? named.Value : DBNull.Value,
         };
+
+    /// <summary>Keeps a conversation's newest status line only where the answer being composed reported it.</summary>
+    private static string? StatusOf(AgentMessageId? composing, string? newestStatus) =>
+        composing is { } answer && newestStatus is not null && Read(newestStatus) is AgentStatusReported reported && reported.MessageId == answer
+            ? reported.Status.Value
+            : null;
 
     /// <summary>Reads one stored entry back into the contract it was written from.</summary>
     /// <exception cref="InvalidOperationException">Thrown when a row holds a document this build cannot read as an entry, which is a schema this build did not write.</exception>

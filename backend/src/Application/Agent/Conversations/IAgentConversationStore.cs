@@ -272,6 +272,21 @@ public interface IAgentConversationStore
         bool archived,
         CancellationToken cancellationToken);
 
+    /// <summary>Records that the person has a conversation in front of them, so everything it holds now reads as read.</summary>
+    /// <param name="id">The conversation they are reading.</param>
+    /// <param name="user">The person whose conversation it has to be.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns><see langword="true" /> when the conversation was this person's; <see langword="false" /> where they hold no such conversation.</returns>
+    /// <remarks>
+    /// It marks the conversation read as far as it has reached when the statement runs, so a run still composing in it
+    /// leaves it unread again once that run ends unless the person is still reading it then and says so a second time.
+    /// It leaves the instant the history is ordered by alone, for the reason archiving does.
+    /// </remarks>
+    Task<bool> TryMarkReadAsync(
+        AgentConversationId id,
+        UserId user,
+        CancellationToken cancellationToken);
+
     /// <summary>Names a conversation, which the agent does once it has read the first question.</summary>
     /// <param name="id">The conversation to name.</param>
     /// <param name="user">The person whose conversation it has to be.</param>

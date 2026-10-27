@@ -45,6 +45,9 @@ export const agentHistory = {
             startedAt: '2026-08-31T09:50:00+00:00',
             lastActivityAt: '2026-08-31T09:51:00+00:00',
             archived: false,
+            running: true,
+            status: 'Looking through today’s mail',
+            unread: false,
         },
         {
             id: answeredConversationId,
@@ -52,6 +55,9 @@ export const agentHistory = {
             startedAt: '2026-08-31T09:40:00+00:00',
             lastActivityAt: '2026-08-31T09:42:00+00:00',
             archived: false,
+            running: false,
+            status: null,
+            unread: false,
         },
         {
             id: '0198f4a1-0000-7000-8000-00000000a9e3',
@@ -59,6 +65,9 @@ export const agentHistory = {
             startedAt: '2026-08-24T08:10:00+00:00',
             lastActivityAt: '2026-08-24T08:14:00+00:00',
             archived: true,
+            running: false,
+            status: null,
+            unread: false,
         },
     ],
 };

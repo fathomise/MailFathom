@@ -3825,7 +3825,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           meta: [agentRuns.length ? agentRuns.length + " working" : "", agentUnread.length ? agentUnread.length + " unread" : ""].filter(Boolean).join(" · "),
           sections: [
             { label: "Working on", rows: agentRuns.map(r => peekRow("spin", r, r.sub + "…")) },
-            { label: "Unread", rows: agentUnread.map(c => { const lm = c.msgs[c.msgs.length - 1]; return peekRow("dot", c, lm ? mdPlain(lm.text || "") : ""); }) },
+            /* When it finished rather than what it said: the history list a deployment serves carries no part of an
+               answer, so the peek names the time the reply landed and the conversation itself holds the words. */
+            { label: "Unread", rows: agentUnread.map(c => peekRow("dot", c, c.when)) },
           ].filter(s => s.rows.length),
           empty: "Nothing running and nothing unread.",
         },

@@ -67,6 +67,10 @@ internal static class ClientAgentConversationEndpoints
     /// <remarks>The archive is a mark on the conversation rather than a place it moves to, so putting one there and taking it back are the two writes of one sub-resource.</remarks>
     internal const string ArchiveRoute = "/agent/conversations/{conversationId:guid}/archive";
 
+    /// <summary>The route a person marks a conversation read at, relative to the client prefix.</summary>
+    /// <remarks>Whether a conversation is read is the person's own state rather than one screen's, so it is kept by the deployment and follows them to the next machine.</remarks>
+    internal const string ReadRoute = "/agent/conversations/{conversationId:guid}/read";
+
     /// <summary>The route a question is asked at, relative to the client prefix.</summary>
     /// <remarks>Beneath the conversation it is asked in, which the client names — so the first question of a conversation is posted exactly as every later one is, and starts it.</remarks>
     internal const string MessagesRoute = "/agent/conversations/{conversationId:guid}/messages";
@@ -121,6 +125,9 @@ internal static class ClientAgentConversationEndpoints
         api.MapDelete(ArchiveRoute, Restore)
             .RequirePermission(MailFathomPermission.AssistantUse);
 
+        api.MapPut(ReadRoute, MarkRead)
+            .RequirePermission(MailFathomPermission.AssistantUse);
+
         api.MapPost(MessagesRoute, Ask)
             .WithMetadata(new RequestSizeLimitAttribute(MaxMessageRequestBytes))
             .RequirePermission(MailFathomPermission.AssistantUse);
@@ -173,7 +180,10 @@ internal static class ClientAgentConversationEndpoints
                 line.Title,
                 line.StartedAt,
                 line.LastActivityAt,
-                line.Archived)),
+                line.Archived,
+                line.Running,
+                line.Status,
+                line.Unread)),
         ]));
     }
 
@@ -261,6 +271,31 @@ internal static class ClientAgentConversationEndpoints
         [FromServices] IAgentConversationStore store,
         CancellationToken cancellationToken) =>
         SetArchivedAsync(conversationId, archived: false, scopeResolver, store, cancellationToken);
+
+    /// <summary>Records that the person has a conversation in front of them, which reads everything it holds as read on every screen they sign in on.</summary>
+    /// <param name="conversationId">The conversation they are reading.</param>
+    /// <param name="scopeResolver">Names the acting user, whose conversation it has to be.</param>
+    /// <param name="store">Where conversations are held.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns><c>204</c> where it is this person's, <c>404</c> where this person holds no such conversation, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.assistant.use</c>.</returns>
+    /// <remarks>
+    /// It takes no body: what is read is as far as the conversation has reached when the write lands, and an answer still
+    /// being composed leaves it unread again when it ends, unless the client still has it in front and says so again.
+    /// </remarks>
+    internal static async Task<Results<NoContent, NotFound>> MarkRead(
+        [FromRoute] Guid conversationId,
+        [FromServices] MailboxScopeResolver scopeResolver,
+        [FromServices] IAgentConversationStore store,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(scopeResolver);
+        ArgumentNullException.ThrowIfNull(store);
+
+        return conversationId != Guid.Empty
+            && await store.TryMarkReadAsync(AgentConversationId.Create(conversationId), scopeResolver.User, cancellationToken)
+            ? TypedResults.NoContent()
+            : TypedResults.NotFound();
+    }
 
     private static async Task<Results<NoContent, NotFound>> SetArchivedAsync(
         Guid conversationId,
@@ -661,12 +696,18 @@ internal sealed record ClientAgentConversationListResponse(IReadOnlyList<ClientA
 /// <param name="StartedAt">When it was started.</param>
 /// <param name="LastActivityAt">When anything was last written into it.</param>
 /// <param name="Archived">Whether the person has put it away, which is what a client draws its archive section from.</param>
+/// <param name="Running">Whether an answer is being composed in it right now.</param>
+/// <param name="Status">What that answer last said it is doing, in the person's language, and <see langword="null" /> while it has said nothing or nothing is being composed.</param>
+/// <param name="Unread">Whether it holds a finished reply the person has not had in front of them.</param>
 internal sealed record ClientAgentConversationSummary(
     Guid Id,
     string? Title,
     DateTimeOffset StartedAt,
     DateTimeOffset LastActivityAt,
-    bool Archived);
+    bool Archived,
+    bool Running,
+    string? Status,
+    bool Unread);
 
 /// <summary>One read of a conversation: where it stands, and everything written past the place the reader held.</summary>
 /// <param name="Title">What the conversation is called, and <see langword="null" /> until the agent names it.</param>

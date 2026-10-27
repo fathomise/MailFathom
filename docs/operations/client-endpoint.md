@@ -164,6 +164,7 @@ AppHost provisions its synthetic credential after the service reports ready;
 | `GET /api/client/agent/conversations/{conversationId}` | `mailfathom.assistant.use` |
 | `DELETE /api/client/agent/conversations/{conversationId}` | `mailfathom.assistant.use` |
 | `PUT /api/client/agent/conversations/{conversationId}/archive` | `mailfathom.assistant.use` |
+| `PUT /api/client/agent/conversations/{conversationId}/read` | `mailfathom.assistant.use` |
 | `DELETE /api/client/agent/conversations/{conversationId}/archive` | `mailfathom.assistant.use` |
 | `POST /api/client/agent/conversations/{conversationId}/messages` | `mailfathom.assistant.use` |
 | `POST /api/client/agent/conversations/{conversationId}/runs/{runId}/messages` | `mailfathom.assistant.use` |
@@ -4147,7 +4148,22 @@ means the client is caught up. `composing` says an answer
 is still being written, and `moreFollows` says more is written than one read returns, at most 250; the client reads
 again from the last place it was given. The listing returns at most 100 conversations, the ones not archived first and
 each group the one that moved last first, and every line carries `archived` — so a listing cut at the bound loses an
-archived conversation before one the person is working in.
+archived conversation before one the person is working in. Each line also says where the conversation stands:
+`running` while an answer is being composed in it, with `status` the line that answer last reported — null until it
+has reported one, and whenever nothing runs — and `unread` while it holds a finished reply the person has not had in
+front of them. That is everything the rail's *Agent* tile draws from, so a client hears a run start, report, and end,
+and a conversation turn unread, by reading this listing again when `run.advanced` names a conversation.
+
+**Whether a conversation is read is the person's, kept by the deployment, and marked by the client showing it:**
+
+```http
+PUT /api/client/agent/conversations/{conversationId}/read
+```
+
+It takes no body and answers `204`, or `404` where this person holds no such conversation. It marks the conversation
+read as far as it has reached when the write lands, so it follows the person to every client they sign in on; an answer
+still being composed then leaves it unread again when it ends, unless the client still showing it says so once more.
+It does not move the instant the history is ordered by.
 
 **The history is searched the way mail is: by its words and by its meaning, fused.** The query travels in the body
 rather than the address, so it reaches no access log:

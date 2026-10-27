@@ -1661,6 +1661,7 @@ to.
 | `VisibleEntryCount` | How many entries of the visible history the conversation holds. Advanced by the same statement as `Sequence`, only for a visible entry, so the ceiling a person meets counts what they can read and a run's tool traffic never fills a conversation sooner |
 | `ComposingMessageId` | Which answer is being composed, and null where none is. It is what refuses a second answer opening while one is open, and what refuses a part of an answer arriving after that answer has ended — both as conditions on this row rather than as a check some replica performs and then acts on |
 | `Archived` | Whether the person has put the conversation away, false for every conversation until they do. It decides where the history lists it and nothing else — the entries stay, an answer being composed goes on, and `LastActivityAt` does not move when it changes |
+| `ReadThrough` | The place the conversation had reached when the person last had it in front of them, set to `Sequence` by the client's read mark and by nothing else. The listing reports the conversation unread while `ComposingMessageId` is null and a visible entry stands past it, so a reply that lands while the person is elsewhere waits for them on every machine. Every conversation that existed before the column did was set read as far as it had reached |
 
 | `agent_conversation_entries` column | What it records |
 |---|---|

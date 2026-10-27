@@ -102,6 +102,10 @@ internal sealed class RecordingAgentConversationStore : IAgentConversationStore
         throw Unasked();
 
     /// <inheritdoc />
+    public Task<bool> TryMarkReadAsync(AgentConversationId id, UserId user, CancellationToken cancellationToken) =>
+        throw Unasked();
+
+    /// <inheritdoc />
     public Task<bool> TryDeleteAsync(AgentConversationId id, UserId user, CancellationToken cancellationToken) =>
         throw Unasked();
 

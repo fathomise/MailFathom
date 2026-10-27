@@ -43,7 +43,9 @@ import {
 import type { PortraitExchange } from './deployment/portraitExchange';
 import type { DeploymentTransport } from './deployment/sendToDeployment';
 import { telemetryForwardedBy } from './deployment/telemetryForwarding';
-import { AgentSpace } from './agent/AgentSpace';
+import { agentReport } from './agent/agentReport';
+import { AgentSpace, type AgentOpening } from './agent/AgentSpace';
+import { useConversationHistory } from './agent/useConversationHistory';
 import type { ProposalLook } from './answerCanvas/proposalAnswering';
 import { DiscoverSpace } from './discover/DiscoverSpace';
 import { FolderTree } from './folders/FolderTree';
@@ -702,7 +704,22 @@ export function App({
     );
 
     const toasts = useToasts();
-    const { translate } = useLocalization();
+    const { locale, translate } = useLocalization();
+
+    // The conversations with the agent, read for the whole frame rather than by the Agent space alone: the rail's Agent
+    // tile reports what is running and what waits unread from every space, and the space reads the same list.
+    const agentHistory = useConversationHistory(asksMail ? session : null, readMail, signalledChanges);
+    const [agentOpening, setAgentOpening] = useState<AgentOpening | null>(null);
+    const openAgentConversation = useCallback((conversation: string): void => {
+        setAgentOpening({ conversation });
+        window.location.hash = addressOf('agent');
+    }, []);
+    const [agentReportedFrom] = useState(() => Date.now());
+    const agentTile = agentReport(
+        agentHistory.conversations,
+        { locale, timeZone: profile.timeZone, now: agentReportedFrom, translate },
+        openAgentConversation,
+    );
 
     // A decision about a send asked from its notification, held until the Outbox that draws the send has read it.
     const [outboxAsked, setOutboxAsked] = useState<OutboxDecisionAsked | null>(null);
@@ -1278,6 +1295,16 @@ export function App({
                                                                                                             handOver={
                                                                                                                 handedToAgent
                                                                                                             }
+                                                                                                            history={
+                                                                                                                agentHistory
+                                                                                                            }
+                                                                                                            inFront={
+                                                                                                                space ===
+                                                                                                                'agent'
+                                                                                                            }
+                                                                                                            opening={
+                                                                                                                agentOpening
+                                                                                                            }
                                                                                                             onLook={
                                                                                                                 lookFromAgent
                                                                                                             }
@@ -1726,6 +1753,13 @@ export function App({
                                                                                 <SpaceNavigation
                                                                                     offered={offeredSpaces}
                                                                                     current={space}
+                                                                                    // What the Agent reports on its tile, on the grant its conversations are read
+                                                                                    // under: a credential that may not ask is told nothing about a run.
+                                                                                    reports={
+                                                                                        asksMail
+                                                                                            ? { agent: agentTile }
+                                                                                            : {}
+                                                                                    }
                                                                                     onPointerDown={
                                                                                         swipe.onNavigationPointerDown
                                                                                     }

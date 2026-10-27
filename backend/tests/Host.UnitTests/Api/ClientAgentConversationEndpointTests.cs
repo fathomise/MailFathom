@@ -37,6 +37,8 @@ public sealed class ClientAgentConversationEndpointTests
 
     private static readonly Guid Conversation = Guid.CreateVersion7(Now);
 
+    private static readonly Guid OtherConversation = Guid.CreateVersion7(Now.AddMinutes(1));
+
     private static readonly Guid Run = Guid.CreateVersion7(Now);
 
     private readonly IAgentConversationStore store = Substitute.For<IAgentConversationStore>();
@@ -351,23 +353,59 @@ public sealed class ClientAgentConversationEndpointTests
             Arg.Any<CancellationToken>());
     }
 
-    /// <summary>The history is the signed-in person's, read at the bound, and each line carries what the store listed, whether it is archived among it.</summary>
+    /// <summary>The history is the signed-in person's, read at the bound, and each line carries what the store listed: whether it is archived, whether a run is under way and what it says, and whether it is unread.</summary>
     [Fact]
     public async Task List_ThePersonsHistory_ListsEveryLineTheStoreReturned()
     {
         // Arrange
-        var line = new AgentConversationSummary(AgentConversationId.Create(Conversation), "Supplier quotes", Now, Now.AddMinutes(3), Archived: true);
+        var archived = new AgentConversationSummary(
+            AgentConversationId.Create(Conversation), "Supplier quotes", Now, Now.AddMinutes(3), Archived: true, Running: false, Status: null, Unread: true);
+        var running = new AgentConversationSummary(
+            AgentConversationId.Create(OtherConversation), "Overdue invoices", Now, Now.AddMinutes(4), Archived: false, Running: true, Status: "Searching your mail", Unread: false);
         this.store
             .ListAsync(SyntheticUser.Deployment, AgentConversationBounds.MaximumConversationsPerListing, Arg.Any<CancellationToken>())
-            .Returns([line]);
+            .Returns([archived, running]);
 
         // Act
         var answered = await ClientAgentConversationEndpoints.List(Resolver(), this.store, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(
-            [new ClientAgentConversationSummary(Conversation, "Supplier quotes", Now, Now.AddMinutes(3), Archived: true)],
+            [
+                new ClientAgentConversationSummary(Conversation, "Supplier quotes", Now, Now.AddMinutes(3), Archived: true, Running: false, Status: null, Unread: true),
+                new ClientAgentConversationSummary(OtherConversation, "Overdue invoices", Now, Now.AddMinutes(4), Archived: false, Running: true, Status: "Searching your mail", Unread: false),
+            ],
             answered.Value!.Conversations);
+    }
+
+    /// <summary>Marking read answers <c>204</c> where the conversation was the person's and <c>404</c> otherwise.</summary>
+    [Theory]
+    [InlineData(true, typeof(NoContent))]
+    [InlineData(false, typeof(NotFound))]
+    public async Task MarkRead_AConversation_AnswersByWhetherItWasThePersons(bool held, Type expected)
+    {
+        // Arrange
+        this.store
+            .TryMarkReadAsync(AgentConversationId.Create(Conversation), SyntheticUser.Deployment, Arg.Any<CancellationToken>())
+            .Returns(held);
+
+        // Act
+        var answered = await ClientAgentConversationEndpoints.MarkRead(Conversation, Resolver(), this.store, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType(expected, answered.Result);
+    }
+
+    /// <summary>An empty identifier names no conversation, so marking it read is answered <c>404</c> without the store being asked.</summary>
+    [Fact]
+    public async Task MarkRead_AnEmptyIdentifier_IsNotFoundWithoutAskingTheStore()
+    {
+        // Act
+        var answered = await ClientAgentConversationEndpoints.MarkRead(Guid.Empty, Resolver(), this.store, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NotFound>(answered.Result);
+        await this.store.DidNotReceive().TryMarkReadAsync(Arg.Any<AgentConversationId>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>A search answers <c>200</c> with each conversation found, where it matched, and the mode that ordered it.</summary>

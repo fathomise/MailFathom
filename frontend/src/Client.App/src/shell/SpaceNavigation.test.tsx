@@ -2,11 +2,12 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LocalizationProvider } from '../localization/Localization';
 import { spaces, type Space } from '../routing/spaces';
 import { SpaceNavigation } from './SpaceNavigation';
+import type { SpaceReport } from './spaceReport';
 
 const handedTheAccount = 'The account control this navigation was handed.';
 const handedTheBell = 'The bell this navigation was handed.';
@@ -28,7 +29,11 @@ function atWorkspaceWidth(wide: boolean): void {
     });
 }
 
-function renderNavigation(offered: readonly Space[] = spaces, current: Space | null = 'mail'): void {
+function renderNavigation(
+    offered: readonly Space[] = spaces,
+    current: Space | null = 'mail',
+    reports: Partial<Record<Space, SpaceReport>> = {},
+): void {
     render(
         <LocalizationProvider>
             <SpaceNavigation
@@ -38,6 +43,7 @@ function renderNavigation(offered: readonly Space[] = spaces, current: Space | n
                 notifications={<button>{handedTheBell}</button>}
                 refresh={<button>{handedTheRefresh}</button>}
                 developer={<button>{handedTheDeveloper}</button>}
+                reports={reports}
                 onPointerDown={() => undefined}
                 onClickCapture={() => undefined}
             />
@@ -196,5 +202,105 @@ describe('SpaceNavigation', () => {
 
         expect(everyLink().map(([name]) => name)).toEqual(['Mail', 'Agent']);
         expect(screen.getByRole('button', { name: 'More' })).toBeDefined();
+    });
+});
+
+describe('a rail tile’s report', () => {
+    afterEach(() => {
+        atWorkspaceWidth(false);
+    });
+
+    const opened = vi.fn();
+
+    const working: SpaceReport = {
+        dot: 'working',
+        counts: ['1 working', '1 unread'],
+        sections: [
+            {
+                label: 'Working on',
+                kind: 'working',
+                rows: [{ key: 'a', title: 'Overdue invoices', detail: 'Searching your mail…', open: opened }],
+            },
+            {
+                label: 'Unread',
+                kind: 'waiting',
+                rows: [{ key: 'b', title: 'Northwind reports', detail: '10:12', open: () => undefined }],
+            },
+        ],
+        empty: 'Nothing running and nothing unread.',
+    };
+
+    function dotOf(space: string): string | null {
+        return (
+            screen
+                .getByRole('link', { name: new RegExp(`^${space}`) })
+                .querySelector('[data-space-dot]')
+                ?.getAttribute('data-space-dot') ?? null
+        );
+    }
+
+    it('draws a pulsing dot while something runs, a still one while something only waits, and none otherwise', () => {
+        atWorkspaceWidth(true);
+        renderNavigation(spaces, 'mail', {
+            agent: working,
+            discover: { ...working, dot: 'waiting' },
+            mail: { ...working, dot: null, counts: [], sections: [] },
+        });
+
+        expect(dotOf('Agent')).toBe('working');
+        expect(dotOf('Discover')).toBe('waiting');
+        expect(dotOf('Mail')).toBeNull();
+    });
+
+    it('carries the counts in the tile’s name, so a reader who cannot see the dot hears them', () => {
+        atWorkspaceWidth(true);
+        renderNavigation(spaces, 'mail', { agent: working });
+
+        expect(screen.getByRole('link', { name: 'Agent - 1 working, 1 unread' }).getAttribute('href')).toBe('#/agent');
+    });
+
+    it('slides out the peek under a mouse resting on the rail’s tile, and a row opens what it names', () => {
+        atWorkspaceWidth(true);
+        renderNavigation(spaces, 'mail', { agent: working });
+
+        fireEvent.pointerOver(screen.getByRole('link', { name: /^Agent/ }), { pointerType: 'mouse' });
+        const peek = screen.getByRole('dialog', { name: 'Agent' });
+
+        expect(within(peek).getByText('Working on')).toBeTruthy();
+        expect(within(peek).getByText('Unread')).toBeTruthy();
+
+        fireEvent.click(within(peek).getByRole('button', { name: /Overdue invoices/ }));
+
+        expect(opened).toHaveBeenCalledTimes(1);
+        expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('never opens the peek under a finger, which has the dot and the place itself', () => {
+        atWorkspaceWidth(true);
+        renderNavigation(spaces, 'mail', { agent: working });
+
+        fireEvent.pointerOver(screen.getByRole('link', { name: /^Agent/ }), { pointerType: 'touch' });
+
+        expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('never opens the peek from the bar, which has no room beside it', () => {
+        atWorkspaceWidth(false);
+        renderNavigation(spaces, 'mail', { agent: working });
+
+        fireEvent.pointerOver(screen.getByRole('link', { name: /^Agent/ }), { pointerType: 'mouse' });
+
+        expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('says so where nothing runs and nothing waits', () => {
+        atWorkspaceWidth(true);
+        renderNavigation(spaces, 'mail', { agent: { ...working, dot: null, counts: [], sections: [] } });
+
+        fireEvent.pointerOver(screen.getByRole('link', { name: 'Agent' }), { pointerType: 'mouse' });
+
+        expect(
+            within(screen.getByRole('dialog', { name: 'Agent' })).getByText('Nothing running and nothing unread.'),
+        ).toBeTruthy();
     });
 });

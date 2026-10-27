@@ -512,6 +512,22 @@
         }
     }
 
+    /* A rail tile's status dot while something there is under way: a ring goes out of the dot and fades before it
+       reaches the tile's edge, which is the design's pulse. Removed under `prefers-reduced-motion` by the rule at the
+       foot of this file, which leaves the still dot that says something waits. */
+    --animate-rail-ring: rail-ring 1.6s var(--ease-arrive) infinite;
+
+    @keyframes rail-ring {
+        0% {
+            box-shadow: 0 0 0 0 var(--color-error);
+        }
+
+        70%,
+        100% {
+            box-shadow: 0 0 0 5px transparent;
+        }
+    }
+
     /* The three dots the composer's drafting band draws in place of an ellipsis, each rising in turn: one keyframe
        and three starts a beat apart, stated here so the band names none of its own. Under `prefers-reduced-motion`
        the rule at the foot of this file stands them still. */

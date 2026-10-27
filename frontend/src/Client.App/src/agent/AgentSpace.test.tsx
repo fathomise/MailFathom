@@ -18,7 +18,9 @@ import { LocalizationProvider } from '../localization/Localization';
 import type { AgentHandOver } from '../routing/agentHandOver';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
 import { WorkspaceProvider } from '../workspace/Workspace';
+import { nothingSignalled } from '../signals/signalledChanges';
 import { AgentSpace } from './AgentSpace';
+import { useConversationHistory } from './useConversationHistory';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
 
@@ -109,16 +111,35 @@ function drawn(
         <LocalizationProvider>
             <LinkOpenerContext value={() => Promise.resolve()}>
                 <WorkspaceProvider>
-                    <AgentSpace
-                        session={session}
-                        transport={transport}
-                        handOver={handOver}
-                        schedule={neverPolls}
-                        onLook={onLook}
-                    />
+                    <AgentSpaceInFrame transport={transport} handOver={handOver} onLook={onLook} />
                 </WorkspaceProvider>
             </LinkOpenerContext>
         </LocalizationProvider>
+    );
+}
+
+// The frame reads the history for the rail as well as for the space, so a case draws the space under the same read.
+function AgentSpaceInFrame({
+    transport,
+    handOver,
+    onLook,
+}: {
+    readonly transport: MailFathomTransport;
+    readonly handOver: AgentHandOver | null;
+    readonly onLook: ((where: ProposalLook) => void) | null;
+}) {
+    const history = useConversationHistory(session, transport, nothingSignalled);
+
+    return (
+        <AgentSpace
+            session={session}
+            transport={transport}
+            history={history}
+            inFront
+            handOver={handOver}
+            schedule={neverPolls}
+            onLook={onLook}
+        />
     );
 }
 
@@ -182,6 +203,46 @@ describe('AgentSpace', () => {
             expect.stringContaining('What is waiting on me today'),
             expect.stringContaining('How many bays were confirmed'),
         ]);
+    });
+
+    it('says in the history what a run under way is doing, in place of the line under its title', async () => {
+        screenOf(deploymentAnswering().transport);
+
+        const row = await screen.findByRole('option', { name: /What is waiting on me today/ });
+
+        expect(within(row).getByText('Looking through today’s mail…')).toBeTruthy();
+    });
+
+    it('sets an unread conversation heavier, and marks it read once it is opened in front of the reader', async () => {
+        const { transport, asked } = deploymentAnswering();
+        const withUnread: MailFathomTransport = (request) =>
+            request.path === conversations && request.method === 'GET'
+                ? Promise.resolve({
+                      status: 200,
+                      headers: {},
+                      body: JSON.stringify({
+                          conversations: agent.agentHistory.conversations.map((listed) =>
+                              listed.id === agent.answeredConversationId ? { ...listed, unread: true } : listed,
+                          ),
+                      }),
+                  })
+                : transport(request);
+
+        screenOf(withUnread);
+
+        const row = await screen.findByRole('option', { name: /How many bays were confirmed/ });
+
+        expect(within(row).getByText('How many bays were confirmed').className).toContain('font-bold');
+        expect(asked.some((request) => request.path.endsWith('/read'))).toBe(false);
+
+        fireEvent.click(row);
+
+        await waitFor(() => {
+            expect(asked.filter((request) => request.method === 'PUT').map((request) => request.path)).toEqual([
+                `${conversations}/${agent.answeredConversationId}/read`,
+            ]);
+        });
+        expect(within(row).getByText('How many bays were confirmed').className).not.toContain('font-bold');
     });
 
     it('groups the history by the day each conversation last moved, drawing no empty day', async () => {
