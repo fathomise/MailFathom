@@ -433,7 +433,7 @@ Project repository: https://github.com/fathomise/MailFathom
   <div id="1.5" style="display:flex;flex-direction:column;gap:18px">
     <div style="display:flex;flex-direction:column;gap:8px;width:980px">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><span style="font-size:12px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:6px;padding:3px 8px">1.5</span><span style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Watched questions</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;color:var(--muted);background:var(--sub);border:1px solid var(--line);border-radius:6px;padding:3px 8px">state="d_watched"</span></div>
-      <div style="font-size:14px;line-height:1.6;color:var(--text2);text-wrap:pretty">A question stays on the start screen only when somebody pressed <b>Watch</b> on its answer. It refreshes when new mail matches it - not on a timer - and each refresh counts against the allowance, which is why nothing is watched by default. A row says whether the answer moved since it was last opened, never the answer itself, and no row names a scope, because Discover always asks about all mail: opening the row runs the question again. A refresh the allowance did not cover is a warning naming when it resumes, and one that failed is a warning with <b>Try again</b>; × stops watching with no confirmation. With nothing watched, the section says how to add one.</div>
+      <div style="font-size:14px;line-height:1.6;color:var(--text2);text-wrap:pretty">A question stays on the start screen only when somebody pressed <b>Watch</b> on its answer. It refreshes when new mail matches it - not on a timer - and each refresh counts against the allowance, which is why nothing is watched by default. A row says whether the answer moved since it was last opened, never the answer itself, and no row names a scope, because Discover always asks about all mail: opening the row runs the question again. A refresh the allowance did not cover is a warning naming when it resumes, and one that failed is a warning with <b>Try again</b>; × stops watching with no confirmation. Under a finger both are 44 px targets, and the × keeps <i>Stop watching</i> as its name, shown by a hold. With nothing watched, the section says how to add one.</div>
     </div>
     <div style="display:flex;flex-direction:column;gap:28px">
       <sc-for list="{{ R.discover }}" as="row" hint-placeholder-count="1"><div style="display:flex;gap:28px;align-items:flex-start">
@@ -455,8 +455,8 @@ Project repository: https://github.com/fathomise/MailFathom
                     <div style="font-size:15px;text-wrap:pretty">{{ w.question }}</div>
                     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="{{ w.stateStyle }}"><span style="{{ w.dotStyle }}"></span>{{ w.note }}</span></div>
                   </div>
-                  <sc-if value="{{ w.hasAction }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--text);border:1px solid var(--border2);border-radius:8px;padding:6px 11px;white-space:nowrap">{{ w.action }}</div></sc-if>
-                  <span title="Stop watching" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--faint);padding:6px">close</span>
+                  <sc-if value="{{ w.hasAction }}" hint-placeholder-val="{{ false }}"><div role="button" style="{{ f.watchAct }}">{{ w.action }}</div></sc-if>
+                  <span role="button" title="Stop watching" aria-label="Stop watching" style="{{ f.watchStop }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text2)">close</span>
                 </div>
               </sc-for>
               <div style="font-size:11px;color:var(--muted);font-weight:600;padding-top:6px">With nothing watched</div>

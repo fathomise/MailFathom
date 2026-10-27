@@ -177,6 +177,8 @@ MailFathomDesign.artboards.clientStates = (DCLogic, React) => {
           : "width:300px;flex:0 0 300px;display:flex;flex-direction:column;gap:2px;padding:14px 10px;background:var(--panel);border-right:1px solid var(--line);box-shadow:12px 0 32px var(--sh-2);min-height:560px;box-sizing:border-box;position:relative;z-index:2",
         beside: desk ? "flex:1;display:flex;background:var(--panel)" : phone ? "display:none" : "flex:1;background:var(--scrim)",
         btnP: btn(true), btnS: btn(false),
+        watchAct: btn(false) + (touch ? "min-height:44px;" : ""),
+        watchStop: IC + "font-size:18px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;box-sizing:border-box;border-radius:10px;color:var(--faint);" + (touch ? "width:44px;height:44px;" : "width:30px;height:30px;"),
         noteBody: "flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px",
         noteNeutral: note("neutral", phone ? "" : "max-width:" + (narrow ? "none" : touch ? "780px" : "900px") + ";box-sizing:border-box;"),
         noteWarn: note("warn"), noteErr: note("err"), noteN: note("neutral"),
