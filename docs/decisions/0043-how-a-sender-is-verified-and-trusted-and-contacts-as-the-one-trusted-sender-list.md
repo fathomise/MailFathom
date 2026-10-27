@@ -400,7 +400,13 @@ contact's and the verdict's identifiers do, and no address or domain does.
 **A contact write re-judges the stored mail it affects.** Adding an address, removing one, moving one between
 contacts, promoting a collected contact, deleting or erasing a contact, writing an organization contact, erasing a
 user, and deleting an organization each enqueue one job per address the act removed or changed, in the durable job
-store (ADR 0009), which issue 2783 builds. The job is keyed by the book and the address, so repeated writes coalesce. It re-judges two sets of stored messages:
+store (ADR 0009), which issue 2783 builds. The job is keyed by the book, the address, and an identifier minted for
+that act. ADR 0009 keeps a key unique across terminal rows too, so a key of the book and the address alone would let
+the first write's finished job swallow every later one, and an amendment would revoke nothing. Each write therefore
+enqueues a job of its own. That is safe because re-judging a message twice from the same state writes the same
+verdict. Jobs for one book and address run one at a time, in the order they were enqueued, so a job that read the
+state before a later write is always followed by that write's own job, and the last verdict written is judged from
+the last state. It re-judges two sets of stored messages:
 
 - every message whose first `From` mailbox is that address, on every account the book reaches now: the accounts
   assigned to the book's user, or every account of the organization;
