@@ -1,6 +1,6 @@
 # The client endpoint
 
-<!-- describes: backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs, backend/src/Host/Configuration/Endpoints/ClientEndpointOptions.cs, backend/src/Host/Configuration/Endpoints/ClientApplicationOptions.cs, backend/src/Host/Configuration/Endpoints/TransportHttpsEndpointOptions.cs, backend/src/Host/Api/ClientApiEndpoints.cs, backend/src/Host/Api/ClientSignInMethodsEndpoint.cs, backend/src/Host/Api/ClientSessionTokenEndpoints.cs, backend/src/Host/Security/Sessions/**, backend/src/Application/Access/Sessions/**, backend/src/Host/Api/ClientMailAccountsEndpoint.cs, backend/src/Host/Api/ClientMailFoldersEndpoint.cs, backend/src/Host/Api/ClientManagedMailFoldersEndpoint.cs, backend/src/Host/Api/ClientMailTimelineEndpoint.cs, backend/src/Host/Api/ClientMailThreadEndpoint.cs, backend/src/Host/Api/ClientMailThreadStateEndpoint.cs, backend/src/Host/Api/ClientMailMessageEndpoint.cs, backend/src/Host/Api/ClientMailBodyEndpoint.cs, backend/src/Host/Api/ClientMailCleanedBodyEndpoint.cs, backend/src/Host/Api/ClientMailAttachmentEndpoint.cs, backend/src/Host/Api/ClientMailSearchPhraseEndpoint.cs, backend/src/Host/Api/ClientTimeZoneEndpoint.cs, backend/src/Host/Api/ClientReplyDraftingEndpoint.cs, backend/src/Host/Api/ClientCalendarEventDraftEndpoint.cs, backend/src/Host/Api/AttachmentContentResponse.cs, backend/src/Host/Api/ProtectedResourceMetadataEndpoint.cs, backend/src/Host/Security/Endpoints/ClientTransportSecurityExtensions.cs, backend/src/Infrastructure/Security/Transport/BrowserOriginPolicy.cs, backend/src/Host/Hosting/ClientApplicationFiles.cs, backend/src/Host/Hosting/Startup/ClientResponseCompression.cs, backend/src/Host/Hosting/Warnings/ClientTransportSecurityWarning.cs, backend/src/Host/Hosting/Warnings/PasswordClearTextTransportWarning.cs, backend/src/Host/Api/ClientUserRecordEndpoint.cs, backend/src/Host/Api/ClientPortraitEndpoint.cs, backend/src/Host/Api/ClientDisplayNameEndpoint.cs, backend/src/Host/Api/ClientPreferencesEndpoint.cs, backend/src/Host/Configuration/UserSettings/Administration/OwnDisplayName.cs, backend/src/Host/Api/ClientMailMutationsEndpoint.cs, backend/src/Host/Api/ClientDraftEndpoints.cs, backend/src/Host/Api/ClientDraftResponses.cs, backend/src/Host/Api/ClientOutboxEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientCalendarEndpoints.cs, backend/src/Host/Api/ClientCalendarImportEndpoints.cs, backend/src/Host/Api/ClientCalendarResponses.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientContactRelationshipEndpoint.cs, backend/src/Host/Api/ClientNotificationEndpoints.cs, backend/src/Host/Api/ClientTaskEndpoints.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Api/ClientCitationEndpoint.cs, backend/src/Host/Api/ClientDiscoveryRunEndpoints.cs, backend/src/Host/Api/ClientAgentConversationEndpoints.cs, backend/src/Host/Observability/ClientTelemetry/**, backend/src/Host/Signals/**, backend/src/Application/Signals/**, backend/src/Application/Mail/Mutations/MailboxMutationPerformer.cs, frontend/src/Client.App/contentSecurityPolicy.ts, frontend/src/Client.App/vite.config.ts, frontend/src/Client.Backend/src/signInMethods.ts, frontend/src/Client.App/src/signIn/oauthFlow.ts, frontend/src/Client.App/src/shellOperations/signInRedirect.ts, frontend/src-tauri/src/redirects.rs, frontend/src-tauri/run-tauri.ts, frontend/src/Client.App/src/deployment/deploymentFetch.ts, frontend/src/Client.Backend/src/transientFailures.ts -->
+<!-- describes: backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs, backend/src/Host/Configuration/Endpoints/ClientEndpointOptions.cs, backend/src/Host/Configuration/Endpoints/ClientApplicationOptions.cs, backend/src/Host/Configuration/Endpoints/TransportHttpsEndpointOptions.cs, backend/src/Host/Api/ClientApiEndpoints.cs, backend/src/Host/Api/ClientSignInMethodsEndpoint.cs, backend/src/Host/Api/ClientSessionTokenEndpoints.cs, backend/src/Host/Security/Sessions/**, backend/src/Application/Access/Sessions/**, backend/src/Host/Api/ClientMailAccountsEndpoint.cs, backend/src/Host/Api/ClientMailFoldersEndpoint.cs, backend/src/Host/Api/ClientManagedMailFoldersEndpoint.cs, backend/src/Host/Api/ClientMailTimelineEndpoint.cs, backend/src/Host/Api/ClientMailThreadEndpoint.cs, backend/src/Host/Api/ClientMailThreadStateEndpoint.cs, backend/src/Host/Api/ClientMailMessageEndpoint.cs, backend/src/Host/Api/ClientMailBodyEndpoint.cs, backend/src/Host/Api/ClientMailCleanedBodyEndpoint.cs, backend/src/Host/Api/ClientMailAttachmentEndpoint.cs, backend/src/Host/Api/ClientMailSourceEndpoint.cs, backend/src/Application/Emails/ReadSource/**, backend/src/Host/Api/ClientMailSearchPhraseEndpoint.cs, backend/src/Host/Api/ClientTimeZoneEndpoint.cs, backend/src/Host/Api/ClientReplyDraftingEndpoint.cs, backend/src/Host/Api/ClientCalendarEventDraftEndpoint.cs, backend/src/Host/Api/AttachmentContentResponse.cs, backend/src/Host/Api/ProtectedResourceMetadataEndpoint.cs, backend/src/Host/Security/Endpoints/ClientTransportSecurityExtensions.cs, backend/src/Infrastructure/Security/Transport/BrowserOriginPolicy.cs, backend/src/Host/Hosting/ClientApplicationFiles.cs, backend/src/Host/Hosting/Startup/ClientResponseCompression.cs, backend/src/Host/Hosting/Warnings/ClientTransportSecurityWarning.cs, backend/src/Host/Hosting/Warnings/PasswordClearTextTransportWarning.cs, backend/src/Host/Api/ClientUserRecordEndpoint.cs, backend/src/Host/Api/ClientPortraitEndpoint.cs, backend/src/Host/Api/ClientDisplayNameEndpoint.cs, backend/src/Host/Api/ClientPreferencesEndpoint.cs, backend/src/Host/Configuration/UserSettings/Administration/OwnDisplayName.cs, backend/src/Host/Api/ClientMailMutationsEndpoint.cs, backend/src/Host/Api/ClientDraftEndpoints.cs, backend/src/Host/Api/ClientDraftResponses.cs, backend/src/Host/Api/ClientOutboxEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientCalendarEndpoints.cs, backend/src/Host/Api/ClientCalendarImportEndpoints.cs, backend/src/Host/Api/ClientCalendarResponses.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientContactRelationshipEndpoint.cs, backend/src/Host/Api/ClientNotificationEndpoints.cs, backend/src/Host/Api/ClientTaskEndpoints.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Api/ClientCitationEndpoint.cs, backend/src/Host/Api/ClientDiscoveryRunEndpoints.cs, backend/src/Host/Api/ClientAgentConversationEndpoints.cs, backend/src/Host/Observability/ClientTelemetry/**, backend/src/Host/Signals/**, backend/src/Application/Signals/**, backend/src/Application/Mail/Mutations/MailboxMutationPerformer.cs, frontend/src/Client.App/contentSecurityPolicy.ts, frontend/src/Client.App/vite.config.ts, frontend/src/Client.Backend/src/signInMethods.ts, frontend/src/Client.App/src/signIn/oauthFlow.ts, frontend/src/Client.App/src/shellOperations/signInRedirect.ts, frontend/src-tauri/src/redirects.rs, frontend/src-tauri/run-tauri.ts, frontend/src/Client.App/src/deployment/deploymentFetch.ts, frontend/src/Client.Backend/src/transientFailures.ts -->
 
 Where the MailFathom client reaches the service, what a deployment has to enable before it answers, and what a person's
 mail client presents to get in.
@@ -80,6 +80,7 @@ AppHost provisions its synthetic credential after the service reports ready;
 | `GET /api/client/messages/{storedEmailId}/body` | `mailfathom.mail.read` |
 | `GET /api/client/messages/{storedEmailId}/body/cleaned` | `mailfathom.assistant.use` with `mailfathom.mail.read` |
 | `GET /api/client/messages/{storedEmailId}/attachments/{position}` | `mailfathom.mail.read` |
+| `GET /api/client/messages/{storedEmailId}/source` | `mailfathom.mail.read` |
 | `POST /api/client/citations/resolution` | `mailfathom.mail.read` |
 | `GET /api/client/mutations` | `mailfathom.mail.read` |
 | `POST /api/client/mutations/flags` | `mailfathom.mail.flags.write` |
@@ -829,7 +830,13 @@ continues the list at each end:
         ]
       },
       "threadMessageCount": 4,
-      "spam": null
+      "spam": null,
+      "sender": {
+        "authorAuthentication": "Authenticated",
+        "deploymentTrust": "Unknown",
+        "signatureOutcome": "NotSigned",
+        "signerMatchesAuthor": false
+      }
     }
   ],
   "nextCursor": "AbCd...",
@@ -911,6 +918,25 @@ because it says what kind of spam a message is and nothing about mail that is no
 `impersonatedParty` is the kind of party a message pretends to come from and never a name — where a reader needs one,
 the message's own sender is in front of them. [Spam classification](../features/spam-classification.md) is where each
 stage and each value is decided.
+
+**`sender` is what was established about who sent the message, as four facts side by side**, so a list marks a
+row's sender without a request per row. `authorAuthentication` and `deploymentTrust` are the two states
+[the message route](#the-message-route) publishes under the same names, and `signatureOutcome` and
+`signerMatchesAuthor` are its `signature.outcome` and `signature.signerMatchesAuthor`:
+
+| Field | Values |
+| --- | --- |
+| `authorAuthentication` | `NotEstablished`, `Failed`, `Authenticated` |
+| `deploymentTrust` | `Unknown`, `Trusted` |
+| `signatureOutcome` | `NotSigned`, `Verified`, `Failed`, `NotVerifiable` |
+| `signerMatchesAuthor` | `true` where the message's own signer is the author it displays |
+
+The four are never combined into one value here. Which mark a screen draws from them is the client's rule, and a value
+combining them on the wire would be a second copy of that rule for the two to disagree over. The evidence each fact was
+reached from — the domains that passed, the DMARC result, the signer and every verification step — stays on the
+message route, which is what a surface explaining a mark reads; a list page carrying it would publish what no row draws.
+Every row carries the object, sent mail included, because the facts are the message's and which rows draw a mark is the
+screen's to decide.
 
 **`evidence` names passages rather than carrying them.** Each entry is a passage identifier, resolvable through the
 same citation route an answer's citations use, so a client that wants the words behind a mark asks for them. A row
@@ -1025,7 +1051,13 @@ It answers with one page of the user's mail ranked against what they are looking
         }
       ],
       "isDepictedMatch": false,
-      "spam": null
+      "spam": null,
+      "sender": {
+        "authorAuthentication": "Authenticated",
+        "deploymentTrust": "Trusted",
+        "signatureOutcome": "NotSigned",
+        "signerMatchesAuthor": false
+      }
     }
   ],
   "nextCursor": "AbCd...",
@@ -1046,7 +1078,8 @@ acted on without a second request. `snippets` are the extracts around what match
 `**` — text cut from untrusted mail rather than markup to render — and `preview` is the same bounded opening the list
 route publishes. The one list field a result does not carry is `threadMessageCount`: a search ranks messages rather
 than correspondences, and counting the conversation behind every result would be a query this route does not owe.
-`spam` is the list row's own object, read the same way, so a result is folded or badged exactly as its row would be.
+`spam` and `sender` are the list row's own objects, read the same way, so a result is folded, badged, and marked
+exactly as its row would be.
 
 **`matchedBy` is why the row is there**: `LexicalRanking` for a message carrying the query's words, `SemanticRanking`
 for one matching by meaning, and `BothRankings` for one both rankings found. It is the field a screen needs most for
@@ -1257,7 +1290,13 @@ It answers with one conversation as a single document — the messages in it, wh
           ]
         },
         "threadMessageCount": 2,
-        "spam": null
+        "spam": null,
+        "sender": {
+          "authorAuthentication": "Authenticated",
+          "deploymentTrust": "Unknown",
+          "signatureOutcome": "NotSigned",
+          "signerMatchesAuthor": false
+        }
       }
     },
     {
@@ -1283,7 +1322,13 @@ It answers with one conversation as a single document — the messages in it, wh
         "preview": "Thanks — I will read the notes this afternoon.",
         "enrichment": null,
         "threadMessageCount": 2,
-        "spam": null
+        "spam": null,
+        "sender": {
+          "authorAuthentication": "Authenticated",
+          "deploymentTrust": "Unknown",
+          "signatureOutcome": "NotSigned",
+          "signerMatchesAuthor": false
+        }
       }
     }
   ],
@@ -1315,7 +1360,8 @@ across this surface, and its `preview` is what that message added with the quote
 trimmed off — which is what keeps the eighth reply from redrawing the seven above it. Field for field includes
 `enrichment`, which carries here exactly what it carries on a list row and means exactly the same thing: a message a
 derivation reached shows its marks whichever screen draws it, and a conversation that answered `null` for a message the
-list shows marks for would be stating that no derivation has reached it. `threadMessageCount` on each of these rows is
+list shows marks for would be stating that no derivation has reached it. `sender` is the row's own object too, so a
+message marks its sender alike in a list, in search results, and in a conversation. `threadMessageCount` on each of these rows is
 this conversation's own `messageCount`, because that is what the field means and every message here is in this
 conversation — so a row drawn from a thread reads the same number as the header above it. That is the *assembled* count
 rather than the counted one, so a conversation past the 500 this route assembles reads `500` here beside
@@ -1439,7 +1485,13 @@ of its body exist to be asked for:
   "sender": {
     "authorAuthentication": "Authenticated",
     "deploymentTrust": "Trusted",
-    "authenticatedDomain": "example.test"
+    "authenticatedDomain": "EXAMPLE.TEST",
+    "authenticationSource": "ReceivingServer",
+    "dkimDomain": "EXAMPLE.TEST",
+    "spfDomain": "BOUNCES.EXAMPLE.TEST",
+    "dmarc": "Pass",
+    "trustSource": "ConfiguredTrustedSender",
+    "trustOrganization": null
   },
   "signature": {
     "outcome": "Verified",
@@ -1514,8 +1566,8 @@ nothing about what arrived — and whether there is a richer rendering to draw i
 is `true` where the message carried an HTML part, which is what the body route's document is reduced from; both are
 `false` for a body nothing could read, and `availability` is the same set that route reports.
 
-**`sender` is two states and is never one.** `authorAuthentication` is what the receiving mail server established about
-the author the message displays, and `deploymentTrust` is whether this deployment recognizes that author — a fact about
+**`sender` is two states and is never one.** `authorAuthentication` is what was established about the author the
+message displays — by the receiving mail server, or by MailFathom's own DKIM check where that server said nothing — and `deploymentTrust` is whether this deployment recognizes that author — a fact about
 the message beside a classification of a list. They are published side by side because collapsing them into one badge
 would mean inventing the rule that combines them: an authenticated author nobody has named is the ordinary state of
 legitimate mail and carries the same trust value as one whose authentication failed outright. Both are read back as they
@@ -1523,13 +1575,48 @@ were stored; nothing on this path re-reads a header, resolves DNS, or evaluates 
 what was concluded about the authenticated author rather than a reading of the `From` header.
 
 **`authenticatedDomain` is who the authentication was established for**, which is the fact a reader needs when the
-name a message displays is not it. It is the domain the receiving mail server authenticated and nothing wider: it is
+name a message displays is not it. It is the domain that check authenticated and nothing wider: it is
 `null` for a message nothing authenticated a sender for, and it is published beside the two states rather than
 compared against the `From` address, because judging whether the two agree is the policy this path deliberately does
 not evaluate.
 
+**The rest of `sender` is the evidence the two states were reached from**, which is what a surface explaining a sender
+mark lists step by step. None of it changes what a reader acts on, which stays the two states, and none of it is
+combined into them here.
+
+| Field | Values |
+| --- | --- |
+| `authenticationSource` | `ReceivingServer` — the account's trusted receiving mail server, read back out of the `Authentication-Results` header it wrote — or `LocalVerification`, where MailFathom verified the message's own DKIM signatures itself because no such statement was available |
+| `dkimDomain` | The domain whose DKIM signature passed, or `null` where none did |
+| `spfDomain` | The domain whose SPF check passed, or `null` where none did or none was evaluated |
+| `dmarc` | `NotReported`, `Pass`, `Fail`, `NoPolicyPublished`, `TemporaryError`, `PermanentError` |
+| `trustSource` | `OwnAccountDomain`, `ConfiguredTrustedSender`, `StoredTrustedSender`, `OrganizationMember`, or `null` where nothing recognized the author |
+| `trustOrganization` | The current display name of the organization whose signature recognized the author, present only where `trustSource` is `OrganizationMember` and that organization still exists; `null` otherwise |
+
+`authenticationSource` names which reading produced the verdict rather than asserting that a server established
+something, so `ReceivingServer` is also what a message carries when nothing was read at all. A reader concludes that
+nobody checked from `ReceivingServer` beside an `authorAuthentication` of `NotEstablished`, no domain passing, and a
+`dmarc` of `NotReported`. A verdict reached by `LocalVerification` reads DKIM alone, so it never names an SPF domain and
+reports `NotReported` for DMARC. All three domains are published in the form they are stored in, which is upper-case
+ASCII with an internationalized name in its ASCII encoding, so a screen that wants another spelling makes it.
+
+**`trustSource` names what recognized the author, never which entry matched.** `OwnAccountDomain` is a domain of an
+account this deployment synchronizes, `ConfiguredTrustedSender` an entry on the receiving account's configured
+trusted-sender list, `StoredTrustedSender` one somebody added to its stored list, and `OrganizationMember` a signature
+of the receiving account's organization proving the author a member of it, which holds whatever `authorAuthentication`
+says ([Sender authentication](../features/sender-authentication.md)); where both lists name the author the configured
+one is reported. Which address or domain on a list matched is not recorded, so it is not published. It is the source
+in force when the message was extracted, so a change to the trusted senders since reaches mail extracted after it.
+
+**`trustOrganization` is the organization's name as it reads now, not as it read when the message arrived.** The
+verdict records which organization's signature proved the member, never its name, so the name is read through that
+organization on every request: a rename reaches mail already stored, and an organization deleted since leaves
+`trustSource` at `OrganizationMember` with `trustOrganization` at `null`, the reason standing without a name. Every
+other source carries `null`. A list row publishes neither field, because the mark it chooses is *Trusted* whatever
+recognized the author. The name is personal data like the rest of `sender`.
+
 **`signature` is what the message's own S/MIME or OpenPGP signature proves, and it is never folded into `sender`.**
-`sender` is what the receiving mail server established about the domain a message came from; `signature` is what the
+`sender` is what was established about the domain a message came from; `signature` is what the
 message's cryptography proves about who signed it and whether the signed content changed since. Neither says a message
 is safe. `outcome` is one of four values for both formats — `NotSigned`, `Verified`, `Failed` where the content does not
 match its signature, and `NotVerifiable` where it could not be verified here, with `unverifiableReason` saying why:
@@ -1880,6 +1967,55 @@ category, and nothing about the file, and it is deliberately a different status 
 already authenticated for this message and this position, so what they learn is that the deployment screens what it
 serves rather than anything about mail they may not read. Nothing is redacted — a file is served whole or refused —
 and a user who screens nothing pays no extraction and reads exactly the answer the paragraphs above describe.
+
+### The source route
+
+```http
+GET /api/client/messages/0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90/source
+```
+
+It answers with one message exactly as it was received — every header and every MIME part, in its transfer encoding —
+as text and nothing else:
+
+```http
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+Content-Length: 18342
+X-Content-Type-Options: nosniff
+Cache-Control: no-store
+```
+
+**It is asked for when somebody presses *Show source* and never with the message**, so opening a message costs nothing
+for a source nobody looks at. The client keeps nothing it read: closing the surface and pressing again reads it again.
+
+**The octets are the stored copy's, served as text with sniffing switched off.** They are bytes a sender chose, served
+from the origin the client itself is served from, so a message carrying markup is read as characters rather than run as
+a page. `charset=utf-8` is what a reader's browser decodes them under; a part in another character set arrives as the
+characters UTF-8 makes of its octets, which is what *as received* means for a part nobody decoded. `no-store` keeps the
+answer out of every proxy in front of the deployment, and nothing about the request or the octets is logged.
+
+**A source larger than 1 MiB (1,048,576 octets) is cut there.** The answer then carries the first 1,048,576 octets and
+`MailFathom-Source-Truncated-From: <octets>`, naming how many the whole message holds, so a reader is told where the text
+stops rather than shown a part as if it were all of it. The header is absent from an answer that is the whole message.
+Past a mebibyte what is left is encoded attachments nobody reads as text, and the bound is what keeps a forty-megabyte
+message from being buffered into one answer.
+
+**A message this user does not hold is answered `404`**, and so is one no deployment ever held, one whose copy was never
+stored, and one whose stored copy is missing or damaged — a missing or damaged copy records the repair request a read of
+the message records, because the finding is about the copy rather than about which read met it. A credential whose grant does not
+carry `mailfathom.mail.read` is answered `403`, as everywhere else on this surface.
+
+**Where [sensitive-content scanning](../features/sensitive-content-scanning.md) is switched on for any account the
+reader is assigned, the source is not served.** That is the posture every read of their mail is redacted under, whichever
+account the message came from. The route answers `409` with `errorCode` `59005` before any of the copy is read, and only
+for a message the reader can reach: one they cannot reach is `404` on a screened deployment too. A read of the message
+is redacted value by value, and a raw source cannot be: its body sits in transfer encodings no scanner reads, so serving
+it beside a redacted body would hand out exactly what the redaction withholds. The reader has already been shown the
+message exists, so saying the source is withheld discloses nothing more.
+
+**It is served from the local copy in every custody phase.** Nothing here contacts a mail server, so reading a source
+cannot fetch a message and cannot set the remote `\Seen` flag; the stored copy is the message whether the account is
+mirrored, held, or being restored.
 
 ### The citation route
 
@@ -2626,26 +2762,27 @@ and somebody who set the client up the way they work should not have to set it u
   "messageView": "reduced",
   "aiFiltersShown": true,
   "notificationSeconds": 5,
+  "trustedLinkDomains": [],
   "telemetryHeldBy": null
 }
 ```
 
-**It holds eight preferences and nothing else.** The ninth field of an answer, `telemetryHeldBy`, is not one: it says
+**It holds nine preferences and nothing else.** The tenth field of an answer, `telemetryHeldBy`, is not one: it says
 who holds the first, [as described below](#a-settings-policy-may-hold-the-telemetry-switch), and a write does not
 state it. Whether this deployment may be told what the person's client is doing;
 what the client is painted in, which is `system`, `light`, or `dark`; whether opening a message opens a tab rather
 than replacing what is on the screen; whether opening a message marks it read on the person's own mail server; whether
 opening a conversation draws every message in it rather than the one it was opened at; which of the three renderings an
 open message is drawn as, which is `reduced`, `cleaned`, or `embeddedHtml`; whether the client offers the standing views
-of the mailbox beneath its folder tree; and how long one of the client's own notifications stands before it takes itself
-away. Each of them says how
+of the mailbox beneath its folder tree; how long one of the client's own notifications stands before it takes itself
+away; and which domains the person trusts the links to. Each of them says how
 somebody wants to work, which is why it belongs to the person. The language does not, and stays on the device: it is
 resolved for somebody who has not signed in and may never get a session. Neither does the width a person drags the
 message list to, which describes the screen in front of them.
 
 **Unset reads as telemetry on, the theme following the machine, tabs off, marking read on, a conversation opening at
-the message it was opened at, a message read as the reduced document, the standing views drawn, and a notification
-standing for five seconds.** A person who has set nothing is answered a
+the message it was opened at, a message read as the reduced document, the standing views drawn, a notification
+standing for five seconds, and no link domain trusted.** A person who has set nothing is answered a
 document rather than a refusal, so a first run draws a screen. The theme is still resolved on the device
 before sign-in — the client cannot wait on the network to paint itself, and there is no session to read this over above
 the sign-in screen — and what this answers replaces that device value once a session exists.
@@ -2710,12 +2847,50 @@ server, plus the grace [the mutation routes](#the-mutation-routes) describe. A v
 naming the range rather than clamped to it: a person who asked for a minute would otherwise be handed half of one
 without being told, and the one screen that writes this offers nothing outside it.
 
+**`trustedLinkDomains` is the person's own list of domains whose links the client opens without asking first.** The
+client asks before following any `http` or `https` link — in a message, its original, an agent's answer, or anywhere
+else it draws one — naming the host and the whole address, and a link whose host is on this list, or is a subdomain of
+an entry on it, opens at once instead. So `nordwind.example` covers `files.nordwind.example`, and a name that only
+borrows its letters, such as `nordwind-billing.example`, still asks. **No screen edits the list yet**: it is set through
+this route alone, and the client reads it and never states it.
+
+**A write that omits `trustedLinkDomains`, or states it as `null`, leaves the stored list as it was**, and `[]` is how
+the list is emptied. It is the second preference, beside the telemetry switch, whose omission is not its unset answer,
+and for the same kind of reason: a client has nothing of the person's to say about a list no control of its own edits,
+and a write composed before its first read answered would otherwise erase a list set here with nothing on any screen to
+show it went.
+
+Each entry is a bare domain name, validated when it is written:
+
+- It is stored, and answered, as lowercase ASCII, with an internationalized name in its punycode form — `bücher.example`
+  is held as `xn--bcher-kva.example` — because that is how a browser spells the host of a link it is compared with.
+- It carries no scheme, path, query, port, or user name, and no wildcard, since a domain already covers every subdomain
+  of it.
+- It is a name rather than an address, has at least two labels, and is not a bare public suffix such as `co.uk` or
+  `com.pl`, each of which would trust every site registered under it. The suffixes refused are the second-level labels
+  registries sell names beneath under a two-letter country code, not the whole Public Suffix List, so a rarer suffix is
+  accepted; what that costs is one person over-trusting their own links.
+- It is at most 253 characters in either form, and the list holds at most 50 entries.
+
+An entry that fails is not dropped: the whole write is refused with `400`, naming the entry's position and what is wrong
+with it, and nothing is stored. The same domain written twice — in two cases, or once in its own script and once in
+punycode — is kept once. A stored entry this build would refuse, written by an earlier one or by hand, is left out of
+the answer, which only means a link to it asks.
+
+**While a rolling upgrade runs a build without the list beside one with it, a stored list can be lost.** A replica of
+the older build reads a document without the key and answers without it, which the newer client reads as a list
+trusting none, so links ask; and a write that replica commits renders the document without the key, which empties a
+list stored through a newer replica. Nothing is lost but the list, and nothing about it is refused, so what is left to
+do once every replica runs the newer build is to set the list again.
+
 **A write states the whole document.** It is a closed set rather than a patch: a key nothing binds is refused rather
 than stored, a theme this deployment does not publish is refused naming the three that are, and a preference the body
-omits is committed as its own default rather than left at whatever was there. The body is bounded like every other on
+omits is committed as its own default rather than left at whatever was there — except the telemetry switch and the
+trusted link domains, each of which an omission leaves as it was stored. The body is bounded like every other on
 this surface, and one past the bound is answered `413`.
 
-**`telemetryEnabled` is the one preference whose omission is not its default.** A body that leaves it out, or states it
+**`telemetryEnabled` is one of the two preferences whose omission is not its default**, the trusted link domains
+[above](#the-preferences-routes) being the other. A body that leaves it out, or states it
 as `null`, says nothing about the switch, and the write keeps the answer the person stored. Both halves of the reason
 are about them: the default is on, so a writer with nothing to say about telemetry would otherwise opt somebody in,
 and a read answers the switch [as it is applied](#a-settings-policy-may-hold-the-telemetry-switch) rather than as it
@@ -2749,7 +2924,7 @@ a sentence saying so in place of the switch — a control over a client that is 
 
 **`telemetryEnabled` is the one preference somebody else may decide.** The deployment's
 [settings policy](admin-endpoint.md#settings-policies), or the policy of the organization a person belongs to, may
-force it on or off for everybody it governs. Nothing else here is ever governed: the other seven take no default, no
+force it on or off for everybody it governs. Nothing else here is ever governed: the other eight take no default, no
 forced value, and no editing restriction, and the switch itself takes a forced value and nothing else.
 [ADR 0037](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0037-a-settings-policy-at-the-deployment-and-at-each-organization.md)
 holds why this one, and what forcing it on takes from the person it is about.
@@ -2758,7 +2933,7 @@ holds why this one, and what forcing it on takes from the person it is about.
 | --- | --- |
 | `GET /api/client/preferences` | Answers `telemetryEnabled` as the forced value, whatever the person stored, and `telemetryHeldBy` as `Deployment` or `Organization` |
 | `POST /api/client/preferences` stating the other value | Answers `400` and writes nothing, in a sentence naming `TelemetryEnabled`, what it is forced to, and whether the deployment or the organization holds it |
-| `POST /api/client/preferences` stating the forced value, or omitting the switch | Commits the other seven and answers the forced value with who holds it. The person's own answer is left exactly as it was |
+| `POST /api/client/preferences` stating the forced value, or omitting the switch | Commits the other eight and answers the forced value with who holds it. The person's own answer is left exactly as it was |
 
 **`telemetryHeldBy` is `null` wherever the answer is the person's own**, so a client reads one field to know whether
 the control is theirs: where it names a holder, their own answer is not what is being applied, and moving the switch
@@ -2778,7 +2953,7 @@ refusal, which is how the telemetry routes read that row.
 
 **A write for somebody whose record this replica does not serve leaves the switch alone too.** Whether a policy holds
 it cannot be known there, and the body may be stating a forced answer another replica read to that person's client, so
-the other seven are committed, the stored answer stays as it was, and the write answers what is stored.
+the other eight are committed, the stored answer stays as it was, and the write answers what is stored.
 
 **The deployment's force wins over an organization's**, as it does for every setting a policy forces: an organization
 holding the switch off for its members is overruled by a deployment holding it on, and `telemetryHeldBy` then names
@@ -4625,8 +4800,9 @@ deployment did not answer, on its sign-in screen, before a password has been typ
 while a downloaded head calls it silent is this setting before it is anything else.
 
 The policy allows `GET` and `POST`, the `Authorization`, `Content-Type`, `Accept`, and `traceparent` request headers,
-and exposes `WWW-Authenticate` so a page can read the challenge that tells it where to authorize and `Retry-After` so a
-client told to hold can read for how long. `traceparent` is the W3C trace context the client sends on every request, and
+and exposes `WWW-Authenticate` so a page can read the challenge that tells it where to authorize, `Retry-After` so a
+client told to hold can read for how long, and `MailFathom-Source-Truncated-From` so a client shown part of a message's
+[source](#the-source-route) can say how large the whole is. `traceparent` is the W3C trace context the client sends on every request, and
 it is the only propagation header this surface admits — [what a client-originated trace
 contains](telemetry.md#what-a-client-originated-trace-contains) is what it carries and why nothing else is allowed
 beside it. **Credentials are never allowed

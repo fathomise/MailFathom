@@ -19,6 +19,7 @@ import {
     newsletterMessage,
     newsletterSubject,
 } from './messages';
+import { listedSender, messageSenderEvidence, senderKindOf } from './senders';
 
 /**
  * How many messages the folder behind the corpus holds.
@@ -98,6 +99,7 @@ function timelineRow(at: number) {
         sizeOctets: 4_096,
         preview: `The opening of message ${String(at)}.`,
         threadMessageCount: null,
+        sender: listedSender(senderKindOf(`message-${String(at)}`)),
     };
 }
 
@@ -146,6 +148,7 @@ function conversationTimelineRow() {
         id: rackingQuote.id,
         threadId: conversationId,
         threadMessageCount: conversationRows.length,
+        sender: listedSender(senderKindOf(rackingQuote.id)),
         subject: rackingQuote.subject,
         senderAddress: 'sales@nordwind.example',
         senderDisplayName: 'Nordwind',
@@ -271,6 +274,7 @@ export const searchResults = {
         {
             ...timelineRow(0),
             id: newsletterId,
+            sender: listedSender(senderKindOf(newsletterId)),
             subject: newsletterSubject,
             senderAddress: 'news@example.invalid',
             senderDisplayName: 'Example',
@@ -293,6 +297,7 @@ export const searchResults = {
         {
             ...timelineRow(1),
             id: markupOnlyId,
+            sender: listedSender(senderKindOf(markupOnlyId)),
             subject: markupOnlySubject,
             senderAddress: 'dispatch@kettles.invalid',
             senderDisplayName: 'Kettles',
@@ -305,6 +310,7 @@ export const searchResults = {
         {
             ...timelineRow(2),
             id: rackingQuote.id,
+            sender: listedSender(senderKindOf(rackingQuote.id)),
             threadId: conversationId,
             subject: rackingQuote.subject,
             senderAddress: 'sales@nordwind.example',
@@ -507,6 +513,7 @@ function conversationEmail(row: (typeof conversationRows)[number], position: num
         preview: row.preview,
         enrichment: derivedReading(position),
         threadMessageCount: conversationRows.length,
+        sender: listedSender(senderKindOf(row.id)),
     };
 }
 
@@ -521,6 +528,7 @@ function conversationContent(row: (typeof conversationRows)[number]) {
     return {
         message: {
             ...newsletterMessage,
+            ...messageSenderEvidence(senderKindOf(row.id)),
             storedEmailId: row.id,
             folder: row.folder,
             threadId: conversationId,
@@ -611,6 +619,7 @@ function spamRow(
     return {
         ...folderRow(0),
         id,
+        sender: listedSender(senderKindOf(id)),
         folder: 'JUNK',
         subject,
         receivedAt,

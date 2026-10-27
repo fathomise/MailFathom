@@ -66,9 +66,9 @@ public sealed class OrchestratedOutgoingEmailStoreTests(MailFathomOrchestrationF
                 // Both open before either commits, which is the whole point: neither transaction can see the other's
                 // pending row, so both reach the insert and only the index can refuse one.
                 await firstScope.GetRequiredService<IOutgoingEmailStore>()
-                    .OpenAsync(first, request, Principal, MimeOf("race").Length, token);
+                    .OpenAsync(first, request, Principal, MimeOf("race"), token);
                 await secondScope.GetRequiredService<IOutgoingEmailStore>()
-                    .OpenAsync(second, request, Principal, MimeOf("race").Length, token);
+                    .OpenAsync(second, request, Principal, MimeOf("race"), token);
 
                 return (First: await first.CommitAsync(token), Second: await second.CommitAsync(token));
             },

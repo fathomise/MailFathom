@@ -201,4 +201,19 @@ describe('HeadActs, the spam control', () => {
 
         expect(toggleSpam).toHaveBeenCalledWith([spam], undefined);
     });
+
+    it.each([false, true])('draws More actions after the spam control, marked spam: %s', (marked) => {
+        drawHead({
+            acting: marked ? { ...message, spam: judged } : message,
+            acts: { ...actsOffering(), spamOffered: true },
+        });
+
+        const named = screen
+            .getAllByRole('button')
+            .map((button) => button.getAttribute('aria-label') ?? button.textContent);
+        const spamAt = named.findIndex((name) => name === (marked ? 'Not spam' : 'Mark spam'));
+
+        expect(spamAt).toBeGreaterThanOrEqual(0);
+        expect(named[spamAt + 1]).toMatch(/^More actions/u);
+    });
 });

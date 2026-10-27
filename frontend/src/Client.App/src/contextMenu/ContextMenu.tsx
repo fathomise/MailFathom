@@ -45,6 +45,7 @@ export function ContextMenu({
     header,
     detail,
     at,
+    endsAt = false,
     items,
     onClose,
 }: {
@@ -60,6 +61,12 @@ export function ContextMenu({
 
     /** Where the gesture happened, in the window's own coordinates. */
     readonly at: MenuPoint;
+
+    /**
+     * Whether `at` is where the menu's end edge stands rather than its start, which is how a menu opened from a control
+     * at the end of a bar is drawn: under the control, aligned to its far edge, rather than running past it.
+     */
+    readonly endsAt?: boolean;
 
     readonly items: readonly ContextMenuItem[];
 
@@ -96,12 +103,12 @@ export function ContextMenu({
 
         setPlaced(
             placedWithin(
-                { x: at.x - bounds.left, y: at.y - bounds.top },
+                { x: at.x - bounds.left - (endsAt ? menu.offsetWidth : 0), y: at.y - bounds.top },
                 { width: menu.offsetWidth, height: menu.offsetHeight },
                 { width: box.clientWidth, height: box.clientHeight },
             ),
         );
-    }, [at, wide]);
+    }, [at, endsAt, wide]);
 
     // Focus moves into the menu whichever opener asked for it, because a menu that opened somewhere else on the screen
     // is one a reader working from the keyboard would have to hunt for — and because Escape has to reach it.

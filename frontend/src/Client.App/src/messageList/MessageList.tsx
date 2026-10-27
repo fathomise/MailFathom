@@ -11,6 +11,7 @@ import {
     type PointerEvent,
     type ReactNode,
 } from 'react';
+import { flushSync } from 'react-dom';
 import {
     isSpam,
     readMailTimeline,
@@ -44,6 +45,8 @@ import { leadingReading, readingsOf } from '../messageRows/messageReadings';
 import { MessageRow } from '../messageRows/MessageRow';
 import { MessageRowMenu, type ActAsked } from '../messageRows/MessageRowMenu';
 import { ReadingsAsked, type AskedReadings } from '../messageRows/ReadingsAsked';
+import { SenderDetails, type AskedSender } from '../senderMark/SenderDetails';
+import { marksSender, senderMarkOf } from '../senderMark/senderMarks';
 import { rowMark, rowWithFlags, type RowContents } from '../messageRows/rowContents';
 import {
     estimatedRowHeight,
@@ -256,6 +259,9 @@ export function MessageList({
     // The readings being checked, which outlive the menu they were asked from for the reason a question does.
     const [askedReadings, setAskedReadings] = useState<AskedReadings | null>(null);
 
+    // Whose sender is being explained, which outlives the menu it may have been asked from for the same reason.
+    const [askedSender, setAskedSender] = useState<AskedSender | null>(null);
+
     // Whether the reader has been put back where they were. State rather than a ref, because what depends on it is what
     // the list asks the deployment for, and that is worked out during render: a list restored into a page it opened
     // from a cursor spends the commit before the scroller is moved with its window at the leading end of that page,
@@ -267,6 +273,7 @@ export function MessageList({
     const deleting = useRef<HTMLDialogElement>(null);
     const filing = useRef<HTMLDialogElement>(null);
     const checking = useRef<HTMLDialogElement>(null);
+    const explaining = useRef<HTMLDialogElement>(null);
     const elements = useRef(new Map<number, HTMLLIElement>());
     const wantsFocus = useRef(false);
 
@@ -716,6 +723,34 @@ export function MessageList({
         checking.current?.showModal();
     }
 
+    // Explaining the mark on who sent one message. A row in Sent or Drafts marks no sender, so it offers none: the
+    // writer of that mail is the reader. The details are placed before they open, so they never draw for a frame where
+    // the last ones stood.
+    function marksSenderOf(email: MailTimelineEntry): boolean {
+        return marksSender(
+            acts.folderRoleOf({
+                storedEmailId: email.id,
+                account: email.account,
+                folder: email.folder,
+                unread: email.unread,
+                flagged: email.flagged,
+                spam: email.spam,
+            }),
+        );
+    }
+
+    function explainSender(email: MailTimelineEntry, anchor: DOMRect | null): void {
+        flushSync(() => {
+            setAskedSender({
+                storedEmailId: email.id,
+                message: null,
+                anchor: anchor === null ? null : { left: anchor.left, top: anchor.top, bottom: anchor.bottom },
+            });
+        });
+        closeMenu();
+        explaining.current?.showModal();
+    }
+
     function hasReadings(email: MailTimelineEntry): boolean {
         return readingsOf(email.enrichment).length > 0;
     }
@@ -1094,6 +1129,13 @@ export function MessageList({
                                                   }
                                                 : undefined
                                         }
+                                        onSenderDetails={
+                                            marksSenderOf(email)
+                                                ? (anchor) => {
+                                                      explainSender(email, anchor);
+                                                  }
+                                                : undefined
+                                        }
                                         onOpen={() => {
                                             open(row);
                                         }}
@@ -1159,6 +1201,10 @@ export function MessageList({
                                   }
                                 : undefined
                         }
+                        senderMark={marksSenderOf(row) ? senderMarkOf(row.sender) : null}
+                        onSenderDetails={() => {
+                            explainSender(row, null);
+                        }}
                         onClose={closeMenu}
                     />
                 )}
@@ -1171,6 +1217,8 @@ export function MessageList({
             {/* Where a reading is checked, standing here for the same reason: the menu it is reached from is gone the
                 moment the item is chosen. */}
             <ReadingsAsked asked={askedReadings} session={session} transport={transport} dialog={checking} />
+
+            <SenderDetails asked={askedSender} session={session} transport={transport} dialog={explaining} />
         </div>
     );
 }

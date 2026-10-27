@@ -14,6 +14,7 @@ import * as drafts from './fixtures/drafts';
 import * as mail from './fixtures/mail';
 import * as messages from './fixtures/messages';
 import * as notifications from './fixtures/notifications';
+import * as senders from './fixtures/senders';
 import * as outbox from './fixtures/outbox';
 import * as tasks from './fixtures/tasks';
 
@@ -624,12 +625,14 @@ export class FakeDeployment {
             case 'POST /preferences': {
                 const stated = recordIn(request.body);
 
-                // As the route does: a body stating nothing about the telemetry switch leaves the answer the
-                // deployment holds, which is what a client sends in every write the person did not move it in.
+                // As the route does: a body stating nothing about the telemetry switch or the trusted list leaves
+                // the answer the deployment holds, which is what a client sends in every write the person did not
+                // move the switch in, and in every write at all for the list.
                 if (stated !== null) {
                     this.preferences = {
                         ...stated,
                         telemetryEnabled: stated['telemetryEnabled'] ?? this.preferences['telemetryEnabled'],
+                        trustedLinkDomains: stated['trustedLinkDomains'] ?? this.preferences['trustedLinkDomains'],
                     };
                 }
 
@@ -1120,6 +1123,7 @@ export class FakeDeployment {
 
             return answering({
                 ...read,
+                ...senders.messageSenderEvidence(senders.senderKindOf(id)),
                 storedEmailId: id,
                 unread: flags?.unread ?? read.unread,
                 flagged: flags?.flagged ?? read.flagged,
@@ -1140,6 +1144,10 @@ export class FakeDeployment {
                   });
 
             return answering({ ...body, storedEmailId: id });
+        }
+
+        if (part === 'source' && position === undefined) {
+            return { status: 200, body: messages.newsletterSource, contentType: 'text/plain; charset=utf-8' };
         }
 
         // The one route answering with octets rather than JSON, which is what lets a check watch a real download.
@@ -2469,6 +2477,7 @@ function corpusRow(storedEmailId: string): FolderRow | null {
         sizeOctets: found.sizeOctets,
         preview: found.preview,
         threadMessageCount: found.threadMessageCount,
+        sender: found.sender,
         enrichment: null,
     };
 

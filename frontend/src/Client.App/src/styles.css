@@ -187,6 +187,11 @@
     --text-7xl: 2.125rem;
     --text-7xl--line-height: 1.15;
 
+    /* The line box the typeface draws when the design sets no line height at all, which is what a label, a step's name
+       and the line under a title read at in the sender details. Geist's ascender and descender add up to 1.3 em, and
+       the step Tailwind calls `normal` is 1.5, so neither of its stock steps reproduces it. */
+    --leading-natural: 1.3;
+
     /* The one step off the scale: the claim a reading makes, which the design sets between `2xl` and `3xl` so it reads
        as the line a reading is about rather than as a heading over it. */
     --text-claim: 1.1875rem;
@@ -388,6 +393,10 @@
     --spacing-file-window: min(58.75rem, calc(100% - 3.5rem));
     --spacing-file-window-tall: min(88vh, calc(100% - 3.5rem));
 
+    /* How wide a message's raw source stands as a window, which the design draws only in the desktop composition and
+       as tall as any centred dialog may grow. Below the desktop breakpoint it is not read, the source being the screen. */
+    --spacing-source-window: min(55rem, calc(100% - 2.75rem));
+
     /* The surface a message's readings are checked on, in the composition where it is a dialog rather than the whole
        screen — 920 pixels wide, 760 below the roomy breakpoint, never closer than the design's 32-pixel margin to the
        window's edges, and a height that is a ceiling rather than a size: a message carrying one reading is a short
@@ -456,6 +465,11 @@
        stops at, so a dialog composes against one name and never learns the window's width. */
     --container-dialog: 27.5rem;
     --container-dialog-narrow: calc(100vw - 3rem);
+
+    /* The short question asked before a link leaves the client, which the design draws narrower than a dialog with a
+       form in it: 400 pixels of content inside its padding and border off the phone, and a card of at most 344 on it. */
+    --container-link-question: 27.375rem;
+    --container-link-question-phone: 21.5rem;
 
     /* The column a Settings section is read in, beside its navigation, and the measure its own explanatory sentences
        stop at inside that column. A wide window gains margin rather than line length, as the reading pane does. */

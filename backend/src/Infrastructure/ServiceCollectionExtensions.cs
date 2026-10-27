@@ -54,6 +54,7 @@ using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.ListEmails;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Provenance;
+using MailFathom.Application.Emails.ReadSource;
 using MailFathom.Application.Emails.ReplyDrafts;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.Search.Attachments;
@@ -1025,7 +1026,13 @@ public static class ServiceCollectionExtensions
                             provider.GetRequiredService<EmailSignatureTrustOptions>(),
                             provider.GetRequiredService<TrustAnchorLoader>(),
                             provider.GetRequiredService<ISecretReferenceResolver>(),
-                            provider.GetRequiredService<SecureMimeSignatureVerifier>())),
+                            provider.GetRequiredService<SecureMimeSignatureVerifier>()),
+                        // Unconditional, unlike the DNS-backed verification: it asks nothing outside the database,
+                        // and an account in no organization is answered by one indexed read before any key is.
+                        new OrganizationSignatureVerifier(
+                            new PersistedOrganizationSenderDirectory(
+                                new Lazy<MailFathomDbContext>(provider.GetRequiredService<MailFathomDbContext>)),
+                            provider.GetRequiredService<ISenderIdentityDirectory>())),
                     provider.GetRequiredService<ISenderTrustPolicyReader>()),
                 provider.GetRequiredService<MachineAuthorshipProfile>());
 
@@ -1164,6 +1171,7 @@ public static class ServiceCollectionExtensions
         // whoever asked the question.
         services.AddScoped<CitationResolver>();
         services.AddScoped<EmailAttachmentDownloadReader>();
+        services.AddScoped<EmailSourceReader>();
         services.AddScoped<MailboxSearchReader>();
         services.AddScoped<MailSearchBrowser>();
     }

@@ -23,6 +23,7 @@ import * as mail from '../../../../tests/fixtures/mail';
 import * as messages from '../../../../tests/fixtures/messages';
 import * as notifications from '../../../../tests/fixtures/notifications';
 import * as outbox from '../../../../tests/fixtures/outbox';
+import * as senders from '../../../../tests/fixtures/senders';
 import * as tasks from '../../../../tests/fixtures/tasks';
 import type { DeploymentTransport } from '../deployment/sendToDeployment';
 
@@ -239,6 +240,10 @@ export function fixtureDeployment(draw: () => number = Math.random): DeploymentT
 
         await answerAfter(options.latency, abandoned);
 
+        if (request.path.endsWith(`/messages/${messages.waitingSourceId}/source`)) {
+            await unanswered(abandoned);
+        }
+
         const answer = fixtureAnswer(request, options, draw(), state);
 
         if (answer === null) {
@@ -247,6 +252,19 @@ export function fixtureDeployment(draw: () => number = Math.random): DeploymentT
 
         return answer;
     };
+}
+
+/** A request nothing answers, which ends only when the screen that started it walks away. */
+function unanswered(abandoned: AbortSignal): Promise<never> {
+    return new Promise((_, reject) => {
+        abandoned.addEventListener(
+            'abort',
+            () => {
+                reject(new Error('The request was abandoned before the fixture deployment answered.'));
+            },
+            { once: true },
+        );
+    });
 }
 
 /** One value of the corpus put on the wire as the deployment behind it would answer with it. */
@@ -346,12 +364,14 @@ function answerFor(
     if (route === '/preferences') {
         const stated = request.method === 'POST' ? recordIn(request.body) : null;
 
-        // As the route does: a body stating nothing about the telemetry switch leaves the answer the deployment
-        // holds, which is what the client sends in every write the person did not move it in.
+        // As the route does: a body stating nothing about the telemetry switch or the trusted list leaves the answer
+        // the deployment holds, which is what the client sends in every write the person did not move the switch in,
+        // and in every write at all for the list.
         if (stated !== null) {
             state.preferences = {
                 ...stated,
                 telemetryEnabled: stated['telemetryEnabled'] ?? state.preferences['telemetryEnabled'],
+                trustedLinkDomains: stated['trustedLinkDomains'] ?? state.preferences['trustedLinkDomains'],
             };
         }
 
@@ -782,6 +802,18 @@ function messageAnswer(route: string, asked: URLSearchParams): ClientResponse | 
     const markupOnly = storedEmailId === messages.markupOnlyId;
     const spamRow = mail.spamRows.find((row) => row.id === storedEmailId);
 
+    // The one read answered as text rather than JSON: the message as it arrived, whichever message was asked for but the
+    // one the deployment fails to serve. The one never answered is held back before this, in the transport.
+    if (route.endsWith('/source')) {
+        return storedEmailId === messages.unavailableSourceId
+            ? { status: 503, body: '', headers: {} }
+            : {
+                  status: 200,
+                  body: messages.newsletterSource,
+                  headers: { 'content-type': 'text/plain; charset=utf-8' },
+              };
+    }
+
     if (spamRow !== undefined) {
         return answering(
             route.endsWith('/body') ? { ...messages.spamBody, storedEmailId } : messages.spamMessage(spamRow),
@@ -801,7 +833,11 @@ function messageAnswer(route: string, asked: URLSearchParams): ClientResponse | 
 
     const message = markupOnly ? messages.markupOnlyMessage : messages.newsletterMessage;
 
-    return answering({ ...message, storedEmailId });
+    return answering({
+        ...message,
+        ...senders.messageSenderEvidence(senders.senderKindOf(storedEmailId)),
+        storedEmailId,
+    });
 }
 
 // The passages a citation request named, in the order it named them, which is what the answer is paired against. A

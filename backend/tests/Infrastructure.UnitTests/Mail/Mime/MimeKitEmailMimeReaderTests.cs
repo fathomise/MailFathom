@@ -5,6 +5,8 @@
 using System.Text;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Mail;
+using MailFathom.Application.Mail.Delivery.Composition;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
@@ -12,6 +14,7 @@ using MailFathom.Domain.Emails.Signatures;
 using MailFathom.Infrastructure.Mail.Dkim;
 using MailFathom.Infrastructure.Mail.Mime;
 using MailFathom.Infrastructure.UnitTests.TestDoubles;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Xunit;
 
@@ -19,6 +22,9 @@ namespace MailFathom.Infrastructure.UnitTests.Mail.Mime;
 
 public sealed class MimeKitEmailMimeReaderTests
 {
+    private static readonly Guid SigningOrganization = Guid.Parse("0199f000-0000-7000-8000-000000000001");
+    private static readonly MailAccountId Colleague = MailAccountId.Create("colleague");
+
     /// <summary>Every address the message wrote reaches the record under the header it was written in.</summary>
     [Fact]
     public async Task ReadMetadataAsync_PlainMessage_RecordsParticipantsSubjectAndDates()
@@ -774,6 +780,66 @@ public sealed class MimeKitEmailMimeReaderTests
         Assert.True(result.Metadata?.Signature.SignerMatchesAuthor);
     }
 
+    /// <summary>A colleague's signed message is read as theirs, through the verifier the reader was composed with.</summary>
+    [Fact]
+    public async Task ReadMetadataAsync_MessageSignedByTheReceivingOrganization_RecordsTheAuthorAsAMember()
+    {
+        // Arrange
+        var key = OrganizationSignatureFixtures.CreateKey();
+        var reader = OrganizationReader(OrganizationDirectory().Holding(SigningOrganization, key));
+
+        // Act
+        var result = await reader.ReadMetadataAsync(MimeFixtures.Account, OrganizationSigned(key), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(new OrganizationSenderVerification(SigningOrganization, SenderIsMember: true), result.Metadata?.OrganizationVerification);
+    }
+
+    /// <summary>A message altered after it was signed proves nothing, and the broken signature is never a warning on its own.</summary>
+    [Fact]
+    public async Task ReadMetadataAsync_OrganizationSignedMessageAlteredInTransit_ProvesNothingAndWarnsOfNothing()
+    {
+        // Arrange
+        var key = OrganizationSignatureFixtures.CreateKey();
+        var resolver = Substitute.For<IDkimPublicKeyRecordResolver>();
+        var reader = new MimeKitEmailMimeReader(
+            new EmailMimeExtractionOptions(),
+            TrustedAuthorities(identifier: null),
+            new DkimLocalSenderVerifier(resolver, new FakeTimeProvider()),
+            organizationVerifier: OrganizationVerifier(OrganizationDirectory().Holding(SigningOrganization, key)));
+        var altered = OrganizationSigned(key, static text => text + "\r\n--\r\nThis message was scanned by a relay.\r\n");
+
+        // Act
+        var result = await reader.ReadMetadataAsync(MimeFixtures.Account, altered, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(result.Metadata?.OrganizationVerification?.SenderIsMember);
+        Assert.Equal(SenderAuthenticationOutcome.NotEstablished, result.Metadata?.SenderAuthentication.Outcome);
+    }
+
+    /// <summary>Re-reading stored mail after its key was revoked re-judges it, and the verdict no longer names the organization.</summary>
+    [Fact]
+    public async Task ReadMetadataAsync_StoredMessageReReadAfterItsKeyWasRevoked_IsNoLongerTrustedAsAMember()
+    {
+        // Arrange
+        var key = OrganizationSignatureFixtures.CreateKey();
+        var directory = OrganizationDirectory().Holding(SigningOrganization, key);
+        var policies = Substitute.For<ISenderTrustPolicyReader>();
+        policies.GetTrustPolicy(MimeFixtures.Account).Returns(SenderTrustPolicy.Create([], [], []));
+        var reader = new SenderTrustEvaluatingEmailMimeReader(OrganizationReader(directory), policies);
+        var stored = OrganizationSigned(key);
+        var beforeRevocation = await reader.ReadMetadataAsync(MimeFixtures.Account, stored, TestContext.Current.CancellationToken);
+        directory.Keys[key.KeyId] = directory.Keys[key.KeyId] with { Revoked = true };
+
+        // Act
+        var afterRevocation = await reader.ReadMetadataAsync(MimeFixtures.Account, stored, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SenderTrustSource.OrganizationMember, beforeRevocation.Metadata?.SenderTrust.GrantedBy);
+        Assert.Equal(SenderTrustSource.None, afterRevocation.Metadata?.SenderTrust.GrantedBy);
+        Assert.Null(afterRevocation.Metadata?.SenderTrust.RecognizingOrganizationId);
+    }
+
     /// <summary>A reader composed without a verifier records every message as not signed rather than guessing.</summary>
     [Fact]
     public async Task ReadMetadataAsync_NoSignatureVerifier_RecordsTheMessageAsNotSigned()
@@ -1155,6 +1221,56 @@ public sealed class MimeKitEmailMimeReaderTests
         string? trustedAuthorityIdentifier = null,
         ILocalSenderVerifier? localSenderVerifier = null) =>
         new(new EmailMimeExtractionOptions(), TrustedAuthorities(trustedAuthorityIdentifier), localSenderVerifier);
+
+    /// <summary>The fixture account and a colleague who writes to it, both in one organization.</summary>
+    private static InMemoryOrganizationSenderDirectory OrganizationDirectory()
+    {
+        var directory = new InMemoryOrganizationSenderDirectory();
+        directory.Memberships[MimeFixtures.Account] = SigningOrganization;
+        directory.Memberships[Colleague] = SigningOrganization;
+
+        return directory;
+    }
+
+    private static OrganizationSignatureVerifier OrganizationVerifier(InMemoryOrganizationSenderDirectory directory)
+    {
+        var identities = Substitute.For<ISenderIdentityDirectory>();
+        identities.ReadServedIdentitiesAsync(Arg.Any<IReadOnlyCollection<UserId>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<MailAccountId, OutgoingSenderIdentity>
+            {
+                [MimeFixtures.Account] = SenderIdentity(MimeFixtures.Account, "bob@org.example.test"),
+                [Colleague] = SenderIdentity(Colleague, "anna@org.example.test"),
+            });
+
+        return new OrganizationSignatureVerifier(directory, identities);
+    }
+
+    private static MimeKitEmailMimeReader OrganizationReader(InMemoryOrganizationSenderDirectory directory) =>
+        new(
+            new EmailMimeExtractionOptions(),
+            TrustedAuthorities(identifier: null),
+            localSenderVerifier: null,
+            organizationVerifier: OrganizationVerifier(directory));
+
+    private static OutgoingSenderIdentity SenderIdentity(MailAccountId account, string address)
+    {
+        Assert.True(EmailAddress.TryCreate(displayName: null, address, out var parsed));
+
+        return OutgoingSenderIdentity.Create(account, parsed);
+    }
+
+    /// <summary>A message the colleague's account signed to the fixture account, as its bytes arrive.</summary>
+    private static ReadOnlyMemory<byte> OrganizationSigned(
+        OrganizationSignatureFixtures.OrganizationKey key,
+        Func<string, string>? alter = null)
+    {
+        using var message = OrganizationSignatureFixtures.Compose();
+        OrganizationSignatureFixtures.Sign(message, key);
+        var (rawMime, parsed) = OrganizationSignatureFixtures.RoundTrip(message, alter);
+        parsed.Dispose();
+
+        return rawMime;
+    }
 
     /// <summary>Answers every message with one verdict, standing in for a verification that reaches the network.</summary>
     private static ILocalSenderVerifier LocalVerifierAnswering(SenderAuthentication? verdict = null)

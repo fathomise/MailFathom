@@ -34,6 +34,50 @@ export const markupOnlySubject = 'Your order is on its way';
 /** What the one attached file holds — small enough to state here, and large enough to arrive as more than nothing. */
 export const attachedOctets = 'order,quantity\nkettle,1\n';
 
+/** The second row of the inbox, whose source the deployment fails to serve, so asking for it answers `503`. */
+export const unavailableSourceId = 'message-1';
+
+/** The third row of the inbox, whose source is asked for and never answered, so a capture finds it still on the wire. */
+export const waitingSourceId = 'message-2';
+
+/**
+ * What the newsletter's source route answers: the message as it arrived, every header and every part in its transfer
+ * encoding. It is served as text rather than JSON, so it is a string here rather than a record.
+ */
+export const newsletterSource = [
+    'Return-Path: <news@example.invalid>',
+    'Delivered-To: reader@example.invalid',
+    'Received: from mail.example.invalid (mail.example.invalid [192.0.2.41])',
+    '\tby mx.example.invalid with ESMTPS id 4Xq7Lm2Kd9zT',
+    '\tfor <reader@example.invalid>; Mon, 31 Aug 2026 09:41:07 +0000',
+    'Authentication-Results: mx.example.invalid;',
+    '\tdkim=pass header.d=example.invalid header.s=s2026;',
+    '\tspf=pass smtp.mailfrom=news@example.invalid;',
+    '\tdmarc=pass (p=quarantine) header.from=example.invalid',
+    'Message-ID: <newsletter.20260831@example.invalid>',
+    'Date: Mon, 31 Aug 2026 09:41:00 +0000',
+    'From: Example <news@example.invalid>',
+    'To: reader@example.invalid',
+    `Subject: ${newsletterSubject}`,
+    'MIME-Version: 1.0',
+    'Content-Type: multipart/alternative; boundary="b1_example"',
+    '',
+    '--b1_example',
+    'Content-Type: text/plain; charset=utf-8',
+    'Content-Transfer-Encoding: quoted-printable',
+    '',
+    newsletterHeading,
+    '',
+    '--b1_example',
+    'Content-Type: text/html; charset=utf-8',
+    'Content-Transfer-Encoding: quoted-printable',
+    '',
+    `<h1>${newsletterHeading}</h1>`,
+    '',
+    '--b1_example--',
+    '',
+].join('\r\n');
+
 /** A one-pixel transparent picture, standing in for a part a message carried itself rather than asked to be fetched. */
 export const transparentPicture = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
@@ -221,7 +265,39 @@ export const newsletterMessage = {
         references: [],
     },
     body: { availability: 'Readable', plainText: true, html: true },
-    sender: { authorAuthentication: 'Authenticated', deploymentTrust: 'Unknown', authenticatedDomain: null },
+    sender: {
+        authorAuthentication: 'Authenticated',
+        deploymentTrust: 'Unknown',
+        authenticatedDomain: null,
+        authenticationSource: 'ReceivingServer',
+        dkimDomain: null,
+        spfDomain: null,
+        dmarc: 'NotReported',
+        trustSource: null,
+        trustOrganization: null,
+    },
+    signature: {
+        outcome: 'NotSigned',
+        format: null,
+        secureMimeType: null,
+        unverifiableReason: null,
+        signedAt: null,
+        steps: {
+            content: 'NotChecked',
+            authority: 'NotChecked',
+            validity: 'NotChecked',
+            revocation: 'NotChecked',
+            signer: 'NotChecked',
+        },
+        trustAnchor: null,
+        chainEnd: null,
+        validityFailure: null,
+        revocationMethod: null,
+        revocationCheckedAt: null,
+        revokedAt: null,
+        signerMatchesAuthor: false,
+        signer: null,
+    },
     attachments: [
         {
             position: 0,

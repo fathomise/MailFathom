@@ -65,6 +65,15 @@ public sealed record ExtractedEmailMetadata(
     /// </remarks>
     public EmailSignature Signature { get; init; } = EmailSignature.NotSigned;
 
+    /// <summary>Gets what verifying the message against the receiving account's organization established.</summary>
+    /// <remarks>
+    /// Read out of the message's bytes beside the local DKIM verification and not stored on its own:
+    /// <see cref="SenderTrustEvaluatingEmailMimeReader" /> takes it into <see cref="SenderTrust" />, which is where the
+    /// recognizing organization is recorded. It is <see langword="null" /> where the receiving account belongs to no
+    /// organization, which verifies nothing and leaves the message judged exactly as before.
+    /// </remarks>
+    public OrganizationSenderVerification? OrganizationVerification { get; init; }
+
     /// <summary>Gets how much this message's own text reads as machine written.</summary>
     /// <remarks>
     /// Not a parameter of the reading, for the reason <see cref="SenderTrust" /> is not: the parsing adapter produces

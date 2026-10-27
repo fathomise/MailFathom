@@ -6,6 +6,7 @@ using System.Security.Claims;
 using MailFathom.Application.Access.Credentials;
 using MailFathom.Application.Access.Sessions;
 using MailFathom.Domain.Access;
+using MailFathom.Host.Api;
 using MailFathom.Host.Configuration.Access;
 using MailFathom.Host.Configuration.Endpoints;
 using MailFathom.Host.Security.Endpoints;
@@ -174,6 +175,13 @@ public sealed class ClientTransportSecurityExtensionsTests
     [Fact]
     public void AddClientTransportSecurity_ThePolicy_LetsAPageReadHowLongItWasAskedToHoldFor() =>
         Assert.Contains(HeaderNames.RetryAfter, ClientCorsPolicyOf(EnabledEndpoint()).ExposedHeaders);
+
+    /// <summary>A cut message source states how large the whole is in a header, which a page reaching the deployment from another origin must be able to read.</summary>
+    [Fact]
+    public void AddClientTransportSecurity_ThePolicy_LetsAPageReadHowLargeACutSourceWas() =>
+        Assert.Contains(
+            ClientMailSourceEndpoint.TruncatedFromHeaderName,
+            ClientCorsPolicyOf(EnabledEndpoint()).ExposedHeaders);
 
     /// <summary>An endpoint resolves exactly one policy by name, so two surfaces sharing one would let either deployment's origins decide what the other answers.</summary>
     [Fact]

@@ -18,6 +18,8 @@ import {
 import { AgentHandOverContext, type AgentHandOver } from '../routing/agentHandOver';
 import { ToastContext, type Toast } from '../toasts/useToasts';
 import { MessageRowMenu } from './MessageRowMenu';
+import type { SenderMark } from '../senderMark/senderMarks';
+import { listedSender } from '../../../../tests/fixtures/senders';
 
 const email = {
     id: 'message-1',
@@ -37,6 +39,7 @@ const email = {
     attachmentCount: 0,
     sizeOctets: 1_024,
     preview: 'The opening of the message.',
+    sender: listedSender('trusted'),
 } as unknown as MailTimelineEntry;
 
 const messages: readonly ActedMessage[] = [
@@ -72,6 +75,8 @@ function menuUnder({
     row = email,
     handToAgent = null,
     raise = vi.fn(),
+    senderMark = null,
+    onSenderDetails,
 }: {
     acts?: MailboxActs;
     composing?: Composing;
@@ -82,6 +87,8 @@ function menuUnder({
     row?: MailTimelineEntry;
     handToAgent?: ((handOver: AgentHandOver) => void) | null;
     raise?: (toast: Toast) => void;
+    senderMark?: SenderMark | null;
+    onSenderDetails?: () => void;
 } = {}): void {
     render(
         <LocalizationProvider>
@@ -96,6 +103,8 @@ function menuUnder({
                                 onSelect={onSelect}
                                 onAsk={onAsk}
                                 onCheckReadings={onCheckReadings}
+                                senderMark={senderMark}
+                                onSenderDetails={onSenderDetails}
                                 onClose={vi.fn()}
                             />
                         </MailboxActsContext>
@@ -132,6 +141,30 @@ describe('MessageRowMenu', () => {
         menuUnder();
 
         expect(screen.getByText('Anna Kowalska')).toBeDefined();
+    });
+
+    it('names the sender mark beside who the message is from, since a finger cannot rest on the row’s mark', () => {
+        menuUnder({ senderMark: 'trusted', onSenderDetails: vi.fn() });
+
+        expect(screen.getByText('Anna Kowalska - Trusted sender')).toBeDefined();
+    });
+
+    it('offers the sender’s details last, which is the keyboard’s way to them from a row', () => {
+        const onSenderDetails = vi.fn();
+
+        menuUnder({ senderMark: 'trusted', onSenderDetails });
+
+        expect(drawn().at(-1)).toBe('Sender details');
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Sender details' }));
+
+        expect(onSenderDetails).toHaveBeenCalledOnce();
+    });
+
+    it('offers no sender details for a row that draws no mark', () => {
+        menuUnder({ senderMark: null, onSenderDetails: vi.fn() });
+
+        expect(screen.queryByRole('menuitem', { name: 'Sender details' })).toBeNull();
     });
 
     // The design draws the row's context menu with *Remove the flag* over a flagged message, so the menu reads the flag
@@ -293,6 +326,14 @@ describe('MessageRowMenu, over a message marked spam', () => {
         ...actsWhere(() => null),
         spamOffered: true,
         ...over,
+    });
+
+    // A folded spam row draws neither its verdict nor its sender's mark in words a finger can reach, so both join who
+    // wrote it under the subject, in the order the design draws them.
+    it('names the verdict and then the sender mark beside who the message is from', () => {
+        menuUnder({ row: spamRow, about: spamMessages, senderMark: 'trusted', onSenderDetails: vi.fn() });
+
+        expect(screen.getByText('Anna Kowalska - phishing spam - Trusted sender')).toBeDefined();
     });
 
     it('offers to mark a message that is not spam spam, asking first, just before Move', () => {

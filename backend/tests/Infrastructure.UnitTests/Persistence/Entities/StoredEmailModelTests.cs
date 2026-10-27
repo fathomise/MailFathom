@@ -204,6 +204,27 @@ public sealed class StoredEmailModelTests
     }
 
     /// <summary>
+    /// Deleting an organization withdraws the membership a verdict named rather than the mail it was given to, so the
+    /// reference clears and the message keeps its verdict until extraction derives it again.
+    /// </summary>
+    [Fact]
+    public void StoredEmailModel_SenderTrustOrganizationReference_ClearsTheColumnRatherThanErasingTheMessage()
+    {
+        // Arrange
+        using var context = CreateContext();
+
+        // Act
+        var reference = StoredEmailEntityType(context)
+            .GetForeignKeys()
+            .Single(key => key.GetConstraintName() == PersistenceConstraintNames.StoredEmailSenderTrustOrganizationForeignKeyName);
+
+        // Assert
+        Assert.Equal([nameof(StoredEmailEntity.SenderTrustOrganizationId)], reference.Properties.Select(property => property.Name));
+        Assert.Equal(typeof(OrganizationEntity), reference.PrincipalEntityType.ClrType);
+        Assert.Equal(DeleteBehavior.SetNull, reference.DeleteBehavior);
+    }
+
+    /// <summary>
     /// EF Core leaves a value equal to the property's sentinel out of an insert and lets the column default write it, so a
     /// column whose default differs from its sentinel stores the default in place of a value written as the CLR default.
     /// </summary>

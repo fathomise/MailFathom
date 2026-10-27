@@ -78,6 +78,12 @@ function message(id: string, position: number): MailThreadMessage {
             enrichment: null,
             threadMessageCount: null,
             spam: null,
+            sender: {
+                authorAuthentication: 'Authenticated',
+                deploymentTrust: 'Unknown',
+                signatureOutcome: 'NotSigned',
+                signerMatchesAuthor: false,
+            },
         },
         message: null,
         body: null,

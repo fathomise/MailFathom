@@ -34,4 +34,14 @@ public enum SenderTrustSource
     /// later.
     /// </remarks>
     StoredTrustedSender = 3,
+
+    /// <summary>A signature made with a key of the receiving account's organization proved the author a member of it.</summary>
+    /// <remarks>
+    /// It ranks first and needs no authenticated author domain, because the signature proves the address itself rather
+    /// than a domain: a colleague on a server that publishes no DKIM key is still proven, and one on the organization's
+    /// own domain is named as a member rather than by that domain.
+    /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0042-signing-an-organizations-mail-and-trusting-a-sender-its-signature-proves.md">ADR 0042</see>
+    /// states the three conditions it is granted under.
+    /// </remarks>
+    OrganizationMember = 4,
 }

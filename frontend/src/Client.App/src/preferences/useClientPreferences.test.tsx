@@ -41,6 +41,7 @@ function stored(preferences: {
         aiFiltersShown: true,
         messageView: 'reduced',
         notificationSeconds: 5,
+        trustedLinkDomains: [],
         ...preferences,
     });
 }
@@ -222,6 +223,53 @@ describe('useClientPreferences', () => {
         expect(result.current.theme.choice).toBe('system');
         expect(result.current.preferences.openMailInTabs).toBe(false);
         expect(result.current.preferences.notStated).toBe(false);
+    });
+
+    // A choice after a read that did not answer is composed from the unset document, whose list is empty. Stating it
+    // would erase the list the deployment holds, which no control here shows or can put back.
+    it('says nothing about the trusted link domains in a write made after the read did not answer', async () => {
+        const { transport, requests } = recording('', 503);
+        const { result } = reading(transport);
+
+        await waitFor(() => {
+            expect(requests).toHaveLength(1);
+        });
+        act(() => {
+            result.current.preferences.chooseTheme('dark');
+        });
+
+        await waitFor(() => {
+            expect(requests).toHaveLength(2);
+        });
+        expect(JSON.parse(requests[1]?.body ?? '')).not.toHaveProperty('trustedLinkDomains');
+    });
+
+    it('trusts the domains a write made after a failed read answers with', async () => {
+        const storedWithTheList = JSON.stringify({
+            ...(JSON.parse(stored({ telemetryEnabled: false, theme: 'dark', openMailInTabs: false })) as object),
+            trustedLinkDomains: ['example.com'],
+        });
+        const requests: ClientRequest[] = [];
+        const { result } = reading((request) => {
+            requests.push(request);
+
+            return Promise.resolve(
+                request.method === 'POST'
+                    ? { status: 200, body: storedWithTheList, headers: {} }
+                    : { status: 503, body: '', headers: {} },
+            );
+        });
+
+        await waitFor(() => {
+            expect(requests).toHaveLength(1);
+        });
+        act(() => {
+            result.current.preferences.chooseTheme('dark');
+        });
+
+        await waitFor(() => {
+            expect(result.current.preferences.trustedLinkDomains).toStrictEqual(['example.com']);
+        });
     });
 
     it('states the whole document on a change, carrying back what no control here offers', async () => {

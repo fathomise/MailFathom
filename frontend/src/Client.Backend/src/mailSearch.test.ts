@@ -46,6 +46,12 @@ const result = {
     attachmentCount: 2,
     sizeOctets: 84_213,
     preview: 'The figures you asked for are attached.',
+    sender: {
+        authorAuthentication: 'Authenticated',
+        deploymentTrust: 'Unknown',
+        signatureOutcome: 'NotSigned',
+        signerMatchesAuthor: false,
+    },
     snippets: ['The **quarterly figures** you asked for'],
     matchedBy: 'BothRankings',
     attachmentMatches: [],

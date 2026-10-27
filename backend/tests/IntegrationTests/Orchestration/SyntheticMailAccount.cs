@@ -69,6 +69,7 @@ internal sealed class SyntheticMailAccount(
     ITrustedAuthenticationAuthorityReader,
     ISenderTrustPolicyReader,
     IOutgoingSenderIdentityReader,
+    ISenderIdentityDirectory,
     IOutgoingMailFilingPolicyReader,
     IOutgoingSendPermissionReader,
     IMailAccountSettingsScope
@@ -538,6 +539,16 @@ internal sealed class SyntheticMailAccount(
 
         return OutgoingSenderIdentity.Create(AccountId, sender);
     }
+
+    /// <inheritdoc />
+    /// <remarks>The one user this mailbox is assigned to is served it and nothing else, which is what the host composes from that user's record.</remarks>
+    public Task<IReadOnlyDictionary<MailAccountId, OutgoingSenderIdentity>> ReadServedIdentitiesAsync(
+        IReadOnlyCollection<UserId> users,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyDictionary<MailAccountId, OutgoingSenderIdentity>>(
+            users.Contains(User) && this.FindSenderIdentity(AccountId) is { } identity
+                ? new Dictionary<MailAccountId, OutgoingSenderIdentity> { [AccountId] = identity }
+                : new Dictionary<MailAccountId, OutgoingSenderIdentity>());
 
     /// <inheritdoc />
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Ownership of the resolved material passes to the connection attempt that requested it, which disposes it when the attempt ends.")]

@@ -4,6 +4,15 @@
 
 import { failed, failureReasonForStatus, read, type ClientResult } from './failure';
 import { parseSpamVerdict, type MailSpamVerdict } from './mailSpam';
+import {
+    authorAuthentications,
+    deploymentTrusts,
+    isOneOf,
+    signatureOutcomes,
+    type MailAuthorAuthentication,
+    type MailDeploymentTrust,
+    type MailSignatureOutcome,
+} from './senderFacts';
 import { headersFor, routeFor, type ClientSession } from './session';
 import { spanned } from './telemetry';
 import { send, type MailFathomTransport } from './transport';
@@ -21,11 +30,56 @@ export function mailMessageRoute(storedEmailId: string): string {
 /** The header one address appeared in, which is what decides where a screen draws it. */
 export type MailParticipantRole = 'Sender' | 'From' | 'ReplyTo' | 'To' | 'Cc' | 'Bcc';
 
-/** What the receiving mail server established about the author the message displays. */
-export type MailAuthorAuthentication = 'NotEstablished' | 'Failed' | 'Authenticated';
+/**
+ * Who reached the authentication verdict: the account's trusted receiving mail server, read back out of the header it
+ * wrote, or MailFathom verifying the message's own DKIM signatures where no such statement was available.
+ *
+ * The first is also what a message carries when nothing was read at all, because the value names which reading
+ * produced the verdict rather than asserting that a server established something.
+ */
+export type MailAuthenticationSource = 'ReceivingServer' | 'LocalVerification';
 
-/** Whether this deployment recognizes that author. */
-export type MailDeploymentTrust = 'Unknown' | 'Trusted';
+/** The DMARC result the verdict was reached with. */
+export type MailDmarcOutcome =
+    'NotReported' | 'Pass' | 'Fail' | 'NoPolicyPublished' | 'TemporaryError' | 'PermanentError';
+
+/**
+ * What recognized a trusted author: a domain of the owner's own accounts, the trusted senders, or the signature of the
+ * receiving account's organization, which proves the author a member of it.
+ */
+export type MailTrustSource =
+    'OwnAccountDomain' | 'ConfiguredTrustedSender' | 'StoredTrustedSender' | 'OrganizationMember';
+
+/** How a signed message arrived. */
+export type MailSignatureFormat = 'SecureMimeDetached' | 'SecureMimeOpaque' | 'OpenPgpMime';
+
+/** The `smime-type` an opaque S/MIME body declared, as declared. */
+export type MailSecureMimeType =
+    'SignedData' | 'EnvelopedData' | 'AuthEnvelopedData' | 'CompressedData' | 'CertsOnly' | 'NotDeclared';
+
+/** Why a signature is not verifiable here, and which validity rule a signer broke. */
+export type MailSignatureUnverifiableReason =
+    | 'NoCertificate'
+    | 'UntrustedRoot'
+    | 'OutsideValidityPeriod'
+    | 'WrongKeyUsage'
+    | 'Revoked'
+    | 'RevocationNotCheckable'
+    | 'UnknownKey'
+    | 'ExpiredKey'
+    | 'RevokedKey'
+    | 'UnsupportedAlgorithm'
+    | 'MalformedSignature'
+    | 'ContentNotOpened';
+
+/** What one step of a signature verification found, or that it was not reached. */
+export type MailSignatureStepResult = 'Passed' | 'Failed' | 'NotChecked' | 'Skipped';
+
+/** What the signer is trusted through. */
+export type MailSignatureTrustAnchor = 'SystemTrustStore' | 'ConfiguredAuthority' | 'ConfiguredKey';
+
+/** How a signer's revocation status was established. */
+export type MailRevocationMethod = 'Ocsp' | 'Crl' | 'KeyRevocationSignature';
 
 /** One address a message wrote, and the header it wrote it in. */
 export interface MailParticipant {
@@ -62,11 +116,72 @@ export interface MailMessageBodyForms {
  * `authenticatedDomain` is who actually sent the message, which is what a screen names instead of the `From` value the
  * message displays. It is stated and never judged: comparing it against the displayed domain would be evaluating a
  * policy the service deliberately does not, so what a reader acts on stays `authorAuthentication`.
+ *
+ * The evidence after it is what a details surface lists step by step — who checked, the DKIM and SPF domains that
+ * passed, the DMARC result, and what recognized a trusted author — and none of it changes what a reader acts on.
  */
 export interface MailSenderVerdict {
     readonly authorAuthentication: MailAuthorAuthentication;
     readonly deploymentTrust: MailDeploymentTrust;
     readonly authenticatedDomain: string | null;
+    readonly authenticationSource: MailAuthenticationSource;
+    readonly dkimDomain: string | null;
+    readonly spfDomain: string | null;
+    readonly dmarc: MailDmarcOutcome;
+
+    /** What recognized the author, or `null` where nothing did. */
+    readonly trustSource: MailTrustSource | null;
+
+    /**
+     * The current name of the organization whose signature recognized the author, or `null` where it has since been
+     * deleted. Only `OrganizationMember` ever carries one, and it is the name as it reads now rather than when the
+     * message arrived.
+     */
+    readonly trustOrganization: string | null;
+}
+
+/** The result of each step a signature verification takes, in the order a reader is shown them. */
+export interface MailSignatureSteps {
+    readonly content: MailSignatureStepResult;
+    readonly authority: MailSignatureStepResult;
+    readonly validity: MailSignatureStepResult;
+    readonly revocation: MailSignatureStepResult;
+    readonly signer: MailSignatureStepResult;
+}
+
+/** Who signed, as their certificate or OpenPGP key names them. Every value is text the signer's material chose. */
+export interface MailSigner {
+    readonly name: string | null;
+    readonly address: string | null;
+    readonly issuer: string | null;
+    readonly validFrom: string | null;
+    readonly validUntil: string | null;
+    readonly serialNumber: string | null;
+    readonly fingerprint: string | null;
+    readonly keyId: string | null;
+    readonly publicKeyAlgorithm: string | null;
+    readonly digestAlgorithm: string | null;
+}
+
+/**
+ * What verifying a message's own S/MIME or OpenPGP signature found, step by step, beside the sender verdict and never
+ * folded into it. Neither says a message is safe.
+ */
+export interface MailSignature {
+    readonly outcome: MailSignatureOutcome;
+    readonly format: MailSignatureFormat | null;
+    readonly secureMimeType: MailSecureMimeType | null;
+    readonly unverifiableReason: MailSignatureUnverifiableReason | null;
+    readonly signedAt: string | null;
+    readonly steps: MailSignatureSteps;
+    readonly trustAnchor: MailSignatureTrustAnchor | null;
+    readonly chainEnd: string | null;
+    readonly validityFailure: MailSignatureUnverifiableReason | null;
+    readonly revocationMethod: MailRevocationMethod | null;
+    readonly revocationCheckedAt: string | null;
+    readonly revokedAt: string | null;
+    readonly signerMatchesAuthor: boolean;
+    readonly signer: MailSigner | null;
 }
 
 /**
@@ -105,6 +220,7 @@ export interface MailMessage {
     readonly headers: MailMessageHeaders;
     readonly body: MailMessageBodyForms;
     readonly sender: MailSenderVerdict;
+    readonly signature: MailSignature;
     readonly attachments: readonly MailAttachment[];
     readonly carried: MailCarried | null;
     readonly unread: boolean;
@@ -135,9 +251,55 @@ const bounds = {
 
 const participantRoles: readonly MailParticipantRole[] = ['Sender', 'From', 'ReplyTo', 'To', 'Cc', 'Bcc'];
 
-const authorAuthentications: readonly MailAuthorAuthentication[] = ['NotEstablished', 'Failed', 'Authenticated'];
+const authenticationSources: readonly MailAuthenticationSource[] = ['ReceivingServer', 'LocalVerification'];
 
-const deploymentTrusts: readonly MailDeploymentTrust[] = ['Unknown', 'Trusted'];
+const dmarcOutcomes: readonly MailDmarcOutcome[] = [
+    'NotReported',
+    'Pass',
+    'Fail',
+    'NoPolicyPublished',
+    'TemporaryError',
+    'PermanentError',
+];
+
+const trustSources: readonly MailTrustSource[] = [
+    'OwnAccountDomain',
+    'ConfiguredTrustedSender',
+    'StoredTrustedSender',
+    'OrganizationMember',
+];
+
+const signatureFormats: readonly MailSignatureFormat[] = ['SecureMimeDetached', 'SecureMimeOpaque', 'OpenPgpMime'];
+
+const secureMimeTypes: readonly MailSecureMimeType[] = [
+    'SignedData',
+    'EnvelopedData',
+    'AuthEnvelopedData',
+    'CompressedData',
+    'CertsOnly',
+    'NotDeclared',
+];
+
+const unverifiableReasons: readonly MailSignatureUnverifiableReason[] = [
+    'NoCertificate',
+    'UntrustedRoot',
+    'OutsideValidityPeriod',
+    'WrongKeyUsage',
+    'Revoked',
+    'RevocationNotCheckable',
+    'UnknownKey',
+    'ExpiredKey',
+    'RevokedKey',
+    'UnsupportedAlgorithm',
+    'MalformedSignature',
+    'ContentNotOpened',
+];
+
+const stepResults: readonly MailSignatureStepResult[] = ['Passed', 'Failed', 'NotChecked', 'Skipped'];
+
+const trustAnchors: readonly MailSignatureTrustAnchor[] = ['SystemTrustStore', 'ConfiguredAuthority', 'ConfiguredKey'];
+
+const revocationMethods: readonly MailRevocationMethod[] = ['Ocsp', 'Crl', 'KeyRevocationSignature'];
 
 /** Reads one message's description, answering an expected failure as a value rather than by throwing. */
 export function readMailMessage(
@@ -218,6 +380,7 @@ export function parseMailMessage(value: unknown): MailMessage | null {
     const headers = parseHeaders(record['headers']);
     const forms = parseBodyForms(record['body']);
     const sender = parseSenderVerdict(record['sender']);
+    const signature = parseSignature(record['signature']);
     const attachments = parseAttachments(record['attachments']);
     const carried = parseCarried(record['carried'] ?? null);
     const unread = record['unread'];
@@ -225,6 +388,10 @@ export function parseMailMessage(value: unknown): MailMessage | null {
     const answered = record['answered'];
 
     if (headers === null || forms === null || sender === null || attachments === null || carried === undefined) {
+        return null;
+    }
+
+    if (signature === null) {
         return null;
     }
 
@@ -246,6 +413,7 @@ export function parseMailMessage(value: unknown): MailMessage | null {
         headers,
         body: forms,
         sender,
+        signature,
         attachments,
         carried,
         unread,
@@ -363,16 +531,187 @@ function parseSenderVerdict(value: unknown): MailSenderVerdict | null {
     const authorAuthentication = record['authorAuthentication'];
     const deploymentTrust = record['deploymentTrust'];
     const authenticatedDomain = record['authenticatedDomain'] ?? null;
+    const authenticationSource = record['authenticationSource'];
+    const dkimDomain = record['dkimDomain'] ?? null;
+    const spfDomain = record['spfDomain'] ?? null;
+    const dmarc = record['dmarc'];
+    const trustSource = record['trustSource'] ?? null;
+    const trustOrganization = record['trustOrganization'] ?? null;
 
     if (!isOneOf(authorAuthentication, authorAuthentications) || !isOneOf(deploymentTrust, deploymentTrusts)) {
         return null;
     }
 
-    if (!isOptionalText(authenticatedDomain)) {
+    if (!isOptionalText(authenticatedDomain) || !isOptionalText(dkimDomain) || !isOptionalText(spfDomain)) {
         return null;
     }
 
-    return { authorAuthentication, deploymentTrust, authenticatedDomain };
+    if (!isOneOf(authenticationSource, authenticationSources) || !isOneOf(dmarc, dmarcOutcomes)) {
+        return null;
+    }
+
+    if (trustSource !== null && !isOneOf(trustSource, trustSources)) {
+        return null;
+    }
+
+    // Only the organization source names an organization, so a name beside any other is not a verdict the service sent.
+    if (!isOptionalText(trustOrganization) || (trustOrganization !== null && trustSource !== 'OrganizationMember')) {
+        return null;
+    }
+
+    return {
+        authorAuthentication,
+        deploymentTrust,
+        authenticatedDomain,
+        authenticationSource,
+        dkimDomain,
+        spfDomain,
+        dmarc,
+        trustSource,
+        trustOrganization,
+    };
+}
+
+function parseSignature(value: unknown): MailSignature | null {
+    const record = asRecord(value);
+    if (record === null) {
+        return null;
+    }
+
+    const outcome = record['outcome'];
+    const format = record['format'] ?? null;
+    const secureMimeType = record['secureMimeType'] ?? null;
+    const unverifiableReason = record['unverifiableReason'] ?? null;
+    const signedAt = record['signedAt'] ?? null;
+    const trustAnchor = record['trustAnchor'] ?? null;
+    const chainEnd = record['chainEnd'] ?? null;
+    const validityFailure = record['validityFailure'] ?? null;
+    const revocationMethod = record['revocationMethod'] ?? null;
+    const revocationCheckedAt = record['revocationCheckedAt'] ?? null;
+    const revokedAt = record['revokedAt'] ?? null;
+    const signerMatchesAuthor = record['signerMatchesAuthor'];
+
+    if (!isOneOf(outcome, signatureOutcomes) || typeof signerMatchesAuthor !== 'boolean') {
+        return null;
+    }
+
+    if (!isOptionalOneOf(format, signatureFormats) || !isOptionalOneOf(secureMimeType, secureMimeTypes)) {
+        return null;
+    }
+
+    if (
+        !isOptionalOneOf(unverifiableReason, unverifiableReasons) ||
+        !isOptionalOneOf(validityFailure, unverifiableReasons)
+    ) {
+        return null;
+    }
+
+    if (!isOptionalOneOf(trustAnchor, trustAnchors) || !isOptionalOneOf(revocationMethod, revocationMethods)) {
+        return null;
+    }
+
+    if (!isOptionalText(signedAt) || !isOptionalText(chainEnd) || !isOptionalText(revocationCheckedAt)) {
+        return null;
+    }
+
+    if (!isOptionalText(revokedAt)) {
+        return null;
+    }
+
+    const steps = parseSignatureSteps(record['steps']);
+    const signerValue = record['signer'] ?? null;
+    const signer = signerValue === null ? null : parseSigner(signerValue);
+
+    if (steps === null || (signerValue !== null && signer === null)) {
+        return null;
+    }
+
+    return {
+        outcome,
+        format,
+        secureMimeType,
+        unverifiableReason,
+        signedAt,
+        steps,
+        trustAnchor,
+        chainEnd,
+        validityFailure,
+        revocationMethod,
+        revocationCheckedAt,
+        revokedAt,
+        signerMatchesAuthor,
+        signer,
+    };
+}
+
+function parseSignatureSteps(value: unknown): MailSignatureSteps | null {
+    const record = asRecord(value);
+    if (record === null) {
+        return null;
+    }
+
+    const content = record['content'];
+    const authority = record['authority'];
+    const validity = record['validity'];
+    const revocation = record['revocation'];
+    const signer = record['signer'];
+
+    if (!isOneOf(content, stepResults) || !isOneOf(authority, stepResults) || !isOneOf(validity, stepResults)) {
+        return null;
+    }
+
+    if (!isOneOf(revocation, stepResults) || !isOneOf(signer, stepResults)) {
+        return null;
+    }
+
+    return { content, authority, validity, revocation, signer };
+}
+
+function parseSigner(value: unknown): MailSigner | null {
+    const record = asRecord(value);
+    if (record === null) {
+        return null;
+    }
+
+    const name = record['name'] ?? null;
+    const address = record['address'] ?? null;
+    const issuer = record['issuer'] ?? null;
+    const validFrom = record['validFrom'] ?? null;
+    const validUntil = record['validUntil'] ?? null;
+    const serialNumber = record['serialNumber'] ?? null;
+    const fingerprint = record['fingerprint'] ?? null;
+    const keyId = record['keyId'] ?? null;
+    const publicKeyAlgorithm = record['publicKeyAlgorithm'] ?? null;
+    const digestAlgorithm = record['digestAlgorithm'] ?? null;
+
+    if (!isOptionalText(name) || !isOptionalText(address) || !isOptionalText(issuer)) {
+        return null;
+    }
+
+    if (!isOptionalText(validFrom) || !isOptionalText(validUntil) || !isOptionalText(serialNumber)) {
+        return null;
+    }
+
+    if (!isOptionalText(fingerprint) || !isOptionalText(keyId)) {
+        return null;
+    }
+
+    if (!isOptionalText(publicKeyAlgorithm) || !isOptionalText(digestAlgorithm)) {
+        return null;
+    }
+
+    return {
+        name,
+        address,
+        issuer,
+        validFrom,
+        validUntil,
+        serialNumber,
+        fingerprint,
+        keyId,
+        publicKeyAlgorithm,
+        digestAlgorithm,
+    };
 }
 
 function parseAttachments(value: unknown): readonly MailAttachment[] | null {
@@ -482,10 +821,10 @@ function isOptionalText(value: unknown): value is string | null {
     return value === null || isText(value);
 }
 
-function isCount(value: unknown): value is number {
-    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+function isOptionalOneOf<TValue extends string>(value: unknown, members: readonly TValue[]): value is TValue | null {
+    return value === null || isOneOf(value, members);
 }
 
-function isOneOf<TValue extends string>(value: unknown, members: readonly TValue[]): value is TValue {
-    return typeof value === 'string' && members.includes(value as TValue);
+function isCount(value: unknown): value is number {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }

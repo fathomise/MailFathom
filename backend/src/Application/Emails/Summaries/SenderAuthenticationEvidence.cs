@@ -50,6 +50,13 @@ public sealed record SenderAuthenticationEvidence
     /// </remarks>
     public SenderDomain? DisplayedAuthorDomain { get; init; }
 
+    /// <summary>Gets the domain whose DKIM signature passed, or <see langword="null" /> where none did.</summary>
+    public SenderDomain? DkimDomain { get; init; }
+
+    /// <summary>Gets the domain whose SPF check passed, or <see langword="null" /> where none did or none was evaluated.</summary>
+    /// <remarks>Never named on a verdict MailFathom reached itself, which reads DKIM alone.</remarks>
+    public SenderDomain? SpfDomain { get; init; }
+
     /// <summary>Gets which check established <see cref="AuthenticatedDomain" />, or that none did.</summary>
     public required SenderAuthenticationMethod AuthenticatedBy { get; init; }
 

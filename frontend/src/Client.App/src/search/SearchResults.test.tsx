@@ -20,6 +20,8 @@ import { useWorkspace, type Workspace } from '../workspace/useWorkspace';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import { askIn, resultsPerPage, type MailSearchAsk } from './searchAsk';
 import { SearchResults } from './SearchResults';
+import { newsletterMessage } from '../../../../tests/fixtures/messages';
+import { listedSender, messageSenderEvidence } from '../../../../tests/fixtures/senders';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
 
@@ -44,6 +46,7 @@ function result(at: number, carried: Record<string, unknown> = {}): Record<strin
         attachmentCount: 0,
         sizeOctets: 1_024,
         preview: `The opening of message ${String(at)}.`,
+        sender: listedSender('unrecognized'),
         snippets: [`The **invoice** for August, number ${String(at)}`],
         matchedBy: 'LexicalRanking',
         attachmentMatches: [],
@@ -648,5 +651,61 @@ describe('SearchResults', () => {
 
         expect((await screen.findByRole('alert')).textContent).toContain('Part of this search could not be read');
         expect(await rows()).toHaveLength(1);
+    });
+});
+
+describe('SearchResults, the sender mark', () => {
+    // The mark answers a pointer alone and says what it is through the bubble it describes itself with.
+    function markNamed(name: string): HTMLElement {
+        const mark = screen
+            .getAllByText(name)
+            .map((sentence) => document.querySelector<HTMLElement>(`[aria-describedby="${sentence.id}"]`))
+            .find((element) => element !== null);
+
+        if (mark === undefined) {
+            throw new Error(`No mark is described by "${name}".`);
+        }
+
+        return mark;
+    }
+
+    it('opens a sender’s details from a result’s mark, reading the message they explain and opening nothing', async () => {
+        const asked: ClientRequest[] = [];
+        const explained = JSON.stringify({
+            ...newsletterMessage,
+            ...messageSenderEvidence('unrecognized'),
+            storedEmailId: 'message-1',
+        });
+
+        render(
+            resultsUnder((request) => {
+                asked.push(request);
+
+                return Promise.resolve({
+                    status: 200,
+                    body: request.path.includes('/messages/') ? explained : pageOf([result(1)]),
+                    headers: {},
+                });
+            }),
+        );
+
+        await rows();
+        fireEvent.click(markNamed('Sender not recognized'));
+
+        expect(await screen.findByRole('heading', { name: 'Sender not recognized' })).toBeDefined();
+        expect(asked.map((request) => request.path)).toContain(
+            'https://mail.example.invalid/api/client/messages/message-1',
+        );
+        expect(carried().selection).toBeNull();
+    });
+
+    it('marks no sender on a result that is a draft', async () => {
+        render(
+            resultsUnder(answering(pageOf([result(1)])), { acts: { ...nothingActed, folderRoleOf: () => 'Drafts' } }),
+        );
+
+        await rows();
+
+        expect(screen.queryByText('Sender not recognized')).toBeNull();
     });
 });

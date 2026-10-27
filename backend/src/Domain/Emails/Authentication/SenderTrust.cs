@@ -24,11 +24,13 @@ public sealed record SenderTrust
     private SenderTrust(
         SenderTrustLevel level,
         SenderTrustSource grantedBy,
-        SenderTrustPolicyRevision policyRevision)
+        SenderTrustPolicyRevision policyRevision,
+        Guid? recognizingOrganizationId = null)
     {
         this.Level = level;
         this.GrantedBy = grantedBy;
         this.PolicyRevision = policyRevision;
+        this.RecognizingOrganizationId = recognizingOrganizationId;
     }
 
     /// <summary>Gets the verdict a message reaching persistence without a policy having spoken carries.</summary>
@@ -51,6 +53,13 @@ public sealed record SenderTrust
     /// <summary>Gets the trusted-sender policy the decision was reached under.</summary>
     public SenderTrustPolicyRevision PolicyRevision { get; }
 
+    /// <summary>Gets the organization whose signature recognized the author, present exactly when <see cref="GrantedBy" /> is <see cref="SenderTrustSource.OrganizationMember" />.</summary>
+    /// <remarks>
+    /// A reference rather than a name, so nothing about the organization is copied onto the message; an organization
+    /// deleted since leaves the reason standing without one.
+    /// </remarks>
+    public Guid? RecognizingOrganizationId { get; }
+
     /// <summary>Gets whether this deployment recognized the message's authenticated author.</summary>
     public bool IsTrusted => this.Level == SenderTrustLevel.Trusted;
 
@@ -70,7 +79,10 @@ public sealed record SenderTrust
     /// <param name="grantedBy">Which half named the author.</param>
     /// <param name="policyRevision">The policy that was applied.</param>
     /// <returns>The verdict.</returns>
-    /// <exception cref="ArgumentException">Thrown when no half is named, which is not a trusted message.</exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when no half is named, which is not a trusted message, or when the organization source is named, which
+    /// <see cref="TrustedAsOrganizationMember" /> records with the organization it needs.
+    /// </exception>
     public static SenderTrust Trusted(
         SenderTrustSource grantedBy,
         SenderTrustPolicyRevision policyRevision)
@@ -82,6 +94,22 @@ public sealed record SenderTrust
                 nameof(grantedBy));
         }
 
+        if (grantedBy == SenderTrustSource.OrganizationMember)
+        {
+            throw new ArgumentException(
+                "A verdict an organization's signature reached names that organization.",
+                nameof(grantedBy));
+        }
+
         return new SenderTrust(SenderTrustLevel.Trusted, grantedBy, policyRevision);
     }
+
+    /// <summary>Records that a signature of the receiving account's organization proved the author a member of it.</summary>
+    /// <param name="organizationId">The organization whose key verified the signature.</param>
+    /// <param name="policyRevision">The policy that was applied.</param>
+    /// <returns>The verdict.</returns>
+    public static SenderTrust TrustedAsOrganizationMember(
+        Guid organizationId,
+        SenderTrustPolicyRevision policyRevision) =>
+        new(SenderTrustLevel.Trusted, SenderTrustSource.OrganizationMember, policyRevision, organizationId);
 }

@@ -293,6 +293,6 @@ public sealed class InMemoryOutgoingEmailStoreTests
             Session,
             Request(requester, dueAt),
             Principal,
-            mimeByteLength: 64,
+            new byte[64],
             TestContext.Current.CancellationToken);
 }

@@ -333,20 +333,37 @@ export {
     readMailAttachment,
     type MailAttachmentRefusal,
 } from './mailAttachment';
+export { longestMailSource, mailSourceRoute, readMailSource, type MailSource } from './mailSource';
 export {
     mailMessageRoute,
     readMailMessage,
     type MailAttachment,
-    type MailAuthorAuthentication,
+    type MailAuthenticationSource,
     type MailCarried,
-    type MailDeploymentTrust,
+    type MailDmarcOutcome,
     type MailMessage,
     type MailMessageBodyForms,
     type MailMessageHeaders,
     type MailParticipant,
     type MailParticipantRole,
+    type MailRevocationMethod,
+    type MailSecureMimeType,
     type MailSenderVerdict,
+    type MailSignature,
+    type MailSignatureFormat,
+    type MailSignatureStepResult,
+    type MailSignatureSteps,
+    type MailSignatureTrustAnchor,
+    type MailSignatureUnverifiableReason,
+    type MailSigner,
+    type MailTrustSource,
 } from './mailMessage';
+export {
+    type MailAuthorAuthentication,
+    type MailDeploymentTrust,
+    type MailListedSender,
+    type MailSignatureOutcome,
+} from './senderFacts';
 export {
     changeMailFlags,
     deleteMail,

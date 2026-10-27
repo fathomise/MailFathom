@@ -64,7 +64,10 @@ public sealed class SenderTrustEvaluatingEmailMimeReader : IEmailMimeReader
 
         return EmailMimeExtractionResult.Extracted(metadata with
         {
-            SenderTrust = policy.Evaluate(metadata.SenderAuthentication, DisplayedSenderOf(metadata)),
+            SenderTrust = policy.Evaluate(
+                metadata.SenderAuthentication,
+                DisplayedSenderOf(metadata),
+                metadata.OrganizationVerification),
         });
     }
 

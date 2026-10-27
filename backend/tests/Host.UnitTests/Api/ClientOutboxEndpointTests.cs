@@ -536,7 +536,7 @@ public sealed class ClientOutboxEndpointTests
                 OutgoingEmailRequester.Command($"mfctl-{account.Value}"),
                 [OutgoingRecipient.Create(address, OutgoingRecipientRole.To)]),
             OutgoingEmailPrincipal.Of("test-caller"),
-            Encoding.ASCII.GetBytes("Subject: a send\r\n\r\nHello.").Length,
+            Encoding.ASCII.GetBytes("Subject: a send\r\n\r\nHello."),
             TestContext.Current.CancellationToken);
 
         return opened.Record.Id;

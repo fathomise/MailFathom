@@ -232,6 +232,46 @@ test('answers a later read with the flags a change left, and filters on them', (
     expect(listed(deployment, 'folder=INBOX&flagged=true')).toStrictEqual(['message-0']);
 });
 
+// A row's mark and the details it opens are chosen from two answers, so the two have to state one sender.
+test('lists each message with the sender facts its own answer states, the Spam folder and the Inbox alike', () => {
+    const deployment = new FakeDeployment('0.0.0');
+    const rows = ['folder=JUNK', 'folder=INBOX'].flatMap(
+        (query) =>
+            (
+                ask(deployment, 'GET', `/emails?${query}`) as {
+                    emails: {
+                        id: string;
+                        sender: {
+                            authorAuthentication: string;
+                            deploymentTrust: string;
+                            signatureOutcome: string;
+                            signerMatchesAuthor: boolean;
+                        };
+                    }[];
+                }
+            ).emails,
+    );
+
+    const listedFacts = rows.map((row) => ({ id: row.id, ...row.sender }));
+    const answeredFacts = rows.map((row) => {
+        const message = ask(deployment, 'GET', `/messages/${row.id}`) as {
+            sender: { authorAuthentication: string; deploymentTrust: string };
+            signature: { outcome: string; signerMatchesAuthor: boolean };
+        };
+
+        return {
+            id: row.id,
+            authorAuthentication: message.sender.authorAuthentication,
+            deploymentTrust: message.sender.deploymentTrust,
+            signatureOutcome: message.signature.outcome,
+            signerMatchesAuthor: message.signature.signerMatchesAuthor,
+        };
+    });
+
+    expect(rows).toHaveLength(104);
+    expect(listedFacts).toStrictEqual(answeredFacts);
+});
+
 test('answers every later read with the spam verdict a mark left, the Spam folder listing what arrived there', () => {
     const deployment = new FakeDeployment('0.0.0');
 
@@ -1068,4 +1108,21 @@ test('keeps the telemetry answer it holds through a preferences write that state
 
     expect(written).toMatchObject({ telemetryEnabled: false, theme: 'dark' });
     expect(ask(deployment, 'GET', '/preferences')).toMatchObject({ telemetryEnabled: false, theme: 'dark' });
+});
+
+test('keeps the trusted link domains it holds through a preferences write that states none', () => {
+    const deployment = new FakeDeployment('0.0.0');
+
+    ask(deployment, 'POST', '/preferences', { ...fixtures.clientPreferences, trustedLinkDomains: ['example.com'] });
+
+    // The client never states the list, so every write it makes is this one.
+    const withoutTheList: Record<string, unknown> = { ...fixtures.clientPreferences, theme: 'dark' };
+
+    delete withoutTheList['trustedLinkDomains'];
+
+    expect(ask(deployment, 'POST', '/preferences', withoutTheList)).toMatchObject({
+        trustedLinkDomains: ['example.com'],
+        theme: 'dark',
+    });
+    expect(ask(deployment, 'GET', '/preferences')).toMatchObject({ trustedLinkDomains: ['example.com'] });
 });

@@ -28,6 +28,12 @@ function message(over: Partial<MailTimelineEntry> = {}): MailTimelineEntry {
         enrichment: null,
         threadMessageCount: null,
         spam: null,
+        sender: {
+            authorAuthentication: 'Authenticated',
+            deploymentTrust: 'Unknown',
+            signatureOutcome: 'NotSigned',
+            signerMatchesAuthor: false,
+        },
         ...over,
     };
 }

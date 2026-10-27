@@ -100,6 +100,12 @@ internal sealed class OutgoingEmailConfiguration : IEntityTypeConfiguration<Outg
         entity.HasIndex(message => new { message.RecordedAt, message.MailboxAccountId })
             .HasDatabaseName(PersistenceConstraintNames.OutgoingEmailPeriodUsageIndexName);
 
+        entity.Property(message => message.InternetMessageId)
+            .HasMaxLength(OutgoingEmailEntity.MaximumInternetMessageIdLength);
+        entity.HasIndex(message => new { message.InternetMessageId, message.MailboxAccountId })
+            .HasDatabaseName(PersistenceConstraintNames.OutgoingEmailInternetMessageIdIndexName)
+            .HasFilter($"\"{nameof(OutgoingEmailEntity.InternetMessageId)}\" IS NOT NULL");
+
         // Filtered to exactly what an account's outbox holds, and ordered the way its page and its count read it, so
         // neither walks an account's whole history of delivered and withdrawn sends to find what is still waiting or
         // was refused.

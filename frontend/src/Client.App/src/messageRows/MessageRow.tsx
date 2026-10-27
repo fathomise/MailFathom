@@ -32,6 +32,7 @@ import { drawnUnread, useReadMarking } from '../readMarking/useReadMarking';
 import { SpamBadge } from '../spamMarking/SpamBadge';
 import { spamRowName } from '../spamMarking/spamWords';
 import { correspondent } from './rowContents';
+import { senderMarkInk, senderMarkOf, senderMarksDrawn } from '../senderMark/senderMarks';
 import { useRowSwipe, type RowSwipeDirection } from '../controls/rowSwipe';
 
 // One row of mail, which is its own component for the reason a tree's row is: it is what carries state, a keyboard
@@ -133,6 +134,7 @@ export function MessageRow({
     note,
     inSpamFolder = false,
     onReadings,
+    onSenderDetails,
     onOpen,
     onPoint,
     onPress,
@@ -175,6 +177,12 @@ export function MessageRow({
      * no such surface at all.
      */
     readonly onReadings?: (() => void) | undefined;
+
+    /**
+     * Opens what was established about who sent this message, anchored under the mark that asked — or absent for a
+     * row that marks no sender, which is a row in Sent or Drafts, whose writer is the reader themselves.
+     */
+    readonly onSenderDetails?: ((anchor: DOMRect) => void) | undefined;
     readonly onOpen: () => void;
 
     /**
@@ -253,10 +261,74 @@ export function MessageRow({
     const spamName = spam !== null && isSpam(spam) ? spamRowName(spam, translate) : null;
     const foldedSpam = spamName !== null && !inSpamFolder;
 
-    const stripName = translate('list.stripRow', {
+    // The mark on who sent the message, chosen by the one rule every surface draws it by, or none on a row whose
+    // writer is the reader.
+    const mark = onSenderDetails === undefined ? null : senderMarkOf(email.sender);
+    const markDrawn = mark === null ? null : senderMarksDrawn[mark];
+    const markName = markDrawn === null ? null : translate(markDrawn.name);
+    const markAnchor = useRef<HTMLElement | null>(null);
+    const markSaid = useTip({
+        says: markName ?? '',
+        describes: true,
+        onPress: () => {
+            const at = markAnchor.current?.getBoundingClientRect();
+
+            if (at !== undefined) {
+                onSenderDetails?.(at);
+            }
+        },
+    });
+
+    // The mark on who sent it, beside the name it judges. A pointer's shortcut to the details for the reason the
+    // readings mark below is one: a row is an `option` and holds no focusable descendant, so the keyboard reaches the
+    // same details through the row's menu, and the state itself is said to a screen reader in words. Its own press
+    // stops at it, so pressing it neither opens nor selects the message, and holding it reads its name rather than
+    // opening the row's menu.
+    const senderMark =
+        markDrawn === null || markName === null ? null : (
+            <>
+                <span
+                    {...markSaid.anchor}
+                    ref={(element) => {
+                        markAnchor.current = element;
+                        markSaid.anchor.ref(element);
+                    }}
+                    aria-hidden="true"
+                    className={`-mx-0.75 -my-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-hover pointer-coarse:-mx-2.5 pointer-coarse:-my-3 pointer-coarse:size-11 ${
+                        senderMarkInk[markDrawn.tone]
+                    }`}
+                    onPointerDown={(event) => {
+                        event.stopPropagation();
+                        markSaid.anchor.onPointerDown(event);
+                    }}
+                    onPointerUp={(event) => {
+                        event.stopPropagation();
+                        markSaid.anchor.onPointerUp();
+                    }}
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        markSaid.anchor.onClick(event);
+                    }}
+                    onDoubleClick={(event) => {
+                        event.stopPropagation();
+                    }}
+                >
+                    <Icon name={markDrawn.icon} className="size-icon-md pointer-coarse:size-icon-lg" />
+                </span>
+                {markSaid.tip}
+
+                <span className="sr-only">{markName}</span>
+            </>
+        );
+
+    const stripSubject = {
         sender: correspondent(email) ?? translate('list.senderUnknown'),
         subject: email.subject ?? translate('list.noSubject'),
-    });
+    };
+    const stripName =
+        markName === null
+            ? translate('list.stripRow', stripSubject)
+            : translate('list.stripRowMarked', { ...stripSubject, mark: markName });
     // Folded, the sender is an avatar: a mouse resting on it reads who it is, and a finger reads it in the row's menu,
     // since a tap on the strip opens the message and holding it opens that menu.
     const stripSaid = useTip({ says: stripName, tapReveals: false });
@@ -480,6 +552,19 @@ export function MessageRow({
                         </>
                     ) : null}
 
+                    {/* The mark rides on the avatar where it says something, which is the design's own; the neutral
+                        one would be a badge on every strip, and its name is in the strip's own all the same. */}
+                    {markDrawn === null || mark === 'neutral' ? null : (
+                        <span
+                            aria-hidden="true"
+                            className={`absolute end-1.5 bottom-1.5 flex size-4.5 items-center justify-center rounded-full bg-panel ring-2 ring-sunken ${
+                                senderMarkInk[markDrawn.tone]
+                            }`}
+                        >
+                            <Icon name={markDrawn.icon} className="size-3.25" />
+                        </span>
+                    )}
+
                     {stripSaid.tip}
                 </span>
             ) : null}
@@ -524,7 +609,7 @@ export function MessageRow({
                 style={swipe.carried === 0 ? undefined : { transform: `translateX(${String(swipe.carried)}px)` }}
             >
                 {foldedSpam ? (
-                    <FoldedSpam email={email} spamName={spamName} />
+                    <FoldedSpam email={email} spamName={spamName} mark={senderMark} />
                 ) : (
                     <>
                         <div className="flex items-center gap-2">
@@ -542,6 +627,8 @@ export function MessageRow({
                             >
                                 {correspondent(email) ?? translate('list.senderUnknown')}
                             </span>
+
+                            {senderMark}
 
                             <Organisation address={email.senderAddress} />
 
@@ -633,7 +720,17 @@ export function MessageRow({
 // A spam row outside the Spam folder, folded to one muted line: the report glyph where the avatar stands, who wrote it,
 // the subject, and the time. No preview, no AI line, and no unread weight; what it is said in words to a reader who
 // cannot see the glyph, and in its menu's header to a finger.
-function FoldedSpam({ email, spamName }: { readonly email: MailTimelineEntry; readonly spamName: string }) {
+function FoldedSpam({
+    email,
+    spamName,
+    mark,
+}: {
+    readonly email: MailTimelineEntry;
+    readonly spamName: string;
+
+    /** The mark on who sent it, which a folded row keeps after the sender as the design draws it. */
+    readonly mark: ReactNode;
+}) {
     const { translate } = useLocalization();
 
     return (
@@ -647,6 +744,8 @@ function FoldedSpam({ email, spamName }: { readonly email: MailTimelineEntry; re
             <span className="max-w-2/5 shrink-0 truncate text-base text-muted">
                 {correspondent(email) ?? translate('list.senderUnknown')}
             </span>
+
+            {mark}
 
             <span className="min-w-0 flex-1 truncate text-base text-muted">
                 {email.subject ?? translate('list.noSubject')}
