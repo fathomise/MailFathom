@@ -2261,63 +2261,84 @@ Project repository: https://github.com/fathomise/MailFathom
 
   <sc-if value="{{ statusMenuOpen }}" hint-placeholder-val="{{ false }}">
     <div data-motion="{{ moStatusScrim }}" data-phase="{{ mo.statusMenu }}" onClick="{{ closeStatusMenu }}" style="{{ statusScrimStyle }}">
-      <div data-motion="{{ moStatusCard }}" data-phase="{{ mo.statusMenu }}" role="dialog" aria-label="Your status" onClick="{{ stopProp }}" style="{{ statusCardStyle }}">
+      <div data-motion="{{ moStatusCard }}" data-phase="{{ mo.statusMenu }}" role="menu" aria-label="Your status" onClick="{{ stopProp }}" style="{{ statusCardStyle }}">
         <sc-if value="{{ statusGrabber }}" hint-placeholder-val="{{ false }}"><div style="{{ grabberStyle }}"></div></sc-if>
-        <div style="display:flex;align-items:center;gap:11px;padding:12px 14px;border-bottom:1px solid var(--line2)">
-          <div style="{{ statusAvatarStyle }}">{{ meInitials }}<span aria-hidden="true" style="{{ statusDotStyle }}"></span></div>
-          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-size:14px;font-weight:600">{{ meName }}</span><span style="font-size:12px;color:var(--muted)">Your status</span></div>
-          <div onClick="{{ closeStatusMenu }}" title="Close" style="{{ closeBtnAutoStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
-        </div>
-        <div style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:14px;padding:12px 14px 14px">
-          <div role="radiogroup" aria-label="Presence" style="display:flex;flex-direction:column;gap:2px">
-            <span style="{{ statusSectionLabel }}">Presence</span>
+        <sc-if value="{{ statusOnMain }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 9px 8px;margin:0 -5px 4px;padding-left:14px;border-bottom:1px solid var(--line2)">
+            <div style="{{ statusAvatarStyle }}">{{ meInitials }}<span aria-hidden="true" style="{{ statusDotStyle }}"></span></div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ meName }}</span><span style="font-size:12px;color:var(--muted)">{{ statusHeadLine }}</span></div>
+          </div>
+          <div style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:1px">
             <sc-for list="{{ statusPresenceRows }}" as="sp" hint-placeholder-count="6">
-              <div role="radio" aria-checked="{{ sp.current }}" onClick="{{ sp.pick }}" style="{{ sp.style }}" style-hover="cursor:pointer;background:var(--hover)">
+              <div role="menuitemradio" aria-checked="{{ sp.current }}" onClick="{{ sp.pick }}" style="{{ sp.style }}" style-hover="cursor:pointer;background:var(--hover)">
                 <span aria-hidden="true" style="{{ sp.fill }}"></span>
-                <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-size:13px">{{ sp.label }}</span><sc-if value="{{ sp.hasNote }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--muted)">{{ sp.note }}</span></sc-if></span>
-                <sc-if value="{{ sp.current }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:18px;line-height:1;color:var(--accent)">check</span></sc-if>
+                <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span>{{ sp.label }}</span><sc-if value="{{ sp.hasNote }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--muted)">{{ sp.note }}</span></sc-if></span>
+                <sc-if value="{{ sp.current }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:17px;line-height:1;color:var(--accent)">check</span></sc-if>
+              </div>
+            </sc-for>
+            <sc-if value="{{ statusForShown }}" hint-placeholder-val="{{ false }}">
+              <div role="menuitem" aria-haspopup="true" onClick="{{ openStatusFor }}" style="{{ statusRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+                <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1;width:17px;color:var(--muted)">timer</span>
+                <span style="flex:0 0 auto">For</span>
+                <span style="flex:1;min-width:0;text-align:right;font-size:12px;color:var(--text2)">{{ statusForValue }}</span>
+                <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1;color:var(--faint)">chevron_right</span>
+              </div>
+            </sc-if>
+            <div aria-hidden="true" style="height:1px;background:var(--line2);margin:4px 4px"></div>
+            <div role="menuitem" aria-haspopup="true" onClick="{{ openStatusMessage }}" style="{{ statusRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+              <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1;width:17px;color:var(--muted)">chat_bubble</span>
+              <span style="flex:0 0 auto">Message</span>
+              <span style="{{ statusMessageValueStyle }}">{{ statusMessageValue }}</span>
+              <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1;color:var(--faint)">chevron_right</span>
+            </div>
+            <div role="menuitem" aria-haspopup="true" onClick="{{ openStatusWork }}" style="{{ statusRowStyle }}" style-hover="cursor:pointer;background:var(--hover)">
+              <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1;width:17px;color:var(--muted)">apartment</span>
+              <span style="flex:0 0 auto">Working from</span>
+              <span style="flex:1;min-width:0;text-align:right;font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ statusWorkValue }}</span>
+              <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1;color:var(--faint)">chevron_right</span>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ statusPageHead }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;gap:6px;padding:6px 4px;margin:0 -5px 4px;border-bottom:1px solid var(--line2)">
+            <div onClick="{{ statusBack }}" title="Back" aria-label="Back" style="{{ closeBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">arrow_back</span></div>
+            <span style="font-size:13px;font-weight:600">{{ statusPageTitle }}</span>
+          </div>
+        </sc-if>
+        <sc-if value="{{ statusOnFor }}" hint-placeholder-val="{{ false }}">
+          <div role="group" aria-label="{{ statusPageTitle }}" style="display:flex;flex-direction:column;gap:1px;overflow:auto">
+            <sc-for list="{{ statusForRows }}" as="sf" hint-placeholder-count="6">
+              <div role="menuitemradio" aria-checked="{{ sf.current }}" onClick="{{ sf.pick }}" style="{{ sf.style }}" style-hover="cursor:pointer;background:var(--hover)">
+                <span style="flex:1">{{ sf.label }}</span>
+                <sc-if value="{{ sf.current }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:17px;line-height:1;color:var(--accent)">check</span></sc-if>
               </div>
             </sc-for>
           </div>
-          <sc-if value="{{ statusForShown }}" hint-placeholder-val="{{ false }}">
-            <div style="display:flex;flex-direction:column;gap:7px">
-              <span style="{{ statusSectionLabel }}">For</span>
-              <div style="display:flex;flex-wrap:wrap;gap:6px">
-                <sc-for list="{{ statusForOptions }}" as="sf" hint-placeholder-count="6">
-                  <div onClick="{{ sf.pick }}" role="button" style="{{ sf.style }}" style-hover="cursor:pointer;border-color:var(--accent)">{{ sf.label }}</div>
-                </sc-for>
+        </sc-if>
+        <sc-if value="{{ statusOnWork }}" hint-placeholder-val="{{ false }}">
+          <div role="group" aria-label="Working from" style="display:flex;flex-direction:column;gap:1px;overflow:auto">
+            <sc-for list="{{ statusWorkRows }}" as="sw" hint-placeholder-count="4">
+              <div role="menuitemradio" aria-checked="{{ sw.current }}" onClick="{{ sw.pick }}" style="{{ sw.style }}" style-hover="cursor:pointer;background:var(--hover)">
+                <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1;width:17px;color:var(--muted)">{{ sw.icon }}</span>
+                <span style="flex:1">{{ sw.label }}</span>
+                <sc-if value="{{ sw.current }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:17px;line-height:1;color:var(--accent)">check</span></sc-if>
               </div>
-              <span style="font-size:12px;color:var(--muted)">{{ statusForNote }}</span>
-            </div>
-          </sc-if>
-          <div style="display:flex;flex-direction:column;gap:7px;border-top:1px solid var(--line2);padding-top:12px">
-            <div style="display:flex;align-items:center;gap:8px"><span style="{{ statusSectionLabel }}">Status message</span><span style="{{ statusCountStyle }}">{{ statusCount }}</span></div>
-            <textarea rows="2" maxLength="280" value="{{ statusTextValue }}" onChange="{{ onStatusText }}" placeholder="e.g. In workshops until 15:00" aria-label="Status message" style="{{ statusTextareaStyle }}" style-focus="border-color:var(--accent)"></textarea>
-            <span style="font-size:12px;color:var(--muted)">Clears</span>
-            <div style="display:flex;flex-wrap:wrap;gap:6px">
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ statusOnMessage }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:7px;padding:2px 4px 4px;overflow:auto">
+            <textarea rows="2" maxLength="280" value="{{ statusTextValue }}" onChange="{{ onStatusText }}" onKeyDown="{{ onStatusKey }}" placeholder="e.g. In workshops until 15:00" aria-label="Status message" style="{{ statusTextareaStyle }}" style-focus="border-color:var(--accent)"></textarea>
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:var(--muted)">Saved on Enter or when you go back</span><span style="{{ statusCountStyle }}">{{ statusCount }}</span></div>
+            <span style="{{ statusSectionLabel }}">Clears</span>
+            <div style="display:flex;gap:5px">
               <sc-for list="{{ statusClearsOptions }}" as="sc" hint-placeholder-count="4">
                 <div onClick="{{ sc.pick }}" role="button" style="{{ sc.style }}" style-hover="cursor:pointer;border-color:var(--accent)">{{ sc.label }}</div>
               </sc-for>
             </div>
+            <sc-if value="{{ statusHasText }}" hint-placeholder-val="{{ false }}"><div onClick="{{ clearStatusText }}" role="button" style="{{ statusRowStyle }}color:var(--warn-text);margin:2px -4px 0" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1">backspace</span>Clear status message</div></sc-if>
           </div>
-          <div style="display:flex;flex-direction:column;gap:7px;border-top:1px solid var(--line2);padding-top:12px">
-            <span style="{{ statusSectionLabel }}">Working from</span>
-            <div style="{{ statusSegWrapStyle }}">
-              <sc-for list="{{ statusPlaceSegs }}" as="wp" hint-placeholder-count="2">
-                <div onClick="{{ wp.pick }}" role="button" style="{{ wp.style }}gap:6px" style-hover="cursor:pointer"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1">{{ wp.icon }}</span>{{ wp.label }}</div>
-              </sc-for>
-            </div>
-            <div style="{{ statusSegWrapStyle }}">
-              <sc-for list="{{ statusScopeSegs }}" as="ws" hint-placeholder-count="2">
-                <div onClick="{{ ws.pick }}" role="button" style="{{ ws.style }}" style-hover="cursor:pointer">{{ ws.label }}</div>
-              </sc-for>
-            </div>
-          </div>
-        </div>
-        <div style="display:flex;align-items:center;gap:9px;padding:10px 14px;border-top:1px solid var(--line2);background:var(--sub)">
-          <sc-if value="{{ statusHasText }}" hint-placeholder-val="{{ false }}"><div onClick="{{ clearStatusText }}" role="button" style="font-size:13px;color:var(--text2);padding:8px 4px" style-hover="cursor:pointer;text-decoration:underline">Clear status message</div></sc-if>
-          <div onClick="{{ closeStatusMenu }}" role="button" style="{{ statusDoneStyle }}margin-left:auto" style-hover="cursor:pointer;opacity:0.9">Done</div>
-        </div>
+        </sc-if>
       </div>
     </div>
   </sc-if>

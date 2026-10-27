@@ -4325,22 +4325,31 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         userMenuOpen: !!st.userMenu,
         toggleUserMenu: () => this.setState({ userMenu: !st.userMenu }),
         closeUserMenu: () => { if (st.userMenu) this.setState({ userMenu: false }); },
-        /* The reader's own status, set from the menu under the account icon (from More on a phone): a presence for a
-           chosen while, a status message that clears on its own, and where they work. A member only; it is a menu,
-           never the Settings screen. */
+        /* The reader's own status, set from the menu under the account icon (from More on a phone). It is a menu, never
+           the Settings screen, and it has no Done: every choice takes the moment it is made. A presence picked closes
+           the menu, the way any menu's item does; the three rows under it open a page of the same menu, where a
+           choice takes and returns to the first page, which then shows it. A member only. */
         ...(() => {
           const mine = PRESENCE[myPresence];
           const text = st.myStatusText || "";
+          const page = st.statusPage || null;
+          const draft = st.statusDraft !== undefined && st.statusDraft !== null ? st.statusDraft : text;
           const forOpt = st.myPresenceFor || "Until changed";
           const clears = st.myStatusClears || "Today";
-          const place = st.myWorkPlace || "Office";
-          const scope = st.myWorkScope || "Today only";
-          const seg = (on) => "flex:1;display:flex;align-items:center;justify-content:center;box-sizing:border-box;text-align:center;border-radius:6px;font-size:13px;white-space:nowrap;" +
-            (touch ? "min-height:40px;padding:0 8px;" : "padding:6px 8px;") +
-            (on ? "background:var(--panel);color:var(--text);font-weight:600;box-shadow:0 1px 2px var(--sh-1);" : "color:var(--muted);");
-          const chip = (on) => "display:flex;align-items:center;gap:6px;box-sizing:border-box;border-radius:8px;font-size:13px;white-space:nowrap;" +
-            (touch ? "min-height:44px;padding:0 13px;" : "padding:6px 11px;") +
+          const work = st.myWork || "Office today";
+          // Leaving the message page by any route keeps what was typed; nothing waits on a confirmation.
+          const commit = (patch) => this.setState(s2 => Object.assign(
+            s2.statusPage === "message" ? { myStatusText: String(s2.statusDraft ?? s2.myStatusText ?? "").trim().slice(0, 280), statusDraft: null } : {},
+            patch));
+          const row = (on) => "display:flex;align-items:center;gap:10px;box-sizing:border-box;border-radius:8px;font-size:13px;min-height:" + (touch ? 44 : 32) + "px;padding:0 9px;" + (on ? "background:var(--accent-soft);" : "");
+          const chip = (on) => "flex:1 1 0;display:flex;align-items:center;justify-content:center;box-sizing:border-box;border-radius:8px;white-space:nowrap;" +
+            (touch ? "min-height:44px;padding:0 6px;font-size:13px;" : "padding:5px 4px;font-size:12px;") +
             (on ? "background:var(--accent-soft);color:var(--accent-d);border:1px solid var(--accent);font-weight:600;" : "background:var(--panel);color:var(--text2);border:1px solid var(--line);");
+          const pageRows = (opts, cur, set) => opts.map(o => ({
+            label: o, current: o === cur, notCurrent: o !== cur,
+            pick: () => this.setState(Object.assign(set(o), { statusPage: null })),
+            style: row(o === cur),
+          }));
           return {
             meStatusShown: inOrg,
             mePresenceLabel: mine.label + (myPresence === "hidden" ? " - others see you as Offline" : ""),
@@ -4348,57 +4357,65 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             meStatusLine: text || "Set a status message",
             meStatusLineStyle: "font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:" + (text ? "var(--text2)" : "var(--faint)"),
             meRailDotStyle: presenceDot(myPresence, touch ? 14 : 13),
-            openStatusMenu: () => this.setState({ statusMenu: true, userMenu: false, more: false }),
+            openStatusMenu: () => this.setState({ statusMenu: true, statusPage: null, statusDraft: null, userMenu: false, more: false }),
             statusMenuOpen: inOrg && !!st.statusMenu,
-            closeStatusMenu: () => this.setState({ statusMenu: false }),
+            closeStatusMenu: () => commit({ statusMenu: false, statusPage: null }),
             statusScrimStyle: isMobile
               ? "position:fixed;inset:0;z-index:95;display:flex;flex-direction:column;justify-content:flex-end;background:var(--scrim)"
               : "position:fixed;inset:0;z-index:95",
             statusCardStyle: isMobile
-              ? "display:flex;flex-direction:column;max-height:88dvh;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;box-shadow:0 -8px 30px var(--sh-3);padding-bottom:env(safe-area-inset-bottom)"
-              : "position:fixed;bottom:18px;left:106px;width:340px;max-height:calc(100dvh - 36px);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 0 var(--inset) inset,0 10px 24px var(--sh-2),0 2px 6px var(--sh-2);overflow:hidden",
+              ? "display:flex;flex-direction:column;max-height:88dvh;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;box-shadow:0 -8px 30px var(--sh-3);padding:0 8px calc(8px + env(safe-area-inset-bottom))"
+              : "position:fixed;bottom:18px;left:106px;width:272px;max-height:calc(100dvh - 36px);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 0 var(--inset) inset,0 10px 24px var(--sh-2),0 2px 6px var(--sh-2);overflow:hidden;padding:0 5px 5px",
             moStatusCard: isMobile ? "sheet" : "pop",
             moStatusScrim: isMobile ? "scrim" : "none",
             statusGrabber: isMobile,
-            statusAvatarStyle: "position:relative;width:40px;height:40px;flex:0 0 40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;background:var(--border2);color:var(--text2);" +
+            statusAvatarStyle: "position:relative;width:" + (isMobile ? 40 : 32) + "px;height:" + (isMobile ? 40 : 32) + "px;flex:0 0 auto;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:" + (isMobile ? 14 : 12) + "px;background:var(--border2);color:var(--text2);" +
               (myPhoto ? "background-image:url(" + myPhoto + ");background-size:cover;background-position:center;" : ""),
-            statusDotStyle: presenceDot(myPresence, 13),
+            statusDotStyle: presenceDot(myPresence, isMobile ? 13 : 11),
+            statusHeadLine: mine.label + (myPresence !== "active" && forOpt !== "Until changed" ? " · " + forOpt.toLowerCase() : ""),
+            statusOnMain: !page,
+            statusOnFor: page === "for",
+            statusOnMessage: page === "message",
+            statusOnWork: page === "work",
+            statusPageHead: !!page,
+            statusPageTitle: page === "for" ? "Show " + mine.label + " for" : page === "message" ? "Status message" : "Working from",
+            statusBack: () => commit({ statusPage: null }),
             statusPresenceRows: PRESENCE_ORDER.map(k => ({
               label: PRESENCE[k].label,
               note: k === "hidden" ? "Others see you as Offline" : "",
               hasNote: k === "hidden",
               fill: presenceFill(k, 10),
               current: k === myPresence,
-              pick: () => this.setState({ myPresence: k }),
-              style: "display:flex;align-items:center;gap:11px;box-sizing:border-box;border-radius:8px;min-height:" + (touch ? 44 : 30) + "px;padding:" + (touch ? 4 : 3) + "px 9px;" + (k === myPresence ? "background:var(--accent-soft);" : ""),
+              pick: () => this.setState({ myPresence: k, myPresenceFor: "Until changed", statusMenu: false, statusPage: null }),
+              style: row(k === myPresence),
             })),
             statusForShown: myPresence !== "active",
-            statusForOptions: ["30 minutes", "1 hour", "2 hours", "Today", "This week", "Until changed"].map(o => ({
-              label: o, pick: () => this.setState({ myPresenceFor: o }), style: chip(o === forOpt),
+            statusForValue: forOpt,
+            openStatusFor: () => this.setState({ statusPage: "for" }),
+            statusForRows: pageRows(["30 minutes", "1 hour", "2 hours", "Today", "This week", "Until changed"], forOpt, o => ({ myPresenceFor: o })),
+            statusMessageValue: text || "Set a status message",
+            statusMessageValueStyle: "flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;color:" + (text ? "var(--text2)" : "var(--faint)"),
+            openStatusMessage: () => this.setState({ statusPage: "message", statusDraft: text }),
+            statusWorkValue: work,
+            openStatusWork: () => this.setState({ statusPage: "work" }),
+            statusWorkRows: pageRows(["Office today", "Office until changed", "Remote today", "Remote until changed"], work, o => ({ myWork: o })).map(r => Object.assign(r, {
+              icon: r.label.indexOf("Remote") === 0 ? "home_work" : "apartment",
             })),
-            statusForNote: myPresence === "active" ? "" : forOpt === "Until changed"
-              ? "Stays " + mine.label + " until you change it."
-              : "Back to Active " + (forOpt === "Today" ? "at the end of today" : forOpt === "This week" ? "at the end of the week" : "in " + forOpt) + ".",
-            statusTextValue: text,
-            onStatusText: (e) => this.setState({ myStatusText: String(e.target.value || "").slice(0, 280) }),
-            statusCount: text.length + " / 280",
-            statusCountStyle: "margin-left:auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-variant-numeric:tabular-nums;color:" + (text.length >= 260 ? "var(--warn-text)" : "var(--faint)"),
+            statusTextValue: draft,
+            onStatusText: (e) => this.setState({ statusDraft: String(e.target.value || "").slice(0, 280) }),
+            onStatusKey: (e) => {
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commit({ statusPage: null }); }
+            },
+            statusCount: draft.length + " / 280",
+            statusCountStyle: "margin-left:auto;white-space:nowrap;font-family:'Geist',system-ui,sans-serif;font-size:11px;font-variant-numeric:tabular-nums;color:" + (draft.length >= 260 ? "var(--warn-text)" : "var(--faint)"),
             statusClearsOptions: ["Never", "1 hour", "Today", "This week"].map(o => ({
               label: o, pick: () => this.setState({ myStatusClears: o }), style: chip(o === clears),
             })),
-            statusHasText: !!text,
-            clearStatusText: () => this.setState({ myStatusText: "" }),
-            statusPlaceSegs: ["Office", "Remote"].map(o => ({
-              label: o, icon: o === "Office" ? "apartment" : "home_work",
-              pick: () => this.setState({ myWorkPlace: o }), style: seg(o === place),
-            })),
-            statusScopeSegs: ["Today only", "Until changed"].map(o => ({
-              label: o, pick: () => this.setState({ myWorkScope: o }), style: seg(o === scope),
-            })),
-            statusSegWrapStyle: "display:flex;gap:3px;background:var(--rail);border:1px solid var(--line);border-radius:8px;padding:2px",
+            statusHasText: !!(text || draft),
+            clearStatusText: () => this.setState({ myStatusText: "", statusDraft: null, statusPage: null }),
+            statusRowStyle: row(false),
             statusSectionLabel: "font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600",
-            statusTextareaStyle: "width:100%;box-sizing:border-box;resize:none;font-family:inherit;font-size:" + (touch ? 15 : 14) + "px;line-height:1.45;color:var(--text);background:var(--sub);border:1px solid var(--border2);border-radius:8px;padding:9px 11px;outline:none",
-            statusDoneStyle: "display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;" + (touch ? "min-height:44px;padding:0 18px;" : "padding:8px 16px;"),
+            statusTextareaStyle: "width:100%;box-sizing:border-box;resize:none;font-family:inherit;font-size:" + (touch ? 15 : 13) + "px;line-height:1.45;color:var(--text);background:var(--sub);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;outline:none",
             moreStatusStyle: "display:flex;align-items:center;gap:12px;min-height:52px;padding:6px 10px;border-radius:12px;margin-bottom:4px;border-bottom:1px solid var(--line2)",
           };
         })(),
