@@ -239,22 +239,37 @@ test('lists each message with the sender facts its own answer states, the Spam f
         (query) =>
             (
                 ask(deployment, 'GET', `/emails?${query}`) as {
-                    emails: { id: string; sender: { authorAuthentication: string; deploymentTrust: string } }[];
+                    emails: {
+                        id: string;
+                        sender: {
+                            authorAuthentication: string;
+                            deploymentTrust: string;
+                            signatureOutcome: string;
+                            signerMatchesAuthor: boolean;
+                        };
+                    }[];
                 }
             ).emails,
     );
 
-    for (const row of rows.slice(0, 8)) {
+    const listedFacts = rows.map((row) => ({ id: row.id, ...row.sender }));
+    const answeredFacts = rows.map((row) => {
         const message = ask(deployment, 'GET', `/messages/${row.id}`) as {
             sender: { authorAuthentication: string; deploymentTrust: string };
+            signature: { outcome: string; signerMatchesAuthor: boolean };
         };
 
-        expect({ id: row.id, ...row.sender }).toMatchObject({
+        return {
             id: row.id,
             authorAuthentication: message.sender.authorAuthentication,
             deploymentTrust: message.sender.deploymentTrust,
-        });
-    }
+            signatureOutcome: message.signature.outcome,
+            signerMatchesAuthor: message.signature.signerMatchesAuthor,
+        };
+    });
+
+    expect(rows).toHaveLength(104);
+    expect(listedFacts).toStrictEqual(answeredFacts);
 });
 
 test('answers every later read with the spam verdict a mark left, the Spam folder listing what arrived there', () => {
