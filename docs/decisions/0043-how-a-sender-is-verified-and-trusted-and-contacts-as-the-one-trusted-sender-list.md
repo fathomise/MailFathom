@@ -404,9 +404,17 @@ store (ADR 0009), which issue 2783 builds. The job is keyed by the book, the add
 that act. ADR 0009 keeps a key unique across terminal rows too, so a key of the book and the address alone would let
 the first write's finished job swallow every later one, and an amendment would revoke nothing. Each write therefore
 enqueues a job of its own. That is safe because re-judging a message twice from the same state writes the same
-verdict. Jobs for one book and address run one at a time, in the order they were enqueued, so a job that read the
-state before a later write is always followed by that write's own job, and the last verdict written is judged from
-the last state. It re-judges two sets of stored messages:
+verdict. The queue does not order them (ADR 0009 makes ordering best-effort), so the order comes from a lock and not
+from the queue. Each batch of a job takes a transaction-scoped PostgreSQL advisory lock (`pg_advisory_xact_lock`) on
+the book and the address before it reads the book. It reads the contact state and writes the verdicts of that batch
+in the same transaction. Every contact write and every act that removes a contact takes the same lock, for each
+address it changes, in its own transaction, in a fixed order of addresses so two acts never deadlock. A batch
+therefore sees the book either wholly before a write or wholly after it. A batch that saw the book before a write
+committed its verdicts before the write ran, and the write's own job re-judges them afterwards. Whichever job runs
+last reads the last state, so a verdict written from a superseded state is always overwritten. A batch reads and
+writes only stored columns and reaches no server, so it is the short, database-only critical section ADR 0031 leaves
+this lock available for, and the lock cannot leak past the transaction that took it. It re-judges two sets of stored
+messages:
 
 - every message whose first `From` mailbox is that address, on every account the book reaches now: the accounts
   assigned to the book's user, or every account of the organization;
@@ -583,7 +591,9 @@ Each is named in its implementing pull request with the operator's action, for t
   Issue 2779 builds organization contacts. Issue 2782 builds the known-provider list. Issue 2776 builds the contact
   sources, writer kinds, and re-judgment. Issue 2780 builds the sender details in the design and the client. Issue 2781
   builds `Known`. Issue 2783 re-judges the stored mail a contact change affects.
-- [ADR 0009](0009-durable-job-store-and-execution-identity.md) holds the re-judgment job. [ADR 0012](0012-authorization-model-named-permissions-and-where-they-are-enforced.md)
+- [ADR 0009](0009-durable-job-store-and-execution-identity.md) holds the re-judgment job, and its best-effort ordering
+  is why the jobs are serialized by a lock rather than by the queue. [ADR 0031](0031-dividing-singleton-work-between-replicas-with-a-leased-scope.md)
+  keeps the transaction-scoped advisory lock for a short database-only section, which is what a batch is. [ADR 0012](0012-authorization-model-named-permissions-and-where-they-are-enforced.md)
   is the permission model the writers sit in. [ADR 0014](0014-single-tenant-multi-user-ownership-on-the-mail-account.md)
   is why a mailbox may be assigned to several users. [ADR 0042](0042-signing-an-organizations-mail-and-trusting-a-sender-its-signature-proves.md)
   is the organization signature, unchanged here.
