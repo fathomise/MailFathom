@@ -68,6 +68,9 @@ readonly licence_pattern='Apache-2\.0|BlueOak-1\.0\.0|BSD-3-Clause|BSD-2-Clause|
 readonly register_file='THIRD_PARTY_LICENSES.md'
 readonly global_json='global.json'
 readonly tool_manifest='.config/dotnet-tools.json'
+# The composite actions the workflows use name actions of their own, so every action reference is surveyed and rewritten
+# in `${workflow_directory%/*}/actions` as well — derived rather than named, so whatever points the one elsewhere points
+# the other too.
 readonly workflow_directory='.github/workflows'
 readonly backend_pins='backend/Directory.Packages.props'
 readonly backend_solution='backend/MailFathom.slnx'
@@ -507,7 +510,7 @@ survey_action_references() {
     fi
 
     record 'actions' "$reference" "$pinned" "$latest" "$licence" "$recorded" "$note" "$workflow_directory"
-  done < <(grep -rhoE 'uses: [A-Za-z0-9][^ ]*@[^ ]+' "$workflow_directory" | sed 's|^uses: ||' | sort -u)
+  done < <(grep -rhoE 'uses: [A-Za-z0-9][^ ]*@[^ ]+' "$workflow_directory" "${workflow_directory%/*}/actions" 2> /dev/null | sed 's|^uses: ||' | sort -u)
 }
 
 # Every image reference this repository pins, read from the places that write one whole: the Dockerfile's `FROM` lines,
@@ -891,7 +894,7 @@ rewrite_pin() {
 
   case "$family" in
     nuget | npm | crates | tools | sdk) touched=("$source") ;;
-    actions) mapfile -t touched < <(grep -rlF "uses: $component" "$workflow_directory" 2> /dev/null || true) ;;
+    actions) mapfile -t touched < <(grep -rlF "uses: $component" "$workflow_directory" "${workflow_directory%/*}/actions" 2> /dev/null || true) ;;
     *) return 1 ;;
   esac
 

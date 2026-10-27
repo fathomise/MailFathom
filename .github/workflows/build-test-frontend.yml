@@ -22,8 +22,8 @@ name: Build and test the frontend
 # the class of break nobody notices while writing a screen.
 # A nightly finds it the morning after the merge and names a run at 02:00 rather than the change that caused it, and a
 # local-only suite is a suite whoever is in a hurry does not run. It costs a browser download, which the cache below
-# makes a one-off per lock file, and about a minute of runner time on a change that reaches the client at all — the
-# `frontend` path filter in `ci.yml` is what keeps every other change from paying it.
+# makes a one-off per Playwright version, and about a minute of runner time on a change that reaches the client at
+# all — the `frontend` path filter in `ci.yml` is what keeps every other change from paying it.
 #
 # `build-test-format-and-migrations.yml` is the same arrangement for the server, and the two deliberately share nothing
 # but the `CI` workflow that calls them.
@@ -74,19 +74,34 @@ jobs:
         run: npm install --global "$(jq --raw-output .packageManager frontend/package.json)"
 
       # The store rather than `node_modules`, which is what pnpm hard-links from. The lock file is the whole key: it
-      # fixes the resolved closure, so a key that ignored it would serve packages resolved under different pins.
+      # fixes the resolved closure, so a key that ignored it would serve packages resolved under different pins. The
+      # prefix restores the previous store when the lock file moves, which leaves pnpm fetching only what changed.
+      #
+      # Every job restores and only `main` saves, which in practice is the nightly: a pull request or a merge-queue
+      # entry can read what `main` saved and nothing it saves itself is readable by any other ref, so its copy would
+      # only spend the repository's cache budget. This job is the store's one writer, because the three jobs of this
+      # workflow run at once and two saving the same key race for it.
       - name: Resolve the pnpm store directory
         id: pnpm-store
         run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
-      - name: Cache the pnpm store
-        uses: actions/cache@v6
+      - name: Restore the pnpm store
+        id: restore-pnpm-store
+        uses: actions/cache/restore@v6
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
       - name: Restore the client workspace
         run: pnpm --dir frontend install --frozen-lockfile
+
+      - name: Save the pnpm store
+        if: github.ref == 'refs/heads/main' && steps.restore-pnpm-store.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ steps.restore-pnpm-store.outputs.cache-primary-key }}
 
       # The four checks the full gate runs before it builds, in the order it runs them, and in a job apart from the
       # browser because none of them needs one: a lint violation is answered here without waiting on a 300 MB download.
@@ -138,34 +153,59 @@ jobs:
         id: pnpm-store
         run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
-      - name: Cache the pnpm store
-        uses: actions/cache@v6
+      # Restored only: `Check and test the client` is the store's writer.
+      - name: Restore the pnpm store
+        uses: actions/cache/restore@v6
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
       - name: Restore the client workspace
         run: pnpm --dir frontend install --frozen-lockfile
 
-      # Which browser build Playwright downloads is decided by the Playwright version, which the lock file pins, so the
-      # same key covers both. Without this the browser is fetched on every run of every client change.
-      - name: Cache the browser Playwright downloads
-        uses: actions/cache@v6
+      # Which browser build Playwright downloads, and which system libraries that build needs, are decided by the
+      # Playwright version alone, so the version is the key of both caches below rather than the whole lock file — a
+      # lock file that moved for any other package would otherwise re-download the same browser and store a second copy
+      # of it. No prefix restores an older entry: a browser of another version is a download of the same size.
+      - name: Read the Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --dir frontend exec playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the Playwright browser
+        id: restore-playwright-browser
+        uses: actions/cache/restore@v6
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
 
-      # `--with-deps` installs the shared libraries the browser needs from apt, which the cache above does not hold and
-      # which a GitHub-hosted runner does not carry, so it is an apt install like any other: a mirror is chosen first and
-      # each step carries the bound `Build the desktop client` gives it. Chromium alone: `frontend/playwright.config.ts`
-      # says why.
+      # Chromium alone: `frontend/playwright.config.ts` says why.
+      - name: Install the browser
+        run: pnpm --dir frontend exec playwright install chromium
+
+      - name: Save the Playwright browser
+        if: github.ref == 'refs/heads/main' && steps.restore-playwright-browser.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.restore-playwright-browser.outputs.cache-primary-key }}
+
+      # The shared libraries the browser needs, which a GitHub-hosted runner does not carry, from apt — the half of
+      # `--with-deps` that waits on the runner's package mirror, and therefore the half that is cached, preceded by a
+      # mirror choice, and bounded. Each step carries the bound `Build the desktop client` gives it, for the reasons it
+      # gives there.
       - name: Choose a fast apt mirror
         timeout-minutes: 2
         uses: vegardit/fast-apt-mirror.sh@1.4.5
 
-      - name: Install the browser
+      - name: Install the browser's system libraries
         timeout-minutes: 5
-        run: pnpm --dir frontend exec playwright install --with-deps chromium
+        uses: ./.github/actions/cached-apt-install
+        with:
+          name: playwright
+          content: ${{ steps.playwright.outputs.version }}
+          install: pnpm --dir frontend exec playwright install-deps chromium
+          save: true
 
       # `pnpm test:browser` is `pnpm build` and then Playwright, so this is the build step as well as the browser one
       # and nothing here builds the bundle twice. Nothing is uploaded afterwards, by design rather than by omission: a
@@ -195,6 +235,9 @@ jobs:
     name: Drive the desktop head
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      # Named once because the Cargo cache's key carries it beside the install that uses it.
+      TAURI_DRIVER_VERSION: 2.0.6
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -202,30 +245,15 @@ jobs:
           ref: ${{ inputs.ref }}
           persist-credentials: false
 
-      # The same system half `Build the desktop client` installs, plus the two this job needs and that one does not: the
-      # WebDriver for the WebView the shell renders in, and a display for it to open a window on.
-      # The mirror is chosen first, and each step carries the bound `Build the desktop client` gives it, for the reasons it
-      # gives there.
+      # The same system half `Build the desktop client` installs, from the one list both jobs share. The mirror is chosen
+      # first, and each step carries the bound `Build the desktop client` gives it, for the reasons it gives there.
       - name: Choose a fast apt mirror
         timeout-minutes: 2
         uses: vegardit/fast-apt-mirror.sh@1.4.5
 
       - name: Install the Linux WebView, bundling, and WebDriver dependencies
         timeout-minutes: 5
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends \
-            libwebkit2gtk-4.1-dev \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libxdo-dev \
-            libssl-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            webkit2gtk-driver \
-            xvfb
+        uses: ./.github/actions/install-desktop-linux-dependencies
 
       # The two locales the language cases name, which a runner does not carry: it generates `C`, `C.UTF-8`, `POSIX`,
       # and `en_US.UTF-8` and nothing else. `setlocale` refuses a locale the machine has not generated and leaves the
@@ -247,23 +275,28 @@ jobs:
         id: pnpm-store
         run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
-      - name: Cache the pnpm store
-        uses: actions/cache@v6
+      # Restored only: `Check and test the client` is the store's writer.
+      - name: Restore the pnpm store
+        uses: actions/cache/restore@v6
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
-          key: pnpm-desktop-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
-      # The registry and the git checkouts Cargo downloads, keyed on the lock file that fixes exactly which crate
-      # versions those are — the same arrangement `Build the desktop client` uses, and deliberately not a cache of
-      # `target/`, which is gigabytes against a repository-wide budget.
-      - name: Cache the Cargo dependencies
-        uses: actions/cache@v6
+      # The registry and the git checkouts Cargo downloads — the shell's crates, which the lock file fixes, and the
+      # WebDriver proxy's, which its version fixes, so both are in the key and an entry never lacks what this job
+      # fetches. Deliberately not a cache of `target/`, which is gigabytes against a repository-wide budget. Saved on
+      # `main` alone, for the reason `Check and test the client` states for the pnpm store.
+      - name: Restore the Cargo dependencies
+        id: restore-cargo
+        uses: actions/cache/restore@v6
         with:
           path: |
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-          key: cargo-desktop-suite-${{ runner.os }}-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}
+          key: cargo-desktop-suite-${{ runner.os }}-tauri-driver-${{ env.TAURI_DRIVER_VERSION }}-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}
+          restore-keys: cargo-desktop-suite-${{ runner.os }}-
 
       - name: Restore the client workspace
         run: pnpm --dir frontend install --frozen-lockfile
@@ -272,7 +305,7 @@ jobs:
       # into one the platform's native driver understands and launches the shell binary, which is why the suite needs no
       # WebDriver package of its own. `--locked` for the reason the shell is built with it.
       - name: Install the Tauri WebDriver proxy
-        run: cargo install tauri-driver --version 2.0.6 --locked
+        run: cargo install tauri-driver --version "$TAURI_DRIVER_VERSION" --locked
 
       # `pnpm test:desktop` builds the shell and then drives it, so this is the build step as well as the driving one.
       # `xvfb-run` is what gives the window something to open on: a runner has no display, and a WebView that cannot
@@ -280,3 +313,14 @@ jobs:
       # afterwards, for the reason the browser suite above uploads nothing.
       - name: Build the desktop head and drive it in its own WebView
         run: xvfb-run --auto-servernum pnpm --dir frontend run test:desktop
+
+      # After the build rather than after the proxy, because the build is what fetches the shell's own crates.
+      - name: Save the Cargo dependencies
+        if: github.ref == 'refs/heads/main' && steps.restore-cargo.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: ${{ steps.restore-cargo.outputs.cache-primary-key }}

@@ -114,31 +114,38 @@ jobs:
         id: pnpm-store
         run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
-      # Both keys below are deliberately the ones the desktop build writes on its own Linux runner rather than keys of
-      # this job's own, so the two share one entry apiece instead of storing the same bytes twice against a
-      # repository-wide cache budget. Neither holds anything target-specific: a pnpm store holds what the lock file
-      # names, and the Cargo caches hold downloaded crate *sources*. What differs per Android target is compiled
-      # output, and that is not cached here at all.
-      - name: Cache the pnpm store
-        uses: actions/cache@v6
+      # The pnpm store is the one the client's gate writes, because a store holds what the lock file names on any
+      # target. The Cargo caches are this job's own: they hold downloaded crate *sources*, but Cargo downloads only the
+      # crates the requested targets need, and the Android targets need some the desktop build never fetches — a shared
+      # entry written by that build left this job downloading 29 of them after every exact hit. Compiled output differs
+      # per target and is not cached here at all.
+      #
+      # Every job restores and only `main` saves, which in practice is this nightly: an entry saved by any other ref is
+      # readable by that ref alone.
+      - name: Restore the pnpm store
+        uses: actions/cache/restore@v6
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
-      - name: Cache the Cargo dependencies
-        uses: actions/cache@v6
+      - name: Restore the Cargo dependencies
+        id: restore-cargo
+        uses: actions/cache/restore@v6
         with:
           path: |
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-          key: cargo-${{ runner.os }}-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}
+          key: cargo-android-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}
+          restore-keys: cargo-android-
 
       # The Gradle distribution the committed wrapper downloads and verifies, and the module cache holding the
       # artifacts `app/gradle.lockfile` fixes. Both keys are the files that decide those two contents, so a moved
       # distribution or a rewritten lock file misses rather than restoring something stale.
-      - name: Cache the Gradle distribution and modules
-        uses: actions/cache@v6
+      - name: Restore the Gradle distribution and modules
+        id: restore-gradle
+        uses: actions/cache/restore@v6
         with:
           path: |
             ~/.gradle/wrapper
@@ -159,6 +166,26 @@ jobs:
       # developer's own build takes too.
       - name: Build the APK
         run: pnpm --dir frontend run android:build
+
+      # After the build, because the build is what fetches both.
+      - name: Save the Cargo dependencies
+        if: github.ref == 'refs/heads/main' && steps.restore-cargo.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: ${{ steps.restore-cargo.outputs.cache-primary-key }}
+
+      - name: Save the Gradle distribution and modules
+        if: github.ref == 'refs/heads/main' && steps.restore-gradle.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.gradle/wrapper
+            ~/.gradle/caches/modules-2
+          key: ${{ steps.restore-gradle.outputs.cache-primary-key }}
 
       # Named after the version so a downloaded file says which build it is, and after the build type so it says what
       # it is not: a debug-signed APK is not something to install over anything. Exactly one file is expected, the

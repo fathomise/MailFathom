@@ -64,13 +64,6 @@ jobs:
         with:
           global-json-file: global.json
 
-      # The same cache and the same key as the verification workflow, for the same reason.
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props', 'global.json', 'NuGet.config', '.config/dotnet-tools.json', '**/packages.lock.json') }}
-
       - name: Restore dependencies
         run: dotnet restore backend/MailFathom.slnx --locked-mode
 

@@ -69,15 +69,11 @@ jobs:
         with:
           global-json-file: global.json
 
-      # Versions are pinned centrally, NuGet.config decides which sources they may come from, and the
-      # lock files fix the resolved transitive closure, so the key covers all three. A key that
-      # ignored source policy would keep serving packages obtained under the previous one.
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props', 'global.json', 'NuGet.config', '.config/dotnet-tools.json', '**/packages.lock.json') }}
-
+      # No job in this repository caches `~/.nuget/packages`, and that is a measured answer rather than an omission.
+      # The package directory compresses to 1.2 GB, restoring it took as long as `dotnet restore` and
+      # `dotnet tool restore` take to fetch the same packages from nuget.org — about twenty seconds either way — and the
+      # key moved with nearly every merge, because the lock files record project references as well as packages. What
+      # the cache did buy was most of the repository's cache budget, spent on copies no other run could read.
       - name: Restore dependencies
         run: dotnet restore backend/MailFathom.slnx --locked-mode
 
@@ -110,7 +106,7 @@ jobs:
 
   # A job of its own rather than a step of the build above, which is the one place this workflow and the client's
   # deliberately differ. What decides the shape is which of the two costs more: the setup a separate job pays, or the
-  # pass itself sitting on the path a pull request waits on. Here that is 25 seconds of checkout, SDK, cache, and
+  # pass itself sitting on the path a pull request waits on. Here that is 25 seconds of checkout, SDK, and
   # restore against a 155-second pass, so a job of its own moves the longer of the two off the critical path.
   # `build-test-frontend.yml` runs no pass at all today, for the reason its own comment gives, and the decision above
   # is the one whichever build lands there will be weighed against.
@@ -140,13 +136,6 @@ jobs:
         with:
           global-json-file: global.json
 
-      # The same cache and the same key as the build job, for the same reason.
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props', 'global.json', 'NuGet.config', '.config/dotnet-tools.json', '**/packages.lock.json') }}
-
       - name: Restore dependencies
         run: dotnet restore backend/MailFathom.slnx --locked-mode
 
@@ -173,13 +162,6 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
-
-      # The same cache and the same key as the build job, for the same reason.
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props', 'global.json', 'NuGet.config', '.config/dotnet-tools.json', '**/packages.lock.json') }}
 
       - name: Restore dependencies
         run: dotnet restore backend/MailFathom.slnx --locked-mode

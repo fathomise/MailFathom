@@ -69,9 +69,8 @@ jobs:
           ref: ${{ inputs.ref }}
           persist-credentials: false
 
-      # The system half of the Linux toolchain, which the runner image does not carry: the WebView the shell renders in
-      # and the libraries Tauri links and bundles beside it. The Windows runner needs none of this — WebView2 and the
-      # MSVC build tools are part of its image.
+      # The system half of the Linux toolchain, which the runner image does not carry. The Windows runner needs none of
+      # it — WebView2 and the MSVC build tools are part of its image.
       # The runner's own mirror stalls rather than fails on a bad day, which apt's failure fallback does not see, so a fast
       # one is chosen first. The choice ordinarily takes under half a minute and is bounded at two. The install keeps a
       # bound of its own because a mirror fast when probed can still slow down mid-download: it ordinarily takes half a
@@ -84,18 +83,9 @@ jobs:
       - name: Install the Linux WebView and bundling dependencies
         if: runner.os == 'Linux'
         timeout-minutes: 5
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends \
-            libwebkit2gtk-4.1-dev \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libxdo-dev \
-            libssl-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev
+        uses: ./.github/actions/install-desktop-linux-dependencies
+        with:
+          save: true
 
       # `engines.node` in the client's manifest is where the Node version is decided, so it is read from there rather
       # than restated here — the same arrangement the client's own gate uses.
@@ -116,26 +106,41 @@ jobs:
       # Per platform, because a store and a crate cache hold platform-specific binaries: the Tauri CLI, the esbuild and
       # Rollup native packages, and every compiled crate artifact differ per runner. `runner.os` in each key is what
       # keeps one platform from restoring the other's.
-      - name: Cache the pnpm store
-        uses: actions/cache@v6
+      #
+      # Every job restores and only `main` saves, which in practice is the nightly: an entry saved by any other ref — a
+      # release's tag among them — is readable by that ref alone. The Linux store is the one the client's gate writes,
+      # so this job writes the Windows one only.
+      - name: Restore the pnpm store
+        id: restore-pnpm-store
+        uses: actions/cache/restore@v6
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
       # The registry and the git checkouts Cargo downloads, keyed on the lock file that fixes exactly which crate
       # versions those are. Compiled output under `target/` is deliberately not cached: it is gigabytes per platform
       # against a repository-wide cache budget, on a job nothing waits for.
-      - name: Cache the Cargo dependencies
-        uses: actions/cache@v6
+      - name: Restore the Cargo dependencies
+        id: restore-cargo
+        uses: actions/cache/restore@v6
         with:
           path: |
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
           key: cargo-${{ runner.os }}-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
 
       - name: Restore the client workspace
         run: pnpm --dir frontend install --frozen-lockfile
+
+      - name: Save the pnpm store
+        if: github.ref == 'refs/heads/main' && runner.os == 'Windows' && steps.restore-pnpm-store.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ steps.restore-pnpm-store.outputs.cache-primary-key }}
 
       # Rust is whatever stable the runner image carries. This repository pins no toolchain — there is no
       # `rust-toolchain.toml` — and what fixes the build is `Cargo.lock`, which `run-tauri.ts` makes binding by handing
@@ -153,6 +158,17 @@ jobs:
         env:
           MAILFATHOM_VERSION: ${{ inputs.version }}
         run: pnpm --dir frontend run desktop:build
+
+      # After the build, because the build is what fetches the crates.
+      - name: Save the Cargo dependencies
+        if: github.ref == 'refs/heads/main' && steps.restore-cargo.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: ${{ steps.restore-cargo.outputs.cache-primary-key }}
 
       # The bundles themselves rather than the tree around them: each bundler leaves its staging directories beside its
       # output, and an installer is the only part of that a person downloads.

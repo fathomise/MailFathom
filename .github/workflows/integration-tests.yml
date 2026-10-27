@@ -70,15 +70,6 @@ jobs:
         with:
           global-json-file: global.json
 
-      # Versions are pinned centrally, NuGet.config decides which sources they may come from, and the
-      # lock files fix the resolved transitive closure, so the key covers all three. A key that
-      # ignored source policy would keep serving packages obtained under the previous one.
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props', 'global.json', 'NuGet.config', '.config/dotnet-tools.json', '**/packages.lock.json') }}
-
       # The same script a developer runs, so the suite has one way to be started rather than two that
       # can drift. It restores tools and packages, builds, removes anything a previous run left behind,
       # runs the suite, and reports coverage over the classes marked [RequiresIntegrationCoverage].

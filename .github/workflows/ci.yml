@@ -243,10 +243,14 @@ jobs:
             # configuration are the server's, and the client's own Node floor, registry, lint rules, and test
             # configuration are all under `frontend/`. Naming them would spend a browser download and a bundle build on
             # a change that cannot move either.
+            #
+            # `.github/actions/` holds the composite actions that install the client's system packages from cached
+            # downloads, and only that job's workflows use them, so a change there is the client's to answer for.
             frontend:
               - 'frontend/**'
               - '.editorconfig'
               - '.github/workflows/build-test-frontend.yml'
+              - '.github/actions/**'
               - '.github/workflows/ci.yml'
               - 'Version.props'
               - 'scripts/read-declared-version.sh'
