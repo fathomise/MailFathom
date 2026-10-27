@@ -31,7 +31,9 @@ namespace MailFathom.Infrastructure.Mail.Dkim;
 /// <para>
 /// What a message may cost is bounded twice, because both the number of lookups and the names they ask for are written
 /// by whoever sent it: the reading caps how many signatures are verified at all, and the budget below caps how long the
-/// whole of one message's verification may take whatever those lookups do.
+/// whole of one message's verification may take whatever those lookups do. The DMARC record walk that decides whether a
+/// verified signature aligns spends the same budget, and a walk the budget cut short reads as a record that could not
+/// be read, which leaves the author not established.
 /// </para>
 /// <para>
 /// Nothing here is logged. A signing domain, the displayed author, and the fact that a particular message failed are
@@ -51,19 +53,35 @@ internal sealed class DkimLocalSenderVerifier : ILocalSenderVerifier
     private static readonly TimeSpan MessageVerificationBudget = TimeSpan.FromSeconds(10);
 
     private readonly IDkimPublicKeyRecordResolver resolver;
+    private readonly IDmarcRecordResolver dmarcRecordResolver;
     private readonly TimeProvider timeProvider;
 
-    /// <summary>Initializes a verifier over the port that resolves published keys.</summary>
+    /// <summary>Initializes a verifier over the ports that resolve published keys and DMARC records.</summary>
     /// <param name="resolver">Resolves what a signing domain publishes for a selector.</param>
+    /// <param name="dmarcRecordResolver">Finds the DMARC record that governs a displayed domain.</param>
     /// <param name="timeProvider">Measures the budget one message's verification is given.</param>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
-    public DkimLocalSenderVerifier(IDkimPublicKeyRecordResolver resolver, TimeProvider timeProvider)
+    public DkimLocalSenderVerifier(
+        IDkimPublicKeyRecordResolver resolver,
+        IDmarcRecordResolver dmarcRecordResolver,
+        TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(resolver);
+        ArgumentNullException.ThrowIfNull(dmarcRecordResolver);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         this.resolver = resolver;
+        this.dmarcRecordResolver = dmarcRecordResolver;
         this.timeProvider = timeProvider;
+    }
+
+    /// <inheritdoc />
+    public async Task<DmarcRecordLookup> ReadDmarcRecordAsync(SenderDomain fromDomain, CancellationToken cancellationToken)
+    {
+        using var budget = new CancellationTokenSource(MessageVerificationBudget, this.timeProvider);
+        using var work = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, budget.Token);
+
+        return await this.ReadDmarcRecordWithinAsync(fromDomain, work.Token, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -110,10 +128,36 @@ internal sealed class DkimLocalSenderVerifier : ILocalSenderVerifier
             }
         }
 
+        var dmarcRecord = LocalSenderAuthenticationReading.DomainWhoseDmarcRecordDecides(
+            verifiedSigningDomains,
+            displayedSenderAddress) is { } fromDomain
+            ? await this.ReadDmarcRecordWithinAsync(fromDomain, work.Token, cancellationToken)
+            : DmarcRecordLookup.NotReadable;
+
         return LocalSenderAuthenticationReading.Read(
             verifiedSigningDomains,
             anySignatureRejected,
-            displayedSenderAddress);
+            displayedSenderAddress,
+            dmarcRecord);
+    }
+
+    /// <summary>Walks for a DMARC record inside a budget, reading a spent budget as a record that could not be read.</summary>
+    /// <param name="fromDomain">The domain of the message's first <c>From</c> mailbox.</param>
+    /// <param name="budgetToken">Ends the walk when this message's lookups have taken long enough.</param>
+    /// <param name="cancellationToken">The caller's own cancellation, which is the one that still propagates.</param>
+    private async Task<DmarcRecordLookup> ReadDmarcRecordWithinAsync(
+        SenderDomain fromDomain,
+        CancellationToken budgetToken,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await this.dmarcRecordResolver.ResolveAsync(fromDomain, budgetToken);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return DmarcRecordLookup.NotReadable;
+        }
     }
 
     /// <summary>Verifies one signature, answering with nothing where no key could be obtained to check it against.</summary>

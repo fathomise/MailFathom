@@ -222,7 +222,7 @@ public sealed class SenderTrustEvaluatingEmailMimeReaderTests
     {
         Assert.True(SenderDomain.TryCreate(domain, out var author));
 
-        return SenderAuthentication.Authenticated([author], spfDomains: [], author, DmarcOutcome.Pass);
+        return SenderAuthentication.Authenticated([author], spfDomains: [], author, DmarcOutcome.Pass, DmarcRecordLookup.NotPublished);
     }
 
     private static IEmailMimeReader ReaderYielding(

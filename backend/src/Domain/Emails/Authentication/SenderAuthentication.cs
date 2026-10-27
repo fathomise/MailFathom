@@ -42,7 +42,9 @@ public sealed record SenderAuthentication
         SenderDomain? fromDomain,
         DmarcOutcome dmarc,
         SenderAuthenticationSource source,
-        IReadOnlyList<SenderDomain> authenticatedIdentities)
+        IReadOnlyList<SenderDomain> verifiedDkimDomains,
+        IReadOnlyList<SenderDomain> passedSpfDomains,
+        DmarcRecordLookup dmarcRecord)
     {
         this.Outcome = outcome;
         this.AuthenticatedBy = authenticatedBy;
@@ -53,8 +55,11 @@ public sealed record SenderAuthentication
         this.Dmarc = dmarc;
         this.Source = source;
 
-        (this.AuthorAuthentication, this.AuthenticatedAuthorDomain) =
-            EstablishAuthor(fromDomain, dmarc, authenticatedIdentities);
+        (this.AuthorAuthentication, this.AuthorAuthenticationRoute) =
+            EstablishAuthor(fromDomain, dmarc, verifiedDkimDomains, passedSpfDomains, dmarcRecord);
+        this.AuthenticatedAuthorDomain = this.AuthorAuthentication == AuthorAuthenticationOutcome.Authenticated
+            ? fromDomain
+            : null;
     }
 
     /// <summary>Gets what was established about the identity that handed the message over.</summary>
@@ -99,22 +104,22 @@ public sealed record SenderAuthentication
     /// <remarks>
     /// The absent values of a locally reached verdict are absent by construction rather than by outcome:
     /// <see cref="SpfDomain" /> is never named because no envelope sender survives delivery, and <see cref="Dmarc" />
-    /// is never anything but <see cref="DmarcOutcome.NotReported" /> because reporting a DMARC result needs the
-    /// displayed domain's published policy and its alignment mode, which nothing here resolves.
+    /// is never anything but <see cref="DmarcOutcome.NotReported" /> because a DMARC result needs SPF as well. The
+    /// displayed domain's record is read for its alignment mode, and that decides only whether DKIM aligns.
     /// </remarks>
     public SenderAuthenticationSource Source { get; }
 
     /// <summary>Gets what was established about the author the message displays, which is a separate conclusion.</summary>
     /// <remarks>
     /// <para>
-    /// <see cref="AuthorAuthenticationOutcome.Authenticated" /> is reached two ways and neither of them believes the
-    /// <c>From</c> header on its own. A trusted <see cref="DmarcOutcome.Pass" /> is the receiving server's own statement
-    /// that the displayed domain passed under its published policy, so the displayed domain is the answer. Failing
-    /// that, an authenticated identity that is the displayed domain, sits beneath it, or holds it beneath itself is
-    /// the same claim reached without DMARC. A suffix relation at a label boundary means whoever publishes the signing
-    /// key was delegated that zone by the displayed domain or delegated the displayed domain themselves, so it rests
-    /// on DNS control flowing down the tree rather than on a policy nobody read. Two names that merely share a parent
-    /// stay unrelated, and no organizational domain and no public suffix list is computed to reach any of it.
+    /// <see cref="AuthorAuthenticationOutcome.Authenticated" /> is reached three ways, which
+    /// <see cref="AuthorAuthenticationRoute" /> records, and none of them believes the <c>From</c> header on its own. A
+    /// trusted <see cref="DmarcOutcome.Pass" /> is the receiving server's own statement that the displayed domain passed
+    /// under its published policy. Failing that, a verified DKIM signature aligned with the displayed domain is the same
+    /// claim reached without DMARC: its signing name is the displayed domain, sits beneath it, or holds it beneath
+    /// itself, at a label boundary, and the domain's own record narrows that to equality where it asks for
+    /// <c>adkim=s</c>. Failing that, an SPF identity on the same branch of the naming tree. Two names that merely share
+    /// a parent stay unrelated, and no organizational domain and no public suffix list is computed to reach any of it.
     /// </para>
     /// <para>
     /// <see cref="AuthorAuthenticationOutcome.Failed" /> comes from <see cref="DmarcOutcome.Fail" /> alone, and it ends
@@ -124,6 +129,13 @@ public sealed record SenderAuthentication
     /// </para>
     /// </remarks>
     public AuthorAuthenticationOutcome AuthorAuthentication { get; }
+
+    /// <summary>Gets what established an authenticated author, or <see cref="AuthorAuthenticationRoute.None" /> where nothing did.</summary>
+    /// <remarks>
+    /// A trust source that needs an authenticated author reads this beside <see cref="AuthorAuthentication" />, because
+    /// an author SPF alone established still reads as authenticated and is not enough for one.
+    /// </remarks>
+    public AuthorAuthenticationRoute AuthorAuthenticationRoute { get; }
 
     /// <summary>Gets the domain of the displayed author where it authenticated, or <see langword="null" />.</summary>
     /// <remarks>
@@ -156,7 +168,9 @@ public sealed record SenderAuthentication
             fromDomain,
             dmarc,
             SenderAuthenticationSource.ReceivingServer,
-            authenticatedIdentities: []);
+            verifiedDkimDomains: [],
+            passedSpfDomains: [],
+            DmarcRecordLookup.NotReadable);
 
     /// <summary>Records that the receiving server checked an identity and it did not hold.</summary>
     /// <param name="fromDomain">The domain the message displays as its sender, where it wrote a usable one.</param>
@@ -172,26 +186,32 @@ public sealed record SenderAuthentication
             fromDomain,
             dmarc,
             SenderAuthenticationSource.ReceivingServer,
-            authenticatedIdentities: []);
+            verifiedDkimDomains: [],
+            passedSpfDomains: [],
+            DmarcRecordLookup.NotReadable);
 
     /// <summary>Records that this deployment verified a DKIM signature itself, no trusted server having said anything.</summary>
     /// <param name="verifiedSigningDomains">Every domain whose signature verified here, in the order the message carried them.</param>
     /// <param name="fromDomain">The domain the message displays as its sender, where it wrote a usable one.</param>
+    /// <param name="dmarcRecord">What looking for the displayed domain's DMARC record found, which decides DKIM alignment.</param>
     /// <returns>The verdict, naming DKIM as the method because it is the only one a delivered message still answers.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="verifiedSigningDomains" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="verifiedSigningDomains" /> or <paramref name="dmarcRecord" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException">Thrown when no signature verified, which is not an authenticated message.</exception>
     /// <remarks>
     /// Every signature is kept for the reason the trusted reading keeps every one the server reported: a message
     /// legitimately carries a delivery provider's signature beside its author's, and taking whichever came first would
     /// leave the author unestablished on ordinary mail. No SPF domain and no DMARC result accompany it, because neither
-    /// is answerable from stored bytes — the envelope and the connecting address are gone, and a DMARC result needs the
-    /// displayed domain's published policy.
+    /// is answerable from stored bytes — the envelope and the connecting address are gone, and a DMARC result needs SPF.
+    /// The domain's record is read for its alignment mode alone, so the author is established by
+    /// <see cref="AuthorAuthenticationRoute.AlignedDkim" /> or not at all, and never fails here under any policy.
     /// </remarks>
     public static SenderAuthentication LocallyVerified(
         IReadOnlyList<SenderDomain> verifiedSigningDomains,
-        SenderDomain? fromDomain)
+        SenderDomain? fromDomain,
+        DmarcRecordLookup dmarcRecord)
     {
         ArgumentNullException.ThrowIfNull(verifiedSigningDomains);
+        ArgumentNullException.ThrowIfNull(dmarcRecord);
 
         if (verifiedSigningDomains.Count == 0)
         {
@@ -209,7 +229,9 @@ public sealed record SenderAuthentication
             fromDomain,
             DmarcOutcome.NotReported,
             SenderAuthenticationSource.LocalVerification,
-            verifiedSigningDomains);
+            verifiedSigningDomains,
+            passedSpfDomains: [],
+            dmarcRecord);
     }
 
     /// <summary>Records that this deployment checked a DKIM signature itself and it did not verify.</summary>
@@ -231,7 +253,9 @@ public sealed record SenderAuthentication
             fromDomain,
             DmarcOutcome.NotReported,
             SenderAuthenticationSource.LocalVerification,
-            authenticatedIdentities: []);
+            verifiedDkimDomains: [],
+            passedSpfDomains: [],
+            DmarcRecordLookup.NotReadable);
 
     /// <summary>Records that this deployment verified what it could and established nothing.</summary>
     /// <param name="fromDomain">The domain the message displays as its sender, where it wrote a usable one.</param>
@@ -252,15 +276,22 @@ public sealed record SenderAuthentication
             fromDomain,
             DmarcOutcome.NotReported,
             SenderAuthenticationSource.LocalVerification,
-            authenticatedIdentities: []);
+            verifiedDkimDomains: [],
+            passedSpfDomains: [],
+            DmarcRecordLookup.NotReadable);
 
     /// <summary>Records the identities the receiving server verified.</summary>
     /// <param name="dkimDomains">Every domain whose DKIM signature verified, in the order the header reported them.</param>
     /// <param name="spfDomains">Every envelope-sender domain whose SPF check passed, in the same order.</param>
     /// <param name="fromDomain">The domain the message displays as its sender, where it wrote a usable one.</param>
-    /// <param name="dmarc">What the trusted header reported for DMARC.</param>
+    /// <param name="dmarc">What the trusted header reported for DMARC, held to the domain it named.</param>
+    /// <param name="dmarcRecord">
+    /// What looking for the displayed domain's DMARC record found, which decides DKIM alignment where the server reported
+    /// no usable result. It is not consulted where the server found no record or an unusable one, since DKIM then aligns
+    /// by the relation.
+    /// </param>
     /// <returns>The verdict, naming the first DKIM domain as authoritative wherever one is present.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when either collection is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when either collection or <paramref name="dmarcRecord" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException">Thrown when neither check produced a domain, which is not an authenticated message.</exception>
     /// <remarks>
     /// Both collections rather than one domain apiece, because one passing signature must never hide another. A message
@@ -273,10 +304,12 @@ public sealed record SenderAuthentication
         IReadOnlyList<SenderDomain> dkimDomains,
         IReadOnlyList<SenderDomain> spfDomains,
         SenderDomain? fromDomain,
-        DmarcOutcome dmarc)
+        DmarcOutcome dmarc,
+        DmarcRecordLookup dmarcRecord)
     {
         ArgumentNullException.ThrowIfNull(dkimDomains);
         ArgumentNullException.ThrowIfNull(spfDomains);
+        ArgumentNullException.ThrowIfNull(dmarcRecord);
 
         if (dkimDomains.Count == 0 && spfDomains.Count == 0)
         {
@@ -297,51 +330,56 @@ public sealed record SenderAuthentication
             fromDomain,
             dmarc,
             SenderAuthenticationSource.ReceivingServer,
-            [.. dkimDomains, .. spfDomains]);
+            dkimDomains,
+            spfDomains,
+            dmarcRecord);
     }
 
-    /// <summary>Concludes what the trusted evidence establishes about the displayed author.</summary>
+    /// <summary>Concludes what the trusted evidence establishes about the displayed author, and by which route.</summary>
     /// <remarks>
-    /// The order of the three questions is the rule. A DMARC failure is answered first because it is the receiving
-    /// server's statement against the displayed domain, reached under that domain's own published policy, and nothing
-    /// decided here outranks it. A message displaying no usable domain has no author to conclude anything about, which
-    /// is why it stops at not established rather than at an identity comparison against nothing — but a DMARC failure
-    /// still stands above that, since the server evaluated a displayed domain whether or not this reading could parse
-    /// one. What is left is the two routes that establish an author, and the comparison is over every identity that
-    /// authenticated rather than over the one kept as evidence.
+    /// <para>
+    /// The order of the questions is the rule. A DMARC failure is answered first because it is the receiving server's
+    /// statement against the displayed domain, reached under that domain's own published policy, and nothing decided
+    /// here outranks it. A message displaying no usable domain has no author to conclude anything about, which is why it
+    /// stops at not established rather than at an identity comparison against nothing — but a DMARC failure still stands
+    /// above that, since the server evaluated a displayed domain whether or not this reading could parse one.
+    /// </para>
+    /// <para>
+    /// What is left is the three routes, asked strongest first so the record names the strongest that holds: the
+    /// server's DMARC <c>pass</c>, then a verified DKIM signature aligned under the domain's record, then an SPF identity
+    /// on the displayed domain's branch of the naming tree. Every identity that authenticated is compared rather than the
+    /// one kept as evidence. A server that found no record, or an unusable one, has already answered the lookup, so DKIM
+    /// aligns by the relation there whatever the caller looked up.
+    /// </para>
     /// </remarks>
-    private static (AuthorAuthenticationOutcome Outcome, SenderDomain? Domain) EstablishAuthor(
+    private static (AuthorAuthenticationOutcome Outcome, AuthorAuthenticationRoute Route) EstablishAuthor(
         SenderDomain? fromDomain,
         DmarcOutcome dmarc,
-        IReadOnlyList<SenderDomain> authenticatedIdentities)
+        IReadOnlyList<SenderDomain> verifiedDkimDomains,
+        IReadOnlyList<SenderDomain> passedSpfDomains,
+        DmarcRecordLookup dmarcRecord)
     {
         if (dmarc == DmarcOutcome.Fail)
         {
-            return (AuthorAuthenticationOutcome.Failed, null);
+            return (AuthorAuthenticationOutcome.Failed, AuthorAuthenticationRoute.None);
         }
 
         if (fromDomain is not { } displayed)
         {
-            return (AuthorAuthenticationOutcome.NotEstablished, null);
+            return (AuthorAuthenticationOutcome.NotEstablished, AuthorAuthenticationRoute.None);
         }
 
-        return dmarc == DmarcOutcome.Pass
-            || authenticatedIdentities.Any(identity => SpeaksForDisplayedDomain(identity, displayed))
-            ? (AuthorAuthenticationOutcome.Authenticated, displayed)
-            : (AuthorAuthenticationOutcome.NotEstablished, null);
-    }
+        var record = dmarc is DmarcOutcome.NoPolicyPublished or DmarcOutcome.PermanentError
+            ? DmarcRecordLookup.NotPublished
+            : dmarcRecord;
 
-    /// <summary>Answers whether an authenticated identity is close enough to the displayed domain to be its author.</summary>
-    /// <remarks>
-    /// The two names have to be one within the other at a label boundary, in either direction. Whoever publishes a key
-    /// under <c>p1.mail.example.test</c> was delegated that zone by <c>example.test</c>, and whoever publishes one for
-    /// <c>example.test</c> delegated <c>notice.example.test</c> themselves, so the relation rests on DNS control
-    /// flowing down the naming tree rather than on a DMARC policy nothing here reads. Siblings are therefore not
-    /// related — <c>a.example.test</c> and <c>b.example.test</c> are two names whose only connection is a parent
-    /// neither of them signed for — and DMARC's relaxed alignment, which would call them aligned, stays
-    /// unreconstructed. What the widening assumes without confirming is what <c>adkim=r</c> permits by default: a
-    /// subdomain delegated to a third party can speak for its parent.
-    /// </remarks>
-    private static bool SpeaksForDisplayedDomain(SenderDomain identity, SenderDomain displayed) =>
-        identity == displayed || identity.IsSubdomainOf(displayed) || displayed.IsSubdomainOf(identity);
+        var route = dmarc == DmarcOutcome.Pass ? AuthorAuthenticationRoute.DmarcPass
+            : verifiedDkimDomains.Any(signing => record.AlignsDkim(signing, displayed)) ? AuthorAuthenticationRoute.AlignedDkim
+            : passedSpfDomains.Any(identity => identity.SharesBranchWith(displayed)) ? AuthorAuthenticationRoute.AlignedSpf
+            : AuthorAuthenticationRoute.None;
+
+        return route == AuthorAuthenticationRoute.None
+            ? (AuthorAuthenticationOutcome.NotEstablished, route)
+            : (AuthorAuthenticationOutcome.Authenticated, route);
+    }
 }

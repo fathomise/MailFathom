@@ -254,9 +254,15 @@ is the layer rather than something MailFathom re-implements:
   reason is what a failure means here: an unanswered lookup leaves the verdict *not established*, which is a value the
   reading already has, so a second attempt would buy a slightly better record at the cost of holding up the storing of a
   message. What makes one query cheap enough not to want a pipeline is that its answer is shared: a bounded cache keyed
-  by selector and signing domain, honouring the record's own time-to-live, so a domain's key is resolved once for every
-  message it signs. [Sender authentication](../features/sender-authentication.md#where-no-server-said-anything-the-signature-still-does)
+  by the name queried, honouring the record's own time-to-live, so a domain's key is resolved once for every message it
+  signs. [Sender authentication](../features/sender-authentication.md#where-no-server-said-anything-the-signature-still-does)
   states what a failed lookup leaves behind.
+- **The DMARC record resolver.** The same kind of dependency beside it: where DKIM alignment depends on the displayed
+  domain's DMARC record, extraction walks `_dmarc.<domain>` and its parents, at most eight names, under the same
+  per-query deadline, the same per-message budget, and the same cache. A name that could not be read ends the walk and
+  is not cached, and nothing retries it: the author stays *not established*, a value the reading already has.
+  [Reading the displayed domain's DMARC record](../features/sender-authentication.md#reading-the-displayed-domains-dmarc-record)
+  states the walk.
 - **The certificate revocation client.** An eighth outbound dependency is the OCSP responder and the CRL distribution
   point a signed message's signer certificate names, asked when extraction verifies an S/MIME signature whose chain is
   already trusted. It runs under no `OutboundDependency` pipeline, so it keeps the standard resilience handler the service

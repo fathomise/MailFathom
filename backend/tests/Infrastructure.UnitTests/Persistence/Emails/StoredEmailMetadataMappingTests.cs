@@ -359,7 +359,8 @@ public sealed class StoredEmailMetadataMappingTests
                     [dkimDomain],
                     [spfDomain],
                     fromDomain,
-                    DmarcOutcome.Fail)));
+                    DmarcOutcome.Fail,
+                    DmarcRecordLookup.NotPublished)));
 
         // Assert
         Assert.Equal(SenderAuthenticationOutcome.Authenticated, entity.SenderAuthenticationOutcome);
@@ -550,11 +551,13 @@ public sealed class StoredEmailMetadataMappingTests
                     [dkimDomain],
                     spfDomains: [],
                     fromDomain,
-                    DmarcOutcome.Pass)));
+                    DmarcOutcome.Pass,
+                    DmarcRecordLookup.NotPublished)));
 
         // Assert
         Assert.Equal("PROVIDER.TEST", entity.AuthenticatedSenderDomain);
         Assert.Equal(AuthorAuthenticationOutcome.Authenticated, entity.AuthorAuthenticationOutcome);
+        Assert.Equal(AuthorAuthenticationRoute.DmarcPass, entity.AuthorAuthenticationRoute);
         Assert.Equal("BANK.TEST", entity.AuthenticatedAuthorDomain);
     }
 
@@ -572,7 +575,8 @@ public sealed class StoredEmailMetadataMappingTests
                     [dkimDomain],
                     spfDomains: [],
                     dkimDomain,
-                    DmarcOutcome.Pass)));
+                    DmarcOutcome.Pass,
+                    DmarcRecordLookup.NotPublished)));
 
         // Act
         StoredEmailMetadataMapping.ApplyExtractedMetadata(
@@ -588,6 +592,7 @@ public sealed class StoredEmailMetadataMappingTests
         Assert.Null(entity.DisplayedAuthorDomain);
         Assert.Equal(DmarcOutcome.NotReported, entity.DmarcOutcome);
         Assert.Equal(AuthorAuthenticationOutcome.NotEstablished, entity.AuthorAuthenticationOutcome);
+        Assert.Equal(AuthorAuthenticationRoute.None, entity.AuthorAuthenticationRoute);
         Assert.Null(entity.AuthenticatedAuthorDomain);
     }
 

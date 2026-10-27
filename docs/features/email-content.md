@@ -132,8 +132,8 @@ fact whether it named one email or ten.
 Both values come from the summary the read already loaded rather than from the parse, because both are conclusions
 reached when the message was stored. A read evaluates nothing: it resolves no DNS, verifies no signature, and does not
 re-read the `Authentication-Results` header the verdict came from. That is worth stating twice now that extraction may
-do all three — verifying a message's own DKIM signatures where its server wrote no verdict is a step of storing a
-message, never of answering a call, so no read this page describes puts anything on the wire. The evidence names which
+do all three — verifying a message's own DKIM signatures where its server wrote no verdict, and reading the displayed
+domain's DMARC record, are steps of storing a message, never of answering a call, so no read this page describes puts anything on the wire. The evidence names which
 of the two readings produced the verdict, so a caller weighing one never has to infer it from what is missing. That
 holds for a message whose raw MIME was never stored too — the body says why there is none, and the verdict beside it is the same one a listing publishes.
 

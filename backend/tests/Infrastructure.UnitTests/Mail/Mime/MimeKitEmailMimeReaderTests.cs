@@ -805,7 +805,7 @@ public sealed class MimeKitEmailMimeReaderTests
         var reader = new MimeKitEmailMimeReader(
             new EmailMimeExtractionOptions(),
             TrustedAuthorities(identifier: null),
-            new DkimLocalSenderVerifier(resolver, new FakeTimeProvider()),
+            new DkimLocalSenderVerifier(resolver, Substitute.For<IDmarcRecordResolver>(), new FakeTimeProvider()),
             organizationVerifier: OrganizationVerifier(OrganizationDirectory().Holding(SigningOrganization, key)));
         var altered = OrganizationSigned(key, static text => text + "\r\n--\r\nThis message was scanned by a relay.\r\n");
 
@@ -1129,7 +1129,7 @@ public sealed class MimeKitEmailMimeReaderTests
     public async Task ReadMetadataAsync_NoTrustedHeaderWasFound_RecordsWhatTheLocalVerificationEstablished()
     {
         // Arrange
-        var verifier = LocalVerifierAnswering(SenderAuthentication.LocallyVerified([DomainOf("bank.test")], DomainOf("bank.test")));
+        var verifier = LocalVerifierAnswering(SenderAuthentication.LocallyVerified([DomainOf("bank.test")], DomainOf("bank.test"), DmarcRecordLookup.NotPublished));
         var content = MimeFixtures.Message(
             "Authentication-Results: other.example.test; dkim=pass header.d=bank.test",
             "From: alerts@bank.test",
@@ -1217,6 +1217,95 @@ public sealed class MimeKitEmailMimeReaderTests
         Assert.Equal(SenderAuthenticationSource.ReceivingServer, authentication.Source);
     }
 
+    /// <summary>A trusted verdict that leaves DKIM alignment open is decided by the displayed domain's record, read locally.</summary>
+    [Fact]
+    public async Task ReadMetadataAsync_TrustedVerdictLeavingAlignmentOpen_AlignsDkimUnderTheDisplayedDomainsRecord()
+    {
+        // Arrange
+        var verifier = LocalVerifierAnswering(dmarcRecord: DmarcRecordLookup.Found(new DmarcRecord(DkimAlignmentMode.Strict)));
+        var content = MimeFixtures.Message(
+            "Authentication-Results: mx.example.test; dkim=pass header.d=mail.bank.test",
+            "From: alerts@bank.test",
+            "Content-Type: text/plain",
+            string.Empty,
+            "Body");
+
+        // Act
+        var result = await CreateReader("mx.example.test", verifier).ReadMetadataAsync(MimeFixtures.Account, content.RawMime, CancellationToken.None);
+
+        // Assert
+        var authentication = AssertExtracted(result).SenderAuthentication;
+        Assert.Equal(AuthorAuthenticationOutcome.NotEstablished, authentication.AuthorAuthentication);
+        await verifier.Received(1).ReadDmarcRecordAsync(DomainOf("bank.test"), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A trusted DMARC <c>pass</c> about the displayed domain settles the author, so no record is read.</summary>
+    [Fact]
+    public async Task ReadMetadataAsync_TrustedDmarcPass_ReadsNoRecordAndRecordsTheRoute()
+    {
+        // Arrange
+        var verifier = LocalVerifierAnswering();
+        var content = MimeFixtures.Message(
+            "Authentication-Results: mx.example.test; dkim=pass header.d=bank.test; dmarc=pass header.from=bank.test",
+            "From: alerts@bank.test",
+            "Content-Type: text/plain",
+            string.Empty,
+            "Body");
+
+        // Act
+        var result = await CreateReader("mx.example.test", verifier).ReadMetadataAsync(MimeFixtures.Account, content.RawMime, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(AuthorAuthenticationRoute.DmarcPass, AssertExtracted(result).SenderAuthentication.AuthorAuthenticationRoute);
+        await verifier.DidNotReceive().ReadDmarcRecordAsync(Arg.Any<SenderDomain>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// With local verification off nothing reads a record, so a server's DKIM result aligns only where its DMARC result
+    /// already settled the record.
+    /// </summary>
+    [Theory]
+    [InlineData("", AuthorAuthenticationRoute.None)]
+    [InlineData("; dmarc=none header.from=bank.test", AuthorAuthenticationRoute.AlignedDkim)]
+    [InlineData("; dmarc=permerror header.from=bank.test", AuthorAuthenticationRoute.AlignedDkim)]
+    public async Task ReadMetadataAsync_NoLocalVerification_AlignsServerDkimOnlyWhereTheServerSettledTheRecord(
+        string dmarcResult,
+        AuthorAuthenticationRoute expected)
+    {
+        // Arrange
+        var content = MimeFixtures.Message(
+            $"Authentication-Results: mx.example.test; dkim=pass header.d=bank.test{dmarcResult}",
+            "From: alerts@bank.test",
+            "Content-Type: text/plain",
+            string.Empty,
+            "Body");
+
+        // Act
+        var result = await CreateReader("mx.example.test").ReadMetadataAsync(MimeFixtures.Account, content.RawMime, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(expected, AssertExtracted(result).SenderAuthentication.AuthorAuthenticationRoute);
+    }
+
+    /// <summary>A server's failure about any mailbox the <c>From</c> field carries stands, not only one about the first.</summary>
+    [Fact]
+    public async Task ReadMetadataAsync_DmarcFailureAboutASecondFromMailbox_FailsTheAuthor()
+    {
+        // Arrange
+        var content = MimeFixtures.Message(
+            "Authentication-Results: mx.example.test; dkim=pass header.d=bank.test; dmarc=fail header.from=second.test",
+            "From: alerts@bank.test, news@second.test",
+            "Content-Type: text/plain",
+            string.Empty,
+            "Body");
+
+        // Act
+        var result = await CreateReader("mx.example.test").ReadMetadataAsync(MimeFixtures.Account, content.RawMime, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(AuthorAuthenticationOutcome.Failed, AssertExtracted(result).SenderAuthentication.AuthorAuthentication);
+    }
+
     private static MimeKitEmailMimeReader CreateReader(
         string? trustedAuthorityIdentifier = null,
         ILocalSenderVerifier? localSenderVerifier = null) =>
@@ -1273,12 +1362,17 @@ public sealed class MimeKitEmailMimeReaderTests
     }
 
     /// <summary>Answers every message with one verdict, standing in for a verification that reaches the network.</summary>
-    private static ILocalSenderVerifier LocalVerifierAnswering(SenderAuthentication? verdict = null)
+    private static ILocalSenderVerifier LocalVerifierAnswering(
+        SenderAuthentication? verdict = null,
+        DmarcRecordLookup? dmarcRecord = null)
     {
         var verifier = Substitute.For<ILocalSenderVerifier>();
         verifier
             .VerifyAsync(Arg.Any<MimeKit.MimeMessage>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(verdict ?? SenderAuthentication.LocalVerificationNotEstablished(fromDomain: null));
+        verifier
+            .ReadDmarcRecordAsync(Arg.Any<SenderDomain>(), Arg.Any<CancellationToken>())
+            .Returns(dmarcRecord ?? DmarcRecordLookup.NotPublished);
 
         return verifier;
     }

@@ -85,6 +85,11 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
             .HasMaxLength(64)
             .HasDefaultValue(AuthorAuthenticationOutcome.NotEstablished)
             .IsRequired();
+        entity.Property(email => email.AuthorAuthenticationRoute)
+            .HasConversion<string>()
+            .HasMaxLength(64)
+            .HasDefaultValue(AuthorAuthenticationRoute.None)
+            .IsRequired();
         // Who reached that verdict, stored the same way and defaulted to the receiving server: every row written
         // before this deployment verified anything itself came from the trusted-header reading, whatever it found.
         entity.Property(email => email.SenderAuthenticationSource)

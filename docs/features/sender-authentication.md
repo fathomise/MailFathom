@@ -1,6 +1,6 @@
 # Sender authentication
 
-<!-- describes: backend/src/Domain/Emails/Authentication/**, backend/src/Application/Mail/ITrustedAuthenticationAuthorityReader.cs, backend/src/Application/Mail/KnownAuthenticationProviders/**, backend/src/Host/Configuration/Mail/Readers/ConfiguredTrustedAuthenticationAuthorityReader.cs, backend/src/Application/Mail/ISenderTrustPolicyReader.cs, backend/src/Host/Configuration/Mail/Readers/ConfiguredSenderTrustPolicyReader.cs, backend/src/Application/Mail/IDkimPublicKeyRecordResolver.cs, backend/src/Application/Emails/Extraction/SenderTrustEvaluatingEmailMimeReader.cs, backend/src/Infrastructure/Mail/Dkim/**, backend/src/Infrastructure/Mail/Mime/AuthenticationResultsHeaderReader.cs, backend/src/Infrastructure/Mail/Mime/MimeKitEmailMimeReader.cs -->
+<!-- describes: backend/src/Domain/Emails/Authentication/**, backend/src/Application/Mail/ITrustedAuthenticationAuthorityReader.cs, backend/src/Application/Mail/KnownAuthenticationProviders/**, backend/src/Host/Configuration/Mail/Readers/ConfiguredTrustedAuthenticationAuthorityReader.cs, backend/src/Application/Mail/ISenderTrustPolicyReader.cs, backend/src/Host/Configuration/Mail/Readers/ConfiguredSenderTrustPolicyReader.cs, backend/src/Application/Mail/IDkimPublicKeyRecordResolver.cs, backend/src/Application/Mail/IDmarcRecordResolver.cs, backend/src/Application/Emails/Extraction/SenderTrustEvaluatingEmailMimeReader.cs, backend/src/Infrastructure/Mail/Dkim/**, backend/src/Infrastructure/Mail/Mime/AuthenticationResultsHeaderReader.cs, backend/src/Infrastructure/Mail/Mime/MimeKitEmailMimeReader.cs -->
 
 Everything about deciding whether a message is from who it says rests on one question: which domain actually sent it?
 The obvious answer is wrong. `From` is a header the sender writes, it is what a mail client displays, and it is what
@@ -120,7 +120,7 @@ holds the columns.
 | The domain that authenticated, and which method reached it | The identity is the point; the method says how much it is worth |
 | The DKIM signing domain and the SPF envelope domain, separately | The two disagreeing is itself a fact about the message |
 | The DMARC result the server reported | It is where an authenticated domain meets the displayed one, under the sender's own published policy |
-| Whether the displayed author authenticated, and their domain where they did | The identity a reader is shown is the one an impersonation gets wrong, and it is a different fact from the identity that handed the message over |
+| Whether the displayed author authenticated, their domain where they did, and the route that established them | The identity a reader is shown is the one an impersonation gets wrong, and it is a different fact from the identity that handed the message over. The route says whether a DMARC `pass`, an aligned DKIM signature, or SPF alone established the author, which are not worth the same |
 | The domain the `From` header displayed, whether or not anything held | It is the other half of the comparison, and the half a reader needs most on the messages where nothing established an author. It is read from `From` alone, never from the `Sender` fallback a timeline names a message's sender by, so it cannot be derived from the stored address |
 | Who reached the verdict — the receiving server, or MailFathom | A server saw the connection and this process did not, so the two are worth different amounts, and no other column says which one this is. It cannot be inferred from the account's configuration either, since that may have changed since the message was stored |
 
@@ -141,21 +141,34 @@ perfectly well while the author a reader is shown authenticated nothing at all �
 looks like from here. That is recorded as a conclusion of its own, with the same three values and the same meanings as
 the verdict above, beside the identity it was reached from.
 
-Two things establish the author, and neither believes the header on its own.
+Three routes establish the author, none of them believes the header on its own, and **the verdict records which one
+held** — the first of these, in this order, where several do:
 
-- **A trusted `dmarc=pass`** is the receiving server's own statement that the displayed domain passed under the
-  sender's published policy. That is the whole of what the policy answers and it is why the result is read back rather
-  than reconstructed: nothing here resolves a DMARC record, computes an organizational domain, or consults a public
-  suffix list, so this answer is not one MailFathom could reach for itself.
-- **An authenticated identity that is the displayed domain, or lies with it on one branch of the naming tree**, where
-  no usable DMARC result was reported. One of the two names has to be a suffix of the other at a label boundary —
-  `p1.mail.example.test` signing `@example.test`, or `example.test` signing `@notice.example.test` — because whoever
-  publishes a key under such a name was delegated that zone by the displayed domain or delegated the displayed domain
-  themselves. The relation rests on DNS control flowing down the tree rather than on a policy nobody read. Two names
-  that merely share a parent are unrelated: `a.example.test` does not speak for `b.example.test`, so DMARC's relaxed
-  alignment stays unreconstructed. Every identity the trusted header reported as passing is compared, DKIM and SPF
-  alike, so a delivery provider's signature listed first cannot hide the author's own listed after it, and the domain
-  the author is established as is the **displayed** one rather than whichever name signed.
+- **`DmarcPass`: a trusted `dmarc=pass`** is the receiving server's own statement that the displayed domain passed
+  under the sender's published policy. MailFathom evaluates no policy, so this answer is read back rather than
+  reconstructed.
+- **`AlignedDkim`: a verified DKIM signature aligned with the displayed domain.** The signing name is the displayed
+  domain, or one of the two lies beneath the other at a label boundary — `p1.mail.example.test` signing
+  `@example.test`, or `example.test` signing `@notice.example.test` — because whoever publishes a key under such a
+  name was delegated that zone by the displayed domain or delegated the displayed domain themselves. Two names that
+  merely share a parent are unrelated: `a.example.test` does not speak for `b.example.test`, so DMARC's relaxed
+  alignment stays unreconstructed. [The displayed domain's own DMARC record](#reading-the-displayed-domains-dmarc-record)
+  narrows that relation and never widens it: `adkim=s` keeps only a signature for exactly the displayed domain.
+- **`AlignedSpf`: an SPF identity that passed on the same branch of the naming tree**, by the same relation. It still
+  reads as authenticated, but SPF authenticates whoever handed the message over, and a shared relay or provider
+  satisfies it for everybody using it — so the route is recorded for what reads the author to tell it apart.
+
+Every identity the trusted header reported as passing is compared, so a delivery provider's signature listed first
+cannot hide the author's own listed after it, and the domain the author is established as is the **displayed** one
+rather than whichever name signed.
+
+**A server's DMARC result is held to the domain it names.** A trusted header may carry several `dmarc=` results, and
+each names the domain it evaluated in its `header.from` property. A `pass`, `none`, `temperror`, or `permerror` counts
+only where it names the domain of the first `From` mailbox; a `pass` about another domain, or naming none, is read as
+not reported, and DKIM then decides. A `fail` counts where it names the domain of any `From` mailbox, or names none,
+because discarding a refusal over a missing property would turn a warning into silence; a `fail` about a domain the
+`From` field does not carry is read as not reported. The first result that counts is the answer, except that a
+counting `fail` beside a counting `pass` reads as a failure.
 
 **`dmarc=fail` is the only route to a failure**, and it ends the question rather than falling through to the second
 route: the receiving server reached it with the displayed domain's own policy in hand, which is more than a comparison
@@ -167,6 +180,28 @@ signature may never have been theirs.
 So a message may hold a passing DKIM identity, a passing SPF identity, and a failed author all at once, and it may hold
 `dmarc=pass` while the domain that signed it is not the domain it displays. Both are ordinary readings rather than
 contradictions, and both stay visible because the identity and the author are recorded separately.
+
+### Reading the displayed domain's DMARC record
+
+Whether a DKIM signature aligns depends on what the displayed domain asks for, so where nothing else settles it
+MailFathom reads the domain's DMARC record itself — for the `adkim` tag alone. It evaluates no policy and computes no
+DMARC result from it.
+
+- **When it is read.** Where a trusted server reported no DMARC result that counts, or only `temperror`, and a
+  signature it verified lies on the displayed domain's branch; and on [the local path](#where-no-server-said-anything-the-signature-still-does)
+  wherever a verified signature does. A server's `pass` or `fail` settles the author without it, and its `none` or
+  `permerror` says it already found no usable record, so DKIM aligns by the relation there with no lookup. A signature
+  on another branch could not align under any record and buys no lookup either.
+- **How it is found.** By RFC 9989's DNS tree walk, which needs no public suffix list. `_dmarc.<domain>` is asked
+  first; a name holding no TXT string that begins with `v=DMARC1`, or more than one, holds no record. Otherwise the
+  walk asks each parent in turn, down to and including the single-label name, after shortening a name of eight or
+  more labels to its last seven — at most eight queries for any domain. `NXDOMAIN` and an empty answer mean *keep
+  walking*; the first record found ends the walk.
+- **What it decides.** `adkim=s` aligns only a signature for exactly the displayed domain. `adkim=r`, no `adkim` tag,
+  and a domain publishing no record at all keep the relation, so an aligned signature is enough there.
+- **A record that could not be read aligns nothing.** A timeout, `SERVFAIL`, or any other error ends the walk, and no
+  signature aligns: the author stays not established, which says nothing against the sender. On the trusted path an
+  SPF identity may still establish the author through `AlignedSpf`.
 
 ### Not established is an answer
 
@@ -205,13 +240,15 @@ the fact.
 needs one DNS lookup of the key its domain publishes, so MailFathom verifies it itself where nothing trusted was
 written. SPF is not attempted and no `Received`-chain heuristic stands in for it: SPF authenticates an envelope sender
 against a connecting address, and after delivery there is neither. Nor is a DMARC result produced, because that needs
-the displayed domain's own published policy and its alignment mode.
+SPF as well.
 
 **It is a fallback and never a supplement.** It runs only where the trusted reading produced no result at all — the
 account believes no identifier, its own or a known provider's, or no header carrying the one it believes was found. An account whose server *does* write the
-header goes on believing that server and verifies nothing itself, including where that header established nothing: a
-server that spoke about the message saw the connection this process did not, and two verdicts of different provenance
-sitting beside each other would make *which one is this* a question every reader has to ask.
+header goes on believing that server and verifies no signature itself, including where that header established
+nothing — reading the displayed domain's DMARC record where the server's verdict leaves DKIM alignment open is the one
+lookup it still makes for such a message. A server that spoke about the message saw the connection this process did
+not, and two verdicts of different provenance sitting beside each other would make *which one is this* a question every
+reader has to ask.
 
 What such a verdict reaches is the same three outcomes as any other, decided by the same rules:
 
@@ -227,9 +264,19 @@ What such a verdict reaches is the same three outcomes as any other, decided by 
   trouble into a statement against somebody's mail.
 
 The author conclusion follows [the same rule](#whether-the-displayed-author-authenticated) and is neither relaxed nor
-tightened for running here. An author is established by a verified signature whose domain is the displayed one or lies
-with it on one branch of the naming tree, and by nothing else — no DMARC result is ever reported on this path, so the
-only route left is the comparison, and a signer outside that branch establishes nothing.
+tightened for running here. An author is established by a verified signature aligned with the displayed domain under
+[that domain's DMARC record](#reading-the-displayed-domains-dmarc-record), recorded as `AlignedDkim`, and by nothing
+else — no DMARC result is ever reported on this path, so the only route left is the comparison, and a signer outside
+that branch, a signature the record refuses, or a record that could not be read establishes nothing.
+
+**A local evaluation never fails an author, under any policy the record states, `p=reject` included.** MailFathom sees
+no SPF after delivery, so a message aligned only through SPF is legitimate and looks exactly like one aligned through
+nothing. The provider may have rewritten the delivered copy — Safe Links, a banner, a footer — breaking a signature that
+verified at the server. And a receiving server that enforces DMARC never delivers a `p=reject` failure, so a message in
+the mailbox that does not align here almost always passed at the server, or was altered afterwards. So **an account
+with no server verdict gets no forged-domain warning from MailFathom**: its receiving server already enforced the
+domain's policy before delivery, and that check cannot be repeated here. The *authentication failed* warning comes only
+from a trusted server's `dmarc=fail`.
 
 **The recorded verdict says which of the two reached it**, and that is the whole reason the column exists: a
 cryptographic signature check and a verdict taken with network context nobody has any more are worth different amounts,
@@ -239,22 +286,25 @@ than by outcome.
 
 ### What it puts on the wire, and how to switch it off
 
-The lookup asks for `<selector>._domainkey.<signing-domain>` and nothing else. That is a low-cardinality name the
-signing domain published in order to be asked for, shared by every message that domain signs, and carrying nothing
-about this message, this mailbox, or this recipient. What the signing domain can learn from being asked is that
-somebody here received mail they sent — which they already know, because they sent it. It happens when a message is
-stored rather than when one is read, so no lookup is ever correlated with somebody opening their mail.
+The lookups ask for two kinds of name and nothing else: `<selector>._domainkey.<signing-domain>` for a key, and
+`_dmarc.<domain>` for the displayed domain and the parents [the record walk](#reading-the-displayed-domains-dmarc-record)
+reaches. Both are names a domain published in order to be asked for, shared by every message it sends, and carrying
+nothing about this message, this mailbox, or this recipient. What the domain can learn from being asked is that
+somebody here received mail claiming to be from it. It happens when a message is stored rather than when one is read,
+so no lookup is ever correlated with somebody opening their mail.
 
 The lookups are bounded twice, because both how many of them a message asks for and which names they ask for are
-written by whoever sent it: an explicit deadline per name, and a budget over the whole of one message's verification,
-past which every signature still unchecked stays that way. Reaching either leaves the verdict not established, which is
-what it would have been anyway. They are cached as well, in a bounded cache keyed by selector and signing domain that
-holds each answer for as long as the record's own time-to-live allows, so a folder run resolves a dozen names rather
-than one per message and a re-derivation over a whole mailbox resolves each name once. The absence of a record is
-cached too, for a shorter time.
+written by whoever sent it: an explicit deadline per name, and a budget over the whole of one message's lookups, key
+and record alike, past which every signature still unchecked stays that way and a walk not yet finished reads as a
+record that could not be read. Reaching either leaves the author not established, which is what it would have been
+anyway. They are cached as well, in one bounded cache keyed by the name queried that holds each answer for as long as
+the record's own time-to-live allows, so a folder run resolves a dozen names rather than one per message and a
+re-derivation over a whole mailbox resolves each name once. The absence of a record is cached too, for a shorter time;
+a DMARC lookup that failed is not cached at all, so a nameserver that recovers is asked again on the next message.
 
-`MailSynchronization:VerifyDkimLocally` is what turns it off, and a deployment that sets it to `false` makes no lookup
-at all and records exactly what it recorded before this existed. [The mail
+`MailSynchronization:VerifyDkimLocally` is what turns every lookup off, on both paths. A deployment that sets it to
+`false` makes no lookup at all, and a trusted server's DKIM result then aligns only where that server's DMARC result
+settled the record — `pass`, `none`, or `permerror`. [The mail
 configuration](../operations/configuration-mail.md#mailsynchronization) states where the key lives.
 
 ## Whether the author is one this deployment recognizes
@@ -515,17 +565,18 @@ why a claim was qualified.
 
 ## What MailFathom does not do
 
-- It evaluates no SPF policy and no DMARC policy, ever, whichever reading produced the verdict. It computes no
-  organizational domain and consults no public suffix list, so it never reconstructs DMARC's relaxed alignment for
-  itself: two names under one parent stay unrelated here, which is the case relaxed alignment exists to accept. What it
-  does accept is one name within the other at a label boundary, which is a delegation readable from the two names alone
-  rather than a policy. The only DNS it resolves is a published DKIM key, and only on the fallback path above.
+- It evaluates no SPF policy and no DMARC policy, ever, whichever reading produced the verdict, and computes no DMARC
+  result of its own. It reads a domain's DMARC record for its `adkim` tag alone. It computes no organizational domain
+  and consults no public suffix list, so it never reconstructs DMARC's relaxed alignment for itself: two names under
+  one parent stay unrelated here, which is the case relaxed alignment exists to accept. What it does accept is one name
+  within the other at a label boundary, which is a delegation readable from the two names alone rather than a policy.
+  The only DNS it resolves is a published DKIM key and the displayed domain's DMARC record, both behind
+  `VerifyDkimLocally`.
 - **The residual risk of accepting that delegation is stated rather than mitigated.** A subdomain delegated to a third
   party — a marketing platform holding `mail.example.test`, a tenant holding a name under somebody's zone — can
-  establish the author of mail displaying the parent domain, and MailFathom does not read the DMARC record that would
-  say whether the parent permits it. That record's own default, `adkim=r`, permits considerably more than this, so the
-  assumption is the one nearly every sender publishes; it is an assumption nonetheless, and a domain owner who
-  delegates a subdomain delegates this with it.
+  establish the author of mail displaying the parent domain, unless the parent's DMARC record asks for `adkim=s`. A
+  domain that publishes no record, or `adkim=r`, is taken to permit it, which is the assumption nearly every sender
+  publishes; it is an assumption nonetheless, and a domain owner who delegates a subdomain delegates this with it.
 - It does not reason from the `Received` chain beyond identifying the trusted header.
 - It does not validate an ARC chain. An intact chain says an upstream relay signed a claim about what *it* saw, which
   establishes no author and decides nothing about trust.

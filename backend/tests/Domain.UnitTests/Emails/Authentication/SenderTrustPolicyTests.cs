@@ -219,7 +219,8 @@ public sealed class SenderTrustPolicyTests
                 [DomainOf("relay.example")],
                 spfDomains: [],
                 DomainOf("bank.example"),
-                dmarc),
+                dmarc,
+                DmarcRecordLookup.NotPublished),
             AddressOf("security@bank.example"));
 
         // Assert
@@ -244,7 +245,8 @@ public sealed class SenderTrustPolicyTests
                 [DomainOf("provider.example")],
                 spfDomains: [],
                 DomainOf("partner.example"),
-                DmarcOutcome.Pass),
+                DmarcOutcome.Pass,
+                DmarcRecordLookup.NotPublished),
             AddressOf("alice@partner.example"));
 
         // Assert
@@ -270,7 +272,8 @@ public sealed class SenderTrustPolicyTests
                 throughDkim ? [DomainOf("partner.example")] : [DomainOf("relay.example")],
                 throughDkim ? [] : [DomainOf("partner.example")],
                 DomainOf("partner.example"),
-                DmarcOutcome.NotReported),
+                DmarcOutcome.NotReported,
+                DmarcRecordLookup.NotPublished),
             AddressOf("alice@partner.example"));
 
         // Assert
@@ -330,7 +333,8 @@ public sealed class SenderTrustPolicyTests
                 [DomainOf("partner.example")],
                 spfDomains: [],
                 fromDomain: null,
-                DmarcOutcome.Pass),
+                DmarcOutcome.Pass,
+                DmarcRecordLookup.NotPublished),
             displayedSender: null);
 
         // Assert
@@ -502,7 +506,8 @@ public sealed class SenderTrustPolicyTests
             [DomainOf(domain)],
             spfDomains: [],
             DomainOf(domain),
-            DmarcOutcome.Pass);
+            DmarcOutcome.Pass,
+            DmarcRecordLookup.NotPublished);
 
     private static TrustedSenderEntry DomainEntry(string domain, bool includeSubdomains)
     {

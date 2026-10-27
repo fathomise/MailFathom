@@ -46,7 +46,7 @@ budget or the coordinator loop itself are marked *restart* below.
 | `MailSynchronization:MaxConsecutivePushFailures` | int | `3` | 1 – 100 | reload |
 | `MailSynchronization:PushDegradationPeriod` | TimeSpan | `00:15:00` | 10 s – 1 day | reload |
 | `MailSynchronization:MaxSubscribedFolders` | int | `20` | 1 – 100; how many folders one push subscription may name on a server supporting `NOTIFY`, the rest synchronizing on the account's interval | reload |
-| `MailSynchronization:VerifyDkimLocally` | bool | `true` | Whether extraction verifies a message's own DKIM signatures where no trusted `Authentication-Results` header was found. A fallback and never a supplement: an account whose server writes the header verifies nothing locally. It is the only path that makes an outbound DNS query | reload; the next extraction verifies against it |
+| `MailSynchronization:VerifyDkimLocally` | bool | `true` | Whether extraction verifies a message's own DKIM signatures where no trusted `Authentication-Results` header was found, and reads the displayed domain's DMARC record to decide DKIM alignment. The signature check is a fallback and never a supplement: an account whose server writes the header verifies no signature locally. It governs every outbound DNS query sender authentication makes | reload; the next extraction verifies against it |
 | `MailSynchronization:SignatureVerification:TrustSystemStore` | bool | `true` | Whether an S/MIME signer certificate chaining to the operating system's trust store can verify. Off trusts only the authorities named below | reload; the next extraction verifies against it |
 | `MailSynchronization:SignatureVerification:TrustedAuthorities` | list of named secret blocks | empty | Certificate authorities an S/MIME signer may chain to beside the system store, each loaded and validated as a certificate without a private key at startup and on every reload. Several entries rotate an authority by overlap | reload |
 | `MailSynchronization:SignatureVerification:TrustedOpenPgpKeys` | list of named secret blocks | empty | The OpenPGP public keys whose signatures can verify — armored or binary, one or several per entry, each validated when read; the same key listed twice is refused at its second position. Nothing else is trusted for OpenPGP | reload |
@@ -139,15 +139,17 @@ depends on. Without it every message there records that nothing was established,
 neither list above is ever consulted; with it, a message's own DKIM signatures are verified against the keys their
 domains publish and the whole chain has an identity to stand on. It defaults to **on** for that reason — shipping it
 off would switch it off for exactly the mailboxes it exists for, while leaving them looking correctly configured — and
-it changes nothing for an account whose server does write the header, which goes on believing that server.
+an account whose server does write the header goes on believing that server, and only has the displayed domain's
+DMARC record read where that server's verdict leaves DKIM alignment open.
 
 **It is the one path in MailFathom that makes an outbound DNS query, and what it sends is
-`<selector>._domainkey.<signing-domain>`**: a low-cardinality name the signing domain published in order to be asked
-for, shared by every message that domain signs, carrying nothing about the message, the mailbox, or the recipient, and
-resolved when a message is stored rather than when one is read. The lookups are bounded by an explicit deadline, after which the verdict is simply not established,
-and cached per selector and signing domain for as long as the record's own time-to-live allows. **An operator who wants
-no egress from the extraction path at all sets this to `false`**, which gives exactly the behaviour of a deployment
-that never had it. [Sender authentication](../features/sender-authentication.md#where-no-server-said-anything-the-signature-still-does)
+`<selector>._domainkey.<signing-domain>` and `_dmarc.<domain>`** for the displayed domain and its parents: names a
+domain published in order to be asked for, shared by every message it sends, carrying nothing about the message, the
+mailbox, or the recipient, and resolved when a message is stored rather than when one is read. The lookups are bounded
+by a deadline per name and a budget per message, after which the author is simply not established, and cached by the
+name queried for as long as the record's own time-to-live allows. **An operator who wants no egress from the
+extraction path at all sets this to `false`**: no lookup is made, and a trusted server's DKIM result then aligns only
+where that server's DMARC result was `pass`, `none`, or `permerror`. [Sender authentication](../features/sender-authentication.md#where-no-server-said-anything-the-signature-still-does)
 states what such a verdict reaches, what it deliberately does not, and how a reader tells the two apart.
 
 `AssessMachineAuthorship` answers a different question again — how a message's text was *written* rather than who sent

@@ -165,6 +165,14 @@ internal sealed class StoredEmailEntity
     /// </remarks>
     public AuthorAuthenticationOutcome AuthorAuthenticationOutcome { get; set; }
 
+    /// <summary>Gets or sets what established the author where it authenticated, or that nothing did.</summary>
+    /// <remarks>
+    /// A trust source that needs an authenticated author reads this rather than the outcome alone, because an author SPF
+    /// alone established is authenticated and still not enough for one. A row stored before the route was recorded
+    /// reads as none, so its author establishes nothing for such a source until the message is re-derived.
+    /// </remarks>
+    public AuthorAuthenticationRoute AuthorAuthenticationRoute { get; set; }
+
     /// <summary>Gets or sets the displayed author's domain where it authenticated, absent where it did not.</summary>
     /// <remarks>
     /// The subject of the trust verdict below, kept beside it so a stored answer names the identity it was reached

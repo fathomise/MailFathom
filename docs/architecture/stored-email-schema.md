@@ -76,10 +76,10 @@ Recipients are PostgreSQL `text[]` columns — `to_addresses`, `cc_addresses`, `
 
 ### The sender-authentication verdict
 
-Ten columns record what was established about who actually sent the message:
+Eleven columns record what was established about who actually sent the message:
 `SenderAuthenticationOutcome`, `SenderAuthenticationMethod`, `AuthenticatedSenderDomain`, `DkimSignerDomain`,
-`SpfMailFromDomain`, `DmarcOutcome`, `AuthorAuthenticationOutcome`, `AuthenticatedAuthorDomain`,
-`DisplayedAuthorDomain`, and `SenderAuthenticationSource`. The five enums are
+`SpfMailFromDomain`, `DmarcOutcome`, `AuthorAuthenticationOutcome`, `AuthorAuthenticationRoute`,
+`AuthenticatedAuthorDomain`, `DisplayedAuthorDomain`, and `SenderAuthenticationSource`. The six enums are
 text for the reason `content_availability` is, and the five domains are `character varying(253)` — the length a
 resolver accepts, which the domain value already refuses to exceed, so no value ever reaches a column that would reject
 it.
@@ -90,13 +90,17 @@ wrote, which is also what a row carrying nothing established holds; `LocalVerifi
 message's own DKIM signatures, which it does only where no trusted header was found. The difference cannot be recovered
 from anything else on the row, and it cannot be inferred from the account's configuration either, because that may have
 changed since. On a `LocalVerification` row `SpfMailFromDomain` is empty and `DmarcOutcome` is `NotReported` by
-construction rather than by outcome: after delivery there is no envelope to authenticate and no published policy is
-resolved.
+construction rather than by outcome: after delivery there is no envelope to authenticate, and the domain's DMARC record
+is read for its alignment mode alone.
 
-Three of them — `AuthorAuthenticationOutcome`, `AuthenticatedAuthorDomain`, and `DisplayedAuthorDomain` — are about the
+Four of them — `AuthorAuthenticationOutcome`, `AuthorAuthenticationRoute`, `AuthenticatedAuthorDomain`, and
+`DisplayedAuthorDomain` — are about the
 author the message displays, which is a different question from the six naming the identity that handed the message
 over: a relay, a mailing list, or a delivery provider authenticates as itself while carrying somebody else's `From`. `AuthenticatedAuthorDomain` is present exactly when the author
 authenticated, and it is the domain a reader was shown rather than whichever identity established it.
+`AuthorAuthenticationRoute` names what established it — `DmarcPass`, `AlignedDkim`, or `AlignedSpf` — and is `None`
+otherwise, including on every row stored before the column existed, so such a row's author counts for nothing that
+needs the route until the message is re-derived.
 
 `DisplayedAuthorDomain` is the domain the `From` header wrote, recorded whether or not anything held it, so the two
 halves of the comparison exist on the row where they are most needed — the messages whose author was *not* established,

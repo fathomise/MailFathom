@@ -6,13 +6,14 @@ using System.Collections.Concurrent;
 
 namespace MailFathom.Infrastructure.Mail.Dkim;
 
-/// <summary>Holds what each signing domain published for a selector, for as long as that answer stays good.</summary>
+/// <summary>Holds what a name published for sender authentication — a DKIM key or a DMARC record — for as long as that answer stays good.</summary>
 /// <remarks>
 /// <para>
 /// The cache is what keeps the lookups proportionate. A mailbox receives many messages from few domains, and a domain
-/// signs everything it sends with the same handful of selectors, so a synchronization run over a folder resolves a
-/// dozen names rather than one per message — and a re-derivation over a whole mailbox, which is where the cost would
-/// otherwise be felt, resolves each name once instead of tens of thousands of times.
+/// signs everything it sends with the same handful of selectors and publishes one DMARC record, so a synchronization
+/// run over a folder resolves a dozen names rather than one per message — and a re-derivation over a whole mailbox,
+/// which is where the cost would otherwise be felt, resolves each name once instead of tens of thousands of times. It
+/// is keyed by the name queried, so a key and a DMARC record never share an entry.
 /// </para>
 /// <para>
 /// It is bounded in entries as well as in time, because the key is derived from mail that arrives rather than from
@@ -31,9 +32,9 @@ namespace MailFathom.Infrastructure.Mail.Dkim;
 /// them — but the set of domains a cache holds says who this mailbox corresponds with, so nothing in it is logged.
 /// </para>
 /// </remarks>
-internal sealed class DkimPublicKeyRecordCache
+internal sealed class DnsRecordCache
 {
-    /// <summary>How many distinct selector-and-domain pairs are held before the cache starts over.</summary>
+    /// <summary>How many distinct names are held before the cache starts over.</summary>
     private const int MaximumEntries = 2048;
 
     /// <summary>The shortest time an answer is held, whatever a shorter record time-to-live would ask for.</summary>
@@ -56,7 +57,7 @@ internal sealed class DkimPublicKeyRecordCache
     /// <summary>Initializes an empty cache over the clock its lifetimes are measured against.</summary>
     /// <param name="timeProvider">Supplies the current instant.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="timeProvider" /> is <see langword="null" />.</exception>
-    public DkimPublicKeyRecordCache(TimeProvider timeProvider)
+    public DnsRecordCache(TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(timeProvider);
 

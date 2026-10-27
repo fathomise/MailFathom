@@ -557,6 +557,10 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         resolver
             .ResolveAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(signed.PublicKeyRecord);
+        var dmarcRecords = Substitute.For<IDmarcRecordResolver>();
+        dmarcRecords
+            .ResolveAsync(Arg.Any<SenderDomain>(), Arg.Any<CancellationToken>())
+            .Returns(DmarcRecordLookup.NotPublished);
 
         var services = new ServiceCollection();
         services.AddSingleton(TimeProvider.System);
@@ -569,6 +573,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
         services.AddSingleton(resolver);
+        services.AddSingleton(dmarcRecords);
 
         services.AddInfrastructure(
             _ => new PostgresConnectionSettings("Host=localhost;Database=mailfathom", null, null),
@@ -590,6 +595,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         Assert.Equal(
             SenderAuthenticationOutcome.Authenticated,
             extraction.Metadata?.SenderAuthentication.Outcome);
+        await dmarcRecords.Received(1).ResolveAsync(Arg.Any<SenderDomain>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>A deployment that turned it off makes no lookup at all, which is what the switch owes an operator.</summary>
@@ -599,6 +605,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         // Arrange
         var signed = DkimFixtures.Sign();
         var resolver = Substitute.For<IDkimPublicKeyRecordResolver>();
+        var dmarcRecords = Substitute.For<IDmarcRecordResolver>();
 
         var services = new ServiceCollection();
         services.AddSingleton(TimeProvider.System);
@@ -611,6 +618,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
         services.AddSingleton(TrustPolicyReader());
         services.AddSingleton(MachineAuthorshipProfile.Standard);
         services.AddSingleton(resolver);
+        services.AddSingleton(dmarcRecords);
 
         services.AddInfrastructure(
             _ => new PostgresConnectionSettings("Host=localhost;Database=mailfathom", null, null),
@@ -633,6 +641,7 @@ public sealed class ServiceCollectionExtensionsTests : IDisposable
             Arg.Any<string>(),
             Arg.Any<string>(),
             Arg.Any<CancellationToken>());
+        await dmarcRecords.DidNotReceive().ResolveAsync(Arg.Any<SenderDomain>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>

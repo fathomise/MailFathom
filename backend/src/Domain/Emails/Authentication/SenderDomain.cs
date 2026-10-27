@@ -115,6 +115,18 @@ public readonly record struct SenderDomain
         && descendant[descendant.Length - parent.Length - 1] == '.'
         && descendant.EndsWith(parent, StringComparison.Ordinal);
 
+    /// <summary>Answers whether two domains lie on one branch of the naming tree: equal, or one beneath the other.</summary>
+    /// <param name="other">The domain to relate this one to.</param>
+    /// <returns><see langword="true" /> when either name is the other or lies beneath it at a label boundary.</returns>
+    /// <remarks>
+    /// This is the relation an identity aligns with a displayed author by. Whoever publishes a key under
+    /// <c>p1.mail.example.test</c> was delegated that zone by <c>example.test</c>, and whoever publishes one for
+    /// <c>example.test</c> delegated <c>notice.example.test</c> themselves, so it rests on DNS control flowing down the
+    /// tree. Two siblings under one parent are not related, which is where it is narrower than DMARC's relaxed mode.
+    /// </remarks>
+    public bool SharesBranchWith(SenderDomain other) =>
+        this == other || this.IsSubdomainOf(other) || other.IsSubdomainOf(this);
+
     /// <summary>Compares two domains by the form they were normalized to.</summary>
     /// <param name="other">The domain to compare with.</param>
     /// <returns><see langword="true" /> when both name the same domain.</returns>

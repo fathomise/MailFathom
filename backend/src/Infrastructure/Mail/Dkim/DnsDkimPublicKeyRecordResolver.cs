@@ -41,7 +41,7 @@ internal sealed class DnsDkimPublicKeyRecordResolver : IDkimPublicKeyRecordResol
     /// leaves it far below this. The bound exists because the answer arrives from a server this deployment does not
     /// control, and a parser is the wrong place to meet an unbounded string.
     /// </remarks>
-    private const int MaximumRecordLength = 4096;
+    internal const int MaximumRecordLength = 4096;
 
     /// <summary>How long one name is waited for before the lookup answers that nothing was resolved.</summary>
     /// <remarks>
@@ -49,10 +49,10 @@ internal sealed class DnsDkimPublicKeyRecordResolver : IDkimPublicKeyRecordResol
     /// costs the extraction this and no more. Extraction is on the path a folder run advances along, so the budget is
     /// deliberately closer to a mail server's patience than to a resolver's default.
     /// </remarks>
-    private static readonly TimeSpan LookupDeadline = TimeSpan.FromSeconds(5);
+    internal static readonly TimeSpan LookupDeadline = TimeSpan.FromSeconds(5);
 
     private readonly IDnsQuery lookup;
-    private readonly DkimPublicKeyRecordCache cache;
+    private readonly DnsRecordCache cache;
     private readonly TimeProvider timeProvider;
     private readonly TimeSpan lookupDeadline;
 
@@ -61,7 +61,7 @@ internal sealed class DnsDkimPublicKeyRecordResolver : IDkimPublicKeyRecordResol
     /// <param name="cache">Holds what was resolved for as long as it stays good.</param>
     /// <param name="timeProvider">Measures the deadline one lookup is given.</param>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
-    public DnsDkimPublicKeyRecordResolver(IDnsQuery lookup, DkimPublicKeyRecordCache cache, TimeProvider timeProvider)
+    public DnsDkimPublicKeyRecordResolver(IDnsQuery lookup, DnsRecordCache cache, TimeProvider timeProvider)
         : this(lookup, cache, timeProvider, LookupDeadline)
     {
     }
@@ -74,7 +74,7 @@ internal sealed class DnsDkimPublicKeyRecordResolver : IDkimPublicKeyRecordResol
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
     internal DnsDkimPublicKeyRecordResolver(
         IDnsQuery lookup,
-        DkimPublicKeyRecordCache cache,
+        DnsRecordCache cache,
         TimeProvider timeProvider,
         TimeSpan lookupDeadline)
     {
@@ -93,7 +93,7 @@ internal sealed class DnsDkimPublicKeyRecordResolver : IDkimPublicKeyRecordResol
     /// <remarks>
     /// It names no nameserver of its own, so a deployment that routes DNS through its own resolver is followed rather
     /// than bypassed — which matters here more than usual, since this is the one path that leaves the process to judge
-    /// mail. Its own response cache is off because <see cref="DkimPublicKeyRecordCache" /> is the cache this system
+    /// mail. Its own response cache is off because <see cref="DnsRecordCache" /> is the cache this system
     /// bounds and reasons about, and two would make what is held a question with two answers.
     /// </remarks>
     public static LookupClient CreateLookupClient() =>

@@ -8,7 +8,8 @@ namespace MailFathom.Domain.Emails.Authentication;
 /// <remarks>
 /// <para>
 /// The values are RFC 8601's registered <c>dmarc</c> results and nothing else. MailFathom evaluates no policy and
-/// resolves no record: this is what the trusted header said, read back.
+/// computes no result: this is what the trusted header said, read back, and held to the domain its <c>header.from</c>
+/// names — a result about some other domain reads as <see cref="NotReported" />.
 /// </para>
 /// <para>
 /// It is worth recording beside the authenticated identity because the two answer different questions. An identity says
