@@ -415,7 +415,8 @@ serializing. Two rules decide who takes it, and they hold for every path that ex
   in any book, and every act that removes a contact, for each address the removed book held.
 - **A transaction that writes a trust verdict takes the lock for each verdict's first `From` mailbox before it reads
   any book.** It reads the books and writes the verdicts in that same transaction. Three paths do this today. A batch
-  of a re-judgment job does it for the job's address. The trust step at extraction does it inside the transaction
+  of a re-judgment job does it for the first `From` mailbox of every message in the batch, which in the second set
+  below can be another address of the same contact, not only the job's. The trust step at extraction does it inside the transaction
   that stores the message. A batch of `mfctl mailbox rederive` does it for every message in the batch, because
   rederive's trust step is extraction's. On the last two paths, authentication, DNS, and signature verification
   all finish before the locking transaction opens.
