@@ -179,8 +179,9 @@ export function AgentSpace({
     const questionAsked = useRef<AgentHandOver | null>(null);
 
     // A conversation another surface asked to open — the rail's peek — joins the tabs and comes to the front, adjusted
-    // while rendering for the reason a hand-over is.
-    const [openedFrom, setOpenedFrom] = useState<AgentOpening | null>(null);
+    // while rendering for the reason a hand-over is. The frame keeps the last ask for the whole session, so an ask
+    // already standing when this space is drawn again under a new session was answered before and is not answered twice.
+    const [openedFrom, setOpenedFrom] = useState(opening);
 
     if (opening !== openedFrom) {
         setOpenedFrom(opening);

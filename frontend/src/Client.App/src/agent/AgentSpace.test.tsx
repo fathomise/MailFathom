@@ -277,25 +277,35 @@ describe('AgentSpace', () => {
 
     it('opens a conversation it was asked to from outside, and leaves it unread while the space is behind another', async () => {
         const { transport, asked } = withAnswerUnread();
-        const { rerender } = render(
-            drawn(transport, null, null, {
-                inFront: false,
-                opening: { conversation: agent.answeredConversationId },
-            }),
-        );
+        const opening: AgentOpening = { conversation: agent.answeredConversationId };
+        const { rerender } = render(drawn(transport, null, null, { inFront: false }));
 
         const row = await screen.findByRole('option', { name: /How many bays were confirmed/ });
+
+        rerender(drawn(transport, null, null, { inFront: false, opening }));
 
         await waitFor(() => {
             expect(row.getAttribute('aria-current')).toBe('true');
         });
         expect(markedRead(asked)).toEqual([]);
 
-        rerender(drawn(transport, null, null, { inFront: true }));
+        rerender(drawn(transport, null, null, { inFront: true, opening }));
 
         await waitFor(() => {
             expect(markedRead(asked)).toEqual([`${conversations}/${agent.answeredConversationId}/read`]);
         });
+    });
+
+    it('does not open again an ask that was already standing when the space was drawn under a new session', async () => {
+        render(
+            drawn(deploymentAnswering().transport, null, null, {
+                opening: { conversation: agent.answeredConversationId },
+            }),
+        );
+
+        const row = await screen.findByRole('option', { name: /How many bays were confirmed/ });
+
+        expect(row.getAttribute('aria-current')).toBeNull();
     });
 
     it('groups the history by the day each conversation last moved, drawing no empty day', async () => {
