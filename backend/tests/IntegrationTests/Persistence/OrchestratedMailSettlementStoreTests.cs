@@ -6,6 +6,9 @@ using MailFathom.Application.Emails.Settlement;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Synchronization;
+using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Filing;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
@@ -39,6 +42,14 @@ public sealed class OrchestratedMailSettlementStoreTests(MailFathomOrchestration
     private const uint SettledUid = 6101;
 
     private const uint RelocatedUid = 6201;
+
+    private const uint StillSettlingUid = 6111;
+
+    private const uint SettledOnArrivalUid = 6112;
+
+    private const uint FiledFromOutgoingUid = 6113;
+
+    private const long FiledSizeOctets = 2048;
 
     /// <summary>How many settling messages one read of the queue asks for while a test walks it for its own message.</summary>
     private const int QueueBatchSize = 500;
@@ -106,6 +117,82 @@ public sealed class OrchestratedMailSettlementStoreTests(MailFathomOrchestration
         Assert.Null(settlingAfter);
         Assert.NotNull(readableAfter);
         Assert.Equal(storedEmailId, readableAfter.StoredEmailId);
+    }
+
+    /// <summary>
+    /// Four messages are stored already settled, because none of them is an arrival: a rule's copy and a message stored
+    /// again after a delete was undone, which share one stamp; the person's own sent message joined to its outgoing
+    /// record; and the two a deployment writes with no occurrence, a filed draft and a held account's local copy. Each is
+    /// readable at once and never on the queue, where it would otherwise be settled and announced as news. A message
+    /// stored beside them without a stamp is the control that the same reads would report a missing one.
+    /// </summary>
+    [Fact]
+    public async Task StoreAsync_MessagesThatAreNoArrival_AreStoredSettledWhileAnArrivalBesideThemWaits()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var binding = await OrchestratedFolderBinding.CommitAsync(services, FolderAlias, cancellationToken);
+
+        // Act
+        var stillSettling = await StoredSyntheticEmail.MetadataOnlyAsync(
+            services,
+            SyntheticEmail.OccurrenceIn(binding, StillSettlingUid),
+            "arrival beside the settled ones",
+            cancellationToken);
+        var settledOnArrival = await StoreAndStampAsync(
+            services,
+            SyntheticEmail.OccurrenceIn(binding, SettledOnArrivalUid),
+            "copy a rule made",
+            (repository, session, storedEmailId, token) =>
+                repository.RecordSettledOnArrivalAsync(session, storedEmailId, token),
+            cancellationToken);
+        var filedFromOutgoing = await StoreAndStampAsync(
+            services,
+            SyntheticEmail.OccurrenceIn(binding, FiledFromOutgoingUid),
+            "the person's own sent message",
+            (repository, session, storedEmailId, token) => repository.RecordFiledFromOutgoingAsync(
+                session,
+                storedEmailId,
+                OutgoingEmailId.Create(Guid.CreateVersion7()),
+                token),
+            cancellationToken);
+        var filedDraft = await services.CommitProducingAsync(
+            (scope, session, token) => scope.GetRequiredService<IEmailMetadataRepository>().StoreFiledEmailAsync(
+                session,
+                SyntheticMailAccount.Account,
+                binding.Id,
+                extractedMetadata: null,
+                FiledSizeOctets,
+                AppendedMailFlags.Draft,
+                filedFrom: null,
+                token),
+            cancellationToken);
+        var localCopy = await services.CommitProducingAsync(
+            (scope, session, token) => scope.GetRequiredService<IEmailMetadataRepository>().StoreLocalCopyAsync(
+                session,
+                SyntheticMailAccount.Account,
+                binding.Id,
+                extractedMetadata: null,
+                FiledSizeOctets,
+                new CopiedMailFlags(IsSeen: true, IsFlagged: false, RemoteEmailKeywords.None),
+                token),
+            cancellationToken);
+
+        StoredEmailId[] storedSettled =
+            [settledOnArrival, filedFromOutgoing, Assert.NotNull(filedDraft), Assert.NotNull(localCopy)];
+        var settlingAfterStore = await Task.WhenAll(
+            storedSettled.Select(storedEmailId => FindSettlingAsync(services, storedEmailId, cancellationToken)));
+        var readableAfterStore = await Task.WhenAll(
+            storedSettled.Select(storedEmailId => FindSummaryAsync(services, storedEmailId, cancellationToken)));
+
+        // Assert
+        Assert.NotNull(await FindSettlingAsync(services, stillSettling, cancellationToken));
+        Assert.Null(await FindSummaryAsync(services, stillSettling, cancellationToken));
+
+        Assert.All(settlingAfterStore, Assert.Null);
+        Assert.All(readableAfterStore, Assert.NotNull);
+        Assert.Equal(storedSettled, readableAfterStore.Select(summary => summary!.StoredEmailId));
     }
 
     /// <summary>
@@ -187,6 +274,29 @@ public sealed class OrchestratedMailSettlementStoreTests(MailFathomOrchestration
 
                     resumeAfter = batch[^1].Id;
                 }
+            },
+            cancellationToken);
+
+    /// <summary>Stores an occurrence and writes a stamp on it in the same session, as synchronization does.</summary>
+    private static Task<StoredEmailId> StoreAndStampAsync(
+        OrchestratedMailFathomServices services,
+        EmailOccurrenceId occurrence,
+        string subject,
+        Func<IEmailMetadataRepository, IPersistenceSession, StoredEmailId, CancellationToken, Task> stamp,
+        CancellationToken cancellationToken) => services.CommitProducingAsync(
+            async (scope, session, token) =>
+            {
+                var repository = scope.GetRequiredService<IEmailMetadataRepository>();
+                var storedEmailId = await repository.UpsertMetadataAsync(
+                    session,
+                    SyntheticEmail.RemoteMetadataOf(occurrence, subject),
+                    extractedMetadata: null,
+                    StoredEmailContentAvailability.ExceededSizeLimit,
+                    token);
+
+                await stamp(repository, session, storedEmailId, token);
+
+                return storedEmailId;
             },
             cancellationToken);
 

@@ -89,7 +89,9 @@ public sealed class MailSettlementPass
     /// A message another run settled first is neither counted nor announced here, so a competing replica settling the
     /// same arrival raises one signal and one notification between them. Each batch is announced as soon as it is
     /// settled rather than once the walk ends, because a settled message is never read again: a walk that failed or was
-    /// cancelled after an earlier batch would otherwise leave that batch shown and never announced.
+    /// cancelled after an earlier batch would otherwise leave that batch shown and never announced. The announcement is
+    /// not durable itself: a failure or a cancellation inside it leaves the batch just settled shown without its
+    /// notification, because the settlement has committed and nothing reads a settled message again.
     /// </remarks>
     public async Task<MailSettlementReport> RunAsync(MailAccountId account, CancellationToken cancellationToken)
     {
