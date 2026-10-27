@@ -497,23 +497,6 @@ internal sealed class MailSynchronizationOptions : IValidatableObject
     [Range(1_000, 200_000)]
     public int MaxExtractedTextCharacters { get; set; } = 100_000;
 
-    /// <summary>Gets or sets whether an author writing from a domain one of this deployment's accounts uses is recognized.</summary>
-    /// <remarks>
-    /// <para>
-    /// The set of domains is derived from the configured accounts rather than restated here, so adding an account
-    /// extends it and removing one narrows it without a second edit. It is deployment-wide rather than per account
-    /// because an instance synchronizing a work mailbox and a personal one is synchronizing one person's
-    /// correspondence, and mail sent from the first to the second is the least suspicious mail in the mailbox.
-    /// </para>
-    /// <para>
-    /// It defaults to on because that mail is either the user's own or somebody who has taken their mailbox, and the
-    /// first is far more common. The case for turning it off is an account on a large shared provider, where every
-    /// user of that provider writes from the same domain and the set would recognize all of them; a deployment that
-    /// turns it off names the domains it does mean on the accounts' own trusted-sender lists instead.
-    /// </para>
-    /// </remarks>
-    public bool TrustOwnAccountDomains { get; set; } = true;
-
     /// <summary>Gets or sets whether extraction verifies a message's own DKIM signatures where no trusted server did.</summary>
     /// <remarks>
     /// <para>
@@ -941,7 +924,23 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
     /// </remarks>
     public string? TrustedAuthenticationServiceIdentifier { get; set; }
 
-    /// <summary>Gets or sets the senders this account recognizes on top of the domains this deployment's own accounts use.</summary>
+    /// <summary>Gets or sets whether this account recognizes an author writing from a domain one of its owner's accounts uses.</summary>
+    /// <remarks>
+    /// <para>
+    /// The set of domains is derived from the user names of every account the same person owns rather than restated
+    /// here, so adding an account extends it and removing one narrows it without a second edit. The owner's own
+    /// addresses are recognized on every account whatever this says; this widens that to everybody at those domains.
+    /// </para>
+    /// <para>
+    /// It defaults to off, and is per account, because on a large shared provider every user of that provider writes
+    /// from the same domain and the set would recognize all of them. An account whose domain is the owner's own — a
+    /// company domain rather than a provider's — is the case for turning it on, and turning it on for one account
+    /// leaves the owner's other accounts as they were.
+    /// </para>
+    /// </remarks>
+    public bool TrustOwnAccountDomains { get; set; }
+
+    /// <summary>Gets or sets the senders this account recognizes on top of its owner's own addresses and, where it opted in, domains.</summary>
     /// <remarks>
     /// <para>
     /// Per account rather than deployment-wide, because the accounts an instance synchronizes are different

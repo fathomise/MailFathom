@@ -1541,6 +1541,8 @@ export const pl: Catalogue = {
         'Jej podpis nie zgadza się z treścią: zmieniono ją po podpisaniu albo podpis jest podrobiony.',
     'senderMark.why.authenticationFailed':
         '{domain} nie uwierzytelniła tej wiadomości, więc może ona nie pochodzić od tego, kogo wskazuje.',
+    'senderMark.why.trustedOwnAddress':
+        '{authenticated} uwierzytelniła tę wiadomość, a {address} to jeden z Twoich własnych adresów.',
     'senderMark.why.trustedOwnDomain':
         '{authenticated} uwierzytelniła tę wiadomość, a {domain} to domena Twoich własnych kont.',
     'senderMark.why.trustedSender':
@@ -1608,6 +1610,7 @@ export const pl: Catalogue = {
         '{domain} nie jest ustalona jako autor. Żadna domena nie uwierzytelniła wiadomości.',
     'senderMark.author.notEstablished': 'Nieustalone: nic nie powiązało domeny {domain} z wiadomością.',
     'senderMark.trust.skipped': 'Pominięte, bo autor nie został uwierzytelniony.',
+    'senderMark.trust.ownAddress': '{address} to jeden z Twoich własnych adresów.',
     'senderMark.trust.ownDomain': '{domain} to domena Twoich własnych kont.',
     'senderMark.trust.trustedSenders': 'Nadawca jest na liście zaufanych nadawców tego konta.',
     'senderMark.trust.organizationMember':
@@ -1615,7 +1618,7 @@ export const pl: Catalogue = {
     'senderMark.trust.organizationMemberDeleted':
         'Członek Twojej organizacji. Podpis organizacji potwierdza, że wiadomość pochodzi z adresu {address}; organizacja została od tego czasu usunięta, więc jej nazwa nie jest pokazywana.',
     'senderMark.trust.unrecognized':
-        'To konto nie rozpoznaje adresu {address}: nie ma go na liście zaufanych nadawców konta, a {domain} nie jest domeną Twoich własnych kont.',
+        'To konto nie rozpoznaje adresu {address}: nie jest to żaden z Twoich własnych adresów i nie ma go na liście zaufanych nadawców konta.',
     'senderMark.signed.not':
         'Niepodpisana: wiadomość nie ma podpisu S/MIME ani OpenPGP, więc nie ma czego weryfikować.',
     'senderMark.signed.detachedAt': 'S/MIME, odłączony (multipart/signed), podpisana {when}.',

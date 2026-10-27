@@ -297,6 +297,7 @@ public sealed class ClientMailMessageEndpointTests
     [InlineData(SenderTrustSource.ConfiguredTrustedSender, "ConfiguredTrustedSender")]
     [InlineData(SenderTrustSource.StoredTrustedSender, "StoredTrustedSender")]
     [InlineData(SenderTrustSource.OrganizationMember, "OrganizationMember")]
+    [InlineData(SenderTrustSource.OwnAccountAddress, "OwnAccountAddress")]
     public void For_ATrustedAuthor_PublishesWhatRecognizedThem(SenderTrustSource grantedBy, string published)
     {
         // Arrange

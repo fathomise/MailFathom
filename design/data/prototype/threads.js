@@ -624,6 +624,23 @@ Notes and recordings: [hiring/frontend-2026](https://company.example/hiring/fron
     ],
     attachments: [],
   },
+  {
+    id: "selfNote1",
+    acc: "acc2",
+    from: "Karolina Kowalska",
+    org: "",
+    time: "20.08",
+    subject: "Note to self - passport renewal",
+    ai: "A reminder you sent yourself",
+    meta: "k.kowalska@nordwind.example · 20.08.2026 · thread: 1 message",
+    state: [{ label: "Commitment", value: "Book the passport appointment by 15.09" }],
+    body: [
+      {
+        text: "Book the passport appointment before 15 September - the old one runs out in November. Bring the photos from the drawer.",
+      },
+    ],
+    attachments: [],
+  },
 
   // Spam. `spam` is the verdict a message arrived with: `judge` is who reached it (`model`, `server`, or `person`),
   // `kind` its spam subcategory where one was named, and `request` and `party` what a phishing message asks for and whom

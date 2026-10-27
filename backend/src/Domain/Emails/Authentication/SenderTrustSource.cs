@@ -16,11 +16,11 @@ public enum SenderTrustSource
     /// <summary>Nothing recognized the author, which is what every <see cref="SenderTrustLevel.Unknown" /> verdict carries.</summary>
     None = 0,
 
-    /// <summary>The author's domain belongs to an account this deployment synchronizes.</summary>
+    /// <summary>The author's domain is the domain of an account the receiving account's owner holds, and the receiving account opted into those domains.</summary>
     /// <remarks>
-    /// Every configured account's domain counts and not only the receiving one, because an instance synchronizing a
-    /// work mailbox and a personal one is synchronizing one person's correspondence. It is a default rather than the
-    /// only option, and a deployment whose accounts sit on a large shared provider is the case for turning it off.
+    /// Every one of the owner's accounts' domains counts and not only the receiving one, because a person holding a
+    /// work mailbox and a personal one holds one person's correspondence. It is off unless an account asks for it,
+    /// because on a large shared provider the owner's domain is every stranger's domain too.
     /// </remarks>
     OwnAccountDomain = 1,
 
@@ -44,4 +44,12 @@ public enum SenderTrustSource
     /// states the three conditions it is granted under.
     /// </remarks>
     OrganizationMember = 4,
+
+    /// <summary>The author wrote as exactly one of the addresses the receiving account's owner holds.</summary>
+    /// <remarks>
+    /// It is mail from the owner to themselves, so it needs no configuration. It is held against an authenticated
+    /// author exactly as an address entry on the trusted-sender list is: the author's domain is the address's domain and
+    /// <c>From</c> shows that address, and where nothing authenticated the author it recognizes nothing.
+    /// </remarks>
+    OwnAccountAddress = 5,
 }

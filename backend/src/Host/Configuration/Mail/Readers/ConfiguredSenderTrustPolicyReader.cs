@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Mail;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 
 namespace MailFathom.Host.Configuration.Mail.Readers;
@@ -46,12 +47,12 @@ internal sealed class ConfiguredSenderTrustPolicyReader : ISenderTrustPolicyRead
     /// identifier keep the first, both for the reason the folder mappings do — startup validation refuses each of
     /// those, and a reload being rejected must not make a lookup throw. The accounts come from
     /// <see cref="MailSynchronizationOptions.DeclaredAccountsByOwner" />, so a deployment that declares its mailboxes
-    /// under its served users recognizes the senders it configured rather than nobody, and each person's own domains
-    /// are trusted inside their own mailboxes rather than inside everybody's.
+    /// under its served users recognizes the senders it configured rather than nobody, and each person's own addresses
+    /// and domains are trusted inside their own mailboxes rather than inside everybody's.
     /// </remarks>
     private Dictionary<string, SenderTrustPolicy> ReadPolicies() =>
         this.settings.DeclaredAccountsByOwner
-            .SelectMany(owned => PoliciesOf(owned, this.settings.TrustOwnAccountDomains))
+            .SelectMany(PoliciesOf)
             .Where(static account => account.Id is not null)
             .GroupBy(static account => account.Id!, StringComparer.Ordinal)
             .ToDictionary(
@@ -59,20 +60,45 @@ internal sealed class ConfiguredSenderTrustPolicyReader : ISenderTrustPolicyRead
                 static account => account.First().Policy,
                 StringComparer.Ordinal);
 
-    /// <summary>Builds the policies of the mailboxes one person owns, over the domains those same mailboxes state.</summary>
+    /// <summary>Builds the policies of the mailboxes one person owns, over the addresses and domains those same mailboxes state.</summary>
+    /// <remarks>
+    /// The addresses count on every one of the owner's mailboxes, and the domains only on a mailbox that set
+    /// <see cref="MailSynchronizationAccountOptions.TrustOwnAccountDomains" />, so opting one account in leaves the
+    /// owner's other accounts as they were.
+    /// </remarks>
     private static IEnumerable<(string? Id, SenderTrustPolicy Policy)> PoliciesOf(
-        IReadOnlyList<MailSynchronizationAccountOptions> owned,
-        bool trustOwnAccountDomains)
+        IReadOnlyList<MailSynchronizationAccountOptions> owned)
     {
-        IReadOnlyList<SenderDomain> ownAccountDomains = trustOwnAccountDomains ? ReadOwnAccountDomains(owned) : [];
+        IReadOnlyList<EmailAddress> ownAccountAddresses = ReadOwnAccountAddresses(owned);
+        IReadOnlyList<SenderDomain> ownAccountDomains = ReadOwnAccountDomains(owned);
 
         return owned.Select(account => (
             MailSynchronizationOptions.TryReadAccountId(account.AccountId),
             SenderTrustPolicy.Create(
-                ownAccountDomains,
+                ownAccountAddresses,
+                account.TrustOwnAccountDomains ? ownAccountDomains : [],
                 account.ConfiguredTrustedSenders,
                 storedTrustedSenders: [])));
     }
+
+    /// <summary>Reads the addresses one person's own accounts state: each user name that is an address, and each address an account sends as.</summary>
+    /// <remarks>
+    /// The sending address counts only where the account configures a submission endpoint, because that is the only
+    /// case in which it is an address the account actually writes as.
+    /// </remarks>
+    private static IReadOnlyList<EmailAddress> ReadOwnAccountAddresses(
+        IReadOnlyList<MailSynchronizationAccountOptions> owned) =>
+    [
+        .. owned
+            .SelectMany(static account => new[]
+            {
+                account.UserName,
+                account.Delivery is { IsConfigured: true } delivery ? delivery.ResolveFromAddress(account.UserName) : null,
+            })
+            .Select(static text => EmailAddress.TryCreate(displayName: null, text, out var address) ? address : (EmailAddress?)null)
+            .OfType<EmailAddress>()
+            .Distinct(),
+    ];
 
     /// <summary>Reads the domains one person's own accounts send and receive under.</summary>
     /// <remarks>

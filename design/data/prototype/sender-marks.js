@@ -7,8 +7,8 @@
 // receiving server, MailFathom's own DKIM check, or nobody; `dkim` and `spf` name the domain whose check passed, null
 // where none did; `dmarc` is pass, fail, none (no policy published), unreported, temperror or permerror; `author` is
 // whether the domain in From was established as the author and `authDomain` the domain that actually authenticated
-// it; `trust` says why this account recognizes the author - on its trusted senders (`list`), a domain of the owner's own
-// accounts (`own`), or a member of the account's organization proven by the organization's signature (`org`, naming the
+// it; `trust` says why this account recognizes the author - on its trusted senders (`list`), one of the owner's own
+// addresses (`ownAddress`), a domain of the owner's own accounts on an account that opted into them (`own`), or a member of the account's organization proven by the organization's signature (`org`, naming the
 // organization's display name, null where that organization has since been deleted); `sig` is the S/MIME or OpenPGP
 // signature, null where the message carries none. A thread missing here is an authenticated sender the account does not recognize.
 MailFathomDesign.data.senderMarks = {
@@ -203,6 +203,10 @@ MailFathomDesign.data.senderMarks = {
     handover1: {
       from: "o.mazur@harborworks.example", checker: "none", dkim: null, spf: null, dmarc: "unreported",
       author: "notEstablished", authDomain: null, trust: { source: "org", org: null }, sig: null,
+    },
+    selfNote1: {
+      from: "k.kowalska@nordwind.example", checker: "own", dkim: "nordwind.example", spf: null, dmarc: "unreported",
+      author: "authenticated", authDomain: "nordwind.example", trust: { source: "ownAddress" }, sig: null,
     },
     spamPayroll: {
       from: "payroll@nordwlnd-hr.example", checker: "server", dkim: "nordwlnd-hr.example", spf: "nordwlnd-hr.example", dmarc: "pass",

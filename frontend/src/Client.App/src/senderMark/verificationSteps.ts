@@ -131,11 +131,7 @@ function whyOf(mark: SenderMark, sender: MailSenderVerdict, signature: MailSigna
         case 'authenticationFailed':
             return { key: 'senderMark.why.authenticationFailed', values: { domain: named.domain } };
         case 'trusted':
-            return sender.trustSource === 'OrganizationMember'
-                ? organizationMemberWhy(sender.trustOrganization)
-                : sender.trustSource === 'OwnAccountDomain'
-                  ? { key: 'senderMark.why.trustedOwnDomain', values: { authenticated, domain: named.domain } }
-                  : { key: 'senderMark.why.trustedSender', values: { authenticated } };
+            return trustedWhy(sender, authenticated, named);
         case 'verified':
             return {
                 key:
@@ -242,6 +238,19 @@ function authorStep(sender: MailSenderVerdict, domain: string): VerificationStep
     }
 }
 
+function trustedWhy(sender: MailSenderVerdict, authenticated: string, named: Named): Said {
+    switch (sender.trustSource) {
+        case 'OrganizationMember':
+            return organizationMemberWhy(sender.trustOrganization);
+        case 'OwnAccountAddress':
+            return { key: 'senderMark.why.trustedOwnAddress', values: { authenticated, address: named.address } };
+        case 'OwnAccountDomain':
+            return { key: 'senderMark.why.trustedOwnDomain', values: { authenticated, domain: named.domain } };
+        default:
+            return { key: 'senderMark.why.trustedSender', values: { authenticated } };
+    }
+}
+
 // An organization deleted since keeps the reason and loses only the name it would have been shown under.
 function organizationMemberWhy(organization: string | null): Said {
     return organization === null
@@ -270,13 +279,21 @@ function trustStep(sender: MailSenderVerdict, named: Named): VerificationStep {
     if (sender.deploymentTrust !== 'Trusted') {
         return step('senderMark.step.trustedSender', 'Failed', 'senderMark.trust.unrecognized', {
             address: named.address,
-            domain: named.domain,
         });
     }
 
-    return sender.trustSource === 'OwnAccountDomain'
-        ? step('senderMark.step.trustedSender', 'Passed', 'senderMark.trust.ownDomain', { domain: named.domain })
-        : step('senderMark.step.trustedSender', 'Passed', 'senderMark.trust.trustedSenders');
+    switch (sender.trustSource) {
+        case 'OwnAccountAddress':
+            return step('senderMark.step.trustedSender', 'Passed', 'senderMark.trust.ownAddress', {
+                address: named.address,
+            });
+        case 'OwnAccountDomain':
+            return step('senderMark.step.trustedSender', 'Passed', 'senderMark.trust.ownDomain', {
+                domain: named.domain,
+            });
+        default:
+            return step('senderMark.step.trustedSender', 'Passed', 'senderMark.trust.trustedSenders');
+    }
 }
 
 // What a step says when nothing more particular applies: one not reached because an earlier one did not pass, one the

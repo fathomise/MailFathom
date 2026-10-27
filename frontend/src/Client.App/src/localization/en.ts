@@ -1519,6 +1519,8 @@ export const en = {
         'Its signature does not match its content: it was changed after it was signed, or the signature is forged.',
     'senderMark.why.authenticationFailed':
         '{domain} did not authenticate this message, so it may not come from who it names.',
+    'senderMark.why.trustedOwnAddress':
+        '{authenticated} authenticated this message, and {address} is one of your own addresses.',
     'senderMark.why.trustedOwnDomain':
         '{authenticated} authenticated this message, and {domain} is a domain of your own accounts.',
     'senderMark.why.trustedSender':
@@ -1585,6 +1587,7 @@ export const en = {
     'senderMark.author.failedNobody': '{domain} is not established as the author. No domain authenticated the message.',
     'senderMark.author.notEstablished': 'Not established: nothing tied {domain} to the message.',
     'senderMark.trust.skipped': 'Skipped, because the author was not authenticated.',
+    'senderMark.trust.ownAddress': '{address} is one of your own addresses.',
     'senderMark.trust.ownDomain': '{domain} is a domain of your own accounts.',
     'senderMark.trust.trustedSenders': "The sender is on this account's trusted senders.",
     'senderMark.trust.organizationMember':
@@ -1592,7 +1595,7 @@ export const en = {
     'senderMark.trust.organizationMemberDeleted':
         "A member of your organization. The organization's signature proves the message comes from {address}; the organization has since been deleted, so its name is not shown.",
     'senderMark.trust.unrecognized':
-        "This account does not recognize {address}: it is not on the account's trusted senders, and {domain} is not a domain of your own accounts.",
+        "This account does not recognize {address}: it is not one of your own addresses, and it is not on the account's trusted senders.",
     'senderMark.signed.not':
         'Not signed: the message carries no S/MIME or OpenPGP signature, so there is nothing to verify.',
     'senderMark.signed.detachedAt': 'S/MIME, detached (multipart/signed), signed {when}.',

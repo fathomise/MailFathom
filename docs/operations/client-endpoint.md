@@ -1590,7 +1590,7 @@ combined into them here.
 | `dkimDomain` | The domain whose DKIM signature passed, or `null` where none did |
 | `spfDomain` | The domain whose SPF check passed, or `null` where none did or none was evaluated |
 | `dmarc` | `NotReported`, `Pass`, `Fail`, `NoPolicyPublished`, `TemporaryError`, `PermanentError` |
-| `trustSource` | `OwnAccountDomain`, `ConfiguredTrustedSender`, `StoredTrustedSender`, `OrganizationMember`, or `null` where nothing recognized the author |
+| `trustSource` | `OwnAccountDomain`, `ConfiguredTrustedSender`, `StoredTrustedSender`, `OrganizationMember`, `OwnAccountAddress`, or `null` where nothing recognized the author |
 | `trustOrganization` | The current display name of the organization whose signature recognized the author, present only where `trustSource` is `OrganizationMember` and that organization still exists; `null` otherwise |
 
 `authenticationSource` names which reading produced the verdict rather than asserting that a server established
@@ -1600,8 +1600,9 @@ nobody checked from `ReceivingServer` beside an `authorAuthentication` of `NotEs
 reports `NotReported` for DMARC. All three domains are published in the form they are stored in, which is upper-case
 ASCII with an internationalized name in its ASCII encoding, so a screen that wants another spelling makes it.
 
-**`trustSource` names what recognized the author, never which entry matched.** `OwnAccountDomain` is a domain of an
-account this deployment synchronizes, `ConfiguredTrustedSender` an entry on the receiving account's configured
+**`trustSource` names what recognized the author, never which entry matched.** `OwnAccountAddress` is one of the
+addresses the receiving account's owner holds, `OwnAccountDomain` a domain of one of the owner's accounts on an account
+that opted into those, `ConfiguredTrustedSender` an entry on the receiving account's configured
 trusted-sender list, `StoredTrustedSender` one somebody added to its stored list, and `OrganizationMember` a signature
 of the receiving account's organization proving the author a member of it, which holds whatever `authorAuthentication`
 says ([Sender authentication](../features/sender-authentication.md)); where both lists name the author the configured

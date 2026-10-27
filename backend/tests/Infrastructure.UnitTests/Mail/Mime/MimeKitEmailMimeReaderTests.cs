@@ -825,7 +825,7 @@ public sealed class MimeKitEmailMimeReaderTests
         var key = OrganizationSignatureFixtures.CreateKey();
         var directory = OrganizationDirectory().Holding(SigningOrganization, key);
         var policies = Substitute.For<ISenderTrustPolicyReader>();
-        policies.GetTrustPolicy(MimeFixtures.Account).Returns(SenderTrustPolicy.Create([], [], []));
+        policies.GetTrustPolicy(MimeFixtures.Account).Returns(SenderTrustPolicy.Create([], [], [], []));
         var reader = new SenderTrustEvaluatingEmailMimeReader(OrganizationReader(directory), policies);
         var stored = OrganizationSigned(key);
         var beforeRevocation = await reader.ReadMetadataAsync(MimeFixtures.Account, stored, TestContext.Current.CancellationToken);
