@@ -7,7 +7,7 @@ using MailFathom.Domain.Emails.Signatures;
 
 namespace MailFathom.Application.Emails.Summaries;
 
-/// <summary>The conclusions a stored email carries about the author it displays, read back as they were stored.</summary>
+/// <summary>The conclusions a stored email carries about the author it displays, read back as they were stored, beside the current name of the organization that recognized the author.</summary>
 /// <remarks>
 /// <para>
 /// The first two are never collapsed into one value. <see cref="AuthorAuthentication" /> is what the receiving mail server
@@ -24,7 +24,9 @@ namespace MailFathom.Application.Emails.Summaries;
 /// <para>
 /// It is read rather than reached. Nothing on a read path evaluates a policy, resolves DNS, or re-reads a header to
 /// produce it: the values are the columns extraction wrote, and a message extraction never reached carries
-/// <see cref="NotEstablished" /> because that is what its row holds.
+/// <see cref="NotEstablished" /> because that is what its row holds. The one exception is
+/// <see cref="RecognizingOrganizationName" />, which is read from the organization the row refers to rather than
+/// written by extraction, so a rename reaches mail already stored.
 /// </para>
 /// </remarks>
 public sealed record SenderVerification

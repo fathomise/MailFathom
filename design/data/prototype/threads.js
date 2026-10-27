@@ -602,6 +602,7 @@ Notes and recordings: [hiring/frontend-2026](https://company.example/hiring/fron
   },
   {
     id: "handover1",
+    acc: "acc2",
     from: "Olga Mazur",
     org: "",
     time: "21.08",

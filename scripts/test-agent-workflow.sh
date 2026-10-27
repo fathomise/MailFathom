@@ -11816,6 +11816,8 @@ senders.ts verifiedSignature GET /api/client/messages/{storedEmailId}
 senders.ts failedSignature GET /api/client/messages/{storedEmailId}
 senders.ts authenticated GET /api/client/messages/{storedEmailId}
 senders.ts trusted GET /api/client/messages/{storedEmailId}
+senders.ts organizationMember GET /api/client/messages/{storedEmailId}
+senders.ts deletedOrganizationMember GET /api/client/messages/{storedEmailId}
 senders.ts evidence - -
 senders.ts listedSender GET /api/client/emails
 outbox.ts waitingSend GET /api/client/outbox
