@@ -141,7 +141,7 @@ export async function openAccountMenu(page: Page): Promise<void> {
     // and the overflow, so in a narrow window what is about the person stands one press further in — which is where
     // the design puts it and what this helper has to know to reach it at either width.
     if (!(await control.isVisible())) {
-        await page.getByRole('button', { name: 'More' }).click();
+        await page.getByRole('button', { name: 'More', exact: true }).click();
     }
 
     await control.click();
