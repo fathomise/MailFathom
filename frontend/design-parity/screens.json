@@ -892,7 +892,7 @@
         },
         {
           "expect": {
-            "text": "The message source could not be read: no longer there."
+            "text": "The message source could not be read: unavailable."
           }
         }
       ]

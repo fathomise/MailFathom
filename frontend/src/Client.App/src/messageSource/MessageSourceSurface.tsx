@@ -68,6 +68,18 @@ export function MessageSourceSurface({
     const [attempt, setAttempt] = useState(0);
     const [answered, setAnswered] = useState<Answered | null>(null);
     const { read, online } = reading;
+    const [connected, setConnected] = useState(online);
+
+    // A failure the network gap itself caused goes with the gap, so what stands while there is no network is the
+    // offline line rather than a refusal to press through, and coming back reads the source with the skeleton up.
+    // Adjusted during render, as `fullHtml/FullHtmlSurface.tsx` answers the same change.
+    if (connected !== online) {
+        setConnected(online);
+
+        if (!online && answered?.result.outcome === 'failed') {
+            setAnswered(null);
+        }
+    }
 
     // Opening the surface is a view change, so focus goes to the start of it.
     const region = useRef<HTMLElement>(null);
@@ -185,9 +197,14 @@ function SourceBody({
                     {translate('source.failed', { reason: translate(failureLabels[result.failure.reason]) })}
                 </p>
 
-                <button type="button" className={backOutlined} onClick={onRetry}>
-                    {translate('connection.retry')}
-                </button>
+                {/* Reading again is the way out of one failure alone, for the reason `shell/ConnectionSummary.tsx`
+                    gives: a copy that is gone, a credential refused, and an answer that could not be read each repeat
+                    identically on a second attempt. */}
+                {result.failure.reason === 'unavailable' ? (
+                    <button type="button" className={backOutlined} onClick={onRetry}>
+                        {translate('connection.retry')}
+                    </button>
+                ) : null}
             </div>
         );
     }

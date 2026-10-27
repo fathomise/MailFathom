@@ -49,19 +49,26 @@ function deploymentAnswering(...answers: readonly (ClientResponse | 'pending')[]
 }
 
 function drawMoreActions(transport: MailFathomTransport, online = true) {
-    const reading = { read: (storedEmailId: string) => readMailSource(session, transport, storedEmailId), online };
-    const drawn = (storedEmailId: string | null) => (
+    const read = (storedEmailId: string) => readMailSource(session, transport, storedEmailId);
+    let standing: string | null = messageId;
+    let connected = online;
+    const drawn = () => (
         <LocalizationProvider>
-            <MessageSourceReadingContext value={reading}>
-                <MoreActions storedEmailId={storedEmailId} subject="Quarterly invoice" />
+            <MessageSourceReadingContext value={{ read, online: connected }}>
+                <MoreActions storedEmailId={standing} subject="Quarterly invoice" />
             </MessageSourceReadingContext>
         </LocalizationProvider>
     );
-    const { rerender } = render(drawn(messageId));
+    const { rerender } = render(drawn());
 
     return {
         standOver: (storedEmailId: string | null) => {
-            rerender(drawn(storedEmailId));
+            standing = storedEmailId;
+            rerender(drawn());
+        },
+        connect: (now: boolean) => {
+            connected = now;
+            rerender(drawn());
         },
     };
 }
@@ -156,7 +163,7 @@ describe('MoreActions', () => {
 
     it('says why the source could not be read and reads it again when asked', async () => {
         const { transport, asked } = deploymentAnswering(
-            { status: 404, body: '', headers: {} },
+            { status: 503, body: '', headers: {} },
             { status: 200, body: source, headers: {} },
         );
 
@@ -164,10 +171,44 @@ describe('MoreActions', () => {
         showSource();
 
         expect((await screen.findByRole('alert')).textContent).toContain(
-            'The message source could not be read: no longer there.',
+            'The message source could not be read: unavailable.',
         );
 
         fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+        expect(await screen.findByText(/The invoice is attached\./u)).toBeDefined();
+        expect(asked).toHaveLength(2);
+    });
+
+    it('offers no second try for a copy that is no longer there, which would answer the same', async () => {
+        const { transport } = deploymentAnswering({ status: 404, body: '', headers: {} });
+
+        drawMoreActions(transport);
+        showSource();
+
+        expect((await screen.findByRole('alert')).textContent).toContain(
+            'The message source could not be read: no longer there.',
+        );
+        expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    });
+
+    it('lets a failure go with the network and reads the source again once it is back', async () => {
+        const { transport, asked } = deploymentAnswering(
+            { status: 503, body: '', headers: {} },
+            { status: 200, body: source, headers: {} },
+        );
+
+        const { connect } = drawMoreActions(transport);
+        showSource();
+        await screen.findByRole('alert');
+
+        connect(false);
+
+        expect(await screen.findByText(/This machine is offline/u)).toBeDefined();
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+
+        connect(true);
 
         expect(await screen.findByText(/The invoice is attached\./u)).toBeDefined();
         expect(asked).toHaveLength(2);

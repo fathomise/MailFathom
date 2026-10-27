@@ -120,12 +120,12 @@ describe('fixtureAnswer', () => {
         expect(page['previousCursor']).toBe('200');
     });
 
-    it('answers a message as it arrived, and the one whose copy is gone as missing', () => {
+    it('answers a message as it arrived, and the one it fails to serve as unavailable', () => {
         expect(answered(`/messages/${messages.newsletterId}/source`)).toMatchObject({
             status: 200,
             body: messages.newsletterSource,
         });
-        expect(answered(`/messages/${messages.unreadableSourceId}/source`).status).toBe(404);
+        expect(answered(`/messages/${messages.unavailableSourceId}/source`).status).toBe(503);
     });
 
     it('answers a message with the identity that was asked for rather than the corpus own', () => {

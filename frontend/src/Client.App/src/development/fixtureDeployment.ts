@@ -803,10 +803,10 @@ function messageAnswer(route: string, asked: URLSearchParams): ClientResponse | 
     const spamRow = mail.spamRows.find((row) => row.id === storedEmailId);
 
     // The one read answered as text rather than JSON: the message as it arrived, whichever message was asked for but the
-    // one whose copy is gone. The one never answered is held back before this, in the transport.
+    // one the deployment fails to serve. The one never answered is held back before this, in the transport.
     if (route.endsWith('/source')) {
-        return storedEmailId === messages.unreadableSourceId
-            ? { status: 404, body: '', headers: {} }
+        return storedEmailId === messages.unavailableSourceId
+            ? { status: 503, body: '', headers: {} }
             : {
                   status: 200,
                   body: messages.newsletterSource,

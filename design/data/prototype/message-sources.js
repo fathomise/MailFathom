@@ -18,8 +18,8 @@ MailFathomDesign.data.messageSources = {
     "Pn6vQx0WcZ5oHdJ8eAfGi4uNlT2rV7yXk9BgMpSa==",
   ],
 
-  // The one message whose source the deployment could not serve: its local copy is missing, so the surface draws
-  // the error with a way to try again, and the second try arrives.
+  // The one message whose source the deployment did not answer for: the surface draws the error with a way to try
+  // again, which is offered for that failure alone, and the second try arrives.
   failsFor: ["devops1"],
 
   // The one whose source is larger than the client is sent whole: the first part stands with a line saying where it

@@ -34,8 +34,8 @@ export const markupOnlySubject = 'Your order is on its way';
 /** What the one attached file holds — small enough to state here, and large enough to arrive as more than nothing. */
 export const attachedOctets = 'order,quantity\nkettle,1\n';
 
-/** The second row of the inbox, whose local copy is gone, so asking for its source answers `404`. */
-export const unreadableSourceId = 'message-1';
+/** The second row of the inbox, whose source the deployment fails to serve, so asking for it answers `503`. */
+export const unavailableSourceId = 'message-1';
 
 /** The third row of the inbox, whose source is asked for and never answered, so a capture finds it still on the wire. */
 export const waitingSourceId = 'message-2';

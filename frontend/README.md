@@ -427,7 +427,7 @@ drawn by, the octets of a file a message carries, and the signal channel, each o
 `deployment/` or opens a connection of its own — so they answer as a deployment that is not there, which every screen
 drawing one already has a state for. What the client's own telemetry export reports in the console is the same thing.
 Two of the inbox's messages answer their raw source in a state rather than at rest, so the parity loop can reach both:
-the second row's copy is gone and its source answers `404`, and the third row's source is never answered, so its
+the deployment fails to serve the second row's source and answers `503`, and the third row's source is never answered, so its
 skeleton stands until the surface is closed.
 
 [`tests/AGENTS.md`](tests/AGENTS.md) is where all four suites' policy is decided, including which check belongs to
