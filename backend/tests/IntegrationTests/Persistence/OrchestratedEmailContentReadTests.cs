@@ -7,6 +7,7 @@ using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Infrastructure.Persistence;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.IntegrationTests.Orchestration;
@@ -31,6 +32,8 @@ public sealed class OrchestratedEmailContentReadTests(MailFathomOrchestrationFix
     private const uint LookedUpUid = 41;
 
     private const uint RepairedUid = 42;
+
+    private const uint OrganizationTrustedUid = 43;
 
     /// <summary>The lookup answers from the same projection a listing does, and reaches no stored payload doing it.</summary>
     [Fact]
@@ -64,6 +67,71 @@ public sealed class OrchestratedEmailContentReadTests(MailFathomOrchestrationFix
         // An identifier nothing stored is an ordinary answer rather than a failure, which is what lets the use case
         // decide what absence means.
         Assert.Null(unknown);
+    }
+
+    /// <summary>
+    /// The organization that recognized a member is named as it reads now: by its name, by a new name after a rename, and
+    /// by none once it is deleted, the reason standing throughout.
+    /// </summary>
+    [Fact]
+    public async Task FindAsync_AMemberAnOrganizationRecognized_NamesTheOrganizationAsItReadsNow()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var binding = await OrchestratedFolderBinding.CommitAsync(services, FolderAlias, cancellationToken);
+        var occurrenceId = SyntheticEmail.OccurrenceIn(binding, OrganizationTrustedUid);
+        var storedEmailId = await StoreMetadataAsync(services, occurrenceId, "From a colleague", cancellationToken);
+        var organizationId = Guid.CreateVersion7();
+        await services.InScopeAsync(
+            async (scope, token) =>
+            {
+                var dbContext = scope.GetRequiredService<MailFathomDbContext>();
+                dbContext.Organizations.Add(new OrganizationEntity
+                {
+                    Id = organizationId,
+                    DisplayName = "Nordwind",
+                    ShortName = organizationId.ToString("N").ToUpperInvariant(),
+                    CreatedAt = DateTimeOffset.UnixEpoch,
+                });
+                await dbContext.SaveChangesAsync(token);
+
+                return await dbContext.StoredEmails
+                    .Where(email => email.Id == storedEmailId.Value)
+                    .ExecuteUpdateAsync(
+                        setters => setters
+                            .SetProperty(email => email.SenderTrustLevel, SenderTrustLevel.Trusted)
+                            .SetProperty(email => email.SenderTrustGrantedBy, SenderTrustSource.OrganizationMember)
+                            .SetProperty(email => email.SenderTrustOrganizationId, organizationId),
+                        token);
+            },
+            cancellationToken);
+
+        // Act
+        var named = await FindAsync(services, storedEmailId, cancellationToken);
+        await UpdateOrganizationsAsync(
+            services,
+            (organizations, token) => organizations
+                .Where(organization => organization.Id == organizationId)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(organization => organization.DisplayName, "Nordwind Group"),
+                    token),
+            cancellationToken);
+        var renamed = await FindAsync(services, storedEmailId, cancellationToken);
+        await UpdateOrganizationsAsync(
+            services,
+            (organizations, token) => organizations
+                .Where(organization => organization.Id == organizationId)
+                .ExecuteDeleteAsync(token),
+            cancellationToken);
+        var deleted = await FindAsync(services, storedEmailId, cancellationToken);
+
+        // Assert
+        Assert.Equal("Nordwind", named?.SenderVerification.RecognizingOrganizationName);
+        Assert.Equal("Nordwind Group", renamed?.SenderVerification.RecognizingOrganizationName);
+        Assert.NotNull(deleted);
+        Assert.Equal(SenderTrustSource.OrganizationMember, deleted.SenderVerification.DeploymentTrustGrantedBy);
+        Assert.Null(deleted.SenderVerification.RecognizingOrganizationName);
     }
 
     /// <summary>A second read of the same damaged message leaves one request, with a count that has moved.</summary>
@@ -118,6 +186,20 @@ public sealed class OrchestratedEmailContentReadTests(MailFathomOrchestrationFix
         // statement guarantees against a straggler is that the stored value never goes backwards, which is a property
         // of GREATEST rather than something a sequential pair of writes can exhibit.
     }
+
+    private static Task<EmailSummary?> FindAsync(
+        OrchestratedMailFathomServices services,
+        StoredEmailId storedEmailId,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<IStoredEmailSummaryReader>().FindAsync(storedEmailId, token),
+            cancellationToken);
+
+    private static Task UpdateOrganizationsAsync(
+        OrchestratedMailFathomServices services,
+        Func<IQueryable<OrganizationEntity>, CancellationToken, Task<int>> update,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            (scope, token) => update(scope.GetRequiredService<MailFathomDbContext>().Organizations, token),
+            cancellationToken);
 
     private static Task<EmailContentRepairRequestEntity[]> ReadRequestsAsync(
         OrchestratedMailFathomServices services,

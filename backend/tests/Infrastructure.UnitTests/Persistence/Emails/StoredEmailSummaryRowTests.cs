@@ -39,7 +39,7 @@ public sealed class StoredEmailSummaryRowTests
         var row = RowWith(MachineAuthorshipBand.Likely, stored);
 
         // Act
-        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>());
+        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>(), new Dictionary<Guid, string>());
 
         // Assert
         Assert.Equal(0, summary.MachineAuthorship.Likelihood);
@@ -54,7 +54,7 @@ public sealed class StoredEmailSummaryRowTests
         var row = RowWith(MachineAuthorshipBand.Possible, 0.42);
 
         // Act
-        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>());
+        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>(), new Dictionary<Guid, string>());
 
         // Assert
         Assert.Equal(0.42, summary.MachineAuthorship.Likelihood);
@@ -70,7 +70,7 @@ public sealed class StoredEmailSummaryRowTests
         var row = RowWith(MachineAuthorshipBand.NotAssessed, 0.9);
 
         // Act
-        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>());
+        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>(), new Dictionary<Guid, string>());
 
         // Assert
         Assert.Same(MachineAuthorshipAssessment.NotAssessed, summary.MachineAuthorship);
@@ -91,7 +91,7 @@ public sealed class StoredEmailSummaryRowTests
         var row = RowWith(MachineAuthorshipBand.NotAssessed, 0, recorded);
 
         // Act
-        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>());
+        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>(), new Dictionary<Guid, string>());
 
         // Assert
         Assert.Equal(recorded, summary.Spam);
@@ -106,7 +106,7 @@ public sealed class StoredEmailSummaryRowTests
         var row = RowWith(MachineAuthorshipBand.NotAssessed, 0);
 
         // Act
-        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>());
+        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>(), new Dictionary<Guid, string>());
 
         // Assert
         Assert.Null(summary.Spam);
@@ -147,7 +147,7 @@ public sealed class StoredEmailSummaryRowTests
             "SHA-256"));
 
         // Act
-        var signature = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>()).SenderVerification.Signature;
+        var signature = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>(), new Dictionary<Guid, string>()).SenderVerification.Signature;
 
         // Assert
         Assert.Equal(EmailSignatureOutcome.Verified, signature.Outcome);
@@ -166,7 +166,7 @@ public sealed class StoredEmailSummaryRowTests
         var row = RowWith(MachineAuthorshipBand.NotAssessed, 0);
 
         // Act
-        var signature = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>()).SenderVerification.Signature;
+        var signature = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>(), new Dictionary<Guid, string>()).SenderVerification.Signature;
 
         // Assert
         Assert.Equal(EmailSignature.NotSigned, signature);
@@ -193,7 +193,7 @@ public sealed class StoredEmailSummaryRowTests
         };
 
         // Act
-        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>());
+        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>(), new Dictionary<Guid, string>());
 
         // Assert
         Assert.Equal("RELAY.EXAMPLE", summary.SenderAuthenticationEvidence.DkimDomain?.Value);
@@ -209,12 +209,64 @@ public sealed class StoredEmailSummaryRowTests
         var row = RowWith(MachineAuthorshipBand.NotAssessed, 0);
 
         // Act
-        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>());
+        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>(), new Dictionary<Guid, string>());
 
         // Assert
         Assert.Null(summary.SenderAuthenticationEvidence.DkimDomain);
         Assert.Null(summary.SenderAuthenticationEvidence.SpfDomain);
         Assert.Equal(SenderTrustSource.None, summary.SenderVerification.DeploymentTrustGrantedBy);
+    }
+
+    /// <summary>
+    /// A row an organization's signature recognized reads back that organization's current name, so a rename since the
+    /// message was stored reaches it.
+    /// </summary>
+    [Fact]
+    public void ToSummary_ARowAnOrganizationRecognized_CarriesTheOrganizationsCurrentName()
+    {
+        // Arrange
+        var organizationId = Guid.CreateVersion7();
+        var row = RowWith(MachineAuthorshipBand.NotAssessed, 0) with
+        {
+            SenderTrustLevel = SenderTrustLevel.Trusted,
+            SenderTrustGrantedBy = SenderTrustSource.OrganizationMember,
+            SenderTrustOrganizationId = organizationId,
+        };
+
+        // Act
+        var summary = row.ToSummary(
+            new Dictionary<Guid, IReadOnlyList<string>>(),
+            new Dictionary<Guid, string> { [organizationId] = "Nordwind" });
+
+        // Assert
+        Assert.Equal(SenderTrustSource.OrganizationMember, summary.SenderVerification.DeploymentTrustGrantedBy);
+        Assert.Equal("Nordwind", summary.SenderVerification.RecognizingOrganizationName);
+    }
+
+    /// <summary>
+    /// A row whose organization was deleted since keeps the reason and carries no name, whether the column was cleared
+    /// or still names an organization the names no longer hold.
+    /// </summary>
+    /// <param name="namesTheOrganization">Whether the row's column still names the deleted organization.</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ToSummary_ARowWhoseOrganizationWasDeleted_KeepsTheReasonWithoutAName(bool namesTheOrganization)
+    {
+        // Arrange
+        var row = RowWith(MachineAuthorshipBand.NotAssessed, 0) with
+        {
+            SenderTrustLevel = SenderTrustLevel.Trusted,
+            SenderTrustGrantedBy = SenderTrustSource.OrganizationMember,
+            SenderTrustOrganizationId = namesTheOrganization ? Guid.CreateVersion7() : null,
+        };
+
+        // Act
+        var summary = row.ToSummary(new Dictionary<Guid, IReadOnlyList<string>>(), new Dictionary<Guid, string>());
+
+        // Assert
+        Assert.Equal(SenderTrustSource.OrganizationMember, summary.SenderVerification.DeploymentTrustGrantedBy);
+        Assert.Null(summary.SenderVerification.RecognizingOrganizationName);
     }
 
     private static StoredEmailSignatureRow NotSignedRow() => new(
@@ -286,6 +338,7 @@ public sealed class StoredEmailSummaryRowTests
         DkimSignerDomain: null,
         SpfMailFromDomain: null,
         SenderTrustSource.None,
+        SenderTrustOrganizationId: null,
         band,
         likelihood,
         MachineAuthorshipSignals.HiddenCharacters,

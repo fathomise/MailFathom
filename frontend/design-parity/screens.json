@@ -232,6 +232,68 @@
       ]
     },
     {
+      "id": "mail-sender-organization",
+      "route": "/#/mail",
+      "signIn": true,
+      "steps": [
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Messages"
+          }
+        },
+        {
+          "click": {
+            "role": "option",
+            "nth": 6
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Trusted sender"
+          }
+        },
+        {
+          "expect": {
+            "role": "heading",
+            "name": "Trusted sender"
+          }
+        }
+      ]
+    },
+    {
+      "id": "mail-sender-organization-deleted",
+      "route": "/#/mail",
+      "signIn": true,
+      "steps": [
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Messages"
+          }
+        },
+        {
+          "click": {
+            "role": "option",
+            "nth": 5
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Trusted sender"
+          }
+        },
+        {
+          "expect": {
+            "role": "heading",
+            "name": "Trusted sender"
+          }
+        }
+      ]
+    },
+    {
       "id": "mail-sender-badge",
       "route": "/#/mail",
       "signIn": true,

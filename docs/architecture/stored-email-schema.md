@@ -146,8 +146,10 @@ states the rule the verdict follows.
 organization whose signature recognized the author. It is a foreign key onto `organizations` with `ON DELETE SET NULL`,
 so deleting an organization keeps every verdict it reached and loses only which organization it was, and
 the partial index `ix_stored_emails_sender_trust_organization` over the rows that carry one is what lets that deletion
-find them without reading the whole table. A receiving account's organization is also part of the revision of every
-verdict reached under it, so a revision says whose keys were consulted.
+find them without reading the whole table. No name is copied onto the row: a read of a message's summary reads the
+display name of every organization its rows name in one more query, by primary key and only where a row names one, so
+a rename reaches stored mail and a deleted organization reads as none. A receiving account's organization is also part
+of the revision of every verdict reached under it, so a revision says whose keys were consulted.
 
 ### The machine-authorship reading
 

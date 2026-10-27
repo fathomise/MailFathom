@@ -63,6 +63,7 @@ const authenticated: MailSenderVerdict = {
     spfDomain: 'CONTOSO.EXAMPLE',
     dmarc: 'Pass',
     trustSource: null,
+    trustOrganization: null,
 };
 
 function message(sender: MailSenderVerdict, signature: MailSignature = unsigned): MailMessage {
@@ -213,19 +214,41 @@ describe('senderVerificationOf', () => {
     });
 
     // The organization's signature proves the address rather than a domain, so it holds where no author was established.
-    it('passes the trust step for a member of the reader’s organization, whatever sender authentication found', () => {
+    it('passes the trust step for a member of the reader’s organization, naming it, whatever sender authentication found', () => {
         const member = message({
             ...authenticated,
             authorAuthentication: 'NotEstablished',
             authenticatedDomain: null,
             deploymentTrust: 'Trusted',
             trustSource: 'OrganizationMember',
+            trustOrganization: 'Nordwind',
         });
 
-        expect(senderVerificationOf(member, asSent).why).toEqual({ key: 'senderMark.why.trustedOrganizationMember' });
+        expect(senderVerificationOf(member, asSent).why).toEqual({
+            key: 'senderMark.why.trustedOrganizationMember',
+            values: { organization: 'Nordwind' },
+        });
         expect(stepNamed(member, 'senderMark.step.trustedSender')).toMatchObject({
             result: 'Passed',
-            detail: { key: 'senderMark.trust.organizationMember', values: { address: 'a.kowalska@contoso.example' } },
+            detail: {
+                key: 'senderMark.trust.organizationMember',
+                values: { organization: 'Nordwind', address: 'a.kowalska@contoso.example' },
+            },
+        });
+    });
+
+    it('passes the trust step for a member of an organization deleted since, saying why it names none', () => {
+        const member = message({ ...authenticated, deploymentTrust: 'Trusted', trustSource: 'OrganizationMember' });
+
+        expect(senderVerificationOf(member, asSent).why).toEqual({
+            key: 'senderMark.why.trustedOrganizationMemberDeleted',
+        });
+        expect(stepNamed(member, 'senderMark.step.trustedSender')).toMatchObject({
+            result: 'Passed',
+            detail: {
+                key: 'senderMark.trust.organizationMemberDeleted',
+                values: { address: 'a.kowalska@contoso.example' },
+            },
         });
     });
 

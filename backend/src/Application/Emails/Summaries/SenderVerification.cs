@@ -54,6 +54,15 @@ public sealed record SenderVerification
     /// </remarks>
     public SenderTrustSource DeploymentTrustGrantedBy { get; init; } = SenderTrustSource.None;
 
+    /// <summary>Gets the current display name of the organization whose signature recognized the author, or <see langword="null" /> where none did or it has since been deleted.</summary>
+    /// <remarks>
+    /// The one value here that is not read back as it was stored. The verdict records the organization rather than its
+    /// name, so this is that organization's name as it reads now: a rename reaches mail already stored, and a deletion
+    /// leaves <see cref="DeploymentTrustGrantedBy" /> naming the organization source with no name beside it. It is
+    /// personal data like the rest of the verdict.
+    /// </remarks>
+    public string? RecognizingOrganizationName { get; init; }
+
     /// <summary>Gets what verifying the message's own signature found, which is not signed for every message that carries none.</summary>
     /// <remarks>Mail stored before signatures were verified reads as not signed until a re-derivation reaches it.</remarks>
     public EmailSignature Signature { get; init; } = EmailSignature.NotSigned;

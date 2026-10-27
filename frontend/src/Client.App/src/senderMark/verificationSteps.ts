@@ -132,7 +132,7 @@ function whyOf(mark: SenderMark, sender: MailSenderVerdict, signature: MailSigna
             return { key: 'senderMark.why.authenticationFailed', values: { domain: named.domain } };
         case 'trusted':
             return sender.trustSource === 'OrganizationMember'
-                ? { key: 'senderMark.why.trustedOrganizationMember' }
+                ? organizationMemberWhy(sender.trustOrganization)
                 : sender.trustSource === 'OwnAccountDomain'
                   ? { key: 'senderMark.why.trustedOwnDomain', values: { authenticated, domain: named.domain } }
                   : { key: 'senderMark.why.trustedSender', values: { authenticated } };
@@ -242,13 +242,25 @@ function authorStep(sender: MailSenderVerdict, domain: string): VerificationStep
     }
 }
 
+// An organization deleted since keeps the reason and loses only the name it would have been shown under.
+function organizationMemberWhy(organization: string | null): Said {
+    return organization === null
+        ? { key: 'senderMark.why.trustedOrganizationMemberDeleted' }
+        : { key: 'senderMark.why.trustedOrganizationMember', values: { organization } };
+}
+
 function trustStep(sender: MailSenderVerdict, named: Named): VerificationStep {
     // The organization's signature proves the address itself rather than a domain, so it is the one source that holds
     // whatever sender authentication found.
     if (sender.deploymentTrust === 'Trusted' && sender.trustSource === 'OrganizationMember') {
-        return step('senderMark.step.trustedSender', 'Passed', 'senderMark.trust.organizationMember', {
-            address: named.address,
-        });
+        return sender.trustOrganization === null
+            ? step('senderMark.step.trustedSender', 'Passed', 'senderMark.trust.organizationMemberDeleted', {
+                  address: named.address,
+              })
+            : step('senderMark.step.trustedSender', 'Passed', 'senderMark.trust.organizationMember', {
+                  organization: sender.trustOrganization,
+                  address: named.address,
+              });
     }
 
     if (sender.authorAuthentication !== 'Authenticated') {

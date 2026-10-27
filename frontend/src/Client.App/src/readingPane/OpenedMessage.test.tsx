@@ -61,6 +61,7 @@ const described: MailMessage = {
         spfDomain: null,
         dmarc: 'NotReported',
         trustSource: null,
+        trustOrganization: null,
     },
     signature: {
         outcome: 'NotSigned',

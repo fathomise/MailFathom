@@ -146,6 +146,7 @@ function messageBody(overrides: Readonly<Record<string, unknown>> = {}): string 
             spfDomain: null,
             dmarc: 'NotReported',
             trustSource: null,
+            trustOrganization: null,
         },
         signature: {
             outcome: 'NotSigned',

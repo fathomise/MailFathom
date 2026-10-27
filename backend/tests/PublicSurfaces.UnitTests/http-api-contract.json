@@ -3407,6 +3407,12 @@
               "string"
             ]
           },
+          "trustOrganization": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "trustSource": {
             "type": [
               "null",
@@ -3422,7 +3428,8 @@
           "dkimDomain",
           "spfDomain",
           "dmarc",
-          "trustSource"
+          "trustSource",
+          "trustOrganization"
         ],
         "type": "object"
       },

@@ -200,7 +200,7 @@ function DetailsDialog({
             }`}
         >
             {/* The handle the design draws at the head of the sheet, which says a finger can push it away. */}
-            <span aria-hidden="true" className="flex shrink-0 justify-center pt-2 pb-1 desktop:hidden">
+            <span aria-hidden="true" className="flex shrink-0 justify-center py-2 desktop:hidden">
                 <span className="h-1 w-9.5 rounded-xs bg-line-strong" />
             </span>
 
@@ -297,7 +297,7 @@ function Verification({
                     </h2>
 
                     {verification.author === null ? null : (
-                        <p className="text-sm wrap-anywhere text-muted">{verification.author}</p>
+                        <p className="text-sm/natural wrap-anywhere text-muted">{verification.author}</p>
                     )}
 
                     <p className="pt-0.75 text-base/normal text-pretty text-text-soft">
@@ -311,7 +311,7 @@ function Verification({
             <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-4.5 pt-3.5 pb-5.5 desktop:pb-4.5">
                 {verification.groups.map((group) => (
                     <section key={group.name} aria-label={translate(group.name)} className="flex flex-col gap-1.5">
-                        <h3 aria-hidden="true" className="text-xs font-semibold text-muted">
+                        <h3 aria-hidden="true" className="text-xs/natural font-semibold text-muted">
                             {translate(group.name)}
                         </h3>
 
@@ -341,10 +341,10 @@ function Step({ step, keyDetails }: { readonly step: VerificationStep; readonly 
     return (
         <li className="flex flex-col gap-0.75 border-t border-line-soft py-2.5 first:border-t-0">
             <div className="flex min-w-0 items-center gap-2.5">
-                <span className="min-w-0 flex-1 text-base font-semibold text-text">{translate(step.name)}</span>
+                <span className="min-w-0 flex-1 text-base/natural font-semibold text-text">{translate(step.name)}</span>
 
                 <span
-                    className={`flex shrink-0 items-center gap-1 text-sm font-semibold whitespace-nowrap ${result.ink}`}
+                    className={`flex shrink-0 items-center gap-1 text-sm/natural font-semibold whitespace-nowrap ${result.ink}`}
                 >
                     <Icon name={result.icon} className="size-icon-sm" />
                     {translate(result.word)}
